@@ -11,4 +11,14 @@ typedef struct server server;
 struct connection;
 typedef struct connection connection;
 
+#include "plugin.h"
+
+struct server {
+	GHashTable *plugins;
+
+	size_t option_count;
+	GHashTable *options;
+	gpointer *option_def_values;
+};
+
 #endif

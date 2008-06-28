@@ -7,11 +7,14 @@ import Params
 common_uselib = 'glib '
 
 common_source='''
+	base.c
 	chunks.c
 	log.c
+	options.c
+	options_lua.c
 	sys-files.c
+	sys-socket.c
 '''
-#	sys-socket.c
 
 main_source = '''
 	server.c
@@ -68,7 +71,7 @@ def build(bld):
 	main.name = 'lighttpd'
 	main.source = common_source + main_source
 	main.target='lighttpd' + env['APPEND']
-	main.uselib += 'lighty dl openssl pcre ' + common_uselib
+	main.uselib += 'lighty dl openssl pcre lua glib ' + common_uselib
 	
 	#lighty_mod(bld, 'mod_access', 'mod_access.c')
 	#lighty_mod(bld, 'mod_alias', 'mod_alias.c')

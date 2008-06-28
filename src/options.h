@@ -9,6 +9,7 @@ typedef struct option option;
 struct option_mark;
 typedef struct option_mark option_mark;
 
+#include "base.h"
 
 struct option {
 	option_type type;
@@ -19,7 +20,7 @@ struct option {
 		/* array of option */
 		GArray *opt_list;
 		/* hash GString => option */
-		GHash *opt_hash;
+		GHashTable *opt_hash;
 	} value;
 };
 
@@ -27,5 +28,12 @@ struct option_mark {
 	size_t ndx;
 	gpointer value;
 };
+
+LI_API option* option_new_bool(gboolean val);
+LI_API option* option_new_int(gint val);
+LI_API option* option_new_string(GString *val);
+LI_API option* option_new_list();
+LI_API option* option_new_hash();
+LI_API void option_free(option* opt);
 
 #endif
