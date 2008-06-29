@@ -173,6 +173,8 @@ typedef enum { HANDLER_UNSET,
 # define UNUSED_PARAM(x) x
 #endif
 
+#define UNUSED(x) ( (void)(x) )
+
 #if __GNUC__
 #define INLINE static inline
 // # define INLINE extern inline

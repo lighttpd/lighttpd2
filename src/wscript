@@ -9,11 +9,15 @@ common_uselib = 'glib '
 common_source='''
 	base.c
 	chunks.c
+	condition.c
 	log.c
 	options.c
-	options_lua.c
 	sys-files.c
 	sys-socket.c
+'''
+
+common_source_lua='''
+	options_lua.c
 '''
 
 main_source = '''
