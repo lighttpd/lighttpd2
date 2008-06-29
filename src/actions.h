@@ -29,8 +29,19 @@ struct action
 
 	union
 	{
-		option param;
+		struct
+		{
+			option_mark opt;
+			option newvalue;
+		} setting;
+
 		condition cond;
+
+		struct
+		{
+			action_func* func;
+			gpointer param;
+		} actionfunc;
 	} value;
 
 	action* next;
