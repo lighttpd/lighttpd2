@@ -1,8 +1,3 @@
-<<<<<<< TREE
-# test
-
-# test 2
-=======
 void action_stack_init(action_stack* as)
 {
 	// preallocate a stack of 15 elements
@@ -161,4 +156,3 @@ gboolean condition_check_bool(condition* cond)
 			return FALSE;
 	}
 }
->>>>>>> MERGE-SOURCE
