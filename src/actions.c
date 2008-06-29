@@ -7,7 +7,12 @@ void action_stack_init(action_stack* as)
 
 void action_stack_push(action_stack* as, action_stack_elem ase)
 {
-	g_array_append_val(as, ase);
+	// stack needs to grow
+	if (as->index == (as->stack->len -1)) // we are at the end of the stack
+		g_array_append_val(as, ase);
+	else
+		g_array_insert_val(as, as->index, ase);
+
 	as->index++;
 }
 
@@ -15,7 +20,7 @@ void action_stack_push(action_stack* as, action_stack_elem ase)
 action_stack_elem action_stack_pop(action_stack* as)
 {
 	as->index--;
-	return g_array_index(as, action_stack_elem, as->stack->len);
+	return g_array_index(as, action_stack_elem, as->index);
 }
 
 action_result action_list_exec(action_list* al, action_stack* as, guint index)
