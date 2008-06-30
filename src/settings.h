@@ -5,7 +5,14 @@
 #include "config.h"
 #endif
 
+#if defined HAVE_LIBSSL && defined HAVE_OPENSSL_SSL_H
+# define USE_OPENSSL
+# include <openssl/ssl.h>
+#endif
+
 #include <glib.h>
+
+#include <assert.h>
 
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>

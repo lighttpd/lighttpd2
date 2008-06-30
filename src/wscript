@@ -7,6 +7,7 @@ import Params
 common_uselib = 'glib '
 
 common_source='''
+	actions.c
 	base.c
 	chunks.c
 	condition.c

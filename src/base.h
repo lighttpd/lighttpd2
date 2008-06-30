@@ -12,6 +12,8 @@ struct connection;
 typedef struct connection connection;
 
 #include "plugin.h"
+#include "actions.h"
+#include "request.h"
 
 struct server {
 	GHashTable *plugins;
@@ -19,6 +21,16 @@ struct server {
 	size_t option_count;
 	GHashTable *options;
 	gpointer *option_def_values;
+};
+
+struct connection {
+
+	sock_addr dst_addr, src_addr;
+	GString *dst_addr_str, *src_addr_str;
+
+	action_stack action_stack;
+
+	request request;
 };
 
 #endif

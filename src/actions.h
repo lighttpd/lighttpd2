@@ -1,10 +1,21 @@
 #ifndef _LIGHTTPD_ACTIONS_H_
 #define _LIGHTTPD_ACTIONS_H_
 
-typedef enum { ACTION_RESULT_GO_ON, ACTION_RESULT_BREAK, ACTION_RESULT_WAIT_FOR_EVENT } action_result;
+#include "settings.h"
+
+typedef enum {
+	ACTION_GO_ON,
+	ACTION_FINISHED,
+	ACTION_ERROR,
+	ACTION_WAIT_FOR_EVENT
+} action_result;
 
 // action type
-typedef enum { ACTION_SETTING, ACTION_FUNCTION, ACTION_CONDITION } action_type;
+typedef enum {
+	ACTION_TSETTING,
+	ACTION_TFUNCTION,
+	ACTION_TCONDITION
+} action_type;
 
 struct action;
 typedef struct action action;
@@ -15,61 +26,51 @@ typedef struct action_list action_list;
 struct action_stack;
 typedef struct action_stack action_stack;
 
-
-
-
-struct action_list {
-	GArray* actions;
-	guint refcount;
-};
-
 struct action_stack {
 	GArray* stack;
-	guint index;
 };
 
-struct action_stack_elem {
-	action_list* al;
-	guint index;
+struct server; struct connection;
+typedef action_result (*action_func)(struct server *srv, struct connection *con, void* param);
+
+#include "condition.h"
+
+struct action_list {
+	gint refcount;
+
+	GArray* actions; /** array of (action*) */
 };
-typedef struct action_stack_elem action_stack_elem;
 
 struct action {
+	gint refcount;
 	action_type type;
 
 	union {
 		struct {
-			option_mark opt;
-			option newvalue;
+			GArray *options; /** array of option_mark */
 		} setting;
 
-		condition cond;
+		struct {
+			condition *cond;
+			action_list* target; /** action target to jump to if condition is fulfilled */
+		} condition;
 
 		struct {
-			action_func* func;
+			action_func func;
 			gpointer param;
-		} actionfunc;
+		} function;
 	} value;
 };
 
-struct condition {
-	condition_type type;
-	condition_op op;
-	action_list* target; // action target to jump to if condition is fulfilled
+LI_API void action_list_release(action_list *al);
 
-	// left value of condition
-	union {
-		guint val_int;
-		gboolean val_bool;
-		GString* val_string;
-	} lvalue;
+/* no new/free function, so just use the struct direct (i.e. not a pointer) */
+LI_API void action_stack_init(action_stack *as);
+LI_API void action_stack_reset(action_stack *as);
+LI_API void action_stack_clear(action_stack *as);
 
-	// right value of condition
-	union {
-		guint val_int;
-		gboolean val_bool;
-		GString* val_string;
-	} rvalue;
-};
+/** handle sublist now, remember current position (stack) */
+LI_API void action_enter(connection *con, action_list *al);
+LI_API action_result action_execute(server *srv, connection *con);
 
 #endif

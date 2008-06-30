@@ -1,158 +1,140 @@
-void action_stack_init(action_stack* as)
-{
-	// preallocate a stack of 15 elements
-	as->stack = g_array_sized_new(FALSE, TRUE, sizeof(action_stack_elem), 15);
-	as->index = 0;
-}
 
-void action_stack_push(action_stack* as, action_stack_elem ase)
-{
-	// stack needs to grow
-	if (as->index == (as->stack->len -1)) // we are at the end of the stack
-		g_array_append_val(as, ase);
-	else
-		g_array_insert_val(as, as->index, ase);
+#include "actions.h"
+#include "condition.h"
 
-	as->index++;
-}
+struct action_stack_element;
+typedef struct action_stack_element action_stack_element;
 
-// pops the last entry of the action stack
-action_stack_elem action_stack_pop(action_stack* as)
-{
-	as->index--;
-	return g_array_index(as, action_stack_elem, as->index);
-}
+struct action_stack_element {
+	action_list *list;
+	guint pos;
+};
 
-action_result action_list_exec(action_list* al, action_stack* as, guint index)
-{
-	action_stack_elem ase;
-	guint i;
-	action* act;
-	action_result ar;
 
-	// iterate over list
-	for (i = index; i < al->list->len; i++)
-	{
-		act = g_array_index(al->list, action*, i);
 
-		switch (act->type)
-		{
-			case ACTION_CONDITION:
-				if (TRUE == condition_check(&(act->value.cond)))
-				{
-					// save current
-					ase.al = al;
-					ase.index = i;
-					action_stack_push(as, ase);
-
-					ar = action_list_exec(act->target, as);
-					break;
-				}
-				else
-					continue;
-			case ACTION_SETTING:
-				ar = ACTION_RESULT_GO_ON;
-				break;
-			case ACTION_FUNCTION:
-				ar = ACTION_RESULT_GO_ON;
-				break;
-			default:
-				ar = ACTION_RESULT_GO_ON;
-				// TODO: print error and exit
-		}
-
-		if (ar == ACTION_RESULT_BREAK)
+void action_release(action *a) {
+	assert(a->refcount > 0);
+	if (!(--a->refcount)) {
+		switch (a->type) {
+		case ACTION_TSETTING:
+			/* TODO */
 			break;
-		else if (ar == ACTION_RESULT_WAIT_FOR_EVENT)
-			return ACTION_RESULT_WAIT_FOR_EVENT;
-	}
-
-	// executed all actions in the list
-	// if the action stack index is > 0, we need to jump back to the previous list
-	if (as->index > 0)
-	{
-		ase = action_stack_pop(as);
-		return action_list_exec(ase->al, ase->index);
-	}
-
-	return ACTION_RESULT_GO_ON;
-}
-
-// checks if a condition is fulfilled. returns the next action to jump to if fulfilled, otherwise NULL
-gboolean condition_check(condition* cond)
-{
-	switch (cond->type)
-	{
-		case CONDITION_STRING:
-			return condition_check_string(cond);
-		case CONDITION_INT:
-			return condition_check_int(cond);
-		case CONDITION_BOOL:
-			return condition_check_bool(cond);
-		case CONDITION_IP:
-			// todo
-		default:
-			// TODO: print error and exit
-			return FALSE;
+		case ACTION_TFUNCTION:
+			/* TODO */
+			break;
+		case ACTION_TCONDITION:
+			condition_release(a->value.condition.cond);
+			action_list_release(a->value.condition.target);
+			break;
+		}
+		g_slice_free(action, a);
 	}
 }
 
+void action_acquire(action *a) {
+	assert(a->refcount > 0);
+	a->refcount++;
+}
 
-// string condition, operators: ==, !=, =~, !~
-gboolean condition_check_string(condition* cond)
-{
-	switch (cond->op)
-	{
-		case CONDITION_EQUAL:
-			if (cond->lvalue.val_string->len != cond->rvalue.val_string->len)
-				return FALSE;
-			return g_string_equal(cond->lvalue.val_string, cond->rvalue.val_string);
-		case CONDITION_UNEQUAL:
-			return (FALSE == g_string_equal(cond->lvalue.val_string, cond->rvalue.val_string)) ? TRUE : FALSE;
-		case CONDITION_REGEX_MATCH:
-			// todo
-		case CONDITION_REGEX_NOMATCH:
-			// todo
-		default:
-			// TODO: print error and exit
-			return FALSE;
+void action_list_release(action_list *al) {
+	assert(al->refcount > 0);
+	if (!(--al->refcount)) {
+		guint i;
+		for (i = al->actions->len; i-- > 0; ) {
+			action_release(g_array_index(al->actions, action*, i));
+		}
+		g_array_free(al->actions, TRUE);
+		g_slice_free(action_list, al);
 	}
 }
 
-// integer condition, operators: ==, !=, <, <=, >, >=
-gboolean condition_check_int(condition* cond)
-{
-	switch (cond->op)
-	{
-		case CONDITION_EQUAL:
-			return (cond->lvalue.val_int == cond->rvalue.val_int) ? TRUE : FALSE;
-		case CONDITION_UNEQUAL:
-			return (cond->lvalue.val_int != cond->rvalue.val_int) ? TRUE : FALSE;
-		case CONDITION_LESS:
-			return (cond->lvalue.val_int < cond->rvalue.val_int) ? TRUE : FALSE;
-		case CONDITION_LESS_EQUAL:
-			return (cond->lvalue.val_int <= cond->rvalue.val_int) ? TRUE : FALSE;
-		case CONDITION_GREATER:
-			return (cond->lvalue.val_int > cond->rvalue.val_int) ? TRUE : FALSE;
-		case CONDITION_GREATER_EQUAL:
-			return (cond->lvalue.val_int >= cond->rvalue.val_int) ? TRUE : FALSE;
-		default:
-			// TODO: print error and exit
-			return FALSE;
-	}
+void action_list_acquire(action_list *al) {
+	assert(al->refcount > 0);
+	al->refcount++;
 }
 
-// bool condition, operators: ==, !=
-gboolean condition_check_bool(condition* cond)
-{
-	switch (cond->op)
-	{
-		case CONDITION_EQUAL:
-			return (cond->lvalue.val_bool == cond->rvalue.val_bool) ? TRUE : FALSE;
-		case CONDITION_UNEQUAL:
-			return (cond->lvalue.val_bool != cond->rvalue.val_bool) ? TRUE : FALSE;
-		default:
-			// TODO: print error and exit
-			return FALSE;
+void action_stack_element_release(action_stack_element *ase) {
+	if (!ase || !ase->list) return;
+	action_list_release(ase->list);
+	ase->list = NULL;
+}
+
+void action_stack_init(action_stack *as) {
+	as->stack = g_array_sized_new(FALSE, TRUE, sizeof(action_stack_element), 15);
+}
+
+void action_stack_reset(action_stack *as) {
+	guint i;
+	for (i = as->stack->len; i-- > 0; ) {
+		action_stack_element_release(&g_array_index(as->stack, action_stack_element, i));
 	}
+	g_array_set_size(as->stack, 0);
+}
+
+void action_stack_clear(action_stack *as) {
+	guint i;
+	for (i = as->stack->len; i-- > 0; ) {
+		action_stack_element_release(&g_array_index(as->stack, action_stack_element, i));
+	}
+	g_array_free(as->stack, TRUE);
+}
+
+/** handle sublist now, remember current position (stack) */
+void action_enter(connection *con, action_list *al) {
+	action_list_acquire(al);
+	action_stack_element ase = { al, 0 };
+	g_array_append_val(con->action_stack.stack, ase);
+}
+
+static action_stack_element *action_stack_top(action_stack* as) {
+	return as->stack->len > 0 ? &g_array_index(as->stack, action_stack_element, as->stack->len - 1) : NULL;
+}
+
+static void action_stack_pop(action_stack *as) {
+	action_stack_element_release(&g_array_index(as->stack, action_stack_element, as->stack->len - 1));
+	g_array_set_size(as->stack, as->stack->len - 1);
+}
+
+static action* action_stack_element_next(action_stack_element *ase) {
+	action_list *al = ase->list;
+	return ase->pos < al->actions->len ? g_array_index(al->actions, action*, ase->pos++) : NULL;
+}
+
+action_result action_execute(server *srv, connection *con) {
+	action *a;
+	action_stack *as = &con->action_stack;
+	action_stack_element *ase;
+	action_result res;
+
+	while (NULL != (ase = action_stack_top(as))) {
+		a = action_stack_element_next(ase);
+		if (!a) {
+			action_stack_pop(as);
+			continue;
+		}
+		switch (a->type) {
+		case ACTION_TSETTING:
+			/* TODO */
+			break;
+		case ACTION_TFUNCTION:
+			res = a->value.function.func(srv, con, a->value.function.param);
+			switch (res) {
+			case ACTION_GO_ON:
+				break;
+			case ACTION_FINISHED:
+			case ACTION_ERROR:
+				action_stack_clear(as);
+				return res;
+			case ACTION_WAIT_FOR_EVENT:
+				return ACTION_WAIT_FOR_EVENT;
+			}
+			break;
+		case ACTION_TCONDITION:
+			if (condition_check(srv, con, a->value.condition.cond)) {
+				action_enter(con, a->value.condition.target);
+			}
+			break;
+		}
+	}
+	return ACTION_GO_ON;
 }

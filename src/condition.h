@@ -5,10 +5,15 @@
  * possible compare ops in the configfile parser
  */
 typedef enum {
+/* everything */
 	CONFIG_COND_EQ,      /** == */
-	CONFIG_COND_MATCH,   /** =~ */
 	CONFIG_COND_NE,      /** != */
+
+/* only with strings (including socket name) */
+	CONFIG_COND_MATCH,   /** =~ */
 	CONFIG_COND_NOMATCH, /** !~ */
+
+/* only with int */
 	CONFIG_COND_GT,      /** > */
 	CONFIG_COND_GE,      /** >= */
 	CONFIG_COND_LT,      /** < */
@@ -19,7 +24,6 @@ typedef enum {
  * possible fields to match against
  */
 typedef enum {
-	COMP_UNSET,
 	COMP_SERVER_SOCKET,
 	COMP_HTTP_PATH,
 	COMP_HTTP_HOST,
@@ -31,10 +35,15 @@ typedef enum {
 	COMP_HTTP_QUERY_STRING,
 	COMP_HTTP_REQUEST_METHOD,
 	COMP_PHYSICAL_PATH,
-	COMP_PHYSICAL_PATH_EXISTS,
-
-	COMP_LAST_ELEMENT
+	COMP_PHYSICAL_PATH_EXISTS
 } comp_key_t;
+
+typedef enum {
+	COND_VALUE_INT,
+	COND_VALUE_STRING,
+	COND_VALUE_SOCKET_IPV4,  /** only match ip/netmask */
+	COND_VALUE_SOCKET_IPV6   /** only match ip/netmask */
+} cond_value_t;
 
 struct condition;
 typedef struct condition condition;
@@ -50,6 +59,7 @@ struct condition {
 	/* index into connection conditional caching table, -1 if uncached */
 	int cache_index;
 
+	cond_value_t value_type;
 	union {
 		GString *string;
 #ifdef HAVE_PCRE_H
@@ -59,6 +69,17 @@ struct condition {
 		};
 #endif
 		gint i;
+		struct {
+			guint32 addr;
+			guint32 networkmask;
+		} ipv4;
+#ifdef HAVE_IPV6
+		struct {
+			guint8 addr[16];
+			guint network;
+		} ipv6;
+#endif
+		sock_addr addr;
 	} value;
 };
 
@@ -72,5 +93,8 @@ LI_API void condition_release(condition* c);
 
 LI_API const char* config_cond_to_string(config_cond_t cond);
 LI_API const char* comp_key_to_string(comp_key_t comp);
+
+
+LI_API gboolean condition_check(server *srv, connection *con, condition *cond);
 
 #endif
