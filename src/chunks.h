@@ -15,6 +15,9 @@ typedef struct chunkqueue chunkqueue;
 struct chunkiter;
 typedef struct chunkiter chunkiter;
 
+struct chunk_parser_mark;
+typedef struct chunk_parser_mark chunk_parser_mark;
+
 #include "base.h"
 
 /* Open a file only once, so it shouldn't get lost;
@@ -66,6 +69,11 @@ struct chunkiter {
 	GList *element;
 };
 
+struct chunk_parser_mark {
+	chunkiter ci;
+	off_t pos;
+};
+
 /******************
  *   chunkfile    *
  ******************/
@@ -73,7 +81,7 @@ struct chunkiter {
 /* open the file cf->name if it is not already opened for reading
  * may return HANDLER_GO_ON, HANDLER_ERROR, HANDLER_WAIT_FOR_FD
  */
-handler_t chunkfile_open(server *srv, connection *con, chunkfile *cf);
+LI_API handler_t chunkfile_open(server *srv, connection *con, chunkfile *cf);
 
 /******************
  * chunk iterator *
@@ -89,7 +97,9 @@ INLINE goffset chunkiter_length(chunkiter iter);
  * the data is _not_ marked as "done"
  * may return HANDLER_GO_ON, HANDLER_ERROR, HANDLER_WAIT_FOR_FD
  */
-handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t start, off_t length, char **data_start, off_t *data_len);
+LI_API handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t start, off_t length, char **data_start, off_t *data_len);
+
+LI_API GString* chunk_extract(server *srv, connection *con, chunk_parser_mark from, chunk_parser_mark to);
 
 /******************
  *     chunk      *
@@ -101,44 +111,44 @@ INLINE goffset chunk_length(chunk *c);
  *   chunkqueue   *
  ******************/
 
-chunkqueue* chunkqueue_new();
-void chunkqueue_reset(chunkqueue *cq);
-void chunkqueue_free(chunkqueue *cq);
+LI_API chunkqueue* chunkqueue_new();
+LI_API void chunkqueue_reset(chunkqueue *cq);
+LI_API void chunkqueue_free(chunkqueue *cq);
 
  /* pass ownership of str to chunkqueue, do not free/modify it afterwards
   * you may modify the data (not the length) if you are sure it isn't sent before.
   */
-void chunkqueue_append_string(chunkqueue *cq, GString *str);
+LI_API void chunkqueue_append_string(chunkqueue *cq, GString *str);
 
 /* memory gets copied */
-void chunkqueue_append_mem(chunkqueue *cq, void *mem, gssize len);
+LI_API void chunkqueue_append_mem(chunkqueue *cq, void *mem, gssize len);
 
 /* pass ownership of filename, do not free it */
-void chunkqueue_append_file(chunkqueue *cq, GString *filename, off_t start, off_t length);
+LI_API void chunkqueue_append_file(chunkqueue *cq, GString *filename, off_t start, off_t length);
 /* if you already opened the file, you can pass the fd here - do not close it */
-void chunkqueue_append_file_fd(chunkqueue *cq, GString *filename, off_t start, off_t length, int fd);
+LI_API void chunkqueue_append_file_fd(chunkqueue *cq, GString *filename, off_t start, off_t length, int fd);
 
 /* temp files get deleted after usage */
 /* pass ownership of filename, do not free it */
-void chunkqueue_append_tempfile(chunkqueue *cq, GString *filename, off_t start, off_t length);
+LI_API void chunkqueue_append_tempfile(chunkqueue *cq, GString *filename, off_t start, off_t length);
 /* if you already opened the file, you can pass the fd here - do not close it */
-void chunkqueue_append_tempfile_fd(chunkqueue *cq, GString *filename, off_t start, off_t length, int fd);
+LI_API void chunkqueue_append_tempfile_fd(chunkqueue *cq, GString *filename, off_t start, off_t length, int fd);
 
 
 /* steal up to length bytes from in and put them into out, return number of bytes stolen */
-goffset chunkqueue_steal_len(chunkqueue *out, chunkqueue *in, goffset length);
+LI_API goffset chunkqueue_steal_len(chunkqueue *out, chunkqueue *in, goffset length);
 
 /* steal all chunks from in and put them into out, return number of bytes stolen */
-goffset chunkqueue_steal_all(chunkqueue *out, chunkqueue *in);
+LI_API goffset chunkqueue_steal_all(chunkqueue *out, chunkqueue *in);
 
 /* steal the first chunk from in and append it to out, return number of bytes stolen */
-goffset chunkqueue_steal_chunk(chunkqueue *out, chunkqueue *in);
+LI_API goffset chunkqueue_steal_chunk(chunkqueue *out, chunkqueue *in);
 
 /* skip up to length bytes in a chunkqueue, return number of bytes skipped */
-goffset chunkqueue_skip(chunkqueue *cq, goffset length);
+LI_API goffset chunkqueue_skip(chunkqueue *cq, goffset length);
 
 /* skip all chunks in a queue (similar to reset, but keeps stats) */
-goffset chunkqueue_skip_all(chunkqueue *cq);
+LI_API goffset chunkqueue_skip_all(chunkqueue *cq);
 
 /* if the chunk an iterator refers gets stolen/skipped/...,
  * the iterator isn't valid anymore

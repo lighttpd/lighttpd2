@@ -13,7 +13,10 @@ blddir = 'build'
 
 def set_options(opt):
 	# the gcc module provides a --debug-level option
+	
 	opt.tool_options('compiler_cc')
+	opt.tool_options('ragel', tooldir = '.')
+	
 	#opt.add_option('--with-xattr', action='store_true', help='xattr-support for the stat-cache [default: off]', dest='xattr', default = False)
 	#opt.add_option('--with-mysql', action='store_true', help='with mysql-support for the mod_sql_vhost [default: off]', dest = 'mysql', default = False)
 	#opt.add_option('--with-postgresql', action='store_true', help='with postgress-support for the mod_sql_vhost [default: off]', dest = 'postgresql', default = False)
@@ -191,6 +194,7 @@ def configure(conf):
 	opts = Params.g_options
 	
 	conf.check_tool('compiler_cc')
+	conf.check_tool('ragel', tooldir = '.')
 	
 	if not opts.libdir:
 		opts.libdir = opts.prefix + "/lib/lighttpd" + opts.append
