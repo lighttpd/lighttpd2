@@ -224,22 +224,22 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 	}
 
 	if (value) switch (cond->cond) {
-		case CONFIG_COND_EQ:      /** == */
-			result = 0 == strcmp(value, cond->value.string->str);
-			break;
-		case CONFIG_COND_NE:      /** != */
-			result = 0 != strcmp(value, cond->value.string->str);
-			break;
-		case CONFIG_COND_MATCH:   /** =~ */
-		case CONFIG_COND_NOMATCH: /** !~ */
-			/* TODO: pcre */
-			break;
-		case CONFIG_COND_GE:
-		case CONFIG_COND_GT:
-		case CONFIG_COND_LE:
-		case CONFIG_COND_LT:
-			assert(NULL);
-			break;
+	case CONFIG_COND_EQ:      /** == */
+		result = 0 == strcmp(value, cond->value.string->str);
+		break;
+	case CONFIG_COND_NE:      /** != */
+		result = 0 != strcmp(value, cond->value.string->str);
+		break;
+	case CONFIG_COND_MATCH:   /** =~ */
+	case CONFIG_COND_NOMATCH: /** !~ */
+		/* TODO: pcre */
+		break;
+	case CONFIG_COND_GE:
+	case CONFIG_COND_GT:
+	case CONFIG_COND_LE:
+	case CONFIG_COND_LT:
+		assert(NULL);
+		break;
 	}
 
 	if (tmp) g_string_free(tmp, TRUE);
@@ -253,33 +253,33 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 	gint64 value;
 
 	switch (cond->comp) {
-		case COMP_REQUEST_CONTENT_LENGTH:
-			value = con->request.content_length;
-		case COMP_PHYSICAL_SIZE:
-			value = con->physical.size;
-			break;
-		default:
-			value = -1;
+	case COMP_REQUEST_CONTENT_LENGTH:
+		value = con->request.content_length;
+	case COMP_PHYSICAL_SIZE:
+		value = con->physical.size;
+		break;
+	default:
+		value = -1;
 	}
 
 	if (value > 0) switch (cond->cond) {
-		case CONFIG_COND_EQ:      /** == */
-			return (value == cond->value.i);
-		case CONFIG_COND_NE:      /** != */
-			return (value != cond->value.i);
-		case CONFIG_COND_LT:      /** < */
-			return (value < cond->value.i);
-		case CONFIG_COND_LE:      /** <= */
-			return (value <= cond->value.i);
-		case CONFIG_COND_GT:      /** > */
-			return (value > cond->value.i);
-		case CONFIG_COND_GE:      /** >= */
-			return (value >= cond->value.i);
-		case CONFIG_COND_MATCH:
-		case CONFIG_COND_NOMATCH:
-			// TODO: die with error
-			assert(NULL);
-			return FALSE;
+	case CONFIG_COND_EQ:      /** == */
+		return (value == cond->value.i);
+	case CONFIG_COND_NE:      /** != */
+		return (value != cond->value.i);
+	case CONFIG_COND_LT:      /** < */
+		return (value < cond->value.i);
+	case CONFIG_COND_LE:      /** <= */
+		return (value <= cond->value.i);
+	case CONFIG_COND_GT:      /** > */
+		return (value > cond->value.i);
+	case CONFIG_COND_GE:      /** >= */
+		return (value >= cond->value.i);
+	case CONFIG_COND_MATCH:
+	case CONFIG_COND_NOMATCH:
+		// TODO: die with error
+		assert(NULL);
+		return FALSE;
 	}
 }
 
@@ -306,12 +306,12 @@ static gboolean ipv6_in_ipv4_net(const unsigned char *target, guint32 match, gui
 
 static gboolean condition_check_eval(server *srv, connection *con, condition *cond) {
 	switch (cond->value_type) {
-		case COND_VALUE_STRING:
-			return condition_check_eval_string(srv, con, cond);
-		case COND_VALUE_INT:
-			return condition_check_eval_int(srv, con, cond);
-	/* TODO: implement checks */
-		default:
-			return FALSE;
+	case COND_VALUE_STRING:
+		return condition_check_eval_string(srv, con, cond);
+	case COND_VALUE_INT:
+		return condition_check_eval_int(srv, con, cond);
+/* TODO: implement checks */
+	default:
+		return FALSE;
 	}
 }
