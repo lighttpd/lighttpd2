@@ -40,6 +40,9 @@ typedef struct request request;
 struct request_uri;
 typedef struct request_uri request_uri;
 
+struct physical;
+typedef struct physical physical;
+
 struct request_uri {
 	GString *uri, *orig_uri;
 
@@ -48,7 +51,7 @@ struct request_uri {
 	GString *query;
 };
 
-struct pyhsical {
+struct physical {
 	GString *path;
 	GString *basedir;
 
@@ -56,6 +59,8 @@ struct pyhsical {
 	GString *rel_path;
 
 	GString *pathinfo;
+
+	guint64 size;
 };
 
 struct request {
@@ -69,6 +74,7 @@ struct request {
 	/* Parsed headers: */
 	GString *host;
 	goffset content_length;
+	guint64 size;
 };
 
 #endif

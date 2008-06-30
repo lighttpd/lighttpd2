@@ -81,19 +81,22 @@ static condition* cond_new_socket(config_cond_t cond, comp_key_t comp, GString *
 static condition* condition_new_from_string(config_cond_t cond, comp_key_t comp, GString *str) {
 	switch (comp) {
 	case COMP_SERVER_SOCKET:
-	case COMP_HTTP_REMOTE_IP:
+	case COMP_REQUEST_REMOTE_IP:
 		return cond_new_socket(cond, comp, str);
-	case COMP_HTTP_PATH:
-	case COMP_HTTP_HOST:
-	case COMP_HTTP_REFERER:
-	case COMP_HTTP_USER_AGENT:
-	case COMP_HTTP_COOKIE:
-	case COMP_HTTP_SCHEME:
-	case COMP_HTTP_QUERY_STRING:
-	case COMP_HTTP_REQUEST_METHOD:
+	case COMP_REQUEST_PATH:
+	case COMP_REQUEST_HOST:
+	case COMP_REQUEST_REFERER:
+	case COMP_REQUEST_USER_AGENT:
+	case COMP_REQUEST_COOKIE:
+	case COMP_REQUEST_SCHEME:
+	case COMP_REQUEST_QUERY_STRING:
+	case COMP_REQUEST_METHOD:
 	case COMP_PHYSICAL_PATH:
 	case COMP_PHYSICAL_PATH_EXISTS:
 		return cond_new_string(cond, comp, str);
+	default:
+		// TODO: die with error
+		break;
 	}
 	return NULL;
 }
@@ -183,35 +186,39 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 		/* TODO: get values */
 	case COMP_SERVER_SOCKET:
 		break;
-	case COMP_HTTP_PATH:
+	case COMP_REQUEST_PATH:
 		value = con->request.uri.path->str;
 		break;
-	case COMP_HTTP_HOST:
+	case COMP_REQUEST_HOST:
 		value = con->request.host->str;
 		break;
-	case COMP_HTTP_REFERER:
+	case COMP_REQUEST_REFERER:
 		break;
-	case COMP_HTTP_USER_AGENT:
+	case COMP_REQUEST_USER_AGENT:
 		break;
-	case COMP_HTTP_COOKIE:
+	case COMP_REQUEST_COOKIE:
 		break;
-	case COMP_HTTP_SCHEME:
+	case COMP_REQUEST_SCHEME:
 		/* TODO: check for ssl */
 		value = "http"; /* ssl ? "https" : "http" */
 		break;
-	case COMP_HTTP_REMOTE_IP:
+	case COMP_REQUEST_REMOTE_IP:
 		value = con->dst_addr_str->str;
 		break;
-	case COMP_HTTP_QUERY_STRING:
+	case COMP_REQUEST_QUERY_STRING:
 		value = con->request.uri.query->str;
 		break;
-	case COMP_HTTP_REQUEST_METHOD:
+	case COMP_REQUEST_METHOD:
 		value = con->request.http_method_str->str;
 		break;
 	case COMP_PHYSICAL_PATH:
 	case COMP_PHYSICAL_PATH_EXISTS:
 		break;
+	default:
+		// TODO: die with error
+		break;
 	}
+
 	if (value) switch (cond->cond) {
 	case CONFIG_COND_EQ:      /** == */
 		result = 0 == strcmp(value, cond->value.string->str);
@@ -229,6 +236,42 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 	if (tmp) g_string_free(tmp, TRUE);
 	return result;
 }
+
+
+static gboolean condition_check_eval_int(server *srv, connection *con, condition *cond) {
+	UNUSED(srv);
+	UNUSED(con);
+	gint64 value;
+
+	switch (cond->comp) {
+		case COMP_REQUEST_SIZE:
+			value = con->request.size;
+		case COMP_PHYSICAL_SIZE:
+			value = con->physical.size;
+			break;
+		default:
+			value = -1;
+	}
+
+	if (value > 0) switch (cond->cond) {
+		case CONFIG_COND_EQ:      /** == */
+			return (value == cond->value.i);
+		case CONFIG_COND_NE:      /** != */
+			return (value != cond->value.i);
+		case CONFIG_COND_LT:      /** < */
+			return (value < cond->value.i);
+		case CONFIG_COND_LE:      /** <= */
+			return (value <= cond->value.i);
+		case CONFIG_COND_GT:      /** > */
+			return (value > cond->value.i);
+		case CONFIG_COND_GE:      /** >= */
+			return (value >= cond->value.i);
+		default:
+			// TODO: die with error
+			return FALSE;
+	}
+}
+
 
 static gboolean ipv4_in_ipv4_net(guint32 target, guint32 match, guint32 networkmask) {
 	return (target & networkmask) == (match & networkmask);
@@ -254,6 +297,8 @@ static gboolean condition_check_eval(server *srv, connection *con, condition *co
 	switch (cond->value_type) {
 		case COND_VALUE_STRING:
 			return condition_check_eval_string(srv, con, cond);
+		case COND_VALUE_INT:
+			return condition_check_eval_int(srv, con, cond);
 	/* TODO: implement checks */
 		default:
 			return FALSE;

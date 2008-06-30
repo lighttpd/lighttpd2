@@ -31,6 +31,7 @@ struct connection {
 	action_stack action_stack;
 
 	request request;
+	physical physical;
 };
 
 #endif
