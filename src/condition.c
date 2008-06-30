@@ -94,8 +94,10 @@ static condition* condition_new_from_string(config_cond_t cond, comp_key_t comp,
 	case COMP_PHYSICAL_PATH:
 	case COMP_PHYSICAL_PATH_EXISTS:
 		return cond_new_string(cond, comp, str);
-	default:
+	case COMP_PHYSICAL_SIZE:
+	case COMP_REQUEST_CONTENT_LENGTH:
 		// TODO: die with error
+		assert(NULL);
 		break;
 	}
 	return NULL;
@@ -214,25 +216,32 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 	case COMP_PHYSICAL_PATH:
 	case COMP_PHYSICAL_PATH_EXISTS:
 		break;
-	default:
+	case COMP_PHYSICAL_SIZE:
+	case COMP_REQUEST_CONTENT_LENGTH:
 		// TODO: die with error
+		assert(NULL);
 		break;
 	}
 
 	if (value) switch (cond->cond) {
-	case CONFIG_COND_EQ:      /** == */
-		result = 0 == strcmp(value, cond->value.string->str);
-		break;
-	case CONFIG_COND_NE:      /** != */
-		result = 0 != strcmp(value, cond->value.string->str);
-		break;
-	case CONFIG_COND_MATCH:   /** =~ */
-	case CONFIG_COND_NOMATCH: /** !~ */
-		/* TODO: pcre */
-		break;
-	default:
-		break;
+		case CONFIG_COND_EQ:      /** == */
+			result = 0 == strcmp(value, cond->value.string->str);
+			break;
+		case CONFIG_COND_NE:      /** != */
+			result = 0 != strcmp(value, cond->value.string->str);
+			break;
+		case CONFIG_COND_MATCH:   /** =~ */
+		case CONFIG_COND_NOMATCH: /** !~ */
+			/* TODO: pcre */
+			break;
+		case CONFIG_COND_GE:
+		case CONFIG_COND_GT:
+		case CONFIG_COND_LE:
+		case CONFIG_COND_LT:
+			assert(NULL);
+			break;
 	}
+
 	if (tmp) g_string_free(tmp, TRUE);
 	return result;
 }
@@ -244,8 +253,8 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 	gint64 value;
 
 	switch (cond->comp) {
-		case COMP_REQUEST_SIZE:
-			value = con->request.size;
+		case COMP_REQUEST_CONTENT_LENGTH:
+			value = con->request.content_length;
 		case COMP_PHYSICAL_SIZE:
 			value = con->physical.size;
 			break;
@@ -266,8 +275,10 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 			return (value > cond->value.i);
 		case CONFIG_COND_GE:      /** >= */
 			return (value >= cond->value.i);
-		default:
+		case CONFIG_COND_MATCH:
+		case CONFIG_COND_NOMATCH:
 			// TODO: die with error
+			assert(NULL);
 			return FALSE;
 	}
 }

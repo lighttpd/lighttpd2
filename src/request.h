@@ -74,7 +74,6 @@ struct request {
 	/* Parsed headers: */
 	GString *host;
 	goffset content_length;
-	guint64 size;
 };
 
 #endif
