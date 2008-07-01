@@ -1,6 +1,6 @@
 
 #include "base.h"
-#include "chunks.h"
+#include "chunk.h"
 #include "log.h"
 
 /******************
@@ -177,35 +177,6 @@ read_chunk:
 		break;
 	}
 	return HANDLER_GO_ON;
-}
-
-GString* chunk_extract(server *srv, connection *con, chunk_parser_mark from, chunk_parser_mark to) {
-	GString *str = g_string_sized_new(0);
-	chunk_parser_mark i;
-	for ( i = from; i.ci.element != to.ci.element; chunkiter_next(&i.ci) ) {
-		goffset len = chunkiter_length(i.ci);
-		while (i.pos < len) {
-			char *buf;
-			off_t we_have;
-			if (HANDLER_GO_ON != chunkiter_read(srv, con, i.ci, i.pos, len - i.pos, &buf, &we_have)) goto error;
-			g_string_append_len(str, buf, we_have);
-			i.pos += we_have;
-		}
-		i.pos = 0;
-	}
-	while (i.pos < to.pos) {
-		char *buf;
-		off_t we_have;
-		if (HANDLER_GO_ON != chunkiter_read(srv, con, i.ci, i.pos, to.pos - i.pos, &buf, &we_have)) goto error;
-		g_string_append_len(str, buf, we_have);
-		i.pos += we_have;
-	}
-
-	return str;
-
-error:
-	g_string_free(str, TRUE);
-	return NULL;
 }
 
 /******************

@@ -43,6 +43,8 @@ typedef struct request_uri request_uri;
 struct physical;
 typedef struct physical physical;
 
+#include "http_headers.h"
+
 struct request_uri {
 	GString *uri, *orig_uri;
 
@@ -70,10 +72,13 @@ struct request {
 
 	request_uri uri;
 
-	GArray *headers;
+	http_headers *headers;
 	/* Parsed headers: */
 	GString *host;
 	goffset content_length;
 };
+
+LI_API request* request_new();
+LI_API void request_free(request *req);
 
 #endif

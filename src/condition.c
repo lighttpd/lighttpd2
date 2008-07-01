@@ -281,6 +281,8 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 		assert(NULL);
 		return FALSE;
 	}
+
+	return FALSE;
 }
 
 

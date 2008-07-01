@@ -4,23 +4,15 @@
 struct http_request_ctx;
 typedef struct http_request_ctx http_request_ctx;
 
-#include "chunks.h"
+#include "chunk_parser.h"
+#include "request.h"
 
 struct http_request_ctx {
-	chunkqueue *cq;
-
-	goffset bytes_in;
-
-	/* current position
-	 * buf is curi[start..start+length)
-	 */
-	chunkiter curi;
-	off_t start, length;
-	char *buf;
-
-	int cs;
+	chunk_parser_ctx chunk_ctx;
 
 	chunk_parser_mark mark;
+
+	request *request;
 };
 
 #endif

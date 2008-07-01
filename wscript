@@ -449,46 +449,12 @@ class TestObject:
 		return self.label
 
 def run_tests():
-	import UnitTest, Object
-	env = Params.g_build.env()
-	srctestnode = Params.g_build.m_srcnode.find_dir('tests')
-	prepare = srctestnode.find_source('prepare.sh')
-	runtests = srctestnode.find_source('run-tests.pl')
-	cleanup = srctestnode.find_source('cleanup.sh')
-	
-	print 
-	
-	import os
-	os.environ['srcdir'] = srctestnode.abspath()
-	os.environ['top_builddir'] = srctestnode.m_parent.abspath(env)
-	if Params.g_options.verbose: os.environ['VERBOSE'] = '1'
-	
-	Runner.exec_command_interact(prepare.abspath())
-	print
-	
-	singletest = '' # '*.t' or '.t' or ''
-	if singletest:
-		objsave = Object.g_allobjs
-		
-		tests = []
-		for f in srctestnode.files():
-			if f.m_name.endswith(singletest):
-				tests.append(TestObject(f.m_name, f.abspath()))
-		Object.g_allobjs = tests
-		
-		unittest = UnitTest.unit_test()
-		unittest.want_to_see_test_output = Params.g_options.verbose
-		unittest.want_to_see_test_error = Params.g_options.verbose
-		unittest.run()
-		unittest.print_results()
-		
-		Object.g_allobjs = objsave
-	else:
-		Runner.exec_command_interact(runtests.abspath())
-		print
-	
-	Runner.exec_command_interact(cleanup.abspath())
-	print
+	import UnitTest
+	unittest = UnitTest.unit_test()
+	unittest.want_to_see_test_output = Params.g_options.verbose
+	unittest.want_to_see_test_error = Params.g_options.verbose
+	unittest.run()
+	unittest.print_results()
 
 def shutdown():
 	if Params.g_commands['check']: run_tests()

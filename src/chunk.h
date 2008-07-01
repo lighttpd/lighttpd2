@@ -15,9 +15,6 @@ typedef struct chunkqueue chunkqueue;
 struct chunkiter;
 typedef struct chunkiter chunkiter;
 
-struct chunk_parser_mark;
-typedef struct chunk_parser_mark chunk_parser_mark;
-
 #include "base.h"
 
 /* Open a file only once, so it shouldn't get lost;
@@ -69,11 +66,6 @@ struct chunkiter {
 	GList *element;
 };
 
-struct chunk_parser_mark {
-	chunkiter ci;
-	off_t pos;
-};
-
 /******************
  *   chunkfile    *
  ******************/
@@ -98,8 +90,6 @@ INLINE goffset chunkiter_length(chunkiter iter);
  * may return HANDLER_GO_ON, HANDLER_ERROR, HANDLER_WAIT_FOR_FD
  */
 LI_API handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t start, off_t length, char **data_start, off_t *data_len);
-
-LI_API GString* chunk_extract(server *srv, connection *con, chunk_parser_mark from, chunk_parser_mark to);
 
 /******************
  *     chunk      *

@@ -13,5 +13,8 @@ gboolean parse_option(server *srv, const char *key, option *opt, option_mark *ma
 	sopt = find_option(srv, key);
 	if (!sopt) return FALSE;
 
+	/* TODO */
+	UNUSED(opt);
+
 	return FALSE;
 }
