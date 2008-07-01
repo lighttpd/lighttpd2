@@ -78,8 +78,6 @@ handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t sta
 	if (!c) return HANDLER_ERROR;
 	if (!data_start || !data_len) return HANDLER_ERROR;
 
-	if (HANDLER_GO_ON != (res = chunkfile_open(srv, con, c->file.file))) return res;
-
 	we_have = chunk_length(c) - start;
 	if (length > we_have) length = we_have;
 	if (length <= 0) return HANDLER_ERROR;
@@ -91,6 +89,8 @@ handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t sta
 		*data_len = length;
 		break;
 	case FILE_CHUNK:
+		if (HANDLER_GO_ON != (res = chunkfile_open(srv, con, c->file.file))) return res;
+
 		if ( !(c->file.mmap.data != MAP_FAILED || c->mem) /* no data present */
 			|| !( /* or in the wrong range */
 				(start + c->offset >= c->file.mmap.offset)
