@@ -15,4 +15,8 @@ struct http_request_ctx {
 	request *request;
 };
 
+LI_API void http_request_parser_init(http_request_ctx *ctx, request *req, chunkqueue *cq);
+LI_API handler_t http_request_parse(server *srv, connection *con, http_request_ctx *ctx);
+
+
 #endif

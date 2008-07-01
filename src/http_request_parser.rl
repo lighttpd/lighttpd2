@@ -37,7 +37,7 @@
 	HEX = [a-fA-F0-9];
 
 	Separators = [()<>@,;:\\\"/\[\]?={}] | SP | HT;
-	Token = OCTET - Separators - CTL;
+	Token = (OCTET - Separators - CTL)+;
 
 	# original definition
 	# Comment = "(" ( CText | Quoted_Pair | Comment )* ")";
@@ -83,9 +83,10 @@ static int http_request_parser_is_finished(http_request_ctx *ctx) {
 	return ctx->chunk_ctx.cs >= http_request_parser_first_final;
 }
 
-void http_request_parser_init(http_request_ctx *ctx, chunkqueue *cq) {
+void http_request_parser_init(http_request_ctx *ctx, request *req, chunkqueue *cq) {
 	%% write init;
 	chunk_parser_init(&ctx->chunk_ctx, cq);
+	ctx->request = req;
 }
 
 handler_t http_request_parse(server *srv, connection *con, http_request_ctx *ctx) {

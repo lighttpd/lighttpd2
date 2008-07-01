@@ -15,6 +15,8 @@ typedef struct chunkqueue chunkqueue;
 struct chunkiter;
 typedef struct chunkiter chunkiter;
 
+#define CONST_STR_LEN(x) x, x ? sizeof(x) - 1 : 0
+
 #include "base.h"
 
 /* Open a file only once, so it shouldn't get lost;

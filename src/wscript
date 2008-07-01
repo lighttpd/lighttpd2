@@ -16,6 +16,7 @@ common_source='''
 	http_request_parser.rl
 	log.c
 	options.c
+	request.c
 	sys-files.c
 	sys-socket.c
 '''

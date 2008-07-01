@@ -3,6 +3,7 @@
 
 request* request_new() {
 	request *req = g_slice_new0(request);
+	return req;
 }
 
 void request_free(request *req) {
