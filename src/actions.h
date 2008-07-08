@@ -34,6 +34,7 @@ struct server; struct connection;
 typedef action_result (*action_func)(struct server *srv, struct connection *con, void* param);
 
 #include "condition.h"
+#include "plugin.h"
 
 struct action_list {
 	gint refcount;
@@ -46,9 +47,7 @@ struct action {
 	action_type type;
 
 	union {
-		struct {
-			GArray *options; /** array of option_mark */
-		} setting;
+		option_set setting;
 
 		struct {
 			condition *cond;

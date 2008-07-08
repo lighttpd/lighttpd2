@@ -1,6 +1,12 @@
 
 #include "options.h"
 
+void options_init()
+{
+	options = g_array_new(FALSE, TRUE, sizeof(option *));
+	options_hash = g_hash_table_new((GHashFunc) g_int_hash, (GEqualFunc) g_int_equal);
+}
+
 option* option_new_bool(gboolean val) {
 	option *opt = g_slice_new0(option);
 	opt->value.opt_bool = val;
@@ -43,30 +49,81 @@ option* option_new_hash() {
 
 
 void option_free(option* opt) {
-	guint i;
-
 	if (!opt) return;
 
 	switch (opt->type) {
+	case OPTION_NONE:
+	case OPTION_BOOLEAN:
+	case OPTION_INT:
+		/* Nothing to free */
+		break;
+	case OPTION_STRING:
+		g_string_free(opt->value.opt_string, TRUE);
+		break;
+	case OPTION_LIST:
+		option_list_free(opt->value.opt_list);
+		break;
+	case OPTION_HASH:
+		g_hash_table_destroy((GHashTable*) opt->value.opt_hash);
+		break;
+	}
+	opt->type = OPTION_NONE;
+	g_slice_free(option, opt);
+}
+
+const char* option_type_string(option_type type) {
+	switch(type) {
+	case OPTION_NONE:
+		return "none";
+	case OPTION_BOOLEAN:
+		return "boolean";
+	case OPTION_INT:
+		return "int";
+	case OPTION_STRING:
+		return "string";
+	case OPTION_LIST:
+		return "list";
+	case OPTION_HASH:
+		return "hash";
+	}
+	return "<unknown>";
+}
+
+void option_list_free(GArray *optlist) {
+	if (!optlist) return;
+	for (gsize i = 0; i < optlist->len; i++) {
+		option_free(g_array_index(optlist, option*, i));
+	}
+	g_array_free(optlist, TRUE);
+}
+
+/* Extract value from option, destroy option */
+gpointer option_extract_value(option *opt) {
+	gpointer val = NULL;
+	if (!opt) return NULL;
+
+	switch (opt->type) {
 		case OPTION_NONE:
+			break;
 		case OPTION_BOOLEAN:
+			val = GINT_TO_POINTER(opt->value.opt_bool);
+			break;
 		case OPTION_INT:
-			/* Nothing to free */
+			val =  GINT_TO_POINTER(opt->value.opt_int);
 			break;
 		case OPTION_STRING:
-			g_string_free(opt->value.opt_string, TRUE);
+			val =  opt->value.opt_string;
 			break;
 		case OPTION_LIST:
-			for (i = 0; i < opt->value.opt_list->len; i++)
-				option_free(g_array_index(opt->value.opt_list, option *, i));
-			g_array_free(opt->value.opt_list, FALSE);
+			val =  opt->value.opt_list;
 			break;
 		case OPTION_HASH:
-			g_hash_table_destroy(opt->value.opt_hash);
+			val =  opt->value.opt_hash;
 			break;
 	}
 	opt->type = OPTION_NONE;
 	g_slice_free(option, opt);
+	return val;
 }
 
 
