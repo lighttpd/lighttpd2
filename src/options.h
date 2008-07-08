@@ -18,11 +18,6 @@ typedef struct option_set option_set;
 
 #include "base.h"
 
-/* registered options */
-GArray *options;
-/* hash table to speed up lookup of options by name */
-GHashTable *options_hash;
-
 struct option {
 	option_type type;
 	union {
@@ -50,14 +45,6 @@ LI_API option* option_new_string(GString *val);
 LI_API option* option_new_list();
 LI_API option* option_new_hash();
 LI_API void option_free(option* opt);
-
-
-/* registers an option */
-LI_API gboolean option_register(GString *name, option *opt);
-/* unregisters an option */
-LI_API gboolean option_unregister(GString *name);
-/* retrieves the index of a previously registered option. returns TRUE if option was found, FALSE otherwise */
-LI_API gboolean option_index(GString *name, guint *index);
 
 LI_API const char* option_type_string(option_type type);
 

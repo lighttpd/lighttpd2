@@ -1,12 +1,6 @@
 
 #include "options.h"
 
-void options_init()
-{
-	options = g_array_new(FALSE, TRUE, sizeof(option *));
-	options_hash = g_hash_table_new((GHashFunc) g_int_hash, (GEqualFunc) g_int_equal);
-}
-
 option* option_new_bool(gboolean val) {
 	option *opt = g_slice_new0(option);
 	opt->value.opt_bool = val;
@@ -124,41 +118,4 @@ gpointer option_extract_value(option *opt) {
 	opt->type = OPTION_NONE;
 	g_slice_free(option, opt);
 	return val;
-}
-
-
-
-gboolean option_register(GString *name, option *opt) {
-	guint *ndx;
-
-	ndx = g_slice_new(guint);
-
-	/* check if not already registered */
-	if (option_index(name, ndx))
-		return FALSE;
-
-	g_array_append_val(options, opt);
-	*ndx = options->len;
-	g_hash_table_insert(options_hash, (gpointer) name, (gpointer) ndx);
-
-	return TRUE;
-}
-
-
-gboolean option_unregister(GString *name) {
-	UNUSED(name);
-	assert(NULL == "does this even make sense?");
-}
-
-
-gboolean option_index(GString *name, guint *ndx) {
-	guint *val;
-
-	val = (guint *) g_hash_table_lookup(options_hash, (gconstpointer) name);
-
-	if (val == NULL)
-		return FALSE;
-
-	*ndx = *val;
-	return TRUE;
 }
