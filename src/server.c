@@ -2,6 +2,8 @@
 #include "base.h"
 #include "log.h"
 
+#include "config_parser.h"
+
 static server* server_new() {
 	server* srv = g_slice_new0(server);
 	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
@@ -18,6 +20,8 @@ static void server_free(server* srv) {
 
 
 int main() {
+
 	TRACE("%s", "Test!");
+
 	return 0;
 }
