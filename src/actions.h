@@ -47,7 +47,7 @@ struct action {
 
 	union {
 		struct {
-			GArray *options; /** array of option_mark */
+			GArray *options; /** array of option_set */
 		} setting;
 
 		struct {
