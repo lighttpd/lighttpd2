@@ -2,7 +2,6 @@
 #include "base.h"
 #include "log.h"
 
-#include "config_parser.h"
 
 static server* server_new() {
 	server* srv = g_slice_new0(server);

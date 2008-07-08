@@ -5,6 +5,7 @@
 #include "log.h"
 
 #include "http_request_parser.h"
+#include "config_parser.h"
 
 int request_test() {
 	chunkqueue *cq;
@@ -38,7 +39,7 @@ int main() {
 	/* config parser test */
 	config_parser_init();
 	g_get_current_time(&start);
-	result = config_parser_file("/home/icy/dev/c/lighttpd/test.conf");
+	result = config_parser_file("../test.conf");
 	g_get_current_time(&end);
 
 	printf("parsed config in %ld seconds %ld milliseconds and %ld microseconds\n",
