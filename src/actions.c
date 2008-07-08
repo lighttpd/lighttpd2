@@ -42,7 +42,7 @@ action_list *action_list_new() {
 	al = g_slice_new(action_list);
 	al->refcount = 1;
 
-	al->actions = g_array_new(FALSE, TRUE, sizeof(action));
+	al->actions = g_array_new(FALSE, TRUE, sizeof(action *));
 
 	return al;
 }
