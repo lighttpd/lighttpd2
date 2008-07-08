@@ -46,9 +46,7 @@ struct action {
 	action_type type;
 
 	union {
-		struct {
-			GArray *options; /** array of option_set */
-		} setting;
+		option_set setting;
 
 		struct {
 			condition *cond;
