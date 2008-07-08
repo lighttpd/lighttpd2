@@ -63,6 +63,7 @@ struct action {
 };
 
 LI_API void action_list_release(action_list *al);
+LI_API action_list *action_list_new();
 
 /* no new/free function, so just use the struct direct (i.e. not a pointer) */
 LI_API void action_stack_init(action_stack *as);

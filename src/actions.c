@@ -36,6 +36,17 @@ void action_acquire(action *a) {
 	a->refcount++;
 }
 
+action_list *action_list_new() {
+	action_list *al;
+
+	al = g_slice_new(action_list);
+	al->refcount = 1;
+
+	al->actions = g_array_new(FALSE, TRUE, sizeof(action));
+
+	return al;
+}
+
 void action_list_release(action_list *al) {
 	assert(al->refcount > 0);
 	if (!(--al->refcount)) {
