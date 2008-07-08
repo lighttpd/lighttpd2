@@ -58,7 +58,7 @@ void option_free(option* opt) {
 			break;
 		case OPTION_LIST:
 			for (i=0; i<opt->value.opt_list->len; i++)
-				option_free(g_array_index(opt->value.opt_list, option *, i);
+				option_free(g_array_index(opt->value.opt_list, option *, i));
 			g_array_free(opt->value.opt_list, FALSE);
 			break;
 		case OPTION_HASH:
