@@ -43,6 +43,8 @@ option* option_new_hash() {
 
 
 void option_free(option* opt) {
+	guint i;
+
 	if (!opt) return;
 
 	switch (opt->type) {
@@ -55,10 +57,12 @@ void option_free(option* opt) {
 			g_string_free(opt->value.opt_string, TRUE);
 			break;
 		case OPTION_LIST:
-			/* TODO */
+			for (i=0; i<opt->value.opt_list->len; i++)
+				option_free(g_array_index(opt->value.opt_list, option *, i);
+			g_array_free(opt->value.opt_list, FALSE);
 			break;
 		case OPTION_HASH:
-			/* TODO */
+			g_hash_table_destroy(opt->value.opt_hash);
 			break;
 	}
 	opt->type = OPTION_NONE;
