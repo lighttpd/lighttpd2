@@ -57,7 +57,7 @@ void option_free(option* opt) {
 			g_string_free(opt->value.opt_string, TRUE);
 			break;
 		case OPTION_LIST:
-			for (i=0; i<opt->value.opt_list->len; i++)
+			for (i = 0; i < opt->value.opt_list->len; i++)
 				option_free(g_array_index(opt->value.opt_list, option *, i));
 			g_array_free(opt->value.opt_list, FALSE);
 			break;
@@ -67,4 +67,41 @@ void option_free(option* opt) {
 	}
 	opt->type = OPTION_NONE;
 	g_slice_free(option, opt);
+}
+
+
+
+gboolean option_register(GString *name, option *opt) {
+	guint *ndx;
+
+	ndx = g_slice_new(guint);
+
+	/* check if not already registered */
+	if (option_index(name, ndx))
+		return FALSE;
+
+	g_array_append_val(options, opt);
+	*ndx = options->len;
+	g_hash_table_insert(options_hash, (gpointer) name, (gpointer) ndx);
+
+	return TRUE;
+}
+
+
+gboolean option_unregister(GString *name) {
+	UNUSED(name);
+	assert(NULL == "does this even make sense?");
+}
+
+
+gboolean option_index(GString *name, guint *ndx) {
+	guint *val;
+
+	val = (guint *) g_hash_table_lookup(options_hash, (gconstpointer) name);
+
+	if (val == NULL)
+		return FALSE;
+
+	*ndx = *val;
+	return TRUE;
 }
