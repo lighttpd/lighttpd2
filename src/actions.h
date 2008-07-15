@@ -35,6 +35,7 @@ typedef action_result (*action_func)(struct server *srv, struct connection *con,
 
 #include "condition.h"
 #include "plugin.h"
+#include "options.h"
 
 struct action_list {
 	gint refcount;

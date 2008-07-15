@@ -16,7 +16,7 @@ typedef struct option option;
 struct option_set;
 typedef struct option_set option_set;
 
-#include "base.h"
+#include "settings.h"
 
 struct option {
 	option_type type;
