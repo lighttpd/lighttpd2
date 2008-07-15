@@ -5,8 +5,11 @@
 
 #include "config_parser.h"
 
+#if 0
 #define _printf(fmt, ...) printf(fmt, __VA_ARGS__)
+#else
 #define _printf(fmt, ...) /* */
+#endif
 
 /** config parser state machine **/
 
