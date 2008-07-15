@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # encoding: utf-8
 
-import Params, types, sys, Runner
+import Options, types, sys, Runner
 
 # the following two variables are used by the target "waf dist"
 VERSION='2.0-pre'
@@ -15,7 +15,7 @@ def set_options(opt):
 	# the gcc module provides a --debug-level option
 	
 	opt.tool_options('compiler_cc')
-	opt.tool_options('ragel', tooldir = '.')
+	opt.tool_options('ragel', tdir = '.')
 	
 	#opt.add_option('--with-xattr', action='store_true', help='xattr-support for the stat-cache [default: off]', dest='xattr', default = False)
 	#opt.add_option('--with-mysql', action='store_true', help='with mysql-support for the mod_sql_vhost [default: off]', dest = 'mysql', default = False)
@@ -191,7 +191,7 @@ def PKGCONFIG(conf, name, uselib = None, define = '', version = '', mandatory = 
 	return res
 
 def configure(conf):
-	opts = Params.g_options
+	opts = Options.options
 	
 	conf.check_tool('compiler_cc')
 	conf.check_tool('ragel', tooldir = '.')
@@ -451,10 +451,15 @@ class TestObject:
 def run_tests():
 	import UnitTest
 	unittest = UnitTest.unit_test()
-	unittest.want_to_see_test_output = Params.g_options.verbose
-	unittest.want_to_see_test_error = Params.g_options.verbose
+	unittest.want_to_see_test_output = Options.options.verbose
+	unittest.want_to_see_test_error = Options.options.verbose
 	unittest.run()
 	unittest.print_results()
 
 def shutdown():
-	if Params.g_commands['check']: run_tests()
+	if Options.commands['check']: run_tests()
+
+def dist_hook():
+	from os import system
+	system('ragel src/config_parser.rl')
+	system('ragel src/http_request_parser.rl')

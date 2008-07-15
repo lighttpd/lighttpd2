@@ -2,7 +2,7 @@
 # encoding: utf-8
 
 #import Object, Params, os, sys
-import Params
+import Options
 
 common_uselib = 'glib '
 
@@ -54,7 +54,7 @@ main_source = '''
 	#task.set_outputs(node.change_ext('.o'))
 
 def lighty_mod(bld, target, src, uselib = '', option = ''):
-	if option and not getattr(Params.g_options, option): return
+	if option and not getattr(Options.options, option): return
 	mod = bld.new_task_gen('cc', 'plugin')
 	mod.target = target
 	mod.source = src
@@ -136,7 +136,7 @@ def build(bld):
 def configure(conf):
 	env = conf.env
 	#env['LEMON_EXT'] = [ '.y' ]
-	env['LIBDIR'] = Params.g_options.libdir
-	env['APPEND'] = Params.g_options.append
+	env['LIBDIR'] = Options.options.libdir
+	env['APPEND'] = Options.options.append
 	env['plugin_INST_VAR'] = 'LIBDIR'
 	env['plugin_INST_DIR'] = ''
