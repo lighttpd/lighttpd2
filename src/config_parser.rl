@@ -5,10 +5,10 @@
 
 #include "config_parser.h"
 
-#if 0
-#define _printf(fmt, ...) printf(fmt, __VA_ARGS__)
+#if 1
+	#define _printf(fmt, ...) printf(fmt, __VA_ARGS__)
 #else
-#define _printf(fmt, ...) /* */
+	#define _printf(fmt, ...) /* */
 #endif
 
 /** config parser state machine **/
@@ -43,13 +43,13 @@
 			cpd->val_bool = TRUE;
 		else
 			cpd->val_bool = FALSE;
-		//_printf("got boolean %s in line %zd of %s\n", cpd->val_bool ? "true" : "false", cpd->line, cpd->filename);
+		_printf("got boolean %s in line %zd of %s\n", cpd->val_bool ? "true" : "false", cpd->line, cpd->filename);
 	}
 	action string {
 		g_string_truncate(cpd->val_str, 0);
 		g_string_append_len(cpd->val_str, cpd->mark + 1, fpc - cpd->mark - 2);
 		cpd->val_type = CONFP_STR;
-		//_printf("got string: \"%s\" in line %zd of %s\n", cpd->val_str->str, cpd->line, cpd->filename);
+		_printf("got string: \"%s\" in line %zd of %s\n", cpd->val_str->str, cpd->line, cpd->filename);
 	}
 	action integer
 	{
@@ -58,7 +58,7 @@
 		for (c=cpd->mark; c<fpc; c++)
 			cpd->val_int = cpd->val_int * 10 + *c - 48;
 		cpd->val_type = CONFP_INT;
-		//_printf("got integer: %d in line %d\n", config_parser_data.val_int, line);
+		_printf("got integer: %zd in line %zd of %s\n", cpd->val_int, cpd->line, cpd->filename);
 	}
 
 	action comment { _printf("got comment in line %zd of %s\n", cpd->line-1, cpd->filename); }
@@ -70,10 +70,43 @@
 	action varname {
 		g_string_truncate(cpd->varname, 0);
 		g_string_append_len(cpd->varname, cpd->mark_var, fpc - cpd->mark_var);
-		//_printf("got varname: \"%s\" in line %zd of %s\n", cpd->varname->str, cpd->line, cpd->filename);
+		_printf("got varname: \"%s\" in line %zd of %s\n", cpd->varname->str, cpd->line, cpd->filename);
 	}
 
-	action operator { }
+	action operator {
+		if ((fpc - cpd->mark) == 1) {
+			/* 1 char operator: < or > */
+			cpd->operator = (*fpc == '<') ? CONFIG_COND_LT : CONFIG_COND_GT;
+		}
+		else {
+			/* 2 char operator */
+			char frst = *cpd->mark, scnd = *(fpc-1);
+			_printf(" [%c %c] ", frst, scnd);
+			if (frst == '<' && scnd == '=') {
+				cpd->operator = CONFIG_COND_LE;
+			}
+			else if (frst == '>' && scnd == '=') {
+				cpd->operator = CONFIG_COND_GE;
+			}
+			else if (frst == '!' && scnd == '=') {
+				cpd->operator = CONFIG_COND_NE;
+			}
+			else if (frst == '=' && scnd == '=') {
+				cpd->operator = CONFIG_COND_EQ;
+			}
+			else if (frst == '=' && scnd == '~') {
+				cpd->operator = CONFIG_COND_MATCH;
+			}
+			else if (frst == '!' && scnd == '~') {
+				cpd->operator = CONFIG_COND_NOMATCH;
+			}
+		}
+
+		_printf("got operator: %s", "");
+		for (char* c=cpd->mark; c < fpc; c++)
+			_printf("%c", (int)*c);
+		_printf(" (%d) in line %zd of %s\n", cpd->operator, cpd->line, cpd->filename);
+	}
 	action assignment { _printf("got assignment for var %s in line %zd of %s\n", cpd->varname->str, cpd->line, cpd->filename); }
 	action function {
 		if (g_str_equal(cpd->varname->str, "include") || g_str_equal(cpd->varname->str, "include_shell"))
@@ -141,7 +174,7 @@
 
 	varname = ( alpha ( alnum | [_.\-] )* ) >mark_var %varname;
 
-	operator = ( '==' | '!=' | '=~' | '!~' | '<' | '<=' | '>' | '>=' ) %operator;
+	operator = ( '==' | '!=' | '=~' | '!~' | '<' | '<=' | '>' | '>=' ) >mark %operator;
 
 	assignment = ( varname ws* '=' ws* (value|valuepair|list|hash) ';' ) %assignment;
 

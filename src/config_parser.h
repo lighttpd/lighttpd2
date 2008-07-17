@@ -1,3 +1,5 @@
+#include "condition.h"
+
 struct config_parser_data_t;
 typedef struct config_parser_data_t config_parser_data_t;
 
@@ -34,6 +36,9 @@ struct config_parser_data_t {
 	GString *val_str;
 	gint64 val_int;
 	gboolean val_bool;
+
+	/* operator */
+	config_cond_t operator;
 
 	/* name of current variable */
 	GString *varname;

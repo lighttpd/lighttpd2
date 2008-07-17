@@ -4,10 +4,10 @@
 
 static condition* condition_find_cached(server *srv, GString *key);
 static void condition_cache_insert(server *srv, GString *key, condition *c);
-static condition* condition_new(config_cond_t cond, comp_key_t comp);
-static condition* cond_new_string(config_cond_t cond, comp_key_t comp, GString *str);
-static condition* cond_new_socket(config_cond_t cond, comp_key_t comp, GString *str);
-static condition* condition_new_from_string(config_cond_t cond, comp_key_t comp, GString *str);
+static condition* condition_new(comp_operator_t op, comp_key_t comp);
+static condition* cond_new_string(comp_operator_t op, comp_key_t comp, GString *str);
+static condition* cond_new_socket(comp_operator_t op, comp_key_t comp, GString *str);
+static condition* condition_new_from_string(comp_operator_t op, comp_key_t comp, GString *str);
 static void condition_free(condition *c);
 
 static gboolean condition_check_eval(server *srv, connection *con, condition *cond);
@@ -26,18 +26,18 @@ static void condition_cache_insert(server *srv, GString *key, condition *c) {
 	g_string_free(key, TRUE);
 }
 
-static condition* condition_new(config_cond_t cond, comp_key_t comp) {
+static condition* condition_new(comp_operator_t op, comp_key_t comp) {
 	condition *c = g_slice_new0(condition);
 	c->refcount = 1;
 	c->cache_index = -1;
-	c->cond = cond;
+	c->op = op;
 	c->comp = comp;
 	return c;
 }
 
-static condition* cond_new_string(config_cond_t cond, comp_key_t comp, GString *str) {
-	condition *c = condition_new(cond, comp);
-	switch (c->cond) {
+static condition* cond_new_string(comp_operator_t op, comp_key_t comp, GString *str) {
+	condition *c = condition_new(op, comp);
+	switch (op) {
 	case CONFIG_COND_EQ:      /** == */
 	case CONFIG_COND_NE:      /** != */
 		c->value.string = str;
@@ -47,14 +47,14 @@ static condition* cond_new_string(config_cond_t cond, comp_key_t comp, GString *
 #ifdef HAVE_PCRE_H
 		/* TODO */
 		ERROR("Regular expressions not supported for now in condition: %s %s '%s'",
-			config_cond_to_string(cond), comp_key_to_string(comp),
+			condition_op_to_string(op), comp_key_to_string(comp),
 			str);
 		condition_free(c);
 		return NULL;
 		break;
 #else
 		ERROR("Regular expressions not supported in condition: %s %s '%s'",
-			config_cond_to_string(cond), comp_key_to_string(comp),
+			condition_op_to_string(op), comp_key_to_string(comp),
 			str->str);
 		condition_free(c);
 		return NULL;
@@ -64,7 +64,7 @@ static condition* cond_new_string(config_cond_t cond, comp_key_t comp, GString *
 	case CONFIG_COND_LT:      /** < */
 	case CONFIG_COND_LE:      /** <= */
 		ERROR("Cannot compare with strings in condition: %s %s '%s'",
-			config_cond_to_string(cond), comp_key_to_string(comp),
+			condition_op_to_string(op), comp_key_to_string(comp),
 			str->str);
 		condition_free(c);
 		return NULL;
@@ -73,16 +73,16 @@ static condition* cond_new_string(config_cond_t cond, comp_key_t comp, GString *
 	return c;
 }
 
-static condition* cond_new_socket(config_cond_t cond, comp_key_t comp, GString *str) {
-	return cond_new_string(cond, comp, str);
+static condition* cond_new_socket(comp_operator_t op, comp_key_t comp, GString *str) {
+	return cond_new_string(op, comp, str);
 	/* TODO: parse str as socket addr */
 }
 
-static condition* condition_new_from_string(config_cond_t cond, comp_key_t comp, GString *str) {
+static condition* condition_new_from_string(comp_operator_t op, comp_key_t comp, GString *str) {
 	switch (comp) {
 	case COMP_SERVER_SOCKET:
 	case COMP_REQUEST_REMOTE_IP:
-		return cond_new_socket(cond, comp, str);
+		return cond_new_socket(op, comp, str);
 	case COMP_REQUEST_PATH:
 	case COMP_REQUEST_HOST:
 	case COMP_REQUEST_REFERER:
@@ -93,7 +93,7 @@ static condition* condition_new_from_string(config_cond_t cond, comp_key_t comp,
 	case COMP_REQUEST_METHOD:
 	case COMP_PHYSICAL_PATH:
 	case COMP_PHYSICAL_PATH_EXISTS:
-		return cond_new_string(cond, comp, str);
+		return cond_new_string(op, comp, str);
 	case COMP_PHYSICAL_SIZE:
 	case COMP_REQUEST_CONTENT_LENGTH:
 		// TODO: die with error
@@ -103,31 +103,31 @@ static condition* condition_new_from_string(config_cond_t cond, comp_key_t comp,
 	return NULL;
 }
 
-condition* condition_new_string(server *srv, config_cond_t cond, comp_key_t comp, GString *str) {
+condition* condition_new_string(server *srv, comp_operator_t op, comp_key_t comp, GString *str) {
 	condition *c;
 	GString *key = g_string_sized_new(0);
-	g_string_sprintf(key, "%i:%i:%s", (int) cond, (int) comp, str->str);
+	g_string_sprintf(key, "%i:%i:%s", (int) op, (int) comp, str->str);
 
 	if (NULL != (c = condition_find_cached(srv, key))) {
 		g_string_free(key, TRUE);
 		return c;
 	}
 
-	c = condition_new_from_string(cond, comp, str);
+	c = condition_new_from_string(op, comp, str);
 	condition_cache_insert(srv, key, c);
 	return c;
 }
 
-condition* condition_new_string_uncached(server *srv, config_cond_t cond, comp_key_t comp, GString *str) {
+condition* condition_new_string_uncached(server *srv, comp_operator_t op, comp_key_t comp, GString *str) {
 	condition *c;
 	GString *key = g_string_sized_new(0);
-	g_string_sprintf(key, "%i:%i:%s", (int) cond, (int) comp, str->str);
+	g_string_sprintf(key, "%i:%i:%s", (int) op, (int) comp, str->str);
 
 	c = condition_find_cached(srv, key);
 	g_string_free(key, TRUE);
 	if (NULL != c) return c;
 
-	return condition_new_from_string(cond, comp, str);
+	return condition_new_from_string(op, comp, str);
 }
 
 static void condition_free(condition *c) {
@@ -138,7 +138,7 @@ static void condition_free(condition *c) {
 		/* nothing to free */
 		break;
 	case COND_VALUE_STRING:
-		if (c->cond == CONFIG_COND_MATCH || c->cond == CONFIG_COND_NOMATCH) {
+		if (c->op == CONFIG_COND_MATCH || c->op == CONFIG_COND_NOMATCH) {
 #ifdef HAVE_PCRE_H
 			if (c->value.regex) pcre_free(c->value.regex);
 			if (c->value.regex_study) pcre_free(c->value.regex_study);
@@ -158,11 +158,19 @@ void condition_release(condition* c) {
 	}
 }
 
-const char* config_cond_to_string(config_cond_t cond) {
-	UNUSED(cond);
+const char* condition_op_to_string(comp_operator_t op) {
+	switch (op) {
+	case CONFIG_COND_EQ: return "==";
+	case CONFIG_COND_GE: return ">=";
+	case CONFIG_COND_GT: return ">";
+	case CONFIG_COND_LE: return "<=";
+	case CONFIG_COND_LT: return "<";
+	case CONFIG_COND_MATCH: return "=~";
+	case CONFIG_COND_NE: return "!=";
+	case CONFIG_COND_NOMATCH: return "!~";
+	}
 
-	/* TODO */
-	return "";
+	return "<unkown>";
 }
 
 const char* comp_key_to_string(comp_key_t comp) {
@@ -223,7 +231,7 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 		break;
 	}
 
-	if (value) switch (cond->cond) {
+	if (value) switch (cond->op) {
 	case CONFIG_COND_EQ:      /** == */
 		result = 0 == strcmp(value, cond->value.string->str);
 		break;
@@ -262,7 +270,7 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 		value = -1;
 	}
 
-	if (value > 0) switch (cond->cond) {
+	if (value > 0) switch (cond->op) {
 	case CONFIG_COND_EQ:      /** == */
 		return (value == cond->value.i);
 	case CONFIG_COND_NE:      /** != */
