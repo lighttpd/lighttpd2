@@ -82,7 +82,8 @@ def build(bld):
 	main.name = 'lighttpd'
 	main.source = common_source + main_source
 	main.target='lighttpd' + env['APPEND']
-	main.uselib += 'lighty dl openssl pcre lua ' + common_uselib
+	main.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib
+	main.includes = '.'
 
 	#lighty_mod(bld, 'mod_access', 'mod_access.c')
 	#lighty_mod(bld, 'mod_alias', 'mod_alias.c')
