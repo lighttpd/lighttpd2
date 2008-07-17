@@ -204,7 +204,7 @@
 
 %% write data;
 
-GList *config_parser_data;
+static GList *config_parser_data;
 
 void config_parser_init() {
 	config_parser_data = NULL;
