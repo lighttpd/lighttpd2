@@ -10,6 +10,7 @@
 # include <openssl/ssl.h>
 #endif
 
+#include <ev.h>
 #include <glib.h>
 #include <gmodule.h>
 
