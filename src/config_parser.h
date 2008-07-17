@@ -13,6 +13,8 @@ gboolean config_parser_shell(server *srv, const gchar *command);
 /* parses a buffer pointed to by the previously allocated config_parser_data struct */
 gboolean config_parser_buffer(server *srv);
 
+void config_parser_init();
+
 struct config_parser_data_t {
 	/* information of currently parsed file */
 	gchar *filename;
