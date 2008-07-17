@@ -135,11 +135,11 @@
 
 	action incl {
 		_printf("including file %s in line %zd of %s\n", cpd->val_str->str, cpd->line, cpd->filename);
-		if (!config_parser_file(cpd->val_str->str))
+		if (!config_parser_file(srv, cpd->val_str->str))
 			return FALSE;
 	}
 	action incl_shell {
-		if (!config_parser_shell(cpd->val_str->str))
+		if (!config_parser_shell(srv, cpd->val_str->str))
 			return FALSE;
 	}
 
@@ -210,7 +210,7 @@ void config_parser_init() {
 	config_parser_data = NULL;
 }
 
-gboolean config_parser_file(const gchar *path)
+gboolean config_parser_file(server *srv, const gchar *path)
 {
 	gboolean res;
 	config_parser_data_t *cpd;
@@ -232,7 +232,7 @@ gboolean config_parser_file(const gchar *path)
 
 	config_parser_data = g_list_prepend(config_parser_data, cpd);
 
-	res = config_parser_buffer();
+	res = config_parser_buffer(srv);
 
 	config_parser_data = g_list_delete_link(config_parser_data, config_parser_data);
 
@@ -245,7 +245,7 @@ gboolean config_parser_file(const gchar *path)
 	return res;
 }
 
-gboolean config_parser_shell(const gchar *command)
+gboolean config_parser_shell(server *srv, const gchar *command)
 {
 	gboolean res;
 	gchar* _stdout;
@@ -282,7 +282,7 @@ gboolean config_parser_shell(const gchar *command)
 	_printf("included shell output from \"%s\" (%zu bytes):\n%s\n", command, cpd->len, _stdout);
 
 	config_parser_data = g_list_prepend(config_parser_data, cpd);
-	res = config_parser_buffer();
+	res = config_parser_buffer(srv);
 	config_parser_data = g_list_delete_link(config_parser_data, config_parser_data);
 
 	g_free(_stdout);
@@ -295,7 +295,7 @@ gboolean config_parser_shell(const gchar *command)
 	return res;
 }
 
-gboolean config_parser_buffer()
+gboolean config_parser_buffer(server *srv)
 {
 	config_parser_data_t *cpd;
 

@@ -74,4 +74,10 @@ LI_API void action_stack_clear(action_stack *as);
 LI_API void action_enter(connection *con, action_list *al);
 LI_API action_result action_execute(server *srv, connection *con);
 
+
+/* create new action */
+action *action_new_setting(server *srv, GString *name, option *value);
+action *action_new_function();
+action *action_new_condition_string(comp_key_t comp, comp_operator_t op, GString *str);
+action *action_new_condition_int(comp_key_t comp, comp_operator_t op, guint64 i);
 #endif

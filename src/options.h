@@ -53,4 +53,6 @@ LI_API void option_list_free(GArray *optlist);
 /* Extract value from option, destroy option */
 LI_API gpointer option_extract_value(option *opt);
 
+
+gboolean option_get_index(server *srv, GString *name, gsize *ndx);
 #endif

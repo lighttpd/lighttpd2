@@ -1,4 +1,5 @@
 
+#include "base.h"
 #include "options.h"
 
 option* option_new_bool(gboolean val) {
@@ -118,4 +119,18 @@ gpointer option_extract_value(option *opt) {
 	opt->type = OPTION_NONE;
 	g_slice_free(option, opt);
 	return val;
+}
+
+gboolean option_get_index(server *srv, GString *name, gsize *ndx)
+{
+	gpointer ptr;
+
+	ptr = g_hash_table_lookup(srv->options, (gconstpointer) name);
+
+	if (ptr == NULL)
+		return FALSE;
+
+	*ndx = 0;
+
+	return TRUE;
 }

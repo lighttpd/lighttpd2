@@ -38,4 +38,7 @@ struct connection {
 	physical physical;
 };
 
+server* server_new();
+void server_free(server* srv);
+
 #endif

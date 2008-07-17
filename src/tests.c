@@ -33,13 +33,16 @@ int request_test() {
 }
 
 int main() {
+	server *srv;
 	GTimeVal start, end;
 	gboolean result;
+
+	srv = server_new();
 
 	/* config parser test */
 	config_parser_init();
 	g_get_current_time(&start);
-	result = config_parser_file("../test.conf");
+	result = config_parser_file(srv, "../test.conf");
 	g_get_current_time(&end);
 
 	printf("parsed config in %ld seconds %ld milliseconds and %ld microseconds\n",

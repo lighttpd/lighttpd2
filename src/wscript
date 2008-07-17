@@ -19,6 +19,7 @@ common_source='''
 	options.c
 	plugin.c
 	request.c
+	server.c
 	sys-files.c
 	sys-socket.c
 '''
@@ -28,7 +29,7 @@ common_source_lua='''
 '''
 
 main_source = '''
-	server.c
+	lighttpd.c
 	'''
 
 #def node_in_same_dir(node, name):

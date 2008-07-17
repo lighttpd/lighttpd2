@@ -1,4 +1,5 @@
 
+#include "log.h"
 #include "actions.h"
 #include "condition.h"
 
@@ -148,4 +149,20 @@ action_result action_execute(server *srv, connection *con) {
 		}
 	}
 	return ACTION_GO_ON;
+}
+
+
+action *action_new_setting(server *srv, GString *name, option *value) {
+	gsize ndx;
+
+	if (!option_get_index(srv, name, &ndx))
+		ERROR("unknown setting: \"%s\"", name->str);
+
+
+	action *a = g_slice_new(action);
+
+	a->refcount = 1;
+	a->type = ACTION_TSETTING;
+
+	return a;
 }
