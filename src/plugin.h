@@ -4,8 +4,8 @@
 struct plugin;
 typedef struct plugin plugin;
 
-struct module_option;
-typedef struct module_option module_option;
+struct plugin_option;
+typedef struct plugin_option plugin_option;
 
 struct server_option;
 typedef struct server_option server_option;
@@ -19,60 +19,51 @@ typedef struct server_option server_option;
 
 #include "base.h"
 #include "options.h"
+#include "module.h"
 
-typedef void     (*ModuleInit)        (server *srv, plugin *p);
-typedef void     (*ModuleFree)        (server *srv, plugin *p);
-typedef gboolean (*ModuleParseOption) (server *srv, gpointer p_d, size_t ndx, option *opt, gpointer *value);
-typedef void     (*ModuleFreeOption)  (server *srv, gpointer p_d, size_t ndx, gpointer value);
-
-struct module {
-	GString *name;
-
-	GModule *lib;
-};
-
+typedef void     (*PluginInit)        (server *srv, plugin *p);
+typedef void     (*PluginFree)        (server *srv, plugin *p);
+typedef gboolean (*PluginParseOption) (server *srv, gpointer p_d, size_t ndx, option *opt, gpointer *value);
+typedef void     (*PluginFreeOption)  (server *srv, gpointer p_d, size_t ndx, gpointer value);
 
 struct plugin {
 	size_t version;
+	const char *name; /**< name of the plugin */
 
-	GString *name; /* name of the plugin */
+	gpointer data;    /**< private plugin data */
 
-	gpointer data;
+	PluginFree *free; /**< called before plugin is unloaded */
 
-	ModuleFree *free;
-
-	module_option *options;
+	plugin_option *options;
 };
 
-struct module_option {
-	const char *key;
+struct plugin_option {
+	const gchar *key;
 	option_type type;
 
-	ModuleParseOption parse_option;
-	ModuleFreeOption free_option;
+	PluginParseOption parse_option;
+	PluginFreeOption free_option;
 };
 
 struct server_option {
 	plugin *p;
 
-	/* the plugin must free the _content_ of the option
-	 * opt is zero to get the global default value if nothing is specified
-	 * save result in value
-	 *
-	 * Default behaviour (NULL) is to just use the option as value
-	 */
-	ModuleParseOption parse_option;
-	ModuleFreeOption free_option;
+	/** the plugin must free the _content_ of the option
+	  * opt is zero to get the global default value if nothing is specified
+	  * save result in value
+	  *
+	  * Default behaviour (NULL) is to just use the option as value
+	  */
+	PluginParseOption parse_option;
+	PluginFreeOption free_option;
 
 	size_t index, module_index;
 	option_type type;
 };
 
-LI_API gboolean plugin_register(server *srv, ModuleInit *init);
+LI_API gboolean plugin_register(server *srv, const gchar *name, PluginInit *init);
 
 LI_API gboolean parse_option(server *srv, const char *key, option *opt, option_set *mark);
-LI_API void release_option(server *srv, option_set *mark); /** Does not free the option_set memory */
-
-LI_API gboolean plugin_load(server *srv, const char *module);
+LI_API void release_option(server *srv, option_set *mark); /**< Does not free the option_set memory */
 
 #endif
