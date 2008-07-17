@@ -225,7 +225,7 @@ def configure(conf):
 		'-D_FILE_OFFSET_BITS=64', '-D_LARGEFILE_SOURCE', '-D_LARGE_FILES',
 		]
 	conf.env['CCFLAGS'] += common_ccflags
-	conf.env['CCFLAGS_lighty'] += lighty_common_ccflags
+	conf.env['CCFLAGS_lighty'] += lighty_common_ccflags + [ '-DLI_DECLARE_EXPORTS' ]
 	conf.env['CCFLAGS_lightymod'] += lighty_common_ccflags
 	conf.env['plugin_PREFIX'] = ''
 	conf.env['LINKFLAGS_lighty'] += [ '-export-dynamic' ]
@@ -234,6 +234,8 @@ def configure(conf):
 	
 	if sys.platform == 'linux':
 		conf.env['LIB_lighty'] += ['rt']
+	
+	CHECK_LIBRARY_EXISTS(conf, "ev", "ev_loop", "HAVE_LIBEV", uselib = 'ev')
 	
 	CHECK_INCLUDE_FILES(conf, "sys/devpoll.h", "HAVE_SYS_DEVPOLL_H")
 	CHECK_INCLUDE_FILES(conf, "sys/epoll.h", "HAVE_SYS_EPOLL_H")

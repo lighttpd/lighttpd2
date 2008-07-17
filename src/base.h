@@ -15,7 +15,11 @@ typedef struct connection connection;
 #include "actions.h"
 #include "request.h"
 
+#define SERVER_VERSION ((guint) 0x01FF0000)
+
 struct server {
+	guint version;
+
 	GHashTable *plugins;
 
 	size_t option_count;
