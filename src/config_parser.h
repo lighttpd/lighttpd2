@@ -38,7 +38,7 @@ struct config_parser_data_t {
 	gboolean val_bool;
 
 	/* operator */
-	config_cond_t operator;
+	comp_operator_t operator;
 
 	/* name of current variable */
 	GString *varname;
