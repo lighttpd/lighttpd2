@@ -28,7 +28,7 @@ struct server {
 
 	GMutex *mutex;
 
-	gint error_log_fd;
+	GArray *logs;
 };
 
 struct connection {
@@ -43,7 +43,7 @@ struct connection {
 
 	GMutex *mutex;
 
-	gint error_log_fd;
+	guint log_ndx;
 };
 
 server* server_new();

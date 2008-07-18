@@ -3,6 +3,7 @@
 
 /* #include "valgrind/valgrind.h" */
 #include "base.h"
+#include "ev.h"
 
 #define REMOVE_PATH_FROM_FILE 1
 #if REMOVE_PATH_FROM_FILE
@@ -44,5 +45,18 @@ LI_API const char *remove_path(const char *path);
 #define	__ATTRIBUTE_PRINTF_FORMAT(fmt, arg) __attribute__ ((__format__ (__printf__, fmt, arg)))
 
 LI_API int log_write(server *srv, connection *con, const char *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(3, 4);
+
+struct log_t;
+typedef struct log_t log_t;
+
+struct log_t {
+	gint fd;
+	GMutex *mutex;
+	GString *lastmsg;
+	guint lastmsg_count;
+};
+
+log_t *log_new(const gchar* filename);
+void log_free(log_t *log);
 
 #endif

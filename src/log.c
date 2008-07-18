@@ -34,27 +34,42 @@ gboolean log_write_(server *srv, connection *con, const char *fmt, ...) {
 	va_list ap;
 	GString *log_line;
 	static GStaticMutex log_mutex = G_STATIC_MUTEX_INIT;
-	gint log_fd;
+	log_t *log;
+	guint log_ndx;
 	gssize bytes_written;
 	gssize write_res;
 
 	if (con != NULL) {
-		/* get fd from connection */
+		/* get log index from connection */
 		g_mutex_lock(con->mutex);
-		log_fd = con->error_log_fd;
+		log_ndx = con->log_ndx;
 		g_mutex_unlock(con->mutex);
 	}
-	else {
-		/* get fd from server */
-		g_mutex_lock(srv->mutex);
-		log_fd = srv->error_log_fd;
-		g_mutex_unlock(srv->mutex);
-	}
+	else
+		log_ndx = 0;
+
+	/* get fd from server */
+	g_mutex_lock(srv->mutex);
+	log = &g_array_index(srv->logs, log_t, log_ndx);
+	g_mutex_unlock(srv->mutex);
 
 	log_line = g_string_sized_new(0);
 	va_start(ap, fmt);
 	g_string_vprintf(log_line, fmt, ap);
 	va_end(ap);
+
+	/* check if last message for this log was the same */
+	if (g_string_equal(log->lastmsg, log_line)) {
+		log->lastmsg_count++;
+		return TRUE;
+	}
+	else {
+		if (log->lastmsg_count > 0) {
+			log_write_(srv, con, "last message repeated %d times", log->lastmsg_count);
+		}
+
+		log->lastmsg_count = 0;
+	}
 
 	g_string_append_len(log_line, CONST_STR_LEN("\r\n"));
 
@@ -63,7 +78,7 @@ gboolean log_write_(server *srv, connection *con, const char *fmt, ...) {
 	/* lock to ensure that multiple threads don't mess up the logs */
 	g_static_mutex_lock(&log_mutex);
 	while (bytes_written < (gssize)log_line->len) {
-		write_res = write(log_fd, log_line->str + bytes_written, log_line->len - bytes_written);
+		write_res = write(log->fd, log_line->str + bytes_written, log_line->len - bytes_written);
 
 		assert(write_res <= (gssize) log_line->len);
 
@@ -90,4 +105,30 @@ gboolean log_write_(server *srv, connection *con, const char *fmt, ...) {
 	g_string_free(log_line, TRUE);
 
 	return TRUE;
+}
+
+log_t *log_new(const gchar* filename) {
+	gint fd;
+	log_t *log;
+
+
+	fd = open(filename, O_RDWR | O_CREAT | O_APPEND, 0660);
+
+	if (fd == -1)
+		return NULL;
+
+	log = g_slice_new0(log_t);
+
+
+	log->fd = fd;
+	log->mutex = g_mutex_new();
+	log->lastmsg = g_string_new("hubba bubba");
+
+	return log;
+}
+
+void log_free(log_t *log) {
+	close(log->fd);
+	g_mutex_free(log->mutex);
+	g_string_free(log->lastmsg, TRUE);
 }
