@@ -46,6 +46,26 @@ LI_API const char *remove_path(const char *path);
 
 LI_API int log_write(server *srv, connection *con, const char *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(3, 4);
 
+
+
+/* convenience makros */
+#define log_error(srv, con, fmt, ...) \
+	log_write_(srv, con, LOG_LEVEL_ERROR, fmt, __VA_ARGS__)
+
+#define log_warning(srv, con, fmt, ...) \
+	log_write_(srv, con, LOG_LEVEL_WARNING, fmt, __VA_ARGS__)
+
+#define log_info(srv, con, fmt, ...) \
+	log_write_(srv, con, LOG_LEVEL_INFO, fmt, __VA_ARGS__)
+
+#define log_message(srv, con, fmt, ...) \
+	log_write_(srv, con, LOG_LEVEL_MESSAGE, fmt, __VA_ARGS__)
+
+#define log_debug(srv, con, fmt, ...) \
+	log_write_(srv, con, LOG_LEVEL_DEBUG, fmt, __VA_ARGS__)
+
+
+
 struct log_t;
 typedef struct log_t log_t;
 
@@ -75,5 +95,6 @@ log_t *log_open_file(const gchar* filename);
 void log_free(log_t *log);
 gpointer log_thread(server *srv);
 void log_init(server *srv);
+gboolean log_write_(server *srv, connection *con, log_level_t log_level, const gchar *fmt, ...);
 
 #endif

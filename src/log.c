@@ -30,7 +30,7 @@ int log_write(server* UNUSED_PARAM(srv), connection* UNUSED_PARAM(con), const ch
 }
 
 
-gboolean log_write_(server *srv, connection *con, log_level_t log_level, const char *fmt, ...) {
+gboolean log_write_(server *srv, connection *con, log_level_t log_level, const gchar *fmt, ...) {
 	va_list ap;
 	GString *log_line;
 	log_t *log;
