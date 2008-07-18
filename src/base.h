@@ -25,6 +25,10 @@ struct server {
 	size_t option_count;
 	GHashTable *options;
 	gpointer *option_def_values;
+
+	GMutex *mutex;
+
+	gint error_log_fd;
 };
 
 struct connection {
@@ -36,6 +40,10 @@ struct connection {
 
 	request request;
 	physical physical;
+
+	GMutex *mutex;
+
+	gint error_log_fd;
 };
 
 server* server_new();

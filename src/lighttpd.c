@@ -32,8 +32,8 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	if (show_version)
-	{
+	/* -v, show version and exit */
+	if (show_version) {
 		g_print("%s-%s - a fast and lightweight webserver\n", PACKAGE_NAME, PACKAGE_VERSION);
 		g_print("Build date: %s\n", PACKAGE_BUILD_DATE);
 		return 0;
@@ -50,8 +50,7 @@ int main(int argc, char *argv[]) {
 	if (!luaconfig) {
 		/* standard config frontend */
 		GList *cpd_stack = NULL;
-		if (!config_parser_file(srv, &cpd_stack, config_path))
-		{
+		if (!config_parser_file(srv, &cpd_stack, config_path)) {
 			return 1;
 		}
 	}
