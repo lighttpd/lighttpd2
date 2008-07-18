@@ -88,7 +88,7 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const c
 	return TRUE;
 }
 
-log_t *log_new(const gchar* filename) {
+log_t *log_open_file(const gchar* filename) {
 	gint fd;
 	log_t *log;
 
@@ -102,7 +102,6 @@ log_t *log_new(const gchar* filename) {
 
 
 	log->fd = fd;
-	log->mutex = g_mutex_new();
 	log->lastmsg = g_string_new("hubba bubba");
 
 	return log;
@@ -110,7 +109,6 @@ log_t *log_new(const gchar* filename) {
 
 void log_free(log_t *log) {
 	close(log->fd);
-	g_mutex_free(log->mutex);
 	g_string_free(log->lastmsg, TRUE);
 }
 
@@ -170,6 +168,7 @@ gpointer log_thread(server *srv) {
 }
 
 void log_init(server *srv) {
+	log_t *log;
 	GError *err = NULL;
 
 	srv->log_thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
@@ -178,6 +177,13 @@ void log_init(server *srv) {
 		g_printerr("could not create loggin thread: %s\n", err->message);
 		assert(NULL);
 	}
+
+
+	/* first entry in srv->logs is the plain good old stderr */
+	log = g_slice_new0(log_t);
+	log->fd = STDERR_FILENO;
+	log->lastmsg = g_string_sized_new(0);
+	g_array_append_val(srv->logs, log);
 }
 
 

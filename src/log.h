@@ -62,7 +62,6 @@ typedef enum {
 
 struct log_t {
 	gint fd;
-	GMutex *mutex;
 	GString *lastmsg;
 	guint lastmsg_count;
 };
@@ -72,7 +71,7 @@ struct log_entry_t {
 	GString *msg;
 };
 
-log_t *log_new(const gchar* filename);
+log_t *log_open_file(const gchar* filename);
 void log_free(log_t *log);
 gpointer log_thread(server *srv);
 void log_init(server *srv);
