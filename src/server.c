@@ -10,6 +10,8 @@ server* server_new() {
 	srv->mutex = g_mutex_new();
 
 	srv->logs = g_array_new(FALSE, FALSE, sizeof(log_t));
+	srv->log_queue = g_async_queue_new();
+	srv->exiting = FALSE;
 
 	return srv;
 }
@@ -28,6 +30,8 @@ void server_free(server* srv) {
 		log_free(log);
 	}
 	g_array_free(srv->logs, TRUE);
+
+	g_async_queue_unref(srv->log_queue);
 
 	g_slice_free(server, srv);
 }

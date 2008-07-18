@@ -49,6 +49,9 @@ LI_API int log_write(server *srv, connection *con, const char *fmt, ...) __ATTRI
 struct log_t;
 typedef struct log_t log_t;
 
+struct log_entry_t;
+typedef struct log_entry_t log_entry_t;
+
 struct log_t {
 	gint fd;
 	GMutex *mutex;
@@ -56,7 +59,14 @@ struct log_t {
 	guint lastmsg_count;
 };
 
+struct log_entry_t {
+	gint fd;
+	GString *msg;
+};
+
 log_t *log_new(const gchar* filename);
 void log_free(log_t *log);
+gpointer log_thread(server *srv);
+void log_init(server *srv);
 
 #endif

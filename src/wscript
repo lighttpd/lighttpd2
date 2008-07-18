@@ -4,7 +4,7 @@
 #import Object, Params, os, sys
 import Options
 
-common_uselib = 'glib '
+common_uselib = 'glib gthread'
 
 common_source='''
 	actions.c

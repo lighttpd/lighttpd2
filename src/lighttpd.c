@@ -39,7 +39,12 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
+	/* initialize threading */
+	g_thread_init(NULL);
+
 	srv = server_new();
+
+	log_init(srv);
 
 	/* if no path is specified for the config, read lighttpd.conf from current directory */
 	if (config_path == NULL)
@@ -63,6 +68,8 @@ int main(int argc, char *argv[]) {
 		return 0;
 
 	TRACE("%s", "Test!");
+
+	g_thread_join(srv->log_thread);
 
 	return 0;
 }

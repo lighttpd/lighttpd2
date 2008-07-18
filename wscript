@@ -382,6 +382,10 @@ def configure(conf):
 	conf.env['CPPPATH_glib'] += [ incdir+'/glib-2.0/', incdir + '/glib-2.0/include/' ]
 	CHECK_INCLUDE_FILES(conf, "glib.h", "HAVE_GLIB_H", uselib = 'glib', use = ['glib'], mandatory = 1)
 
+	PKGCONFIG(conf, "gthread-2.0", uselib = 'gthread', mandatory = 1)
+	incdir = conf.env['CPPPATH_gthread'][0]
+	conf.env['CPPPATH_gthread'] += [ incdir+'/glib-2.0/', incdir + '/glib-2.0/include/' ]
+
 	#if opts.libfcgi:
 		#CHECK_INCLUDE_FILES(conf, "fastcgi.h", "HAVE_FASTCGI_H", uselib = 'libfcgi')
 		#if not conf.is_defined("HAVE_FASTCGI_H"):

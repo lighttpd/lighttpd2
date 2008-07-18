@@ -26,9 +26,12 @@ struct server {
 	GHashTable *options;
 	gpointer *option_def_values;
 
+	gboolean exiting;
 	GMutex *mutex;
 
 	GArray *logs;
+	GAsyncQueue *log_queue;
+	GThread *log_thread;
 };
 
 struct connection {
