@@ -14,6 +14,7 @@ typedef struct connection connection;
 #include "plugin.h"
 #include "actions.h"
 #include "request.h"
+#include "log.h"
 
 #define SERVER_VERSION ((guint) 0x01FF0000)
 
@@ -47,6 +48,7 @@ struct connection {
 	GMutex *mutex;
 
 	guint log_ndx;
+	gint log_level;
 };
 
 server* server_new();

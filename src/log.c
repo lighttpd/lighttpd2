@@ -30,21 +30,29 @@ int log_write(server* UNUSED_PARAM(srv), connection* UNUSED_PARAM(con), const ch
 }
 
 
-gboolean log_write_(server *srv, connection *con, const char *fmt, ...) {
+gboolean log_write_(server *srv, connection *con, log_level_t log_level, const char *fmt, ...) {
 	va_list ap;
 	GString *log_line;
 	log_t *log;
 	guint log_ndx;
 	log_entry_t *log_entry;
+	log_level_t log_level_want;
 
 	if (con != NULL) {
 		/* get log index from connection */
 		g_mutex_lock(con->mutex);
 		log_ndx = con->log_ndx;
+		log_level_want = con->log_level;
 		g_mutex_unlock(con->mutex);
 	}
-	else
+	else {
 		log_ndx = 0;
+		log_level_want = LOG_LEVEL_DEBUG;
+	}
+
+	/* ingore messages we are not interested in */
+	if (log_level_want < log_level)
+		return TRUE;
 
 	/* get fd from server */
 	g_mutex_lock(srv->mutex);
@@ -63,7 +71,7 @@ gboolean log_write_(server *srv, connection *con, const char *fmt, ...) {
 	}
 	else {
 		if (log->lastmsg_count > 0) {
-			log_write_(srv, con, "last message repeated %d times", log->lastmsg_count);
+			log_write_(srv, con, log_level, "last message repeated %d times", log->lastmsg_count);
 		}
 
 		log->lastmsg_count = 0;

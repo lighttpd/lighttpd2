@@ -52,6 +52,14 @@ typedef struct log_t log_t;
 struct log_entry_t;
 typedef struct log_entry_t log_entry_t;
 
+typedef enum {
+	LOG_LEVEL_DEBUG,
+	LOG_LEVEL_INFO,
+	LOG_LEVEL_MESSAGE,
+	LOG_LEVEL_WARNING,
+	LOG_LEVEL_ERROR
+} log_level_t;
+
 struct log_t {
 	gint fd;
 	GMutex *mutex;
