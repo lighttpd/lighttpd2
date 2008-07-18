@@ -3,25 +3,24 @@
 #include "log.h"
 #include "config_parser.h"
 
-static gchar *config_path = NULL;
-static gboolean luaconfig = FALSE;
-static gboolean test_config = FALSE;
-static gboolean show_version = FALSE;
-
-static GOptionEntry entries[] = {
-	{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_path, "filename/path of the config", "PATH" },
-	{ "lua", 'l', 0, G_OPTION_ARG_NONE, &luaconfig, "use the lua config frontend", NULL },
-	{ "test", 't', 0, G_OPTION_ARG_NONE, &test_config, "test config and exit", NULL },
-	{ "version", 'v', 0, G_OPTION_ARG_NONE, &show_version, "show version and exit", NULL },
-	{ NULL, 0, 0, 0, NULL, NULL, NULL }
-};
-
 
 int main(int argc, char *argv[]) {
 	GError *error;
 	GOptionContext *context;
 	server *srv;
 
+	gchar *config_path = NULL;
+	gboolean luaconfig = FALSE;
+	gboolean test_config = FALSE;
+	gboolean show_version = FALSE;
+
+	GOptionEntry entries[] = {
+		{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_path, "filename/path of the config", "PATH" },
+		{ "lua", 'l', 0, G_OPTION_ARG_NONE, &luaconfig, "use the lua config frontend", NULL },
+		{ "test", 't', 0, G_OPTION_ARG_NONE, &test_config, "test config and exit", NULL },
+		{ "version", 'v', 0, G_OPTION_ARG_NONE, &show_version, "show version and exit", NULL },
+		{ NULL, 0, 0, 0, NULL, NULL, NULL }
+	};
 
 
 	/* parse commandline options */
