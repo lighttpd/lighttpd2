@@ -40,9 +40,9 @@ int main() {
 	srv = server_new();
 
 	/* config parser test */
-	config_parser_init();
+	GList *cpd_stack = NULL;
 	g_get_current_time(&start);
-	result = config_parser_file(srv, "../test.conf");
+	result = config_parser_file(srv, &cpd_stack, "../test.conf");
 	g_get_current_time(&end);
 
 	printf("parsed config in %ld seconds %ld milliseconds and %ld microseconds\n",

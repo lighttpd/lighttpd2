@@ -12,5 +12,8 @@ server* server_new() {
 void server_free(server* srv) {
 	if (!srv) return;
 	/* TODO */
+
+	g_hash_table_destroy(srv->plugins);
+	g_hash_table_destroy(srv->options);
 	g_slice_free(server, srv);
 }

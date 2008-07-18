@@ -7,13 +7,14 @@ struct config_parser_filestack_entry_t;
 typedef struct config_parser_filestack_entry_t config_parser_filestack_entry_t;
 
 /* loads a file into memory and parses it */
-gboolean config_parser_file(server *srv, const gchar *path);
+gboolean config_parser_file(server *srv, GList **cpd_stack, const gchar *path);
 /* launched a command through the shell and parses the stdout it returns */
-gboolean config_parser_shell(server *srv, const gchar *command);
+gboolean config_parser_shell(server *srv, GList **cpd_stack, const gchar *command);
 /* parses a buffer pointed to by the previously allocated config_parser_data struct */
-gboolean config_parser_buffer(server *srv);
+gboolean config_parser_buffer(server *srv, GList **cpd_stack);
 
-void config_parser_init();
+config_parser_data_t *config_parser_data_new();
+void config_parser_data_free(config_parser_data_t *cpd);
 
 struct config_parser_data_t {
 	/* information of currently parsed file */

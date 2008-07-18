@@ -50,8 +50,8 @@ int main(int argc, char *argv[]) {
 
 	if (!luaconfig) {
 		/* standard config frontend */
-		config_parser_init();
-		if (!config_parser_file(srv, config_path))
+		GList *cpd_stack = NULL;
+		if (!config_parser_file(srv, &cpd_stack, config_path))
 		{
 			return 1;
 		}
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
 		/* lua config frontend */
 	}
 
-	/* if config should only be tested, don't go over  */
+	/* if config should only be tested, exit here  */
 	if (test_config)
 		return 0;
 

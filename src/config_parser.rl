@@ -135,11 +135,11 @@
 
 	action incl {
 		_printf("including file %s in line %zd of %s\n", cpd->val_str->str, cpd->line, cpd->filename);
-		if (!config_parser_file(srv, cpd->val_str->str))
+		if (!config_parser_file(srv, cpd_stack, cpd->val_str->str))
 			return FALSE;
 	}
 	action incl_shell {
-		if (!config_parser_shell(srv, cpd->val_str->str))
+		if (!config_parser_shell(srv, cpd_stack, cpd->val_str->str))
 			return FALSE;
 	}
 
@@ -204,48 +204,68 @@
 
 %% write data;
 
-static GList *config_parser_data;
+config_parser_data_t *config_parser_data_new() {
+	config_parser_data_t *cpd;
 
-void config_parser_init() {
-	config_parser_data = NULL;
+	cpd = g_slice_new0(config_parser_data_t);
+
+	cpd->line = 1;
+
+	/* allocate stack of 8 items. sufficient for most configs, will grow when needed */
+	cpd->stack = (int*) g_malloc(sizeof(int) * 8);
+	cpd->stacksize = 8;
+
+
+	cpd->val_str = g_string_sized_new(0);
+	cpd->varname = g_string_sized_new(0);
+
+	return cpd;
 }
 
-gboolean config_parser_file(server *srv, const gchar *path)
+void config_parser_data_free(config_parser_data_t *cpd)
 {
+	g_string_free(cpd->val_str, TRUE);
+	g_string_free(cpd->varname, TRUE);
+
+	g_free(cpd->stack);
+
+	g_slice_free(config_parser_data_t, cpd);
+}
+
+gboolean config_parser_file(server *srv, GList **cpd_stack, const gchar *path) {
 	gboolean res;
 	config_parser_data_t *cpd;
 	GError *err = NULL;
 
-	cpd = g_slice_new(config_parser_data_t);
-	cpd->line = 0;
-	cpd->filename = (gchar*)path;
+	cpd = config_parser_data_new();
+	cpd->filename = (gchar*) path;
 
 	if (!g_file_get_contents(path, &cpd->ptr, &cpd->len, &err))
 	{
 		/* could not read file */
 		/* TODO: die("could not read config file. reason: \"%s\" (%d)\n", err->message, err->code); */
 		_printf("could not read config file \"%s\". reason: \"%s\" (%d)\n", path, err->message, err->code);
-		g_slice_free(config_parser_data_t, cpd);
+		config_parser_data_free(cpd);
 		g_error_free(err);
 		return FALSE;
 	}
 
-	config_parser_data = g_list_prepend(config_parser_data, cpd);
+	/* push on stack */
+	*cpd_stack = g_list_prepend(*cpd_stack, cpd);
 
-	res = config_parser_buffer(srv);
+	res = config_parser_buffer(srv, cpd_stack);
 
-	config_parser_data = g_list_delete_link(config_parser_data, config_parser_data);
+	/* pop from stack */
+	*cpd_stack = g_list_delete_link(*cpd_stack, *cpd_stack);
 
+	/* have to free the buffer on our own */
 	g_free(cpd->ptr);
-	g_free(cpd->stack);
-	g_string_free(cpd->varname, TRUE);
-	g_string_free(cpd->val_str, TRUE);
-	g_slice_free(config_parser_data_t, cpd);
+	config_parser_data_free(cpd);
 
 	return res;
 }
 
-gboolean config_parser_shell(server *srv, const gchar *command)
+gboolean config_parser_shell(server *srv, GList **cpd_stack, const gchar *command)
 {
 	gboolean res;
 	gchar* _stdout;
@@ -254,14 +274,13 @@ gboolean config_parser_shell(server *srv, const gchar *command)
 	config_parser_data_t *cpd;
 	GError *err = NULL;
 
-	cpd = g_slice_new(config_parser_data_t);
-	cpd->line = 0;
-	cpd->filename = (gchar*)command;
+	cpd = config_parser_data_new();
+	cpd->filename = (gchar*) command;
 
 	if (!g_spawn_command_line_sync(command, &_stdout, &_stderr, &status, &err))
 	{
 		_printf("error launching shell command \"%s\": %s (%d)\n", command, err->message, err->code);
-		g_slice_free(config_parser_data_t, cpd);
+		config_parser_data_free(cpd);
 		g_error_free(err);
 		return FALSE;
 	}
@@ -272,7 +291,7 @@ gboolean config_parser_shell(server *srv, const gchar *command)
 		_printf("%s\n----\n%s\n", _stdout, _stderr);
 		g_free(_stdout);
 		g_free(_stderr);
-		g_slice_free(config_parser_data_t, cpd);
+		config_parser_data_free(cpd);
 		return FALSE;
 	}
 
@@ -281,34 +300,24 @@ gboolean config_parser_shell(server *srv, const gchar *command)
 
 	_printf("included shell output from \"%s\" (%zu bytes):\n%s\n", command, cpd->len, _stdout);
 
-	config_parser_data = g_list_prepend(config_parser_data, cpd);
-	res = config_parser_buffer(srv);
-	config_parser_data = g_list_delete_link(config_parser_data, config_parser_data);
+	*cpd_stack = g_list_prepend(*cpd_stack, cpd);
+	res = config_parser_buffer(srv, cpd_stack);
+	*cpd_stack = g_list_delete_link(*cpd_stack, *cpd_stack);
 
 	g_free(_stdout);
 	g_free(_stderr);
-	g_free(cpd->stack);
-	g_string_free(cpd->varname, TRUE);
-	g_string_free(cpd->val_str, TRUE);
-	g_slice_free(config_parser_data_t, cpd);
+	config_parser_data_free(cpd);
 
 	return res;
 }
 
-gboolean config_parser_buffer(server *srv)
+gboolean config_parser_buffer(server *srv, GList **cpd_stack)
 {
 	config_parser_data_t *cpd;
 
-	cpd = config_parser_data->data;
+	/* get top of stack */
+	cpd = (*cpd_stack)->data;
 
-	/* allocate stack of 8 items. sufficient for most configs, will grow when needed */
-	cpd->stack = (int*) g_malloc(sizeof(int) * 8);
-	cpd->stacksize = 8;
-
-
-	cpd->val_str = g_string_new("");
-	cpd->varname = g_string_new("");
-	cpd->line = 1;
 	cpd->p = cpd->ptr;
 	cpd->pe = cpd->ptr + cpd->len + 1; /* marks the end of the data to scan (+1 because of trailing \0 char) */
 
