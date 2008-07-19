@@ -9,10 +9,6 @@ server* server_new() {
 	srv->options = g_hash_table_new(g_str_hash, g_str_equal);
 	srv->mutex = g_mutex_new();
 
-	srv->logs = g_array_new(FALSE, FALSE, sizeof(log_t));
-	srv->log_queue = g_async_queue_new();
-	srv->exiting = FALSE;
-
 	return srv;
 }
 
@@ -25,11 +21,7 @@ void server_free(server* srv) {
 	g_mutex_free(srv->mutex);
 
 	/* free logs */
-	for (guint i; i < srv->logs->len; i++) {
-		log_t *log = &g_array_index(srv->logs, log_t, i);
-		log_free(log);
-	}
-	g_array_free(srv->logs, TRUE);
+	g_hash_table_destroy(srv->logs);
 
 	g_async_queue_unref(srv->log_queue);
 

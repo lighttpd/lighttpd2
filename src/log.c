@@ -34,19 +34,18 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	va_list ap;
 	GString *log_line;
 	log_t *log;
-	guint log_ndx;
 	log_entry_t *log_entry;
 	log_level_t log_level_want;
 
 	if (con != NULL) {
 		/* get log index from connection */
 		g_mutex_lock(con->mutex);
-		log_ndx = con->log_ndx;
+		log = con->log;
 		log_level_want = con->log_level;
 		g_mutex_unlock(con->mutex);
 	}
 	else {
-		log_ndx = 0;
+		log = srv->log_stderr;
 		log_level_want = LOG_LEVEL_DEBUG;
 	}
 
@@ -54,18 +53,13 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	if (log_level < log_level_want)
 		return TRUE;
 
-	/* get fd from server */
-	g_mutex_lock(srv->mutex);
-	log = g_array_index(srv->logs, log_t *, log_ndx);
-	g_mutex_unlock(srv->mutex);
-
 	log_line = g_string_sized_new(0);
 	va_start(ap, fmt);
 	g_string_vprintf(log_line, fmt, ap);
 	va_end(ap);
 
 	/* check if last message for this log was the same */
-	if (log->fd == log->lastmsg_fd && g_string_equal(log->lastmsg, log_line)) {
+	if (g_string_equal(log->lastmsg, log_line)) {
 		log->lastmsg_count++;
 		return TRUE;
 	}
@@ -85,11 +79,180 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 
 
 	log_entry = g_slice_new(log_entry_t);
-	log_entry->fd = log->fd;
+	log_entry->log = log;
 	log_entry->msg = log_line;
+
+	log_ref(log);
 	g_async_queue_push(srv->log_queue, log_entry);
 
 	return TRUE;
+}
+
+
+gpointer log_thread(server *srv) {
+	GAsyncQueue *queue;
+	log_t *log;
+	log_entry_t *log_entry;
+	GString *msg;
+	gssize bytes_written;
+	gssize write_res;
+
+	queue = srv->log_queue;
+
+	while (TRUE) {
+		log_entry = g_async_queue_pop(srv->log_queue);
+
+		/* lighty is exiting, end logging thread */
+		if (srv->exiting)
+			break;
+
+		if (srv->rotate_logs) {
+			g_hash_table_foreach(srv->logs, (GHFunc) log_rotate, NULL);
+			srv->rotate_logs = FALSE;
+		}
+
+		if (log_entry == NULL)
+			continue;
+
+		log = log_entry->log;
+		msg = log_entry->msg;
+
+		bytes_written = 0;
+
+		while (bytes_written < (gssize)msg->len) {
+			write_res = write(log->fd, msg->str + bytes_written, msg->len - bytes_written);
+
+			assert(write_res <= (gssize) msg->len);
+
+			/* write() failed, check why */
+			if (write_res == -1) {
+				switch (errno) {
+					case EAGAIN:
+					case EINTR:
+						continue;
+				}
+
+				g_printerr("could not write to log: %s\n", msg->str);
+			}
+			else {
+				bytes_written += write_res;
+				assert(bytes_written <= (gssize) msg->len);
+			}
+		}
+
+		g_string_free(msg, TRUE);
+		g_slice_free(log_entry_t, log_entry);
+		log_unref(srv, log);
+	}
+
+	return NULL;
+}
+
+void log_rotate(gchar * path, log_t *log, gpointer UNUSED_PARAM(user_data)) {
+	switch (log->type) {
+		case LOG_TYPE_FILE:
+			close(log->fd);
+			log->fd = open(log->path->str, O_RDWR | O_CREAT | O_APPEND, 0660);
+			if (log->fd == -1) {
+				g_printerr("failed to reopen log: %s\n", path);
+				assert(NULL); /* TODO */
+			}
+			break;
+		case LOG_TYPE_STDERR:
+			break;
+		case LOG_TYPE_PIPE:
+		case LOG_TYPE_SYSLOG:
+			/* TODO */
+			assert(NULL);
+	}
+}
+
+
+void log_ref(log_t *log) {
+	log->refcount++;
+}
+
+void log_unref(server *srv, log_t *log) {
+	if (--log->refcount == 0)
+		log_free(srv, log);
+}
+
+log_t *log_new(server *srv, log_type_t type, GString *path) {
+	log_t *log;
+	gint fd;
+
+	g_mutex_lock(srv->mutex);
+	log = g_hash_table_lookup(srv->logs, path->str);
+
+	/* log already open, inc refcount */
+	if (log != NULL)
+	{
+		log->refcount++;
+		g_mutex_unlock(srv->mutex);
+		return log;
+	}
+
+	switch (type) {
+		case LOG_TYPE_STDERR:
+			fd = STDERR_FILENO;
+			break;
+		case LOG_TYPE_FILE:
+			fd = open(path->str, O_RDWR | O_CREAT | O_APPEND, 0660);
+			break;
+		case LOG_TYPE_PIPE:
+		case LOG_TYPE_SYSLOG:
+			/* TODO */
+			assert(NULL);
+	}
+
+	if (fd == -1) {
+		g_printerr("failed to open log: %s %d", strerror(errno), errno);
+		return NULL;
+	}
+
+	log = g_slice_new0(log_t);
+	log->lastmsg = g_string_sized_new(0);
+	log->fd = fd;
+	log->path = path;
+	log->refcount = 1;
+
+	g_mutex_unlock(srv->mutex);
+
+	return log;
+}
+
+void log_free(server *srv, log_t *log) {
+	g_mutex_lock(srv->mutex);
+
+	if (log->type == LOG_TYPE_FILE || log->type == LOG_TYPE_PIPE)
+		close(log->fd);
+
+	g_hash_table_remove(srv->logs, log->path);
+	g_string_free(log->path, TRUE);
+	g_string_free(log->lastmsg, TRUE);
+	g_slice_free(log_t, log);
+
+	g_mutex_unlock(srv->mutex);
+}
+
+void log_init(server *srv) {
+	GError *err = NULL;
+	GString *str;
+
+	srv->logs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify) log_free);
+	srv->log_queue = g_async_queue_new();
+
+	/* first entry in srv->logs is the plain good old stderr */
+	str = g_string_new_len(CONST_STR_LEN("stderr"));
+	srv->log_stderr = log_new(srv, LOG_TYPE_STDERR, str);
+	srv->log_syslog = NULL;
+
+	srv->log_thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
+
+	if (srv->log_thread == NULL) {
+		g_printerr("could not create loggin thread: %s\n", err->message);
+		assert(NULL);
+	}
 }
 
 log_t *log_open_file(const gchar* filename) {
@@ -109,89 +272,6 @@ log_t *log_open_file(const gchar* filename) {
 	log->lastmsg = g_string_new("hubba bubba");
 
 	return log;
-}
-
-void log_free(log_t *log) {
-	close(log->fd);
-	g_string_free(log->lastmsg, TRUE);
-}
-
-
-gpointer log_thread(server *srv) {
-	GAsyncQueue *queue;
-	gboolean exiting;
-	log_entry_t *log_entry;
-	GTimeVal *timeout;
-	gssize bytes_written;
-	gssize write_res;
-
-	queue = srv->log_queue;
-
-	while (TRUE) {
-		/* check if we need to exit */
-		g_mutex_lock(srv->mutex);
-		exiting = srv->exiting;
-		g_mutex_unlock(srv->mutex);
-		if (exiting)
-			break;
-
-		/* 1 second timeout */
-		g_get_current_time(timeout);
-		g_time_val_add(timeout, 1000 * 1000 * 1);
-		log_entry = g_async_queue_timed_pop(srv->log_queue, timeout);
-
-
-		if (log_entry == NULL)
-			continue;
-
-		bytes_written = 0;
-
-		while (bytes_written < (gssize)log_entry->msg->len) {
-			write_res = write(log_entry->fd, log_entry->msg->str + bytes_written, log_entry->msg->len - bytes_written);
-
-			assert(write_res <= (gssize) log_entry->msg->len);
-
-			/* write() failed, check why */
-			if (write_res == -1) {
-				switch (errno) {
-					case EAGAIN:
-					case EINTR:
-						continue;
-				}
-
-				g_printerr("could not write to log: %s\n", log_entry->msg->str);
-			}
-			else {
-				bytes_written += write_res;
-				assert(bytes_written <= (gssize) log_entry->msg->len);
-			}
-		}
-
-		g_string_free(log_entry->msg, TRUE);
-		g_slice_free(log_entry_t, log_entry);
-	}
-
-	return NULL;
-}
-
-void log_init(server *srv) {
-	log_t *log;
-	GError *err = NULL;
-
-	/* first entry in srv->logs is the plain good old stderr */
-	log = g_slice_new(log_t);
-	log->fd = STDERR_FILENO;
-	log->lastmsg = g_string_sized_new(0);
-	log->lastmsg_count = 0;
-	log->lastmsg_fd = -1;
-	g_array_append_val(srv->logs, log);
-
-	srv->log_thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
-
-	if (srv->log_thread == NULL) {
-		g_printerr("could not create loggin thread: %s\n", err->message);
-		assert(NULL);
-	}
 }
 
 

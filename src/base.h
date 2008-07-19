@@ -30,7 +30,10 @@ struct server {
 	gboolean exiting;
 	GMutex *mutex;
 
-	GArray *logs;
+	gboolean rotate_logs;
+	GHashTable *logs;
+	struct log_t *log_stderr;
+	struct log_t *log_syslog;
 	GAsyncQueue *log_queue;
 	GThread *log_thread;
 };
@@ -47,7 +50,7 @@ struct connection {
 
 	GMutex *mutex;
 
-	guint log_ndx;
+	struct log_t *log;
 	gint log_level;
 };
 

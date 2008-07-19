@@ -80,7 +80,17 @@ typedef enum {
 	LOG_LEVEL_ERROR
 } log_level_t;
 
+typedef enum {
+	LOG_TYPE_STDERR,
+	LOG_TYPE_FILE,
+	LOG_TYPE_PIPE,
+	LOG_TYPE_SYSLOG
+} log_type_t;
+
 struct log_t {
+	log_type_t type;
+	GString *path;
+	guint refcount;
 	gint fd;
 	GString *lastmsg;
 	gint lastmsg_fd;
@@ -88,12 +98,20 @@ struct log_t {
 };
 
 struct log_entry_t {
-	gint fd;
+	log_t *log;
 	GString *msg;
 };
 
 log_t *log_open_file(const gchar* filename);
-void log_free(log_t *log);
+
+log_t *log_new(server *srv, log_type_t type, GString *path);
+void log_free(server *srv, log_t *log);
+
+void log_ref(log_t *log);
+void log_unref(server *srv, log_t *log);
+
+void log_rotate(gchar *path, log_t *log, gpointer user_data);
+
 gpointer log_thread(server *srv);
 void log_init(server *srv);
 gboolean log_write_(server *srv, connection *con, log_level_t log_level, const gchar *fmt, ...);
