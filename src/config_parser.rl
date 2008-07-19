@@ -58,7 +58,7 @@
 		for (c=cpd->mark; c<fpc; c++)
 			cpd->val_int = cpd->val_int * 10 + *c - 48;
 		cpd->val_type = CONFP_INT;
-		_printf("got integer: %zd in line %zd of %s\n", cpd->val_int, cpd->line, cpd->filename);
+		_printf("got integer: %d in line %zd of %s\n", cpd->val_int, cpd->line, cpd->filename);
 	}
 
 	action comment { _printf("got comment in line %zd of %s\n", cpd->line-1, cpd->filename); }

@@ -22,7 +22,7 @@ struct option {
 	option_type type;
 	union {
 		gboolean opt_bool;
-		gint64 opt_int;
+		gint opt_int;
 		GString *opt_string;
 		/* array of option */
 		GArray *opt_list;
@@ -53,6 +53,4 @@ LI_API void option_list_free(GArray *optlist);
 /* Extract value from option, destroy option */
 LI_API gpointer option_extract_value(option *opt);
 
-
-gboolean option_get_index(server *srv, GString *name, gsize *ndx);
 #endif

@@ -13,6 +13,21 @@ struct action_stack_element {
 
 
 
+action *action_new_setting(server *srv, GString *name, option *value) {
+	option_set setting;
+	if (!parse_option(srv, name->str, value, &setting)) {
+		return NULL;
+	}
+
+	action *a = g_slice_new(action);
+
+	a->refcount = 1;
+	a->type = ACTION_TSETTING;
+	a->value.setting = setting;
+
+	return a;
+}
+
 void action_release(action *a) {
 	assert(a->refcount > 0);
 	if (!(--a->refcount)) {
@@ -149,20 +164,4 @@ action_result action_execute(server *srv, connection *con) {
 		}
 	}
 	return ACTION_GO_ON;
-}
-
-
-action *action_new_setting(server *srv, GString *name, option *value) {
-	gsize ndx;
-
-	if (!option_get_index(srv, name, &ndx))
-		ERROR("unknown setting: \"%s\"", name->str);
-
-
-	action *a = g_slice_new(action);
-
-	a->refcount = 1;
-	a->type = ACTION_TSETTING;
-
-	return a;
 }

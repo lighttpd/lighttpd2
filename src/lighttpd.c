@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
 	if (test_config)
 		return 0;
 
-	TRACE("%s", "Test!");
+	TRACE(srv, "%s", "Test!");
 
 	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo1");
 	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo1");

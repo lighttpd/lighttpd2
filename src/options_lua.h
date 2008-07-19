@@ -9,7 +9,7 @@
  * and pops the value
  * returns NULL if it couldn't convert the value (still pops it)
  */
-LI_API option* option_from_lua(lua_State *L);
+LI_API option* option_from_lua(server *srv, lua_State *L);
 
 LI_API GString* lua_togstring(lua_State *L, int ndx);
 
