@@ -15,7 +15,7 @@ struct action_stack_element {
 
 action *action_new_setting(server *srv, GString *name, option *value) {
 	option_set setting;
-	if (!parse_option(server *srv, name->str, value, &setting)) {
+	if (!parse_option(srv, name->str, value, &setting)) {
 		return NULL;
 	}
 
@@ -23,7 +23,7 @@ action *action_new_setting(server *srv, GString *name, option *value) {
 
 	a->refcount = 1;
 	a->type = ACTION_TSETTING;
-	a->setting = setting;
+	a->value.setting = setting;
 
 	return a;
 }
