@@ -69,6 +69,14 @@ int main(int argc, char *argv[]) {
 
 	TRACE("%s", "Test!");
 
+	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo1");
+	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo1");
+	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo2");
+	log_debug(srv, NULL, "test %s", "message");
+	sleep(3);
+	log_error(srv, NULL, "error %d", 23);
+	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo3");
+
 	g_thread_join(srv->log_thread);
 
 	return 0;

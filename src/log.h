@@ -83,6 +83,7 @@ typedef enum {
 struct log_t {
 	gint fd;
 	GString *lastmsg;
+	gint lastmsg_fd;
 	guint lastmsg_count;
 };
 

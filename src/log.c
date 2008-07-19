@@ -51,12 +51,12 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	}
 
 	/* ingore messages we are not interested in */
-	if (log_level_want < log_level)
+	if (log_level < log_level_want)
 		return TRUE;
 
 	/* get fd from server */
 	g_mutex_lock(srv->mutex);
-	log = &g_array_index(srv->logs, log_t, log_ndx);
+	log = g_array_index(srv->logs, log_t *, log_ndx);
 	g_mutex_unlock(srv->mutex);
 
 	log_line = g_string_sized_new(0);
@@ -65,17 +65,21 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	va_end(ap);
 
 	/* check if last message for this log was the same */
-	if (g_string_equal(log->lastmsg, log_line)) {
+	if (log->fd == log->lastmsg_fd && g_string_equal(log->lastmsg, log_line)) {
 		log->lastmsg_count++;
 		return TRUE;
 	}
 	else {
 		if (log->lastmsg_count > 0) {
-			log_write_(srv, con, log_level, "last message repeated %d times", log->lastmsg_count);
+			guint count = log->lastmsg_count;
+			log->lastmsg_count = 0;
+			log_write_(srv, con, log_level, "last message repeated %d times", count);
 		}
-
-		log->lastmsg_count = 0;
 	}
+
+
+	g_string_assign(log->lastmsg, log_line->str);
+	log->lastmsg_fd = log->fd;
 
 	g_string_append_len(log_line, CONST_STR_LEN("\r\n"));
 
@@ -136,10 +140,11 @@ gpointer log_thread(server *srv) {
 		g_time_val_add(timeout, 1000 * 1000 * 1);
 		log_entry = g_async_queue_timed_pop(srv->log_queue, timeout);
 
-		g_print("log_thread ping\n");
 
 		if (log_entry == NULL)
 			continue;
+
+		bytes_written = 0;
 
 		while (bytes_written < (gssize)log_entry->msg->len) {
 			write_res = write(log_entry->fd, log_entry->msg->str + bytes_written, log_entry->msg->len - bytes_written);
@@ -153,6 +158,8 @@ gpointer log_thread(server *srv) {
 					case EINTR:
 						continue;
 				}
+
+				g_printerr("could not write to log: %s\n", log_entry->msg->str);
 			}
 			else {
 				bytes_written += write_res;
@@ -171,19 +178,20 @@ void log_init(server *srv) {
 	log_t *log;
 	GError *err = NULL;
 
+	/* first entry in srv->logs is the plain good old stderr */
+	log = g_slice_new(log_t);
+	log->fd = STDERR_FILENO;
+	log->lastmsg = g_string_sized_new(0);
+	log->lastmsg_count = 0;
+	log->lastmsg_fd = -1;
+	g_array_append_val(srv->logs, log);
+
 	srv->log_thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
 
 	if (srv->log_thread == NULL) {
 		g_printerr("could not create loggin thread: %s\n", err->message);
 		assert(NULL);
 	}
-
-
-	/* first entry in srv->logs is the plain good old stderr */
-	log = g_slice_new0(log_t);
-	log->fd = STDERR_FILENO;
-	log->lastmsg = g_string_sized_new(0);
-	g_array_append_val(srv->logs, log);
 }
 
 
