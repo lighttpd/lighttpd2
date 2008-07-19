@@ -46,16 +46,10 @@ static condition* cond_new_string(comp_operator_t op, comp_key_t comp, GString *
 	case CONFIG_COND_NOMATCH: /** !~ */
 #ifdef HAVE_PCRE_H
 		/* TODO */
-		ERROR("Regular expressions not supported for now in condition: %s %s '%s'",
-			condition_op_to_string(op), comp_key_to_string(comp),
-			str);
 		condition_free(c);
 		return NULL;
 		break;
 #else
-		ERROR("Regular expressions not supported in condition: %s %s '%s'",
-			condition_op_to_string(op), comp_key_to_string(comp),
-			str->str);
 		condition_free(c);
 		return NULL;
 #endif
@@ -63,9 +57,6 @@ static condition* cond_new_string(comp_operator_t op, comp_key_t comp, GString *
 	case CONFIG_COND_GE:      /** >= */
 	case CONFIG_COND_LT:      /** < */
 	case CONFIG_COND_LE:      /** <= */
-		ERROR("Cannot compare with strings in condition: %s %s '%s'",
-			condition_op_to_string(op), comp_key_to_string(comp),
-			str->str);
 		condition_free(c);
 		return NULL;
 	}
@@ -113,7 +104,13 @@ condition* condition_new_string(server *srv, comp_operator_t op, comp_key_t comp
 		return c;
 	}
 
-	c = condition_new_from_string(op, comp, str);
+	if (NULL == (c = condition_new_from_string(op, comp, str))) {
+		g_string_free(key, TRUE);
+		ERROR(srv, "Condition creation failed: %s %s '%s' (perhaps you compiled without pcre?)",
+			comp_key_to_string(comp), comp_op_to_string(op),
+			str->str);
+		return NULL;
+	}
 	condition_cache_insert(srv, key, c);
 	return c;
 }
@@ -158,7 +155,7 @@ void condition_release(condition* c) {
 	}
 }
 
-const char* condition_op_to_string(comp_operator_t op) {
+const char* comp_op_to_string(comp_operator_t op) {
 	switch (op) {
 	case CONFIG_COND_EQ: return "==";
 	case CONFIG_COND_GE: return ">=";

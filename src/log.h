@@ -14,15 +14,15 @@ LI_API const char *remove_path(const char *path);
 #endif
 
 
-#define ERROR(fmt, ...) \
-	log_write(NULL, NULL, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+#define ERROR(srv, fmt, ...) \
+	log_write(srv, NULL, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
-#define TRACE(fmt, ...) \
-	log_write(NULL, NULL, "%s.%d: (trace) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+#define TRACE(srv, fmt, ...) \
+	log_write(srv, NULL, "%s.%d: (trace) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
-#define SEGFAULT(fmt, ...) \
+#define SEGFAULT(srv, fmt, ...) \
 	do { \
-		log_write(NULL, NULL, "%s.%d: (crashing) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
+		log_write(srv, NULL, "%s.%d: (crashing) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
 		/* VALGRIND_PRINTF_BACKTRACE(fmt, __VA_ARGS__); */\
 		abort();\
 	} while(0)

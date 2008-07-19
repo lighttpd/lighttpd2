@@ -93,7 +93,7 @@ LI_API condition* condition_new_int_uncached(server *srv, comp_operator_t op, co
 
 LI_API void condition_release(condition* c);
 
-LI_API const char* condition_op_to_string(comp_operator_t op);
+LI_API const char* comp_op_to_string(comp_operator_t op);
 LI_API const char* comp_key_to_string(comp_key_t comp);
 
 

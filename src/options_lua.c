@@ -12,7 +12,7 @@ static int lua_fixindex(lua_State *L, int ndx) {
 	return ndx;
 }
 
-static option* option_from_lua_table(lua_State *L, int ndx) {
+static option* option_from_lua_table(server *srv, lua_State *L, int ndx) {
 	option *opt = NULL, *sub_option;
 	GArray *list = NULL;
 	GHashTable *hash = NULL;
@@ -31,7 +31,7 @@ static option* option_from_lua_table(lua_State *L, int ndx) {
 			}
 			ikey = lua_tointeger(L, -2);
 			if (ikey < 0) {
-				ERROR("Invalid key < 0: %i - skipping entry", ikey);
+				ERROR(srv, "Invalid key < 0: %i - skipping entry", ikey);
 				lua_pop(L, 1);
 				continue;
 			}
@@ -51,7 +51,7 @@ static option* option_from_lua_table(lua_State *L, int ndx) {
 			}
 			skey = lua_togstring(L, -2);
 			if (g_hash_table_lookup(hash, skey)) {
-				ERROR("Key already exists in hash: '%s' - skipping entry", skey->str);
+				ERROR(srv, "Key already exists in hash: '%s' - skipping entry", skey->str);
 				lua_pop(L, 1);
 				continue;
 			}
@@ -64,7 +64,7 @@ static option* option_from_lua_table(lua_State *L, int ndx) {
 			break;
 
 		default:
-			ERROR("Unexpted key type in table: %s (%i) - skipping entry", lua_typename(L, -1), lua_type(L, -1));
+			ERROR(srv, "Unexpted key type in table: %s (%i) - skipping entry", lua_typename(L, -1), lua_type(L, -1));
 			lua_pop(L, 1);
 			break;
 		}
@@ -73,13 +73,13 @@ static option* option_from_lua_table(lua_State *L, int ndx) {
 	return opt;
 
 mixerror:
-	ERROR("%s", "Cannot mix list with hash; skipping remaining part of table");
+	ERROR(srv, "%s", "Cannot mix list with hash; skipping remaining part of table");
 	lua_pop(L, 2);
 	return opt;
 }
 
 
-option* option_from_lua(lua_State *L) {
+option* option_from_lua(server *srv, lua_State *L) {
 	option *opt;
 
 	switch (lua_type(L, -1)) {
@@ -103,7 +103,7 @@ option* option_from_lua(lua_State *L) {
 		return opt;
 
 	case LUA_TTABLE:
-		opt = option_from_lua_table(L, -1);
+		opt = option_from_lua_table(srv, L, -1);
 		lua_pop(L, 1);
 		return opt;
 
@@ -113,7 +113,7 @@ option* option_from_lua(lua_State *L) {
 	case LUA_TTHREAD:
 	case LUA_TNONE:
 	default:
-		ERROR("Unexpected lua type: %s (%i)", lua_typename(L, -1), lua_type(L, -1));
+		ERROR(srv, "Unexpected lua type: %s (%i)", lua_typename(L, -1), lua_type(L, -1));
 		lua_pop(L, 1);
 		return NULL;
 	}

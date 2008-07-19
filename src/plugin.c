@@ -13,12 +13,12 @@ gboolean parse_option(server *srv, const char *key, option *opt, option_set *mar
 
 	sopt = find_option(srv, key);
 	if (!sopt) {
-		ERROR("Unknown option '%s'", key);
+		ERROR(srv, "Unknown option '%s'", key);
 		return FALSE;
 	}
 
 	if (sopt->type != opt->type) {
-		ERROR("Unexpected option type '%s', expected '%s'",
+		ERROR(srv, "Unexpected option type '%s', expected '%s'",
 			option_type_string(opt->type), option_type_string(sopt->type));
 		return FALSE;
 	}

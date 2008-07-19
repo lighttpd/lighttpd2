@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
 	if (test_config)
 		return 0;
 
-	TRACE("%s", "Test!");
+	TRACE(srv, "%s", "Test!");
 
 	g_thread_join(srv->log_thread);
 

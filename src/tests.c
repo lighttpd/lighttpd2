@@ -25,7 +25,7 @@ int request_test() {
 
 	res = http_request_parse(NULL, NULL, &ctx);
 	if (res != HANDLER_GO_ON) {
-		ERROR("Parser return %i", res);
+		fprintf(stderr, "Parser return %i", res);
 		return -1;
 	}
 

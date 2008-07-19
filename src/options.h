@@ -22,7 +22,7 @@ struct option {
 	option_type type;
 	union {
 		gboolean opt_bool;
-		gint64 opt_int;
+		gint opt_int;
 		GString *opt_string;
 		/* array of option */
 		GArray *opt_list;
