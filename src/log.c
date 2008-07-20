@@ -39,10 +39,8 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 
 	if (con != NULL) {
 		/* get log index from connection */
-		g_mutex_lock(con->mutex);
 		log = con->log;
 		log_level_want = con->log_level;
-		g_mutex_unlock(con->mutex);
 	}
 	else {
 		log = srv->log_stderr;
@@ -53,6 +51,8 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	if (log_level < log_level_want)
 		return TRUE;
 
+	log_ref(log);
+
 	log_line = g_string_sized_new(0);
 	va_start(ap, fmt);
 	g_string_vprintf(log_line, fmt, ap);
@@ -61,6 +61,7 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	/* check if last message for this log was the same */
 	if (g_string_equal(log->lastmsg, log_line)) {
 		log->lastmsg_count++;
+		log_unref(srv, log);
 		return TRUE;
 	}
 	else {
@@ -71,9 +72,7 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 		}
 	}
 
-
 	g_string_assign(log->lastmsg, log_line->str);
-	log->lastmsg_fd = log->fd;
 
 	g_string_append_len(log_line, CONST_STR_LEN("\r\n"));
 
@@ -82,7 +81,6 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	log_entry->log = log;
 	log_entry->msg = log_line;
 
-	log_ref(log);
 	g_async_queue_push(srv->log_queue, log_entry);
 
 	return TRUE;
@@ -100,16 +98,18 @@ gpointer log_thread(server *srv) {
 	queue = srv->log_queue;
 
 	while (TRUE) {
-		log_entry = g_async_queue_pop(srv->log_queue);
-
 		/* lighty is exiting, end logging thread */
-		if (srv->exiting)
+		if (srv->exiting && g_async_queue_length(srv->log_queue) == 0)
 			break;
 
 		if (srv->rotate_logs) {
-			g_hash_table_foreach(srv->logs, (GHFunc) log_rotate, NULL);
 			srv->rotate_logs = FALSE;
+			g_mutex_lock(srv->log_mutex);
+			g_hash_table_foreach(srv->logs, (GHFunc) log_rotate, srv);
+			g_mutex_unlock(srv->log_mutex);
 		}
+
+		log_entry = g_async_queue_pop(srv->log_queue);
 
 		if (log_entry == NULL)
 			continue;
@@ -122,8 +122,6 @@ gpointer log_thread(server *srv) {
 		while (bytes_written < (gssize)msg->len) {
 			write_res = write(log->fd, msg->str + bytes_written, msg->len - bytes_written);
 
-			assert(write_res <= (gssize) msg->len);
-
 			/* write() failed, check why */
 			if (write_res == -1) {
 				switch (errno) {
@@ -133,6 +131,7 @@ gpointer log_thread(server *srv) {
 				}
 
 				g_printerr("could not write to log: %s\n", msg->str);
+				break;
 			}
 			else {
 				bytes_written += write_res;
@@ -148,7 +147,8 @@ gpointer log_thread(server *srv) {
 	return NULL;
 }
 
-void log_rotate(gchar * path, log_t *log, gpointer UNUSED_PARAM(user_data)) {
+void log_rotate(gchar * path, log_t *log, server * UNUSED_PARAM(srv)) {
+
 	switch (log->type) {
 		case LOG_TYPE_FILE:
 			close(log->fd);
@@ -165,6 +165,9 @@ void log_rotate(gchar * path, log_t *log, gpointer UNUSED_PARAM(user_data)) {
 			/* TODO */
 			assert(NULL);
 	}
+
+	g_string_truncate(log->lastmsg, 0);
+	log->lastmsg_count = 0;
 }
 
 
@@ -181,7 +184,7 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	log_t *log;
 	gint fd;
 
-	g_mutex_lock(srv->mutex);
+	g_mutex_lock(srv->log_mutex);
 	log = g_hash_table_lookup(srv->logs, path->str);
 
 	/* log already open, inc refcount */
@@ -216,13 +219,13 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	log->path = path;
 	log->refcount = 1;
 
-	g_mutex_unlock(srv->mutex);
+	g_mutex_unlock(srv->log_mutex);
 
 	return log;
 }
 
 void log_free(server *srv, log_t *log) {
-	g_mutex_lock(srv->mutex);
+	g_mutex_lock(srv->log_mutex);
 
 	if (log->type == LOG_TYPE_FILE || log->type == LOG_TYPE_PIPE)
 		close(log->fd);
@@ -232,7 +235,7 @@ void log_free(server *srv, log_t *log) {
 	g_string_free(log->lastmsg, TRUE);
 	g_slice_free(log_t, log);
 
-	g_mutex_unlock(srv->mutex);
+	g_mutex_unlock(srv->log_mutex);
 }
 
 void log_init(server *srv) {
@@ -241,6 +244,7 @@ void log_init(server *srv) {
 
 	srv->logs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify) log_free);
 	srv->log_queue = g_async_queue_new();
+	srv->log_mutex = g_mutex_new();
 
 	/* first entry in srv->logs is the plain good old stderr */
 	str = g_string_new_len(CONST_STR_LEN("stderr"));

@@ -30,12 +30,14 @@ struct server {
 	gboolean exiting;
 	GMutex *mutex;
 
+	/* logs */
 	gboolean rotate_logs;
 	GHashTable *logs;
 	struct log_t *log_stderr;
 	struct log_t *log_syslog;
 	GAsyncQueue *log_queue;
 	GThread *log_thread;
+	GMutex *log_mutex;
 };
 
 struct connection {

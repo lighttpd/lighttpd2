@@ -73,6 +73,7 @@ int main(int argc, char *argv[]) {
 	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo1");
 	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo2");
 	log_debug(srv, NULL, "test %s", "message");
+	srv->exiting = TRUE;
 	sleep(3);
 	log_error(srv, NULL, "error %d", 23);
 	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo3");

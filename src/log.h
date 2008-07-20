@@ -93,8 +93,8 @@ struct log_t {
 	guint refcount;
 	gint fd;
 	GString *lastmsg;
-	gint lastmsg_fd;
 	guint lastmsg_count;
+	GMutex *mutex;
 };
 
 struct log_entry_t {
@@ -110,7 +110,7 @@ void log_free(server *srv, log_t *log);
 void log_ref(log_t *log);
 void log_unref(server *srv, log_t *log);
 
-void log_rotate(gchar *path, log_t *log, gpointer user_data);
+void log_rotate(gchar *path, log_t *log, server *srv);
 
 gpointer log_thread(server *srv);
 void log_init(server *srv);
