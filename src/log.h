@@ -90,7 +90,7 @@ typedef enum {
 struct log_t {
 	log_type_t type;
 	GString *path;
-	guint refcount;
+	gint refcount;
 	gint fd;
 	GString *lastmsg;
 	guint lastmsg_count;

@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
 
 	TRACE(srv, "%s", "Test!");
 
-	srv->log_stderr = log_new(srv, LOG_TYPE_FILE, g_string_new("lightytest.log"));
+	//srv->log_stderr = log_new(srv, LOG_TYPE_FILE, g_string_new("lightytest.log"));
 	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo1");
 	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo1");
 	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo2");
@@ -77,9 +77,11 @@ int main(int argc, char *argv[]) {
 	log_thread_start(srv);
 	sleep(3);
 	log_error(srv, NULL, "error %d", 23);
+	g_atomic_int_set(&srv->rotate_logs, TRUE);
 	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo3");
+	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo4");
 
-	srv->exiting = TRUE;
+	g_atomic_int_set(&srv->exiting, TRUE);
 	log_thread_wakeup(srv);
 	g_thread_join(srv->log_thread);
 

@@ -99,11 +99,11 @@ gpointer log_thread(server *srv) {
 
 	while (TRUE) {
 		/* lighty is exiting, end logging thread */
-		if (srv->exiting && g_async_queue_length(srv->log_queue) == 0)
+		if (g_atomic_int_get(&srv->exiting) && g_async_queue_length(srv->log_queue) == 0)
 			break;
 
-		if (srv->rotate_logs) {
-			srv->rotate_logs = FALSE;
+		if (g_atomic_int_get(&srv->rotate_logs)) {
+			g_atomic_int_set(&srv->rotate_logs, FALSE);
 			g_mutex_lock(srv->log_mutex);
 			g_hash_table_foreach(srv->logs, (GHFunc) log_rotate, srv);
 			g_mutex_unlock(srv->log_mutex);
@@ -174,11 +174,11 @@ void log_rotate(gchar * path, log_t *log, server * UNUSED_PARAM(srv)) {
 
 
 void log_ref(log_t *log) {
-	log->refcount++;
+	g_atomic_int_inc(&log->refcount);
 }
 
 void log_unref(server *srv, log_t *log) {
-	if (--log->refcount == 0)
+	if (g_atomic_int_dec_and_test(&log->refcount))
 		log_free(srv, log);
 }
 
