@@ -111,8 +111,10 @@ gpointer log_thread(server *srv) {
 
 		log_entry = g_async_queue_pop(srv->log_queue);
 
-		if (log_entry == NULL)
+		if (log_entry->log == NULL) {
+			g_slice_free(log_entry_t, log_entry);
 			continue;
+		}
 
 		log = log_entry->log;
 		msg = log_entry->msg;
@@ -239,7 +241,6 @@ void log_free(server *srv, log_t *log) {
 }
 
 void log_init(server *srv) {
-	GError *err = NULL;
 	GString *str;
 
 	srv->logs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify) log_free);
@@ -250,6 +251,10 @@ void log_init(server *srv) {
 	str = g_string_new_len(CONST_STR_LEN("stderr"));
 	srv->log_stderr = log_new(srv, LOG_TYPE_STDERR, str);
 	srv->log_syslog = NULL;
+}
+
+void log_thread_start(server *srv) {
+	GError *err = NULL;
 
 	srv->log_thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
 
@@ -259,23 +264,14 @@ void log_init(server *srv) {
 	}
 }
 
-log_t *log_open_file(const gchar* filename) {
-	gint fd;
-	log_t *log;
+void log_thread_wakeup(server *srv) {
+	log_entry_t *e;
 
+	e = g_slice_new(log_entry_t);
+	e->log = NULL;
+	e->msg = NULL;
 
-	fd = open(filename, O_RDWR | O_CREAT | O_APPEND, 0660);
-
-	if (fd == -1)
-		return NULL;
-
-	log = g_slice_new0(log_t);
-
-
-	log->fd = fd;
-	log->lastmsg = g_string_new("hubba bubba");
-
-	return log;
+	g_async_queue_push(srv->log_queue, e);
 }
 
 

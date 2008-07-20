@@ -102,7 +102,6 @@ struct log_entry_t {
 	GString *msg;
 };
 
-log_t *log_open_file(const gchar* filename);
 
 log_t *log_new(server *srv, log_type_t type, GString *path);
 void log_free(server *srv, log_t *log);
@@ -113,6 +112,9 @@ void log_unref(server *srv, log_t *log);
 void log_rotate(gchar *path, log_t *log, server *srv);
 
 gpointer log_thread(server *srv);
+void log_thread_start(server *srv);
+void log_thread_wakeup(server *srv);
+
 void log_init(server *srv);
 gboolean log_write_(server *srv, connection *con, log_level_t log_level, const gchar *fmt, ...);
 
