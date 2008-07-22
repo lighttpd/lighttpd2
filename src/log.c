@@ -80,8 +80,15 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	log_entry = g_slice_new(log_entry_t);
 	log_entry->log = log;
 	log_entry->msg = log_line;
+	log_entry->level = log_level;
 
 	g_async_queue_push(srv->log_queue, log_entry);
+
+	/* on critical error, exit */
+	if (log_level == LOG_LEVEL_ERROR) {
+		g_atomic_int_set(&srv->exiting, TRUE);
+		log_thread_wakeup(srv); /* just in case the logging thread is sleeping at this point */
+	}
 
 	return TRUE;
 }
@@ -172,6 +179,10 @@ void log_rotate(gchar * path, log_t *log, server * UNUSED_PARAM(srv)) {
 	log->lastmsg_count = 0;
 }
 
+void log_rotate_logs(server *srv) {
+	g_atomic_int_set(&srv->rotate_logs, TRUE);
+}
+
 
 void log_ref(log_t *log) {
 	g_atomic_int_inc(&log->refcount);
@@ -192,7 +203,7 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	/* log already open, inc refcount */
 	if (log != NULL)
 	{
-		log->refcount++;
+		g_atomic_int_inc(&log->refcount);
 		g_mutex_unlock(srv->mutex);
 		return log;
 	}
