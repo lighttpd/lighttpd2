@@ -1,3 +1,5 @@
+#ifndef _LIGHTTPD_CONNECTION_H_
+#define _LIGHTTPD_CONNECTION_H_
 
 struct connection {
 
@@ -14,3 +16,5 @@ struct connection {
 	struct log_t *log;
 	gint log_level;
 };
+
+#endif

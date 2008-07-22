@@ -1,4 +1,5 @@
-
+#ifndef _LIGHTTPD_SERVER_H_
+#define _LIGHTTPD_SERVER_H_
 
 struct server {
 	guint version;
@@ -10,7 +11,7 @@ struct server {
 	gpointer *option_def_values;
 
 	gboolean exiting;
-	GMutex *mutex;
+	GMutex *mutex; /* general mutex for accessing the various members */
 
 	/* logs */
 	gboolean rotate_logs;
@@ -19,10 +20,12 @@ struct server {
 	struct log_t *log_syslog;
 	GAsyncQueue *log_queue;
 	GThread *log_thread;
-	GMutex *log_mutex;
+	GMutex *log_mutex; /* manage access for the logs hashtable */
 };
 
 
 
 server* server_new();
 void server_free(server* srv);
+
+#endif
