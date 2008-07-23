@@ -24,7 +24,6 @@ struct server {
 };
 
 
-
 server* server_new();
 void server_free(server* srv);
 

@@ -28,13 +28,13 @@ typedef void     (*PluginFreeOption)  (server *srv, gpointer p_d, size_t ndx, gp
 
 struct plugin {
 	size_t version;
-	const char *name; /**< name of the plugin */
+	const gchar *name; /**< name of the plugin */
 
 	gpointer data;    /**< private plugin data */
 
-	PluginFree *free; /**< called before plugin is unloaded */
+	PluginFree free; /**< called before plugin is unloaded */
 
-	plugin_option *options;
+	const plugin_option *options;
 };
 
 struct plugin_option {
@@ -61,7 +61,8 @@ struct server_option {
 	option_type type;
 };
 
-LI_API gboolean plugin_register(server *srv, const gchar *name, PluginInit *init);
+LI_API void plugin_free(plugin *p);
+LI_API gboolean plugin_register(server *srv, const gchar *name, PluginInit init);
 
 LI_API gboolean parse_option(server *srv, const char *key, option *opt, option_set *mark);
 LI_API void release_option(server *srv, option_set *mark); /**< Does not free the option_set memory */
