@@ -3,6 +3,7 @@
 #include "log.h"
 #include "config_parser.h"
 
+void plugin_core_init(server *srv, plugin *p);
 
 int main(int argc, char *argv[]) {
 	GError *error;
@@ -45,6 +46,8 @@ int main(int argc, char *argv[]) {
 	srv = server_new();
 
 	log_init(srv);
+
+	plugin_register(srv, "core", plugin_core_init);
 
 	/* if no path is specified for the config, read lighttpd.conf from current directory */
 	if (config_path == NULL)

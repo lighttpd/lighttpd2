@@ -22,6 +22,8 @@ common_source='''
 	server.c
 	sys-files.c
 	sys-socket.c
+
+	plugin_core.c
 '''
 
 common_source_lua='''
