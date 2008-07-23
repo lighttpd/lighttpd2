@@ -3,7 +3,6 @@
 
 /* #include "valgrind/valgrind.h" */
 #include "base.h"
-#include "ev.h"
 
 #define REMOVE_PATH_FROM_FILE 1
 #if REMOVE_PATH_FROM_FILE
