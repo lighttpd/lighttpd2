@@ -10,7 +10,11 @@ struct server {
 	struct action_list *actions;
 
 	size_t option_count;
+
 	GHashTable *options;
+	GHashTable *actions;
+	GHashTable *setups;
+
 	gpointer *option_def_values;
 
 	gboolean exiting;
@@ -25,7 +29,6 @@ struct server {
 	GThread *log_thread;
 	GMutex *log_mutex; /* manage access for the logs hashtable */
 };
-
 
 
 server* server_new();

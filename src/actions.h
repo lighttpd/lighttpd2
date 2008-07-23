@@ -31,7 +31,15 @@ struct action_stack {
 };
 
 struct server; struct connection;
-typedef action_result (*action_func)(struct server *srv, struct connection *con, void* param);
+typedef action_result (*ActionFunc)(struct server *srv, struct connection *con, gpointer param);
+typedef void (*ActionFree)(struct server *srv, gpointer param);
+
+struct action_func {
+	ActionFunc func;
+	ActionFree free;
+	gpointer param;
+};
+typedef struct action_func action_func;
 
 #include "condition.h"
 #include "plugin.h"
@@ -55,10 +63,7 @@ struct action {
 			action_list* target; /** action target to jump to if condition is fulfilled */
 		} condition;
 
-		struct {
-			action_func func;
-			gpointer param;
-		} function;
+		action_func function;
 	} value;
 };
 
@@ -76,8 +81,8 @@ LI_API action_result action_execute(server *srv, connection *con);
 
 
 /* create new action */
-action *action_new_setting(server *srv, GString *name, option *value);
-action *action_new_function();
-action *action_new_condition_string(comp_key_t comp, comp_operator_t op, GString *str);
-action *action_new_condition_int(comp_key_t comp, comp_operator_t op, guint64 i);
+LI_API action *action_new_setting(server *srv, GString *name, option *value);
+LI_API action *action_new_function(server *srv, const char *name, option *value);
+LI_API action *action_new_condition_string(comp_key_t comp, comp_operator_t op, GString *str);
+LI_API action *action_new_condition_int(comp_key_t comp, comp_operator_t op, guint64 i);
 #endif

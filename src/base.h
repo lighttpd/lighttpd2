@@ -13,8 +13,8 @@ typedef struct connection connection;
 
 
 #include "server.h"
-#include "plugin.h"
 #include "actions.h"
+#include "plugin.h"
 #include "request.h"
 #include "log.h"
 
