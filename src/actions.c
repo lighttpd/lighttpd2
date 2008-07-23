@@ -12,7 +12,6 @@ struct action_stack_element {
 };
 
 
-
 action *action_new_setting(server *srv, GString *name, option *value) {
 	option_set setting;
 	if (!parse_option(srv, name->str, value, &setting)) {
@@ -24,6 +23,29 @@ action *action_new_setting(server *srv, GString *name, option *value) {
 	a->refcount = 1;
 	a->type = ACTION_TSETTING;
 	a->value.setting = setting;
+
+	return a;
+}
+
+action *action_new_function(server *srv, const char *name, option *value) {
+	action *a;
+	action_func af;
+	server_action *sa;
+
+	if (NULL == (sa = g_hash_table_lookup(srv->actions, name))) {
+		ERROR(srv, "Action '%s' doesn't exist", name);
+		return NULL;
+	}
+
+	if (!sa->create_action(srv, sa->p ? sa->p->data : NULL, value, &af)) {
+		ERROR(srv, "Action '%s' creation failed", name);
+		return NULL;
+	}
+
+	a = g_slice_new(action);
+	a->refcount = 1;
+	a->type = ACTION_TFUNCTION;
+	a->value.function = af;
 
 	return a;
 }

@@ -6,8 +6,10 @@ struct server {
 
 	GHashTable *plugins;
 
-	size_t option_count;
 	GHashTable *options;
+	GHashTable *actions;
+	GHashTable *setups;
+
 	gpointer *option_def_values;
 
 	gboolean exiting;
