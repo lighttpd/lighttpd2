@@ -8,6 +8,7 @@ server* server_new() {
 	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
 	srv->options = g_hash_table_new(g_str_hash, g_str_equal);
 	srv->mutex = g_mutex_new();
+	srv->actions = action_list_new();
 
 	return srv;
 }

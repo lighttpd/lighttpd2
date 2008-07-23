@@ -34,22 +34,9 @@ int request_test() {
 
 int main() {
 	server *srv;
-	GTimeVal start, end;
-	gboolean result;
 
 	srv = server_new();
 
-	/* config parser test */
-	GList *cpd_stack = NULL;
-	g_get_current_time(&start);
-	result = config_parser_file(srv, &cpd_stack, "../test.conf");
-	g_get_current_time(&end);
-
-	printf("parsed config in %ld seconds %ld milliseconds and %ld microseconds\n",
-		end.tv_sec - start.tv_sec,
-		(end.tv_usec - start.tv_usec) / 1000,
-		(end.tv_usec - start.tv_usec) % 1000
-	);
 
 	return request_test();
 }

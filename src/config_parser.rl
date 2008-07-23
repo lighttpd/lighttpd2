@@ -1,12 +1,8 @@
-#include <stdio.h>
-#include <glib.h>
-#include <assert.h>
-#include <string.h>
-
+#include "base.h"
 #include "config_parser.h"
 
 #if 1
-	#define _printf(fmt, ...) printf(fmt, __VA_ARGS__)
+	#define _printf(fmt, ...) g_print(fmt, __VA_ARGS__)
 #else
 	#define _printf(fmt, ...) /* */
 #endif
@@ -45,12 +41,14 @@
 			cpd->val_bool = FALSE;
 		_printf("got boolean %s in line %zd of %s\n", cpd->val_bool ? "true" : "false", cpd->line, cpd->filename);
 	}
+
 	action string {
 		g_string_truncate(cpd->val_str, 0);
 		g_string_append_len(cpd->val_str, cpd->mark + 1, fpc - cpd->mark - 2);
 		cpd->val_type = CONFP_STR;
 		_printf("got string: \"%s\" in line %zd of %s\n", cpd->val_str->str, cpd->line, cpd->filename);
 	}
+
 	action integer
 	{
 		gchar *c;
@@ -107,12 +105,54 @@
 			_printf("%c", (int)*c);
 		_printf(" (%d) in line %zd of %s\n", cpd->operator, cpd->line, cpd->filename);
 	}
-	action assignment { _printf("got assignment for var %s in line %zd of %s\n", cpd->varname->str, cpd->line, cpd->filename); }
+
+
+	action assignment {
+		action *a;
+		option *o;
+		action_list *al;
+
+		switch (cpd->val_type) {
+			case CONFP_BOOL:
+				o = option_new_bool(cpd->val_bool);
+				break;
+			case CONFP_INT:
+				o = option_new_int(cpd->val_int);
+				break;
+			case CONFP_STR:
+				o = option_new_string(cpd->val_str);
+				break;
+			case CONFP_LIST:
+				o = option_new_list();
+				g_array_free(o->value.opt_list, TRUE);
+				o->value.opt_list = cpd->val_list;
+				break;
+			case CONFP_HASH:
+				o = option_new_hash();
+				g_hash_table_destroy(o->value.opt_hash);
+				o->value.opt_hash = cpd->val_hash;
+				break;
+		}
+
+		a = action_new_setting(srv, cpd->varname, o);
+
+		if (a == NULL) {
+			option_free(o);
+			return FALSE;
+		}
+
+		al = ctx->action_list_stack->data;
+		g_array_append_val(al->actions, a);
+
+		_printf("got assignment for var %s in line %zd of %s\n", cpd->varname->str, cpd->line, cpd->filename);
+	}
+
 	action function {
 		if (g_str_equal(cpd->varname->str, "include") || g_str_equal(cpd->varname->str, "include_shell"))
 			break;
 		_printf("got function call to %s in line %zd of %s\n", cpd->varname->str, cpd->line, cpd->filename);
 	}
+
 	action condition { _printf("got condition for var %s in line %zd of %s\n", cpd->varname->str, cpd->line, cpd->filename); }
 	action fooblock { _printf("got fooblock in line %zd of %s\n", cpd->line, cpd->filename); }
 
@@ -135,20 +175,20 @@
 
 	action incl {
 		_printf("including file %s in line %zd of %s\n", cpd->val_str->str, cpd->line, cpd->filename);
-		if (!config_parser_file(srv, cpd_stack, cpd->val_str->str))
+		if (!config_parser_file(srv, ctx, cpd->val_str->str))
 			return FALSE;
 	}
 	action incl_shell {
-		if (!config_parser_shell(srv, cpd_stack, cpd->val_str->str))
+		if (!config_parser_shell(srv, ctx, cpd->val_str->str))
 			return FALSE;
 	}
 
 	action done { _printf("done\n"); }
 
 	# tokens
-	boolean = ( 'true' | 'false' ) %boolean;
-	integer = ( 0 | ( [1-9] [0-9]* ) ) %integer;
-	string = ( '"' (any-'"')* '"' ) %string;
+	boolean = ( 'true' | 'false' ) >mark %boolean;
+	integer = ( 0 | ( [1-9] [0-9]* ) ) >mark %integer;
+	string = ( '"' (any-'"')* '"' ) >mark %string;
 	ws = ( ' ' | '\t' );
 
 	lineUnix = ( '\n' ) %line;
@@ -160,7 +200,7 @@
 
 	comment = ( '#' (any - line)* line ) %comment;
 
-	value = ( boolean | integer | string ) >mark %value;
+	value = ( boolean | integer | string ) %value;
 	valuepair = ( string ws* '=>' ws* value ) %valuepair;
 
 	list = ( '(' ) >list_start;
@@ -176,7 +216,9 @@
 
 	operator = ( '==' | '!=' | '=~' | '!~' | '<' | '<=' | '>' | '>=' ) >mark %operator;
 
-	assignment = ( varname ws* '=' ws* (value|valuepair|list|hash) ';' ) %assignment;
+	#assignment_bool = ( varname ws* '=' ws* boolean ';' ) %assignment_bool;
+	assignment = ( varname ws* '=' ws* ( value | list | hash) ';' ) %assignment;
+	#assignment = ( assignment_bool ) %assignment;
 
 	function = ( varname (ws+ (value|valuepair|list|hash))? ';' ) %function;
 
@@ -203,6 +245,25 @@
 }%%
 
 %% write data;
+
+config_parser_context_t *config_parser_init() {
+	config_parser_context_t *ctx;
+	action_list *al;
+
+	ctx = g_slice_new(config_parser_context_t);
+	ctx->stack = NULL;
+
+	al = action_list_new();
+	ctx->action_list_stack = g_list_prepend(NULL, al);
+
+	return ctx;
+}
+
+void config_parser_finish(config_parser_context_t *ctx) {
+	assert(ctx->stack == NULL);
+
+	g_slice_free(config_parser_context_t, ctx);
+}
 
 config_parser_data_t *config_parser_data_new() {
 	config_parser_data_t *cpd;
@@ -232,7 +293,7 @@ void config_parser_data_free(config_parser_data_t *cpd)
 	g_slice_free(config_parser_data_t, cpd);
 }
 
-gboolean config_parser_file(server *srv, GList **cpd_stack, const gchar *path) {
+gboolean config_parser_file(server *srv, config_parser_context_t *ctx, const gchar *path) {
 	gboolean res;
 	config_parser_data_t *cpd;
 	GError *err = NULL;
@@ -251,12 +312,12 @@ gboolean config_parser_file(server *srv, GList **cpd_stack, const gchar *path) {
 	}
 
 	/* push on stack */
-	*cpd_stack = g_list_prepend(*cpd_stack, cpd);
+	ctx->stack = g_list_prepend(ctx->stack, cpd);
 
-	res = config_parser_buffer(srv, cpd_stack);
+	res = config_parser_buffer(srv, ctx);
 
 	/* pop from stack */
-	*cpd_stack = g_list_delete_link(*cpd_stack, *cpd_stack);
+	ctx->stack = g_list_delete_link(ctx->stack, ctx->stack);
 
 	/* have to free the buffer on our own */
 	g_free(cpd->ptr);
@@ -265,7 +326,7 @@ gboolean config_parser_file(server *srv, GList **cpd_stack, const gchar *path) {
 	return res;
 }
 
-gboolean config_parser_shell(server *srv, GList **cpd_stack, const gchar *command)
+gboolean config_parser_shell(server *srv, config_parser_context_t *ctx, const gchar *command)
 {
 	gboolean res;
 	gchar* _stdout;
@@ -300,9 +361,9 @@ gboolean config_parser_shell(server *srv, GList **cpd_stack, const gchar *comman
 
 	_printf("included shell output from \"%s\" (%zu bytes):\n%s\n", command, cpd->len, _stdout);
 
-	*cpd_stack = g_list_prepend(*cpd_stack, cpd);
-	res = config_parser_buffer(srv, cpd_stack);
-	*cpd_stack = g_list_delete_link(*cpd_stack, *cpd_stack);
+	ctx->stack = g_list_prepend(ctx->stack, cpd);
+	res = config_parser_buffer(srv, ctx);
+	ctx->stack = g_list_delete_link(ctx->stack, ctx->stack);
 
 	g_free(_stdout);
 	g_free(_stderr);
@@ -311,12 +372,12 @@ gboolean config_parser_shell(server *srv, GList **cpd_stack, const gchar *comman
 	return res;
 }
 
-gboolean config_parser_buffer(server *srv, GList **cpd_stack)
+gboolean config_parser_buffer(server *srv, config_parser_context_t *ctx)
 {
 	config_parser_data_t *cpd;
 
 	/* get top of stack */
-	cpd = (*cpd_stack)->data;
+	cpd = ctx->stack->data;
 
 	cpd->p = cpd->ptr;
 	cpd->pe = cpd->ptr + cpd->len + 1; /* marks the end of the data to scan (+1 because of trailing \0 char) */
@@ -328,7 +389,7 @@ gboolean config_parser_buffer(server *srv, GList **cpd_stack)
 	if (cpd->cs == config_parser_error || cpd->cs == config_parser_first_final)
 	{
 		/* parse error */
-		printf("parse error in line %zd of \"%s\" at character %c (0x%.2x)\n", cpd->line, cpd->filename, *cpd->p, *cpd->p);
+		g_printerr("parse error in line %zd of \"%s\" at character %c (0x%.2x)\n", cpd->line, cpd->filename, *cpd->p, *cpd->p);
 		return FALSE;
 	}
 

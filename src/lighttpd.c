@@ -54,8 +54,8 @@ int main(int argc, char *argv[]) {
 
 	if (!luaconfig) {
 		/* standard config frontend */
-		GList *cpd_stack = NULL;
-		if (!config_parser_file(srv, &cpd_stack, config_path)) {
+		config_parser_context_t *cp_ctx = config_parser_init();
+		if (!config_parser_file(srv, cp_ctx, config_path)) {
 			return 1;
 		}
 	}

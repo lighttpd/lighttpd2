@@ -1,10 +1,13 @@
 #ifndef _LIGHTTPD_SERVER_H_
 #define _LIGHTTPD_SERVER_H_
 
+
 struct server {
 	guint version;
 
 	GHashTable *plugins;
+
+	struct action_list *actions;
 
 	size_t option_count;
 	GHashTable *options;

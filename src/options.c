@@ -5,24 +5,28 @@
 option* option_new_bool(gboolean val) {
 	option *opt = g_slice_new0(option);
 	opt->value.opt_bool = val;
+	opt->type = OPTION_BOOLEAN;
 	return opt;
 }
 
 option* option_new_int(gint val) {
 	option *opt = g_slice_new0(option);
 	opt->value.opt_int = val;
+	opt->type = OPTION_INT;
 	return opt;
 }
 
 option* option_new_string(GString *val) {
 	option *opt = g_slice_new0(option);
 	opt->value.opt_string = val;
+	opt->type = OPTION_STRING;
 	return opt;
 }
 
 option* option_new_list() {
 	option *opt = g_slice_new0(option);
 	opt->value.opt_list = g_array_new(FALSE, TRUE, sizeof(option*));
+	opt->type = OPTION_LIST;
 	return opt;
 }
 
@@ -39,6 +43,7 @@ option* option_new_hash() {
 	opt->value.opt_hash = g_hash_table_new_full(
 		(GHashFunc) g_string_hash, (GEqualFunc) g_string_equal,
 		_option_hash_free_key, _option_hash_free_value);
+	opt->type = OPTION_HASH;
 	return opt;
 }
 
