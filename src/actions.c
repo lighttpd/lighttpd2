@@ -32,7 +32,7 @@ action *action_new_function(server *srv, const char *name, option *value) {
 	action_func af;
 	server_action *sa;
 
-	if (NULL == (sa = g_hash_table_lookup(srv->actions, name))) {
+	if (NULL == (sa = (server_action*) g_hash_table_lookup(srv->actions, name))) {
 		ERROR(srv, "Action '%s' doesn't exist", name);
 		return NULL;
 	}

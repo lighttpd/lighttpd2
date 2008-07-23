@@ -210,3 +210,19 @@ gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 
 	return TRUE;
 }
+
+gboolean call_setup(server *srv, const char *name, option *opt) {
+	server_setup *ss;
+
+	if (NULL == (ss = (server_setup*) g_hash_table_lookup(srv->actions, name))) {
+		ERROR(srv, "Setup function '%s' doesn't exist", name);
+		return FALSE;
+	}
+
+	if (!ss->setup(srv, ss->p ? ss->p->data : NULL, opt)) {
+		ERROR(srv, "Setup '%s' failed", name);
+		return FALSE;
+	}
+
+	return TRUE;
+}

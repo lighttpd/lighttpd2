@@ -102,7 +102,9 @@ struct server_setup {
 LI_API void plugin_free(server *srv, plugin *p);
 LI_API gboolean plugin_register(server *srv, const gchar *name, PluginInit init);
 
-LI_API gboolean parse_option(server *srv, const char *key, option *opt, option_set *mark);
+LI_API gboolean parse_option(server *srv, const char *name, option *opt, option_set *mark);
 LI_API void release_option(server *srv, option_set *mark); /**< Does not free the option_set memory */
+
+LI_API gboolean call_setup(server *srv, const char *name, option *opt);
 
 #endif
