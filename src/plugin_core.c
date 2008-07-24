@@ -41,7 +41,7 @@ static action* core_when(server *srv, plugin* p, option *opt) {
 		return NULL;
 	}
 	opt_cond = g_array_index(opt->value.opt_list, option*, 0);
-	opt_act = g_array_index(opt->value.opt_list, option*, 0);
+	opt_act = g_array_index(opt->value.opt_list, option*, 1);
 	if (opt_act->type != OPTION_ACTION) {
 		ERROR(srv, "expected action as second parameter, got %s", option_type_string(opt->type));
 		return NULL;
