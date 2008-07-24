@@ -148,7 +148,23 @@ static void condition_free(condition *c) {
 	g_slice_free(condition, c);
 }
 
-void condition_release(condition* c) {
+condition* condition_from_option(server *srv, option *opt) {
+	if (opt->type == OPTION_CONDITION) {
+		assert(srv == opt->value.opt_cond.srv);
+		condition_acquire(opt->value.opt_cond.cond);
+		return opt->value.opt_cond.cond;
+	}
+	/* TODO: convert triple into condition */
+	return NULL;
+}
+
+void condition_acquire(condition *c) {
+	assert(c->refcount > 0);
+	c->refcount++;
+}
+
+void condition_release(server *srv, condition* c) {
+	UNUSED(srv);
 	/* assert(c->recount > 0); */
 	if (!(--c->refcount)) {
 		condition_free(c);

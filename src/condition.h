@@ -91,7 +91,11 @@ LI_API condition* condition_new_int(server *srv, comp_operator_t op, comp_key_t 
 LI_API condition* condition_new_string_uncached(server *srv, comp_operator_t op, comp_key_t comp, GString *str);
 LI_API condition* condition_new_int_uncached(server *srv, comp_operator_t op, comp_key_t comp, gint i);
 
-LI_API void condition_release(condition* c);
+struct option;
+LI_API condition* condition_from_option(server *srv, struct option *opt);
+
+LI_API void condition_acquire(condition *c);
+LI_API void condition_release(server *srv, condition* c);
 
 LI_API const char* comp_op_to_string(comp_operator_t op);
 LI_API const char* comp_key_to_string(comp_key_t comp);

@@ -8,6 +8,8 @@ struct connection {
 
 	action_stack action_stack;
 
+	gpointer *options;
+
 	request request;
 	physical physical;
 

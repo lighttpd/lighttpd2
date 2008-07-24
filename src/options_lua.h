@@ -1,6 +1,7 @@
 #ifndef _LIGHTTPD_OPTIONS_LUA_H_
 #define _LIGHTTPD_OPTIONS_LUA_H_
 
+#include "base.h"
 #include "options.h"
 
 #include <lua.h>

@@ -14,7 +14,8 @@ typedef enum {
 typedef enum {
 	ACTION_TSETTING,
 	ACTION_TFUNCTION,
-	ACTION_TCONDITION
+	ACTION_TCONDITION,
+	ACTION_TLIST
 } action_type;
 
 struct action;
@@ -64,25 +65,33 @@ struct action {
 		} condition;
 
 		action_func function;
+
+		action_list *list;
 	} value;
 };
 
-LI_API void action_list_release(action_list *al);
+LI_API void action_list_release(server *srv, action_list *al);
+LI_API void action_list_acquire(action_list *al);
 LI_API action_list *action_list_new();
+LI_API action_list *action_list_from_action(action *a);
 
 /* no new/free function, so just use the struct direct (i.e. not a pointer) */
 LI_API void action_stack_init(action_stack *as);
-LI_API void action_stack_reset(action_stack *as);
-LI_API void action_stack_clear(action_stack *as);
+LI_API void action_stack_reset(server *srv, action_stack *as);
+LI_API void action_stack_clear(server *srv, action_stack *as);
 
 /** handle sublist now, remember current position (stack) */
 LI_API void action_enter(connection *con, action_list *al);
 LI_API action_result action_execute(server *srv, connection *con);
 
 
+LI_API void action_release(server *srv, action *a);
+LI_API void action_acquire(action *a);
 /* create new action */
-LI_API action *action_new_setting(server *srv, GString *name, option *value);
-LI_API action *action_new_function(server *srv, const char *name, option *value);
+LI_API action *action_new_setting(server *srv, const gchar *name, option *value);
+LI_API action *action_new_function(ActionFunc func, ActionFree free, gpointer param);
+LI_API action *action_new_list();
+LI_API action *action_new_condition(condition *cond, action_list *al);
 LI_API action *action_new_condition_string(comp_key_t comp, comp_operator_t op, GString *str);
 LI_API action *action_new_condition_int(comp_key_t comp, comp_operator_t op, guint64 i);
 #endif

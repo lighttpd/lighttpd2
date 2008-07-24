@@ -1,5 +1,7 @@
 
 #include "options_lua.h"
+#include "condition_lua.h"
+#include "actions_lua.h"
 #include "log.h"
 
 /* replace a negative stack index with a positive one,
@@ -35,7 +37,7 @@ static option* option_from_lua_table(server *srv, lua_State *L, int ndx) {
 				lua_pop(L, 1);
 				continue;
 			}
-			sub_option = option_from_lua(L);
+			sub_option = option_from_lua(srv, L);
 			if (!sub_option) continue;
 			if ((size_t) ikey >= list->len) {
 				g_array_set_size(list, ikey + 1);
@@ -55,7 +57,7 @@ static option* option_from_lua_table(server *srv, lua_State *L, int ndx) {
 				lua_pop(L, 1);
 				continue;
 			}
-			sub_option = option_from_lua(L);
+			sub_option = option_from_lua(srv, L);
 			if (!sub_option) {
 				g_string_free(skey, TRUE);
 				continue;
@@ -107,9 +109,29 @@ option* option_from_lua(server *srv, lua_State *L) {
 		lua_pop(L, 1);
 		return opt;
 
+	case LUA_TUSERDATA:
+		{ /* check for action */
+			action *a = lua_get_action(L, -1);
+			if (a) {
+				action_acquire(a);
+				lua_pop(L, 1);
+				return opt = option_new_action(srv, a);
+			}
+		}
+		{ /* check for condition */
+			condition *c = lua_get_condition(L, -1);
+			if (c) {
+				condition_acquire(c);
+				lua_pop(L, 1);
+				return opt = option_new_condition(srv, c);
+			}
+		}
+		ERROR(srv, "%s", "Unknown lua userdata");
+		lua_pop(L, 1);
+		return NULL;
+
 	case LUA_TLIGHTUSERDATA:
 	case LUA_TFUNCTION:
-	case LUA_TUSERDATA:
 	case LUA_TTHREAD:
 	case LUA_TNONE:
 	default:
