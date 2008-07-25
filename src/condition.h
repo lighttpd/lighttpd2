@@ -20,9 +20,12 @@ typedef enum {
 	CONFIG_COND_EQ,      /** == */
 	CONFIG_COND_NE,      /** != */
 
-/* only with strings (including socket name) */
+/* only usable with pcre */
 	CONFIG_COND_MATCH,   /** =~ */
 	CONFIG_COND_NOMATCH, /** !~ */
+
+	CONFIG_COND_IP,
+	CONFIG_COND_NOTIP,
 
 /* only with int */
 	CONFIG_COND_GT,      /** > */
@@ -67,10 +70,8 @@ typedef enum {
 #ifdef HAVE_PCRE_H
 	COND_VALUE_REGEXP,
 #endif
-	COND_VALUE_SOCKET_IPV4  /** only match ip/netmask */
-#ifdef HAVE_IPV6
-	,COND_VALUE_SOCKET_IPV6   /** only match ip/netmask */
-#endif
+	COND_VALUE_SOCKET_IPV4,  /** only match ip/netmask */
+	COND_VALUE_SOCKET_IPV6   /** only match ip/netmask */
 } cond_rvalue_t;
 
 struct condition_rvalue {
@@ -88,13 +89,10 @@ struct condition_rvalue {
 		guint32 addr;
 		guint32 networkmask;
 	} ipv4;
-#ifdef HAVE_IPV6
 	struct {
 		guint8 addr[16];
 		guint network;
 	} ipv6;
-#endif
-	sock_addr addr;
 };
 
 #include "base.h"
@@ -112,10 +110,8 @@ LI_API condition_lvalue* condition_lvalue_new(cond_lvalue_t type, GString *key);
 LI_API void condition_lvalue_acquire(condition_lvalue *lvalue);
 LI_API void condition_lvalue_release(condition_lvalue *lvalue);
 
-
-
 LI_API condition* condition_new_string(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str);
-LI_API condition* condition_new_int(server *srv, comp_operator_t op, condition_lvalue *lvalue, gint i);
+LI_API condition* condition_new_int(server *srv, comp_operator_t op, condition_lvalue *lvalue, gint64 i);
 
 LI_API void condition_acquire(condition *c);
 LI_API void condition_release(server *srv, condition* c);
@@ -124,5 +120,10 @@ LI_API const char* comp_op_to_string(comp_operator_t op);
 LI_API const char* cond_lvalue_to_string(cond_lvalue_t t);
 
 LI_API gboolean condition_check(server *srv, connection *con, condition *cond);
+
+/* parser */
+LI_API gboolean parse_ipv4(const char *str, guint32 *ip, guint32 *netmask);
+LI_API gboolean parse_ipv6(const char *str, guint8 *ip, guint *network);
+LI_API GString* ipv6_tostring(const guint8 ip[16]);
 
 #endif
