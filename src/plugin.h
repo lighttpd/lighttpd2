@@ -36,10 +36,10 @@ typedef struct server_setup server_setup;
 
 typedef void     (*PluginInit)          (server *srv, plugin *p);
 typedef void     (*PluginFree)          (server *srv, plugin *p);
-typedef gboolean (*PluginParseOption)   (server *srv, gpointer p_d, size_t ndx, option *opt, gpointer *value);
-typedef void     (*PluginFreeOption)    (server *srv, gpointer p_d, size_t ndx, gpointer value);
-typedef gboolean (*PluginCreateAction)  (server *srv, gpointer p_d, option *opt, action_func *func);
-typedef gboolean (*PluginSetup)         (server *srv, gpointer p_d, option *opt);
+typedef gboolean (*PluginParseOption)   (server *srv, plugin *p, size_t ndx, option *opt, gpointer *value);
+typedef void     (*PluginFreeOption)    (server *srv, plugin *p, size_t ndx, gpointer value);
+typedef action*  (*PluginCreateAction)  (server *srv, plugin *p, option *opt);
+typedef gboolean (*PluginSetup)         (server *srv, plugin *p, option *opt);
 
 struct plugin {
 	size_t version;
@@ -102,7 +102,11 @@ struct server_setup {
 LI_API void plugin_free(server *srv, plugin *p);
 LI_API gboolean plugin_register(server *srv, const gchar *name, PluginInit init);
 
-LI_API gboolean parse_option(server *srv, const char *key, option *opt, option_set *mark);
+LI_API gboolean parse_option(server *srv, const char *name, option *opt, option_set *mark);
 LI_API void release_option(server *srv, option_set *mark); /**< Does not free the option_set memory */
+
+LI_API action* create_action(server *srv, const gchar *name, option *value);
+
+LI_API gboolean call_setup(server *srv, const char *name, option *opt);
 
 #endif

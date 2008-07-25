@@ -47,6 +47,21 @@ option* option_new_hash() {
 	return opt;
 }
 
+option* option_new_action(server *srv, action *a) {
+	option *opt = g_slice_new0(option);
+	opt->value.opt_action.srv = srv;
+	opt->value.opt_action.action = a;
+	opt->type = OPTION_ACTION;
+	return opt;
+}
+
+option* option_new_condition(server *srv, condition *c) {
+	option *opt = g_slice_new0(option);
+	opt->value.opt_cond.srv = srv;
+	opt->value.opt_cond.cond = c;
+	opt->type = OPTION_CONDITION;
+	return opt;
+}
 
 void option_free(option* opt) {
 	if (!opt) return;
@@ -65,6 +80,12 @@ void option_free(option* opt) {
 		break;
 	case OPTION_HASH:
 		g_hash_table_destroy((GHashTable*) opt->value.opt_hash);
+		break;
+	case OPTION_ACTION:
+		action_release(opt->value.opt_action.srv, opt->value.opt_action.action);
+		break;
+	case OPTION_CONDITION:
+		condition_release(opt->value.opt_cond.srv, opt->value.opt_cond.cond);
 		break;
 	}
 	opt->type = OPTION_NONE;
@@ -85,6 +106,10 @@ const char* option_type_string(option_type type) {
 		return "list";
 	case OPTION_HASH:
 		return "hash";
+	case OPTION_ACTION:
+		return "action";
+	case OPTION_CONDITION:
+		return "condition";
 	}
 	return "<unknown>";
 }
@@ -119,6 +144,12 @@ gpointer option_extract_value(option *opt) {
 			break;
 		case OPTION_HASH:
 			val =  opt->value.opt_hash;
+			break;
+		case OPTION_ACTION:
+			val = opt->value.opt_action.action;
+			break;
+		case OPTION_CONDITION:
+			val = opt->value.opt_action.action;
 			break;
 	}
 	opt->type = OPTION_NONE;

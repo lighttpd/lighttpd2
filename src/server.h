@@ -7,13 +7,14 @@ struct server {
 
 	GHashTable *plugins;
 
-	size_t option_count;
 
-	GHashTable *options;
-	GHashTable *actions;
-	GHashTable *setups;
+	/* registered by plugins */
+	GHashTable *options;    /**< const gchar* => server_option* */
+	GHashTable *actions;    /**< const gchar* => server_action* */
+	GHashTable *setups;     /**< const gchar* => server_setup* */
 
 	gpointer *option_def_values;
+	struct action_list *mainactionlist;
 
 	gboolean exiting;
 	GMutex *mutex; /* general mutex for accessing the various members */

@@ -58,71 +58,6 @@ void plugin_free(server *srv, plugin *p) {
 	g_slice_free(plugin, p);
 }
 
-
-static server_option* find_option(server *srv, const char *name) {
-	return (server_option*) g_hash_table_lookup(srv->options, name);
-}
-
-gboolean parse_option(server *srv, const char *name, option *opt, option_set *mark) {
-	server_option *sopt;
-
-	if (!srv || !name || !mark) return FALSE;
-
-	sopt = find_option(srv, name);
-	if (!sopt) {
-		ERROR(srv, "Unknown option '%s'", name);
-		return FALSE;
-	}
-
-	if (sopt->type != opt->type) {
-		ERROR(srv, "Unexpected option type '%s', expected '%s'",
-			option_type_string(opt->type), option_type_string(sopt->type));
-		return FALSE;
-	}
-
-	if (!sopt->parse_option) {
-		mark->value = option_extract_value(opt);
-	} else {
-		if (!sopt->parse_option(srv, sopt->p->data, sopt->module_index, opt, &mark->value)) {
-			/* errors should be logged by parse function */
-			return FALSE;
-		}
-	}
-
-	mark->ndx = sopt->index;
-	mark->sopt = sopt;
-
-	return TRUE;
-}
-
-void release_option(server *srv, option_set *mark) { /** Does not free the option_set memory */
-	server_option *sopt = mark->sopt;
-	if (!srv || !mark || !sopt) return;
-
-	mark->sopt = NULL;
-	if (!sopt->free_option) {
-		switch (sopt->type) {
-		case OPTION_NONE:
-		case OPTION_BOOLEAN:
-		case OPTION_INT:
-			/* Nothing to free */
-			break;
-		case OPTION_STRING:
-			g_string_free((GString*) mark->value, TRUE);
-			break;
-		case OPTION_LIST:
-			option_list_free((GArray*) mark->value);
-			break;
-		case OPTION_HASH:
-			g_hash_table_destroy((GHashTable*) mark->value);
-			break;
-		}
-	} else {
-		sopt->free_option(srv, sopt->p->data, sopt->module_index, mark->value);
-	}
-	mark->value = NULL;
-}
-
 gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 	plugin *p;
 
@@ -206,6 +141,110 @@ gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 			ss->p = p;
 			g_hash_table_insert(srv->setups, (gchar*) ps->name, ss);
 		}
+	}
+
+	return TRUE;
+}
+
+
+static server_option* find_option(server *srv, const char *name) {
+	return (server_option*) g_hash_table_lookup(srv->options, name);
+}
+
+gboolean parse_option(server *srv, const char *name, option *opt, option_set *mark) {
+	server_option *sopt;
+
+	if (!srv || !name || !mark) return FALSE;
+
+	sopt = find_option(srv, name);
+	if (!sopt) {
+		ERROR(srv, "Unknown option '%s'", name);
+		return FALSE;
+	}
+
+	if (sopt->type != opt->type) {
+		ERROR(srv, "Unexpected option type '%s', expected '%s'",
+			option_type_string(opt->type), option_type_string(sopt->type));
+		return FALSE;
+	}
+
+	if (!sopt->parse_option) {
+		mark->value = option_extract_value(opt);
+	} else {
+		if (!sopt->parse_option(srv, sopt->p, sopt->module_index, opt, &mark->value)) {
+			/* errors should be logged by parse function */
+			return FALSE;
+		}
+	}
+
+	mark->ndx = sopt->index;
+	mark->sopt = sopt;
+
+	return TRUE;
+}
+
+void release_option(server *srv, option_set *mark) { /** Does not free the option_set memory */
+	server_option *sopt = mark->sopt;
+	if (!srv || !mark || !sopt) return;
+
+	mark->sopt = NULL;
+	if (!sopt->free_option) {
+		switch (sopt->type) {
+		case OPTION_NONE:
+		case OPTION_BOOLEAN:
+		case OPTION_INT:
+			/* Nothing to free */
+			break;
+		case OPTION_STRING:
+			g_string_free((GString*) mark->value, TRUE);
+			break;
+		case OPTION_LIST:
+			option_list_free((GArray*) mark->value);
+			break;
+		case OPTION_HASH:
+			g_hash_table_destroy((GHashTable*) mark->value);
+			break;
+		case OPTION_ACTION:
+			action_release(srv, (action*) mark->value);
+			break;
+		case OPTION_CONDITION:
+			condition_release(srv, (condition*) mark->value);
+			break;
+		}
+	} else {
+		sopt->free_option(srv, sopt->p, sopt->module_index, mark->value);
+	}
+	mark->value = NULL;
+}
+
+action* create_action(server *srv, const gchar *name, option *value) {
+	action *a;
+	server_action *sa;
+
+	if (NULL == (sa = (server_action*) g_hash_table_lookup(srv->actions, name))) {
+		ERROR(srv, "Action '%s' doesn't exist", name);
+		return NULL;
+	}
+
+	if (NULL == (a = sa->create_action(srv, sa->p, value))) {
+		ERROR(srv, "Action '%s' creation failed", name);
+		return NULL;
+	}
+
+	return a;
+}
+
+gboolean call_setup(server *srv, const char *name, option *opt) {
+	server_setup *ss;
+
+	if (NULL == (ss = (server_setup*) g_hash_table_lookup(srv->actions, name))) {
+		ERROR(srv, "Setup function '%s' doesn't exist", name);
+		return FALSE;
+	}
+
+	if (!ss->setup(srv, ss->p, opt)) {
+		ERROR(srv, "Setup '%s' failed", name);
+		return FALSE;
 	}
 
 	return TRUE;

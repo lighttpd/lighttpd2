@@ -63,6 +63,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	else {
+		config_lua_load(srv, config_path);
 		/* lua config frontend */
 	}
 

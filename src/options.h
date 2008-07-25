@@ -7,7 +7,9 @@ typedef enum {
 	OPTION_INT,
 	OPTION_STRING,
 	OPTION_LIST,
-	OPTION_HASH
+	OPTION_HASH,
+	OPTION_ACTION,     /**< shouldn't be used for options, but may be needed for constructing actions */
+	OPTION_CONDITION   /**< shouldn't be used for options, but may be needed for constructing actions */
 } option_type;
 
 struct option;
@@ -28,6 +30,14 @@ struct option {
 		GArray *opt_list;
 		/* hash GString => option */
 		GHashTable *opt_hash;
+		struct {
+			server *srv;    /* needed for destruction */
+			action *action;
+		} opt_action;
+		struct {
+			server *srv;    /* needed for destruction */
+			condition *cond;
+		} opt_cond;
 	} value;
 };
 
@@ -44,6 +54,8 @@ LI_API option* option_new_int(gint val);
 LI_API option* option_new_string(GString *val);
 LI_API option* option_new_list();
 LI_API option* option_new_hash();
+LI_API option* option_new_action(server *srv, action *a);
+LI_API option* option_new_condition(server *srv, condition *c);
 LI_API void option_free(option* opt);
 
 LI_API const char* option_type_string(option_type type);

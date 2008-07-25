@@ -27,6 +27,9 @@ common_source='''
 '''
 
 common_source_lua='''
+	actions_lua.c
+	condition_lua.c
+	config_lua.c
 	options_lua.c
 '''
 
@@ -83,7 +86,7 @@ def build(bld):
 
 	main = bld.new_task_gen('cc', 'program')
 	main.name = 'lighttpd'
-	main.source = common_source + main_source
+	main.source = common_source + common_source_lua + main_source
 	main.target='lighttpd' + env['APPEND']
 	main.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib
 	main.includes = '.'
