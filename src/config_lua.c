@@ -1,5 +1,6 @@
 
-#include "base.h"
+#include "config_lua.h"
+#include "condition_lua.h"
 #include "options_lua.h"
 #include "actions_lua.h"
 
@@ -8,7 +9,7 @@
 
 typedef int (*LuaWrapper)(server *srv, lua_State *L, gpointer data);
 
-option* lua_params_to_option(server *srv, lua_State *L) {
+static option* lua_params_to_option(server *srv, lua_State *L) {
 	option *opt, *subopt;
 	switch (lua_gettop(L)) {
 	case 0:
@@ -201,6 +202,7 @@ gboolean config_lua_load(server *srv, const gchar *filename) {
 	lua_pushcclosure(L, handle_option, 1);
 	lua_setfield(L, LUA_GLOBALSINDEX, "option");
 
+	lua_push_lvalues_dict(srv, L);
 
 	if (lua_pcall(L, 0, 1, 0)) {
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));

@@ -29,9 +29,9 @@ static action* core_list(server *srv, plugin* p, option *opt) {
 
 static action* core_when(server *srv, plugin* p, option *opt) {
 	option *opt_cond, *opt_act;
-	condition *c;
 	action *a;
 	UNUSED(p);
+
 	if (opt->type != OPTION_LIST) {
 		ERROR(srv, "expected list, got %s", option_type_string(opt->type));
 		return NULL;
@@ -46,11 +46,11 @@ static action* core_when(server *srv, plugin* p, option *opt) {
 		ERROR(srv, "expected action as second parameter, got %s", option_type_string(opt->type));
 		return NULL;
 	}
-	if (NULL == (c = condition_from_option(srv, opt_cond))) {
+	if (opt_cond->type != OPTION_CONDITION) {
 		ERROR(srv, "expected condition as first parameter, got %s", option_type_string(opt->type));
 		return NULL;
 	}
-	a = action_new_condition(c, action_list_from_action(opt_act->value.opt_action.action));
+	a = action_new_condition(opt_cond->value.opt_cond.cond, action_list_from_action(opt_act->value.opt_action.action));
 	option_free(opt);
 	return a;
 }

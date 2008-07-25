@@ -2,6 +2,7 @@
 #include "base.h"
 #include "log.h"
 #include "config_parser.h"
+#include "config_lua.h"
 
 void plugin_core_init(server *srv, plugin *p);
 

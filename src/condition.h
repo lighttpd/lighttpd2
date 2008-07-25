@@ -1,6 +1,17 @@
 #ifndef _LIGHTTPD_CONDITION_H_
 #define _LIGHTTPD_CONDITION_H_
 
+#include "settings.h"
+
+struct condition_rvalue;
+typedef struct condition_rvalue condition_rvalue;
+
+struct condition_lvalue;
+typedef struct condition_lvalue condition_lvalue;
+
+struct condition;
+typedef struct condition condition;
+
 /**
  * possible compare ops in the configfile parser
  */
@@ -24,31 +35,67 @@ typedef enum {
  * possible fields to match against
  */
 typedef enum {
-	COMP_SERVER_SOCKET,
+	COMP_REQUEST_LOCALIP,
+	COMP_REQUEST_REMOTEIP,
 	COMP_REQUEST_PATH,
 	COMP_REQUEST_HOST,
-	COMP_REQUEST_REFERER,
-	COMP_REQUEST_USER_AGENT,
-	COMP_REQUEST_COOKIE,
 	COMP_REQUEST_SCHEME,
-	COMP_REQUEST_REMOTE_IP,
 	COMP_REQUEST_QUERY_STRING,
 	COMP_REQUEST_METHOD,
 	COMP_REQUEST_CONTENT_LENGTH,
 	COMP_PHYSICAL_PATH,
 	COMP_PHYSICAL_PATH_EXISTS,
-	COMP_PHYSICAL_SIZE
-} comp_key_t;
+	COMP_PHYSICAL_SIZE,
+
+/* needs a key */
+	COMP_REQUEST_HEADER
+} cond_lvalue_t;
+
+#define COND_LVALUE_FIRST_WITH_KEY COMP_REQUEST_HEADER
+#define COND_LVALUE_END            (1+COMP_REQUEST_HEADER)
+
+struct condition_lvalue {
+	int refcount;
+	cond_lvalue_t type;
+
+	GString *key;
+};
 
 typedef enum {
 	COND_VALUE_INT,
 	COND_VALUE_STRING,
-	COND_VALUE_SOCKET_IPV4,  /** only match ip/netmask */
-	COND_VALUE_SOCKET_IPV6   /** only match ip/netmask */
-} cond_value_t;
+#ifdef HAVE_PCRE_H
+	COND_VALUE_REGEXP,
+#endif
+	COND_VALUE_SOCKET_IPV4  /** only match ip/netmask */
+#ifdef HAVE_IPV6
+	,COND_VALUE_SOCKET_IPV6   /** only match ip/netmask */
+#endif
+} cond_rvalue_t;
 
-struct condition;
-typedef struct condition condition;
+struct condition_rvalue {
+	cond_rvalue_t type;
+
+	GString *string;
+#ifdef HAVE_PCRE_H
+	struct {
+		pcre   *regex;
+		pcre_extra *regex_study;
+	};
+#endif
+	gint64 i;
+	struct {
+		guint32 addr;
+		guint32 networkmask;
+	} ipv4;
+#ifdef HAVE_IPV6
+	struct {
+		guint8 addr[16];
+		guint network;
+	} ipv6;
+#endif
+	sock_addr addr;
+};
 
 #include "base.h"
 
@@ -56,50 +103,25 @@ struct condition {
 	int refcount;
 
 	comp_operator_t op;
-	comp_key_t comp;
-
-	/* index into connection conditional caching table, -1 if uncached */
-	int cache_index;
-
-	cond_value_t value_type;
-	union {
-		GString *string;
-#ifdef HAVE_PCRE_H
-		struct {
-			pcre   *regex;
-			pcre_extra *regex_study;
-		};
-#endif
-		gint64 i;
-		struct {
-			guint32 addr;
-			guint32 networkmask;
-		} ipv4;
-#ifdef HAVE_IPV6
-		struct {
-			guint8 addr[16];
-			guint network;
-		} ipv6;
-#endif
-		sock_addr addr;
-	} value;
+	condition_lvalue *lvalue;
+	condition_rvalue rvalue;
 };
 
-LI_API condition* condition_new_string(server *srv, comp_operator_t op, comp_key_t comp, GString *str);
-LI_API condition* condition_new_int(server *srv, comp_operator_t op, comp_key_t comp, gint i);
+/* lvalue */
+LI_API condition_lvalue* condition_lvalue_new(cond_lvalue_t type, GString *key);
+LI_API void condition_lvalue_acquire(condition_lvalue *lvalue);
+LI_API void condition_lvalue_release(condition_lvalue *lvalue);
 
-LI_API condition* condition_new_string_uncached(server *srv, comp_operator_t op, comp_key_t comp, GString *str);
-LI_API condition* condition_new_int_uncached(server *srv, comp_operator_t op, comp_key_t comp, gint i);
 
-struct option;
-LI_API condition* condition_from_option(server *srv, struct option *opt);
+
+LI_API condition* condition_new_string(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str);
+LI_API condition* condition_new_int(server *srv, comp_operator_t op, condition_lvalue *lvalue, gint i);
 
 LI_API void condition_acquire(condition *c);
 LI_API void condition_release(server *srv, condition* c);
 
 LI_API const char* comp_op_to_string(comp_operator_t op);
-LI_API const char* comp_key_to_string(comp_key_t comp);
-
+LI_API const char* cond_lvalue_to_string(cond_lvalue_t t);
 
 LI_API gboolean condition_check(server *srv, connection *con, condition *cond);
 
