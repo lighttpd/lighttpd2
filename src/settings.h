@@ -14,6 +14,10 @@
 #include <glib.h>
 #include <gmodule.h>
 
+#define L_GOFFSET_FORMAT G_GINT64_FORMAT
+#define L_GOFFSET_MODIFIER G_GINT64_MODIFIER
+
+
 #include <assert.h>
 
 #ifdef HAVE_SYS_TYPES_H

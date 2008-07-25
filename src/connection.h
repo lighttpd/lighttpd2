@@ -3,8 +3,9 @@
 
 struct connection {
 
-	sock_addr dst_addr, src_addr;
-	GString *dst_addr_str, *src_addr_str;
+	sock_addr remote_addr, local_addr;
+	GString *remote_addr_str, *local_addr_str;
+	gboolean is_ssl;
 
 	action_stack action_stack;
 
