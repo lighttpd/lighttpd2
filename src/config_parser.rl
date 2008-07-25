@@ -59,6 +59,16 @@
 		_printf("got integer: %d in line %zd of %s\n", cpd->val_int, cpd->line, cpd->filename);
 	}
 
+	action integer_suffix {
+		switch (*cpd->mark) {
+			case 'k': cpd->val_int *= 1024; break;
+			case 'm': cpd->val_int *= 1024 * 1024; break;
+			case 'g': cpd->val_int *= 1024 * 1024 * 1024; break;
+			case 't': cpd->val_int *= 1024 * 1024 * 1024 * 1024; break;
+			case 'p': cpd->val_int *= 1024 * 1024 * 1024 * 1024 * 1024; break;
+		}
+	}
+
 	action comment { _printf("got comment in line %zd of %s\n", cpd->line-1, cpd->filename); }
 	action value { }
 	action valuepair { _printf("got valuepair in line %zd of %s\n", cpd->line, cpd->filename); }
@@ -187,8 +197,18 @@
 
 	# tokens
 	boolean = ( 'true' | 'false' ) >mark %boolean;
+	integer_suffix = ( 'mb' | 'kb' | 'gb' | 'tb' | 'pb' ) >mark %integer_suffix;
 	integer = ( 0 | ( [1-9] [0-9]* ) ) >mark %integer;
 	string = ( '"' (any-'"')* '"' ) >mark %string;
+
+	ipv4_part = ( [0-9] | ([1-9] [0-9]) | ('1' [0-9] [0-9]) | ('2' [0-4] [0-9]) | ('25' [0-5]) );
+	ipv4 = ( ipv4_part '.' ipv4_part '.' ipv4_part '.' ipv4_part );
+
+	ipv6_part = ( xdigit{4} );
+	ipv6 = ( ipv6_part ':' ipv6_part ':' ipv6_part ':' ipv6_part ':' ipv6_part ':' ipv6_part ':' ipv6_part ':' ipv6_part );
+
+	cidr = ( (ipv4|ipv6) '/' ( ([0-2]? [0-9]) | ('3' [0-2]) ) );
+
 	ws = ( ' ' | '\t' );
 
 	lineUnix = ( '\n' ) %line;
@@ -200,7 +220,7 @@
 
 	comment = ( '#' (any - line)* line ) %comment;
 
-	value = ( boolean | integer | string ) %value;
+	value = ( boolean | (integer integer_suffix?) | string ) %value;
 	valuepair = ( string ws* '=>' ws* value ) %valuepair;
 
 	list = ( '(' ) >list_start;

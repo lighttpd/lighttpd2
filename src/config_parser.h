@@ -51,7 +51,7 @@ struct config_parser_data_t {
 	/* current value */
 	enum { CONFP_BOOL, CONFP_INT, CONFP_STR, CONFP_LIST, CONFP_HASH } val_type, val_type_last;
 	GString *val_str;
-	gint val_int;
+	gint64 val_int;
 	gboolean val_bool;
 	GArray *val_list;
 	GHashTable *val_hash;
