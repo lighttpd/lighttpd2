@@ -12,6 +12,7 @@ common_source='''
 	chunk.c
 	chunk_parser.c
 	condition.c
+	condition_parsers.rl
 	config_parser.rl
 	http_headers.c
 	http_request_parser.rl

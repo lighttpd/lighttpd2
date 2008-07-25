@@ -3,11 +3,7 @@
 
 static condition* condition_new(comp_operator_t op, condition_lvalue *lvalue);
 static condition* cond_new_string(comp_operator_t op, condition_lvalue *lvalue, GString *str);
-static condition* cond_new_socket(comp_operator_t op, condition_lvalue *lvalue, GString *str);
-static condition* condition_new_from_string(comp_operator_t op, condition_lvalue *lvalue, GString *str);
 static void condition_free(condition *c);
-
-static gboolean condition_check_eval(server *srv, connection *con, condition *cond);
 
 condition_lvalue* condition_lvalue_new(cond_lvalue_t type, GString *key) {
 	condition_lvalue *lvalue = g_slice_new0(condition_lvalue);
@@ -38,92 +34,106 @@ static condition* condition_new(comp_operator_t op, condition_lvalue *lvalue) {
 	return c;
 }
 
+/* only EQ and NE */
 static condition* cond_new_string(comp_operator_t op, condition_lvalue *lvalue, GString *str) {
-	condition *c = condition_new(op, lvalue);
-	switch (op) {
-	case CONFIG_COND_EQ:      /** == */
-	case CONFIG_COND_NE:      /** != */
-		c->rvalue.string = str;
-		break;
-	case CONFIG_COND_MATCH:   /** =~ */
-	case CONFIG_COND_NOMATCH: /** !~ */
-#ifdef HAVE_PCRE_H
-		/* TODO */
-		condition_free(c);
-		return NULL;
-		break;
-#else
-		condition_free(c);
-		return NULL;
-#endif
-	case CONFIG_COND_GT:      /** > */
-	case CONFIG_COND_GE:      /** >= */
-	case CONFIG_COND_LT:      /** < */
-	case CONFIG_COND_LE:      /** <= */
-		condition_free(c);
-		return NULL;
-	}
+	condition *c;
+	c = condition_new(op, lvalue);
 	c->rvalue.type = COND_VALUE_STRING;
+	c->rvalue.string = str;
 	return c;
 }
 
-static condition* cond_new_socket(comp_operator_t op, condition_lvalue *lvalue, GString *str) {
-	return cond_new_string(op, lvalue, str);
-	/* TODO: parse str as socket addr */
+#ifdef HAVE_PCRE_H
+/* only MATCH and NOMATCH */
+static condition* cond_new_match(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str) {
+	UNUSED(op); UNUSED(lvalue); UNUSED(str);
+	ERROR(srv, "%s", "pcre not supported for now");
+	/* TODO */
+	return NULL;
 }
+#endif
 
-static condition* condition_new_from_string(comp_operator_t op, condition_lvalue *lvalue, GString *str) {
-	switch (lvalue->type) {
-	case COMP_REQUEST_LOCALIP:
-	case COMP_REQUEST_REMOTEIP:
-		return cond_new_socket(op, lvalue, str);
-	case COMP_REQUEST_PATH:
-	case COMP_REQUEST_HOST:
-	case COMP_REQUEST_SCHEME:
-	case COMP_REQUEST_QUERY_STRING:
-	case COMP_REQUEST_METHOD:
-	case COMP_PHYSICAL_PATH:
-	case COMP_PHYSICAL_PATH_EXISTS:
-	case COMP_REQUEST_HEADER:
-		return cond_new_string(op, lvalue, str);
-	case COMP_PHYSICAL_SIZE:
-	case COMP_REQUEST_CONTENT_LENGTH:
-		// TODO: die with error
-		assert(NULL);
-		break;
-	}
+/* only IP and NOTIP */
+static condition* cond_new_ip(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str) {
+	UNUSED(op); UNUSED(lvalue); UNUSED(str);
+	ERROR(srv, "%s", "ip matching not supported for now");
+	/* TODO: parse str as socket addr */
 	return NULL;
 }
 
 condition* condition_new_string(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str) {
-	condition *c;
-
-	if (NULL == (c = condition_new_from_string(op, lvalue, str))) {
-		ERROR(srv, "Condition creation failed: %s %s '%s' (perhaps you compiled without pcre?)",
-			cond_lvalue_to_string(lvalue->type), comp_op_to_string(op),
-			str->str);
+	switch (op) {
+	case CONFIG_COND_EQ:
+	case CONFIG_COND_NE:
+		return cond_new_string(op, lvalue, str);
+	case CONFIG_COND_MATCH:
+	case CONFIG_COND_NOMATCH:
+#ifdef HAVE_PCRE_H
+		return cond_new_match(srv, op, lvalue, str);
+#else
+		ERROR(srv, "compiled without pcre, cannot use '%s'", comp_op_to_string(op));
+		return NULL;
+#endif
+	case CONFIG_COND_IP:
+	case CONFIG_COND_NOTIP:
+		return cond_new_ip(srv, op, lvalue, str);
+	case CONFIG_COND_GT:
+	case CONFIG_COND_GE:
+	case CONFIG_COND_LT:
+	case CONFIG_COND_LE:
+		ERROR(srv, "Cannot compare strings with '%s'", comp_op_to_string(op));
 		return NULL;
 	}
-
-	return c;
+	ERROR(srv, "Condition creation failed: %s %s '%s' (perhaps you compiled without pcre?)",
+		cond_lvalue_to_string(lvalue->type), comp_op_to_string(op),
+		str->str);
+	return NULL;
 }
+
+condition* condition_new_int(server *srv, comp_operator_t op, condition_lvalue *lvalue, gint64 i) {
+	condition *c;
+	switch (op) {
+	case CONFIG_COND_MATCH:
+	case CONFIG_COND_NOMATCH:
+	case CONFIG_COND_IP:
+	case CONFIG_COND_NOTIP:
+		ERROR(srv, "Cannot compare integers with '%s'", comp_op_to_string(op));
+		return NULL;
+	case CONFIG_COND_EQ:
+	case CONFIG_COND_NE:
+	case CONFIG_COND_GT:
+	case CONFIG_COND_GE:
+	case CONFIG_COND_LT:
+	case CONFIG_COND_LE:
+		c = condition_new(op, lvalue);
+		c->rvalue.type = COND_VALUE_INT;
+		c->rvalue.i = i;
+		return c;
+	}
+	ERROR(srv, "Condition creation failed: %s %s %"G_GINT64_FORMAT" (perhaps you compiled without pcre?)",
+		cond_lvalue_to_string(lvalue->type), comp_op_to_string(op),
+		i);
+	return NULL;
+}
+
 
 static void condition_free(condition *c) {
 	switch (c->rvalue.type) {
 	case COND_VALUE_INT:
-	case COND_VALUE_SOCKET_IPV4:
-	case COND_VALUE_SOCKET_IPV6:
 		/* nothing to free */
 		break;
 	case COND_VALUE_STRING:
-		if (c->op == CONFIG_COND_MATCH || c->op == CONFIG_COND_NOMATCH) {
+		g_string_free(c->rvalue.string, TRUE);
+		break;
 #ifdef HAVE_PCRE_H
-			if (c->rvalue.regex) pcre_free(c->rvalue.regex);
-			if (c->rvalue.regex_study) pcre_free(c->rvalue.regex_study);
+	case COND_VALUE_REGEXP
+		if (c->rvalue.regex) pcre_free(c->rvalue.regex);
+		if (c->rvalue.regex_study) pcre_free(c->rvalue.regex_study);
 #endif
-		} else {
-			g_string_free(c->rvalue.string, TRUE);
-		}
+		break;
+	case COND_VALUE_SOCKET_IPV4:
+	case COND_VALUE_SOCKET_IPV6:
+		/* nothing to free */
 		break;
 	}
 	g_slice_free(condition, c);
@@ -145,13 +155,15 @@ void condition_release(server *srv, condition* c) {
 const char* comp_op_to_string(comp_operator_t op) {
 	switch (op) {
 	case CONFIG_COND_EQ: return "==";
-	case CONFIG_COND_GE: return ">=";
-	case CONFIG_COND_GT: return ">";
-	case CONFIG_COND_LE: return "<=";
-	case CONFIG_COND_LT: return "<";
-	case CONFIG_COND_MATCH: return "=~";
 	case CONFIG_COND_NE: return "!=";
+	case CONFIG_COND_MATCH: return "=~";
 	case CONFIG_COND_NOMATCH: return "!~";
+	case CONFIG_COND_IP: return "=/";
+	case CONFIG_COND_NOTIP: return "!/";
+	case CONFIG_COND_GT: return ">";
+	case CONFIG_COND_GE: return ">=";
+	case CONFIG_COND_LT: return "<";
+	case CONFIG_COND_LE: return "<=";
 	}
 
 	return "<unkown>";
@@ -176,11 +188,7 @@ const char* cond_lvalue_to_string(cond_lvalue_t t) {
 	return "<unknown>";
 }
 
-gboolean condition_check(server *srv, connection *con, condition *cond) {
-	/* TODO: implement cache */
-	return condition_check_eval(srv, con, cond);
-}
-
+/* COND_VALUE_STRING and COND_VALUE_REGEXP only */
 static gboolean condition_check_eval_string(server *srv, connection *con, condition *cond) {
 	const char *value = NULL;
 	GString *tmp = NULL;
@@ -226,22 +234,31 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 	}
 
 	if (value) switch (cond->op) {
-	case CONFIG_COND_EQ:      /** == */
+	case CONFIG_COND_EQ:
 		result = 0 == strcmp(value, cond->rvalue.string->str);
 		break;
-	case CONFIG_COND_NE:      /** != */
+	case CONFIG_COND_NE:
 		result = 0 != strcmp(value, cond->rvalue.string->str);
 		break;
-	case CONFIG_COND_MATCH:   /** =~ */
-	case CONFIG_COND_NOMATCH: /** !~ */
+	case CONFIG_COND_MATCH:
+	case CONFIG_COND_NOMATCH:
+#ifdef HAVE_PCRE_H
 		/* TODO: pcre */
+		ERROR(srv, "%s", "regexp match not supported yet");
+#else
+		ERROR(srv, "compiled without pcre, cannot use '%s'", comp_op_to_string(cond->op));
+#endif
 		break;
+	case CONFIG_COND_IP:
+	case CONFIG_COND_NOTIP:
 	case CONFIG_COND_GE:
 	case CONFIG_COND_GT:
 	case CONFIG_COND_LE:
 	case CONFIG_COND_LT:
-		assert(NULL);
+		ERROR(srv, "cannot compare string/regexp with '%s'", comp_op_to_string(cond->op));
 		break;
+	} else {
+		ERROR(srv, "couldn't get string value for '%s'", cond_lvalue_to_string(cond->lvalue->type));
 	}
 
 	if (tmp) g_string_free(tmp, TRUE);
@@ -279,9 +296,12 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 		return (value >= cond->rvalue.i);
 	case CONFIG_COND_MATCH:
 	case CONFIG_COND_NOMATCH:
-		// TODO: die with error
-		assert(NULL);
+	case CONFIG_COND_IP:
+	case CONFIG_COND_NOTIP:
+		ERROR(srv, "cannot compare int with '%s'", comp_op_to_string(cond->op));
 		return FALSE;
+	} else {
+		ERROR(srv, "couldn't get int value for '%s'", cond_lvalue_to_string(cond->lvalue->type));
 	}
 
 	return FALSE;
@@ -308,14 +328,19 @@ static gboolean ipv6_in_ipv4_net(const unsigned char *target, guint32 match, gui
 }
 #endif
 
-static gboolean condition_check_eval(server *srv, connection *con, condition *cond) {
+gboolean condition_check(server *srv, connection *con, condition *cond) {
 	switch (cond->rvalue.type) {
 	case COND_VALUE_STRING:
+#ifdef HAVE_PCRE_H
+	case COND_VALUE_REGEXP:
+#endif
 		return condition_check_eval_string(srv, con, cond);
 	case COND_VALUE_INT:
 		return condition_check_eval_int(srv, con, cond);
+	case COND_VALUE_SOCKET_IPV4:
+	case COND_VALUE_SOCKET_IPV6:
 /* TODO: implement checks */
-	default:
-		return FALSE;
+		break;
 	}
+	return FALSE;
 }

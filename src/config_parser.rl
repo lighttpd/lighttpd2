@@ -204,8 +204,9 @@
 	ipv4_part = ( [0-9] | ([1-9] [0-9]) | ('1' [0-9] [0-9]) | ('2' [0-4] [0-9]) | ('25' [0-5]) );
 	ipv4 = ( ipv4_part '.' ipv4_part '.' ipv4_part '.' ipv4_part );
 
-	ipv6_part = ( xdigit{4} );
-	ipv6 = ( ipv6_part ':' ipv6_part ':' ipv6_part ':' ipv6_part ':' ipv6_part ':' ipv6_part ':' ipv6_part ':' ipv6_part );
+	# we dont need to specify ipv6 here correctly, just look if something looks like it could be an ipv6
+	ipv6_part = ( xdigit{1,4} );
+	ipv6 = ( (ipv6_part | ':')+ ipv4? );
 
 	cidr = ( (ipv4|ipv6) '/' ( ([0-2]? [0-9]) | ('3' [0-2]) ) );
 
