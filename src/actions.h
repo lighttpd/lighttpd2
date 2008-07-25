@@ -92,6 +92,6 @@ LI_API action *action_new_setting(server *srv, const gchar *name, option *value)
 LI_API action *action_new_function(ActionFunc func, ActionFree free, gpointer param);
 LI_API action *action_new_list();
 LI_API action *action_new_condition(condition *cond, action_list *al);
-LI_API action *action_new_condition_string(comp_key_t comp, comp_operator_t op, GString *str);
-LI_API action *action_new_condition_int(comp_key_t comp, comp_operator_t op, guint64 i);
+/*LI_API action *action_new_condition_string(comp_key_t comp, comp_operator_t op, GString *str);
+LI_API action *action_new_condition_int(comp_key_t comp, comp_operator_t op, guint64 i);*/
 #endif

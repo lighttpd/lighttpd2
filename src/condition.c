@@ -1,46 +1,49 @@
-
 #include "condition.h"
 #include "log.h"
 
-static condition* condition_find_cached(server *srv, GString *key);
-static void condition_cache_insert(server *srv, GString *key, condition *c);
-static condition* condition_new(comp_operator_t op, comp_key_t comp);
-static condition* cond_new_string(comp_operator_t op, comp_key_t comp, GString *str);
-static condition* cond_new_socket(comp_operator_t op, comp_key_t comp, GString *str);
-static condition* condition_new_from_string(comp_operator_t op, comp_key_t comp, GString *str);
+static condition* condition_new(comp_operator_t op, condition_lvalue *lvalue);
+static condition* cond_new_string(comp_operator_t op, condition_lvalue *lvalue, GString *str);
+static condition* cond_new_socket(comp_operator_t op, condition_lvalue *lvalue, GString *str);
+static condition* condition_new_from_string(comp_operator_t op, condition_lvalue *lvalue, GString *str);
 static void condition_free(condition *c);
 
 static gboolean condition_check_eval(server *srv, connection *con, condition *cond);
 
-static condition* condition_find_cached(server *srv, GString *key) {
-	UNUSED(srv);
-	UNUSED(key);
-
-	return NULL;
+condition_lvalue* condition_lvalue_new(cond_lvalue_t type, GString *key) {
+	condition_lvalue *lvalue = g_slice_new0(condition_lvalue);
+	lvalue->type = type;
+	lvalue->key = key;
+	lvalue->refcount = 1;
+	return lvalue;
 }
 
-static void condition_cache_insert(server *srv, GString *key, condition *c) {
-	UNUSED(srv);
-	UNUSED(c);
-
-	g_string_free(key, TRUE);
+void condition_lvalue_acquire(condition_lvalue *lvalue) {
+	assert(lvalue->refcount > 0);
+	lvalue->refcount++;
 }
 
-static condition* condition_new(comp_operator_t op, comp_key_t comp) {
+void condition_lvalue_release(condition_lvalue *lvalue) {
+	assert(lvalue->refcount > 0);
+	if (!(--lvalue->refcount)) {
+		if (lvalue->key) g_string_free(lvalue->key, TRUE);
+		g_slice_free(condition_lvalue, lvalue);
+	}
+}
+
+static condition* condition_new(comp_operator_t op, condition_lvalue *lvalue) {
 	condition *c = g_slice_new0(condition);
 	c->refcount = 1;
-	c->cache_index = -1;
 	c->op = op;
-	c->comp = comp;
+	c->lvalue = lvalue;
 	return c;
 }
 
-static condition* cond_new_string(comp_operator_t op, comp_key_t comp, GString *str) {
-	condition *c = condition_new(op, comp);
+static condition* cond_new_string(comp_operator_t op, condition_lvalue *lvalue, GString *str) {
+	condition *c = condition_new(op, lvalue);
 	switch (op) {
 	case CONFIG_COND_EQ:      /** == */
 	case CONFIG_COND_NE:      /** != */
-		c->value.string = str;
+		c->rvalue.string = str;
 		break;
 	case CONFIG_COND_MATCH:   /** =~ */
 	case CONFIG_COND_NOMATCH: /** !~ */
@@ -60,31 +63,29 @@ static condition* cond_new_string(comp_operator_t op, comp_key_t comp, GString *
 		condition_free(c);
 		return NULL;
 	}
-	c->value_type = COND_VALUE_STRING;
+	c->rvalue.type = COND_VALUE_STRING;
 	return c;
 }
 
-static condition* cond_new_socket(comp_operator_t op, comp_key_t comp, GString *str) {
-	return cond_new_string(op, comp, str);
+static condition* cond_new_socket(comp_operator_t op, condition_lvalue *lvalue, GString *str) {
+	return cond_new_string(op, lvalue, str);
 	/* TODO: parse str as socket addr */
 }
 
-static condition* condition_new_from_string(comp_operator_t op, comp_key_t comp, GString *str) {
-	switch (comp) {
-	case COMP_SERVER_SOCKET:
-	case COMP_REQUEST_REMOTE_IP:
-		return cond_new_socket(op, comp, str);
+static condition* condition_new_from_string(comp_operator_t op, condition_lvalue *lvalue, GString *str) {
+	switch (lvalue->type) {
+	case COMP_REQUEST_LOCALIP:
+	case COMP_REQUEST_REMOTEIP:
+		return cond_new_socket(op, lvalue, str);
 	case COMP_REQUEST_PATH:
 	case COMP_REQUEST_HOST:
-	case COMP_REQUEST_REFERER:
-	case COMP_REQUEST_USER_AGENT:
-	case COMP_REQUEST_COOKIE:
 	case COMP_REQUEST_SCHEME:
 	case COMP_REQUEST_QUERY_STRING:
 	case COMP_REQUEST_METHOD:
 	case COMP_PHYSICAL_PATH:
 	case COMP_PHYSICAL_PATH_EXISTS:
-		return cond_new_string(op, comp, str);
+	case COMP_REQUEST_HEADER:
+		return cond_new_string(op, lvalue, str);
 	case COMP_PHYSICAL_SIZE:
 	case COMP_REQUEST_CONTENT_LENGTH:
 		// TODO: die with error
@@ -94,41 +95,21 @@ static condition* condition_new_from_string(comp_operator_t op, comp_key_t comp,
 	return NULL;
 }
 
-condition* condition_new_string(server *srv, comp_operator_t op, comp_key_t comp, GString *str) {
+condition* condition_new_string(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str) {
 	condition *c;
-	GString *key = g_string_sized_new(0);
-	g_string_sprintf(key, "%i:%i:%s", (int) op, (int) comp, str->str);
 
-	if (NULL != (c = condition_find_cached(srv, key))) {
-		g_string_free(key, TRUE);
-		return c;
-	}
-
-	if (NULL == (c = condition_new_from_string(op, comp, str))) {
-		g_string_free(key, TRUE);
+	if (NULL == (c = condition_new_from_string(op, lvalue, str))) {
 		ERROR(srv, "Condition creation failed: %s %s '%s' (perhaps you compiled without pcre?)",
-			comp_key_to_string(comp), comp_op_to_string(op),
+			cond_lvalue_to_string(lvalue->type), comp_op_to_string(op),
 			str->str);
 		return NULL;
 	}
-	condition_cache_insert(srv, key, c);
+
 	return c;
 }
 
-condition* condition_new_string_uncached(server *srv, comp_operator_t op, comp_key_t comp, GString *str) {
-	condition *c;
-	GString *key = g_string_sized_new(0);
-	g_string_sprintf(key, "%i:%i:%s", (int) op, (int) comp, str->str);
-
-	c = condition_find_cached(srv, key);
-	g_string_free(key, TRUE);
-	if (NULL != c) return c;
-
-	return condition_new_from_string(op, comp, str);
-}
-
 static void condition_free(condition *c) {
-	switch (c->value_type) {
+	switch (c->rvalue.type) {
 	case COND_VALUE_INT:
 	case COND_VALUE_SOCKET_IPV4:
 	case COND_VALUE_SOCKET_IPV6:
@@ -137,25 +118,15 @@ static void condition_free(condition *c) {
 	case COND_VALUE_STRING:
 		if (c->op == CONFIG_COND_MATCH || c->op == CONFIG_COND_NOMATCH) {
 #ifdef HAVE_PCRE_H
-			if (c->value.regex) pcre_free(c->value.regex);
-			if (c->value.regex_study) pcre_free(c->value.regex_study);
+			if (c->rvalue.regex) pcre_free(c->rvalue.regex);
+			if (c->rvalue.regex_study) pcre_free(c->rvalue.regex_study);
 #endif
 		} else {
-			g_string_free(c->value.string, TRUE);
+			g_string_free(c->rvalue.string, TRUE);
 		}
 		break;
 	}
 	g_slice_free(condition, c);
-}
-
-condition* condition_from_option(server *srv, option *opt) {
-	if (opt->type == OPTION_CONDITION) {
-		assert(srv == opt->value.opt_cond.srv);
-		condition_acquire(opt->value.opt_cond.cond);
-		return opt->value.opt_cond.cond;
-	}
-	/* TODO: convert triple into condition */
-	return NULL;
 }
 
 void condition_acquire(condition *c) {
@@ -186,11 +157,23 @@ const char* comp_op_to_string(comp_operator_t op) {
 	return "<unkown>";
 }
 
-const char* comp_key_to_string(comp_key_t comp) {
-	UNUSED(comp);
+const char* cond_lvalue_to_string(cond_lvalue_t t) {
+	switch (t) {
+	case COMP_REQUEST_LOCALIP: return "request.localip";
+	case COMP_REQUEST_REMOTEIP: return "request.remoteip";
+	case COMP_REQUEST_PATH: return "request.path";
+	case COMP_REQUEST_HOST: return "request.host";
+	case COMP_REQUEST_SCHEME: return "request.scheme";
+	case COMP_REQUEST_QUERY_STRING: return "request.querystring";
+	case COMP_REQUEST_METHOD: return "request.method";
+	case COMP_REQUEST_CONTENT_LENGTH: return "request.length";
+	case COMP_PHYSICAL_PATH: return "physical.path";
+	case COMP_PHYSICAL_PATH_EXISTS: return "physical.pathexist";
+	case COMP_PHYSICAL_SIZE: return "physical.size";
+	case COMP_REQUEST_HEADER: return "request.header";
+	}
 
-	/* TODO */
-	return "";
+	return "<unknown>";
 }
 
 gboolean condition_check(server *srv, connection *con, condition *cond) {
@@ -205,9 +188,12 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 	UNUSED(srv);
 	UNUSED(con);
 
-	switch (cond->comp) {
+	switch (cond->lvalue->type) {
 		/* TODO: get values */
-	case COMP_SERVER_SOCKET:
+	case COMP_REQUEST_LOCALIP:
+		break;
+	case COMP_REQUEST_REMOTEIP:
+		value = con->dst_addr_str->str;
 		break;
 	case COMP_REQUEST_PATH:
 		value = con->request.uri.path->str;
@@ -215,18 +201,9 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 	case COMP_REQUEST_HOST:
 		value = con->request.host->str;
 		break;
-	case COMP_REQUEST_REFERER:
-		break;
-	case COMP_REQUEST_USER_AGENT:
-		break;
-	case COMP_REQUEST_COOKIE:
-		break;
 	case COMP_REQUEST_SCHEME:
 		/* TODO: check for ssl */
 		value = "http"; /* ssl ? "https" : "http" */
-		break;
-	case COMP_REQUEST_REMOTE_IP:
-		value = con->dst_addr_str->str;
 		break;
 	case COMP_REQUEST_QUERY_STRING:
 		value = con->request.uri.query->str;
@@ -236,6 +213,10 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 		break;
 	case COMP_PHYSICAL_PATH:
 	case COMP_PHYSICAL_PATH_EXISTS:
+		/* TODO */
+		break;
+	case COMP_REQUEST_HEADER:
+		/* TODO */
 		break;
 	case COMP_PHYSICAL_SIZE:
 	case COMP_REQUEST_CONTENT_LENGTH:
@@ -246,10 +227,10 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 
 	if (value) switch (cond->op) {
 	case CONFIG_COND_EQ:      /** == */
-		result = 0 == strcmp(value, cond->value.string->str);
+		result = 0 == strcmp(value, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_NE:      /** != */
-		result = 0 != strcmp(value, cond->value.string->str);
+		result = 0 != strcmp(value, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_MATCH:   /** =~ */
 	case CONFIG_COND_NOMATCH: /** !~ */
@@ -273,7 +254,7 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 	UNUSED(con);
 	gint64 value;
 
-	switch (cond->comp) {
+	switch (cond->lvalue->type) {
 	case COMP_REQUEST_CONTENT_LENGTH:
 		value = con->request.content_length;
 	case COMP_PHYSICAL_SIZE:
@@ -285,17 +266,17 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 
 	if (value > 0) switch (cond->op) {
 	case CONFIG_COND_EQ:      /** == */
-		return (value == cond->value.i);
+		return (value == cond->rvalue.i);
 	case CONFIG_COND_NE:      /** != */
-		return (value != cond->value.i);
+		return (value != cond->rvalue.i);
 	case CONFIG_COND_LT:      /** < */
-		return (value < cond->value.i);
+		return (value < cond->rvalue.i);
 	case CONFIG_COND_LE:      /** <= */
-		return (value <= cond->value.i);
+		return (value <= cond->rvalue.i);
 	case CONFIG_COND_GT:      /** > */
-		return (value > cond->value.i);
+		return (value > cond->rvalue.i);
 	case CONFIG_COND_GE:      /** >= */
-		return (value >= cond->value.i);
+		return (value >= cond->rvalue.i);
 	case CONFIG_COND_MATCH:
 	case CONFIG_COND_NOMATCH:
 		// TODO: die with error
@@ -328,7 +309,7 @@ static gboolean ipv6_in_ipv4_net(const unsigned char *target, guint32 match, gui
 #endif
 
 static gboolean condition_check_eval(server *srv, connection *con, condition *cond) {
-	switch (cond->value_type) {
+	switch (cond->rvalue.type) {
 	case COND_VALUE_STRING:
 		return condition_check_eval_string(srv, con, cond);
 	case COND_VALUE_INT:
