@@ -87,7 +87,9 @@ def build(bld):
 
 	main = bld.new_task_gen('cc', 'program')
 	main.name = 'lighttpd'
-	main.source = common_source + common_source_lua + main_source
+	main.source = common_source + main_source
+	if env['LIB_lua']:
+		main.source += common_source_lua
 	main.target='lighttpd' + env['APPEND']
 	main.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib
 	main.includes = '.'
@@ -138,6 +140,8 @@ def build(bld):
 	tests.unit_test = 1
 	tests.name = 'tests'
 	tests.source = 'tests.c ' + common_source
+	if env['LIB_lua']:
+		tests.source += common_source_lua
 	tests.target = 'tests'
 	tests.uselib += 'lighty dl openssl pcre lua ' + common_uselib
 

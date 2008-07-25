@@ -2,7 +2,10 @@
 #include "base.h"
 #include "log.h"
 #include "config_parser.h"
+
+#ifdef HAVE_LUA_H
 #include "config_lua.h"
+#endif
 
 void plugin_core_init(server *srv, plugin *p);
 
@@ -64,8 +67,13 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	else {
+#ifdef HAVE_LUA_H
 		config_lua_load(srv, config_path);
 		/* lua config frontend */
+#else
+		g_print("lua config frontend not available\n");
+		return 1;
+#endif
 	}
 
 	/* if config should only be tested, exit here  */
