@@ -56,16 +56,16 @@
 		for (c=cpd->mark; c<fpc; c++)
 			cpd->val_int = cpd->val_int * 10 + *c - 48;
 		cpd->val_type = CONFP_INT;
-		_printf("got integer: %d in line %zd of %s\n", cpd->val_int, cpd->line, cpd->filename);
+		//_printf("got integer: %d in line %zd of %s\n", cpd->val_int, cpd->line, cpd->filename);
 	}
 
 	action integer_suffix {
 		switch (*cpd->mark) {
-			case 'k': cpd->val_int *= 1024; break;
-			case 'm': cpd->val_int *= 1024 * 1024; break;
-			case 'g': cpd->val_int *= 1024 * 1024 * 1024; break;
-			case 't': cpd->val_int *= 1024 * 1024 * 1024 * 1024; break;
-			case 'p': cpd->val_int *= 1024 * 1024 * 1024 * 1024 * 1024; break;
+			case 'k': cpd->val_int *= (guint64) 1024; break;
+			case 'm': cpd->val_int *= (guint64) 1024 * 1024; break;
+			case 'g': cpd->val_int *= (guint64) 1024 * 1024 * 1024; break;
+			case 't': cpd->val_int *= (guint64) 1024 * 1024 * 1024 * 1024; break;
+			case 'p': cpd->val_int *= (guint64) 1024 * 1024 * 1024 * 1024 * 1024; break;
 		}
 	}
 
@@ -144,7 +144,7 @@
 				break;
 		}
 
-		a = action_new_setting(srv, cpd->varname, o);
+		a = action_new_setting(srv, cpd->varname->str, o);
 
 		if (a == NULL) {
 			option_free(o);
