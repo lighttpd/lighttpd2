@@ -1,9 +1,53 @@
 #include "condition.h"
 #include "log.h"
 
-static condition* condition_new(comp_operator_t op, condition_lvalue *lvalue);
-static condition* cond_new_string(comp_operator_t op, condition_lvalue *lvalue, GString *str);
-static void condition_free(condition *c);
+static gboolean condition_parse_ip(condition_rvalue *val, const char *txt) {
+	if (parse_ipv4(txt, &val->ipv4.addr, NULL)) {
+		val->type = COND_VALUE_SOCKET_IPV4;
+		val->ipv4.networkmask = 0xFFFFFFFF;
+		return TRUE;
+	}
+	if (parse_ipv6(txt, val->ipv6.addr, NULL)) {
+		val->type = COND_VALUE_SOCKET_IPV6;
+		val->ipv6.network = 128;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+static gboolean condition_parse_ip_net(condition_rvalue *val, const char *txt) {
+	if (parse_ipv4(txt, &val->ipv4.addr, &val->ipv4.networkmask)) {
+		val->type = COND_VALUE_SOCKET_IPV4;
+		return TRUE;
+	}
+	if (parse_ipv6(txt, val->ipv6.addr, &val->ipv6.network)) {
+		val->type = COND_VALUE_SOCKET_IPV6;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+static gboolean condition_ip_from_socket(condition_rvalue *val, sock_addr *addr) {
+	switch (addr->plain.sa_family) {
+	case AF_INET:
+		val->type = COND_VALUE_SOCKET_IPV4;
+		val->ipv4.addr = addr->ipv4.sin_addr.s_addr;
+		val->ipv4.networkmask = 0xFFFFFFFF;
+		return TRUE;
+#ifdef HAVE_IPV6
+	case AF_INET6:
+		val->type = COND_VALUE_SOCKET_IPV6;
+		memcpy(val->ipv6.addr, addr->ipv6.sin6_addr.s6_addr, 16);
+		val->ipv6.network = 128;
+		return TRUE;
+	}
+#endif
+	return FALSE;
+}
+
+// static condition* condition_new(comp_operator_t op, condition_lvalue *lvalue);
+// static condition* cond_new_string(comp_operator_t op, condition_lvalue *lvalue, GString *str);
+// static void condition_free(condition *c);
 
 condition_lvalue* condition_lvalue_new(cond_lvalue_t type, GString *key) {
 	condition_lvalue *lvalue = g_slice_new0(condition_lvalue);
@@ -55,10 +99,14 @@ static condition* cond_new_match(server *srv, comp_operator_t op, condition_lval
 
 /* only IP and NOTIP */
 static condition* cond_new_ip(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str) {
-	UNUSED(op); UNUSED(lvalue); UNUSED(str);
-	ERROR(srv, "%s", "ip matching not supported for now");
-	/* TODO: parse str as socket addr */
-	return NULL;
+	condition *c;
+	c = condition_new(op, lvalue);
+	if (!condition_parse_ip_net(&c->rvalue, str->str)) {
+		ERROR(srv, "Invalid ip address '%s'", str->str);
+		condition_release(srv, c);
+		return NULL;
+	}
+	return c;
 }
 
 condition* condition_new_string(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str) {
@@ -190,7 +238,7 @@ const char* cond_lvalue_to_string(cond_lvalue_t t) {
 
 /* COND_VALUE_STRING and COND_VALUE_REGEXP only */
 static gboolean condition_check_eval_string(server *srv, connection *con, condition *cond) {
-	const char *value = NULL;
+	const char *value = "";
 	GString *tmp = NULL;
 	gboolean result = FALSE;
 	UNUSED(srv);
@@ -199,9 +247,10 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 	switch (cond->lvalue->type) {
 		/* TODO: get values */
 	case COMP_REQUEST_LOCALIP:
+		value = con->local_addr_str->str;
 		break;
 	case COMP_REQUEST_REMOTEIP:
-		value = con->dst_addr_str->str;
+		value = con->remote_addr_str->str;
 		break;
 	case COMP_REQUEST_PATH:
 		value = con->request.uri.path->str;
@@ -210,8 +259,7 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 		value = con->request.host->str;
 		break;
 	case COMP_REQUEST_SCHEME:
-		/* TODO: check for ssl */
-		value = "http"; /* ssl ? "https" : "http" */
+		value = con->is_ssl ? "https" : "http";
 		break;
 	case COMP_REQUEST_QUERY_STRING:
 		value = con->request.uri.query->str;
@@ -227,13 +275,18 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 		/* TODO */
 		break;
 	case COMP_PHYSICAL_SIZE:
+		/* TODO */
+		g_string_printf((tmp = g_string_sized_new(0)), "%"L_GOFFSET_FORMAT, (goffset) 0);
+		value = tmp->str;
+		break;
 	case COMP_REQUEST_CONTENT_LENGTH:
-		// TODO: die with error
-		assert(NULL);
+		/* TODO */
+		g_string_printf((tmp = g_string_sized_new(0)), "%"L_GOFFSET_FORMAT, (goffset) 0);
+		value = tmp->str;
 		break;
 	}
 
-	if (value) switch (cond->op) {
+	switch (cond->op) {
 	case CONFIG_COND_EQ:
 		result = 0 == strcmp(value, cond->rvalue.string->str);
 		break;
@@ -257,8 +310,6 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 	case CONFIG_COND_LT:
 		ERROR(srv, "cannot compare string/regexp with '%s'", comp_op_to_string(cond->op));
 		break;
-	} else {
-		ERROR(srv, "couldn't get string value for '%s'", cond_lvalue_to_string(cond->lvalue->type));
 	}
 
 	if (tmp) g_string_free(tmp, TRUE);
@@ -307,12 +358,10 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 	return FALSE;
 }
 
-
 static gboolean ipv4_in_ipv4_net(guint32 target, guint32 match, guint32 networkmask) {
 	return (target & networkmask) == (match & networkmask);
 }
 
-#ifdef HAVE_IPV6
 static gboolean ipv6_in_ipv6_net(const unsigned char *target, const guint8 *match, guint network) {
 	guint8 mask = network % 8;
 	if (0 != memcmp(target, match, network / 8)) return FALSE;
@@ -326,7 +375,103 @@ static gboolean ipv6_in_ipv4_net(const unsigned char *target, guint32 match, gui
 	if (!ipv6_in_ipv6_net(target, ipv6match, 96)) return  FALSE;
 	return ipv4_in_ipv4_net(*(guint32*)(target+12), match, networkmask);
 }
-#endif
+
+static gboolean ipv4_in_ipv6_net(guint32 target, const guint8 *match, guint network) {
+	guint8 ipv6[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0, 0 };
+	*(guint32*) (ipv6+12) = target;
+	return ipv6_in_ipv6_net(ipv6, match, network);
+}
+
+static gboolean ip_in_net(condition_rvalue *target, condition_rvalue *network) {
+	if (target->type == COND_VALUE_SOCKET_IPV4) {
+		if (network->type == COND_VALUE_SOCKET_IPV4) {
+			return ipv4_in_ipv4_net(target->ipv4.addr, network->ipv4.addr, network->ipv4.networkmask);
+		} else if (network->type == COND_VALUE_SOCKET_IPV6) {
+			return ipv4_in_ipv6_net(target->ipv4.addr, network->ipv6.addr, network->ipv6.network);
+		}
+	} else if (target->type == COND_VALUE_SOCKET_IPV6) {
+		if (network->type == COND_VALUE_SOCKET_IPV4) {
+			return ipv6_in_ipv4_net(target->ipv6.addr, network->ipv4.addr, network->ipv4.networkmask);
+		} else if (network->type == COND_VALUE_SOCKET_IPV6) {
+			return ipv6_in_ipv6_net(target->ipv6.addr, network->ipv6.addr, network->ipv6.network);
+		}
+	}
+	return FALSE;
+}
+
+/* CONFIG_COND_IP and CONFIG_COND_NOTIP only */
+static gboolean condition_check_eval_ip(server *srv, connection *con, condition *cond) {
+	condition_rvalue ipval;
+	const char *value = NULL;
+	gboolean result = FALSE;
+	UNUSED(srv);
+	UNUSED(con);
+
+	ipval.type = COND_VALUE_INT;
+
+	switch (cond->lvalue->type) {
+		/* TODO: get values */
+	case COMP_REQUEST_LOCALIP:
+		if (!condition_ip_from_socket(&ipval, &con->local_addr))
+			return (cond->op == CONFIG_COND_NOTIP);
+		break;
+	case COMP_REQUEST_REMOTEIP:
+		if (!condition_ip_from_socket(&ipval, &con->remote_addr))
+			return (cond->op == CONFIG_COND_NOTIP);
+		break;
+	case COMP_REQUEST_PATH:
+		value = con->request.uri.path->str;
+		break;
+	case COMP_REQUEST_HOST:
+		value = con->request.host->str;
+		break;
+	case COMP_REQUEST_SCHEME:
+		ERROR(srv, "%s", "Cannot parse request.scheme as ip");
+		return (cond->op == CONFIG_COND_NOTIP);
+	case COMP_REQUEST_QUERY_STRING:
+		value = con->request.uri.query->str;
+		break;
+	case COMP_REQUEST_METHOD:
+		value = con->request.http_method_str->str;
+		break;
+	case COMP_PHYSICAL_PATH:
+	case COMP_PHYSICAL_PATH_EXISTS:
+		/* TODO */
+		break;
+	case COMP_REQUEST_HEADER:
+		/* TODO */
+		break;
+	case COMP_PHYSICAL_SIZE:
+	case COMP_REQUEST_CONTENT_LENGTH:
+		ERROR(srv, "%s", "Cannot parse integers as ip");
+		return (cond->op == CONFIG_COND_NOTIP);
+		break;
+	}
+
+	if (ipval.type == COND_VALUE_INT) {
+		if (!value || !condition_parse_ip(&ipval, value))
+			return (cond->op == CONFIG_COND_NOTIP);
+	}
+
+	switch (cond->op) {
+	case CONFIG_COND_IP:
+		return ip_in_net(&ipval, &cond->rvalue);
+	case CONFIG_COND_NOTIP:
+		return !ip_in_net(&ipval, &cond->rvalue);
+	case CONFIG_COND_EQ:
+	case CONFIG_COND_NE:
+	case CONFIG_COND_MATCH:
+	case CONFIG_COND_NOMATCH:
+	case CONFIG_COND_GE:
+	case CONFIG_COND_GT:
+	case CONFIG_COND_LE:
+	case CONFIG_COND_LT:
+		ERROR(srv, "cannot match ips with '%s'", comp_op_to_string(cond->op));
+		break;
+	}
+
+	return result;
+}
 
 gboolean condition_check(server *srv, connection *con, condition *cond) {
 	switch (cond->rvalue.type) {
@@ -339,8 +484,7 @@ gboolean condition_check(server *srv, connection *con, condition *cond) {
 		return condition_check_eval_int(srv, con, cond);
 	case COND_VALUE_SOCKET_IPV4:
 	case COND_VALUE_SOCKET_IPV6:
-/* TODO: implement checks */
-		break;
+		return condition_check_eval_ip(srv, con, cond);
 	}
 	return FALSE;
 }

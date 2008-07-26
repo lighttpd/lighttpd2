@@ -122,7 +122,9 @@ LI_API const char* cond_lvalue_to_string(cond_lvalue_t t);
 LI_API gboolean condition_check(server *srv, connection *con, condition *cond);
 
 /* parser */
+/** parse an IPv4 (if netmask is not NULL with cidr netmask) */
 LI_API gboolean parse_ipv4(const char *str, guint32 *ip, guint32 *netmask);
+/** parse an IPv6 (if network is not NULL with cidr network) */
 LI_API gboolean parse_ipv6(const char *str, guint8 *ip, guint *network);
 LI_API GString* ipv6_tostring(const guint8 ip[16]);
 
