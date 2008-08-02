@@ -1,4 +1,5 @@
 #include "base.h"
+#include "condition.h"
 #include "config_parser.h"
 
 #if 1
@@ -10,407 +11,431 @@
 /** config parser state machine **/
 
 %%{
-
+	## ragel stuff
 	machine config_parser;
 
-	variable p cpd->p;
-	variable pe cpd->pe;
-	variable eof cpd->eof;
+	variable p ctx->p;
+	variable pe ctx->pe;
+	variable eof ctx->eof;
 
-	access cpd->;
-
-	# actions
-	action mark { cpd->mark = fpc; }
-	action mark_var { cpd->mark_var = fpc; }
+	access ctx->;
 
 	prepush {
-		_printf("current stacksize: %d, top: %d\n", cpd->stacksize, cpd->top);
+		//_printf("current stacksize: %d, top: %d\n", ctx->stacksize, ctx->top);
 		/* increase stacksize if necessary */
-		if (cpd->stacksize == cpd->top)
+		if (ctx->stacksize == ctx->top)
 		{
-			cpd->stack = g_realloc(cpd->stack, sizeof(int) * (cpd->stacksize + 8));
-			cpd->stacksize += 8;
+			/* increase stacksize by 8 */
+			ctx->stack = g_realloc(ctx->stack, sizeof(int) * (ctx->stacksize + 8));
+			ctx->stacksize += 8;
 		}
 	}
 
+	## actions
+	action mark { ctx->mark = fpc; }
+
+	# basic types
 	action boolean {
-		cpd->val_type = CONFP_BOOL;
-		if (*cpd->mark == 't')
-			cpd->val_bool = TRUE;
-		else
-			cpd->val_bool = FALSE;
-		_printf("got boolean %s in line %zd of %s\n", cpd->val_bool ? "true" : "false", cpd->line, cpd->filename);
+		option *o;
+
+		o = option_new_bool(*ctx->mark == 't' ? TRUE : FALSE);
+		g_queue_push_head(ctx->option_stack, o);
+
+		_printf("got boolean %s in line %zd\n", *ctx->mark == 't' ? "true" : "false", ctx->line);
 	}
 
-	action string {
-		g_string_truncate(cpd->val_str, 0);
-		g_string_append_len(cpd->val_str, cpd->mark + 1, fpc - cpd->mark - 2);
-		cpd->val_type = CONFP_STR;
-		_printf("got string: \"%s\" in line %zd of %s\n", cpd->val_str->str, cpd->line, cpd->filename);
-	}
+	action integer {
+		option *o;
+		guint i = 0;
 
-	action integer
-	{
-		gchar *c;
-		cpd->val_int = 0;
-		for (c=cpd->mark; c<fpc; c++)
-			cpd->val_int = cpd->val_int * 10 + *c - 48;
-		cpd->val_type = CONFP_INT;
-		//_printf("got integer: %d in line %zd of %s\n", cpd->val_int, cpd->line, cpd->filename);
+		for (gchar *c = ctx->mark; c < fpc; c++)
+			i = i * 10 + *c - 48;
+
+		o = option_new_int(i);
+		/* push option onto stack */
+		g_queue_push_head(ctx->option_stack, o);
+
+		_printf("got integer %d in line %zd\n", i, ctx->line);
 	}
 
 	action integer_suffix {
-		switch (*cpd->mark) {
-			case 'k': cpd->val_int *= (guint64) 1024; break;
-			case 'm': cpd->val_int *= (guint64) 1024 * 1024; break;
-			case 'g': cpd->val_int *= (guint64) 1024 * 1024 * 1024; break;
-			case 't': cpd->val_int *= (guint64) 1024 * 1024 * 1024 * 1024; break;
-			case 'p': cpd->val_int *= (guint64) 1024 * 1024 * 1024 * 1024 * 1024; break;
-		}
 	}
 
-	action comment { _printf("got comment in line %zd of %s\n", cpd->line-1, cpd->filename); }
-	action value { }
-	action valuepair { _printf("got valuepair in line %zd of %s\n", cpd->line, cpd->filename); }
-	action line { cpd->line++; }
-	action lineWin { cpd->line--; }
+	action string {
+		option *o;
+		GString *str;
+
+		str = g_string_new_len(ctx->mark+1, fpc - ctx->mark - 2);
+		o = option_new_string(str);
+		g_queue_push_head(ctx->option_stack, o);
+
+		_printf("got string %s", "");
+		for (gchar *c = ctx->mark + 1; c < fpc - 1; c++) _printf("%c", *c);
+		_printf(" in line %zd\n", ctx->line);
+	}
+
+	# advanced types
+	action list_start {
+		option *o;
+
+		/* create new list option and put it on stack, list entries are put in it by getting the previous option from the stack */
+		o = option_new_list();
+		g_queue_push_head(ctx->option_stack, o);
+
+		fcall list_scanner;
+	}
+
+	action list_push {
+		option *o, *l;
+
+		/* pop current option form stack and append it to the new top of the stack option (the list) */
+		o = g_queue_pop_head(ctx->option_stack);
+
+		l = g_queue_peek_head(ctx->option_stack);
+		assert(l->type == OPTION_LIST);
+
+		g_array_append_val(l->value.opt_list, o);
+
+		_printf("list_push%s\n", "");
+	}
+
+	action list_end {
+		fret;
+	}
+
+	action hash_start {
+		option *o;
+
+		/* create new hash option and put it on stack, if a key-value pair is encountered, get it by walking 2 steps back the stack */
+		o = option_new_hash();
+		g_queue_push_head(ctx->option_stack, o);
+
+		fcall hash_scanner;
+	}
+
+	action hash_push {
+		option *k, *v, *h; /* key value hashtable */
+		GString *str;
+
+		v = g_queue_pop_head(ctx->option_stack);
+		k = g_queue_pop_head(ctx->option_stack);
+		h = g_queue_peek_head(ctx->option_stack);
+
+		/* duplicate key so option can be free'd */
+		str = g_string_new_len(k->value.opt_string->str, k->value.opt_string->len);
+
+		g_hash_table_insert(h->value.opt_hash, str, v);
+		option_free(k);
+
+		_printf("%s\n", "hash_push");
+	}
+
+	action hash_end {
+		fret;
+	}
+
+	action block_start {
+		fcall block_scanner;
+	}
+
+	action block_end {
+		fret;
+	}
+
+	action keyvalue_start {
+		fcall keyvalue_scanner;
+	}
+
+	action keyvalue_end {
+		option *k, *v, *l;
+		/* we have a key and a value on the stack; convert them to a list with 2 elements */
+
+		v = g_queue_pop_head(ctx->option_stack);
+		k = g_queue_pop_head(ctx->option_stack);
+
+		assert(k->type == OPTION_STRING);
+
+		l = option_new_list();
+
+		g_array_append_val(l->value.opt_list, k);
+		g_array_append_val(l->value.opt_list, v);
+
+		/* push list on the stack */
+		g_queue_push_head(ctx->option_stack, l);
+
+		fret;
+	}
+
+	action value {
+		/*
+		_printf("got value %s", "");
+		for (gchar *c = ctx->mark; c < fpc; c++) _printf("%c", *c);
+		_printf(" in line %zd\n", ctx->line);
+		*/
+	}
 
 	action varname {
-		g_string_truncate(cpd->varname, 0);
-		g_string_append_len(cpd->varname, cpd->mark_var, fpc - cpd->mark_var);
-		_printf("got varname: \"%s\" in line %zd of %s\n", cpd->varname->str, cpd->line, cpd->filename);
-	}
-
-	action operator {
-		if ((fpc - cpd->mark) == 1) {
-			/* 1 char operator: < or > */
-			cpd->operator = (*fpc == '<') ? CONFIG_COND_LT : CONFIG_COND_GT;
-		}
-		else {
-			/* 2 char operator */
-			char frst = *cpd->mark, scnd = *(fpc-1);
-			_printf(" [%c %c] ", frst, scnd);
-			if (frst == '<' && scnd == '=') {
-				cpd->operator = CONFIG_COND_LE;
-			}
-			else if (frst == '>' && scnd == '=') {
-				cpd->operator = CONFIG_COND_GE;
-			}
-			else if (frst == '!' && scnd == '=') {
-				cpd->operator = CONFIG_COND_NE;
-			}
-			else if (frst == '=' && scnd == '=') {
-				cpd->operator = CONFIG_COND_EQ;
-			}
-			else if (frst == '=' && scnd == '~') {
-				cpd->operator = CONFIG_COND_MATCH;
-			}
-			else if (frst == '!' && scnd == '~') {
-				cpd->operator = CONFIG_COND_NOMATCH;
-			}
-		}
-
-		_printf("got operator: %s", "");
-		for (char* c=cpd->mark; c < fpc; c++)
-			_printf("%c", (int)*c);
-		_printf(" (%d) in line %zd of %s\n", cpd->operator, cpd->line, cpd->filename);
-	}
-
-
-	action assignment {
-		action *a;
+		/* varname, push it as string option onto the stack */
 		option *o;
-		action_list *al;
+		GString *str;
 
-		switch (cpd->val_type) {
-			case CONFP_BOOL:
-				o = option_new_bool(cpd->val_bool);
-				break;
-			case CONFP_INT:
-				o = option_new_int(cpd->val_int);
-				break;
-			case CONFP_STR:
-				o = option_new_string(cpd->val_str);
-				break;
-			case CONFP_LIST:
-				o = option_new_list();
-				g_array_free(o->value.opt_list, TRUE);
-				o->value.opt_list = cpd->val_list;
-				break;
-			case CONFP_HASH:
-				o = option_new_hash();
-				g_hash_table_destroy(o->value.opt_hash);
-				o->value.opt_hash = cpd->val_hash;
-				break;
-		}
+		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
+		o = option_new_string(str);
+		g_queue_push_head(ctx->option_stack, o);
+	}
 
-		a = action_new_setting(srv, cpd->varname->str, o);
+	# statements
+	action assignment {
+		option *val, *name;
 
-		if (a == NULL) {
-			option_free(o);
-			return FALSE;
-		}
+		/* top of the stack is the value, then the varname as string option */
+		val = g_queue_pop_head(ctx->option_stack);
+		name = g_queue_pop_head(ctx->option_stack);
 
-		al = ctx->action_list_stack->data;
-		g_array_append_val(al->actions, a);
+		assert(name->type == OPTION_STRING);
 
-		_printf("got assignment for var %s in line %zd of %s\n", cpd->varname->str, cpd->line, cpd->filename);
+		g_print("got assignment: %s = %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
 	}
 
 	action function {
-		if (g_str_equal(cpd->varname->str, "include") || g_str_equal(cpd->varname->str, "include_shell"))
-			break;
-		_printf("got function call to %s in line %zd of %s\n", cpd->varname->str, cpd->line, cpd->filename);
+		/* similar to assignment */
+		option *val, *name;
+
+		/* top of the stack is the value, then the varname as string option */
+		val = g_queue_pop_head(ctx->option_stack);
+		name = g_queue_pop_head(ctx->option_stack);
+
+		assert(name->type == OPTION_STRING);
+
+		if (g_str_equal(name->value.opt_string->str, "include")) {
+			if (val->type != OPTION_STRING) {
+				/* TODO */
+			}
+		}
+		else if (g_str_equal(name->value.opt_string->str, "include_shell")) {
+			if (val->type != OPTION_STRING) {
+				/* TODO */
+			}
+		}
+		else {
+			/* TODO */
+		}
+
+		g_print("got function: %s %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
 	}
 
-	action condition { _printf("got condition for var %s in line %zd of %s\n", cpd->varname->str, cpd->line, cpd->filename); }
-	action fooblock { _printf("got fooblock in line %zd of %s\n", cpd->line, cpd->filename); }
+	action condition {
+		/* stack: value, varname */
+		option *v, *n;
 
-	action list { _printf("list\n"); }
-	action list_start { /*_printf("list start in line %d\n", line);*/ fcall listscanner; }
-	action list_end {
-		/*_printf("list end in line %d\n", line);*/
-		cpd->val_type = CONFP_LIST;
-		fret;
+		v = g_queue_pop_head(ctx->option_stack);
+		n = g_queue_pop_head(ctx->option_stack);
+		assert(n->type == OPTION_STRING);
+
+		g_print("got condition: %s %s %s in line %zd\n", n->value.opt_string->str, option_type_string(v->type), comp_op_to_string(ctx->op), ctx->line);
 	}
 
-	action hash_start { fcall hashscanner; }
-	action hash_end {
-		_printf("hash ended in line %zd of %s\n", cpd->line, cpd->filename);
-		fret;
+	action action_block {
+		option *o;
+
+		o = g_queue_pop_head(ctx->option_stack);
+		assert(o->type == OPTION_STRING);
+
+		g_print("action block %s in line %zd\n", o->value.opt_string->str, ctx->line);
 	}
 
-	action block_start { /*_printf("block start in line %d\n", line);*/ fcall blockscanner; }
-	action block_end { /*_printf("block end in line %d\n", line);*/ fret; }
 
-	action incl {
-		_printf("including file %s in line %zd of %s\n", cpd->val_str->str, cpd->line, cpd->filename);
-		if (!config_parser_file(srv, ctx, cpd->val_str->str))
-			return FALSE;
-	}
-	action incl_shell {
-		if (!config_parser_shell(srv, ctx, cpd->val_str->str))
-			return FALSE;
-	}
+	## definitions
 
-	action done { _printf("done\n"); }
+	# basic types
+	boolean = ( 'true' | 'false' ) %boolean;
+	integer = ( 0 | ( [1-9] [0-9]* ) ) %integer;
+	integer_suffix_bytes = ( 'b' | 'kb' | 'mb' | 'gb' | 'tb' | 'pb' );
+	integer_suffix_seconds = ( 's' | 'm' | 'h' | 'd' );
+	string = ( '"' (any-'"')* '"' ) %string;
 
-	# tokens
-	boolean = ( 'true' | 'false' ) >mark %boolean;
-	integer_suffix = ( 'mb' | 'kb' | 'gb' | 'tb' | 'pb' ) >mark %integer_suffix;
-	integer = ( 0 | ( [1-9] [0-9]* ) ) >mark %integer;
-	string = ( '"' (any-'"')* '"' ) >mark %string;
+	# misc stuff
+	line_sane = ( '\n' ) >{ ctx->line++; };
+	line_weird = ( '\r' ) >{ ctx->line++; };
+	line_insane = ( '\r\n' ) >{ ctx->line--; };
+	line = ( line_sane | line_weird | line_insane );
 
-	ipv4_part = ( [0-9] | ([1-9] [0-9]) | ('1' [0-9] [0-9]) | ('2' [0-4] [0-9]) | ('25' [0-5]) );
-	ipv4 = ( ipv4_part '.' ipv4_part '.' ipv4_part '.' ipv4_part );
-
-	# we dont need to specify ipv6 here correctly, just look if something looks like it could be an ipv6
-	ipv6_part = ( xdigit{1,4} );
-	ipv6 = ( (ipv6_part | ':')+ ipv4? );
-
-	cidr = ( (ipv4|ipv6) '/' ( ([0-2]? [0-9]) | ('3' [0-2]) ) );
-
-	ws = ( ' ' | '\t' );
-
-	lineUnix = ( '\n' ) %line;
-	lineMac = ( '\r' ) %line;
-	lineWin = ( '\r\n' ) %lineWin;
-	line = ( lineUnix | lineMac | lineWin );
-
+	ws = ( '\t' | ' ' );
 	noise = ( ws | line );
 
-	comment = ( '#' (any - line)* line ) %comment;
-
-	value = ( boolean | (integer integer_suffix?) | string ) %value;
-	valuepair = ( string ws* '=>' ws* value ) %valuepair;
-
-	list = ( '(' ) >list_start;
-	listscanner := ( noise* ((value|valuepair|list) (noise* ',' noise* (value|valuepair|list))*)? noise* ')' >list_end );
-
-	hash = ( '[' ) >hash_start;
-	hashelem = ( string >mark %{_printf("hash key \"%s\" ", cpd->val_str->str);} noise* '=>' noise* (value|list|hash) %{_printf("value %s on line %zd of %s\n",
-		cpd->val_type == CONFP_BOOL ? "bool" : (cpd->val_type == CONFP_INT ? "int" : (cpd->val_type == CONFP_STR ? "str" : "list or hash")),
-	cpd->line, cpd->filename);} );
-	hashscanner := ( noise* (hashelem (noise* ',' noise* hashelem)*)? noise* ']' >hash_end );
-
-	varname = ( alpha ( alnum | [_.\-] )* ) >mark_var %varname;
-
-	operator = ( '==' | '!=' | '=~' | '!~' | '<' | '<=' | '>' | '>=' ) >mark %operator;
-
-	#assignment_bool = ( varname ws* '=' ws* boolean ';' ) %assignment_bool;
-	assignment = ( varname ws* '=' ws* ( value | list | hash) ';' ) %assignment;
-	#assignment = ( assignment_bool ) %assignment;
-
-	function = ( varname (ws+ (value|valuepair|list|hash))? ';' ) %function;
-
-	statement = ( assignment | function );
-
-	incl = ( 'include' ws+ string ';' ) %incl;
-	incl_shell = ( 'include_shell' ws+ string ';' ) %incl_shell;
-
+	comment = ( '#' (any - line)* line );
 	block = ( '{' >block_start );
 
-	condition_var = (
-		'con.ip' | 'req.host' | 'req.path' | 'req.agent' | 'req.scheme' | 'serv.socket' |
-		'req.cookie' | 'req.query' | 'req.method' | 'req.length' | 'req.referer' |
-		'phys.path' | 'phys.exists' | 'phys.size' | 'resp.size' | 'resp.status'
-	) >mark_var;
+	# advanced types
+	varname = ( alpha ( alnum | [._\-] )* ) >mark %varname;
+	actionref = ( varname );
+	list = ( '(' >list_start );
+	hash = ( '[' >hash_start );
+	keyvalue = ( string ws* '=>' ws* >keyvalue_start );
+	value = ( boolean | integer | string | list | hash | keyvalue | actionref ) >mark %value;
+	hash_elem = ( string >mark noise* ':' noise* value );
 
-	condition = ( condition_var %varname ws* operator ws* value >condition noise* block );
+	operator = ( '==' | '!=' | '<' | '<=' | '>' | '>=' | '=~' | '!~' );
 
-	blockscanner := ( (noise | comment | statement | condition | incl | incl_shell )* '}' >block_end );
+	# statements
+	assignment = ( varname ws* '=' ws* value ';' ) %assignment;
+	function = ( varname ws+ value ';' ) %function;
+	condition = ( varname ws* operator ws* value noise* block ) %condition;
+	action_block = ( varname ws* block ) %action_block;
 
-	fooblock = ( varname ws+ varname ws* block  ) %fooblock;
+	statement = ( assignment | function | condition | action_block );
 
-	main := ( noise | comment | statement | condition | fooblock | incl | incl_shell )* '\00';
+	# scanner
+	keyvalue_scanner := ( value any >{fpc--;} >keyvalue_end );
+	block_scanner := ( (noise | comment | statement)* '}' >block_end );
+	list_scanner := ( noise* (value %list_push (noise* ',' noise* value %list_push)*)? noise* ')' >list_end );
+	hash_scanner := ( noise* (hash_elem %hash_push (noise* ',' noise* hash_elem %hash_push)*)? noise* ']' >hash_end );
+
+	main := (noise | comment | statement)* '\00';
 }%%
 
 %% write data;
 
-config_parser_context_t *config_parser_init() {
+config_parser_context_t *config_parser_context_new(GList *ctx_stack) {
 	config_parser_context_t *ctx;
-	action_list *al;
 
-	ctx = g_slice_new(config_parser_context_t);
-	ctx->stack = NULL;
+	ctx = g_slice_new0(config_parser_context_t);
 
-	al = action_list_new();
-	ctx->action_list_stack = g_list_prepend(NULL, al);
+	ctx->line = 1;
+
+	/* allocate stack of 8 items. sufficient for most configs, will grow when needed */
+	ctx->stack = (int*) g_malloc(sizeof(int) * 8);
+	ctx->stacksize = 8;
+
+	if (ctx_stack != NULL) {
+		/* inherit old stacks */
+		ctx->action_list_stack = ((config_parser_context_t*) ctx_stack->data)->action_list_stack;
+		ctx->option_stack = ((config_parser_context_t*) ctx_stack->data)->option_stack;
+	}
+	else {
+		ctx->action_list_stack = g_queue_new();
+		ctx->option_stack = g_queue_new();
+	}
 
 	return ctx;
 }
 
-void config_parser_finish(config_parser_context_t *ctx) {
-	assert(ctx->stack == NULL);
+void config_parser_context_free(config_parser_context_t *ctx, gboolean free_queues)
+{
+	g_free(ctx->stack);
+
+	if (free_queues) {
+		g_assert_cmpuint(ctx->action_list_stack->length, ==, 0);
+		g_assert_cmpuint(ctx->option_stack->length, ==, 0);
+		g_queue_free(ctx->action_list_stack);
+		g_queue_free(ctx->option_stack);
+	}
 
 	g_slice_free(config_parser_context_t, ctx);
 }
 
-config_parser_data_t *config_parser_data_new() {
-	config_parser_data_t *cpd;
-
-	cpd = g_slice_new0(config_parser_data_t);
-
-	cpd->line = 1;
-
-	/* allocate stack of 8 items. sufficient for most configs, will grow when needed */
-	cpd->stack = (int*) g_malloc(sizeof(int) * 8);
-	cpd->stacksize = 8;
-
-
-	cpd->val_str = g_string_sized_new(0);
-	cpd->varname = g_string_sized_new(0);
-
-	return cpd;
-}
-
-void config_parser_data_free(config_parser_data_t *cpd)
-{
-	g_string_free(cpd->val_str, TRUE);
-	g_string_free(cpd->varname, TRUE);
-
-	g_free(cpd->stack);
-
-	g_slice_free(config_parser_data_t, cpd);
-}
-
-gboolean config_parser_file(server *srv, config_parser_context_t *ctx, const gchar *path) {
+gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path) {
+	config_parser_context_t *ctx;
 	gboolean res;
-	config_parser_data_t *cpd;
 	GError *err = NULL;
 
-	cpd = config_parser_data_new();
-	cpd->filename = (gchar*) path;
+	ctx = config_parser_context_new(ctx_stack);
+	ctx->filename = (gchar*) path;
 
-	if (!g_file_get_contents(path, &cpd->ptr, &cpd->len, &err))
+	if (!g_file_get_contents(path, &ctx->ptr, &ctx->len, &err))
 	{
 		/* could not read file */
-		/* TODO: die("could not read config file. reason: \"%s\" (%d)\n", err->message, err->code); */
-		_printf("could not read config file \"%s\". reason: \"%s\" (%d)\n", path, err->message, err->code);
-		config_parser_data_free(cpd);
+		log_warning(srv, NULL, "could not read config file \"%s\". reason: \"%s\" (%d)", path, err->message, err->code);
+		config_parser_context_free(ctx, FALSE);
 		g_error_free(err);
 		return FALSE;
 	}
 
 	/* push on stack */
-	ctx->stack = g_list_prepend(ctx->stack, cpd);
+	ctx_stack = g_list_prepend(ctx_stack, ctx);
 
-	res = config_parser_buffer(srv, ctx);
+	res = config_parser_buffer(srv, ctx_stack);
+
+	if (!res)
+		log_warning(srv, NULL, "config parsing failed in line %zd of %s", ctx->line, ctx->filename);
 
 	/* pop from stack */
-	ctx->stack = g_list_delete_link(ctx->stack, ctx->stack);
+	ctx_stack = g_list_delete_link(ctx_stack, ctx_stack);
 
 	/* have to free the buffer on our own */
-	g_free(cpd->ptr);
-	config_parser_data_free(cpd);
+	g_free(ctx->ptr);
+	config_parser_context_free(ctx, FALSE);
 
 	return res;
 }
 
-gboolean config_parser_shell(server *srv, config_parser_context_t *ctx, const gchar *command)
+gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command)
 {
 	gboolean res;
 	gchar* _stdout;
 	gchar* _stderr;
 	gint status;
-	config_parser_data_t *cpd;
+	config_parser_context_t *ctx;
 	GError *err = NULL;
 
-	cpd = config_parser_data_new();
-	cpd->filename = (gchar*) command;
+	ctx = config_parser_context_new(ctx_stack);
+	ctx->filename = (gchar*) command;
 
 	if (!g_spawn_command_line_sync(command, &_stdout, &_stderr, &status, &err))
 	{
-		_printf("error launching shell command \"%s\": %s (%d)\n", command, err->message, err->code);
-		config_parser_data_free(cpd);
+		log_warning(srv, NULL, "error launching shell command \"%s\": %s (%d)", command, err->message, err->code);
+		config_parser_context_free(ctx, FALSE);
 		g_error_free(err);
 		return FALSE;
 	}
 
 	if (status != 0)
 	{
-		_printf("shell command \"%s\" exited with status %d\n", command, status);
-		_printf("%s\n----\n%s\n", _stdout, _stderr);
+		log_warning(srv, NULL, "shell command \"%s\" exited with status %d", command, status);
+		log_debug(srv, NULL, "stdout:\n-----\n%s\n-----\nstderr:\n-----\n%s\n-----", _stdout, _stderr);
 		g_free(_stdout);
 		g_free(_stderr);
-		config_parser_data_free(cpd);
+		config_parser_context_free(ctx, FALSE);
 		return FALSE;
 	}
 
-	cpd->len = strlen(_stdout);
-	cpd->ptr = _stdout;
+	ctx->len = strlen(_stdout);
+	ctx->ptr = _stdout;
 
-	_printf("included shell output from \"%s\" (%zu bytes):\n%s\n", command, cpd->len, _stdout);
+	log_debug(srv, NULL, "included shell output from \"%s\" (%zu bytes)", command, ctx->len, _stdout);
 
-	ctx->stack = g_list_prepend(ctx->stack, cpd);
-	res = config_parser_buffer(srv, ctx);
-	ctx->stack = g_list_delete_link(ctx->stack, ctx->stack);
+	/* push on stack */
+	ctx_stack = g_list_prepend(ctx_stack, ctx);
+	/* parse buffer */
+	res = config_parser_buffer(srv, ctx_stack);
+	/* pop from stack */
+	ctx_stack = g_list_delete_link(ctx_stack, ctx_stack);
 
 	g_free(_stdout);
 	g_free(_stderr);
-	config_parser_data_free(cpd);
+	config_parser_context_free(ctx, FALSE);
 
 	return res;
 }
 
-gboolean config_parser_buffer(server *srv, config_parser_context_t *ctx)
+gboolean config_parser_buffer(server *srv, GList *ctx_stack)
 {
-	config_parser_data_t *cpd;
+	config_parser_context_t *ctx;
 
 	/* get top of stack */
-	cpd = ctx->stack->data;
+	ctx = (config_parser_context_t*) ctx_stack->data;
 
-	cpd->p = cpd->ptr;
-	cpd->pe = cpd->ptr + cpd->len + 1; /* marks the end of the data to scan (+1 because of trailing \0 char) */
+	ctx->p = ctx->ptr;
+	ctx->pe = ctx->ptr + ctx->len + 1; /* marks the end of the data to scan (+1 because of trailing \0 char) */
 
 	%% write init;
 
 	%% write exec;
 
-	if (cpd->cs == config_parser_error || cpd->cs == config_parser_first_final)
+	if (ctx->cs == config_parser_error || ctx->cs == config_parser_first_final)
 	{
 		/* parse error */
-		g_printerr("parse error in line %zd of \"%s\" at character %c (0x%.2x)\n", cpd->line, cpd->filename, *cpd->p, *cpd->p);
+		log_warning(srv, NULL, "parse error in line %zd of \"%s\" at character %c (0x%.2x)", ctx->line, ctx->filename, *ctx->p, *ctx->p);
 		return FALSE;
 	}
 

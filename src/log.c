@@ -105,10 +105,7 @@ gpointer log_thread(server *srv) {
 	queue = srv->log_queue;
 
 	while (TRUE) {
-		/* lighty is exiting, end logging thread */
-		if (g_atomic_int_get(&srv->exiting) && g_async_queue_length(srv->log_queue) == 0)
-			break;
-
+		/* do we need to rotate logs? */
 		if (g_atomic_int_get(&srv->rotate_logs)) {
 			g_atomic_int_set(&srv->rotate_logs, FALSE);
 			g_mutex_lock(srv->log_mutex);
@@ -120,6 +117,11 @@ gpointer log_thread(server *srv) {
 
 		if (log_entry->log == NULL) {
 			g_slice_free(log_entry_t, log_entry);
+
+			/* lighty is exiting, end logging thread */
+			if (g_atomic_int_get(&srv->exiting) && g_async_queue_length(srv->log_queue) == 0)
+				break;
+
 			continue;
 		}
 

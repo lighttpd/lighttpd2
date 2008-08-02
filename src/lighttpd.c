@@ -1,6 +1,5 @@
 
 #include "base.h"
-#include "log.h"
 #include "config_parser.h"
 
 #ifdef HAVE_LUA_H
@@ -13,6 +12,7 @@ int main(int argc, char *argv[]) {
 	GError *error;
 	GOptionContext *context;
 	server *srv;
+	gboolean res;
 
 	gchar *config_path = NULL;
 	gboolean luaconfig = FALSE;
@@ -32,7 +32,11 @@ int main(int argc, char *argv[]) {
 	context = g_option_context_new("- fast and lightweight webserver");
 	g_option_context_add_main_entries(context, entries, NULL);
 
-	if (!g_option_context_parse(context, &argc, &argv, &error)) {
+	res = g_option_context_parse(context, &argc, &argv, &error);
+
+	g_option_context_free(context);
+
+	if (!res) {
 		g_printerr("failed to parse command line arguments: %s\n", error->message);
 		return 1;
 	}
@@ -57,14 +61,34 @@ int main(int argc, char *argv[]) {
 	if (config_path == NULL)
 		config_path = "lighttpd.conf";
 
-	g_print("config path: %s\n", config_path);
+	log_debug(srv, NULL, "config path: %s", config_path);
 
 	if (!luaconfig) {
+		GTimeVal start, end;
+		gulong s, millis, micros;
+		g_get_current_time(&start);
+
 		/* standard config frontend */
-		config_parser_context_t *cp_ctx = config_parser_init();
-		if (!config_parser_file(srv, cp_ctx, config_path)) {
+		config_parser_context_t *ctx = config_parser_context_new(NULL);
+		GList *ctx_stack = g_list_append(NULL, ctx);
+		if (!config_parser_file(srv, ctx_stack, config_path)) {
+			for (guint i = 0; i < g_queue_get_length(ctx->action_list_stack); i++) { /* TODO */ }
+			for (guint i = 0; i < g_queue_get_length(ctx->option_stack); i++) { option_free(g_queue_peek_nth(ctx->option_stack, i)); }
+			config_parser_context_free(ctx, TRUE);
+			log_thread_start(srv);
+			g_atomic_int_set(&srv->exiting, TRUE);
+			log_thread_wakeup(srv);
+			g_thread_join(srv->log_thread);
 			return 1;
 		}
+
+		g_get_current_time(&end);
+		start.tv_usec = end.tv_usec - start.tv_usec;
+		s = start.tv_sec = end.tv_sec - start.tv_sec;
+		millis = start.tv_usec / 1000;
+		micros = start.tv_usec % 1000;
+		g_print("parsed config file in %zd seconds, %zd milliseconds, %zd microseconds\n", start.tv_sec, millis, micros);
+		g_print("option_stack: %u action_list_stack: %u\n", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
 	}
 	else {
 #ifdef HAVE_LUA_H
@@ -97,6 +121,8 @@ int main(int argc, char *argv[]) {
 	g_atomic_int_set(&srv->exiting, TRUE);
 	log_thread_wakeup(srv);
 	g_thread_join(srv->log_thread);
+
+	server_free(srv);
 
 	return 0;
 }

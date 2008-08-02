@@ -85,6 +85,7 @@ static gboolean core_listen(server *srv, plugin* p, option *opt) {
 
 static const plugin_option options[] = {
 	{ "static-file.exclude", OPTION_LIST, NULL, NULL },
+	{ "log.level", OPTION_STRING, NULL, NULL },
 	{ NULL, 0, NULL, NULL }
 };
 
