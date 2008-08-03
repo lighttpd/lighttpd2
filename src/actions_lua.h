@@ -6,6 +6,5 @@
 
 action* lua_get_action(lua_State *L, int ndx);
 int lua_push_action(server *srv, lua_State *L, action *a);
-action_list* lua_get_actionlist(lua_State *L);
 
 #endif

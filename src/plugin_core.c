@@ -21,7 +21,7 @@ static action* core_list(server *srv, plugin* p, option *opt) {
 		}
 		assert(srv == oa->value.opt_action.srv);
 		action_acquire(oa->value.opt_action.action);
-		g_array_append_val(a->value.list->actions, oa->value.opt_action.action);
+		g_array_append_val(a->value.list, oa->value.opt_action.action);
 	}
 	option_free(opt);
 	return a;
@@ -50,7 +50,7 @@ static action* core_when(server *srv, plugin* p, option *opt) {
 		ERROR(srv, "expected condition as first parameter, got %s", option_type_string(opt->type));
 		return NULL;
 	}
-	a = action_new_condition(opt_cond->value.opt_cond.cond, action_list_from_action(opt_act->value.opt_action.action));
+	a = action_new_condition(opt_cond->value.opt_cond.cond, opt_act->value.opt_action.action);
 	option_free(opt);
 	return a;
 }
