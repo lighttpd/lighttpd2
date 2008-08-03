@@ -184,22 +184,42 @@
 		g_queue_push_head(ctx->option_stack, o);
 	}
 
+	action actionref {
+		/* varname is on the stack */
+	}
+
 	# statements
 	action assignment {
 		option *val, *name;
+		action *a;
+		action_list *al;
 
 		/* top of the stack is the value, then the varname as string option */
 		val = g_queue_pop_head(ctx->option_stack);
 		name = g_queue_pop_head(ctx->option_stack);
 
 		assert(name->type == OPTION_STRING);
+/*
+		al = g_queue_peek_head(ctx->action_list_stack);
 
+		a = action_new_setting(srv, name->value.opt_string->str, val);
+
+		if (a == NULL)
+			return FALSE;
+
+		g_array_append_val(al->actions, a);
+*/
+UNUSED(a); UNUSED(al);
 		g_print("got assignment: %s = %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
+
+		option_free(name);
 	}
 
 	action function {
 		/* similar to assignment */
 		option *val, *name;
+		action *a;
+		action_list *al;
 
 		/* top of the stack is the value, then the varname as string option */
 		val = g_queue_pop_head(ctx->option_stack);
@@ -219,6 +239,8 @@
 		}
 		else {
 			/* TODO */
+			al = g_queue_peek_head(ctx->action_list_stack);
+			UNUSED(a);
 		}
 
 		g_print("got function: %s %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
@@ -235,13 +257,38 @@
 		g_print("got condition: %s %s %s in line %zd\n", n->value.opt_string->str, option_type_string(v->type), comp_op_to_string(ctx->op), ctx->line);
 	}
 
-	action action_block {
+	action action_block_start {
 		option *o;
+		action_list *al;
 
 		o = g_queue_pop_head(ctx->option_stack);
 		assert(o->type == OPTION_STRING);
 
-		g_print("action block %s in line %zd\n", o->value.opt_string->str, ctx->line);
+		if (ctx->in_setup_block) {
+			/* no block inside the setup block allowed */
+			assert(NULL); /* TODO */
+		}
+
+		if (g_str_equal(o->value.opt_string->str, "setup")) {
+			_printf("entered setup block in line %zd\n", ctx->line);
+			ctx->in_setup_block = TRUE;
+		}
+		else {
+			_printf("action block %s in line %zd\n", o->value.opt_string->str, ctx->line);
+			/* create new action list and put it on the stack */
+			al = action_list_new();
+			g_queue_push_head(ctx->action_list_stack, al);
+		}
+	}
+
+	action action_block_end {
+		if (ctx->in_setup_block) {
+			ctx->in_setup_block = FALSE;
+		}
+		else {
+			/* pop action list stack */
+			g_queue_pop_head(ctx->action_list_stack);
+		}
 	}
 
 
@@ -268,7 +315,7 @@
 
 	# advanced types
 	varname = ( alpha ( alnum | [._\-] )* ) >mark %varname;
-	actionref = ( varname );
+	actionref = ( varname ) %actionref;
 	list = ( '(' >list_start );
 	hash = ( '[' >hash_start );
 	keyvalue = ( string ws* '=>' ws* >keyvalue_start );
@@ -281,7 +328,7 @@
 	assignment = ( varname ws* '=' ws* value ';' ) %assignment;
 	function = ( varname ws+ value ';' ) %function;
 	condition = ( varname ws* operator ws* value noise* block ) %condition;
-	action_block = ( varname ws* block ) %action_block;
+	action_block = ( varname ws* block >action_block_start ) %action_block_end;
 
 	statement = ( assignment | function | condition | action_block );
 
@@ -296,8 +343,17 @@
 
 %% write data;
 
-config_parser_context_t *config_parser_context_new(GList *ctx_stack) {
+
+GList *config_parser_init(server* srv) {
+	config_parser_context_t *ctx = config_parser_context_new(srv, NULL);
+	g_queue_push_head(ctx->action_list_stack, srv->mainactionlist);
+	return g_list_append(NULL, ctx);
+}
+
+config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack) {
 	config_parser_context_t *ctx;
+
+	UNUSED(srv);
 
 	ctx = g_slice_new0(config_parser_context_t);
 
@@ -320,13 +376,23 @@ config_parser_context_t *config_parser_context_new(GList *ctx_stack) {
 	return ctx;
 }
 
-void config_parser_context_free(config_parser_context_t *ctx, gboolean free_queues)
+void config_parser_context_free(server *srv, config_parser_context_t *ctx, gboolean free_queues)
 {
 	g_free(ctx->stack);
 
 	if (free_queues) {
-		g_assert_cmpuint(ctx->action_list_stack->length, ==, 0);
-		g_assert_cmpuint(ctx->option_stack->length, ==, 0);
+		if (g_queue_get_length(ctx->action_list_stack) > 0) {
+			action_list *al;
+			while ((al = g_queue_pop_head(ctx->action_list_stack)))
+				action_list_release(srv, al);
+		}
+
+		if (g_queue_get_length(ctx->option_stack) > 0) {
+			option *o;
+			while ((o = g_queue_pop_head(ctx->option_stack)))
+				option_free(o);
+		}
+
 		g_queue_free(ctx->action_list_stack);
 		g_queue_free(ctx->option_stack);
 	}
@@ -339,14 +405,14 @@ gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path) {
 	gboolean res;
 	GError *err = NULL;
 
-	ctx = config_parser_context_new(ctx_stack);
+	ctx = config_parser_context_new(srv, ctx_stack);
 	ctx->filename = (gchar*) path;
 
 	if (!g_file_get_contents(path, &ctx->ptr, &ctx->len, &err))
 	{
 		/* could not read file */
 		log_warning(srv, NULL, "could not read config file \"%s\". reason: \"%s\" (%d)", path, err->message, err->code);
-		config_parser_context_free(ctx, FALSE);
+		config_parser_context_free(srv, ctx, TRUE);
 		g_error_free(err);
 		return FALSE;
 	}
@@ -364,7 +430,7 @@ gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path) {
 
 	/* have to free the buffer on our own */
 	g_free(ctx->ptr);
-	config_parser_context_free(ctx, FALSE);
+	config_parser_context_free(srv, ctx, FALSE);
 
 	return res;
 }
@@ -378,13 +444,13 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 	config_parser_context_t *ctx;
 	GError *err = NULL;
 
-	ctx = config_parser_context_new(ctx_stack);
+	ctx = config_parser_context_new(srv, ctx_stack);
 	ctx->filename = (gchar*) command;
 
 	if (!g_spawn_command_line_sync(command, &_stdout, &_stderr, &status, &err))
 	{
 		log_warning(srv, NULL, "error launching shell command \"%s\": %s (%d)", command, err->message, err->code);
-		config_parser_context_free(ctx, FALSE);
+		config_parser_context_free(srv, ctx, TRUE);
 		g_error_free(err);
 		return FALSE;
 	}
@@ -395,7 +461,7 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 		log_debug(srv, NULL, "stdout:\n-----\n%s\n-----\nstderr:\n-----\n%s\n-----", _stdout, _stderr);
 		g_free(_stdout);
 		g_free(_stderr);
-		config_parser_context_free(ctx, FALSE);
+		config_parser_context_free(srv, ctx, FALSE);
 		return FALSE;
 	}
 
@@ -413,7 +479,7 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 
 	g_free(_stdout);
 	g_free(_stderr);
-	config_parser_context_free(ctx, FALSE);
+	config_parser_context_free(srv, ctx, FALSE);
 
 	return res;
 }

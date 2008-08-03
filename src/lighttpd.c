@@ -69,16 +69,17 @@ int main(int argc, char *argv[]) {
 		g_get_current_time(&start);
 
 		/* standard config frontend */
-		config_parser_context_t *ctx = config_parser_context_new(NULL);
-		GList *ctx_stack = g_list_append(NULL, ctx);
+		GList *ctx_stack = config_parser_init(srv);
+		config_parser_context_t *ctx = (config_parser_context_t*) ctx_stack->data;
 		if (!config_parser_file(srv, ctx_stack, config_path)) {
 			for (guint i = 0; i < g_queue_get_length(ctx->action_list_stack); i++) { /* TODO */ }
 			for (guint i = 0; i < g_queue_get_length(ctx->option_stack); i++) { option_free(g_queue_peek_nth(ctx->option_stack, i)); }
-			config_parser_context_free(ctx, TRUE);
+			config_parser_context_free(srv, ctx, FALSE);
 			log_thread_start(srv);
 			g_atomic_int_set(&srv->exiting, TRUE);
 			log_thread_wakeup(srv);
 			g_thread_join(srv->log_thread);
+			server_free(srv);
 			return 1;
 		}
 
@@ -88,7 +89,7 @@ int main(int argc, char *argv[]) {
 		millis = start.tv_usec / 1000;
 		micros = start.tv_usec % 1000;
 		g_print("parsed config file in %zd seconds, %zd milliseconds, %zd microseconds\n", start.tv_sec, millis, micros);
-		g_print("option_stack: %u action_list_stack: %u\n", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
+		g_print("option_stack: %u action_list_stack: %u (should be 0:1)\n", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
 	}
 	else {
 #ifdef HAVE_LUA_H

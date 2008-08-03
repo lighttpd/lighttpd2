@@ -256,7 +256,7 @@ void log_free(server *srv, log_t *log) {
 void log_init(server *srv) {
 	GString *str;
 
-	srv->logs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify) log_free);
+	srv->logs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
 	srv->log_queue = g_async_queue_new();
 	srv->log_mutex = g_mutex_new();
 
