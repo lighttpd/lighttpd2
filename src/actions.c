@@ -44,12 +44,7 @@ void action_acquire(action *a) {
 	a->refcount++;
 }
 
-action *action_new_setting(server *srv, const gchar *name, option *value) {
-	option_set setting;
-	if (!parse_option(srv, name, value, &setting)) {
-		return NULL;
-	}
-
+action *action_new_setting(option_set setting) {
 	action *a = g_slice_new(action);
 
 	a->refcount = 1;

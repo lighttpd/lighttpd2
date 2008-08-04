@@ -99,14 +99,20 @@ struct server_setup {
 	PluginSetup setup;
 };
 
-LI_API void plugin_free(server *srv, plugin *p);
+/* Needed my modules to register their plugin(s) */
 LI_API gboolean plugin_register(server *srv, const gchar *name, PluginInit init);
+
+LI_API void plugin_free(server *srv, plugin *p);
 
 LI_API gboolean parse_option(server *srv, const char *name, option *opt, option_set *mark);
 LI_API void release_option(server *srv, option_set *mark); /**< Does not free the option_set memory */
 
+/* Needed for config frontends */
+/** For parsing 'somemod.option = "somevalue"' */
+LI_API action* option_action(server *srv, const gchar *name, option *value);
+/** For parsing 'somemod.action value', e.g. 'rewrite "/url" => "/destination"' */
 LI_API action* create_action(server *srv, const gchar *name, option *value);
-
+/** For setup function, e.g. 'listen "127.0.0.1:8080"' */
 LI_API gboolean call_setup(server *srv, const char *name, option *opt);
 
 #endif

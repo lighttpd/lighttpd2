@@ -217,6 +217,16 @@ void release_option(server *srv, option_set *mark) { /** Does not free the optio
 	mark->value = NULL;
 }
 
+action* option_action(server *srv, const gchar *name, option *value) {
+	option_set setting;
+
+	if (!parse_option(srv, name, value, &setting)) {
+		return NULL;
+	}
+
+	return action_new_setting(setting);
+}
+
 action* create_action(server *srv, const gchar *name, option *value) {
 	action *a;
 	server_action *sa;
