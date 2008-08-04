@@ -59,6 +59,34 @@
 	}
 
 	action integer_suffix {
+		option *o;
+		GString *str;
+
+		o = g_queue_peek_head(ctx->option_stack);
+
+		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
+
+		     if (g_str_equal(str->str, "kbyte")) o->value.opt_int *= 1024;
+		else if (g_str_equal(str->str, "mbyte")) o->value.opt_int *= 1024 * 1024;
+		else if (g_str_equal(str->str, "gbyte")) o->value.opt_int *= 1024 * 1024 * 1024;
+
+		else if (g_str_equal(str->str, "kbit")) o->value.opt_int *= 1024;
+		else if (g_str_equal(str->str, "mbit")) o->value.opt_int *= 1024 * 1024;
+		else if (g_str_equal(str->str, "gbit")) o->value.opt_int *= 1024 * 1024 * 1024;
+
+		else if (g_str_equal(str->str, "min")) o->value.opt_int *= 60;
+		else if (g_str_equal(str->str, "hours")) o->value.opt_int *= 60 * 60;
+		else if (g_str_equal(str->str, "days")) o->value.opt_int *= 60 * 60 * 24;
+
+		g_string_free(str, TRUE);
+
+		_printf("got int with suffix: %d\n", o->value.opt_int);
+
+		/* make sure there was no overflow that led to negative numbers */
+		if (o->value.opt_int < 0) {
+			log_warning(srv, NULL, "integer value overflowed in line %zd of %s\n", ctx->line, ctx->filename);
+			return FALSE;
+		}
 	}
 
 	action string {
@@ -96,7 +124,7 @@
 
 		g_array_append_val(l->value.opt_list, o);
 
-		_printf("list_push%s\n", "");
+		_printf("list_push %s\n", option_type_string(o->type));
 	}
 
 	action list_end {
@@ -143,7 +171,9 @@
 	}
 
 	action keyvalue_start {
-		fcall keyvalue_scanner;
+		fpc--;
+
+		fcall value_scanner;
 	}
 
 	action keyvalue_end {
@@ -153,8 +183,6 @@
 		v = g_queue_pop_head(ctx->option_stack);
 		k = g_queue_pop_head(ctx->option_stack);
 
-		assert(k->type == OPTION_STRING);
-
 		l = option_new_list();
 
 		g_array_append_val(l->value.opt_list, k);
@@ -162,6 +190,8 @@
 
 		/* push list on the stack */
 		g_queue_push_head(ctx->option_stack, l);
+
+		fpc--;
 
 		fret;
 	}
@@ -174,6 +204,99 @@
 		*/
 	}
 
+	action value_statement_op {
+		ctx->value_op = *fpc;
+	}
+
+	action value_statement {
+		/* value (+|-|*|/) value */
+		/* compute new value out of the two */
+		option *l, *r, *o;
+		gboolean free_l, free_r;
+
+		free_l = free_r = TRUE;
+
+		r = g_queue_pop_head(ctx->option_stack);
+		l = g_queue_pop_head(ctx->option_stack);
+		o = NULL;
+
+
+		if (l->type == OPTION_INT && r->type == OPTION_INT) {
+			switch (ctx->value_op) {
+				case '+': o = option_new_int(l->value.opt_int + r->value.opt_int); break;
+				case '-': o = option_new_int(l->value.opt_int - r->value.opt_int); break;
+				case '*': o = option_new_int(l->value.opt_int * r->value.opt_int); break;
+				case '/': o = option_new_int(l->value.opt_int / r->value.opt_int); break;
+			}
+		}
+		else if (l->type == OPTION_STRING) {
+			GString *str;
+
+			if (r->type == OPTION_STRING && ctx->value_op == '+') {
+				/* str + str */
+				str = g_string_sized_new(l->value.opt_string->len + r->value.opt_string->len);
+				str = g_string_append_len(str, l->value.opt_string->str, l->value.opt_string->len);
+				str = g_string_append_len(str, r->value.opt_string->str, r->value.opt_string->len);
+				o = option_new_string(str);
+			}
+			else if (r->type == OPTION_INT && ctx->value_op == '*') {
+				/* str * int */
+				str = g_string_sized_new(l->value.opt_string->len * r->value.opt_int);
+				for (gint i = 0; i < r->value.opt_int; i++)
+					str = g_string_append_len(str, l->value.opt_string->str, l->value.opt_string->len);
+				o = option_new_string(str);
+			}
+		}
+		else if (l->type == OPTION_LIST) {
+			if (ctx->value_op == '+') {
+				/* append r to the end of l */
+				free_l = FALSE; /* use l as the new o */
+				free_r = FALSE; /* r gets appended to o */
+				o = l;
+
+				g_array_append_val(o->value.opt_list, r);
+			}
+			else if (ctx->value_op == '*') {
+				/* merge l and r */
+				GArray *a;
+				free_l = FALSE;
+				o = l;
+
+				a = g_array_sized_new(FALSE, FALSE, sizeof(option*), r->value.opt_list->len);
+				a = g_array_append_vals(a, r->value.opt_list->data, r->value.opt_list->len); /* copy old list from r to a */
+				o->value.opt_list = g_array_append_vals(o->value.opt_list, a->data, a->len); /* append data from a to o */
+				g_array_free(a, FALSE); /* free a but not the data because it is now in o */
+			}
+		}
+		else if (l->type == OPTION_HASH && r->type == OPTION_HASH && ctx->value_op == '+') {
+			/* merge hashtables */
+			GHashTableIter iter;
+			gpointer key, value;
+			free_l = FALSE; /* keep l, it's the new o */
+			o = l;
+
+			g_hash_table_iter_init(&iter, r->value.opt_hash);
+			while (g_hash_table_iter_next(&iter, &key, &value)) {
+				g_hash_table_insert(o->value.opt_hash, key, value);
+				g_hash_table_iter_steal(&iter); /* steal key->value so it doesn't get deleted when destroying r */
+			}
+		}
+
+		if (o == NULL) {
+			log_warning(srv, NULL, "erronous value statement: %s %c %s in line %zd\n", option_type_string(l->type), ctx->value_op, option_type_string(r->type), ctx->line);
+			return FALSE;
+		}
+
+		_printf("value statement: %s %c %s => %s in line %zd\n", option_type_string(l->type), ctx->value_op, option_type_string(r->type), option_type_string(o->type), ctx->line);
+
+		if (free_l)
+			option_free(l);
+		if (free_r)
+			option_free(r);
+
+		g_queue_push_head(ctx->option_stack, o);
+	}
+
 	action varname {
 		/* varname, push it as string option onto the stack */
 		option *o;
@@ -184,9 +307,31 @@
 		g_queue_push_head(ctx->option_stack, o);
 	}
 
+	action actionref {
+		/* varname is on the stack */
+	}
+
+	action operator {
+		if ((fpc - ctx->mark) == 1) {
+			switch (*ctx->mark) {
+				case '<': ctx->op = CONFIG_COND_LT; break;
+				case '>': ctx->op = CONFIG_COND_GT; break;
+			}
+		}
+		else {
+			     if (*ctx->mark == '>' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_GE;
+			else if (*ctx->mark == '<' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_LE;
+			else if (*ctx->mark == '=' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_EQ;
+			else if (*ctx->mark == '!' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_NE;
+			else if (*ctx->mark == '=' && *(ctx->mark+1) == '~') ctx->op = CONFIG_COND_MATCH;
+			else if (*ctx->mark == '!' && *(ctx->mark+1) == '~') ctx->op = CONFIG_COND_NOMATCH;
+		}
+	}
+
 	# statements
 	action assignment {
 		option *val, *name;
+		action *a, *al;
 
 		/* top of the stack is the value, then the varname as string option */
 		val = g_queue_pop_head(ctx->option_stack);
@@ -194,12 +339,28 @@
 
 		assert(name->type == OPTION_STRING);
 
-		g_print("got assignment: %s = %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
+		if (g_str_has_prefix(name->value.opt_string->str, "var.")) {
+		}
+/*
+		al = g_queue_peek_head(ctx->action_list_stack);
+
+		a = action_new_setting(srv, name->value.opt_string->str, val);
+
+		if (a == NULL)
+			return FALSE;
+
+		g_array_append_val(al->actions, a);
+*/
+UNUSED(a); UNUSED(al);
+		_printf("got assignment: %s = %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
+
+		option_free(name);
 	}
 
 	action function {
 		/* similar to assignment */
 		option *val, *name;
+		action *a, *al;
 
 		/* top of the stack is the value, then the varname as string option */
 		val = g_queue_pop_head(ctx->option_stack);
@@ -219,12 +380,14 @@
 		}
 		else {
 			/* TODO */
+			al = g_queue_peek_head(ctx->action_list_stack);
+			UNUSED(a);
 		}
 
-		g_print("got function: %s %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
+		_printf("got function: %s %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
 	}
 
-	action condition {
+	action condition_start {
 		/* stack: value, varname */
 		option *v, *n;
 
@@ -232,27 +395,48 @@
 		n = g_queue_pop_head(ctx->option_stack);
 		assert(n->type == OPTION_STRING);
 
-		g_print("got condition: %s %s %s in line %zd\n", n->value.opt_string->str, option_type_string(v->type), comp_op_to_string(ctx->op), ctx->line);
+		_printf("got condition: %s %s %s in line %zd\n", n->value.opt_string->str, comp_op_to_string(ctx->op), option_type_string(v->type), ctx->line);
 	}
 
-	action action_block {
+	action condition_end {
+	}
+
+	action action_block_start {
 		option *o;
+		action *al;
 
 		o = g_queue_pop_head(ctx->option_stack);
 		assert(o->type == OPTION_STRING);
 
-		g_print("action block %s in line %zd\n", o->value.opt_string->str, ctx->line);
+		if (ctx->in_setup_block) {
+			/* no block inside the setup block allowed */
+			assert(NULL); /* TODO */
+		}
+
+		if (g_str_equal(o->value.opt_string->str, "setup")) {
+			_printf("entered setup block in line %zd\n", ctx->line);
+			ctx->in_setup_block = TRUE;
+		}
+		else {
+			_printf("action block %s in line %zd\n", o->value.opt_string->str, ctx->line);
+			/* create new action list and put it on the stack */
+			al = action_new_list();
+			g_queue_push_head(ctx->action_list_stack, al);
+		}
+	}
+
+	action action_block_end {
+		if (ctx->in_setup_block) {
+			ctx->in_setup_block = FALSE;
+		}
+		else {
+			/* pop action list stack */
+			g_queue_pop_head(ctx->action_list_stack);
+		}
 	}
 
 
 	## definitions
-
-	# basic types
-	boolean = ( 'true' | 'false' ) %boolean;
-	integer = ( 0 | ( [1-9] [0-9]* ) ) %integer;
-	integer_suffix_bytes = ( 'b' | 'kb' | 'mb' | 'gb' | 'tb' | 'pb' );
-	integer_suffix_seconds = ( 's' | 'm' | 'h' | 'd' );
-	string = ( '"' (any-'"')* '"' ) %string;
 
 	# misc stuff
 	line_sane = ( '\n' ) >{ ctx->line++; };
@@ -266,27 +450,37 @@
 	comment = ( '#' (any - line)* line );
 	block = ( '{' >block_start );
 
+	# basic types
+	boolean = ( 'true' | 'false' ) %boolean;
+	integer_suffix_bytes = ( 'byte' | 'kbyte' | 'mbyte' | 'gbyte' | 'tbyte' | 'pbyte' );
+	integer_suffix_bits = ( 'bit' | 'kbit' | 'mbit' | 'gbit' );
+	integer_suffix_seconds = ( 'sec' | 'min' | 'hours' | 'days' );
+	integer_suffix = ( integer_suffix_bytes | integer_suffix_bits | integer_suffix_seconds ) >mark %integer_suffix;
+	integer = ( 0 | ( [1-9] [0-9]* ) %integer (ws? integer_suffix)? );
+	string = ( '"' (any-'"')* '"' ) %string;
+
 	# advanced types
-	varname = ( alpha ( alnum | [._\-] )* ) >mark %varname;
-	actionref = ( varname );
+	varname = ( (alpha ( alnum | [._] )*) - boolean ) >mark %varname;
+	actionref = ( varname ) %actionref;
 	list = ( '(' >list_start );
 	hash = ( '[' >hash_start );
-	keyvalue = ( string ws* '=>' ws* >keyvalue_start );
+	keyvalue = ( (string | integer) ws* '=>' ws* (any - ws) >keyvalue_start );
 	value = ( boolean | integer | string | list | hash | keyvalue | actionref ) >mark %value;
+	value_statement = ( value (ws* ('+'|'-'|'*'|'/') >value_statement_op ws* value %value_statement)? );
 	hash_elem = ( string >mark noise* ':' noise* value );
 
-	operator = ( '==' | '!=' | '<' | '<=' | '>' | '>=' | '=~' | '!~' );
+	operator = ( '==' | '!=' | '<' | '<=' | '>' | '>=' | '=~' | '!~' ) >mark %operator;
 
 	# statements
-	assignment = ( varname ws* '=' ws* value ';' ) %assignment;
+	assignment = ( varname ws* '=' ws* value_statement ';' ) %assignment;
 	function = ( varname ws+ value ';' ) %function;
-	condition = ( varname ws* operator ws* value noise* block ) %condition;
-	action_block = ( varname ws* block ) %action_block;
+	condition = ( varname ws* operator ws* value noise* block >condition_start ) %condition_end;
+	action_block = ( varname ws* block >action_block_start ) %action_block_end;
 
 	statement = ( assignment | function | condition | action_block );
 
 	# scanner
-	keyvalue_scanner := ( value any >{fpc--;} >keyvalue_end );
+	value_scanner := ( value (any - value - ws) >keyvalue_end );
 	block_scanner := ( (noise | comment | statement)* '}' >block_end );
 	list_scanner := ( noise* (value %list_push (noise* ',' noise* value %list_push)*)? noise* ')' >list_end );
 	hash_scanner := ( noise* (hash_elem %hash_push (noise* ',' noise* hash_elem %hash_push)*)? noise* ']' >hash_end );
@@ -296,8 +490,17 @@
 
 %% write data;
 
-config_parser_context_t *config_parser_context_new(GList *ctx_stack) {
+
+GList *config_parser_init(server* srv) {
+	config_parser_context_t *ctx = config_parser_context_new(srv, NULL);
+	g_queue_push_head(ctx->action_list_stack, srv->mainaction);
+	return g_list_append(NULL, ctx);
+}
+
+config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack) {
 	config_parser_context_t *ctx;
+
+	UNUSED(srv);
 
 	ctx = g_slice_new0(config_parser_context_t);
 
@@ -320,13 +523,23 @@ config_parser_context_t *config_parser_context_new(GList *ctx_stack) {
 	return ctx;
 }
 
-void config_parser_context_free(config_parser_context_t *ctx, gboolean free_queues)
+void config_parser_context_free(server *srv, config_parser_context_t *ctx, gboolean free_queues)
 {
 	g_free(ctx->stack);
 
 	if (free_queues) {
-		g_assert_cmpuint(ctx->action_list_stack->length, ==, 0);
-		g_assert_cmpuint(ctx->option_stack->length, ==, 0);
+		if (g_queue_get_length(ctx->action_list_stack) > 0) {
+			action *a;
+			while ((a = g_queue_pop_head(ctx->action_list_stack)))
+				action_release(srv, a);
+		}
+
+		if (g_queue_get_length(ctx->option_stack) > 0) {
+			option *o;
+			while ((o = g_queue_pop_head(ctx->option_stack)))
+				option_free(o);
+		}
+
 		g_queue_free(ctx->action_list_stack);
 		g_queue_free(ctx->option_stack);
 	}
@@ -339,14 +552,14 @@ gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path) {
 	gboolean res;
 	GError *err = NULL;
 
-	ctx = config_parser_context_new(ctx_stack);
+	ctx = config_parser_context_new(srv, ctx_stack);
 	ctx->filename = (gchar*) path;
 
 	if (!g_file_get_contents(path, &ctx->ptr, &ctx->len, &err))
 	{
 		/* could not read file */
 		log_warning(srv, NULL, "could not read config file \"%s\". reason: \"%s\" (%d)", path, err->message, err->code);
-		config_parser_context_free(ctx, FALSE);
+		config_parser_context_free(srv, ctx, TRUE);
 		g_error_free(err);
 		return FALSE;
 	}
@@ -364,7 +577,7 @@ gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path) {
 
 	/* have to free the buffer on our own */
 	g_free(ctx->ptr);
-	config_parser_context_free(ctx, FALSE);
+	config_parser_context_free(srv, ctx, FALSE);
 
 	return res;
 }
@@ -378,13 +591,13 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 	config_parser_context_t *ctx;
 	GError *err = NULL;
 
-	ctx = config_parser_context_new(ctx_stack);
+	ctx = config_parser_context_new(srv, ctx_stack);
 	ctx->filename = (gchar*) command;
 
 	if (!g_spawn_command_line_sync(command, &_stdout, &_stderr, &status, &err))
 	{
 		log_warning(srv, NULL, "error launching shell command \"%s\": %s (%d)", command, err->message, err->code);
-		config_parser_context_free(ctx, FALSE);
+		config_parser_context_free(srv, ctx, TRUE);
 		g_error_free(err);
 		return FALSE;
 	}
@@ -395,7 +608,7 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 		log_debug(srv, NULL, "stdout:\n-----\n%s\n-----\nstderr:\n-----\n%s\n-----", _stdout, _stderr);
 		g_free(_stdout);
 		g_free(_stderr);
-		config_parser_context_free(ctx, FALSE);
+		config_parser_context_free(srv, ctx, FALSE);
 		return FALSE;
 	}
 
@@ -413,7 +626,7 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 
 	g_free(_stdout);
 	g_free(_stderr);
-	config_parser_context_free(ctx, FALSE);
+	config_parser_context_free(srv, ctx, FALSE);
 
 	return res;
 }
