@@ -29,7 +29,7 @@ handler_t chunk_parser_next(server *srv, connection *con, chunk_parser_ctx *ctx,
 		 /* Wait at the end of the last chunk if it gets extended */
 		if (!chunkiter_next(&i)) return HANDLER_WAIT_FOR_EVENT;
 		ctx->curi = i;
-		ctx->start = 0;
+		ctx->start -= l;
 	}
 
 	if (NULL == ctx->curi.element) return HANDLER_WAIT_FOR_EVENT;
@@ -48,8 +48,9 @@ void chunk_parser_done(chunk_parser_ctx *ctx, goffset len) {
 	ctx->start += len;
 }
 
-GString* chunk_extract(server *srv, connection *con, chunk_parser_mark from, chunk_parser_mark to) {
-	GString *str = g_string_sized_new(0);
+gboolean chunk_extract_to(server *srv, connection *con, chunk_parser_mark from, chunk_parser_mark to, GString *dest) {
+	g_string_set_size(dest, 0);
+
 	chunk_parser_mark i;
 	for ( i = from; i.ci.element != to.ci.element; chunkiter_next(&i.ci) ) {
 		goffset len = chunkiter_length(i.ci);
@@ -57,7 +58,7 @@ GString* chunk_extract(server *srv, connection *con, chunk_parser_mark from, chu
 			char *buf;
 			off_t we_have;
 			if (HANDLER_GO_ON != chunkiter_read(srv, con, i.ci, i.pos, len - i.pos, &buf, &we_have)) goto error;
-			g_string_append_len(str, buf, we_have);
+			g_string_append_len(dest, buf, we_have);
 			i.pos += we_have;
 		}
 		i.pos = 0;
@@ -66,13 +67,20 @@ GString* chunk_extract(server *srv, connection *con, chunk_parser_mark from, chu
 		char *buf;
 		off_t we_have;
 		if (HANDLER_GO_ON != chunkiter_read(srv, con, i.ci, i.pos, to.pos - i.pos, &buf, &we_have)) goto error;
-		g_string_append_len(str, buf, we_have);
+		g_string_append_len(dest, buf, we_have);
 		i.pos += we_have;
 	}
 
-	return str;
+	return TRUE;
 
 error:
+	g_string_assign(dest, "");
+	return FALSE;
+}
+
+GString* chunk_extract(server *srv, connection *con, chunk_parser_mark from, chunk_parser_mark to) {
+	GString *str = g_string_sized_new(0);
+	if (chunk_extract_to(srv, con, from, to, str)) return str;
 	g_string_free(str, TRUE);
 	return NULL;
 }

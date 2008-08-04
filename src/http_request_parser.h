@@ -9,13 +9,15 @@ typedef struct http_request_ctx http_request_ctx;
 
 struct http_request_ctx {
 	chunk_parser_ctx chunk_ctx;
+	request *request;
 
 	chunk_parser_mark mark;
-
-	request *request;
+	GString *h_key, *h_value;
 };
 
-LI_API void http_request_parser_init(http_request_ctx *ctx, request *req, chunkqueue *cq);
+LI_API http_request_ctx* http_request_parser_new(request *req, chunkqueue *cq);
+LI_API void http_request_parser_free(http_request_ctx *ctx);
+
 LI_API handler_t http_request_parse(server *srv, connection *con, http_request_ctx *ctx);
 
 

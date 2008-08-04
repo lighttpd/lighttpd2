@@ -9,7 +9,7 @@
 #ifndef FD_SETSIZE
 /* By default this is 64 */
 #define FD_SETSIZE 4096
-#endif
+#endif /* FD_SETSIZE */
 #include <winsock2.h>
 #include <ws2tcpip.h>
 //#include <wspiapi.h>
@@ -30,7 +30,7 @@
 #define STDERR_FILENO 2
 #ifndef __MINGW32__
 #define ssize_t int
-#endif
+#endif /* __MINGW32__ */
 
 #define sockread( fd, buf, bytes ) recv( fd, buf, bytes, 0 )
 
@@ -39,7 +39,7 @@ int inet_aton(const char *cp, struct in_addr *inp);
 #define HAVE_INET_ADDR
 #undef HAVE_INET_ATON
 
-#else
+#else /* _WIN32 */
 #include <sys/types.h> /* required by netinet/tcp.h on FreeBSD */
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -51,7 +51,7 @@ int inet_aton(const char *cp, struct in_addr *inp);
 #ifndef SUN_LEN
 #define SUN_LEN(su) \
         (sizeof(*(su)) - sizeof((su)->sun_path) + strlen((su)->sun_path))
-#endif
+#endif /* SUN_LEN */
 
 #define sockread( fd, buf, bytes ) read( fd, buf, bytes )
 #define closesocket(x) close(x)
@@ -63,8 +63,8 @@ int inet_aton(const char *cp, struct in_addr *inp);
 /* only define it if it isn't defined yet */
 #ifndef HAVE_IPV6
 #define HAVE_IPV6
-#endif
-#endif
+#endif /* HAVE_IPV6 */
+#endif /* HAVE_INET_NTOP */
 
 typedef union {
 #ifdef HAVE_IPV6
