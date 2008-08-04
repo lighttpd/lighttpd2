@@ -138,7 +138,7 @@ static action* action_from_lua(server *srv, lua_State *L) {
 		lua_pushstring(L, "missing config value");
 		lua_error(L);
 	}
-	a = action_new_setting(srv, optname, value);
+	a = option_action(srv, optname, value);
 	if (!a) {
 		option_free(value);
 		lua_pushstring(L, "couldn't create action from setting");
