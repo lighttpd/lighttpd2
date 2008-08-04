@@ -14,7 +14,7 @@ struct server {
 	GHashTable *setups;     /**< const gchar* => server_setup* */
 
 	gpointer *option_def_values;
-	struct action_list *mainactionlist;
+	struct action *mainaction;
 
 	gboolean exiting;
 	GMutex *mutex; /* general mutex for accessing the various members */

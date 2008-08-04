@@ -33,6 +33,7 @@ struct config_parser_context_t {
 	gboolean in_setup_block;
 
 	comp_operator_t op;
+	gchar value_op;
 
 	GQueue *action_list_stack; /* first entry is current action list */
 	GQueue *option_stack; /* stack of option* */

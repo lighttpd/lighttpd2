@@ -7,9 +7,42 @@ struct action_stack_element;
 typedef struct action_stack_element action_stack_element;
 
 struct action_stack_element {
-	action_list *list;
+	action *act;
 	guint pos;
 };
+
+void action_release(server *srv, action *a) {
+	guint i;
+	assert(a->refcount > 0);
+	if (!(--a->refcount)) {
+		switch (a->type) {
+		case ACTION_TSETTING:
+			release_option(srv, &a->value.setting);
+			break;
+		case ACTION_TFUNCTION:	
+			if (a->value.function.free) {
+				a->value.function.free(srv, a->value.function.param);
+			}
+			break;
+		case ACTION_TCONDITION:
+			condition_release(srv, a->value.condition.cond);
+			action_release(srv, a->value.condition.target);
+			break;
+		case ACTION_TLIST:
+			for (i = a->value.list->len; i-- > 0; ) {
+				action_release(srv, g_array_index(a->value.list, action*, i));
+			}
+			g_array_free(a->value.list, TRUE);
+			break;
+		}
+		g_slice_free(action, a);
+	}
+}
+
+void action_acquire(action *a) {
+	assert(a->refcount > 0);
+	a->refcount++;
+}
 
 action *action_new_setting(server *srv, const gchar *name, option *value) {
 	option_set setting;
@@ -45,95 +78,27 @@ action *action_new_list() {
 	a = g_slice_new(action);
 	a->refcount = 1;
 	a->type = ACTION_TLIST;
-	a->value.list = action_list_new();
+	a->value.list = g_array_new(FALSE, TRUE, sizeof(action *));
 
 	return a;
 }
 
-action *action_new_condition(condition *cond, action_list *al) {
+action *action_new_condition(condition *cond, action *target) {
 	action *a;
 
 	a = g_slice_new(action);
 	a->refcount = 1;
 	a->type = ACTION_TCONDITION;
 	a->value.condition.cond = cond;
-	a->value.condition.target = al;
+	a->value.condition.target = target;
 
 	return a;
 }
-void action_release(server *srv, action *a) {
-	assert(a->refcount > 0);
-	if (!(--a->refcount)) {
-		switch (a->type) {
-		case ACTION_TSETTING:
-			release_option(srv, &a->value.setting);
-			break;
-		case ACTION_TFUNCTION:	
-			if (a->value.function.free) {
-				a->value.function.free(srv, a->value.function.param);
-			}
-			break;
-		case ACTION_TCONDITION:
-			condition_release(srv, a->value.condition.cond);
-			action_list_release(srv, a->value.condition.target);
-			break;
-		case ACTION_TLIST:
-			action_list_release(srv, a->value.list);
-			break;
-		}
-		g_slice_free(action, a);
-	}
-}
-
-void action_acquire(action *a) {
-	assert(a->refcount > 0);
-	a->refcount++;
-}
-
-action_list *action_list_new() {
-	action_list *al;
-
-	al = g_slice_new(action_list);
-	al->refcount = 1;
-
-	al->actions = g_array_new(FALSE, TRUE, sizeof(action *));
-
-	return al;
-}
-
-action_list *action_list_from_action(action *a) {
-	action_list *al;
-	if (a->type == ACTION_TLIST) {
-		action_list_acquire(a->value.list);
-		return a->value.list; /* action gets released from lua */
-	}
-	action_acquire(a);
-	al = action_list_new();
-	g_array_append_val(al->actions, a);
-	return al;
-}
-
-void action_list_release(server *srv, action_list *al) {
-	assert(al->refcount > 0);
-	if (!(--al->refcount)) {
-		guint i;
-		for (i = al->actions->len; i-- > 0; ) {
-			action_release(srv, g_array_index(al->actions, action*, i));
-		}
-		g_array_free(al->actions, TRUE);
-		g_slice_free(action_list, al);
-	}
-}
-
-void action_list_acquire(action_list *al) {
-	assert(al->refcount > 0);
-	al->refcount++;
-}
 
 void action_stack_element_release(server *srv, action_stack_element *ase) {
-	if (!ase || !ase->list) return;
-	action_list_release(srv, ase->list);
-	ase->list = NULL;
+	if (!ase || !ase->act) return;
+	action_release(srv, ase->act);
+	ase->act = NULL;
 }
 
 void action_stack_init(action_stack *as) {
@@ -154,12 +119,13 @@ void action_stack_clear(server *srv, action_stack *as) {
 		action_stack_element_release(srv, &g_array_index(as->stack, action_stack_element, i));
 	}
 	g_array_free(as->stack, TRUE);
+	as->stack = NULL;
 }
 
 /** handle sublist now, remember current position (stack) */
-void action_enter(connection *con, action_list *al) {
-	action_list_acquire(al);
-	action_stack_element ase = { al, 0 };
+void action_enter(connection *con, action *a) {
+	action_acquire(a);
+	action_stack_element ase = { a, 0 };
 	g_array_append_val(con->action_stack.stack, ase);
 }
 
@@ -172,9 +138,13 @@ static void action_stack_pop(server *srv, action_stack *as) {
 	g_array_set_size(as->stack, as->stack->len - 1);
 }
 
-static action* action_stack_element_next(action_stack_element *ase) {
-	action_list *al = ase->list;
-	return ase->pos < al->actions->len ? g_array_index(al->actions, action*, ase->pos++) : NULL;
+static action* action_stack_element_action(action_stack_element *ase) {
+	action *a = ase->act;
+	if (a->type == ACTION_TLIST) {
+		return ase->pos < a->value.list->len ? g_array_index(a->value.list, action*, ase->pos) : NULL;
+	} else {
+		return ase->pos == 0 ? a : NULL;
+	}
 }
 
 action_result action_execute(server *srv, connection *con) {
@@ -184,7 +154,7 @@ action_result action_execute(server *srv, connection *con) {
 	action_result res;
 
 	while (NULL != (ase = action_stack_top(as))) {
-		a = action_stack_element_next(ase);
+		a = action_stack_element_action(ase);
 		if (!a) {
 			action_stack_pop(srv, as);
 			continue;
@@ -212,9 +182,10 @@ action_result action_execute(server *srv, connection *con) {
 			}
 			break;
 		case ACTION_TLIST:
-			action_enter(con, a->value.list);
+			action_enter(con, a);
 			break;
 		}
+		ase->pos++;
 	}
 	return ACTION_GO_ON;
 }

@@ -44,11 +44,3 @@ int lua_push_action(server *srv, lua_State *L, action *a) {
 	lua_setmetatable(L, -2);
 	return 1;
 }
-
-action_list* lua_get_actionlist(lua_State *L) {
-	action *a;
-	if (lua_isnil(L, -1)) return NULL;
-	a = lua_get_action(L, 1);
-	if (!a) return NULL;
-	return action_list_from_action(a);
-}

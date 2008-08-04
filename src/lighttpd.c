@@ -67,6 +67,7 @@ int main(int argc, char *argv[]) {
 		GTimeVal start, end;
 		gulong s, millis, micros;
 		g_get_current_time(&start);
+		guint64 d;
 
 		/* standard config frontend */
 		GList *ctx_stack = config_parser_init(srv);
@@ -84,11 +85,13 @@ int main(int argc, char *argv[]) {
 		}
 
 		g_get_current_time(&end);
-		start.tv_usec = end.tv_usec - start.tv_usec;
-		s = start.tv_sec = end.tv_sec - start.tv_sec;
-		millis = start.tv_usec / 1000;
-		micros = start.tv_usec % 1000;
-		g_print("parsed config file in %zd seconds, %zd milliseconds, %zd microseconds\n", start.tv_sec, millis, micros);
+		d = end.tv_sec - start.tv_sec;
+		d *= 1000000;
+		d += end.tv_usec - start.tv_usec;
+		s = d / 1000000;
+		millis = (d - s) / 1000;
+		micros = (d - s - millis) %1000;
+		g_print("parsed config file in %zd seconds, %zd milliseconds, %zd microseconds\n", s, millis, micros);
 		g_print("option_stack: %u action_list_stack: %u (should be 0:1)\n", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
 	}
 	else {

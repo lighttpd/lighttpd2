@@ -164,7 +164,7 @@ static int handle_option(lua_State *L) {
 		lua_pushnil(L);
 		while (lua_next(L, 2) != 0) {
 			suba = action_from_lua(srv, L);
-			g_array_append_val(a->value.list->actions, suba);
+			g_array_append_val(a->value.list, suba);
 			lua_pop(L, 1);
 		}
 		lua_pop(L, 1);
@@ -212,7 +212,7 @@ gboolean config_lua_load(server *srv, const gchar *filename) {
 	lua_pop(L, 1); /* pop the ret-value */
 
 	lua_getfield(L, LUA_GLOBALSINDEX, "action");
-	srv->mainactionlist = lua_get_actionlist(L);
+	srv->mainaction = lua_get_action(L, -1);
 	lua_pop(L, 1);
 
 	assert(lua_gettop(L) == 0);
