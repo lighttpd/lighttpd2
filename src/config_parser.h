@@ -36,7 +36,8 @@ struct config_parser_context_t {
 	comp_operator_t op;
 	gchar value_op;
 
-	GHashTable *action_blocks;
+	GHashTable *action_blocks; /* foo { } */
+	GHashTable *uservars; /* var.foo */
 
 	GQueue *action_list_stack; /* first entry is current action list */
 	GQueue *option_stack; /* stack of option* */

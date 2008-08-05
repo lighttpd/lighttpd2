@@ -239,10 +239,20 @@
 			}
 			else if (r->type == OPTION_INT && ctx->value_op == '*') {
 				/* str * int */
-				o->value.opt_string = g_string_truncate(o->value.opt_string, 0);
-				o->value.opt_string = g_string_set_size(o->value.opt_string, o->value.opt_string->len * r->value.opt_int);
-				for (gint i = 0; i < r->value.opt_int; i++)
-					o->value.opt_string = g_string_append_len(o->value.opt_string, l->value.opt_string->str, l->value.opt_string->len);
+				if (r->value.opt_int < 0) {
+					log_warning(srv, NULL, "string multiplication with negative number (%d)?", r->value.opt_int);
+					return FALSE;
+				}
+				else if (r->value.opt_int == 0) {
+					o->value.opt_string = g_string_truncate(o->value.opt_string, 0);
+				}
+				else {
+					GString *str;
+					str = g_string_new_len(l->value.opt_string->str, l->value.opt_string->len);
+					for (gint i = 1; i < r->value.opt_int; i++)
+						o->value.opt_string = g_string_append_len(o->value.opt_string, str->str, str->len);
+					g_string_free(str, TRUE);
+				}
 			}
 		}
 		else if (l->type == OPTION_LIST) {
@@ -308,20 +318,34 @@
 	action actionref {
 		/* varname is on the stack */
 		option *o, *r;
-		action *a;
 
 		o = g_queue_pop_head(ctx->option_stack);
 
-		a = g_hash_table_lookup(ctx->action_blocks, o->value.opt_string);
+		/* action refs starting with "var." are user defined variables */
+		if (g_str_has_prefix(o->value.opt_string->str, "var.")) {
+			/* look up var in hashtable, push option onto stack */
+			r = g_hash_table_lookup(ctx->uservars, o->value.opt_string);
 
-		if (a == NULL) {
-			log_warning(srv, NULL, "unknown action block referenced: %s", o->value.opt_string->str);
-			return FALSE;
+			if (r == NULL) {
+				log_warning(srv, NULL, "unknown variable '%s'", o->value.opt_string->str);
+				return FALSE;
+			}
+		}
+		else {
+			/* real action, lookup hashtable and create new action option */
+			action *a;
+			a = g_hash_table_lookup(ctx->action_blocks, o->value.opt_string);
+
+			if (a == NULL) {
+				log_warning(srv, NULL, "unknown action block referenced: %s", o->value.opt_string->str);
+				return FALSE;
+			}
+
+			r = option_new_action(srv, a);
 		}
 
-		r = option_new_action(srv, a);
-
 		g_queue_push_head(ctx->option_stack, r);
+		option_free(o);
 	}
 
 	action operator {
@@ -352,11 +376,19 @@
 
 		assert(name->type == OPTION_STRING);
 
+		_printf("got assignment: %s = %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
+
 		if (ctx->in_setup_block) {
+			/* in setup { } block => set default values for options */
+			option_free(name);
+		}
+		else if (g_str_has_prefix(name->value.opt_string->str, "var.")) {
+			/* assignment vor user defined variable, insert into hashtable */
+			g_hash_table_insert(ctx->uservars, name->value.opt_string, val);
 		}
 		else {
-			if (g_str_has_prefix(name->value.opt_string->str, "var.")) {
-			}
+			/* normal assignment */
+			option_free(name);
 		}
 
 /*
@@ -370,9 +402,6 @@
 		g_array_append_val(al->actions, a);
 */
 UNUSED(a); UNUSED(al);
-		_printf("got assignment: %s = %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
-
-		option_free(name);
 	}
 
 	action function {
@@ -386,15 +415,29 @@ UNUSED(a); UNUSED(al);
 
 		assert(name->type == OPTION_STRING);
 
+		_printf("got function: %s %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
+
 		if (g_str_equal(name->value.opt_string->str, "include")) {
 			if (val->type != OPTION_STRING) {
-				/* TODO */
+				log_warning(srv, NULL, "include directive takes a string as parameter, %s given", option_type_string(val->type));
+				return FALSE;
 			}
+
+			if (!config_parser_file(srv, ctx_stack, val->value.opt_string->str))
+				return FALSE;
+
+			option_free(val);
 		}
 		else if (g_str_equal(name->value.opt_string->str, "include_shell")) {
 			if (val->type != OPTION_STRING) {
-				/* TODO */
+				log_warning(srv, NULL, "include_shell directive takes a string as parameter, %s given", option_type_string(val->type));
+				return FALSE;
 			}
+
+			if (!config_parser_shell(srv, ctx_stack, val->value.opt_string->str))
+				return FALSE;
+
+			option_free(val);
 		}
 		else {
 			/* TODO */
@@ -412,8 +455,6 @@ UNUSED(a); UNUSED(al);
 					return FALSE;
 			}
 		}
-
-		_printf("got function: %s %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
 
 		option_free(name);
 	}
@@ -562,6 +603,19 @@ void config_parser_finish(server *srv, GList *ctx_stack) {
 
 	g_hash_table_destroy(ctx->action_blocks);
 
+
+
+	g_hash_table_iter_init(&iter, ctx->uservars);
+
+	while (g_hash_table_iter_next(&iter, &key, &value)) {
+		g_hash_table_iter_steal(&iter);
+		g_string_free(key, TRUE);
+	}
+
+	g_hash_table_destroy(ctx->uservars);
+
+
+
 	config_parser_context_free(srv, ctx, TRUE);
 
 	g_list_free(ctx_stack);
@@ -586,9 +640,11 @@ config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack
 		ctx->option_stack = ((config_parser_context_t*) ctx_stack->data)->option_stack;
 
 		ctx->action_blocks = ((config_parser_context_t*) ctx_stack->data)->action_blocks;
+		ctx->uservars = ((config_parser_context_t*) ctx_stack->data)->uservars;
 	}
 	else {
 		ctx->action_blocks = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
+		ctx->uservars = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
 
 		ctx->action_list_stack = g_queue_new();
 		ctx->option_stack = g_queue_new();
@@ -633,7 +689,7 @@ gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path) {
 	{
 		/* could not read file */
 		log_warning(srv, NULL, "could not read config file \"%s\". reason: \"%s\" (%d)", path, err->message, err->code);
-		config_parser_context_free(srv, ctx, TRUE);
+		config_parser_context_free(srv, ctx, FALSE);
 		g_error_free(err);
 		return FALSE;
 	}
@@ -671,7 +727,7 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 	if (!g_spawn_command_line_sync(command, &_stdout, &_stderr, &status, &err))
 	{
 		log_warning(srv, NULL, "error launching shell command \"%s\": %s (%d)", command, err->message, err->code);
-		config_parser_context_free(srv, ctx, TRUE);
+		config_parser_context_free(srv, ctx, FALSE);
 		g_error_free(err);
 		return FALSE;
 	}
