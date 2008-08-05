@@ -73,9 +73,7 @@ int main(int argc, char *argv[]) {
 		GList *ctx_stack = config_parser_init(srv);
 		config_parser_context_t *ctx = (config_parser_context_t*) ctx_stack->data;
 		if (!config_parser_file(srv, ctx_stack, config_path)) {
-			for (guint i = 0; i < g_queue_get_length(ctx->action_list_stack); i++) { /* TODO */ }
-			for (guint i = 0; i < g_queue_get_length(ctx->option_stack); i++) { option_free(g_queue_peek_nth(ctx->option_stack, i)); }
-			config_parser_context_free(srv, ctx, FALSE);
+			config_parser_finish(srv, ctx_stack);
 			log_thread_start(srv);
 			g_atomic_int_set(&srv->exiting, TRUE);
 			log_thread_wakeup(srv);

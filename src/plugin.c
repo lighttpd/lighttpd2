@@ -247,7 +247,7 @@ action* create_action(server *srv, const gchar *name, option *value) {
 gboolean call_setup(server *srv, const char *name, option *opt) {
 	server_setup *ss;
 
-	if (NULL == (ss = (server_setup*) g_hash_table_lookup(srv->actions, name))) {
+	if (NULL == (ss = (server_setup*) g_hash_table_lookup(srv->setups, name))) {
 		ERROR(srv, "Setup function '%s' doesn't exist", name);
 		return FALSE;
 	}

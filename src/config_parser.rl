@@ -352,8 +352,13 @@
 
 		assert(name->type == OPTION_STRING);
 
-		if (g_str_has_prefix(name->value.opt_string->str, "var.")) {
+		if (ctx->in_setup_block) {
 		}
+		else {
+			if (g_str_has_prefix(name->value.opt_string->str, "var.")) {
+			}
+		}
+
 /*
 		al = g_queue_peek_head(ctx->action_list_stack);
 
@@ -393,11 +398,24 @@ UNUSED(a); UNUSED(al);
 		}
 		else {
 			/* TODO */
-			al = g_queue_peek_head(ctx->action_list_stack);
-			UNUSED(a);
+			if (ctx->in_setup_block) {
+				/* we are in the setup { } block, call setups and don't append to action list */
+				if (!call_setup(srv, name->value.opt_string->str, val)) {
+					return FALSE;
+				}
+			}
+			else {
+				al = g_queue_peek_head(ctx->action_list_stack);
+				a = create_action(srv, name->value.opt_string->str, val);
+
+				if (a == NULL)
+					return FALSE;
+			}
 		}
 
 		_printf("got function: %s %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
+
+		option_free(name);
 	}
 
 	action condition_start {
@@ -526,7 +544,7 @@ void config_parser_finish(server *srv, GList *ctx_stack) {
 	GHashTableIter iter;
 	gpointer key, value;
 
-	_printf("ctx_stack size: %u", g_list_length(ctx_stack));
+	_printf("ctx_stack size: %u\n", g_list_length(ctx_stack));
 
 	/* clear all contexts from the stack */
 	while ((ctx = g_list_nth_data(ctx_stack, 1)) != NULL) {
