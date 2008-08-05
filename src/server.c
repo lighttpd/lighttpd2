@@ -72,7 +72,8 @@ static connection* con_get(server *srv) {
 	if (srv->connections_active >= srv->connections->len) {
 		con = connection_new(srv);
 		con->idx = srv->connections_active++;
-		g_array_append_val(srv->connections, con);
+		g_array_set_size(srv->connections, srv->connections->len + 10);
+		g_array_index(srv->connections, connection*, con->idx) = con;
 	} else {
 		con = g_array_index(srv->connections, connection*, srv->connections_active++);
 	}
