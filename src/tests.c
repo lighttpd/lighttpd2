@@ -9,27 +9,31 @@
 
 int request_test() {
 	chunkqueue *cq;
-	request *req;
-	http_request_ctx ctx;
+	request req;
 	handler_t res;
 
 	cq = chunkqueue_new();
-	req = request_new();
-
-	http_request_parser_init(&ctx, req, cq);
+	request_init(&req, cq);
 
 	chunkqueue_append_mem(cq, CONST_STR_LEN(
 		"GET / HTTP/1.1\r\n"
+		"Host: www.example.com\r\n"
 		"\r\n"
+		"abc"
 	));
 
-	res = http_request_parse(NULL, NULL, &ctx);
+	res = http_request_parse(NULL, NULL, &req.parser_ctx);
 	if (res != HANDLER_GO_ON) {
 		fprintf(stderr, "Parser return %i", res);
-		return -1;
 	}
 
-	return 0;
+	assert(req.http_method == HTTP_METHOD_GET);
+	assert(cq->length == 3);
+
+	request_clear(&req);
+	chunkqueue_free(cq);
+
+	return res == HANDLER_GO_ON ? 0 : 1;
 }
 
 int main() {
@@ -47,10 +51,10 @@ int main() {
 	s = ipv6_tostring(ipv6);
 	printf("parsed ipv6: %s/%u\n", s->str, network);
 
+	request_test();
+
 	return 0;
 
 	srv = server_new();
-
-
-	return request_test();
+	return 0;
 }

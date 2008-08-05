@@ -14,6 +14,7 @@ struct http_headers {
 /* strings alweays get copied, so you should free key and value yourself */
 
 LI_API http_headers* http_headers_new();
+LI_API void http_headers_reset(http_headers* headers);
 LI_API void http_headers_free(http_headers* headers);
 
 /** If header does not exist, just insert normal header. If it exists, append (", %s", value) */
