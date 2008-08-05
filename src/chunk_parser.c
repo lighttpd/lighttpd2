@@ -1,8 +1,13 @@
 
+#include "base.h"
 #include "chunk_parser.h"
 
 void chunk_parser_init(chunk_parser_ctx *ctx, chunkqueue *cq) {
 	ctx->cq = cq;
+	chunk_parser_reset(ctx);
+}
+
+void chunk_parser_reset(chunk_parser_ctx *ctx) {
 	ctx->bytes_in = 0;
 	ctx->curi.element = NULL;
 	ctx->start = 0;

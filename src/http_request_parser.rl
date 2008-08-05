@@ -1,4 +1,5 @@
 
+#include "base.h"
 #include "http_request_parser.h"
 
 /** Machine **/
@@ -125,25 +126,26 @@ static int http_request_parser_is_finished(http_request_ctx *ctx) {
 	return ctx->chunk_ctx.cs >= http_request_parser_first_final;
 }
 
-http_request_ctx* http_request_parser_new(request *req, chunkqueue *cq) {
-	http_request_ctx *ctx = g_slice_new0(http_request_ctx);
-
-	%% write init;
+void http_request_parser_init(http_request_ctx* ctx, request *req, chunkqueue *cq) {
 	chunk_parser_init(&ctx->chunk_ctx, cq);
 	ctx->request = req;
 	ctx->h_key = g_string_sized_new(0);
 	ctx->h_value = g_string_sized_new(0);
 
-	return ctx;
+	%% write init;
 }
 
-void http_request_parser_free(http_request_ctx *ctx) {
-	if (!ctx) return;
+void http_request_parser_reset(http_request_ctx* ctx) {
+	chunk_parser_reset(&ctx->chunk_ctx);
+	g_string_truncate(ctx->h_key, 0);
+	g_string_truncate(ctx->h_value, 0);
 
+	%% write init;
+}
+
+void http_request_parser_clear(http_request_ctx *ctx) {
 	g_string_free(ctx->h_key, TRUE);
 	g_string_free(ctx->h_value, TRUE);
-
-	g_slice_free(http_request_ctx, ctx);
 }
 
 handler_t http_request_parse(server *srv, connection *con, http_request_ctx *ctx) {

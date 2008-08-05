@@ -1,23 +1,45 @@
 #ifndef _LIGHTTPD_SERVER_H_
 #define _LIGHTTPD_SERVER_H_
 
+#ifndef LIGHTTPD_SERVER_MAGIC
+#define LIGHTTPD_SERVER_MAGIC ((guint)0x12AB34CD)
+#endif
+
+typedef enum {
+	SERVER_STARTING,         /** start up: don't write log files, don't accept connections */
+	SERVER_RUNNING,          /** running: write logs, accept connections */
+	SERVER_STOPPING          /** stopping: flush logs, don't accept new connections */
+} server_state;
+
+struct server_socket;
+typedef struct server_socket server_socket;
+
+struct server_socket {
+	server *srv;
+	ev_io watcher;
+};
 
 struct server {
-	guint version;
+	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
+	server_state state;
 
-	GHashTable *plugins;
+	struct ev_loop *loop;
 
+	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections */
+	GArray *connections;      /** array of (connection*) */
+	GArray *sockets;          /** array of (server_socket*) */
+
+	GHashTable *plugins;      /**< const gchar* => (plugin*) */
 
 	/* registered by plugins */
-	GHashTable *options;    /**< const gchar* => server_option* */
-	GHashTable *actions;    /**< const gchar* => server_action* */
-	GHashTable *setups;     /**< const gchar* => server_setup* */
+	GHashTable *options;      /**< const gchar* => (server_option*) */
+	GHashTable *actions;      /**< const gchar* => (server_action*) */
+	GHashTable *setups;       /**< const gchar* => (server_setup*) */
 
-	gpointer *option_def_values;
+	gpointer *option_def_values; /* TODO */
 	struct action *mainaction;
 
 	gboolean exiting;
-	GMutex *mutex; /* general mutex for accessing the various members */
 
 	/* logs */
 	gboolean rotate_logs;
@@ -30,7 +52,13 @@ struct server {
 };
 
 
-server* server_new();
-void server_free(server* srv);
+LI_API server* server_new();
+LI_API void server_free(server* srv);
+
+LI_API void server_listen(server *srv, int fd);
+
+LI_API void server_start(server *srv);
+
+LI_API void joblist_append(server *srv, connection *con);
 
 #endif

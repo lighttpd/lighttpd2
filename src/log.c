@@ -206,7 +206,7 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	if (log != NULL)
 	{
 		g_atomic_int_inc(&log->refcount);
-		g_mutex_unlock(srv->mutex);
+		g_mutex_unlock(srv->log_mutex);
 		return log;
 	}
 

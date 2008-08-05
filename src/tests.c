@@ -9,14 +9,11 @@
 
 int request_test() {
 	chunkqueue *cq;
-	request *req;
-	http_request_ctx *ctx;
+	request req;
 	handler_t res;
 
 	cq = chunkqueue_new();
-	req = request_new();
-
-	ctx = http_request_parser_new(req, cq);
+	request_init(&req, cq);
 
 	chunkqueue_append_mem(cq, CONST_STR_LEN(
 		"GET / HTTP/1.1\r\n"
@@ -25,15 +22,16 @@ int request_test() {
 		"abc"
 	));
 
-	res = http_request_parse(NULL, NULL, ctx);
+	res = http_request_parse(NULL, NULL, &req.parser_ctx);
 	if (res != HANDLER_GO_ON) {
 		fprintf(stderr, "Parser return %i", res);
 	}
 
-	assert(req->http_method == HTTP_METHOD_GET);
+	assert(req.http_method == HTTP_METHOD_GET);
 	assert(cq->length == 3);
 
-	http_request_parser_free(ctx);
+	request_clear(&req);
+	chunkqueue_free(cq);
 
 	return res == HANDLER_GO_ON ? 0 : 1;
 }

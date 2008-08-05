@@ -13,6 +13,10 @@ http_headers* http_headers_new() {
 	return headers;
 }
 
+void http_headers_reset(http_headers* headers) {
+	g_hash_table_remove_all(headers->table);
+}
+
 void http_headers_free(http_headers* headers) {
 	if (!headers) return;
 	g_hash_table_destroy(headers->table);

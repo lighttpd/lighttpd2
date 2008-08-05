@@ -14,15 +14,18 @@ common_source='''
 	condition.c
 	condition_parsers.rl
 	config_parser.rl
+	connection.c
 	http_headers.c
 	http_request_parser.rl
 	log.c
+	network.c
 	options.c
 	plugin.c
 	request.c
 	server.c
 	sys-files.c
 	sys-socket.c
+	utils.c
 
 	plugin_core.c
 '''
@@ -143,7 +146,7 @@ def build(bld):
 	if env['LIB_lua']:
 		tests.source += common_source_lua
 	tests.target = 'tests'
-	tests.uselib += 'lighty dl openssl pcre lua ' + common_uselib
+	tests.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib
 
 def configure(conf):
 	env = conf.env
