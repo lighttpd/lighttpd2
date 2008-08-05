@@ -230,21 +230,19 @@
 			}
 		}
 		else if (l->type == OPTION_STRING) {
-			GString *str;
+			o = l;
+			free_l = FALSE;
 
 			if (r->type == OPTION_STRING && ctx->value_op == '+') {
 				/* str + str */
-				str = g_string_sized_new(l->value.opt_string->len + r->value.opt_string->len);
-				str = g_string_append_len(str, l->value.opt_string->str, l->value.opt_string->len);
-				str = g_string_append_len(str, r->value.opt_string->str, r->value.opt_string->len);
-				o = option_new_string(str);
+				o->value.opt_string = g_string_append_len(o->value.opt_string, r->value.opt_string->str, r->value.opt_string->len);
 			}
 			else if (r->type == OPTION_INT && ctx->value_op == '*') {
 				/* str * int */
-				str = g_string_sized_new(l->value.opt_string->len * r->value.opt_int);
+				o->value.opt_string = g_string_truncate(o->value.opt_string, 0);
+				o->value.opt_string = g_string_set_size(o->value.opt_string, o->value.opt_string->len * r->value.opt_int);
 				for (gint i = 0; i < r->value.opt_int; i++)
-					str = g_string_append_len(str, l->value.opt_string->str, l->value.opt_string->len);
-				o = option_new_string(str);
+					o->value.opt_string = g_string_append_len(o->value.opt_string, l->value.opt_string->str, l->value.opt_string->len);
 			}
 		}
 		else if (l->type == OPTION_LIST) {
@@ -309,6 +307,21 @@
 
 	action actionref {
 		/* varname is on the stack */
+		option *o, *r;
+		action *a;
+
+		o = g_queue_pop_head(ctx->option_stack);
+
+		a = g_hash_table_lookup(ctx->action_blocks, o->value.opt_string);
+
+		if (a == NULL) {
+			log_warning(srv, NULL, "unknown action block referenced: %s", o->value.opt_string->str);
+			return FALSE;
+		}
+
+		r = option_new_action(srv, a);
+
+		g_queue_push_head(ctx->option_stack, r);
 	}
 
 	action operator {
@@ -418,11 +431,19 @@ UNUSED(a); UNUSED(al);
 			ctx->in_setup_block = TRUE;
 		}
 		else {
+			GString *str;
+
 			_printf("action block %s in line %zd\n", o->value.opt_string->str, ctx->line);
+
 			/* create new action list and put it on the stack */
 			al = action_new_list();
 			g_queue_push_head(ctx->action_list_stack, al);
+			/* insert into hashtable for later lookups */
+			str = g_string_new_len(o->value.opt_string->str, o->value.opt_string->len);
+			g_hash_table_insert(ctx->action_blocks, str, al);
 		}
+
+		option_free(o);
 	}
 
 	action action_block_end {
@@ -493,8 +514,39 @@ UNUSED(a); UNUSED(al);
 
 GList *config_parser_init(server* srv) {
 	config_parser_context_t *ctx = config_parser_context_new(srv, NULL);
+
+	srv->mainaction = action_new_list();
 	g_queue_push_head(ctx->action_list_stack, srv->mainaction);
+
 	return g_list_append(NULL, ctx);
+}
+
+void config_parser_finish(server *srv, GList *ctx_stack) {
+	config_parser_context_t *ctx;
+	GHashTableIter iter;
+	gpointer key, value;
+
+	_printf("ctx_stack size: %u", g_list_length(ctx_stack));
+
+	/* clear all contexts from the stack */
+	while ((ctx = g_list_nth_data(ctx_stack, 1)) != NULL) {
+		config_parser_context_free(srv, ctx, FALSE);
+	}
+
+	ctx = (config_parser_context_t*) ctx_stack->data;
+
+	g_hash_table_iter_init(&iter, ctx->action_blocks);
+
+	while (g_hash_table_iter_next(&iter, &key, &value)) {
+		g_hash_table_iter_steal(&iter);
+		g_string_free(key, TRUE);
+	}
+
+	g_hash_table_destroy(ctx->action_blocks);
+
+	config_parser_context_free(srv, ctx, TRUE);
+
+	g_list_free(ctx_stack);
 }
 
 config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack) {
@@ -514,8 +566,12 @@ config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack
 		/* inherit old stacks */
 		ctx->action_list_stack = ((config_parser_context_t*) ctx_stack->data)->action_list_stack;
 		ctx->option_stack = ((config_parser_context_t*) ctx_stack->data)->option_stack;
+
+		ctx->action_blocks = ((config_parser_context_t*) ctx_stack->data)->action_blocks;
 	}
 	else {
+		ctx->action_blocks = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
+
 		ctx->action_list_stack = g_queue_new();
 		ctx->option_stack = g_queue_new();
 	}

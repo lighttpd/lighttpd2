@@ -17,7 +17,6 @@ struct server {
 	struct action *mainaction;
 
 	gboolean exiting;
-	GMutex *mutex; /* general mutex for accessing the various members */
 
 	/* logs */
 	gboolean rotate_logs;

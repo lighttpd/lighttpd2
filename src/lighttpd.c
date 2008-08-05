@@ -93,6 +93,8 @@ int main(int argc, char *argv[]) {
 		micros = (d - s - millis) %1000;
 		g_print("parsed config file in %zd seconds, %zd milliseconds, %zd microseconds\n", s, millis, micros);
 		g_print("option_stack: %u action_list_stack: %u (should be 0:1)\n", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
+
+		config_parser_finish(srv, ctx_stack);
 	}
 	else {
 #ifdef HAVE_LUA_H

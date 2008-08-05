@@ -10,6 +10,7 @@ typedef struct config_parser_context_t config_parser_context_t;
 
 /* returns a new config parser stack with the first context in it */
 GList *config_parser_init(server *srv);
+void config_parser_finish(server *srv, GList *ctx_stack);
 
 /* loads a file into memory and parses it */
 gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path);
@@ -34,6 +35,8 @@ struct config_parser_context_t {
 
 	comp_operator_t op;
 	gchar value_op;
+
+	GHashTable *action_blocks;
 
 	GQueue *action_list_stack; /* first entry is current action list */
 	GQueue *option_stack; /* stack of option* */

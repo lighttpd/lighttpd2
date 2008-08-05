@@ -20,8 +20,6 @@ server* server_new() {
 	srv->options = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_option_free);
 	srv->actions = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_action_free);
 	srv->setups  = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_setup_free);
-	srv->mutex = g_mutex_new();
-	srv->mainaction = action_new_list();
 
 	return srv;
 }
@@ -34,7 +32,6 @@ void server_free(server* srv) {
 	g_hash_table_destroy(srv->actions);
 	g_hash_table_destroy(srv->setups);
 	g_hash_table_destroy(srv->plugins);
-	g_mutex_free(srv->mutex);
 
 	action_release(srv, srv->mainaction);
 
