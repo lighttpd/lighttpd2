@@ -95,7 +95,7 @@ def build(bld):
 	if env['LIB_lua']:
 		main.source += common_source_lua
 	main.target='lighttpd' + env['APPEND']
-	main.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib
+	main.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib + ' lightylast'
 	main.includes = '.'
 
 	#lighty_mod(bld, 'mod_access', 'mod_access.c')
@@ -147,7 +147,7 @@ def build(bld):
 	if env['LIB_lua']:
 		tests.source += common_source_lua
 	tests.target = 'tests'
-	tests.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib
+	tests.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib + ' lightylast'
 	tests.includes = '.'
 
 def configure(conf):

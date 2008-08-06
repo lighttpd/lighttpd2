@@ -234,6 +234,11 @@ def configure(conf):
 	conf.env['LINKFLAGS_lightymod'] += [ '-module', '-export-dynamic', '-avoid-version', '-W,l-no-undefined' ]
 	conf.env['LINKFLAGS_thread'] += [ '-pthread' ]
 
+	if opts.buildstatic:
+		conf.env['FULLSTATIC'] = True
+		conf.env['LINKFLAGS_lighty'] = [ '-static' ]
+		conf.env['LIB_lightylast'] += ['m', 'dl']
+
 	if sys.platform == 'linux':
 		conf.env['LIB_lighty'] += ['rt']
 
