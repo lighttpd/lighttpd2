@@ -47,7 +47,7 @@ typedef struct physical physical;
 #include "http_request_parser.h"
 
 struct request_uri {
-	GString *uri, *orig_uri;
+	GString *uri, *orig_uri, *uri_raw;
 
 	GString *scheme;
 	GString *path;

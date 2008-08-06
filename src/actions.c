@@ -55,14 +55,14 @@ action *action_new_setting(option_set setting) {
 	return a;
 }
 
-action *action_new_function(ActionFunc func, ActionFree free, gpointer param) {
+action *action_new_function(ActionFunc func, ActionFree ffree, gpointer param) {
 	action *a;
 
 	a = g_slice_new(action);
 	a->refcount = 1;
 	a->type = ACTION_TFUNCTION;
 	a->value.function.func = func;
-	a->value.function.free = free;
+	a->value.function.free = ffree;
 	a->value.function.param = param;
 
 	return a;
