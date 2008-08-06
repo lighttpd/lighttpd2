@@ -85,4 +85,6 @@ LI_API void request_init(request *req, chunkqueue *in);
 LI_API void request_reset(request *req);
 LI_API void request_clear(request *req);
 
+LI_API void request_validate_header(server *srv, connection *con);
+
 #endif

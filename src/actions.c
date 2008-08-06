@@ -12,6 +12,7 @@ struct action_stack_element {
 };
 
 void action_release(server *srv, action *a) {
+	if (!a) return;
 	guint i;
 	assert(a->refcount > 0);
 	if (!(--a->refcount)) {
@@ -162,10 +163,10 @@ action_result action_execute(server *srv, connection *con) {
 			res = a->value.function.func(srv, con, a->value.function.param);
 			switch (res) {
 			case ACTION_GO_ON:
-				break;
 			case ACTION_FINISHED:
+				break;
 			case ACTION_ERROR:
-				action_stack_clear(srv, as);
+				action_stack_reset(srv, as);
 				return res;
 			case ACTION_WAIT_FOR_EVENT:
 				return ACTION_WAIT_FOR_EVENT;
@@ -182,5 +183,5 @@ action_result action_execute(server *srv, connection *con) {
 		}
 		ase->pos++;
 	}
-	return ACTION_GO_ON;
+	return ACTION_FINISHED;
 }

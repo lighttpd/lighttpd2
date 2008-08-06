@@ -211,7 +211,7 @@ gboolean config_lua_load(server *srv, const gchar *filename) {
 
 	lua_pop(L, 1); /* pop the ret-value */
 
-	lua_getfield(L, LUA_GLOBALSINDEX, "action");
+	lua_getfield(L, LUA_GLOBALSINDEX, "actions");
 	srv->mainaction = lua_get_action(L, -1);
 	lua_pop(L, 1);
 

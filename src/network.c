@@ -83,10 +83,11 @@ network_status_t network_read(server *srv, connection *con, int fd, chunkqueue *
 	const ssize_t blocksize = 16*1024; /* 16k */
 	const off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
-	off_t len;
+	off_t len = 0;
 
 	do {
 		GString *buf = g_string_sized_new(blocksize);
+		g_string_set_size(buf, blocksize);
 		if (-1 == (r = net_read(fd, buf->str, blocksize))) {
 			g_string_free(buf, TRUE);
 			switch (errno) {
@@ -107,6 +108,7 @@ network_status_t network_read(server *srv, connection *con, int fd, chunkqueue *
 		}
 		g_string_truncate(buf, r);
 		chunkqueue_append_string(cq, buf);
+		CON_TRACE(srv, con, "read (%i) '%s'", (int) r, buf->str);
 		len += r;
 	} while (r == blocksize && len < max_read);
 

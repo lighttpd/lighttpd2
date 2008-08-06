@@ -79,7 +79,7 @@ static connection* con_get(server *srv) {
 	return con;
 }
 
-static void con_put(server *srv, connection *con) {
+void con_put(server *srv, connection *con) {
 	connection_reset(srv, con);
 	srv->connections_active--;
 	if (con->idx != srv->connections_active) {
@@ -152,10 +152,18 @@ void server_start(server *srv) {
 	if (srv->state == SERVER_STOPPING || srv->state == SERVER_RUNNING) return; /* no restart after stop */
 	srv->state = SERVER_RUNNING;
 
+	if (!srv->mainaction) {
+		ERROR(srv, "%s", "No action handlers defined");
+		server_stop(srv);
+		return;
+	}
+
 	for (i = 0; i < srv->sockets->len; i++) {
 		server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
 		ev_io_start(srv->loop, &sock->watcher);
 	}
+
+	ev_loop(srv->loop, 0);
 }
 
 void server_stop(server *srv) {
@@ -170,5 +178,5 @@ void server_stop(server *srv) {
 }
 
 void joblist_append(server *srv, connection *con) {
-	/* TODO */
+	connection_state_machine(srv, con);
 }
