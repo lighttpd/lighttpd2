@@ -37,6 +37,11 @@ server* server_new() {
 	srv->mainaction = NULL;
 
 	srv->exiting = FALSE;
+	srv->tmp_str = g_string_sized_new(255);
+
+	srv->cur_ts = time(0);
+	srv->last_generated_date_ts = 0;
+	srv->ts_date_str = g_string_sized_new(255);
 
 	return srv;
 }
@@ -51,6 +56,9 @@ void server_free(server* srv) {
 	g_hash_table_destroy(srv->plugins);
 
 	action_release(srv, srv->mainaction);
+
+	g_string_free(srv->tmp_str, TRUE);
+	g_string_free(srv->ts_date_str, TRUE);
 
 	/* free logs */
 	GHashTableIter iter;
@@ -179,4 +187,18 @@ void server_stop(server *srv) {
 
 void joblist_append(server *srv, connection *con) {
 	connection_state_machine(srv, con);
+}
+
+GString *server_current_timestamp(server *srv) {
+	srv->cur_ts = time(0); /* TODO: update cur_ts somewhere else */
+	if (srv->cur_ts != srv->last_generated_date_ts) {
+		g_string_set_size(srv->ts_date_str, 255);
+		strftime(srv->ts_date_str->str, srv->ts_date_str->allocated_len,
+				"%a, %d %b %Y %H:%M:%S GMT", gmtime(&(srv->cur_ts)));
+
+		g_string_set_size(srv->ts_date_str, strlen(srv->ts_date_str->str));
+
+		srv->last_generated_date_ts = srv->cur_ts;
+	}
+	return srv->ts_date_str;
 }

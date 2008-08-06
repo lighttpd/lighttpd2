@@ -1,13 +1,21 @@
 #ifndef _LIGHTTPD_HTTP_HEADERS_H_
 #define _LIGHTTPD_HTTP_HEADERS_H_
 
+struct http_header;
+typedef struct http_header http_header;
+
 struct http_headers;
 typedef struct http_headers http_headers;
 
 #include "settings.h"
 
+struct http_header {
+	GString *key;
+	GQueue values; /**< queue of GString* */
+};
+
 struct http_headers {
-	/** keys are lowercase header name, values contain the complete header */
+	/** keys are lowercase header name (GString*), values are http_header* */
 	GHashTable *table;
 };
 

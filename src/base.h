@@ -3,9 +3,9 @@
 
 #include "settings.h"
 
-#define CONST_STR_LEN(x) x, x ? sizeof(x) - 1 : 0
+#define CONST_STR_LEN(x) (x), (x) ? sizeof(x) - 1 : 0
 
-#define GSTR_LEN(x) x ? x->str : "", x ? x->len : 0
+#define GSTR_LEN(x) (x) ? (x)->str : "", (x) ? (x)->len : 0
 
 typedef enum {
 	HTTP_TRANSFER_ENCODING_IDENTITY,

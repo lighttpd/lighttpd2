@@ -18,8 +18,6 @@ typedef struct chunkiter chunkiter;
 struct server;
 struct connection;
 
-#define CONST_STR_LEN(x) x, x ? sizeof(x) - 1 : 0
-
 #include "settings.h"
 
 /* Open a file only once, so it shouldn't get lost;
