@@ -33,4 +33,12 @@ LI_API void http_header_insert(http_headers *headers, const gchar *key, size_t k
 LI_API void http_header_overwrite(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen);
 LI_API gboolean http_header_remove(http_headers *headers, const gchar *key, size_t keylen);
 
+LI_API http_header* http_header_lookup(http_headers *headers, const gchar *key, size_t keylen);
+
+/** Use lowercase keys! */
+LI_API http_header* http_header_lookup_fast(http_headers *headers, const gchar *key, size_t keylen);
+
+/** Use lowercase keys! values are compared case-insensitive */
+LI_API gboolean http_header_is(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen);
+
 #endif

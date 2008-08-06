@@ -120,3 +120,37 @@ gboolean http_header_remove(http_headers *headers, const gchar *key, size_t keyl
 	g_string_free(lokey, TRUE);
 	return res;
 }
+
+http_header* http_header_lookup(http_headers *headers, const gchar *key, size_t keylen) {
+	GString *lokey;
+	http_header *h;
+
+	lokey = g_string_new_len(key, keylen);
+	g_string_ascii_down(lokey);
+	h = (http_header*) g_hash_table_lookup(headers->table, lokey);
+	g_string_free(lokey, TRUE);
+	return h;
+}
+
+http_header* http_header_lookup_fast(http_headers *headers, const gchar *key, size_t keylen) {
+	GString lokey;
+	http_header *h;
+
+	/* Fake GString */
+	lokey.str = (gchar*) key;
+	lokey.len = lokey.allocated_len = keylen;
+	h = (http_header*) g_hash_table_lookup(headers->table, &lokey);
+	return h;
+}
+
+gboolean http_header_is(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen) {
+	http_header *h = http_header_lookup_fast(headers, key, keylen);
+	GList *iter;
+	UNUSED(valuelen);
+
+	if (!h) return FALSE;
+	for (iter = g_queue_peek_head_link(&h->values); NULL != iter; iter = g_list_next(iter)) {
+		if (0 == strcasecmp( ((GString*)iter->data)->str, value )) return TRUE;
+	}
+	return FALSE;
+}
