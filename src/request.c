@@ -1,6 +1,5 @@
 
 #include "base.h"
-#include "request.h"
 
 void request_init(request *req, chunkqueue *in) {
 	req->http_method = HTTP_METHOD_UNSET;
@@ -57,4 +56,38 @@ void request_clear(request *req) {
 	req->content_length = -1;
 
 	http_request_parser_clear(&req->parser_ctx);
+}
+
+void request_validate_header(server *srv, connection *con) {
+	switch(con->request.http_method) {
+	case HTTP_METHOD_GET:
+	case HTTP_METHOD_HEAD:
+		/* content-length is forbidden for those */
+		if (con->request.content_length > 0) {
+			/* content-length is missing */
+			CON_ERROR(srv, con, "%s", "GET/HEAD with content-length -> 400");
+
+			con->keep_alive = FALSE;
+			con->response.http_status = 400;
+			connection_handle_direct(srv, con);
+			return;
+		}
+		con->request.content_length = 0;
+		break;
+	case HTTP_METHOD_POST:
+		/* content-length is required for them */
+		if (con->request.content_length == -1) {
+			/* content-length is missing */
+			CON_ERROR(srv, con, "%s", "POST-request, but content-length missing -> 411");
+
+			con->keep_alive = FALSE;
+			con->response.http_status = 411;
+			connection_handle_direct(srv, con);
+			return;
+		}
+		break;
+	default:
+		/* the may have a content-length */
+		break;
+	}
 }

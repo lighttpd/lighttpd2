@@ -116,7 +116,9 @@ int main(int argc, char *argv[]) {
 	log_warning(srv, NULL, "test %s", "foo2");
 	log_debug(srv, NULL, "test %s", "message");
 	log_thread_start(srv);
-	sleep(3);
+
+	server_start(srv);
+
 	log_error(srv, NULL, "error %d", 23);
 	g_atomic_int_set(&srv->rotate_logs, TRUE);
 	log_warning(srv, NULL, "test %s", "foo3");

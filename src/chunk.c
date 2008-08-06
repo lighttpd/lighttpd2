@@ -17,12 +17,13 @@ static chunkfile *chunkfile_new(GString *name, int fd, gboolean is_temp) {
 }
 
 static void chunkfile_acquire(chunkfile *cf) {
-// 	assert(cf->refcount > 0)
+	assert(cf->refcount > 0);
 	cf->refcount++;
 }
 
 static void chunkfile_release(chunkfile *cf) {
-// 	assert(cf->refcount > 0)
+	if (!cf) return;
+	assert(cf->refcount > 0);
 	if (!(--cf->refcount)) {
 		if (-1 != cf->fd) close(cf->fd);
 		cf->fd = -1;
@@ -214,8 +215,8 @@ static void chunk_free(chunk *c) {
 	c->mem = NULL;
 	if (c->file.file) chunkfile_release(c->file.file);
 	c->file.file = NULL;
-	if (c->file.mmap.data) munmap(c->file.mmap.data, c->file.mmap.length);
-	c->file.mmap.data = NULL;
+	if (c->file.mmap.data != MAP_FAILED) munmap(c->file.mmap.data, c->file.mmap.length);
+	c->file.mmap.data = MAP_FAILED;
 	g_slice_free(chunk, c);
 }
 

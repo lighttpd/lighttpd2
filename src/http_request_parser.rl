@@ -30,7 +30,7 @@
 		getStringTo(fpc, ctx->h_value);
 	}
 	action header {
-		http_header_insert(ctx->request->headers, ctx->h_key, ctx->h_value);
+		http_header_insert(ctx->request->headers, GSTR_LEN(ctx->h_key), GSTR_LEN(ctx->h_value));
 	}
 
 # RFC 2616

@@ -63,6 +63,7 @@ void condition_lvalue_acquire(condition_lvalue *lvalue) {
 }
 
 void condition_lvalue_release(condition_lvalue *lvalue) {
+	if (!lvalue) return;
 	assert(lvalue->refcount > 0);
 	if (!(--lvalue->refcount)) {
 		if (lvalue->key) g_string_free(lvalue->key, TRUE);
@@ -194,7 +195,8 @@ void condition_acquire(condition *c) {
 
 void condition_release(server *srv, condition* c) {
 	UNUSED(srv);
-	/* assert(c->recount > 0); */
+	if (!c) return;
+	assert(c->refcount > 0);
 	if (!(--c->refcount)) {
 		condition_free(c);
 	}

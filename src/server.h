@@ -58,6 +58,7 @@ LI_API void server_free(server* srv);
 LI_API void server_listen(server *srv, int fd);
 
 LI_API void server_start(server *srv);
+LI_API void server_stop(server *srv);
 
 LI_API void joblist_append(server *srv, connection *con);
 

@@ -22,6 +22,7 @@ common_source='''
 	options.c
 	plugin.c
 	request.c
+	response.c
 	server.c
 	sys-files.c
 	sys-socket.c
@@ -147,6 +148,7 @@ def build(bld):
 		tests.source += common_source_lua
 	tests.target = 'tests'
 	tests.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib
+	tests.includes = '.'
 
 def configure(conf):
 	env = conf.env
