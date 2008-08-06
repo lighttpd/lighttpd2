@@ -24,7 +24,7 @@ network_status_t network_write(server *srv, connection *con, int fd, chunkqueue 
 	char *block_data;
 	off_t block_len;
 	ssize_t r;
-	off_t len;
+	off_t len = 0;
 	chunkiter ci;
 
 	do {
@@ -57,7 +57,7 @@ network_status_t network_write(server *srv, connection *con, int fd, chunkqueue 
 		}
 		chunkqueue_skip(cq, r);
 		len += r;
-	} while (r == blocksize && len < max_write);
+	} while (r == block_len && len < max_write);
 
 	return NETWORK_STATUS_SUCCESS;
 }
