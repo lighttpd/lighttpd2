@@ -155,6 +155,27 @@ void server_listen(server *srv, int fd) {
 	g_array_append_val(srv->sockets, sock);
 }
 
+
+static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
+	UNUSED(w); UNUSED(revents);
+	ev_unloop (loop, EVUNLOOP_ALL);
+}
+
+static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
+	/* ignore */
+	UNUSED(loop); UNUSED(w); UNUSED(revents);
+}
+
+static struct ev_signal
+	sig_w_INT,
+	sig_w_TERM,
+	sig_w_PIPE;
+
+#define CATCH_SIGNAL(loop, cb, n) do {\
+	ev_signal_init(&sig_w_##n, cb, SIG##n); \
+	ev_signal_start(loop, &sig_w_##n); \
+} while (0)
+
 void server_start(server *srv) {
 	guint i;
 	if (srv->state == SERVER_STOPPING || srv->state == SERVER_RUNNING) return; /* no restart after stop */
@@ -170,6 +191,10 @@ void server_start(server *srv) {
 		server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
 		ev_io_start(srv->loop, &sock->watcher);
 	}
+
+	CATCH_SIGNAL(srv->loop, sigint_cb, INT);
+	CATCH_SIGNAL(srv->loop, sigint_cb, TERM);
+	CATCH_SIGNAL(srv->loop, sigpipe_cb, PIPE);
 
 	ev_loop(srv->loop, 0);
 }
