@@ -51,7 +51,7 @@ network_status_t network_write(server *srv, connection *con, int fd, chunkqueue 
 			case ECONNRESET:
 				return NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
-				CON_ERROR(srv, con, "oops, read from fd=%d failed: %s (%d)", fd, strerror(errno), errno );
+				CON_ERROR(srv, con, "oops, write to fd=%d failed: %s (%d)", fd, strerror(errno), errno );
 				return NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {

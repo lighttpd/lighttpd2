@@ -7,6 +7,14 @@
 
 #define GSTR_LEN(x) (x) ? (x)->str : "", (x) ? (x)->len : 0
 
+/* we don't use ev_init for now (stupid alias warnings), as ev_init
+ * just does set some values to zero and calls ev_set_cb.
+ * But every structure we allacote is initialized with zero, so we don't care
+ * about that.
+ * If this ever changes, we can easily use ev_init again.
+ */
+#define my_ev_init(ev, cb) ev_set_cb(ev, cb)
+
 typedef enum {
 	HTTP_TRANSFER_ENCODING_IDENTITY,
 	HTTP_TRANSFER_ENCODING_CHUNKED

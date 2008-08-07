@@ -70,6 +70,7 @@ static void bad_request(server *srv, connection *con, int status) {
 
 gboolean request_parse_url(server *srv, connection *con) {
 	request *req = &con->request;
+	UNUSED(srv); UNUSED(req);
 
 	/* TODO: parse url */
 	return TRUE;

@@ -23,7 +23,7 @@ static void server_closing_socket_cb(int revents, void* arg) {
 }
 
 void server_add_closing_socket(server *srv, int fd) {
-	server_closing_socket *scs = g_slice_new(server_closing_socket);
+	server_closing_socket *scs = g_slice_new0(server_closing_socket);
 
 	shutdown(fd, SHUT_WR);
 
@@ -222,7 +222,8 @@ void server_listen(server *srv, int fd) {
 	sock->srv = srv;
 	sock->watcher.data = sock;
 	fd_init(fd);
-	ev_io_init(&sock->watcher, server_listen_cb, fd, EV_READ);
+	my_ev_init(&sock->watcher, server_listen_cb);
+	ev_io_set(&sock->watcher, fd, EV_READ);
 	if (srv->state == SERVER_RUNNING) ev_io_start(srv->loop, &sock->watcher);
 
 	g_array_append_val(srv->sockets, sock);
@@ -245,7 +246,8 @@ static struct ev_signal
 	sig_w_PIPE;
 
 #define CATCH_SIGNAL(loop, cb, n) do {\
-	ev_signal_init(&sig_w_##n, cb, SIG##n); \
+	my_ev_init(&sig_w_##n, cb); \
+	ev_signal_set(&sig_w_##n, SIG##n); \
 	ev_signal_start(loop, &sig_w_##n); \
 } while (0)
 

@@ -139,7 +139,8 @@ connection* connection_new(server *srv) {
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
-	ev_io_init(&con->sock.watcher, connection_cb, -1, 0);
+	my_ev_init(&con->sock.watcher, connection_cb);
+	ev_io_set(&con->sock.watcher, -1, 0);
 	con->sock.srv = srv; con->sock.con = con; con->sock.watcher.data = &con->sock;
 	con->remote_addr_str = g_string_sized_new(0);
 	con->local_addr_str = g_string_sized_new(0);
