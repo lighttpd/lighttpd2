@@ -254,7 +254,9 @@ void chunkqueue_free(chunkqueue *cq) {
   * you may modify the data (not the length) if you are sure it isn't sent before.
   */
 void chunkqueue_append_string(chunkqueue *cq, GString *str) {
-	chunk *c = chunk_new();
+	chunk *c;
+	if (!str->len) return;
+	c = chunk_new();
 	c->type = MEM_CHUNK;
 	c->mem = str;
 	g_queue_push_tail(cq->queue, c);
@@ -264,7 +266,9 @@ void chunkqueue_append_string(chunkqueue *cq, GString *str) {
 
 /* memory gets copied */
 void chunkqueue_append_mem(chunkqueue *cq, void *mem, gssize len) {
-	chunk *c = chunk_new();
+	chunk *c;
+	if (!len) return;
+	c = chunk_new();
 	c->type = MEM_CHUNK;
 	c->mem = g_string_new_len(mem, len);
 	g_queue_push_tail(cq->queue, c);
@@ -284,23 +288,27 @@ static void __chunkqueue_append_file(chunkqueue *cq, GString *filename, off_t st
 }
 /* pass ownership of filename, do not free it */
 void chunkqueue_append_file(chunkqueue *cq, GString *filename, off_t start, off_t length) {
-	__chunkqueue_append_file(cq, filename, start, length, -1, FALSE);
+	if (length)
+		__chunkqueue_append_file(cq, filename, start, length, -1, FALSE);
 }
 
 /* if you already opened the file, you can pass the fd here - do not close it */
 void chunkqueue_append_file_fd(chunkqueue *cq, GString *filename, off_t start, off_t length, int fd) {
-	__chunkqueue_append_file(cq, filename, start, length, fd, FALSE);
+	if (length)
+		__chunkqueue_append_file(cq, filename, start, length, fd, FALSE);
 }
 
 /* temp files get deleted after usage */
 /* pass ownership of filename, do not free it */
 void chunkqueue_append_tempfile(chunkqueue *cq, GString *filename, off_t start, off_t length) {
-	__chunkqueue_append_file(cq, filename, start, length, -1, TRUE);
+	if (length)
+		__chunkqueue_append_file(cq, filename, start, length, -1, TRUE);
 }
 
 /* if you already opened the file, you can pass the fd here - do not close it */
 void chunkqueue_append_tempfile_fd(chunkqueue *cq, GString *filename, off_t start, off_t length, int fd) {
-	__chunkqueue_append_file(cq, filename, start, length, fd, TRUE);
+	if (length)
+		__chunkqueue_append_file(cq, filename, start, length, fd, TRUE);
 }
 
 /* steal up to length bytes from in and put them into out, return number of bytes stolen */
@@ -404,8 +412,7 @@ goffset chunkqueue_skip(chunkqueue *cq, goffset length) {
 	goffset bytes = 0;
 	goffset we_have;
 
-	while ( (NULL != (c = chunkqueue_first_chunk(cq))) && length > 0 ) {
-		we_have = chunk_length(c);
+	while ( (NULL != (c = chunkqueue_first_chunk(cq))) && (0 == (we_have = chunk_length(c)) || length > 0) ) {
 		if (we_have <= length) {
 			/* skip (delete) complete chunk */
 			chunk_free(c);

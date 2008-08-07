@@ -20,7 +20,7 @@
 	action done { fbreak; }
 
 	action method { getStringTo(fpc, ctx->request->http_method_str); }
-	action uri { getStringTo(fpc, ctx->request->uri.uri); }
+	action uri { getStringTo(fpc, ctx->request->uri.uri_raw); }
 
 	action header_key {
 		getStringTo(fpc, ctx->h_key);
@@ -65,9 +65,9 @@
 	Quoted_String   = DQUOTE ( QDText | Quoted_Pair )* DQUOTE;
 
 	HTTP_Version = (
-		  "HTTP/1.0"
-		| "HTTP/1.1"
-		| "HTTP" "/" DIGIT+ "." DIGIT+ );
+		  "HTTP/1.0"  %{ ctx->request->http_version = HTTP_VERSION_1_0; }
+		| "HTTP/1.1"  %{ ctx->request->http_version = HTTP_VERSION_1_1; }
+		| "HTTP" "/" DIGIT+ "." DIGIT+ ) >{ ctx->request->http_version = HTTP_VERSION_UNSET; };
 	#HTTP_URL = "http:" "//" Host ( ":" Port )? ( abs_path ( "?" query )? )?;
 
 # RFC 2396

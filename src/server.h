@@ -41,6 +41,11 @@ struct server {
 
 	gboolean exiting;
 
+	GString *tmp_str;         /**< can be used everywhere for local temporary needed strings */
+
+	time_t cur_ts, last_generated_date_ts;
+	GString *ts_date_str;     /**< use server_current_timestamp(srv) */
+
 	/* logs */
 	gboolean rotate_logs;
 	GHashTable *logs;
@@ -61,5 +66,7 @@ LI_API void server_start(server *srv);
 LI_API void server_stop(server *srv);
 
 LI_API void joblist_append(server *srv, connection *con);
+
+LI_API GString *server_current_timestamp(server *srv);
 
 #endif

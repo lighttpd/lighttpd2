@@ -45,10 +45,6 @@ static gboolean condition_ip_from_socket(condition_rvalue *val, sock_addr *addr)
 	return FALSE;
 }
 
-// static condition* condition_new(comp_operator_t op, condition_lvalue *lvalue);
-// static condition* cond_new_string(comp_operator_t op, condition_lvalue *lvalue, GString *str);
-// static void condition_free(condition *c);
-
 condition_lvalue* condition_lvalue_new(cond_lvalue_t type, GString *key) {
 	condition_lvalue *lvalue = g_slice_new0(condition_lvalue);
 	lvalue->type = type;
@@ -290,10 +286,10 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 
 	switch (cond->op) {
 	case CONFIG_COND_EQ:
-		result = 0 == strcmp(value, cond->rvalue.string->str);
+		result = (0 == strcmp(value, cond->rvalue.string->str));
 		break;
 	case CONFIG_COND_NE:
-		result = 0 != strcmp(value, cond->rvalue.string->str);
+		result = (0 != strcmp(value, cond->rvalue.string->str));
 		break;
 	case CONFIG_COND_MATCH:
 	case CONFIG_COND_NOMATCH:

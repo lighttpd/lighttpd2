@@ -18,13 +18,14 @@ static option* lua_params_to_option(server *srv, lua_State *L) {
 		return option_from_lua(srv, L);
 	default:
 		opt = option_new_list();
+		g_array_set_size(opt->value.opt_list, lua_gettop(L));
 		while (lua_gettop(L) > 0) {
 			if (NULL == (subopt = option_from_lua(srv, L))) {
 				ERROR(srv, "%s", "Couldn't convert option to lua");
 				option_free(opt);
 				return NULL;
 			}
-			g_array_append_val(opt->value.opt_list, subopt);
+			g_array_index(opt->value.opt_list, option*, lua_gettop(L)) = subopt;
 		}
 		return opt;
 	}

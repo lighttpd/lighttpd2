@@ -48,14 +48,16 @@ static action* core_when(server *srv, plugin* p, option *opt) {
 	}
 	opt_cond = g_array_index(opt->value.opt_list, option*, 0);
 	opt_act = g_array_index(opt->value.opt_list, option*, 1);
-	if (opt_act->type != OPTION_ACTION) {
-		ERROR(srv, "expected action as second parameter, got %s", option_type_string(opt->type));
-		return NULL;
-	}
 	if (opt_cond->type != OPTION_CONDITION) {
-		ERROR(srv, "expected condition as first parameter, got %s", option_type_string(opt->type));
+		ERROR(srv, "expected condition as first parameter, got %s", option_type_string(opt_cond->type));
 		return NULL;
 	}
+	if (opt_act->type != OPTION_ACTION) {
+		ERROR(srv, "expected action as second parameter, got %s", option_type_string(opt_act->type));
+		return NULL;
+	}
+	condition_acquire(opt_cond->value.opt_cond.cond);
+	action_acquire(opt_act->value.opt_action.action);
 	a = action_new_condition(opt_cond->value.opt_cond.cond, opt_act->value.opt_action.action);
 	option_free(opt);
 	return a;
@@ -84,10 +86,10 @@ static action_result core_handle_test(server *srv, connection *con, gpointer par
 	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
 
 	con->response.http_status = 200;
-	chunkqueue_append_string(con->out, con->request.uri.uri);
+	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.uri));
+	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n"));
 	connection_handle_direct(srv, con);
 
-	CON_ERROR(srv, con, "%s", "Not implemented yet");
 	return ACTION_GO_ON;
 }
 

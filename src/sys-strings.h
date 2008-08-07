@@ -23,7 +23,7 @@ __int64 _strtoi64(
 		);
 #endif
 #else /** we are a unix */
-
+#include <stdlib.h>
 /**
  * we use strtoll() for parsing the ranges into a off_t
  *

@@ -66,7 +66,7 @@ struct connection_socket {
 struct connection {
 	guint idx; /** index in connection table */
 	connection_state_t state;
-	gboolean response_headers_sent;
+	gboolean response_headers_sent, expect_100_cont;
 
 	chunkqueue *raw_in, *raw_out;
 	chunkqueue *in, *out;

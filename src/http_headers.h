@@ -1,13 +1,21 @@
 #ifndef _LIGHTTPD_HTTP_HEADERS_H_
 #define _LIGHTTPD_HTTP_HEADERS_H_
 
+struct http_header;
+typedef struct http_header http_header;
+
 struct http_headers;
 typedef struct http_headers http_headers;
 
 #include "settings.h"
 
+struct http_header {
+	GString *key;
+	GQueue values; /**< queue of GString* */
+};
+
 struct http_headers {
-	/** keys are lowercase header name, values contain the complete header */
+	/** keys are lowercase header name (GString*), values are http_header* */
 	GHashTable *table;
 };
 
@@ -24,5 +32,13 @@ LI_API void http_header_insert(http_headers *headers, const gchar *key, size_t k
 /** If header does not exist, just insert normal header. If it exists, overwrite the value */
 LI_API void http_header_overwrite(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen);
 LI_API gboolean http_header_remove(http_headers *headers, const gchar *key, size_t keylen);
+
+LI_API http_header* http_header_lookup(http_headers *headers, const gchar *key, size_t keylen);
+
+/** Use lowercase keys! */
+LI_API http_header* http_header_lookup_fast(http_headers *headers, const gchar *key, size_t keylen);
+
+/** Use lowercase keys! values are compared case-insensitive */
+LI_API gboolean http_header_is(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen);
 
 #endif
