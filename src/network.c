@@ -28,6 +28,8 @@ network_status_t network_write(server *srv, connection *con, int fd, chunkqueue 
 	chunkiter ci;
 
 	do {
+		if (0 == cq->length) return NETWORK_STATUS_SUCCESS;
+
 		ci = chunkqueue_iter(cq);
 		switch (chunkiter_read(srv, con, ci, 0, blocksize, &block_data, &block_len)) {
 		case HANDLER_GO_ON:

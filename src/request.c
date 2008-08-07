@@ -82,11 +82,11 @@ void request_validate_header(server *srv, connection *con) {
 	switch (req->http_version) {
 	case HTTP_VERSION_1_0:
 		if (!http_header_is(req->headers, CONST_STR_LEN("connection"), CONST_STR_LEN("keep-alive")))
-			con->keep_alive = 0;
+			con->keep_alive = FALSE;
 		break;
 	case HTTP_VERSION_1_1:
 		if (http_header_is(req->headers, CONST_STR_LEN("connection"), CONST_STR_LEN("close")))
-			con->keep_alive = 0;
+			con->keep_alive = FALSE;
 		break;
 	case HTTP_VERSION_UNSET:
 		bad_request(srv, con, 505); /* Version not Supported */

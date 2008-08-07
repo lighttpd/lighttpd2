@@ -2,6 +2,44 @@
 #include "base.h"
 #include "utils.h"
 
+struct server_closing_socket;
+typedef struct server_closing_socket server_closing_socket;
+
+struct server_closing_socket {
+	server *srv;
+	GList *link;
+	int fd;
+};
+
+static void server_closing_socket_cb(int revents, void* arg) {
+	server_closing_socket *scs = (server_closing_socket*) arg;
+	UNUSED(revents);
+
+	/* Whatever happend: we just close the socket */
+	shutdown(scs->fd, SHUT_RD);
+	close(scs->fd);
+	g_queue_delete_link(&scs->srv->closing_sockets, scs->link);
+	g_slice_free(server_closing_socket, scs);
+}
+
+void server_add_closing_socket(server *srv, int fd) {
+	server_closing_socket *scs = g_slice_new(server_closing_socket);
+
+	shutdown(fd, SHUT_WR);
+
+	scs->srv = srv;
+	scs->fd = fd;
+	g_queue_push_tail(&srv->closing_sockets, scs);
+	scs->link = g_queue_peek_tail_link(&srv->closing_sockets);
+
+	ev_once(srv->loop, fd, EV_READ, 10.0, server_closing_socket_cb, scs);
+}
+
+/* Kill it - frees fd */
+static void server_rem_closing_socket(server *srv, server_closing_socket *scs) {
+	ev_feed_fd_event(srv->loop, scs->fd, EV_READ);
+}
+
 void con_put(server *srv, connection *con);
 
 static void server_option_free(gpointer _so) {
@@ -30,6 +68,7 @@ server* server_new() {
 	srv->connections_active = 0;
 	srv->connections = g_array_new(FALSE, TRUE, sizeof(connection*));
 	srv->sockets = g_array_new(FALSE, TRUE, sizeof(server_socket*));
+	g_queue_init(&srv->closing_sockets);
 
 	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
 	srv->options = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_option_free);
@@ -41,7 +80,6 @@ server* server_new() {
 	srv->exiting = FALSE;
 	srv->tmp_str = g_string_sized_new(255);
 
-	srv->cur_ts = time(0);
 	srv->last_generated_date_ts = 0;
 	srv->ts_date_str = g_string_sized_new(255);
 
@@ -69,6 +107,20 @@ void server_free(server* srv) {
 			connection_free(srv, g_array_index(srv->connections, connection*, i));
 		}
 		g_array_free(srv->connections, TRUE);
+	}
+
+	{ guint i; for (i = 0; i < srv->sockets->len; i++) {
+		server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
+		close(sock->watcher.fd);
+		g_slice_free(server_socket, sock);
+		g_array_free(srv->sockets, TRUE);
+	}}
+	{ /* force closing sockets */
+		GList *iter;
+		for (iter = g_queue_peek_head_link(&srv->closing_sockets); iter; iter = g_list_next(iter)) {
+			server_closing_socket_cb(EV_TIMEOUT, (server_closing_socket*) iter->data);
+		}
+		g_queue_clear(&srv->closing_sockets);
 	}
 
 	g_hash_table_destroy(srv->plugins);
@@ -231,20 +283,32 @@ void server_stop(server *srv) {
 	}
 }
 
+void server_exit(server *srv) {
+	srv->exiting = TRUE;
+	server_stop(srv);
+
+	{ /* force closing sockets */
+		GList *iter;
+		for (iter = g_queue_peek_head_link(&srv->closing_sockets); iter; iter = g_list_next(iter)) {
+			server_rem_closing_socket(srv, (server_closing_socket*) iter->data);
+		}
+	}
+}
+
 void joblist_append(server *srv, connection *con) {
 	connection_state_machine(srv, con);
 }
 
 GString *server_current_timestamp(server *srv) {
-	srv->cur_ts = time(0); /* TODO: update cur_ts somewhere else */
-	if (srv->cur_ts != srv->last_generated_date_ts) {
+	time_t cur_ts = CUR_TS(srv);
+	if (cur_ts != srv->last_generated_date_ts) {
 		g_string_set_size(srv->ts_date_str, 255);
 		strftime(srv->ts_date_str->str, srv->ts_date_str->allocated_len,
-				"%a, %d %b %Y %H:%M:%S GMT", gmtime(&(srv->cur_ts)));
+				"%a, %d %b %Y %H:%M:%S GMT", gmtime(&(cur_ts)));
 
 		g_string_set_size(srv->ts_date_str, strlen(srv->ts_date_str->str));
 
-		srv->last_generated_date_ts = srv->cur_ts;
+		srv->last_generated_date_ts = cur_ts;
 	}
 	return srv->ts_date_str;
 }
