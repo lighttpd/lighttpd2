@@ -139,16 +139,16 @@ def build(bld):
 	#lighty_mod(bld, 'mod_deflate', 'mod_deflate.c', uselib = 'bzip zlib')
 	#lighty_mod(bld, 'mod_webdav', 'mod_webdav.c', uselib = 'sqlite3 xml uuid')
 
-	tests = bld.new_task_gen('cc', 'program')
-	tests.inst_var = 0
-	tests.unit_test = 1
-	tests.name = 'tests'
-	tests.source = 'tests.c ' + common_source
-	if env['LIB_lua']:
-		tests.source += common_source_lua
-	tests.target = 'tests'
-	tests.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib + ' lightylast'
-	tests.includes = '.'
+	#tests = bld.new_task_gen('cc', 'program')
+	#tests.inst_var = 0
+	#tests.unit_test = 1
+	#tests.name = 'tests'
+	#tests.source = 'tests.c ' + common_source
+	#if env['LIB_lua']:
+		#tests.source += common_source_lua
+	#tests.target = 'tests'
+	#tests.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib + ' lightylast'
+	#tests.includes = '.'
 
 def configure(conf):
 	env = conf.env
