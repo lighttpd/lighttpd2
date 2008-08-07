@@ -99,7 +99,7 @@ void request_validate_header(server *srv, connection *con) {
 		return;
 	} else if (hh) {
 		g_string_append_len(req->host, GSTR_LEN((GString*) g_queue_peek_head(&hh->values)));
-		CON_TRACE(srv, con, "hostname: '%s'", req->host->str);
+// 		CON_TRACE(srv, con, "hostname: '%s'", req->host->str);
 	}
 
 	/* content-length */

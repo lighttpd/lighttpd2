@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
 
 	TRACE(srv, "%s", "Test!");
 
-	//srv->log_stderr = log_new(srv, LOG_TYPE_FILE, g_string_new("lightytest.log"));
+	/* srv->log_stderr = log_new(srv, LOG_TYPE_FILE, g_string_new("lightytest.log")); */
 	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo1");
 	log_warning(srv, NULL, "test %s", "foo1"); /* duplicate won't be logged */
 	log_warning(srv, NULL, "test %s", "foo2");

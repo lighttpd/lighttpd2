@@ -108,7 +108,6 @@ network_status_t network_read(server *srv, connection *con, int fd, chunkqueue *
 		}
 		g_string_truncate(buf, r);
 		chunkqueue_append_string(cq, buf);
-		CON_TRACE(srv, con, "read (%i) '%s'", (int) r, buf->str);
 		len += r;
 	} while (r == blocksize && len < max_read);
 

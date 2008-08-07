@@ -61,7 +61,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	if (revents & EV_READ) {
 		if (con->in->is_closed) {
 			/* don't read the next request before current one is done */
-			ev_io_set(w, w->fd, w->events && ~EV_READ);
+			ev_io_rem_events(loop, w, EV_READ);
 		} else {
 			switch (network_read(srv, con, w->fd, con->raw_in)) {
 			case NETWORK_STATUS_SUCCESS:
@@ -91,9 +91,30 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	if (revents & EV_WRITE) {
 		if (con->raw_out->length > 0) {
-			network_write(srv, con, w->fd, con->raw_out);
+			switch (network_write(srv, con, w->fd, con->raw_out)) {
+			case NETWORK_STATUS_SUCCESS:
+				dojoblist = TRUE;
+				break;
+			case NETWORK_STATUS_FATAL_ERROR:
+				connection_set_state(srv, con, CON_STATE_ERROR);
+				dojoblist = TRUE;
+				break;
+			case NETWORK_STATUS_CONNECTION_CLOSE:
+				connection_set_state(srv, con, CON_STATE_CLOSE);
+				dojoblist = TRUE;
+				break;
+			case NETWORK_STATUS_WAIT_FOR_EVENT:
+				break;
+			case NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
+				/* TODO ? */
+				ev_io_rem_events(loop, w, EV_WRITE);
+				break;
+			case NETWORK_STATUS_WAIT_FOR_FD:
+				/* TODO */
+				ev_io_rem_events(loop, w, EV_WRITE);
+				break;
+			}
 // 			CON_TRACE(srv, con, "cq->len: raw_out=%i, out=%i", (int) con->raw_out->length, (int) con->out->length);
-			dojoblist = TRUE;
 		}
 		if (con->raw_out->length == 0) {
 // 			CON_TRACE(srv, con, "%s", "stop write");
