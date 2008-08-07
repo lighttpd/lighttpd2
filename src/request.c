@@ -68,9 +68,15 @@ static void bad_request(server *srv, connection *con, int status) {
 	connection_handle_direct(srv, con);
 }
 
+gboolean request_parse_url(server *srv, connection *con) {
+	request *req = &con->request;
+
+	/* TODO: parse url */
+	return TRUE;
+}
+
 void request_validate_header(server *srv, connection *con) {
 	request *req = &con->request;
-	response *resp = &con->response;
 	http_header *hh;
 
 	switch (req->http_version) {
@@ -99,8 +105,11 @@ void request_validate_header(server *srv, connection *con) {
 		return;
 	} else if (hh) {
 		g_string_append_len(req->host, GSTR_LEN((GString*) g_queue_peek_head(&hh->values)));
-// 		CON_TRACE(srv, con, "hostname: '%s'", req->host->str);
 	}
+
+	/* may override hostname */
+	if (!request_parse_url(srv, con))
+		return;
 
 	/* content-length */
 	hh = http_header_lookup_fast(req->headers, CONST_STR_LEN("content-length"));
@@ -195,4 +204,33 @@ void request_validate_header(server *srv, connection *con) {
 		/* the may have a content-length */
 		break;
 	}
+
+	/* TODO: check hostname */
+}
+
+void physical_init(physical *phys) {
+	phys->path = g_string_sized_new(512);
+	phys->basedir = g_string_sized_new(256);
+	phys->doc_root = g_string_sized_new(256);
+	phys->rel_path = g_string_sized_new(256);
+	phys->pathinfo = g_string_sized_new(256);
+	phys->size = -1;
+}
+
+void physical_reset(physical *phys) {
+	g_string_truncate(phys->path, 0);
+	g_string_truncate(phys->basedir, 0);
+	g_string_truncate(phys->doc_root, 0);
+	g_string_truncate(phys->rel_path, 0);
+	g_string_truncate(phys->pathinfo, 0);
+	phys->size = -1;
+}
+
+void physical_clear(physical *phys) {
+	g_string_free(phys->path, TRUE);
+	g_string_free(phys->basedir, TRUE);
+	g_string_free(phys->doc_root, TRUE);
+	g_string_free(phys->rel_path, TRUE);
+	g_string_free(phys->pathinfo, TRUE);
+	phys->size = -1;
 }

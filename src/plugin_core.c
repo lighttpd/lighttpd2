@@ -65,7 +65,7 @@ static action* core_when(server *srv, plugin* p, option *opt) {
 
 static action_result core_handle_static(server *srv, connection *con, gpointer param) {
 	UNUSED(param);
-	/* TODO */
+	/* TODO: handle static files */
 	CON_ERROR(srv, con, "%s", "Not implemented yet");
 	return ACTION_ERROR;
 }

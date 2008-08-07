@@ -78,11 +78,11 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			case NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;
 			case NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
-				/* TODO ? */
+				/* TODO: aio */
 				ev_io_rem_events(loop, w, EV_READ);
 				break;
 			case NETWORK_STATUS_WAIT_FOR_FD:
-				/* TODO */
+				/* TODO: wait for fd */
 				ev_io_rem_events(loop, w, EV_READ);
 				break;
 			}
@@ -106,11 +106,11 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			case NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;
 			case NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
-				/* TODO ? */
+				/* TODO: aio */
 				ev_io_rem_events(loop, w, EV_WRITE);
 				break;
 			case NETWORK_STATUS_WAIT_FOR_FD:
-				/* TODO */
+				/* TODO: wait for fd */
 				ev_io_rem_events(loop, w, EV_WRITE);
 				break;
 			}
@@ -149,6 +149,7 @@ connection* connection_new(server *srv) {
 	action_stack_init(&con->action_stack);
 
 	request_init(&con->request, con->raw_in);
+	physical_init(&con->physical);
 	response_init(&con->response);
 
 	return con;
@@ -177,6 +178,7 @@ void connection_reset(server *srv, connection *con) {
 	action_stack_reset(srv, &con->action_stack);
 
 	request_reset(&con->request);
+	physical_reset(&con->physical);
 	response_reset(&con->response);
 }
 
@@ -197,6 +199,7 @@ void connection_reset_keep_alive(server *srv, connection *con) {
 	action_stack_reset(srv, &con->action_stack);
 
 	request_reset(&con->request);
+	physical_reset(&con->physical);
 	response_reset(&con->response);
 }
 
@@ -223,6 +226,7 @@ void connection_free(server *srv, connection *con) {
 	action_stack_clear(srv, &con->action_stack);
 
 	request_clear(&con->request);
+	physical_clear(&con->physical);
 	response_clear(&con->response);
 
 	g_slice_free(connection, con);
@@ -241,7 +245,6 @@ void connection_state_machine(server *srv, connection *con) {
 	do {
 		switch (con->state) {
 		case CON_STATE_REQUEST_START:
-			/* TODO: reset some values after keep alive - or do it in CON_STATE_REQUEST_END */
 			connection_set_state(srv, con, CON_STATE_READ_REQUEST_HEADER);
 			action_enter(con, srv->mainaction);
 			break;
@@ -253,7 +256,7 @@ void connection_state_machine(server *srv, connection *con) {
 				connection_set_state(srv, con, CON_STATE_VALIDATE_REQUEST_HEADER);
 				break;
 			case HANDLER_WAIT_FOR_FD:
-				/* TODO */
+				/* TODO: wait for fd */
 				done = TRUE;
 				break;
 			case HANDLER_WAIT_FOR_EVENT:
@@ -285,9 +288,7 @@ void connection_state_machine(server *srv, connection *con) {
 				connection_set_state(srv, con, CON_STATE_WRITE_RESPONSE);
 				break;
 			case ACTION_ERROR:
-				/* action return error */
-				/* TODO: return 500 instead ? */
-				connection_set_state(srv, con, CON_STATE_ERROR);
+				internal_error(srv, con);
 				break;
 			}
 			break;
@@ -305,9 +306,7 @@ void connection_state_machine(server *srv, connection *con) {
 				connection_set_state(srv, con, CON_STATE_WRITE_RESPONSE);
 				break;
 			case ACTION_ERROR:
-				/* action return error */
-				/* TODO: return 500 instead ? */
-				connection_set_state(srv, con, CON_STATE_ERROR);
+				internal_error(srv, con);
 				break;
 			}
 			break;

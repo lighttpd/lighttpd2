@@ -63,7 +63,7 @@ struct physical {
 
 	GString *pathinfo;
 
-	guint64 size;
+	gint64 size;
 };
 
 struct request {
@@ -86,5 +86,9 @@ LI_API void request_reset(request *req);
 LI_API void request_clear(request *req);
 
 LI_API void request_validate_header(server *srv, connection *con);
+
+LI_API void physical_init(physical *phys);
+LI_API void physical_reset(physical *phys);
+LI_API void physical_clear(physical *phys);
 
 #endif

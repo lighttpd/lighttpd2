@@ -41,4 +41,7 @@ LI_API http_header* http_header_lookup_fast(http_headers *headers, const gchar *
 /** Use lowercase keys! values are compared case-insensitive */
 LI_API gboolean http_header_is(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen);
 
+/** concats all headers with key with ', ' - empty if no header exists - use lowercase key*/
+LI_API void http_header_get_fast(GString *dest, http_headers *headers, const gchar *key, size_t keylen);
+
 #endif

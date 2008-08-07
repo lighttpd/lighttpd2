@@ -2,6 +2,8 @@
 #include "base.h"
 #include "utils.h"
 
+void con_put(server *srv, connection *con);
+
 static void server_option_free(gpointer _so) {
 	g_slice_free(server_option, _so);
 }
@@ -48,12 +50,31 @@ server* server_new() {
 
 void server_free(server* srv) {
 	if (!srv) return;
-	/* TODO */
 
+	srv->exiting = TRUE;
+	server_stop(srv);
+
+	{ /* close connections */
+		guint i;
+		if (srv->connections_active > 0) {
+			ERROR(srv, "Server shutdown with unclosed connections: %u", srv->connections_active);
+			for (i = srv->connections_active; i-- > 0;) {
+				connection *con = g_array_index(srv->connections, connection*, i);
+				connection_set_state(srv, con, CON_STATE_ERROR);
+				connection_state_machine(srv, con); /* cleanup plugins */
+				con_put(srv, con);
+			}
+		}
+		for (i = 0; i < srv->connections->len; i++) {
+			connection_free(srv, g_array_index(srv->connections, connection*, i));
+		}
+		g_array_free(srv->connections, TRUE);
+	}
+
+	g_hash_table_destroy(srv->plugins);
 	g_hash_table_destroy(srv->options);
 	g_hash_table_destroy(srv->actions);
 	g_hash_table_destroy(srv->setups);
-	g_hash_table_destroy(srv->plugins);
 
 	action_release(srv, srv->mainaction);
 

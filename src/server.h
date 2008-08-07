@@ -36,7 +36,7 @@ struct server {
 	GHashTable *actions;      /**< const gchar* => (server_action*) */
 	GHashTable *setups;       /**< const gchar* => (server_setup*) */
 
-	gpointer *option_def_values; /* TODO */
+	gpointer *option_def_values; /* TODO: options */
 	struct action *mainaction;
 
 	gboolean exiting;
