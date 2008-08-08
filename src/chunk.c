@@ -95,7 +95,7 @@ handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t sta
 		if ( !(c->file.mmap.data != MAP_FAILED || c->mem) /* no data present */
 			|| !( /* or in the wrong range */
 				(start + c->offset >= c->file.mmap.offset)
-				&& (start + c->offset + length <= c->file.mmap.offset + c->file.mmap.length)) ) {
+				&& (start + c->offset + length <= c->file.mmap.offset + (ssize_t) c->file.mmap.length)) ) {
 			/* then find new range */
 			our_offset = start % MMAP_CHUNK_ALIGN;
 			our_start = start - our_offset;
