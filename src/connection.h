@@ -79,7 +79,7 @@ struct connection {
 
 	action_stack action_stack;
 
-	gpointer *options; /* TODO: options */
+	gpointer *options;
 
 	request request;
 	physical physical;

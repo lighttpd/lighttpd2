@@ -49,6 +49,7 @@ network_status_t network_write(server *srv, connection *con, int fd, chunkqueue 
 #endif
 				return len ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
 			case ECONNRESET:
+			case EPIPE:
 				return NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
 				CON_ERROR(srv, con, "oops, write to fd=%d failed: %s (%d)", fd, strerror(errno), errno );

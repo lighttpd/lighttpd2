@@ -122,7 +122,7 @@ void option_list_free(GArray *optlist) {
 	g_array_free(optlist, TRUE);
 }
 
-/* Extract value from option, destroy option */
+/* Extract value from option, option set to none */
 gpointer option_extract_value(option *opt) {
 	gpointer val = NULL;
 	if (!opt) return NULL;
@@ -153,6 +153,5 @@ gpointer option_extract_value(option *opt) {
 			break;
 	}
 	opt->type = OPTION_NONE;
-	g_slice_free(option, opt);
 	return val;
 }

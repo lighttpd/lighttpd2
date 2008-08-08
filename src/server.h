@@ -39,7 +39,8 @@ struct server {
 	GHashTable *actions;      /**< const gchar* => (server_action*) */
 	GHashTable *setups;       /**< const gchar* => (server_setup*) */
 
-	gpointer *option_def_values; /* TODO: options */
+	size_t option_count;      /**< set to size of option hash table */
+	gpointer *option_def_values;
 	struct action *mainaction;
 
 	gboolean exiting;
@@ -65,8 +66,12 @@ LI_API void server_free(server* srv);
 
 LI_API void server_listen(server *srv, int fd);
 
+/* Start accepting connection, use log files, no new plugins after that */
 LI_API void server_start(server *srv);
+/* stop accepting connections, turn keep-alive off */
 LI_API void server_stop(server *srv);
+/* close connections, close logs, stop log-thread */
+LI_API void server_exit(server *srv);
 
 LI_API void joblist_append(server *srv, connection *con);
 

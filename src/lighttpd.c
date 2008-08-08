@@ -53,8 +53,6 @@ int main(int argc, char *argv[]) {
 
 	srv = server_new();
 
-	log_init(srv);
-
 	plugin_register(srv, "core", plugin_core_init);
 
 	/* if no path is specified for the config, read lighttpd.conf from current directory */
@@ -115,18 +113,8 @@ int main(int argc, char *argv[]) {
 	log_warning(srv, NULL, "test %s", "foo1"); /* duplicate won't be logged */
 	log_warning(srv, NULL, "test %s", "foo2");
 	log_debug(srv, NULL, "test %s", "message");
-	log_thread_start(srv);
 
 	server_start(srv);
-
-	log_error(srv, NULL, "error %d", 23);
-	g_atomic_int_set(&srv->rotate_logs, TRUE);
-	log_warning(srv, NULL, "test %s", "foo3");
-	log_warning(srv, NULL, "test %s", "foo4");
-
-	g_atomic_int_set(&srv->exiting, TRUE);
-	log_thread_wakeup(srv);
-	g_thread_join(srv->log_thread);
 
 	server_free(srv);
 

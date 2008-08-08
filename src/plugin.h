@@ -47,6 +47,8 @@ struct plugin {
 
 	gpointer data;    /**< private plugin data */
 
+	size_t opt_base_index;
+
 	PluginFree free; /**< called before plugin is unloaded */
 
 	const plugin_option *options;
@@ -110,9 +112,16 @@ LI_API void release_option(server *srv, option_set *mark); /**< Does not free th
 /* Needed for config frontends */
 /** For parsing 'somemod.option = "somevalue"' */
 LI_API action* option_action(server *srv, const gchar *name, option *value);
-/** For parsing 'somemod.action value', e.g. 'rewrite "/url" => "/destination"' */
+/** For parsing 'somemod.action value', e.g. 'rewrite "/url" => "/destination"'
+  * You need to free the option after it (it should be of type NONE then)
+  */
 LI_API action* create_action(server *srv, const gchar *name, option *value);
 /** For setup function, e.g. 'listen "127.0.0.1:8080"' */
 LI_API gboolean call_setup(server *srv, const char *name, option *opt);
+
+/* needs connection *con and plugin *p */
+#define OPTION(idx) _OPTION(con, p, idx)
+#define _OPTION(con, p, idx) (con->options[p->opt_base_index + idx])
+#define _OPTION_ABS(con, idx) (con->options[idx])
 
 #endif

@@ -2,6 +2,7 @@
 #include "connection.h"
 #include "network.h"
 #include "utils.h"
+#include "plugin_core.h"
 
 void con_put(server *srv, connection *con); /* server.c */
 
@@ -118,10 +119,8 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				ev_io_rem_events(loop, w, EV_WRITE);
 				break;
 			}
-			CON_TRACE(srv, con, "cq->len: raw_out=%i, out=%i", (int) con->raw_out->length, (int) con->out->length);
 		}
 		if (con->raw_out->length == 0) {
-			CON_TRACE(srv, con, "%s", "stop write");
 			ev_io_rem_events(loop, w, EV_WRITE);
 			dojoblist = TRUE;
 		}
@@ -152,6 +151,8 @@ connection* connection_new(server *srv) {
 	con->out     = chunkqueue_new();
 
 	action_stack_init(&con->action_stack);
+
+	con->options = g_slice_copy(srv->option_count * sizeof(*srv->option_def_values), srv->option_def_values);
 
 	request_init(&con->request, con->raw_in);
 	physical_init(&con->physical);
@@ -186,6 +187,8 @@ void connection_reset(server *srv, connection *con) {
 
 	action_stack_reset(srv, &con->action_stack);
 
+	memcpy(con->options, srv->option_def_values, srv->option_count * sizeof(*srv->option_def_values));
+
 	request_reset(&con->request);
 	physical_reset(&con->physical);
 	response_reset(&con->response);
@@ -206,6 +209,8 @@ void connection_reset_keep_alive(server *srv, connection *con) {
 	chunkqueue_reset(con->out);
 
 	action_stack_reset(srv, &con->action_stack);
+
+	memcpy(con->options, srv->option_def_values, srv->option_count * sizeof(*srv->option_def_values));
 
 	request_reset(&con->request);
 	physical_reset(&con->physical);
@@ -238,6 +243,8 @@ void connection_free(server *srv, connection *con) {
 
 	action_stack_clear(srv, &con->action_stack);
 
+	g_slice_free1(srv->option_count * sizeof(*srv->option_def_values), con->options);
+
 	request_clear(&con->request);
 	physical_clear(&con->physical);
 	response_clear(&con->response);
@@ -262,7 +269,9 @@ void connection_state_machine(server *srv, connection *con) {
 			action_enter(con, srv->mainaction);
 			break;
 		case CON_STATE_READ_REQUEST_HEADER:
-			TRACE(srv, "%s", "reading request header");
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+				TRACE(srv, "%s", "reading request header");
+			}
 			switch(http_request_parse(srv, con, &con->request.parser_ctx)) {
 			case HANDLER_FINISHED:
 			case HANDLER_GO_ON:
@@ -283,12 +292,16 @@ void connection_state_machine(server *srv, connection *con) {
 			}
 			break;
 		case CON_STATE_VALIDATE_REQUEST_HEADER:
-			TRACE(srv, "%s", "validating request header");
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+				TRACE(srv, "%s", "validating request header");
+			}
 			connection_set_state(srv, con, CON_STATE_HANDLE_REQUEST_HEADER);
 			request_validate_header(srv, con);
 			break;
 		case CON_STATE_HANDLE_REQUEST_HEADER:
-			TRACE(srv, "%s", "handle request header");
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+				TRACE(srv, "%s", "handle request header");
+			}
 			switch (action_execute(srv, con)) {
 			case ACTION_WAIT_FOR_EVENT:
 				done = TRUE;
@@ -307,7 +320,9 @@ void connection_state_machine(server *srv, connection *con) {
 			break;
 		case CON_STATE_READ_REQUEST_CONTENT:
 		case CON_STATE_HANDLE_RESPONSE_HEADER:
-			TRACE(srv, "%s", "read request/handle response header");
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+				TRACE(srv, "%s", "read request/handle response header");
+			}
 			parse_request_body(srv, con);
 			/* TODO: call plugin content_handler */
 			switch (action_execute(srv, con)) {
@@ -331,10 +346,14 @@ void connection_state_machine(server *srv, connection *con) {
 
 			if (!con->response_headers_sent) {
 				con->response_headers_sent = TRUE;
-				TRACE(srv, "%s", "write response headers");
+				if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+					TRACE(srv, "%s", "write response headers");
+				}
 				response_send_headers(srv, con);
 			}
-			TRACE(srv, "%s", "write response");
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+				TRACE(srv, "%s", "write response");
+			}
 			parse_request_body(srv, con);
 			/* TODO: call plugin content_handler */
 			forward_response_body(srv, con);
@@ -346,7 +365,9 @@ void connection_state_machine(server *srv, connection *con) {
 			if (con->state == CON_STATE_WRITE_RESPONSE) done = TRUE;
 			break;
 		case CON_STATE_RESPONSE_END:
-			TRACE(srv, "response end (keep_alive = %i)", con->keep_alive);
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+				TRACE(srv, "response end (keep_alive = %i)", con->keep_alive);
+			}
 			/* TODO: call plugin callbacks */
 			if (con->keep_alive) {
 				connection_reset_keep_alive(srv, con);
@@ -356,13 +377,17 @@ void connection_state_machine(server *srv, connection *con) {
 			}
 			break;
 		case CON_STATE_CLOSE:
-			TRACE(srv, "%s", "connection closed");
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+				TRACE(srv, "%s", "connection closed");
+			}
 			/* TODO: call plugin callbacks */
 			con_put(srv, con);
 			done = TRUE;
 			break;
 		case CON_STATE_ERROR:
-			TRACE(srv, "%s", "connection closed (error)");
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+				TRACE(srv, "%s", "connection closed (error)");
+			}
 			/* TODO: call plugin callbacks */
 			con_put(srv, con);
 			done = TRUE;

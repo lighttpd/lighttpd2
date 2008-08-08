@@ -54,6 +54,37 @@ static void server_setup_free(gpointer _ss) {
 	g_slice_free(server_setup, _ss);
 }
 
+static struct ev_signal
+	sig_w_INT,
+	sig_w_TERM,
+	sig_w_PIPE;
+
+static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
+	server *srv = (server*) w->data;
+	UNUSED(revents);
+
+	if (!srv->exiting) {
+		INFO(srv, "Got signal, shutdown");
+		server_exit(srv);
+	} else {
+		INFO(srv, "Got second signal, force shutdown");
+		ev_unloop (loop, EVUNLOOP_ALL);
+	}
+}
+
+static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
+	/* ignore */
+	UNUSED(loop); UNUSED(w); UNUSED(revents);
+}
+
+#define CATCH_SIGNAL(loop, cb, n) do {\
+	my_ev_init(&sig_w_##n, cb); \
+	ev_signal_set(&sig_w_##n, SIG##n); \
+	ev_signal_start(loop, &sig_w_##n); \
+	sig_w_##n.data = srv; \
+	ev_unref(loop); /* Signal watchers shouldn't keep loop alive */ \
+} while (0)
+
 server* server_new() {
 	server* srv = g_slice_new0(server);
 
@@ -64,6 +95,10 @@ server* server_new() {
 	if (!srv->loop) {
 		fatal ("could not initialise libev, bad $LIBEV_FLAGS in environment?");
 	}
+
+	CATCH_SIGNAL(srv->loop, sigint_cb, INT);
+	CATCH_SIGNAL(srv->loop, sigint_cb, TERM);
+	CATCH_SIGNAL(srv->loop, sigpipe_cb, PIPE);
 
 	srv->connections_active = 0;
 	srv->connections = g_array_new(FALSE, TRUE, sizeof(connection*));
@@ -82,6 +117,8 @@ server* server_new() {
 
 	srv->last_generated_date_ts = 0;
 	srv->ts_date_str = g_string_sized_new(255);
+
+	log_init(srv);
 
 	return srv;
 }
@@ -134,13 +171,16 @@ void server_free(server* srv) {
 	g_string_free(srv->ts_date_str, TRUE);
 
 	/* free logs */
-	GHashTableIter iter;
-	gpointer k, v;
-	g_hash_table_iter_init(&iter, srv->logs);
-	while (g_hash_table_iter_next(&iter, &k, &v)) {
-		log_free(srv, v);
+	g_thread_join(srv->log_thread);
+	{
+		GHashTableIter iter;
+		gpointer k, v;
+		g_hash_table_iter_init(&iter, srv->logs);
+		while (g_hash_table_iter_next(&iter, &k, &v)) {
+			log_free(srv, v);
+		}
+		g_hash_table_destroy(srv->logs);
 	}
-	g_hash_table_destroy(srv->logs);
 
 	g_mutex_free(srv->log_mutex);
 	g_async_queue_unref(srv->log_queue);
@@ -229,28 +269,6 @@ void server_listen(server *srv, int fd) {
 	g_array_append_val(srv->sockets, sock);
 }
 
-
-static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
-	UNUSED(w); UNUSED(revents);
-	ev_unloop (loop, EVUNLOOP_ALL);
-}
-
-static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
-	/* ignore */
-	UNUSED(loop); UNUSED(w); UNUSED(revents);
-}
-
-static struct ev_signal
-	sig_w_INT,
-	sig_w_TERM,
-	sig_w_PIPE;
-
-#define CATCH_SIGNAL(loop, cb, n) do {\
-	my_ev_init(&sig_w_##n, cb); \
-	ev_signal_set(&sig_w_##n, SIG##n); \
-	ev_signal_start(loop, &sig_w_##n); \
-} while (0)
-
 void server_start(server *srv) {
 	guint i;
 	if (srv->state == SERVER_STOPPING || srv->state == SERVER_RUNNING) return; /* no restart after stop */
@@ -262,14 +280,16 @@ void server_start(server *srv) {
 		return;
 	}
 
+	/* TODO: get default values for options */
+	srv->option_count = g_hash_table_size(srv->options);
+	srv->option_def_values = g_slice_alloc0(srv->option_count * sizeof(*srv->option_def_values));
+
 	for (i = 0; i < srv->sockets->len; i++) {
 		server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
 		ev_io_start(srv->loop, &sock->watcher);
 	}
 
-	CATCH_SIGNAL(srv->loop, sigint_cb, INT);
-	CATCH_SIGNAL(srv->loop, sigint_cb, TERM);
-	CATCH_SIGNAL(srv->loop, sigpipe_cb, PIPE);
+	log_thread_start(srv);
 
 	ev_loop(srv->loop, 0);
 }
@@ -286,7 +306,7 @@ void server_stop(server *srv) {
 }
 
 void server_exit(server *srv) {
-	srv->exiting = TRUE;
+	g_atomic_int_set(&srv->exiting, TRUE);
 	server_stop(srv);
 
 	{ /* force closing sockets */
@@ -295,7 +315,10 @@ void server_exit(server *srv) {
 			server_rem_closing_socket(srv, (server_closing_socket*) iter->data);
 		}
 	}
+
+	log_thread_wakeup(srv);
 }
+
 
 void joblist_append(server *srv, connection *con) {
 	connection_state_machine(srv, con);

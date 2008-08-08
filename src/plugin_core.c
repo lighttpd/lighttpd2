@@ -1,5 +1,6 @@
 
 #include "base.h"
+#include "plugin_core.h"
 
 static action* core_list(server *srv, plugin* p, option *opt) {
 	action *a;
@@ -59,6 +60,30 @@ static action* core_when(server *srv, plugin* p, option *opt) {
 	condition_acquire(opt_cond->value.opt_cond.cond);
 	action_acquire(opt_act->value.opt_action.action);
 	a = action_new_condition(opt_cond->value.opt_cond.cond, opt_act->value.opt_action.action);
+	option_free(opt);
+	return a;
+}
+
+static action* core_set(server *srv, plugin* p, option *opt) {
+	option *value, *opt_name;
+	action *a;
+	UNUSED(p);
+
+	if (opt->type != OPTION_LIST) {
+		ERROR(srv, "expected list, got %s", option_type_string(opt->type));
+		return NULL;
+	}
+	if (opt->value.opt_list->len != 2) {
+		ERROR(srv, "expected list with length 2, has length %u", opt->value.opt_list->len);
+		return NULL;
+	}
+	opt_name = g_array_index(opt->value.opt_list, option*, 0);
+	value = g_array_index(opt->value.opt_list, option*, 1);
+	if (opt_name->type != OPTION_STRING) {
+		ERROR(srv, "expected string as first parameter, got %s", option_type_string(opt_name->type));
+		return NULL;
+	}
+	a = option_action(srv, opt_name->value.opt_string->str, value);
 	option_free(opt);
 	return a;
 }
@@ -154,18 +179,22 @@ static gboolean core_listen(server *srv, plugin* p, option *opt) {
 	}
 
 	TRACE(srv, "will listen to '%s'", opt->value.opt_string->str);
+	option_free(opt);
 	return TRUE;
 }
 
 static const plugin_option options[] = {
-	{ "static-file.exclude", OPTION_LIST, NULL, NULL },
+	{ "debug.log-request-handling", OPTION_BOOLEAN, NULL, NULL},
 	{ "log.level", OPTION_STRING, NULL, NULL },
+
+	{ "static-file.exclude", OPTION_LIST, NULL, NULL },
 	{ NULL, 0, NULL, NULL }
 };
 
 static const plugin_action actions[] = {
 	{ "list", core_list },
 	{ "when", core_when },
+	{ "set", core_set },
 	{ "static", core_static },
 	{ "test", core_test },
 	{ NULL, NULL }
