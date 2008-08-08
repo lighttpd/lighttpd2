@@ -39,6 +39,8 @@ struct server {
 	GHashTable *actions;      /**< const gchar* => (server_action*) */
 	GHashTable *setups;       /**< const gchar* => (server_setup*) */
 
+	GArray *plugins_handle_close; /** list of handle_close callbacks */
+
 	size_t option_count;      /**< set to size of option hash table */
 	gpointer *option_def_values;
 	struct action *mainaction;

@@ -110,6 +110,8 @@ server* server_new() {
 	srv->actions = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_action_free);
 	srv->setups  = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_setup_free);
 
+	srv->plugins_handle_close = g_array_new(FALSE, TRUE, sizeof(plugin*));
+
 	srv->mainaction = NULL;
 
 	srv->exiting = FALSE;
@@ -164,6 +166,8 @@ void server_free(server* srv) {
 	g_hash_table_destroy(srv->options);
 	g_hash_table_destroy(srv->actions);
 	g_hash_table_destroy(srv->setups);
+
+	g_array_free(srv->plugins_handle_close, TRUE);
 
 	action_release(srv, srv->mainaction);
 
@@ -283,6 +287,8 @@ void server_start(server *srv) {
 	/* TODO: get default values for options */
 	srv->option_count = g_hash_table_size(srv->options);
 	srv->option_def_values = g_slice_alloc0(srv->option_count * sizeof(*srv->option_def_values));
+
+	plugins_prepare_callbacks(srv);
 
 	for (i = 0; i < srv->sockets->len; i++) {
 		server_socket *sock = g_array_index(srv->sockets, server_socket*, i);

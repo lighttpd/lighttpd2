@@ -270,3 +270,23 @@ gboolean call_setup(server *srv, const char *name, option *opt) {
 
 	return TRUE;
 }
+
+void plugins_prepare_callbacks(server *srv) {
+	GHashTableIter iter;
+	plugin *p;
+
+	g_hash_table_iter_init(&iter, srv->plugins);
+	while (g_hash_table_iter_next(&iter, NULL, (gpointer*) &p)) {
+		if (p->handle_close)
+			g_array_append_val(srv->plugins_handle_close, p);
+	}
+}
+
+void plugins_handle_close(server *srv, connection *con) {
+	GArray *a = srv->plugins_handle_close;
+	guint i, len = a->len;
+	for (i = 0; i < len; i++) {
+		plugin *p = g_array_index(a, plugin*, i);
+		p->handle_close(srv, con, p);
+	}
+}

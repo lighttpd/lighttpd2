@@ -268,6 +268,7 @@ void connection_state_machine(server *srv, connection *con) {
 			connection_set_state(srv, con, CON_STATE_READ_REQUEST_HEADER);
 			action_enter(con, srv->mainaction);
 			break;
+
 		case CON_STATE_READ_REQUEST_HEADER:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
 				TRACE(srv, "%s", "reading request header");
@@ -291,6 +292,7 @@ void connection_state_machine(server *srv, connection *con) {
 				break;
 			}
 			break;
+
 		case CON_STATE_VALIDATE_REQUEST_HEADER:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
 				TRACE(srv, "%s", "validating request header");
@@ -298,6 +300,7 @@ void connection_state_machine(server *srv, connection *con) {
 			connection_set_state(srv, con, CON_STATE_HANDLE_REQUEST_HEADER);
 			request_validate_header(srv, con);
 			break;
+
 		case CON_STATE_HANDLE_REQUEST_HEADER:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
 				TRACE(srv, "%s", "handle request header");
@@ -318,6 +321,7 @@ void connection_state_machine(server *srv, connection *con) {
 				break;
 			}
 			break;
+
 		case CON_STATE_READ_REQUEST_CONTENT:
 		case CON_STATE_HANDLE_RESPONSE_HEADER:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
@@ -332,7 +336,10 @@ void connection_state_machine(server *srv, connection *con) {
 				ev_io_add_events(srv->loop, &con->sock.watcher, EV_WRITE);
 			}
 			parse_request_body(srv, con);
-			/* TODO: call plugin content_handler */
+
+			if (con->content_handler)
+				con->content_handler->handle_content(srv, con, con->content_handler);
+
 			switch (action_execute(srv, con)) {
 			case ACTION_WAIT_FOR_EVENT:
 				done = TRUE;
@@ -346,6 +353,7 @@ void connection_state_machine(server *srv, connection *con) {
 				break;
 			}
 			break;
+
 		case CON_STATE_WRITE_RESPONSE:
 			if (con->in->is_closed && con->raw_out->is_closed) {
 				connection_set_state(srv, con, CON_STATE_RESPONSE_END);
@@ -359,11 +367,16 @@ void connection_state_machine(server *srv, connection *con) {
 				}
 				response_send_headers(srv, con);
 			}
+
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
 				TRACE(srv, "%s", "write response");
 			}
+
 			parse_request_body(srv, con);
-			/* TODO: call plugin content_handler */
+
+			if (con->content_handler)
+				con->content_handler->handle_content(srv, con, con->content_handler);
+
 			forward_response_body(srv, con);
 
 			if (con->in->is_closed && con->raw_out->is_closed) {
@@ -372,11 +385,14 @@ void connection_state_machine(server *srv, connection *con) {
 			}
 			if (con->state == CON_STATE_WRITE_RESPONSE) done = TRUE;
 			break;
+
 		case CON_STATE_RESPONSE_END:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
 				TRACE(srv, "response end (keep_alive = %i)", con->keep_alive);
 			}
-			/* TODO: call plugin callbacks */
+
+			plugins_handle_close(srv, con);
+
 			if (con->keep_alive) {
 				connection_reset_keep_alive(srv, con);
 			} else {
@@ -384,19 +400,25 @@ void connection_state_machine(server *srv, connection *con) {
 				done = TRUE;
 			}
 			break;
+
 		case CON_STATE_CLOSE:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
 				TRACE(srv, "%s", "connection closed");
 			}
-			/* TODO: call plugin callbacks */
+
+			plugins_handle_close(srv, con);
+
 			con_put(srv, con);
 			done = TRUE;
 			break;
+
 		case CON_STATE_ERROR:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
 				TRACE(srv, "%s", "connection closed (error)");
 			}
-			/* TODO: call plugin callbacks */
+
+			plugins_handle_close(srv, con);
+
 			con_put(srv, con);
 			done = TRUE;
 			break;
@@ -410,6 +432,13 @@ void connection_handle_direct(server *srv, connection *con) {
 }
 
 void connection_handle_indirect(server *srv, connection *con, plugin *p) {
-	connection_set_state(srv, con, CON_STATE_READ_REQUEST_CONTENT);
-	con->content_handler = p;
+	if (!p) {
+		connection_handle_direct(srv, con);
+	} else if (p->handle_content) {
+		connection_set_state(srv, con, CON_STATE_READ_REQUEST_CONTENT);
+		con->content_handler = p;
+	} else {
+		CON_ERROR(srv, con, "Indirect plugin '%s' handler has no handle_content callback", p->name);
+		internal_error(srv, con);
+	}
 }

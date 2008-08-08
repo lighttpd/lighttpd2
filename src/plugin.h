@@ -41,15 +41,31 @@ typedef void     (*PluginFreeOption)    (server *srv, plugin *p, size_t ndx, gpo
 typedef action*  (*PluginCreateAction)  (server *srv, plugin *p, option *opt);
 typedef gboolean (*PluginSetup)         (server *srv, plugin *p, option *opt);
 
+typedef void     (*PluginHandleContent) (server *srv, connection *con, plugin *p);
+typedef void     (*PluginHandleClose)   (server *srv, connection *con, plugin *p);
+
 struct plugin {
 	size_t version;
 	const gchar *name; /**< name of the plugin */
 
-	gpointer data;    /**< private plugin data */
+	gpointer data;     /**< private plugin data */
 
 	size_t opt_base_index;
 
-	PluginFree free; /**< called before plugin is unloaded */
+	PluginFree free;   /**< called before plugin is unloaded */
+
+	/** called if plugin registered as indirect handler with connection_handle_indirect(srv, con, p)
+	  *  - after response headers are created:
+	  *      connection_set_state(srv, con, CON_STATE_HANDLE_RESPONSE_HEADER)
+	  *  - after content is generated close output queue:
+	  *      con->out->is_closed = TRUE
+	  */
+	PluginHandleContent handle_content;
+
+	/** called for every plugin after connection got closed (response end, reset by peer, error)
+	  * the plugins code must not depend on any order of plugins loaded
+	  */
+	PluginHandleClose handle_close;
 
 	const plugin_option *options;
 	const plugin_action *actions;
@@ -104,10 +120,14 @@ struct server_setup {
 /* Needed my modules to register their plugin(s) */
 LI_API gboolean plugin_register(server *srv, const gchar *name, PluginInit init);
 
+/* Internal needed functions */
 LI_API void plugin_free(server *srv, plugin *p);
 
 LI_API gboolean parse_option(server *srv, const char *name, option *opt, option_set *mark);
 LI_API void release_option(server *srv, option_set *mark); /**< Does not free the option_set memory */
+
+LI_API void plugins_prepare_callbacks(server *srv);
+LI_API void plugins_handle_close(server *srv, connection *con);
 
 /* Needed for config frontends */
 /** For parsing 'somemod.option = "somevalue"' */
