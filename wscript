@@ -219,7 +219,7 @@ def configure(conf):
 	conf.define("LIBRARY_DIR", opts.libdir)
 
 	common_ccflags = [
-		'-std=gnu99', '-Wall', '-g', '-Wshadow', '-W', '-pedantic',
+		'-std=gnu99', '-Wall', '-g', '-Wshadow', '-W', '-pedantic', '-pg',
 		]
 	lighty_common_ccflags = [
 		'-fPIC',
@@ -230,7 +230,7 @@ def configure(conf):
 	conf.env['CCFLAGS_lighty'] += lighty_common_ccflags + [ '-DLI_DECLARE_EXPORTS' ]
 	conf.env['CCFLAGS_lightymod'] += lighty_common_ccflags
 	conf.env['plugin_PREFIX'] = ''
-	conf.env['LINKFLAGS_lighty'] += [ '-export-dynamic' ]
+	conf.env['LINKFLAGS_lighty'] += [ '-export-dynamic', '-pg' ]
 	conf.env['LINKFLAGS_lightymod'] += [ '-module', '-export-dynamic', '-avoid-version', '-W,l-no-undefined' ]
 	conf.env['LINKFLAGS_thread'] += [ '-pthread' ]
 

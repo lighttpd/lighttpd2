@@ -227,6 +227,7 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 		case LOG_TYPE_PIPE:
 		case LOG_TYPE_SYSLOG:
 			/* TODO */
+			fd = -1;
 			assert(NULL);
 	}
 
