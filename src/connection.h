@@ -67,7 +67,6 @@ struct connection {
 	guint idx; /** index in connection table */
 	connection_state_t state;
 	gboolean response_headers_sent, expect_100_cont;
-	/* TODO: implement expect_100 */
 
 	chunkqueue *raw_in, *raw_out;
 	chunkqueue *in, *out;

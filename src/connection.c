@@ -323,6 +323,14 @@ void connection_state_machine(server *srv, connection *con) {
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
 				TRACE(srv, "%s", "read request/handle response header");
 			}
+			if (con->expect_100_cont) {
+				if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+					TRACE(srv, "%s", "send 100 Continue");
+				}
+				chunkqueue_append_mem(cq->raw_out, CONST_STR_LEN("HTTP/1.1 100 Continue\r\n\r\n"));
+				con->expect_100_cont = FALSE;
+				ev_io_add_events(srv->loop, &con->sock.watcher, EV_WRITE);
+			}
 			parse_request_body(srv, con);
 			/* TODO: call plugin content_handler */
 			switch (action_execute(srv, con)) {
