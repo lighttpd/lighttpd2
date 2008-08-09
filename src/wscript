@@ -19,6 +19,7 @@ common_source='''
 	http_request_parser.rl
 	log.c
 	network.c
+	network_write.c network_writev.c
 	options.c
 	plugin.c
 	request.c
