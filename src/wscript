@@ -27,6 +27,7 @@ common_source='''
 	server.c
 	sys-files.c
 	sys-socket.c
+	url_parser.rl
 	utils.c
 
 	plugin_core.c

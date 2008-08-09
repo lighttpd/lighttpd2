@@ -47,11 +47,14 @@ typedef struct physical physical;
 #include "http_request_parser.h"
 
 struct request_uri {
-	GString *uri, *orig_uri, *uri_raw;
+	GString *raw;
 
 	GString *scheme;
+	GString *authority;
 	GString *path;
 	GString *query;
+
+	GString *host; /* without userinfo and port */
 };
 
 struct physical {
@@ -75,11 +78,13 @@ struct request {
 
 	http_headers *headers;
 	/* Parsed headers: */
-	GString *host;
 	goffset content_length;
 
 	http_request_ctx parser_ctx;
 };
+
+
+#include "base.h"
 
 LI_API void request_init(request *req, chunkqueue *in);
 LI_API void request_reset(request *req);

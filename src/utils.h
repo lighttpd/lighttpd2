@@ -11,4 +11,10 @@ LI_API void ev_io_add_events(struct ev_loop *loop, ev_io *watcher, int events);
 LI_API void ev_io_rem_events(struct ev_loop *loop, ev_io *watcher, int events);
 LI_API void ev_io_set_events(struct ev_loop *loop, ev_io *watcher, int events);
 
+
+/* URL inplace decode: replace %XX with character \xXX; replace control characters with '_' (< 32 || == 127) */
+LI_API void url_decode(GString *path);
+
+LI_API void path_simplify(GString *path);
+
 #endif

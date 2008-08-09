@@ -1,21 +1,22 @@
 
 #include "base.h"
+#include "url_parser.h"
+#include "utils.h"
 
 void request_init(request *req, chunkqueue *in) {
 	req->http_method = HTTP_METHOD_UNSET;
 	req->http_method_str = g_string_sized_new(0);
 	req->http_version = HTTP_VERSION_UNSET;
 
-	req->uri.uri = g_string_sized_new(0);
-	req->uri.orig_uri = g_string_sized_new(0);
-	req->uri.uri_raw = g_string_sized_new(0);
+	req->uri.raw = g_string_sized_new(0);
 	req->uri.scheme = g_string_sized_new(0);
+	req->uri.authority = g_string_sized_new(0);
 	req->uri.path = g_string_sized_new(0);
 	req->uri.query = g_string_sized_new(0);
+	req->uri.host = g_string_sized_new(0);
 
 	req->headers = http_headers_new();
 
-	req->host = g_string_sized_new(0);
 	req->content_length = -1;
 
 	http_request_parser_init(&req->parser_ctx, req, in);
@@ -26,16 +27,15 @@ void request_reset(request *req) {
 	g_string_truncate(req->http_method_str, 0);
 	req->http_version = HTTP_VERSION_UNSET;
 
-	g_string_truncate(req->uri.uri, 0);
-	g_string_truncate(req->uri.orig_uri, 0);
-	g_string_truncate(req->uri.uri_raw, 0);
+	g_string_truncate(req->uri.raw, 0);
 	g_string_truncate(req->uri.scheme, 0);
+	g_string_truncate(req->uri.authority, 0);
 	g_string_truncate(req->uri.path, 0);
 	g_string_truncate(req->uri.query, 0);
+	g_string_truncate(req->uri.host, 0);
 
 	http_headers_reset(req->headers);
 
-	g_string_truncate(req->host, 0);
 	req->content_length = -1;
 
 	http_request_parser_reset(&req->parser_ctx);
@@ -46,16 +46,15 @@ void request_clear(request *req) {
 	g_string_free(req->http_method_str, TRUE);
 	req->http_version = HTTP_VERSION_UNSET;
 
-	g_string_free(req->uri.uri, TRUE);
-	g_string_free(req->uri.orig_uri, TRUE);
-	g_string_free(req->uri.uri_raw, TRUE);
+	g_string_free(req->uri.raw, TRUE);
 	g_string_free(req->uri.scheme, TRUE);
+	g_string_free(req->uri.authority, TRUE);
 	g_string_free(req->uri.path, TRUE);
 	g_string_free(req->uri.query, TRUE);
+	g_string_free(req->uri.host, TRUE);
 
 	http_headers_free(req->headers);
 
-	g_string_free(req->host, TRUE);
 	req->content_length = -1;
 
 	http_request_parser_clear(&req->parser_ctx);
@@ -72,7 +71,19 @@ gboolean request_parse_url(server *srv, connection *con) {
 	request *req = &con->request;
 	UNUSED(srv); UNUSED(req);
 
-	/* TODO: parse url */
+	g_string_truncate(req->uri.query, 0);
+	g_string_truncate(req->uri.path, 0);
+
+	if (!parse_raw_url(&req->uri))
+		return FALSE;
+
+	/* "*" only allowed for method OPTIONS */
+	if (0 == strcmp(req->uri.path->str, "*") && req->http_method != HTTP_METHOD_OPTIONS)
+		return FALSE;
+
+	url_decode(req->uri.path);
+	path_simplify(req->uri.path);
+
 	return TRUE;
 }
 
@@ -94,23 +105,35 @@ void request_validate_header(server *srv, connection *con) {
 		return;
 	}
 
-	if (req->uri.uri_raw->len == 0) {
+	if (req->uri.raw->len == 0) {
 		bad_request(srv, con, 400); /* bad request */
 		return;
 	}
 
 	/* get hostname */
 	hh = http_header_lookup_fast(req->headers, CONST_STR_LEN("host"));
-	if ((!hh && req->http_version == HTTP_VERSION_1_1) || (hh && hh->values.length != 1)) {
+	if (hh && hh->values.length != 1) {
 		bad_request(srv, con, 400); /* bad request */
 		return;
 	} else if (hh) {
-		g_string_append_len(req->host, GSTR_LEN((GString*) g_queue_peek_head(&hh->values)));
+		g_string_append_len(req->uri.host, GSTR_LEN((GString*) g_queue_peek_head(&hh->values)));
+		if (parse_authority(&req->uri)) {
+			bad_request(srv, con, 400); /* bad request */
+			return;
+		}
 	}
 
 	/* may override hostname */
-	if (!request_parse_url(srv, con))
+	if (!request_parse_url(srv, con)) {
+		bad_request(srv, con, 400); /* bad request */
 		return;
+	}
+
+	/* Need hostname in HTTP/1.1 */
+	if (req->uri.host->len == 0 && req->http_version == HTTP_VERSION_1_1) {
+		bad_request(srv, con, 400); /* bad request */
+		return;
+	}	
 
 	/* content-length */
 	hh = http_header_lookup_fast(req->headers, CONST_STR_LEN("content-length"));

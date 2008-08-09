@@ -253,7 +253,7 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 		value = con->request.uri.path->str;
 		break;
 	case COMP_REQUEST_HOST:
-		value = con->request.host->str;
+		value = con->request.uri.host->str;
 		break;
 	case COMP_REQUEST_SCHEME:
 		value = con->is_ssl ? "https" : "http";
@@ -420,7 +420,7 @@ static gboolean condition_check_eval_ip(server *srv, connection *con, condition 
 		return (cond->op == CONFIG_COND_NOTIP);
 		break;
 	case COMP_REQUEST_HOST:
-		value = con->request.host->str;
+		value = con->request.uri.host->str;
 		break;
 	case COMP_REQUEST_SCHEME:
 		ERROR(srv, "%s", "Cannot parse request.scheme as ip");
