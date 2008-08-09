@@ -28,9 +28,9 @@
 
 gboolean parse_ipv4(const char *str, guint32 *ip, guint32 *netmask) {
 	guint8 *data = (guint8*) ip;
-	const char *p = str, *mark;
+	const char *p = str, *mark = NULL;
 	gboolean res = FALSE;
-	int cs, tmpval, i = 0;
+	int cs, tmpval = 0, i = 0;
 
 	%% write init nocs;
 
@@ -92,9 +92,9 @@ gboolean parse_ipv6(const char *str, guint8 *ip, guint *network) {
 	guint8 data[4] = {0,0,0,0};
 	guint16 *predata = (guint16*) ip, postdata[8];
 	size_t prec = 0, postc = 0;
-	const char *p = str, *mark;
+	const char *p = str, *mark = NULL;
 	gboolean res = FALSE, compressed = FALSE;
-	int cs, tmpval, i = 0;
+	int cs, tmpval = 0, i = 0;
 
 	%% write init nocs;
 

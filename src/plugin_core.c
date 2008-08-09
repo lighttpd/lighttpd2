@@ -1,10 +1,16 @@
 
 #include "base.h"
+#include "plugin_core.h"
 
 static action* core_list(server *srv, plugin* p, option *opt) {
 	action *a;
 	guint i;
 	UNUSED(p);
+
+	if (!opt) {
+		ERROR(srv, "%s", "need parameter");
+		return NULL;
+	}
 
 	if (opt->type == OPTION_ACTION) {
 		a = opt->value.opt_action.action;
@@ -38,6 +44,10 @@ static action* core_when(server *srv, plugin* p, option *opt) {
 	action *a;
 	UNUSED(p);
 
+	if (!opt) {
+		ERROR(srv, "%s", "need parameter");
+		return NULL;
+	}
 	if (opt->type != OPTION_LIST) {
 		ERROR(srv, "expected list, got %s", option_type_string(opt->type));
 		return NULL;
@@ -63,11 +73,93 @@ static action* core_when(server *srv, plugin* p, option *opt) {
 	return a;
 }
 
+static action* core_set(server *srv, plugin* p, option *opt) {
+	option *value, *opt_name;
+	action *a;
+	UNUSED(p);
+
+	if (!opt) {
+		ERROR(srv, "%s", "need parameter");
+		return NULL;
+	}
+	if (opt->type != OPTION_LIST) {
+		ERROR(srv, "expected list, got %s", option_type_string(opt->type));
+		return NULL;
+	}
+	if (opt->value.opt_list->len != 2) {
+		ERROR(srv, "expected list with length 2, has length %u", opt->value.opt_list->len);
+		return NULL;
+	}
+	opt_name = g_array_index(opt->value.opt_list, option*, 0);
+	value = g_array_index(opt->value.opt_list, option*, 1);
+	if (opt_name->type != OPTION_STRING) {
+		ERROR(srv, "expected string as first parameter, got %s", option_type_string(opt_name->type));
+		return NULL;
+	}
+	a = option_action(srv, opt_name->value.opt_string->str, value);
+	option_free(opt);
+	return a;
+}
+
+static action_result core_handle_physical(server *srv, connection *con, gpointer param) {
+	GString *docroot = (GString*) param;
+	UNUSED(srv);
+
+	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
+
+	g_string_truncate(con->physical.path, 0);
+	g_string_append_len(con->physical.path, GSTR_LEN(docroot));
+	g_string_append_len(con->physical.path, GSTR_LEN(con->request.uri.path));
+
+	return ACTION_GO_ON;
+}
+
+static void core_physical_free(struct server *srv, gpointer param) {
+	UNUSED(srv);
+	g_string_free((GString*) param, TRUE);
+}
+
+static action* core_physical(server *srv, plugin* p, option *opt) {
+	UNUSED(p);
+	GString *docroot;
+
+	if (!opt) {
+		ERROR(srv, "%s", "need parameter");
+		return NULL;
+	}
+	if (opt->type != OPTION_STRING) {
+		ERROR(srv, "expected string as parameter, got %s", option_type_string(opt->type));
+		return NULL;
+	}
+
+	docroot = (GString*) option_extract_value(opt);
+
+	return action_new_function(core_handle_physical, core_physical_free, docroot);
+}
+
 static action_result core_handle_static(server *srv, connection *con, gpointer param) {
 	UNUSED(param);
-	/* TODO */
-	CON_ERROR(srv, con, "%s", "Not implemented yet");
-	return ACTION_ERROR;
+	int fd;
+
+	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
+
+	if (con->physical.path->len == 0) return ACTION_GO_ON;
+
+	fd = open(con->physical.path->str, O_RDONLY);
+	if (fd == -1) {
+		con->response.http_status = 404;
+	} else {
+		struct stat st;
+		fstat(fd, &st);
+#ifdef FD_CLOEXEC
+		fcntl(fd, F_SETFD, FD_CLOEXEC);
+#endif
+		con->response.http_status = 200;
+		chunkqueue_append_file_fd(con->out, NULL, 0, st.st_size, fd);
+	}
+	connection_handle_direct(srv, con);
+
+	return ACTION_GO_ON;
 }
 
 static action* core_static(server *srv, plugin* p, option *opt) {
@@ -86,7 +178,7 @@ static action_result core_handle_test(server *srv, connection *con, gpointer par
 	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
 
 	con->response.http_status = 200;
-	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.uri));
+	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.path));
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n"));
 	connection_handle_direct(srv, con);
 
@@ -154,18 +246,24 @@ static gboolean core_listen(server *srv, plugin* p, option *opt) {
 	}
 
 	TRACE(srv, "will listen to '%s'", opt->value.opt_string->str);
+	option_free(opt);
 	return TRUE;
 }
 
 static const plugin_option options[] = {
-	{ "static-file.exclude", OPTION_LIST, NULL, NULL },
+	{ "debug.log-request-handling", OPTION_BOOLEAN, NULL, NULL},
 	{ "log.level", OPTION_STRING, NULL, NULL },
+
+	{ "static-file.exclude", OPTION_LIST, NULL, NULL },
 	{ NULL, 0, NULL, NULL }
 };
 
 static const plugin_action actions[] = {
 	{ "list", core_list },
 	{ "when", core_when },
+	{ "set", core_set },
+
+	{ "physical", core_physical },
 	{ "static", core_static },
 	{ "test", core_test },
 	{ NULL, NULL }

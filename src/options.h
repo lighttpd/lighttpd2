@@ -62,7 +62,7 @@ LI_API const char* option_type_string(option_type type);
 
 LI_API void option_list_free(GArray *optlist);
 
-/* Extract value from option, destroy option */
+/* Extract value from option, option set to none */
 LI_API gpointer option_extract_value(option *opt);
 
 #endif

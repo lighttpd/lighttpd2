@@ -50,6 +50,11 @@ static void plugin_free_setups(server *srv, plugin *p) {
 void plugin_free(server *srv, plugin *p) {
 	if (!p) return;
 
+	if (srv->state == SERVER_RUNNING) {
+		ERROR(srv, "Cannot free plugin '%s' while server is running", p->name);
+		return;
+	}
+
 	g_hash_table_remove(srv->plugins, p->name);
 	plugin_free_options(srv, p);
 	plugin_free_actions(srv, p);
@@ -66,6 +71,11 @@ gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 		return FALSE;
 	}
 
+	if (srv->state != SERVER_STARTING) {
+		ERROR(srv, "Cannot register plugin '%s' after server was started", name);
+		return FALSE;
+	}
+
 	if (g_hash_table_lookup(srv->plugins, name)) {
 		ERROR(srv, "Module '%s' already registered", name);
 		return FALSE;
@@ -75,6 +85,7 @@ gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 	g_hash_table_insert(srv->plugins, (gchar*) p->name, p);
 
 	init(srv, p);
+	p->opt_base_index = g_hash_table_size(srv->options);
 
 	if (p->options) {
 		size_t i;
@@ -258,4 +269,24 @@ gboolean call_setup(server *srv, const char *name, option *opt) {
 	}
 
 	return TRUE;
+}
+
+void plugins_prepare_callbacks(server *srv) {
+	GHashTableIter iter;
+	plugin *p;
+
+	g_hash_table_iter_init(&iter, srv->plugins);
+	while (g_hash_table_iter_next(&iter, NULL, (gpointer*) &p)) {
+		if (p->handle_close)
+			g_array_append_val(srv->plugins_handle_close, p);
+	}
+}
+
+void plugins_handle_close(server *srv, connection *con) {
+	GArray *a = srv->plugins_handle_close;
+	guint i, len = a->len;
+	for (i = 0; i < len; i++) {
+		plugin *p = g_array_index(a, plugin*, i);
+		p->handle_close(srv, con, p);
+	}
 }

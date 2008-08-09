@@ -47,6 +47,7 @@ static gboolean condition_ip_from_socket(condition_rvalue *val, sock_addr *addr)
 
 condition_lvalue* condition_lvalue_new(cond_lvalue_t type, GString *key) {
 	condition_lvalue *lvalue = g_slice_new0(condition_lvalue);
+	if (type == COMP_REQUEST_HEADER) g_string_ascii_down(key);
 	lvalue->type = type;
 	lvalue->key = key;
 	lvalue->refcount = 1;
@@ -89,7 +90,7 @@ static condition* cond_new_string(comp_operator_t op, condition_lvalue *lvalue, 
 static condition* cond_new_match(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str) {
 	UNUSED(op); UNUSED(lvalue); UNUSED(str);
 	ERROR(srv, "%s", "pcre not supported for now");
-	/* TODO */
+	/* TODO: pcre */
 	return NULL;
 }
 #endif
@@ -237,13 +238,11 @@ const char* cond_lvalue_to_string(cond_lvalue_t t) {
 /* COND_VALUE_STRING and COND_VALUE_REGEXP only */
 static gboolean condition_check_eval_string(server *srv, connection *con, condition *cond) {
 	const char *value = "";
-	GString *tmp = NULL;
 	gboolean result = FALSE;
 	UNUSED(srv);
 	UNUSED(con);
 
 	switch (cond->lvalue->type) {
-		/* TODO: get values */
 	case COMP_REQUEST_LOCALIP:
 		value = con->local_addr_str->str;
 		break;
@@ -254,7 +253,7 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 		value = con->request.uri.path->str;
 		break;
 	case COMP_REQUEST_HOST:
-		value = con->request.host->str;
+		value = con->request.uri.host->str;
 		break;
 	case COMP_REQUEST_SCHEME:
 		value = con->is_ssl ? "https" : "http";
@@ -266,21 +265,23 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 		value = con->request.http_method_str->str;
 		break;
 	case COMP_PHYSICAL_PATH:
+		value = con->physical.path->str;
+		break;
 	case COMP_PHYSICAL_PATH_EXISTS:
-		/* TODO */
+		/* TODO: physical path exists */
 		break;
 	case COMP_REQUEST_HEADER:
-		/* TODO */
+		http_header_get_fast(srv->tmp_str, con->request.headers, GSTR_LEN(cond->lvalue->key));
+		value = srv->tmp_str->str;
 		break;
 	case COMP_PHYSICAL_SIZE:
-		/* TODO */
-		g_string_printf((tmp = g_string_sized_new(0)), "%"L_GOFFSET_FORMAT, (goffset) 0);
-		value = tmp->str;
+		/* TODO: physical size */
+		g_string_printf(srv->tmp_str, "%"L_GOFFSET_FORMAT, (goffset) 0);
+		value = srv->tmp_str->str;
 		break;
 	case COMP_REQUEST_CONTENT_LENGTH:
-		/* TODO */
-		g_string_printf((tmp = g_string_sized_new(0)), "%"L_GOFFSET_FORMAT, (goffset) 0);
-		value = tmp->str;
+		g_string_printf(srv->tmp_str, "%"L_GOFFSET_FORMAT, con->request.content_length);
+		value = srv->tmp_str->str;
 		break;
 	}
 
@@ -310,7 +311,6 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 		break;
 	}
 
-	if (tmp) g_string_free(tmp, TRUE);
 	return result;
 }
 
@@ -327,6 +327,7 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 		value = con->physical.size;
 		break;
 	default:
+		CON_ERROR(srv, con, "couldn't get int value for '%s', using -1", cond_lvalue_to_string(cond->lvalue->type));
 		value = -1;
 	}
 
@@ -349,8 +350,6 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 	case CONFIG_COND_NOTIP:
 		ERROR(srv, "cannot compare int with '%s'", comp_op_to_string(cond->op));
 		return FALSE;
-	} else {
-		ERROR(srv, "couldn't get int value for '%s'", cond_lvalue_to_string(cond->lvalue->type));
 	}
 
 	return FALSE;
@@ -408,7 +407,6 @@ static gboolean condition_check_eval_ip(server *srv, connection *con, condition 
 	ipval.type = COND_VALUE_INT;
 
 	switch (cond->lvalue->type) {
-		/* TODO: get values */
 	case COMP_REQUEST_LOCALIP:
 		if (!condition_ip_from_socket(&ipval, &con->local_addr))
 			return (cond->op == CONFIG_COND_NOTIP);
@@ -418,10 +416,11 @@ static gboolean condition_check_eval_ip(server *srv, connection *con, condition 
 			return (cond->op == CONFIG_COND_NOTIP);
 		break;
 	case COMP_REQUEST_PATH:
-		value = con->request.uri.path->str;
+		ERROR(srv, "%s", "Cannot parse request.path as ip");
+		return (cond->op == CONFIG_COND_NOTIP);
 		break;
 	case COMP_REQUEST_HOST:
-		value = con->request.host->str;
+		value = con->request.uri.host->str;
 		break;
 	case COMP_REQUEST_SCHEME:
 		ERROR(srv, "%s", "Cannot parse request.scheme as ip");
@@ -430,14 +429,17 @@ static gboolean condition_check_eval_ip(server *srv, connection *con, condition 
 		value = con->request.uri.query->str;
 		break;
 	case COMP_REQUEST_METHOD:
-		value = con->request.http_method_str->str;
+		ERROR(srv, "%s", "Cannot request.method as ip");
+		return (cond->op == CONFIG_COND_NOTIP);
 		break;
 	case COMP_PHYSICAL_PATH:
 	case COMP_PHYSICAL_PATH_EXISTS:
-		/* TODO */
+		ERROR(srv, "%s", "Cannot physical.path(-exists) as ip");
+		return (cond->op == CONFIG_COND_NOTIP);
 		break;
 	case COMP_REQUEST_HEADER:
-		/* TODO */
+		http_header_get_fast(srv->tmp_str, con->request.headers, GSTR_LEN(cond->lvalue->key));
+		value = srv->tmp_str->str;
 		break;
 	case COMP_PHYSICAL_SIZE:
 	case COMP_REQUEST_CONTENT_LENGTH:

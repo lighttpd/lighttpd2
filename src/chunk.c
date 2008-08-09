@@ -10,7 +10,11 @@
 static chunkfile *chunkfile_new(GString *name, int fd, gboolean is_temp) {
 	chunkfile *cf = g_slice_new(chunkfile);
 	cf->refcount = 1;
-	cf->name = name;
+	if (name) {
+		cf->name = g_string_new_len(GSTR_LEN(name));
+	} else {
+		cf->name = NULL;
+	}
 	cf->fd = fd;
 	cf->is_temp = is_temp;
 	return cf;
@@ -29,7 +33,7 @@ static void chunkfile_release(chunkfile *cf) {
 		cf->fd = -1;
 		if (cf->is_temp) unlink(cf->name->str);
 		cf->is_temp = FALSE;
-		g_string_free(cf->name, TRUE);
+		if (cf->name) g_string_free(cf->name, TRUE);
 		cf->name = NULL;
 		g_slice_free(chunkfile, cf);
 	}
@@ -95,7 +99,7 @@ handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t sta
 		if ( !(c->file.mmap.data != MAP_FAILED || c->mem) /* no data present */
 			|| !( /* or in the wrong range */
 				(start + c->offset >= c->file.mmap.offset)
-				&& (start + c->offset + length <= c->file.mmap.offset + c->file.mmap.length)) ) {
+				&& (start + c->offset + length <= c->file.mmap.offset + (ssize_t) c->file.mmap.length)) ) {
 			/* then find new range */
 			our_offset = start % MMAP_CHUNK_ALIGN;
 			our_start = start - our_offset;
@@ -278,6 +282,7 @@ void chunkqueue_append_mem(chunkqueue *cq, void *mem, gssize len) {
 
 static void __chunkqueue_append_file(chunkqueue *cq, GString *filename, off_t start, off_t length, int fd, gboolean is_temp) {
 	chunk *c = chunk_new();
+	c->type = FILE_CHUNK;
 	c->file.file = chunkfile_new(filename, fd, is_temp);
 	c->file.start = start;
 	c->file.length = length;

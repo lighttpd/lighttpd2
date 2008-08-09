@@ -20,7 +20,7 @@
 	action done { fbreak; }
 
 	action method { getStringTo(fpc, ctx->request->http_method_str); }
-	action uri { getStringTo(fpc, ctx->request->uri.uri_raw); }
+	action uri { getStringTo(fpc, ctx->request->uri.raw); }
 
 	action header_key {
 		getStringTo(fpc, ctx->h_key);

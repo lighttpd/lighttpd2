@@ -51,7 +51,7 @@ typedef enum {
 	COMP_PHYSICAL_SIZE,
 
 /* needs a key */
-	COMP_REQUEST_HEADER
+	COMP_REQUEST_HEADER          /**< needs lowercase key, enforced by condition_lvalue_new */
 } cond_lvalue_t;
 
 #define COND_LVALUE_FIRST_WITH_KEY COMP_REQUEST_HEADER

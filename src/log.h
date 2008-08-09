@@ -16,6 +16,9 @@ LI_API const char *remove_path(const char *path);
 #define ERROR(srv, fmt, ...) \
 	log_write(srv, NULL, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
+#define INFO(srv, ...) \
+	log_write(srv, NULL, __VA_ARGS__)
+
 #define TRACE(srv, fmt, ...) \
 	log_write(srv, NULL, "%s.%d: (trace) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 

@@ -1,4 +1,5 @@
 
+#include "base.h"
 #include "http_headers.h"
 
 static void _string_free(gpointer p) {
@@ -153,4 +154,16 @@ gboolean http_header_is(http_headers *headers, const gchar *key, size_t keylen, 
 		if (0 == strcasecmp( ((GString*)iter->data)->str, value )) return TRUE;
 	}
 	return FALSE;
+}
+
+void http_header_get_fast(GString *dest, http_headers *headers, const gchar *key, size_t keylen) {
+	http_header *h = http_header_lookup_fast(headers, key, keylen);
+	GList *iter;
+
+	g_string_truncate(dest, 0);
+	if (!h) return;
+	for (iter = g_queue_peek_head_link(&h->values); NULL != iter; iter = g_list_next(iter)) {
+		if (dest->len) g_string_append_len(dest, CONST_STR_LEN(", "));
+		g_string_append_len(dest, GSTR_LEN((GString*)iter->data));
+	}
 }
