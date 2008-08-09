@@ -96,15 +96,17 @@ handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t sta
 	case FILE_CHUNK:
 		if (HANDLER_GO_ON != (res = chunkfile_open(srv, con, c->file.file))) return res;
 
+		if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
+
 		if ( !(c->file.mmap.data != MAP_FAILED || c->mem) /* no data present */
 			|| !( /* or in the wrong range */
-				(start + c->offset >= c->file.mmap.offset)
-				&& (start + c->offset + length <= c->file.mmap.offset + (ssize_t) c->file.mmap.length)) ) {
+				(start + c->offset + c->file.start >= c->file.mmap.offset)
+				&& (start + c->offset + c->file.start + length <= c->file.mmap.offset + (ssize_t) c->file.mmap.length)) ) {
 			/* then find new range */
-			our_offset = start % MMAP_CHUNK_ALIGN;
-			our_start = start - our_offset;
+			our_start = start + c->offset + c->file.start;  /* "start" maps to this offset in the file */
+			our_offset = our_start % MMAP_CHUNK_ALIGN;      /* offset for "start" in new mmap block */
+			our_start -= our_offset;                 /* file offset for mmap */
 
-			if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
 			we_want = length + MAX_MMAP_CHUNK;
 			if (we_want > we_have) we_want = we_have;
 			we_want += our_offset;
@@ -113,10 +115,10 @@ handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t sta
 				munmap(c->file.mmap.data, c->file.mmap.length);
 				c->file.mmap.data = MAP_FAILED;
 			}
-			c->file.mmap.offset = our_offset;
+			c->file.mmap.offset = our_start;
 			c->file.mmap.length = we_want;
 			if (!c->mem) { /* mmap did not fail till now */
-				c->file.mmap.data = mmap(0, we_want, PROT_READ, MAP_SHARED, c->file.file->fd, our_offset);
+				c->file.mmap.data = mmap(0, we_want, PROT_READ, MAP_SHARED, c->file.file->fd, our_start);
 				mmap_errno = errno;
 			}
 			if (MAP_FAILED == c->file.mmap.data) {
@@ -126,7 +128,7 @@ handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t sta
 				} else {
 					g_string_set_size(c->mem, we_want);
 				}
-				if (-1 == lseek(c->file.file->fd, our_offset, SEEK_SET)) {
+				if (-1 == lseek(c->file.file->fd, our_start, SEEK_SET)) {
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
 						CON_ERROR(srv, con, "mmap failed for '%s' (fd = %i): %s (%i)",
@@ -177,7 +179,7 @@ read_chunk:
 #endif
 			}
 		}
-		*data_start = (c->mem ? c->mem->str : c->file.mmap.data) + start + c->offset - c->file.mmap.offset;
+		*data_start = (c->mem ? c->mem->str : c->file.mmap.data) + start + c->offset + c->file.start - c->file.mmap.offset;
 		*data_len = length;
 		break;
 	}
