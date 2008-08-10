@@ -68,7 +68,7 @@
 	URI = scheme "://" (authority >mark %save_authority) URI_path;
 
 	parse_URI := URI | ("*" >mark %save_path) | URI_path;
-	parse_Authority := authority;
+	parse_Hostname := (host >mark_host %save_host) ( ":" port )?;
 
 	write data;
 }%%
@@ -89,7 +89,7 @@ gboolean parse_raw_url(request_uri *uri) {
 	return (cs >= url_parser_first_final);
 }
 
-gboolean parse_authority(request_uri *uri) {
+gboolean parse_hostname(request_uri *uri) {
 	const char *p, *pe, *eof;
 	const char *mark = NULL, *host_mark = NULL;
 	int cs;
@@ -99,7 +99,7 @@ gboolean parse_authority(request_uri *uri) {
 	eof = pe = uri->authority->str + uri->authority->len;
 
 	%% write init nocs;
-	cs = url_parser_en_parse_Authority;
+	cs = url_parser_en_parse_Hostname;
 
 	%% write exec;
 
