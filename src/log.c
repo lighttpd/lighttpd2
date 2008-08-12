@@ -51,7 +51,7 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	if (log_level < log_level_want)
 		return TRUE;
 
-	log_ref(log);
+	log_ref(srv, log);
 
 	log_line = g_string_sized_new(0);
 	va_start(ap, fmt);
@@ -62,6 +62,7 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	if (g_string_equal(log->lastmsg, log_line)) {
 		log->lastmsg_count++;
 		log_unref(srv, log);
+		g_string_free(log_line, TRUE);
 		return TRUE;
 	}
 	else {
@@ -186,13 +187,19 @@ void log_rotate_logs(server *srv) {
 }
 
 
-void log_ref(log_t *log) {
-	g_atomic_int_inc(&log->refcount);
+void log_ref(server *srv, log_t *log) {
+	g_mutex_lock(srv->log_mutex);
+	log->refcount++;
+	g_mutex_unlock(srv->log_mutex);
 }
 
 void log_unref(server *srv, log_t *log) {
+	g_mutex_lock(srv->log_mutex);
+
 	if (g_atomic_int_dec_and_test(&log->refcount))
-		log_free(srv, log);
+		log_free_unlocked(srv, log);
+
+	g_mutex_unlock(srv->log_mutex);
 }
 
 log_t *log_new(server *srv, log_type_t type, GString *path) {
@@ -205,7 +212,7 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	/* log already open, inc refcount */
 	if (log != NULL)
 	{
-		g_atomic_int_inc(&log->refcount);
+		log->refcount++;
 		g_mutex_unlock(srv->log_mutex);
 		return log;
 	}
@@ -220,6 +227,7 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 		case LOG_TYPE_PIPE:
 		case LOG_TYPE_SYSLOG:
 			/* TODO */
+			fd = -1;
 			assert(NULL);
 	}
 
@@ -239,7 +247,15 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	return log;
 }
 
+/* only call this if srv->log_mutex is NOT locked */
 void log_free(server *srv, log_t *log) {
+	g_mutex_lock(srv->log_mutex);
+	log_free_unlocked(srv, log);
+	g_mutex_unlock(srv->log_mutex);
+}
+
+/* only call this if srv->log_mutex IS locked */
+void log_free_unlocked(server *srv, log_t *log) {
 	g_mutex_lock(srv->log_mutex);
 
 	if (log->type == LOG_TYPE_FILE || log->type == LOG_TYPE_PIPE)

@@ -173,12 +173,30 @@ static action* core_static(server *srv, plugin* p, option *opt) {
 }
 
 static action_result core_handle_test(server *srv, connection *con, gpointer param) {
+	GHashTableIter iter;
+	gpointer k, v;
+	GList *hv;
 	UNUSED(param);
 
 	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
 
 	con->response.http_status = 200;
+	chunkqueue_append_mem(con->out, CONST_STR_LEN("path: "));
 	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.path));
+	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\nquery: "));
+	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.query));
+	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n\r\n--- Headers ---\r\n"));
+	g_hash_table_iter_init(&iter, con->request.headers->table);
+	while (g_hash_table_iter_next(&iter, &k, &v)) {
+		hv = g_queue_peek_head_link(&((http_header*)v)->values);
+		while (hv != NULL) {
+			chunkqueue_append_mem(con->out, GSTR_LEN(((http_header*)v)->key));
+			chunkqueue_append_mem(con->out, CONST_STR_LEN(": "));
+			chunkqueue_append_mem(con->out, GSTR_LEN((GString*)hv->data));
+			chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n"));
+			hv = hv->next;
+		}
+	}
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n"));
 	connection_handle_direct(srv, con);
 
@@ -251,7 +269,7 @@ static gboolean core_listen(server *srv, plugin* p, option *opt) {
 }
 
 static const plugin_option options[] = {
-	{ "debug.log-request-handling", OPTION_BOOLEAN, NULL, NULL},
+	{ "debug.log_request_handling", OPTION_BOOLEAN, NULL, NULL},
 	{ "log.level", OPTION_STRING, NULL, NULL },
 
 	{ "static-file.exclude", OPTION_LIST, NULL, NULL },

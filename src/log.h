@@ -110,12 +110,14 @@ struct log_entry_t {
 log_t *log_new(server *srv, log_type_t type, GString *path);
 /* avoid calling log_free directly. instead use log_unref which calls log_free if refcount has reached zero */
 void log_free(server *srv, log_t *log);
+void log_free_unlocked(server *srv, log_t *log);
 
-void log_ref(log_t *log);
+void log_ref(server *srv, log_t *log);
 void log_unref(server *srv, log_t *log);
 
 /* do not call directly, use log_rotate_logs instead */
 void log_rotate(gchar *path, log_t *log, server *srv);
+
 void log_rotate_logs(server *srv);
 
 gpointer log_thread(server *srv);

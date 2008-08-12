@@ -75,7 +75,6 @@ int main(int argc, char *argv[]) {
 			log_thread_start(srv);
 			g_atomic_int_set(&srv->exiting, TRUE);
 			log_thread_wakeup(srv);
-			g_thread_join(srv->log_thread);
 			server_free(srv);
 			return 1;
 		}
@@ -87,10 +86,10 @@ int main(int argc, char *argv[]) {
 		s = d / 1000000;
 		millis = (d - s) / 1000;
 		micros = (d - s - millis) %1000;
-		g_print("parsed config file in %zd seconds, %zd milliseconds, %zd microseconds\n", s, millis, micros);
+		g_print("parsed config file in %lu seconds, %lu milliseconds, %lu microseconds\n", s, millis, micros);
 		g_print("option_stack: %u action_list_stack: %u (should be 0:1)\n", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
 
-		config_parser_finish(srv, ctx_stack);
+		/* TODO config_parser_finish(srv, ctx_stack); */
 	}
 	else {
 #ifdef HAVE_LUA_H

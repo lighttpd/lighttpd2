@@ -2,7 +2,7 @@
 #include "condition.h"
 #include "config_parser.h"
 
-#if 1
+#if 0
 	#define _printf(fmt, ...) g_print(fmt, __VA_ARGS__)
 #else
 	#define _printf(fmt, ...) /* */
@@ -380,7 +380,7 @@
 
 		if (ctx->in_setup_block) {
 			/* in setup { } block => set default values for options */
-			option_free(name);
+			/* todo name */
 		}
 		else if (g_str_has_prefix(name->value.opt_string->str, "var.")) {
 			/* assignment vor user defined variable, insert into hashtable */
@@ -388,23 +388,51 @@
 		}
 		else {
 			/* normal assignment */
+			a = option_action(srv, name->value.opt_string->str, val);
+
+			if (a == NULL)
+				return FALSE;
+
+			al = g_queue_peek_head(ctx->action_list_stack);
+			g_array_append_val(al->value.list, a);
 			option_free(name);
 		}
-
-/*
-		al = g_queue_peek_head(ctx->action_list_stack);
-
-		a = action_new_setting(srv, name->value.opt_string->str, val);
-
-		if (a == NULL)
-			return FALSE;
-
-		g_array_append_val(al->actions, a);
-*/
-UNUSED(a); UNUSED(al);
 	}
 
-	action function {
+	action function_noparam {
+		option *name;
+		action *a, *al;
+
+		name = g_queue_pop_head(ctx->option_stack);
+
+		assert(name->type == OPTION_STRING);
+
+		_printf("got function: %s; in line %zd\n", name->value.opt_string->str, ctx->line);
+
+		if (g_str_equal(name->value.opt_string->str, "break")) {
+		}
+		else if (g_str_equal(name->value.opt_string->str, "__halt")) {
+		}
+		else {
+			if (ctx->in_setup_block) {
+				/* we are in the setup { } block, call setups and don't append to action list */
+				if (!call_setup(srv, name->value.opt_string->str, NULL)) {
+					return FALSE;
+				}
+			}
+			else {
+				al = g_queue_peek_head(ctx->action_list_stack);
+				a = create_action(srv, name->value.opt_string->str, NULL);
+
+				if (a == NULL)
+					return FALSE;
+
+				g_array_append_val(al->value.list, a);
+			}
+		}
+	}
+
+	action function_param {
 		/* similar to assignment */
 		option *val, *name;
 		action *a, *al;
@@ -453,6 +481,8 @@ UNUSED(a); UNUSED(al);
 
 				if (a == NULL)
 					return FALSE;
+
+				g_array_append_val(al->value.list, a);
 			}
 		}
 
@@ -460,17 +490,68 @@ UNUSED(a); UNUSED(al);
 	}
 
 	action condition_start {
-		/* stack: value, varname */
-		option *v, *n;
+		/* stack: value, varname OR value, key, varname */
+		option *v, *n, *k;
+		gchar *str;
+		condition *cond;
+		condition_lvalue *lvalue;
 
 		v = g_queue_pop_head(ctx->option_stack);
+		if (ctx->condition_with_key)
+			k = g_queue_pop_head(ctx->option_stack);
+		else
+			k = NULL;
 		n = g_queue_pop_head(ctx->option_stack);
+
 		assert(n->type == OPTION_STRING);
 
-		_printf("got condition: %s %s %s in line %zd\n", n->value.opt_string->str, comp_op_to_string(ctx->op), option_type_string(v->type), ctx->line);
+		_printf("got condition: %s:%s %s %s in line %zd\n", n->value.opt_string->str, ctx->condition_with_key ? k->value.opt_string->str : "", comp_op_to_string(ctx->op), option_type_string(v->type), ctx->line);
+
+		/* create condition lvalue */
+		str = n->value.opt_string->str;
+		if (g_str_equal(str, "req.path") || g_str_equal(str, "request.path"))
+			lvalue = condition_lvalue_new(COMP_REQUEST_PATH, NULL);
+		else {
+			log_warning(srv, NULL, "unkown lvalue for condition: %s", str);
+			return FALSE;
+		}
+
+		if (v->type == OPTION_STRING) {
+			cond = condition_new_string(srv, ctx->op, lvalue, v->value.opt_string);
+		}
+		else if (v->type == OPTION_INT)
+			cond = condition_new_int(srv, ctx->op, lvalue, (gint64) v->value.opt_int);
+		else {
+			cond = NULL;
+		}
+
+
+		if (cond == NULL) {
+			log_warning(srv, NULL, "could not create condition", "");
+			return FALSE;
+		}
+
+		g_queue_push_head(ctx->condition_stack, cond);
+
+		g_queue_push_head(ctx->action_list_stack, action_new_list());
+
+		/* TODO: free stuff */
+		ctx->condition_with_key = FALSE;
 	}
 
 	action condition_end {
+		condition *cond;
+		action *a, *al;
+
+		cond = g_queue_pop_head(ctx->condition_stack);
+		al = g_queue_pop_head(ctx->action_list_stack);
+		a = action_new_condition(cond, al);
+		al = g_queue_peek_head(ctx->action_list_stack);
+		g_array_append_val(al->value.list, a);
+	}
+
+	action condition_key {
+		ctx->condition_with_key = TRUE;
 	}
 
 	action action_block_start {
@@ -553,9 +634,11 @@ UNUSED(a); UNUSED(al);
 
 	# statements
 	assignment = ( varname ws* '=' ws* value_statement ';' ) %assignment;
-	function = ( varname ws+ value ';' ) %function;
-	condition = ( varname ws* operator ws* value noise* block >condition_start ) %condition_end;
-	action_block = ( varname ws* block >action_block_start ) %action_block_end;
+	function_noparam = ( varname ';' ) %function_noparam;
+	function_param = ( varname ws+ value_statement ';') %function_param;
+	function = ( function_noparam | function_param );
+	condition = ( varname ('[' string >mark ']' %condition_key)? ws* operator ws* value_statement noise* block >condition_start ) %condition_end;
+	action_block = ( varname noise* block >action_block_start ) %action_block_end;
 
 	statement = ( assignment | function | condition | action_block );
 
@@ -638,6 +721,7 @@ config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack
 		/* inherit old stacks */
 		ctx->action_list_stack = ((config_parser_context_t*) ctx_stack->data)->action_list_stack;
 		ctx->option_stack = ((config_parser_context_t*) ctx_stack->data)->option_stack;
+		ctx->condition_stack = ((config_parser_context_t*) ctx_stack->data)->condition_stack;
 
 		ctx->action_blocks = ((config_parser_context_t*) ctx_stack->data)->action_blocks;
 		ctx->uservars = ((config_parser_context_t*) ctx_stack->data)->uservars;
@@ -648,6 +732,7 @@ config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack
 
 		ctx->action_list_stack = g_queue_new();
 		ctx->option_stack = g_queue_new();
+		ctx->condition_stack = g_queue_new();
 	}
 
 	return ctx;
