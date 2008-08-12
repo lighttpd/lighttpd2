@@ -204,7 +204,7 @@ void log_unref(server *srv, log_t *log) {
 
 log_t *log_new(server *srv, log_type_t type, GString *path) {
 	log_t *log;
-	gint fd;
+	gint fd = -1;
 
 	g_mutex_lock(srv->log_mutex);
 	log = g_hash_table_lookup(srv->logs, path->str);
