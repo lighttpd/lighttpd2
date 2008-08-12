@@ -32,15 +32,18 @@ struct config_parser_context_t {
 
 	gchar *mark;
 	gboolean in_setup_block;
+	gboolean condition_with_key;
 
 	comp_operator_t op;
 	gchar value_op;
+
 
 	GHashTable *action_blocks; /* foo { } */
 	GHashTable *uservars; /* var.foo */
 
 	GQueue *action_list_stack; /* first entry is current action list */
 	GQueue *option_stack; /* stack of option* */
+	GQueue *condition_stack; /* stack of condition* */
 
 	/* information about currenty parsed file */
 	gchar *filename;
