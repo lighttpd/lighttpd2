@@ -132,11 +132,11 @@ handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t sta
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
 						CON_ERROR(srv, con, "mmap failed for '%s' (fd = %i): %s (%i)",
-							c->file.file->name->str, c->file.file->fd,
+							c->file.file->name ? c->file.file->name->str : "(null)", c->file.file->fd,
 							strerror(mmap_errno), mmap_errno);
 					} else {
 						CON_ERROR(srv, con, "lseek failed for '%s' (fd = %i): %s (%i)",
-							c->file.file->name->str, c->file.file->fd,
+							c->file.file->name ? c->file.file->name->str : "(null)", c->file.file->fd,
 							strerror(errno), errno);
 					}
 					g_string_free(c->mem, TRUE);
@@ -149,11 +149,11 @@ read_chunk:
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
 						CON_ERROR(srv, con, "mmap failed for '%s' (fd = %i): %s (%i)",
-							c->file.file->name->str, c->file.file->fd,
+							c->file.file->name ? c->file.file->name->str : "(null)", c->file.file->fd,
 							strerror(mmap_errno), mmap_errno);
 					} else {
 						CON_ERROR(srv, con, "read failed for '%s' (fd = %i): %s (%i)",
-							c->file.file->name->str, c->file.file->fd,
+							c->file.file->name ? c->file.file->name->str : "(null)", c->file.file->fd,
 							strerror(errno), errno);
 					}
 					g_string_free(c->mem, TRUE);
@@ -170,10 +170,10 @@ read_chunk:
 			} else {
 #ifdef HAVE_MADVISE
 				/* don't advise files < 64Kb */
-				if (c->file.mmap.length > (64*1024) && 
+				if (c->file.mmap.length > (64*1024) &&
 					0 != madvise(c->file.mmap.data, c->file.mmap.length, MADV_WILLNEED)) {
 					CON_ERROR(srv, con, "madvise failed for '%s' (fd = %i): %s (%i)",
-						c->file.file->name->str, c->file.file->fd,
+						c->file.file->name ? c->file.file->name->str : "(null)", c->file.file->fd,
 						strerror(errno), errno);
 				}
 #endif
@@ -288,7 +288,7 @@ static void __chunkqueue_append_file(chunkqueue *cq, GString *filename, off_t st
 	c->file.file = chunkfile_new(filename, fd, is_temp);
 	c->file.start = start;
 	c->file.length = length;
-	
+
 	g_queue_push_tail(cq->queue, c);
 	cq->length += length;
 	cq->bytes_in += length;
