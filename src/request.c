@@ -117,10 +117,16 @@ void request_validate_header(server *srv, connection *con) {
 		return;
 	} else if (hh) {
 		g_string_append_len(req->uri.host, GSTR_LEN((GString*) g_queue_peek_head(&hh->values)));
-		if (parse_authority(&req->uri)) {
+		if (parse_hostname(&req->uri)) {
 			bad_request(srv, con, 400); /* bad request */
 			return;
 		}
+	}
+
+	/* Need hostname in HTTP/1.1 */
+	if (req->uri.host->len == 0 && req->http_version == HTTP_VERSION_1_1) {
+		bad_request(srv, con, 400); /* bad request */
+		return;
 	}
 
 	/* may override hostname */
@@ -128,12 +134,6 @@ void request_validate_header(server *srv, connection *con) {
 		bad_request(srv, con, 400); /* bad request */
 		return;
 	}
-
-	/* Need hostname in HTTP/1.1 */
-	if (req->uri.host->len == 0 && req->http_version == HTTP_VERSION_1_1) {
-		bad_request(srv, con, 400); /* bad request */
-		return;
-	}	
 
 	/* content-length */
 	hh = http_header_lookup_fast(req->headers, CONST_STR_LEN("content-length"));
@@ -228,8 +228,6 @@ void request_validate_header(server *srv, connection *con) {
 		/* the may have a content-length */
 		break;
 	}
-
-	/* TODO: check hostname */
 }
 
 void physical_init(physical *phys) {

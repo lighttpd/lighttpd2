@@ -5,6 +5,6 @@
 #include "request.h"
 
 LI_API gboolean parse_raw_url(request_uri *uri);
-LI_API gboolean parse_authority(request_uri *uri);
+LI_API gboolean parse_hostname(request_uri *uri);
 
 #endif
