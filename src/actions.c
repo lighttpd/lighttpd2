@@ -20,7 +20,7 @@ void action_release(server *srv, action *a) {
 		case ACTION_TSETTING:
 			release_option(srv, &a->value.setting);
 			break;
-		case ACTION_TFUNCTION:	
+		case ACTION_TFUNCTION:
 			if (a->value.function.free) {
 				a->value.function.free(srv, a->value.function.param);
 			}
@@ -155,6 +155,9 @@ action_result action_execute(server *srv, connection *con) {
 			action_stack_pop(srv, as);
 			continue;
 		}
+
+		srv->stats.actions_executed++;
+
 		switch (a->type) {
 		case ACTION_TSETTING:
 			con->options[a->value.setting.ndx] = a->value.setting.value;

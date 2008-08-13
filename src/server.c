@@ -297,6 +297,8 @@ void server_start(server *srv) {
 		ev_io_start(srv->loop, &sock->watcher);
 	}
 
+	srv->started = ev_now(srv->loop);
+
 	log_thread_start(srv);
 
 	ev_loop(srv->loop, 0);

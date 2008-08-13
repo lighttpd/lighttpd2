@@ -19,4 +19,7 @@ LI_API void path_simplify(GString *path);
 
 LI_API gchar *http_status_string(guint status_code);
 
+/* */
+LI_API gchar counter_format(guint64 *count, guint factor);
+
 #endif
