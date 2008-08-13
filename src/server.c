@@ -148,12 +148,14 @@ void server_free(server* srv) {
 		g_array_free(srv->connections, TRUE);
 	}
 
-	{ guint i; for (i = 0; i < srv->sockets->len; i++) {
-		server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
-		close(sock->watcher.fd);
-		g_slice_free(server_socket, sock);
+	{
+		guint i; for (i = 0; i < srv->sockets->len; i++) {
+			server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
+			close(sock->watcher.fd);
+			g_slice_free(server_socket, sock);
+		}
 		g_array_free(srv->sockets, TRUE);
-	}}
+	}
 	{ /* force closing sockets */
 		GList *iter;
 		for (iter = g_queue_peek_head_link(&srv->closing_sockets); iter; iter = g_list_next(iter)) {
