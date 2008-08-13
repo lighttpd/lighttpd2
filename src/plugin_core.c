@@ -1,6 +1,7 @@
 
 #include "base.h"
 #include "plugin_core.h"
+#include "utils.h"
 
 static action* core_list(server *srv, plugin* p, option *opt) {
 	action *a;
@@ -176,6 +177,10 @@ static action_result core_handle_test(server *srv, connection *con, gpointer par
 	GHashTableIter iter;
 	gpointer k, v;
 	GList *hv;
+	GString *str;
+	guint64 uptime;
+	guint64 avg1, avg2, avg3;
+	gchar suffix1[2] = {0,0}, suffix2[2] = {0,0}, suffix3[2] = {0,0};
 	UNUSED(param);
 
 	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
@@ -187,6 +192,32 @@ static action_result core_handle_test(server *srv, connection *con, gpointer par
 	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.path));
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\nquery: "));
 	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.query));
+
+	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n\r\nactions executed: "));
+	uptime = (guint64)(ev_now(srv->loop) - srv->started);
+	if (uptime == 0)
+		uptime = 1;
+	avg1 = srv->stats.actions_executed;
+	suffix1[0] = counter_format(&avg1, 1000);
+	avg2 = srv->stats.actions_executed / uptime;
+	suffix2[0] = counter_format(&avg2, 1000);
+	avg3 = srv->stats.actions_executed / srv->stats.requests;
+	suffix3[0] = counter_format(&avg3, 1000);
+	str = g_string_sized_new(0);
+	g_string_printf(str,
+		"%"G_GUINT64_FORMAT"%s (%"G_GUINT64_FORMAT"%s/s, %"G_GUINT64_FORMAT"%s/req)",
+		avg1, suffix1, avg2, suffix2, avg3, suffix3
+	);
+	chunkqueue_append_string(con->out, str);
+	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\nrequests: "));
+	avg1 = srv->stats.requests;
+	suffix1[0] = counter_format(&avg1, 1000);
+	avg2 = srv->stats.requests / uptime;
+	suffix2[0] = counter_format(&avg2, 1000);
+	str = g_string_sized_new(0);
+	g_string_printf(str, "%"G_GUINT64_FORMAT"%s (%"G_GUINT64_FORMAT"%s/s)", avg1, suffix1, avg2, suffix2);
+	chunkqueue_append_string(con->out, str);
+
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n\r\n--- headers ---\r\n"));
 	g_hash_table_iter_init(&iter, con->request.headers->table);
 	while (g_hash_table_iter_next(&iter, &k, &v)) {

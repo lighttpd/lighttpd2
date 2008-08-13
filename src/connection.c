@@ -299,6 +299,7 @@ void connection_state_machine(server *srv, connection *con) {
 			}
 			connection_set_state(srv, con, CON_STATE_HANDLE_REQUEST_HEADER);
 			request_validate_header(srv, con);
+			srv->stats.requests++;
 			break;
 
 		case CON_STATE_HANDLE_REQUEST_HEADER:

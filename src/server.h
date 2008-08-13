@@ -21,6 +21,18 @@ struct server_socket {
 	ev_io watcher;
 };
 
+struct statistics_t;
+typedef struct statistics_t statistics_t;
+
+struct statistics_t {
+	guint64 bytes_out;        /** bytes transfered, outgoing */
+	guint64 bytes_int;        /** bytes transfered, incoming */
+
+	guint64 requests;         /** processed requests */
+
+	guint64 actions_executed; /** actions executed */
+};
+
 struct server {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
 	server_state state;
@@ -60,6 +72,9 @@ struct server {
 	GAsyncQueue *log_queue;
 	GThread *log_thread;
 	GMutex *log_mutex; /* manage access for the logs hashtable */
+
+	ev_tstamp started;
+	statistics_t stats;
 };
 
 
