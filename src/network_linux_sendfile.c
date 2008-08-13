@@ -43,6 +43,11 @@ network_status_t network_backend_sendfile(server *srv, connection *con, int fd, 
 				return NETWORK_STATUS_CONNECTION_CLOSE;
 			case EINTR:
 				break; /* try again */
+			case EINVAL:
+			case ENOSYS:
+				/* TODO: print a warning? */
+				NETWORK_FALLBACK(network_backend_write, write_max);
+				return NETWORK_STATUS_SUCCESS;
 			default:
 				CON_ERROR(srv, con, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 				return NETWORK_STATUS_FATAL_ERROR;
