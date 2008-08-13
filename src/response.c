@@ -50,8 +50,10 @@ void response_send_headers(server *srv, connection *con) {
 		g_string_printf(srv->tmp_str, "%"L_GOFFSET_FORMAT, con->out->length);
 		http_header_overwrite(con->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(srv->tmp_str));
 	} else if (con->keep_alive && con->request.http_version == HTTP_VERSION_1_1) {
-		con->response.transfer_encoding |= HTTP_TRANSFER_ENCODING_CHUNKED;
-		http_header_overwrite(con->response.headers, CONST_STR_LEN("Transfer-Encoding"), CONST_STR_LEN("chunked"));
+		if (!(con->response.transfer_encoding & HTTP_TRANSFER_ENCODING_CHUNKED)) {
+			con->response.transfer_encoding |= HTTP_TRANSFER_ENCODING_CHUNKED;
+			http_header_append(con->response.headers, CONST_STR_LEN("Transfer-Encoding"), CONST_STR_LEN("chunked"));
+		}
 	} else {
 		/* Unknown content length, no chunked encoding */
 		con->keep_alive = FALSE;

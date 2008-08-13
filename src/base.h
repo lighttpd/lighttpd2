@@ -6,6 +6,7 @@
 #define CONST_STR_LEN(x) (x), (x) ? sizeof(x) - 1 : 0
 
 #define GSTR_LEN(x) (x) ? (x)->str : "", (x) ? (x)->len : 0
+#define GSTR_SAFE_STR(x) ((x && x->str) ? x->str : "(null)")
 
 /* we don't use ev_init for now (stupid alias warnings), as ev_init
  * just does set some values to zero and calls ev_set_cb.

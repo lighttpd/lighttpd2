@@ -21,13 +21,20 @@ LI_API ssize_t net_read(int fd, void *buf, ssize_t nbyte);
 LI_API network_status_t network_write(server *srv, connection *con, int fd, chunkqueue *cq);
 LI_API network_status_t network_read(server *srv, connection *con, int fd, chunkqueue *cq);
 
-/* write backends */
-LI_API network_status_t network_backend_write(server *srv, connection *con, int fd, chunkqueue *cq);
-LI_API network_status_t network_backend_writev(server *srv, connection *con, int fd, chunkqueue *cq);
+/* use writev for mem chunks, buffered read/write for files */
+LI_API network_status_t network_write_writev(server *srv, connection *con, int fd, chunkqueue *cq);
 
-#define NETWORK_FALLBACK(f) do { \
+/* use sendfile for files, writev for mem chunks */
+LI_API network_status_t network_write_sendfile(server *srv, connection *con, int fd, chunkqueue *cq);
+
+/* write backends */
+LI_API network_status_t network_backend_write(server *srv, connection *con, int fd, chunkqueue *cq, goffset *write_max);
+LI_API network_status_t network_backend_writev(server *srv, connection *con, int fd, chunkqueue *cq, goffset *write_max);
+LI_API network_status_t network_backend_writev(server *srv, connection *con, int fd, chunkqueue *cq, goffset *write_max);
+
+#define NETWORK_FALLBACK(f, write_max) do { \
 	network_status_t res; \
-	switch(res = f(srv, con, fd, cq)) { \
+	switch(res = f(srv, con, fd, cq, write_max)) { \
 		case NETWORK_STATUS_SUCCESS: \
 			break; \
 		default: \

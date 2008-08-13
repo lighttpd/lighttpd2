@@ -51,7 +51,8 @@ network_status_t network_write(server *srv, connection *con, int fd, chunkqueue 
 	}
 #endif
 
-	res = network_backend_writev(srv, con, fd, cq);
+	/* res = network_write_writev(srv, con, fd, cq); */
+	res = network_write_sendfile(srv, con, fd, cq);
 
 #ifdef TCP_CORK
 	if (corked) {
@@ -83,7 +84,7 @@ network_status_t network_read(server *srv, connection *con, int fd, chunkqueue *
 			case ECONNRESET:
 				return NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
-				CON_ERROR(srv, con, "oops, read from fd=%d failed: %s (%d)", fd, strerror(errno), errno );
+				CON_ERROR(srv, con, "oops, read from fd=%d failed: %s", fd, g_strerror(errno) );
 				return NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {
