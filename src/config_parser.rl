@@ -664,9 +664,9 @@
 	line = ( line_sane | line_weird | line_insane );
 
 	ws = ( '\t' | ' ' );
-	noise = ( ws | line );
-
 	comment = ( '#' (any - line)* line );
+	noise = ( ws | line | comment );
+
 	block = ( '{' >block_start );
 
 	# basic types
