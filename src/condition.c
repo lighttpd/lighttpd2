@@ -112,7 +112,9 @@ condition* condition_new_string(server *srv, comp_operator_t op, condition_lvalu
 	case CONFIG_COND_EQ:
 	case CONFIG_COND_NE:
 	case CONFIG_COND_PREFIX:
+	case CONFIG_COND_NOPREFIX:
 	case CONFIG_COND_SUFFIX:
+	case CONFIG_COND_NOSUFFIX:
 		return cond_new_string(op, lvalue, str);
 	case CONFIG_COND_MATCH:
 	case CONFIG_COND_NOMATCH:
@@ -142,7 +144,9 @@ condition* condition_new_int(server *srv, comp_operator_t op, condition_lvalue *
 	condition *c;
 	switch (op) {
 	case CONFIG_COND_PREFIX:
+	case CONFIG_COND_NOPREFIX:
 	case CONFIG_COND_SUFFIX:
+	case CONFIG_COND_NOSUFFIX:
 	case CONFIG_COND_MATCH:
 	case CONFIG_COND_NOMATCH:
 	case CONFIG_COND_IP:
@@ -207,8 +211,10 @@ const char* comp_op_to_string(comp_operator_t op) {
 	switch (op) {
 	case CONFIG_COND_EQ: return "==";
 	case CONFIG_COND_NE: return "!=";
-	case CONFIG_COND_PREFIX: return "^=";
-	case CONFIG_COND_SUFFIX: return "$=";
+	case CONFIG_COND_PREFIX: return "=^";
+	case CONFIG_COND_NOPREFIX: return "=^";
+	case CONFIG_COND_SUFFIX: return "=$";
+	case CONFIG_COND_NOSUFFIX: return "!$";
 	case CONFIG_COND_MATCH: return "=~";
 	case CONFIG_COND_NOMATCH: return "!~";
 	case CONFIG_COND_IP: return "=/";
@@ -301,8 +307,14 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 	case CONFIG_COND_PREFIX:
 		result = g_str_has_prefix(value, cond->rvalue.string->str);
 		break;
+	case CONFIG_COND_NOPREFIX:
+		result = !g_str_has_prefix(value, cond->rvalue.string->str);
+		break;
 	case CONFIG_COND_SUFFIX:
 		result = g_str_has_suffix(value, cond->rvalue.string->str);
+		break;
+	case CONFIG_COND_NOSUFFIX:
+		result = !g_str_has_suffix(value, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_MATCH:
 	case CONFIG_COND_NOMATCH:
@@ -357,7 +369,9 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 	case CONFIG_COND_GE:      /** >= */
 		return (value >= cond->rvalue.i);
 	case CONFIG_COND_PREFIX:
+	case CONFIG_COND_NOPREFIX:
 	case CONFIG_COND_SUFFIX:
+	case CONFIG_COND_NOSUFFIX:
 	case CONFIG_COND_MATCH:
 	case CONFIG_COND_NOMATCH:
 	case CONFIG_COND_IP:
@@ -473,7 +487,9 @@ static gboolean condition_check_eval_ip(server *srv, connection *con, condition 
 	case CONFIG_COND_NOTIP:
 		return !ip_in_net(&ipval, &cond->rvalue);
 	case CONFIG_COND_PREFIX:
+	case CONFIG_COND_NOPREFIX:
 	case CONFIG_COND_SUFFIX:
+	case CONFIG_COND_NOSUFFIX:
 	case CONFIG_COND_EQ:
 	case CONFIG_COND_NE:
 	case CONFIG_COND_MATCH:
