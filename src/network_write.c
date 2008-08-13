@@ -1,24 +1,24 @@
 
 #include "network.h"
 
-network_status_t network_backend_write(server *srv, connection *con, int fd, chunkqueue *cq) {
+network_status_t network_backend_write(server *srv, connection *con, int fd, chunkqueue *cq, goffset *write_max) {
 	const ssize_t blocksize = 16*1024; /* 16k */
-	const off_t max_write = 16 * blocksize; /* 256k */
 	char *block_data;
 	off_t block_len;
 	ssize_t r;
-	off_t len = 0;
+	gboolean did_write_something = FALSE;
 	chunkiter ci;
 
 	do {
-		if (0 == cq->length) return NETWORK_STATUS_SUCCESS;
+		if (0 == cq->length)
+			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_FATAL_ERROR;
 
 		ci = chunkqueue_iter(cq);
 		switch (chunkiter_read(srv, con, ci, 0, blocksize, &block_data, &block_len)) {
 		case HANDLER_GO_ON:
 			break;
 		case HANDLER_WAIT_FOR_FD:
-			return len ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_FD;
 		case HANDLER_ERROR:
 		default:
 			return NETWORK_STATUS_FATAL_ERROR;
@@ -30,20 +30,21 @@ network_status_t network_backend_write(server *srv, connection *con, int fd, chu
 #if EWOULDBLOCK != EAGAIN
 			case EWOULDBLOCK
 #endif
-				return len ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+				return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
 			case ECONNRESET:
 			case EPIPE:
 				return NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
-				CON_ERROR(srv, con, "oops, write to fd=%d failed: %s (%d)", fd, strerror(errno), errno );
+				CON_ERROR(srv, con, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 				return NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {
-			return len ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
 		}
 		chunkqueue_skip(cq, r);
-		len += r;
-	} while (r == block_len && len < max_write);
+		did_write_something = TRUE;
+		*write_max -= r;
+	} while (r == block_len && *write_max > 0);
 
 	return NETWORK_STATUS_SUCCESS;
 }

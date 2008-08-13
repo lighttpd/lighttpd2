@@ -15,11 +15,13 @@ common_source='''
 	condition_parsers.rl
 	config_parser.rl
 	connection.c
+	filter_chunked.c
 	http_headers.c
 	http_request_parser.rl
 	log.c
 	network.c
 	network_write.c network_writev.c
+		network_linux_sendfile.c
 	options.c
 	plugin.c
 	request.c

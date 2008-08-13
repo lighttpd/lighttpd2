@@ -254,7 +254,7 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		/* TODO: server_out_of_fds(srv, NULL); */
 		break;
 	default:
-		ERROR(srv, "accept failed on fd=%d with error: (%d) %s", w->fd, errno, strerror(errno));
+		ERROR(srv, "accept failed on fd=%d with error: %s", w->fd, g_strerror(errno));
 		break;
 	}
 }

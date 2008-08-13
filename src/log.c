@@ -282,7 +282,7 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	}
 
 	if (fd == -1) {
-		g_printerr("failed to open log: %s %d", strerror(errno), errno);
+		g_printerr("failed to open log: %s", g_strerror(errno));
 		return NULL;
 	}
 

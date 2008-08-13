@@ -51,11 +51,19 @@ handler_t chunkfile_open(server *srv, connection *con, chunkfile *cf) {
 	}
 	if (-1 == (cf->fd = open(cf->name->str, O_RDONLY))) {
 		if (EMFILE == errno) return HANDLER_WAIT_FOR_FD;
-		CON_ERROR(srv, con, "Couldn't open file '%s': %s (%i)", cf->name->str, strerror(errno), errno);
+		CON_ERROR(srv, con, "Couldn't open file '%s': %s", GSTR_SAFE_STR(cf->name), g_strerror(errno));
 		return HANDLER_ERROR;
 	}
 #ifdef FD_CLOEXEC
 	fcntl(cf->fd, F_SETFD, FD_CLOEXEC);
+#endif
+#ifdef HAVE_POSIX_FADVISE
+	/* tell the kernel that we want to stream the file */
+	if (-1 == posix_fadvise(cf->fd, 0, 0, POSIX_FADV_SEQUENTIAL)) {
+		if (ENOSYS != errno) {
+			CON_ERROR(srv, con, "posix_fadvise failed for '%s': %s (%i)", GSTR_SAFE_STR(cf->name), g_strerror(errno), cf->fd);
+		}
+	}
 #endif
 	return HANDLER_GO_ON;
 }
@@ -131,13 +139,13 @@ handler_t chunkiter_read(server *srv, connection *con, chunkiter iter, off_t sta
 				if (-1 == lseek(c->file.file->fd, our_start, SEEK_SET)) {
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
-						CON_ERROR(srv, con, "mmap failed for '%s' (fd = %i): %s (%i)",
-							c->file.file->name ? c->file.file->name->str : "(null)", c->file.file->fd,
-							strerror(mmap_errno), mmap_errno);
+						CON_ERROR(srv, con, "mmap failed for '%s' (fd = %i): %s",
+							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+							g_strerror(mmap_errno));
 					} else {
-						CON_ERROR(srv, con, "lseek failed for '%s' (fd = %i): %s (%i)",
-							c->file.file->name ? c->file.file->name->str : "(null)", c->file.file->fd,
-							strerror(errno), errno);
+						CON_ERROR(srv, con, "lseek failed for '%s' (fd = %i): %s",
+							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+							g_strerror(errno));
 					}
 					g_string_free(c->mem, TRUE);
 					c->mem = NULL;
@@ -148,13 +156,13 @@ read_chunk:
 					if (EINTR == errno) goto read_chunk;
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
-						CON_ERROR(srv, con, "mmap failed for '%s' (fd = %i): %s (%i)",
-							c->file.file->name ? c->file.file->name->str : "(null)", c->file.file->fd,
-							strerror(mmap_errno), mmap_errno);
+						CON_ERROR(srv, con, "mmap failed for '%s' (fd = %i): %s",
+							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+							g_strerror(mmap_errno));
 					} else {
-						CON_ERROR(srv, con, "read failed for '%s' (fd = %i): %s (%i)",
-							c->file.file->name ? c->file.file->name->str : "(null)", c->file.file->fd,
-							strerror(errno), errno);
+						CON_ERROR(srv, con, "read failed for '%s' (fd = %i): %s",
+							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+							g_strerror(errno));
 					}
 					g_string_free(c->mem, TRUE);
 					c->mem = NULL;
@@ -172,9 +180,9 @@ read_chunk:
 				/* don't advise files < 64Kb */
 				if (c->file.mmap.length > (64*1024) &&
 					0 != madvise(c->file.mmap.data, c->file.mmap.length, MADV_WILLNEED)) {
-					CON_ERROR(srv, con, "madvise failed for '%s' (fd = %i): %s (%i)",
-						c->file.file->name ? c->file.file->name->str : "(null)", c->file.file->fd,
-						strerror(errno), errno);
+					CON_ERROR(srv, con, "madvise failed for '%s' (fd = %i): %s",
+						GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+						g_strerror(errno));
 				}
 #endif
 			}

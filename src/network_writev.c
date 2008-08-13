@@ -24,9 +24,9 @@
 # endif
 #endif
 
-network_status_t network_backend_writev(server *srv, connection *con, int fd, chunkqueue *cq) {
-	const off_t max_write = 256 * 1024; /* 256k */
-	off_t min_cq_len, max_chunks_len, we_have;
+/* first chunk must be a MEM_CHUNK ! */
+network_status_t network_backend_writev(server *srv, connection *con, int fd, chunkqueue *cq, goffset *write_max) {
+	off_t we_have;
 	ssize_t r;
 	gboolean did_write_something = FALSE;
 	chunkiter ci;
@@ -34,22 +34,15 @@ network_status_t network_backend_writev(server *srv, connection *con, int fd, ch
 
 	GArray *chunks = g_array_sized_new(FALSE, TRUE, sizeof(struct iovec), UIO_MAXIOV);
 
-	/* stop if chunkqueue length gets less or equal than min_cq_len */
-	min_cq_len = cq->length - max_write;
-	if (min_cq_len < 0) min_cq_len = 0;
-
 	do {
-		if (0 == cq->length) return NETWORK_STATUS_SUCCESS;
+		if (0 == cq->length) return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_FATAL_ERROR;
 
 		ci = chunkqueue_iter(cq);
 
 		if (MEM_CHUNK != (c = chunkiter_chunk(ci))->type) {
-			NETWORK_FALLBACK(network_backend_write);
-			did_write_something = TRUE;
-			continue;
+			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_FATAL_ERROR;
 		}
 
-		max_chunks_len = cq->length - min_cq_len;
 		we_have = 0;
 		do {
 			guint i = chunks->len;
@@ -58,10 +51,10 @@ network_status_t network_backend_writev(server *srv, connection *con, int fd, ch
 			g_array_set_size(chunks, i + 1);
 			v = &g_array_index(chunks, struct iovec, i);
 			v->iov_base = c->mem->str + c->offset;
-			if (len > max_write) len = max_write;
+			if (len > *write_max - we_have) len = *write_max - we_have;
 			v->iov_len = len;
 			we_have += len;
-		} while (we_have < max_chunks_len &&
+		} while (we_have < *write_max &&
 		         chunkiter_next(&ci) &&
 		         MEM_CHUNK == (c = chunkiter_chunk(ci))->type &&
 		         chunks->len < UIO_MAXIOV);
@@ -82,7 +75,7 @@ network_status_t network_backend_writev(server *srv, connection *con, int fd, ch
 				break; /* try again */
 			default:
 				g_array_free(chunks, TRUE);
-				CON_ERROR(srv, con, "oops, write to fd=%d failed: %s (%d)", fd, strerror(errno), errno );
+				CON_ERROR(srv, con, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 				return NETWORK_STATUS_FATAL_ERROR;
 			}
 		}
@@ -91,14 +84,34 @@ network_status_t network_backend_writev(server *srv, connection *con, int fd, ch
 			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
 		}
 		chunkqueue_skip(cq, r);
+		*write_max -= r;
 		if (r != we_have) {
 			g_array_free(chunks, TRUE);
 			return NETWORK_STATUS_SUCCESS;
 		}
 		did_write_something = TRUE;
 		g_array_set_size(chunks, 0);
-	} while (cq->length > min_cq_len);
+	} while (*write_max > 0);
 
 	g_array_free(chunks, TRUE);
+	return NETWORK_STATUS_SUCCESS;
+}
+
+network_status_t network_write_writev(server *srv, connection *con, int fd, chunkqueue *cq) {
+	goffset write_max = 256*1024; // 256k //;
+	if (cq->length == 0) return NETWORK_STATUS_FATAL_ERROR;
+	do {
+		switch (chunkqueue_first_chunk(cq)->type) {
+		case MEM_CHUNK:
+			NETWORK_FALLBACK(network_backend_writev, &write_max);
+			break;
+		case FILE_CHUNK:
+			NETWORK_FALLBACK(network_backend_write, &write_max);
+			break;
+		default:
+			return NETWORK_STATUS_FATAL_ERROR;
+		}
+		if (cq->length == 0) return NETWORK_STATUS_SUCCESS;
+	} while (write_max > 0);
 	return NETWORK_STATUS_SUCCESS;
 }
