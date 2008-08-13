@@ -1,5 +1,6 @@
 
 #include "base.h"
+#include "utils.h"
 
 void response_init(response *resp) {
 	resp->headers = http_headers_new();
@@ -30,7 +31,7 @@ void response_send_headers(server *srv, connection *con) {
 
 	if (0 == con->out->length && con->content_handler == NULL
 		&& con->response.http_status >= 400 && con->response.http_status < 600) {
-		
+
 		chunkqueue_append_mem(con->out, CONST_STR_LEN("Custom error\r\n"));
 	}
 
@@ -72,7 +73,7 @@ void response_send_headers(server *srv, connection *con) {
 		if (con->keep_alive)
 			http_header_overwrite(con->response.headers, CONST_STR_LEN("Connection"), CONST_STR_LEN("keep-alive"));
 	}
-	g_string_append_printf(head, "%i XXX\r\n", con->response.http_status); /* TODO: use status name */
+	g_string_append_printf(head, "%i %s\r\n", con->response.http_status, http_status_string(con->response.http_status));
 
 	/* Append headers */
 	{
