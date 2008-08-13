@@ -39,8 +39,8 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 
 	if (con != NULL) {
 		/* get log index from connection */
-		log = con->log;
-		log_level_want = con->log_level;
+		log = CORE_OPTION(CORE_OPTION_LOG_TARGET) ? CORE_OPTION(CORE_OPTION_LOG_TARGET) : srv->log_stderr;
+		log_level_want = (log_level_t) CORE_OPTION(CORE_OPTION_LOG_LEVEL);
 	}
 	else {
 		log = srv->log_stderr;
@@ -201,6 +201,56 @@ void log_unref(server *srv, log_t *log) {
 
 	g_mutex_unlock(srv->log_mutex);
 }
+
+log_type_t log_type_from_path(GString *path) {
+	if (path->len == 0)
+		return LOG_TYPE_STDERR;
+
+	/* targets starting with a slash are absolute paths and therefor file targets */
+	if (*path->str == '/')
+		return LOG_TYPE_FILE;
+
+	/* targets starting with a pipe are ... pipes! */
+	if (*path->str == '|')
+		return LOG_TYPE_PIPE;
+
+	if (g_str_equal(path->str, "stderr"))
+		return LOG_TYPE_STDERR;
+
+	if (g_str_equal(path->str, "syslog"))
+		return LOG_TYPE_SYSLOG;
+
+	/* fall back to stderr */
+	return LOG_TYPE_STDERR;
+}
+
+log_level_t log_level_from_string(GString *str) {
+	if (g_str_equal(str->str, "debug"))
+		return LOG_LEVEL_DEBUG;
+	if (g_str_equal(str->str, "info"))
+		return LOG_LEVEL_INFO;
+	if (g_str_equal(str->str, "message"))
+		return LOG_LEVEL_MESSAGE;
+	if (g_str_equal(str->str, "warning"))
+		return LOG_LEVEL_WARNING;
+	if (g_str_equal(str->str, "error"))
+		return LOG_LEVEL_ERROR;
+
+	/* fall back to debug level */
+	return LOG_LEVEL_DEBUG;
+}
+
+gchar* log_level_str(log_level_t log_level) {
+	switch (log_level) {
+		case LOG_LEVEL_DEBUG:	return "debug";
+		case LOG_LEVEL_INFO:	return "info";
+		case LOG_LEVEL_MESSAGE:	return "message";
+		case LOG_LEVEL_WARNING:	return "warning";
+		case LOG_LEVEL_ERROR:	return "error";
+		default:				return "unknown";
+	}
+}
+
 
 log_t *log_new(server *srv, log_type_t type, GString *path) {
 	log_t *log;

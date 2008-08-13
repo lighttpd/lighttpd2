@@ -105,6 +105,11 @@ struct log_entry_t {
 	GString *msg;
 };
 
+/* determines the type of a log target by the path given. /absolute/path = file; |app = pipe; stderr = stderr; syslog = syslog */
+log_type_t log_type_from_path(GString *path);
+
+log_level_t log_level_from_string(GString *str);
+gchar* log_level_str(log_level_t log_level);
 
 /* log_new is used to create a new log target, if a log with the same path already exists, it is referenced instead */
 log_t *log_new(server *srv, log_type_t type, GString *path);
