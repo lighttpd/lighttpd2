@@ -1,5 +1,6 @@
 
 #include "log.h"
+#include "plugin_core.h"
 #include <stdarg.h>
 
 #if REMOVE_PATH_FROM_FILE
