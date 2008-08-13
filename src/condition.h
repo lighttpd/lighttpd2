@@ -20,6 +20,10 @@ typedef enum {
 	CONFIG_COND_EQ,      /** == */
 	CONFIG_COND_NE,      /** != */
 
+/* only with string */
+	CONFIG_COND_PREFIX,  /** ^= */
+	CONFIG_COND_SUFFIX,  /** $= */
+
 /* only usable with pcre */
 	CONFIG_COND_MATCH,   /** =~ */
 	CONFIG_COND_NOMATCH, /** !~ */

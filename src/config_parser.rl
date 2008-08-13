@@ -360,6 +360,8 @@
 			else if (*ctx->mark == '<' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_LE;
 			else if (*ctx->mark == '=' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_EQ;
 			else if (*ctx->mark == '!' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_NE;
+			else if (*ctx->mark == '^' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_PREFIX;
+			else if (*ctx->mark == '$' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_SUFFIX;
 			else if (*ctx->mark == '=' && *(ctx->mark+1) == '~') ctx->op = CONFIG_COND_MATCH;
 			else if (*ctx->mark == '!' && *(ctx->mark+1) == '~') ctx->op = CONFIG_COND_NOMATCH;
 		}
@@ -684,7 +686,7 @@
 	value_statement = ( value (ws* ('+'|'-'|'*'|'/') >value_statement_op ws* value %value_statement)? );
 	hash_elem = ( string >mark noise* ':' noise* value );
 
-	operator = ( '==' | '!=' | '<' | '<=' | '>' | '>=' | '=~' | '!~' ) >mark %operator;
+	operator = ( '==' | '!=' | '^=' | '$=' | '<' | '<=' | '>' | '>=' | '=~' | '!~' ) >mark %operator;
 
 	# statements
 	assignment = ( varname ws* '=' ws* value_statement ';' ) %assignment;
