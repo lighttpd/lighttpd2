@@ -173,7 +173,7 @@ gboolean parse_option(server *srv, const char *name, option *opt, option_set *ma
 		return FALSE;
 	}
 
-	if (sopt->type != opt->type) {
+	if (sopt->type != opt->type && sopt->type != OPTION_NONE) {
 		ERROR(srv, "Unexpected option type '%s', expected '%s' for option %s",
 			option_type_string(opt->type), option_type_string(sopt->type), name);
 		return FALSE;

@@ -509,10 +509,57 @@
 
 		/* create condition lvalue */
 		str = n->value.opt_string->str;
-		if (g_str_equal(str, "req.path") || g_str_equal(str, "request.path"))
-			lvalue = condition_lvalue_new(COMP_REQUEST_PATH, NULL);
+
+		if (g_str_has_prefix(str, "req")) {
+			str += 3;
+			if (g_str_has_prefix(str, "."))
+				str++;
+			else if (g_str_has_prefix(str, "uest."))
+				str += 5;
+			else {
+				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->value.opt_string->str);
+				return FALSE;
+			}
+
+			if (g_str_equal(str, "host"))
+				lvalue = condition_lvalue_new(COMP_REQUEST_HOST, NULL);
+			else if (g_str_equal(str, "path"))
+				lvalue = condition_lvalue_new(COMP_REQUEST_PATH, NULL);
+			else if (g_str_equal(str, "query"))
+				lvalue = condition_lvalue_new(COMP_REQUEST_QUERY_STRING, NULL);
+			else if (g_str_equal(str, "method"))
+				lvalue = condition_lvalue_new(COMP_REQUEST_METHOD, NULL);
+			else if (g_str_equal(str, "scheme"))
+				lvalue = condition_lvalue_new(COMP_REQUEST_SCHEME, NULL);
+			else {
+				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->value.opt_string->str);
+				return FALSE;
+			}
+		}
+		else if (g_str_has_prefix(str, "phys")) {
+			str += 3;
+			if (g_str_has_prefix(str, "."))
+				str++;
+			else if (g_str_has_prefix(str, "ical."))
+				str += 5;
+			else {
+				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->value.opt_string->str);
+				return FALSE;
+			}
+
+			if (g_str_equal(str, "path"))
+				lvalue = condition_lvalue_new(COMP_PHYSICAL_PATH, NULL);
+			else if (g_str_equal(str, "exists"))
+				lvalue = condition_lvalue_new(COMP_PHYSICAL_PATH_EXISTS, NULL);
+			else if (g_str_equal(str, "size"))
+				lvalue = condition_lvalue_new(COMP_PHYSICAL_SIZE, NULL);
+			else {
+				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->value.opt_string->str);
+				return FALSE;
+			}
+		}
 		else {
-			log_warning(srv, NULL, "unkown lvalue for condition: %s", str);
+			log_warning(srv, NULL, "unkown lvalue for condition: %s", n->value.opt_string->str);
 			return FALSE;
 		}
 

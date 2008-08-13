@@ -181,11 +181,13 @@ static action_result core_handle_test(server *srv, connection *con, gpointer par
 	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
 
 	con->response.http_status = 200;
-	chunkqueue_append_mem(con->out, CONST_STR_LEN("path: "));
+	chunkqueue_append_mem(con->out, CONST_STR_LEN("host: "));
+	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.host));
+	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\npath: "));
 	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.path));
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\nquery: "));
 	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.query));
-	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n\r\n--- Headers ---\r\n"));
+	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n\r\n--- headers ---\r\n"));
 	g_hash_table_iter_init(&iter, con->request.headers->table);
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
 		hv = g_queue_peek_head_link(&((http_header*)v)->values);
@@ -199,6 +201,11 @@ static action_result core_handle_test(server *srv, connection *con, gpointer par
 	}
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n"));
 	connection_handle_direct(srv, con);
+
+	log_debug(srv, con, "core_handle_test: %s%s%s log_level: %s",
+		con->request.uri.path->str, con->request.uri.query->len ? "?" : "", con->request.uri.query->len ? con->request.uri.query->str : "",
+		log_level_str((log_level_t)CORE_OPTION(CORE_OPTION_LOG_LEVEL))
+	);
 
 	return ACTION_GO_ON;
 }
@@ -268,9 +275,60 @@ static gboolean core_listen(server *srv, plugin* p, option *opt) {
 	return TRUE;
 }
 
+
+gboolean core_option_log_target_parse(server *srv, plugin *p, size_t ndx, option *opt, gpointer *value) {
+	log_t *log;
+	log_type_t log_type;
+
+	UNUSED(log);
+	UNUSED(log_type);
+	UNUSED(p);
+
+	assert(opt->type == OPTION_STRING);
+
+	log_type = log_type_from_path(opt->value.opt_string);
+	log = log_new(srv, log_type, opt->value.opt_string);
+
+	*value = (gpointer)log;
+
+	TRACE(srv, "log.target assignment; ndx: %zd, value: %s", ndx, opt->value.opt_string->str);
+
+	return TRUE;
+}
+
+void core_option_log_target_free(server *srv, plugin *p, size_t ndx, gpointer value) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+	UNUSED(value);
+}
+
+gboolean core_option_log_level_parse(server *srv, plugin *p, size_t ndx, option *opt, gpointer *value) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+
+	assert(opt->type == OPTION_STRING);
+
+	*value = (gpointer)log_level_from_string(opt->value.opt_string);
+
+	TRACE(srv, "log.level assignment: %s", opt->value.opt_string->str);
+
+	return TRUE;
+}
+
+void core_option_log_level_free(server *srv, plugin *p, size_t ndx, gpointer value) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+	UNUSED(value);
+}
+
 static const plugin_option options[] = {
-	{ "debug.log_request_handling", OPTION_BOOLEAN, NULL, NULL},
-	{ "log.level", OPTION_STRING, NULL, NULL },
+	{ "debug.log_request_handling", OPTION_BOOLEAN, NULL, NULL },
+
+	{ "log.target", OPTION_STRING, core_option_log_target_parse, core_option_log_target_free },
+	{ "log.level", OPTION_STRING, core_option_log_level_parse, core_option_log_level_free },
 
 	{ "static-file.exclude", OPTION_LIST, NULL, NULL },
 	{ NULL, 0, NULL, NULL }
