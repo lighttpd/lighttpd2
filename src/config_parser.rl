@@ -531,6 +531,13 @@
 				lvalue = condition_lvalue_new(COMP_REQUEST_METHOD, NULL);
 			else if (g_str_equal(str, "scheme"))
 				lvalue = condition_lvalue_new(COMP_REQUEST_SCHEME, NULL);
+			else if (g_str_equal(str, "header")) {
+				if (k == NULL) {
+					log_warning(srv, NULL, "header conditional needs a key", "");
+					return FALSE;
+				}
+				lvalue = condition_lvalue_new(COMP_REQUEST_HEADER, k->value.opt_string);
+			}
 			else {
 				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->value.opt_string->str);
 				return FALSE;
