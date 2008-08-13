@@ -116,8 +116,8 @@ void request_validate_header(server *srv, connection *con) {
 		bad_request(srv, con, 400); /* bad request */
 		return;
 	} else if (hh) {
-		g_string_append_len(req->uri.host, GSTR_LEN((GString*) g_queue_peek_head(&hh->values)));
-		if (parse_hostname(&req->uri)) {
+		g_string_append_len(req->uri.authority, GSTR_LEN((GString*) g_queue_peek_head(&hh->values)));
+		if (!parse_hostname(&req->uri)) {
 			bad_request(srv, con, 400); /* bad request */
 			return;
 		}
