@@ -17,4 +17,6 @@ LI_API void url_decode(GString *path);
 
 LI_API void path_simplify(GString *path);
 
+LI_API gchar *http_status_string(guint status_code);
+
 #endif

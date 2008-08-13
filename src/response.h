@@ -8,7 +8,7 @@ typedef struct response response;
 
 struct response {
 	http_headers *headers;
-	int http_status;
+	gint http_status;
 	transfer_encoding_t transfer_encoding;
 };
 
