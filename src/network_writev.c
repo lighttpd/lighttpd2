@@ -31,16 +31,18 @@ network_status_t network_backend_writev(server *srv, connection *con, int fd, ch
 	gboolean did_write_something = FALSE;
 	chunkiter ci;
 	chunk *c;
+	network_status_t res = NETWORK_STATUS_FATAL_ERROR;
 
 	GArray *chunks = g_array_sized_new(FALSE, TRUE, sizeof(struct iovec), UIO_MAXIOV);
 
-	do {
-		if (0 == cq->length) return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_FATAL_ERROR;
+	if (0 == cq->length) goto cleanup; /* FATAL ERROR */
 
+	do {
 		ci = chunkqueue_iter(cq);
 
 		if (MEM_CHUNK != (c = chunkiter_chunk(ci))->type) {
-			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_FATAL_ERROR;
+			res = did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_FATAL_ERROR;
+			goto cleanup;
 		}
 
 		we_have = 0;
@@ -65,36 +67,45 @@ network_status_t network_backend_writev(server *srv, connection *con, int fd, ch
 #if EWOULDBLOCK != EAGAIN
 			case EWOULDBLOCK
 #endif
-				g_array_free(chunks, TRUE);
-				return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+				res = did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+				goto cleanup;
 			case ECONNRESET:
 			case EPIPE:
-				g_array_free(chunks, TRUE);
-				return NETWORK_STATUS_CONNECTION_CLOSE;
+				res = NETWORK_STATUS_CONNECTION_CLOSE;
+				goto cleanup;
 			case EINTR:
 				break; /* try again */
 			default:
-				g_array_free(chunks, TRUE);
 				CON_ERROR(srv, con, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
-				return NETWORK_STATUS_FATAL_ERROR;
+				goto cleanup;
 			}
 		}
 		if (0 == r) {
-			g_array_free(chunks, TRUE);
-			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+			res = did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+			goto cleanup;
 		}
 		chunkqueue_skip(cq, r);
 		*write_max -= r;
 		if (r != we_have) {
-			g_array_free(chunks, TRUE);
-			return NETWORK_STATUS_SUCCESS;
+			res = NETWORK_STATUS_SUCCESS;
+			goto cleanup;
 		}
+
+		if (0 == cq->length) {
+			res = NETWORK_STATUS_SUCCESS;
+			goto cleanup;
+		}
+
+
 		did_write_something = TRUE;
 		g_array_set_size(chunks, 0);
 	} while (*write_max > 0);
 
+	res = NETWORK_STATUS_SUCCESS;
+
+cleanup:
 	g_array_free(chunks, TRUE);
-	return NETWORK_STATUS_SUCCESS;
+	return res;
 }
 
 network_status_t network_write_writev(server *srv, connection *con, int fd, chunkqueue *cq) {
