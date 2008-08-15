@@ -91,14 +91,6 @@ server* server_new() {
 	srv->magic = LIGHTTPD_SERVER_MAGIC;
 	srv->state = SERVER_STARTING;
 
-	srv->loop = ev_default_loop (0);
-	if (!srv->loop) {
-		fatal ("could not initialise libev, bad $LIBEV_FLAGS in environment?");
-	}
-
-	CATCH_SIGNAL(srv->loop, sigint_cb, INT);
-	CATCH_SIGNAL(srv->loop, sigint_cb, TERM);
-	CATCH_SIGNAL(srv->loop, sigpipe_cb, PIPE);
 
 	srv->connections_active = 0;
 	srv->connections = g_array_new(FALSE, TRUE, sizeof(connection*));
@@ -192,6 +184,21 @@ void server_free(server* srv) {
 	g_async_queue_unref(srv->log_queue);
 
 	g_slice_free(server, srv);
+}
+
+gboolean server_loop_init(server *srv) {
+	srv->loop = ev_default_loop(srv->loop_flags);
+
+	if (!srv->loop) {
+		fatal ("could not initialise libev, bad $LIBEV_FLAGS in environment?");
+		return FALSE;
+	}
+
+	CATCH_SIGNAL(srv->loop, sigint_cb, INT);
+	CATCH_SIGNAL(srv->loop, sigint_cb, TERM);
+	CATCH_SIGNAL(srv->loop, sigpipe_cb, PIPE);
+
+	return TRUE;
 }
 
 static connection* con_get(server *srv) {

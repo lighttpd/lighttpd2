@@ -22,4 +22,6 @@ LI_API gchar *http_status_string(guint status_code);
 /* */
 LI_API gchar counter_format(guint64 *count, guint factor);
 
+LI_API gchar *ev_backend_string(guint backend);
+
 #endif
