@@ -702,11 +702,11 @@
 
 	# scanner
 	value_scanner := ( value (any - value - ws) >keyvalue_end );
-	block_scanner := ( (noise | comment | statement)* '}' >block_end );
+	block_scanner := ( (noise | statement)* '}' >block_end );
 	list_scanner := ( noise* (value %list_push (noise* ',' noise* value %list_push)*)? noise* ')' >list_end );
 	hash_scanner := ( noise* (hash_elem %hash_push (noise* ',' noise* hash_elem %hash_push)*)? noise* ']' >hash_end );
 
-	main := (noise | comment | statement)* '\00';
+	main := (noise | statement)* '\00';
 }%%
 
 %% write data;

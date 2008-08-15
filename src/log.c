@@ -74,7 +74,7 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 		}
 	}
 
-	g_string_assign(log->lastmsg, log_line->str);
+	log->lastmsg = g_string_assign(log->lastmsg, log_line->str);
 
 	g_string_append_len(log_line, CONST_STR_LEN("\r\n"));
 
