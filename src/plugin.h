@@ -75,6 +75,7 @@ struct plugin {
 struct plugin_option {
 	const gchar *name;
 	option_type type;
+	gpointer default_value;
 
 	PluginParseOption parse_option;
 	PluginFreeOption free_option;
@@ -105,6 +106,7 @@ struct server_option {
 
 	size_t index, module_index;
 	option_type type;
+	gpointer default_value;
 };
 
 struct server_action {

@@ -241,12 +241,12 @@ gchar *http_status_string(guint status_code) {
 gchar counter_format(guint64 *count, guint factor) {
 	gchar suffix = 0;
 
-	if (*count > factor) { *count /= factor; suffix = 'k';
-		if (*count > factor) { *count /= factor; suffix = 'm';
-			if (*count > factor) { *count /= factor; suffix = 'g';
-				if (*count > factor) { *count /= factor; suffix = 't';
-					if (*count > factor) { *count /= factor; suffix = 'p';
-						if (*count > factor) { *count /= factor; suffix = 'e'; }
+	if (*count >= factor) { *count /= factor; suffix = 'k';
+		if (*count >= factor) { *count /= factor; suffix = 'm';
+			if (*count >= factor) { *count /= factor; suffix = 'g';
+				if (*count >= factor) { *count /= factor; suffix = 't';
+					if (*count >= factor) { *count /= factor; suffix = 'p';
+						if (*count >= factor) { *count /= factor; suffix = 'e'; }
 					}
 				}
 			}
@@ -258,13 +258,13 @@ gchar counter_format(guint64 *count, guint factor) {
 
 gchar *ev_backend_string(guint backend) {
 	switch (backend) {
-		case EVBACKEND_SELECT: return "select";
-		case EVBACKEND_POLL: return "poll";
-		case EVBACKEND_EPOLL: return "epoll";
-		case EVBACKEND_KQUEUE: return "kqueue";
-		case EVBACKEND_DEVPOLL: return "devpoll";
-		case EVBACKEND_PORT: return "port";
-		default:               return "unknown";
+		case EVBACKEND_SELECT:	return "select";
+		case EVBACKEND_POLL:	return "poll";
+		case EVBACKEND_EPOLL:	return "epoll";
+		case EVBACKEND_KQUEUE:	return "kqueue";
+		case EVBACKEND_DEVPOLL:	return "devpoll";
+		case EVBACKEND_PORT:	return "port";
+		default:				return "unknown";
 	}
 }
 

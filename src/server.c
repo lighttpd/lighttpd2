@@ -284,6 +284,8 @@ void server_listen(server *srv, int fd) {
 
 void server_start(server *srv) {
 	guint i;
+	GHashTableIter iter;
+	gpointer k, v;
 	if (srv->state == SERVER_STOPPING || srv->state == SERVER_RUNNING) return; /* no restart after stop */
 	srv->state = SERVER_RUNNING;
 
@@ -293,9 +295,15 @@ void server_start(server *srv) {
 		return;
 	}
 
-	/* TODO: get default values for options */
 	srv->option_count = g_hash_table_size(srv->options);
 	srv->option_def_values = g_slice_alloc0(srv->option_count * sizeof(*srv->option_def_values));
+
+	/* set default option values */
+	g_hash_table_iter_init(&iter, srv->options);
+	while (g_hash_table_iter_next(&iter, &k, &v)) {
+		server_option *so = v;
+		srv->option_def_values[so->index] = so->default_value;
+	}
 
 	plugins_prepare_callbacks(srv);
 

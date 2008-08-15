@@ -407,16 +407,16 @@ void core_option_log_level_free(server *srv, plugin *p, size_t ndx, gpointer val
 	UNUSED(value);
 }
 
-static const plugin_option options[] = {
-	{ "debug.log_request_handling", OPTION_BOOLEAN, NULL, NULL },
+static plugin_option options[] = {
+	{ "debug.log_request_handling", OPTION_BOOLEAN, NULL, NULL, NULL },
 
-	{ "log.target", OPTION_STRING, core_option_log_target_parse, core_option_log_target_free },
-	{ "log.level", OPTION_STRING, core_option_log_level_parse, core_option_log_level_free },
+	{ "log.target", OPTION_STRING, NULL, core_option_log_target_parse, core_option_log_target_free },
+	{ "log.level", OPTION_STRING, NULL, core_option_log_level_parse, core_option_log_level_free },
 
-	{ "static-file.exclude", OPTION_LIST, NULL, NULL },
+	{ "static-file.exclude", OPTION_LIST, NULL, NULL, NULL },
 
-	{ "server.tag", OPTION_STRING, NULL, NULL },
-	{ NULL, 0, NULL, NULL }
+	{ "server.tag", OPTION_STRING, NULL, NULL, NULL },
+	{ NULL, 0, NULL, NULL, NULL }
 };
 
 static const plugin_action actions[] = {
@@ -438,6 +438,10 @@ static const plugin_setup setups[] = {
 
 void plugin_core_init(server *srv, plugin *p) {
 	UNUSED(srv);
+
+	/* default values - if not initialized here, will default to NULL, 0 or FALSE */
+	options[CORE_OPTION_DEBUG_REQUEST_HANDLING].default_value = FALSE;
+	options[CORE_OPTION_SERVER_TAG].default_value = g_string_new_len(CONST_STR_LEN("lighttpd-2.0~sandbox"));
 
 	p->options = options;
 	p->actions = actions;

@@ -115,14 +115,9 @@ void response_send_headers(server *srv, connection *con) {
 		if (!have_server) {
 			GString *tag = CORE_OPTION(CORE_OPTION_SERVER_TAG);
 
-			if (!tag || tag->len) {
+			if (tag->len) {
 				g_string_append_len(head, CONST_STR_LEN("Server: "));
-
-				if (tag)
-					g_string_append_len(head, GSTR_LEN(tag));
-				else
-					g_string_append_len(head, CONST_STR_LEN("lighttpd-2.0~sandbox"));
-
+				g_string_append_len(head, GSTR_LEN(tag));
 				g_string_append_len(head, CONST_STR_LEN("\r\n"));
 			}
 		}
