@@ -113,6 +113,7 @@ int main(int argc, char *argv[]) {
 	log_warning(srv, NULL, "test %s", "foo2");
 	log_debug(srv, NULL, "test %s", "message");
 
+	server_loop_init(srv);
 	server_start(srv);
 
 	server_free(srv);

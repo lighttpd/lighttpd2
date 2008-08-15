@@ -178,6 +178,7 @@ static action_result core_handle_test(server *srv, connection *con, gpointer par
 	gpointer k, v;
 	GList *hv;
 	GString *str;
+	gchar *backend;
 	guint64 uptime;
 	guint64 avg1, avg2, avg3;
 	gchar suffix1[2] = {0,0}, suffix2[2] = {0,0}, suffix3[2] = {0,0};
@@ -217,6 +218,10 @@ static action_result core_handle_test(server *srv, connection *con, gpointer par
 	str = g_string_sized_new(0);
 	g_string_printf(str, "%"G_GUINT64_FORMAT"%s (%"G_GUINT64_FORMAT"%s/s)", avg1, suffix1, avg2, suffix2);
 	chunkqueue_append_string(con->out, str);
+
+	backend = ev_backend_string(ev_backend(srv->loop));
+	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\nevent handler: "));
+	chunkqueue_append_mem(con->out, backend, strlen(backend));
 
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n\r\n--- headers ---\r\n"));
 	g_hash_table_iter_init(&iter, con->request.headers->table);
@@ -307,6 +312,53 @@ static gboolean core_listen(server *srv, plugin* p, option *opt) {
 }
 
 
+static gboolean core_event_handler(server *srv, plugin* p, option *opt) {
+	guint backend;
+	gchar *str;
+	UNUSED(p);
+
+	if (opt->type != OPTION_STRING) {
+		ERROR(srv, "%s", "event_handler expects a string as parameter");
+		return FALSE;
+	}
+
+	str = opt->value.opt_string->str;
+	backend = 0; /* libev will chose the right one by default */
+
+	if (g_str_equal(str, "select"))
+		backend = EVBACKEND_SELECT;
+	else if (g_str_equal(str, "poll"))
+		backend = EVBACKEND_POLL;
+	else if (g_str_equal(str, "epoll"))
+		backend = EVBACKEND_EPOLL;
+	else if (g_str_equal(str, "kqueue"))
+		backend = EVBACKEND_KQUEUE;
+	else if (g_str_equal(str, "devpoll"))
+		backend = EVBACKEND_DEVPOLL;
+	else if (g_str_equal(str, "port"))
+		backend = EVBACKEND_PORT;
+	else {
+		ERROR(srv, "unkown event handler: '%s'", str);
+		return FALSE;
+	}
+
+	if (backend) {
+		if (!(ev_supported_backends() & backend)) {
+			ERROR(srv, "unsupported event handler: '%s'", str);
+			return FALSE;
+		}
+
+		if (!(ev_recommended_backends() & backend)) {
+			TRACE(srv, "warning: event handler '%s' not recommended for this platform!", str);
+		}
+	}
+
+	srv->loop_flags |= backend;
+
+	return TRUE;
+}
+
+
 gboolean core_option_log_target_parse(server *srv, plugin *p, size_t ndx, option *opt, gpointer *value) {
 	log_t *log;
 	log_type_t log_type;
@@ -380,6 +432,7 @@ static const plugin_action actions[] = {
 
 static const plugin_setup setups[] = {
 	{ "listen", core_listen },
+	{ "event_handler", core_event_handler },
 	{ NULL, NULL }
 };
 

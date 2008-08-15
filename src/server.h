@@ -37,6 +37,7 @@ struct server {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
 	server_state state;
 
+	guint loop_flags;
 	struct ev_loop *loop;
 
 	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections */
@@ -80,6 +81,7 @@ struct server {
 
 LI_API server* server_new();
 LI_API void server_free(server* srv);
+LI_API gboolean server_loop_init(server *srv);
 
 LI_API void server_listen(server *srv, int fd);
 
