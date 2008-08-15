@@ -108,6 +108,7 @@ gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 			so->index = g_hash_table_size(srv->options);
 			so->module_index = i;
 			so->p = p;
+			so->default_value = po->default_value;
 			g_hash_table_insert(srv->options, (gchar*) po->name, so);
 		}
 	}
