@@ -7,7 +7,9 @@ enum core_options_t {
 	CORE_OPTION_LOG_TARGET = 1,
 	CORE_OPTION_LOG_LEVEL = 2,
 
-	CORE_OPTION_STATIC_FILE_EXCLUDE = 3
+	CORE_OPTION_STATIC_FILE_EXCLUDE = 3,
+
+	CORE_OPTION_SERVER_TAG = 4
 };
 
 /* the core plugin always has base index 0, as it is the first plugin loaded */

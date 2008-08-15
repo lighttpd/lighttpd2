@@ -1,6 +1,7 @@
 
 #include "base.h"
 #include "utils.h"
+#include "plugin_core.h"
 
 void response_init(response *resp) {
 	resp->headers = http_headers_new();
@@ -112,10 +113,18 @@ void response_send_headers(server *srv, connection *con) {
 		}
 
 		if (!have_server) {
-			/* TODO: use option for this */
-			g_string_append_len(head, CONST_STR_LEN("Server: "));
-			g_string_append_len(head, CONST_STR_LEN("lighttpd-2.0~sandbox"));
-			g_string_append_len(head, CONST_STR_LEN("\r\n"));
+			GString *tag = CORE_OPTION(CORE_OPTION_SERVER_TAG);
+
+			if (!tag || tag->len) {
+				g_string_append_len(head, CONST_STR_LEN("Server: "));
+
+				if (tag)
+					g_string_append_len(head, GSTR_LEN(tag));
+				else
+					g_string_append_len(head, CONST_STR_LEN("lighttpd-2.0~sandbox"));
+
+				g_string_append_len(head, CONST_STR_LEN("\r\n"));
+			}
 		}
 	}
 

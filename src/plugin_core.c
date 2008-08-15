@@ -362,6 +362,8 @@ static const plugin_option options[] = {
 	{ "log.level", OPTION_STRING, core_option_log_level_parse, core_option_log_level_free },
 
 	{ "static-file.exclude", OPTION_LIST, NULL, NULL },
+
+	{ "server.tag", OPTION_STRING, NULL, NULL },
 	{ NULL, 0, NULL, NULL }
 };
 
