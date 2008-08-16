@@ -44,5 +44,9 @@ handler_t filter_chunked_encode(server *srv, connection *con, chunkqueue *out, c
 }
 
 handler_t filter_chunked_decode(server *srv, connection *con, chunkqueue *out, chunkqueue *in) {
+	UNUSED(srv);
+	UNUSED(con);
+	UNUSED(out);
+	UNUSED(in);
 	return HANDLER_ERROR;
 }
