@@ -250,11 +250,33 @@ static action* core_test(server *srv, plugin* p, option *opt) {
 	UNUSED(p);
 
 	if (opt) {
-		ERROR(srv, "%s", "static action doesn't have parameters");
+		ERROR(srv, "%s", "'static' action doesn't have parameters");
 		return NULL;
 	}
 
 	return action_new_function(core_handle_test, NULL, NULL);
+}
+
+static action_result core_handle_blank(server *srv, connection *con, gpointer param) {
+	UNUSED(param);
+
+	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
+
+	con->response.http_status = 200;
+	connection_handle_direct(srv, con);
+
+	return ACTION_GO_ON;
+}
+
+static action* core_blank(server *srv, plugin* p, option *opt) {
+	UNUSED(p);
+
+	if (opt) {
+		ERROR(srv, "%s", "'empty' action doesn't have parameters");
+		return NULL;
+	}
+
+	return action_new_function(core_handle_blank, NULL, NULL);
 }
 
 static gboolean core_listen(server *srv, plugin* p, option *opt) {
@@ -363,8 +385,7 @@ gboolean core_option_log_target_parse(server *srv, plugin *p, size_t ndx, option
 	log_t *log;
 	log_type_t log_type;
 
-	UNUSED(log);
-	UNUSED(log_type);
+	UNUSED(ndx);
 	UNUSED(p);
 
 	assert(opt->type == OPTION_STRING);
@@ -373,8 +394,6 @@ gboolean core_option_log_target_parse(server *srv, plugin *p, size_t ndx, option
 	log = log_new(srv, log_type, opt->value.opt_string);
 
 	*value = (gpointer)log;
-
-	TRACE(srv, "log.target assignment; ndx: %zd, value: %s", ndx, opt->value.opt_string->str);
 
 	return TRUE;
 }
@@ -394,8 +413,6 @@ gboolean core_option_log_level_parse(server *srv, plugin *p, size_t ndx, option 
 	assert(opt->type == OPTION_STRING);
 
 	*value = (gpointer)log_level_from_string(opt->value.opt_string);
-
-	TRACE(srv, "log.level assignment: %s", opt->value.opt_string->str);
 
 	return TRUE;
 }
@@ -427,6 +444,7 @@ static const plugin_action actions[] = {
 	{ "physical", core_physical },
 	{ "static", core_static },
 	{ "test", core_test },
+	{ "blank", core_blank },
 	{ NULL, NULL }
 };
 
