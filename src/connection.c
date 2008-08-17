@@ -166,6 +166,7 @@ connection* connection_new(server *srv) {
 
 	con->keep_alive_data.link = NULL;
 	con->keep_alive_data.timeout = 0;
+	con->keep_alive_data.max_idle = 0;
 	my_ev_init(&con->keep_alive_data.watcher, connection_keepalive_cb);
 	con->keep_alive_data.watcher.data = con;
 
@@ -209,6 +210,7 @@ void connection_reset(server *srv, connection *con) {
 		con->keep_alive_data.link = NULL;
 	}
 	con->keep_alive_data.timeout = 0;
+	con->keep_alive_data.max_idle = 0;
 	ev_timer_stop(srv->loop, &con->keep_alive_data.watcher);
 }
 
@@ -216,12 +218,12 @@ void server_check_keepalive(server *srv);
 void connection_reset_keep_alive(server *srv, connection *con) {
 	ev_timer_stop(srv->loop, &con->keep_alive_data.watcher);
 	{
-		guint timeout = GPOINTER_TO_INT(CORE_OPTION(CORE_OPTION_MAX_KEEP_ALIVE_IDLE));
-		if (timeout == 0) {
+		con->keep_alive_data.max_idle = GPOINTER_TO_INT(CORE_OPTION(CORE_OPTION_MAX_KEEP_ALIVE_IDLE));
+		if (con->keep_alive_data.max_idle == 0) {
 			con_put(srv, con);
 			return;
 		}
-		if (timeout >= srv->keep_alive_queue_timeout) {
+		if (con->keep_alive_data.max_idle >= srv->keep_alive_queue_timeout) {
 			/* queue is sorted by con->keep_alive_data.timeout */
 			gboolean need_start = (0 == srv->keep_alive_queue.length);
 			con->keep_alive_data.timeout = ev_now((srv)->loop) + srv->keep_alive_queue_timeout;
@@ -230,7 +232,7 @@ void connection_reset_keep_alive(server *srv, connection *con) {
 			if (need_start)
 				server_check_keepalive(srv);
 		} else {
-			ev_timer_set(&con->keep_alive_data.watcher, timeout, 0);
+			ev_timer_set(&con->keep_alive_data.watcher, con->keep_alive_data.max_idle, 0);
 			ev_timer_start(srv->loop, &con->keep_alive_data.watcher);
 		}
 	}
@@ -294,6 +296,7 @@ void connection_free(server *srv, connection *con) {
 		con->keep_alive_data.link = NULL;
 	}
 	con->keep_alive_data.timeout = 0;
+	con->keep_alive_data.max_idle = 0;
 	ev_timer_stop(srv->loop, &con->keep_alive_data.watcher);
 
 	g_slice_free(connection, con);

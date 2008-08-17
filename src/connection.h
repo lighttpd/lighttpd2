@@ -100,6 +100,7 @@ struct connection {
 	struct {
 		GList *link;
 		ev_tstamp timeout;
+		guint max_idle;
 		ev_timer watcher;
 	} keep_alive_data;
 };

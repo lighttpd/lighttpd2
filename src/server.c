@@ -109,9 +109,9 @@ static void server_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 
 	while ( NULL != (l = g_queue_peek_head_link(q)) &&
 	        (con = (connection*) l->data)->keep_alive_data.timeout <= now ) {
-		guint timeout = GPOINTER_TO_INT(CORE_OPTION(CORE_OPTION_MAX_KEEP_ALIVE_IDLE));
-		ev_tstamp remaining = timeout - srv->keep_alive_queue_timeout - (now - con->keep_alive_data.timeout);
+		ev_tstamp remaining = con->keep_alive_data.max_idle - srv->keep_alive_queue_timeout - (now - con->keep_alive_data.timeout);
 		if (remaining > 0) {
+			g_queue_delete_link(q, l);
 			ev_timer_set(&con->keep_alive_data.watcher, remaining, 0);
 			ev_timer_start(srv->loop, &con->keep_alive_data.watcher);
 		} else {
