@@ -4,6 +4,12 @@
 #include "base.h"
 
 typedef enum {
+	/** unused */
+	CON_STATE_DEAD,
+
+	/** waiting for new input after first request */
+	CON_STATE_KEEP_ALIVE,
+
 	/** after the connect, the request is initialized, keep-alive starts here again */
 	CON_STATE_REQUEST_START,
 
@@ -89,6 +95,13 @@ struct connection {
 
 	struct log_t *log;
 	gint log_level;
+
+	/* Keep alive timeout data */
+	struct {
+		GList *link;
+		ev_tstamp timeout;
+		ev_timer watcher;
+	} keep_alive_data;
 };
 
 LI_API connection* connection_new(server *srv);

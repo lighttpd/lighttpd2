@@ -130,11 +130,17 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		joblist_append(srv, con);
 }
 
+static void connection_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) {
+	connection *con = (connection*) w->data;
+	UNUSED(loop); UNUSED(revents);
+	con_put(con->sock.srv, con);
+}
+
 connection* connection_new(server *srv) {
 	connection *con = g_slice_new0(connection);
 	UNUSED(srv);
 
-	con->state = CON_STATE_REQUEST_START;
+	con->state = CON_STATE_DEAD;
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
@@ -158,11 +164,16 @@ connection* connection_new(server *srv) {
 	physical_init(&con->physical);
 	response_init(&con->response);
 
+	con->keep_alive_data.link = NULL;
+	con->keep_alive_data.timeout = 0;
+	my_ev_init(&con->keep_alive_data.watcher, connection_keepalive_cb);
+	con->keep_alive_data.watcher.data = con;
+
 	return con;
 }
 
 void connection_reset(server *srv, connection *con) {
-	con->state = CON_STATE_REQUEST_START;
+	con->state = CON_STATE_DEAD;
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
@@ -192,10 +203,39 @@ void connection_reset(server *srv, connection *con) {
 	request_reset(&con->request);
 	physical_reset(&con->physical);
 	response_reset(&con->response);
+
+	if (con->keep_alive_data.link) {
+		g_queue_delete_link(&srv->keep_alive_queue, con->keep_alive_data.link);
+		con->keep_alive_data.link = NULL;
+	}
+	con->keep_alive_data.timeout = 0;
+	ev_timer_stop(srv->loop, &con->keep_alive_data.watcher);
 }
 
+void server_check_keepalive(server *srv);
 void connection_reset_keep_alive(server *srv, connection *con) {
-	con->state = CON_STATE_REQUEST_START;
+	ev_timer_stop(srv->loop, &con->keep_alive_data.watcher);
+	{
+		guint timeout = GPOINTER_TO_INT(CORE_OPTION(CORE_OPTION_MAX_KEEP_ALIVE_IDLE));
+		if (timeout == 0) {
+			con_put(srv, con);
+			return;
+		}
+		if (timeout >= srv->keep_alive_queue_timeout) {
+			/* queue is sorted by con->keep_alive_data.timeout */
+			gboolean need_start = (0 == srv->keep_alive_queue.length);
+			con->keep_alive_data.timeout = ev_now((srv)->loop) + srv->keep_alive_queue_timeout;
+			g_queue_push_tail(&srv->keep_alive_queue, con);
+			con->keep_alive_data.link = g_queue_peek_tail_link(&srv->keep_alive_queue);
+			if (need_start)
+				server_check_keepalive(srv);
+		} else {
+			ev_timer_set(&con->keep_alive_data.watcher, timeout, 0);
+			ev_timer_start(srv->loop, &con->keep_alive_data.watcher);
+		}
+	}
+
+	con->state = CON_STATE_KEEP_ALIVE;
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
@@ -218,7 +258,7 @@ void connection_reset_keep_alive(server *srv, connection *con) {
 }
 
 void connection_free(server *srv, connection *con) {
-	con->state = CON_STATE_REQUEST_START;
+	con->state = CON_STATE_DEAD;
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
@@ -249,6 +289,13 @@ void connection_free(server *srv, connection *con) {
 	physical_clear(&con->physical);
 	response_clear(&con->response);
 
+	if (con->keep_alive_data.link) {
+		g_queue_delete_link(&srv->keep_alive_queue, con->keep_alive_data.link);
+		con->keep_alive_data.link = NULL;
+	}
+	con->keep_alive_data.timeout = 0;
+	ev_timer_stop(srv->loop, &con->keep_alive_data.watcher);
+
 	g_slice_free(connection, con);
 }
 
@@ -264,6 +311,26 @@ void connection_state_machine(server *srv, connection *con) {
 	gboolean done = FALSE;
 	do {
 		switch (con->state) {
+		case CON_STATE_DEAD:
+			done = TRUE;
+			break;
+
+		case CON_STATE_KEEP_ALIVE:
+			if (con->raw_in->length > 0) {
+				/* stop keep alive timeout watchers */
+				if (con->keep_alive_data.link) {
+					g_queue_delete_link(&srv->keep_alive_queue, con->keep_alive_data.link);
+					con->keep_alive_data.link = NULL;
+				}
+				con->keep_alive_data.timeout = 0;
+				ev_timer_stop(srv->loop, &con->keep_alive_data.watcher);
+
+				connection_set_state(srv, con, CON_STATE_REQUEST_START);
+			} else
+				done = TRUE;
+			break;
+
+
 		case CON_STATE_REQUEST_START:
 			connection_set_state(srv, con, CON_STATE_READ_REQUEST_HEADER);
 			action_enter(con, srv->mainaction);

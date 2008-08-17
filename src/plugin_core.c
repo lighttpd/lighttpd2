@@ -433,6 +433,7 @@ static plugin_option options[] = {
 	{ "static-file.exclude", OPTION_LIST, NULL, NULL, NULL },
 
 	{ "server.tag", OPTION_STRING, NULL, NULL, NULL },
+	{ "server.max_keep_alive_idle", OPTION_INT, GINT_TO_POINTER(5), NULL, NULL },
 	{ NULL, 0, NULL, NULL, NULL }
 };
 

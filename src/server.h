@@ -39,6 +39,7 @@ struct server {
 
 	guint loop_flags;
 	struct ev_loop *loop;
+	ev_timer keep_alive_timer;
 
 	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections */
 	GArray *connections;      /** array of (connection*) */
@@ -76,6 +77,10 @@ struct server {
 
 	ev_tstamp started;
 	statistics_t stats;
+
+	/* keep alive timeout queue */
+	guint keep_alive_queue_timeout;
+	GQueue keep_alive_queue;
 };
 
 
