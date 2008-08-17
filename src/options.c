@@ -63,6 +63,41 @@ option* option_new_condition(server *srv, condition *c) {
 	return opt;
 }
 
+option* option_copy(option* opt) {
+	option *n;
+
+	switch (opt->type) {
+		case OPTION_NONE: n = option_new_bool(FALSE); n->type = OPTION_NONE; return n; /* hack */
+		case OPTION_BOOLEAN: return option_new_bool(opt->value.opt_bool);
+		case OPTION_INT: return option_new_int(opt->value.opt_int);
+		case OPTION_STRING: return option_new_string(g_string_new_len(GSTR_LEN(opt->value.opt_string)));
+		/* list: we have to copy every option in the list! */
+		case OPTION_LIST:
+			n = option_new_list();
+			g_array_set_size(n->value.opt_list, opt->value.opt_list->len);
+			for (guint i = 0; i < opt->value.opt_list->len; i++)
+				//g_array_insert_val((*(n->value.opt_list)), i, option_copy(g_array_index(opt->value.opt_list, option*, i)));
+				g_array_insert_vals(n->value.opt_list, i, option_copy(g_array_index(opt->value.opt_list, option*, i)), 1);
+			return n;
+		/* hash: iterate over hashtable, clone each option */
+		case OPTION_HASH:
+			n = option_new_hash();
+			{
+				GHashTableIter iter;
+				gpointer k, v;
+				g_hash_table_iter_init(&iter, opt->value.opt_hash);
+				while (g_hash_table_iter_next(&iter, &k, &v))
+					g_hash_table_insert(n->value.opt_hash, g_string_new_len(GSTR_LEN((GString*)k)), option_copy((option*)v));
+			}
+			return n;
+		/* TODO: does it make sense to clone action and condition options? */
+		case OPTION_ACTION:
+		case OPTION_CONDITION:
+			assert(NULL);
+			return NULL;
+	}
+}
+
 void option_free(option* opt) {
 	if (!opt) return;
 
