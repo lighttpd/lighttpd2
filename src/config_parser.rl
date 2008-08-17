@@ -317,19 +317,21 @@
 
 	action actionref {
 		/* varname is on the stack */
-		option *o, *r;
+		option *o, *r, *t;
 
 		o = g_queue_pop_head(ctx->option_stack);
 
 		/* action refs starting with "var." are user defined variables */
 		if (g_str_has_prefix(o->value.opt_string->str, "var.")) {
-			/* look up var in hashtable, push option onto stack */
-			r = g_hash_table_lookup(ctx->uservars, o->value.opt_string);
+			/* look up var in hashtable, copy and push option onto stack */
+			t = g_hash_table_lookup(ctx->uservars, o->value.opt_string);
 
-			if (r == NULL) {
+			if (t == NULL) {
 				log_warning(srv, NULL, "unknown variable '%s'", o->value.opt_string->str);
 				return FALSE;
 			}
+
+			r = option_copy(t);
 		}
 		else {
 			/* real action, lookup hashtable and create new action option */
@@ -471,6 +473,16 @@
 
 			option_free(val);
 		}
+		/* internal functions */
+		else if (g_str_equal(name->value.opt_string->str, "__print")) {
+			g_printerr("%s:%zd type: %s", ctx->filename, ctx->line, option_type_string(val->type));
+			switch (val->type) {
+				case OPTION_INT: g_printerr(", value: %d\n", val->value.opt_int); break;
+				case OPTION_STRING: g_printerr(", value: %s\n", val->value.opt_string->str); break;
+				default: g_printerr("\n");
+			}
+		}
+		/* normal function action */
 		else {
 			/* TODO */
 			if (ctx->in_setup_block) {
@@ -679,7 +691,7 @@
 	string = ( '"' (any-'"')* '"' ) %string;
 
 	# advanced types
-	varname = ( (alpha ( alnum | [._] )*) - boolean ) >mark %varname;
+	varname = ( '__' ? (alpha ( alnum | [._] )*) - boolean ) >mark %varname;
 	actionref = ( varname ) %actionref;
 	list = ( '(' >list_start );
 	hash = ( '[' >hash_start );

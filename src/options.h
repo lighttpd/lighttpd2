@@ -56,6 +56,8 @@ LI_API option* option_new_list();
 LI_API option* option_new_hash();
 LI_API option* option_new_action(server *srv, action *a);
 LI_API option* option_new_condition(server *srv, condition *c);
+
+LI_API option* option_copy(option* opt);
 LI_API void option_free(option* opt);
 
 LI_API const char* option_type_string(option_type type);
