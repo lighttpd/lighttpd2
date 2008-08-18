@@ -178,7 +178,6 @@ void server_free(server* srv) {
 				connection *con = g_array_index(srv->connections, connection*, i);
 				connection_set_state(srv, con, CON_STATE_ERROR);
 				connection_state_machine(srv, con); /* cleanup plugins */
-				con_put(srv, con);
 			}
 		}
 		for (i = 0; i < srv->connections->len; i++) {
