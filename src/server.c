@@ -354,7 +354,8 @@ void server_start(server *srv) {
 	g_hash_table_iter_init(&iter, srv->options);
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
 		server_option *so = v;
-		srv->option_def_values[so->index] = so->default_value;
+		if (so->default_value)
+			srv->option_def_values[so->index] = so->default_value(srv, so->p, so->index);
 	}
 
 	plugins_prepare_callbacks(srv);

@@ -38,6 +38,7 @@ typedef void     (*PluginInit)          (server *srv, plugin *p);
 typedef void     (*PluginFree)          (server *srv, plugin *p);
 typedef gboolean (*PluginParseOption)   (server *srv, plugin *p, size_t ndx, option *opt, gpointer *value);
 typedef void     (*PluginFreeOption)    (server *srv, plugin *p, size_t ndx, gpointer value);
+typedef gpointer (*PluginDefaultValue) (server *srv, plugin *p, gsize ndx);
 typedef action*  (*PluginCreateAction)  (server *srv, plugin *p, option *opt);
 typedef gboolean (*PluginSetup)         (server *srv, plugin *p, option *opt);
 
@@ -75,8 +76,8 @@ struct plugin {
 struct plugin_option {
 	const gchar *name;
 	option_type type;
-	gpointer default_value;
 
+	PluginDefaultValue default_value;
 	PluginParseOption parse_option;
 	PluginFreeOption free_option;
 };
@@ -101,12 +102,12 @@ struct server_option {
 	  *
 	  * Default behaviour (NULL) is to just use the option as value
 	  */
+	PluginDefaultValue default_value; /* default value callback - if no callback is provided, default value will be NULL, 0 or FALSE */
 	PluginParseOption parse_option;
 	PluginFreeOption free_option;
 
 	size_t index, module_index;
 	option_type type;
-	gpointer default_value;
 };
 
 struct server_action {
