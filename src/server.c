@@ -112,6 +112,7 @@ static void server_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 		ev_tstamp remaining = con->keep_alive_data.max_idle - srv->keep_alive_queue_timeout - (now - con->keep_alive_data.timeout);
 		if (remaining > 0) {
 			g_queue_delete_link(q, l);
+			con->keep_alive_data.link = NULL;
 			ev_timer_set(&con->keep_alive_data.watcher, remaining, 0);
 			ev_timer_start(srv->loop, &con->keep_alive_data.watcher);
 		} else {
@@ -177,7 +178,6 @@ void server_free(server* srv) {
 				connection *con = g_array_index(srv->connections, connection*, i);
 				connection_set_state(srv, con, CON_STATE_ERROR);
 				connection_state_machine(srv, con); /* cleanup plugins */
-				con_put(srv, con);
 			}
 		}
 		for (i = 0; i < srv->connections->len; i++) {
