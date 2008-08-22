@@ -424,7 +424,23 @@ void core_option_log_level_free(server *srv, plugin *p, size_t ndx, gpointer val
 	UNUSED(value);
 }
 
-static plugin_option options[] = {
+gpointer core_option_max_keep_alive_idle_default(server *srv, plugin *p, gsize ndx) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+
+	return GINT_TO_POINTER(5);
+}
+
+gpointer core_option_server_tag_default(server *srv, plugin *p, gsize ndx) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+
+	return g_string_new_len(CONST_STR_LEN("lighttpd-2.0~sandbox"));
+}
+
+static const plugin_option options[] = {
 	{ "debug.log_request_handling", OPTION_BOOLEAN, NULL, NULL, NULL },
 
 	{ "log.target", OPTION_STRING, NULL, core_option_log_target_parse, core_option_log_target_free },
@@ -432,8 +448,8 @@ static plugin_option options[] = {
 
 	{ "static-file.exclude", OPTION_LIST, NULL, NULL, NULL },
 
-	{ "server.tag", OPTION_STRING, NULL, NULL, NULL },
-	{ "server.max_keep_alive_idle", OPTION_INT, GINT_TO_POINTER(5), NULL, NULL },
+	{ "server.tag", OPTION_STRING, core_option_server_tag_default, NULL, NULL },
+	{ "server.max_keep_alive_idle", OPTION_INT, core_option_max_keep_alive_idle_default, NULL, NULL },
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
@@ -457,10 +473,6 @@ static const plugin_setup setups[] = {
 
 void plugin_core_init(server *srv, plugin *p) {
 	UNUSED(srv);
-
-	/* default values - if not initialized here, will default to NULL, 0 or FALSE */
-	options[CORE_OPTION_DEBUG_REQUEST_HANDLING].default_value = FALSE;
-	options[CORE_OPTION_SERVER_TAG].default_value = g_string_new_len(CONST_STR_LEN("lighttpd-2.0~sandbox"));
 
 	p->options = options;
 	p->actions = actions;
