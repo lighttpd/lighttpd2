@@ -624,6 +624,38 @@
 		ctx->condition_with_key = TRUE;
 	}
 
+	action else_nocond_start {
+		_printf("got else_nocond_start in line %zd\n", ctx->line);
+	}
+
+	action else_nocond_end {
+		_printf("got else_nocond_end in line %zd\n", ctx->line);
+	}
+
+	action else_cond_end {
+		/*
+			else block WITH condition
+			- get current condition action from action list
+			- get previous condition action from action list
+			- put current condition action as target_else of the previous condition
+			- remove current condition action from action list
+		*/
+
+		action *prev, *cur, *al;
+
+		al = g_queue_peek_head(ctx->action_list_stack);
+		cur = g_array_index(al->value.list, action*, al->value.list->len - 1); /* last element of the action list */
+		prev = g_array_index(al->value.list, action*, al->value.list->len - 2);
+
+		assert(cur->type == ACTION_TCONDITION);
+		assert(prev->type == ACTION_TCONDITION);
+
+		prev->value.condition.target_else = cur;
+		g_array_remove_index(al->value.list, al->value.list->len - 1);
+
+		_printf("got else_cond_end in line %zd\n", ctx->line);
+	}
+
 	action action_block_start {
 		option *o;
 		action *al;
@@ -691,7 +723,7 @@
 	string = ( '"' (any-'"')* '"' ) %string;
 
 	# advanced types
-	varname = ( '__' ? (alpha ( alnum | [._] )*) - boolean ) >mark %varname;
+	varname = ( '__' ? (alpha ( alnum | [._] )*) - (boolean | 'else') ) >mark %varname;
 	actionref = ( varname ) %actionref;
 	list = ( '(' >list_start );
 	hash = ( '[' >hash_start );
@@ -707,10 +739,15 @@
 	function_noparam = ( varname ';' ) %function_noparam;
 	function_param = ( varname ws+ value_statement ';') %function_param;
 	function = ( function_noparam | function_param );
+
 	condition = ( varname ('[' string >mark ']' %condition_key)? ws* operator ws* value_statement noise* block >condition_start ) %condition_end;
+	else_cond = ( 'else' noise+ condition ) %else_cond_end;
+	else_nocond = ( 'else' noise+ block >else_nocond_start ) %else_nocond_end;
+	condition_else = ( condition noise* (else_cond| noise)* else_nocond? );
+
 	action_block = ( varname noise* block >action_block_start ) %action_block_end;
 
-	statement = ( assignment | function | condition | action_block );
+	statement = ( assignment | function | condition_else | action_block );
 
 	# scanner
 	value_scanner := ( value (any - value - ws) >keyvalue_end );
@@ -933,7 +970,7 @@ gboolean config_parser_buffer(server *srv, GList *ctx_stack)
 	if (ctx->cs == config_parser_error || ctx->cs == config_parser_first_final)
 	{
 		/* parse error */
-		log_warning(srv, NULL, "parse error in line %zd of \"%s\" at character %c (0x%.2x)", ctx->line, ctx->filename, *ctx->p, *ctx->p);
+		log_warning(srv, NULL, "parse error in line %zd of \"%s\" at character '%c' (0x%.2x)", ctx->line, ctx->filename, *ctx->p, *ctx->p);
 		return FALSE;
 	}
 
