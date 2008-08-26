@@ -625,10 +625,33 @@
 	}
 
 	action else_nocond_start {
+		/* start a new action list */
+		g_queue_push_head(ctx->action_list_stack, action_new_list());
+
 		_printf("got else_nocond_start in line %zd\n", ctx->line);
 	}
 
 	action else_nocond_end {
+		/*
+			else block WITHOUT condition
+			- pop current action list from stack
+			- peek previous action list from stack
+			- get last action from action list
+			- put current action list as target_else of the last action
+		*/
+		action *al, *target, *cond;
+
+		target = g_queue_pop_head(ctx->action_list_stack);
+		al = g_queue_peek_head(ctx->action_list_stack);
+		cond = g_array_index(al->value.list, action*, al->value.list->len - 1); /* last action in the list is our condition */
+
+		while (cond->value.condition.target_else) {
+			/* condition has already an else statement, try the target */
+			cond = cond->value.condition.target_else;
+		}
+
+		cond->value.condition.target_else = target;
+
 		_printf("got else_nocond_end in line %zd\n", ctx->line);
 	}
 
@@ -649,6 +672,11 @@
 
 		assert(cur->type == ACTION_TCONDITION);
 		assert(prev->type == ACTION_TCONDITION);
+
+		while (prev->value.condition.target_else) {
+			/* condition has already an else statement, try the target */
+			prev = prev->value.condition.target_else;
+		}
 
 		prev->value.condition.target_else = cur;
 		g_array_remove_index(al->value.list, al->value.list->len - 1);
