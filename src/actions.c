@@ -82,7 +82,7 @@ action *action_new_list() {
 action *action_new_condition(condition *cond, action *target) {
 	action *a;
 
-	a = g_slice_new(action);
+	a = g_slice_new0(action);
 	a->refcount = 1;
 	a->type = ACTION_TCONDITION;
 	a->value.condition.cond = cond;
@@ -178,6 +178,9 @@ action_result action_execute(server *srv, connection *con) {
 		case ACTION_TCONDITION:
 			if (condition_check(srv, con, a->value.condition.cond)) {
 				action_enter(con, a->value.condition.target);
+			}
+			else if (a->value.condition.target_else) {
+				action_enter(con, a->value.condition.target_else);
 			}
 			break;
 		case ACTION_TLIST:

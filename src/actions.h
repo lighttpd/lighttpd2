@@ -52,7 +52,8 @@ struct action {
 
 		struct {
 			condition *cond;
-			action* target; /** action target to jump to if condition is fulfilled */
+			action *target; /** action target to jump to if condition is fulfilled */
+			action *target_else; /** like above but if condition is not fulfilled */
 		} condition;
 
 		action_func function;
