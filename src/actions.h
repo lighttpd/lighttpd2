@@ -78,6 +78,6 @@ LI_API void action_acquire(action *a);
 LI_API action *action_new_setting(option_set setting);
 LI_API action *action_new_function(ActionFunc func, ActionFree free, gpointer param);
 LI_API action *action_new_list();
-LI_API action *action_new_condition(condition *cond, action *target);
+LI_API action *action_new_condition(condition *cond, action *target, action *target_else);
 
 #endif

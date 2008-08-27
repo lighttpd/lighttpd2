@@ -41,8 +41,8 @@ static action* core_list(server *srv, plugin* p, option *opt) {
 }
 
 static action* core_when(server *srv, plugin* p, option *opt) {
-	option *opt_cond, *opt_act;
-	action *a;
+	option *opt_cond, *opt_act, *opt_act_else;
+	action *a, *act_else;
 	UNUSED(p);
 
 	if (!opt) {
@@ -53,12 +53,19 @@ static action* core_when(server *srv, plugin* p, option *opt) {
 		ERROR(srv, "expected list, got %s", option_type_string(opt->type));
 		return NULL;
 	}
-	if (opt->value.opt_list->len != 2) {
-		ERROR(srv, "expected list with length 2, has length %u", opt->value.opt_list->len);
+	if (opt->value.opt_list->len == 2) {
+		opt_act_else = NULL;
+		act_else = NULL;
+	} else if (opt->value.opt_list->len == 3) {
+		opt_act_else = g_array_index(opt->value.opt_list, option*, 2);
+		act_else = opt_act_else->value.opt_action.action;
+	} else {
+		ERROR(srv, "expected list with length 2 or 3, has length %u", opt->value.opt_list->len);
 		return NULL;
 	}
 	opt_cond = g_array_index(opt->value.opt_list, option*, 0);
 	opt_act = g_array_index(opt->value.opt_list, option*, 1);
+
 	if (opt_cond->type != OPTION_CONDITION) {
 		ERROR(srv, "expected condition as first parameter, got %s", option_type_string(opt_cond->type));
 		return NULL;
@@ -67,9 +74,14 @@ static action* core_when(server *srv, plugin* p, option *opt) {
 		ERROR(srv, "expected action as second parameter, got %s", option_type_string(opt_act->type));
 		return NULL;
 	}
+	if (opt_act_else && opt_act_else->type != OPTION_ACTION) {
+		ERROR(srv, "expected action as third parameter, got %s", option_type_string(opt_act_else->type));
+		return NULL;
+	}
 	condition_acquire(opt_cond->value.opt_cond.cond);
 	action_acquire(opt_act->value.opt_action.action);
-	a = action_new_condition(opt_cond->value.opt_cond.cond, opt_act->value.opt_action.action);
+	if (act_else) action_acquire(act_else);
+	a = action_new_condition(opt_cond->value.opt_cond.cond, opt_act->value.opt_action.action, act_else);
 	option_free(opt);
 	return a;
 }

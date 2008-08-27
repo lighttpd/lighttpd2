@@ -615,7 +615,7 @@
 
 		cond = g_queue_pop_head(ctx->condition_stack);
 		al = g_queue_pop_head(ctx->action_list_stack);
-		a = action_new_condition(cond, al);
+		a = action_new_condition(cond, al, NULL);
 		al = g_queue_peek_head(ctx->action_list_stack);
 		g_array_append_val(al->value.list, a);
 	}

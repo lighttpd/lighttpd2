@@ -28,6 +28,7 @@ void action_release(server *srv, action *a) {
 		case ACTION_TCONDITION:
 			condition_release(srv, a->value.condition.cond);
 			action_release(srv, a->value.condition.target);
+			action_release(srv, a->value.condition.target_else);
 			break;
 		case ACTION_TLIST:
 			for (i = a->value.list->len; i-- > 0; ) {
@@ -79,14 +80,15 @@ action *action_new_list() {
 	return a;
 }
 
-action *action_new_condition(condition *cond, action *target) {
+action *action_new_condition(condition *cond, action *target, action *target_else) {
 	action *a;
 
-	a = g_slice_new0(action);
+	a = g_slice_new(action);
 	a->refcount = 1;
 	a->type = ACTION_TCONDITION;
 	a->value.condition.cond = cond;
 	a->value.condition.target = target;
+	a->value.condition.target_else = target_else;
 
 	return a;
 }
