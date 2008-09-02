@@ -36,6 +36,8 @@ def set_options(opt):
 	opt.add_option('--build-static', action='store_true', help='build a static lighttpd with all modules added', dest = 'buildstatic', default = False)
 	opt.add_option('--append', action='store', help='Append string to binary names / library dir', dest = 'append', default = '')
 	opt.add_option('--lib-dir', action='store', help='Module directory [default: prefix + /lib/lighttpd + append]', dest = 'libdir', default = '')
+	
+	opt.add_option('--debug', action='store_true', help='Do not compile with -O2', dest = 'debug', default = False)
 
 from Tools.config_c import enumerator_base, check_data
 
@@ -221,10 +223,13 @@ def configure(conf):
 	common_ccflags = [
 		'-std=gnu99', '-Wall', '-g', '-Wshadow', '-W', '-pedantic',
 		]
+	if not opts.debug:
+		common_ccflags += [ '-O2' ]
 	lighty_common_ccflags = [
 		'-fPIC',
 		'-DHAVE_CONFIG_H', '-D_GNU_SOURCE',
 		'-D_FILE_OFFSET_BITS=64', '-D_LARGEFILE_SOURCE', '-D_LARGE_FILES',
+		'-fno-strict-aliasing',
 		]
 	conf.env['CCFLAGS'] = tolist(conf.env['CCFLAGS']) + common_ccflags
 	conf.env['CCFLAGS_lighty'] += lighty_common_ccflags + [ '-DLI_DECLARE_EXPORTS' ]
