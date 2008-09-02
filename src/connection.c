@@ -144,7 +144,7 @@ connection* connection_new(server *srv) {
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
-	my_ev_init(&con->sock.watcher, connection_cb);
+	ev_init(&con->sock.watcher, connection_cb);
 	ev_io_set(&con->sock.watcher, -1, 0);
 	con->sock.srv = srv; con->sock.con = con; con->sock.watcher.data = &con->sock;
 	con->remote_addr_str = g_string_sized_new(0);
@@ -167,7 +167,7 @@ connection* connection_new(server *srv) {
 	con->keep_alive_data.link = NULL;
 	con->keep_alive_data.timeout = 0;
 	con->keep_alive_data.max_idle = 0;
-	my_ev_init(&con->keep_alive_data.watcher, connection_keepalive_cb);
+	ev_init(&con->keep_alive_data.watcher, connection_keepalive_cb);
 	con->keep_alive_data.watcher.data = con;
 
 	return con;

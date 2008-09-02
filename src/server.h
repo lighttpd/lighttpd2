@@ -40,6 +40,12 @@ struct server {
 	guint loop_flags;
 	struct ev_loop *loop;
 	ev_timer keep_alive_timer;
+	ev_signal
+		sig_w_INT,
+		sig_w_TERM,
+		sig_w_PIPE;
+	ev_prepare srv_prepare;
+	ev_check srv_check;
 
 	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections */
 	GArray *connections;      /** array of (connection*) */

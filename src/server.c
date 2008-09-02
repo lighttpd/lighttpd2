@@ -55,11 +55,6 @@ static void server_setup_free(gpointer _ss) {
 	g_slice_free(server_setup, _ss);
 }
 
-static struct ev_signal
-	sig_w_INT,
-	sig_w_TERM,
-	sig_w_PIPE;
-
 static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	server *srv = (server*) w->data;
 	UNUSED(revents);
@@ -79,10 +74,10 @@ static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 }
 
 #define CATCH_SIGNAL(loop, cb, n) do {\
-	my_ev_init(&sig_w_##n, cb); \
-	ev_signal_set(&sig_w_##n, SIG##n); \
-	ev_signal_start(loop, &sig_w_##n); \
-	sig_w_##n.data = srv; \
+	ev_init(&srv->sig_w_##n, cb); \
+	ev_signal_set(&srv->sig_w_##n, SIG##n); \
+	ev_signal_start(loop, &srv->sig_w_##n); \
+	srv->sig_w_##n.data = srv; \
 	ev_unref(loop); /* Signal watchers shouldn't keep loop alive */ \
 } while (0)
 
@@ -158,7 +153,7 @@ server* server_new() {
 	log_init(srv);
 
 	g_queue_init(&srv->keep_alive_queue);
-	my_ev_init(&srv->keep_alive_timer, server_keepalive_cb);
+	ev_init(&srv->keep_alive_timer, server_keepalive_cb);
 	srv->keep_alive_timer.data = srv;
 
 	return srv;
@@ -325,7 +320,7 @@ void server_listen(server *srv, int fd) {
 	sock->srv = srv;
 	sock->watcher.data = sock;
 	fd_init(fd);
-	my_ev_init(&sock->watcher, server_listen_cb);
+	ev_init(&sock->watcher, server_listen_cb);
 	ev_io_set(&sock->watcher, fd, EV_READ);
 	if (srv->state == SERVER_RUNNING) ev_io_start(srv->loop, &sock->watcher);
 
