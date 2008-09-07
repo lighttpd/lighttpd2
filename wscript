@@ -229,7 +229,7 @@ def configure(conf):
 		'-fPIC',
 		'-DHAVE_CONFIG_H', '-D_GNU_SOURCE',
 		'-D_FILE_OFFSET_BITS=64', '-D_LARGEFILE_SOURCE', '-D_LARGE_FILES',
-		'-fno-strict-aliasing',
+#		'-fno-strict-aliasing',
 		]
 	conf.env['CCFLAGS'] = tolist(conf.env['CCFLAGS']) + common_ccflags
 	conf.env['CCFLAGS_lighty'] += lighty_common_ccflags + [ '-DLI_DECLARE_EXPORTS' ]
