@@ -260,14 +260,12 @@ void connection_free(connection *con) {
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
-	ev_io_stop(con->wrk->loop, &con->sock_watcher);
+	if (con->wrk)
+		ev_io_stop(con->wrk->loop, &con->sock_watcher);
 	if (con->sock_watcher.fd != -1) {
-		if (con->raw_in->is_closed) { /* read already shutdown */
-			shutdown(con->sock_watcher.fd, SHUT_WR);
-			close(con->sock_watcher.fd);
-		} else {
-			worker_add_closing_socket(con->wrk, con->sock_watcher.fd);
-		}
+		/* just close it; _free should only be called on dead connections anyway */
+		shutdown(con->sock_watcher.fd, SHUT_WR);
+		close(con->sock_watcher.fd);
 	}
 	ev_io_set(&con->sock_watcher, -1, 0);
 	g_string_free(con->remote_addr_str, TRUE);
@@ -287,13 +285,14 @@ void connection_free(connection *con) {
 	physical_clear(&con->physical);
 	response_clear(&con->response);
 
-	if (con->keep_alive_data.link) {
+	if (con->keep_alive_data.link && con->wrk) {
 		g_queue_delete_link(&con->wrk->keep_alive_queue, con->keep_alive_data.link);
 		con->keep_alive_data.link = NULL;
 	}
 	con->keep_alive_data.timeout = 0;
 	con->keep_alive_data.max_idle = 0;
-	ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
+	if (con->wrk)
+		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 
 	g_slice_free(connection, con);
 }

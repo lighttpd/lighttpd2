@@ -75,6 +75,8 @@ void server_free(server* srv) {
 	srv->exiting = TRUE;
 	server_stop(srv);
 
+	worker_free(srv->main_worker);
+
 	{ /* close connections */
 		guint i;
 		if (srv->connections_active > 0) {
