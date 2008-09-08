@@ -38,6 +38,7 @@ typedef struct connection connection;
 
 
 #include "server.h"
+#include "worker.h"
 #include "actions.h"
 #include "options.h"
 #include "plugin.h"

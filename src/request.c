@@ -61,15 +61,14 @@ void request_clear(request *req) {
 }
 
 /* closes connection after response */
-static void bad_request(server *srv, connection *con, int status) {
+static void bad_request(connection *con, int status) {
 	con->keep_alive = FALSE;
 	con->response.http_status = status;
-	connection_handle_direct(srv, con);
+	connection_handle_direct(con);
 }
 
-gboolean request_parse_url(server *srv, connection *con) {
+gboolean request_parse_url(connection *con) {
 	request *req = &con->request;
-	UNUSED(srv); UNUSED(req);
 
 	g_string_truncate(req->uri.query, 0);
 	g_string_truncate(req->uri.path, 0);
@@ -87,7 +86,7 @@ gboolean request_parse_url(server *srv, connection *con) {
 	return TRUE;
 }
 
-void request_validate_header(server *srv, connection *con) {
+void request_validate_header(connection *con) {
 	request *req = &con->request;
 	http_header *hh;
 
@@ -101,37 +100,37 @@ void request_validate_header(server *srv, connection *con) {
 			con->keep_alive = FALSE;
 		break;
 	case HTTP_VERSION_UNSET:
-		bad_request(srv, con, 505); /* Version not Supported */
+		bad_request(con, 505); /* Version not Supported */
 		return;
 	}
 
 	if (req->uri.raw->len == 0) {
-		bad_request(srv, con, 400); /* bad request */
+		bad_request(con, 400); /* bad request */
 		return;
 	}
 
 	/* get hostname */
 	hh = http_header_lookup_fast(req->headers, CONST_STR_LEN("host"));
 	if (hh && hh->values.length != 1) {
-		bad_request(srv, con, 400); /* bad request */
+		bad_request(con, 400); /* bad request */
 		return;
 	} else if (hh) {
 		g_string_append_len(req->uri.authority, GSTR_LEN((GString*) g_queue_peek_head(&hh->values)));
 		if (!parse_hostname(&req->uri)) {
-			bad_request(srv, con, 400); /* bad request */
+			bad_request(con, 400); /* bad request */
 			return;
 		}
 	}
 
 	/* Need hostname in HTTP/1.1 */
 	if (req->uri.host->len == 0 && req->http_version == HTTP_VERSION_1_1) {
-		bad_request(srv, con, 400); /* bad request */
+		bad_request(con, 400); /* bad request */
 		return;
 	}
 
 	/* may override hostname */
-	if (!request_parse_url(srv, con)) {
-		bad_request(srv, con, 400); /* bad request */
+	if (!request_parse_url(con)) {
+		bad_request(con, 400); /* bad request */
 		return;
 	}
 
@@ -144,8 +143,8 @@ void request_validate_header(server *srv, connection *con) {
 
 		r = str_to_off_t(val->str, &err, 10);
 		if (*err != '\0') {
-			CON_TRACE(srv, con, "content-length is not a number: %s (Status: 400)", err);
-			bad_request(srv, con, 400); /* bad request */
+			CON_TRACE(con, "content-length is not a number: %s (Status: 400)", err);
+			bad_request(con, 400); /* bad request */
 			return;
 		}
 
@@ -154,7 +153,7 @@ void request_validate_header(server *srv, connection *con) {
 			* and is a bad request
 			*/
 		if (r < 0) {
-			bad_request(srv, con, 400); /* bad request */
+			bad_request(con, 400); /* bad request */
 			return;
 		}
 
@@ -164,7 +163,7 @@ void request_validate_header(server *srv, connection *con) {
 		if (r == STR_OFF_T_MIN ||
 			r == STR_OFF_T_MAX) {
 			if (errno == ERANGE) {
-				bad_request(srv, con, 413); /* Request Entity Too Large */
+				bad_request(con, 413); /* Request Entity Too Large */
 				return;
 			}
 		}
@@ -183,14 +182,14 @@ void request_validate_header(server *srv, connection *con) {
 				expect_100_cont = TRUE;
 			} else {
 				/* we only support 100-continue */
-				bad_request(srv, con, 417); /* Expectation Failed */
+				bad_request(con, 417); /* Expectation Failed */
 				return;
 			}
 		}
 
 		if (expect_100_cont && req->http_version == HTTP_VERSION_1_0) {
 			/* only HTTP/1.1 clients can send us this header */
-			bad_request(srv, con, 417); /* Expectation Failed */
+			bad_request(con, 417); /* Expectation Failed */
 			return;
 		}
 		con->expect_100_cont = expect_100_cont;
@@ -207,9 +206,9 @@ void request_validate_header(server *srv, connection *con) {
 	case HTTP_METHOD_HEAD:
 		/* content-length is forbidden for those */
 		if (con->request.content_length > 0) {
-			CON_ERROR(srv, con, "%s", "GET/HEAD with content-length -> 400");
+			CON_ERROR(con, "%s", "GET/HEAD with content-length -> 400");
 
-			bad_request(srv, con, 400); /* bad request */
+			bad_request(con, 400); /* bad request */
 			return;
 		}
 		con->request.content_length = 0;
@@ -218,9 +217,9 @@ void request_validate_header(server *srv, connection *con) {
 		/* content-length is required for them */
 		if (con->request.content_length == -1) {
 			/* content-length is missing */
-			CON_ERROR(srv, con, "%s", "POST-request, but content-length missing -> 411");
+			CON_ERROR(con, "%s", "POST-request, but content-length missing -> 411");
 
-			bad_request(srv, con, 411); /* Length Required */
+			bad_request(con, 411); /* Length Required */
 			return;
 		}
 		break;

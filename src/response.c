@@ -21,7 +21,7 @@ void response_clear(response *resp) {
 	resp->transfer_encoding = HTTP_TRANSFER_ENCODING_IDENTITY;
 }
 
-void response_send_headers(server *srv, connection *con) {
+void response_send_headers(connection *con) {
 	GString *head = g_string_sized_new(8*1024);
 
 	if (con->response.http_status < 100 || con->response.http_status > 999) {
@@ -48,8 +48,8 @@ void response_send_headers(server *srv, connection *con) {
 		chunkqueue_reset(con->out);
 		con->out->is_closed = TRUE;
 	} else if (con->out->is_closed) {
-		g_string_printf(srv->tmp_str, "%"L_GOFFSET_FORMAT, con->out->length);
-		http_header_overwrite(con->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(srv->tmp_str));
+		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, con->out->length);
+		http_header_overwrite(con->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(con->wrk->tmp_str));
 	} else if (con->keep_alive && con->request.http_version == HTTP_VERSION_1_1) {
 		if (!(con->response.transfer_encoding & HTTP_TRANSFER_ENCODING_CHUNKED)) {
 			con->response.transfer_encoding |= HTTP_TRANSFER_ENCODING_CHUNKED;
@@ -105,7 +105,7 @@ void response_send_headers(server *srv, connection *con) {
 		}
 
 		if (!have_date) {
-			GString *d = server_current_timestamp(srv);
+			GString *d = worker_current_timestamp(con->wrk);
 			/* HTTP/1.1 requires a Date: header */
 			g_string_append_len(head, CONST_STR_LEN("Date: "));
 			g_string_append_len(head, GSTR_LEN(d));

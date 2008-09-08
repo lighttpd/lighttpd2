@@ -29,15 +29,15 @@ LI_API const char *remove_path(const char *path);
 		abort();\
 	} while(0)
 
-#define CON_ERROR(srv, con, fmt, ...) \
-	log_write(srv, con, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+#define CON_ERROR(con, fmt, ...) \
+	log_write(NULL, con, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__) \
 
-#define CON_TRACE(srv, con, fmt, ...) \
-	log_write(srv, con, "%s.%d: (trace) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+#define CON_TRACE(con, fmt, ...) \
+	log_write(NULL, con, "%s.%d: (trace) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
-#define CON_SEGFAULT(srv, con, fmt, ...) \
+#define CON_SEGFAULT(con, fmt, ...) \
 	do { \
-		log_write(srv, con, "%s.%d: (crashing) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
+		log_write(NULL, con, "%s.%d: (crashing) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
 		/* VALGRIND_PRINTF_BACKTRACE(fmt, __VA_ARGS__); */ \
 		abort();\
 	} while(0)

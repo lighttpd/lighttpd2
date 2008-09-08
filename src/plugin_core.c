@@ -114,9 +114,8 @@ static action* core_set(server *srv, plugin* p, option *opt) {
 	return a;
 }
 
-static action_result core_handle_physical(server *srv, connection *con, gpointer param) {
+static action_result core_handle_physical(connection *con, gpointer param) {
 	GString *docroot = (GString*) param;
-	UNUSED(srv);
 
 	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
 
@@ -150,7 +149,7 @@ static action* core_physical(server *srv, plugin* p, option *opt) {
 	return action_new_function(core_handle_physical, core_physical_free, docroot);
 }
 
-static action_result core_handle_static(server *srv, connection *con, gpointer param) {
+static action_result core_handle_static(connection *con, gpointer param) {
 	UNUSED(param);
 	int fd;
 
@@ -170,7 +169,7 @@ static action_result core_handle_static(server *srv, connection *con, gpointer p
 		con->response.http_status = 200;
 		chunkqueue_append_file_fd(con->out, NULL, 0, st.st_size, fd);
 	}
-	connection_handle_direct(srv, con);
+	connection_handle_direct(con);
 
 	return ACTION_GO_ON;
 }
@@ -185,7 +184,8 @@ static action* core_static(server *srv, plugin* p, option *opt) {
 	return action_new_function(core_handle_static, NULL, NULL);
 }
 
-static action_result core_handle_test(server *srv, connection *con, gpointer param) {
+static action_result core_handle_test(connection *con, gpointer param) {
+	server *srv = con->srv;
 	GHashTableIter iter;
 	gpointer k, v;
 	GList *hv;
@@ -207,7 +207,7 @@ static action_result core_handle_test(server *srv, connection *con, gpointer par
 	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.query));
 
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n\r\nactions executed: "));
-	uptime = (guint64)(ev_now(srv->loop) - srv->started);
+	uptime = (guint64)(ev_now(con->wrk->loop) - srv->started);
 	if (uptime == 0)
 		uptime = 1;
 	avg1 = srv->stats.actions_executed;
@@ -231,7 +231,7 @@ static action_result core_handle_test(server *srv, connection *con, gpointer par
 	g_string_printf(str, "%"G_GUINT64_FORMAT"%s (%"G_GUINT64_FORMAT"%s/s)", avg1, suffix1, avg2, suffix2);
 	chunkqueue_append_string(con->out, str);
 
-	backend = ev_backend_string(ev_backend(srv->loop));
+	backend = ev_backend_string(ev_backend(con->wrk->loop));
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\nevent handler: "));
 	chunkqueue_append_mem(con->out, backend, strlen(backend));
 
@@ -248,9 +248,9 @@ static action_result core_handle_test(server *srv, connection *con, gpointer par
 		}
 	}
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n"));
-	connection_handle_direct(srv, con);
+	connection_handle_direct(con);
 
-	log_debug(srv, con, "core_handle_test: %s%s%s log_level: %s",
+	CON_TRACE(con, "core_handle_test: %s%s%s log_level: %s",
 		con->request.uri.path->str, con->request.uri.query->len ? "?" : "", con->request.uri.query->len ? con->request.uri.query->str : "",
 		log_level_str((log_level_t)CORE_OPTION(CORE_OPTION_LOG_LEVEL))
 	);
@@ -269,13 +269,13 @@ static action* core_test(server *srv, plugin* p, option *opt) {
 	return action_new_function(core_handle_test, NULL, NULL);
 }
 
-static action_result core_handle_blank(server *srv, connection *con, gpointer param) {
+static action_result core_handle_blank(connection *con, gpointer param) {
 	UNUSED(param);
 
 	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
 
 	con->response.http_status = 200;
-	connection_handle_direct(srv, con);
+	connection_handle_direct(con);
 
 	return ACTION_GO_ON;
 }

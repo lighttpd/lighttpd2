@@ -125,7 +125,7 @@ LI_API void condition_release(server *srv, condition* c);
 LI_API const char* comp_op_to_string(comp_operator_t op);
 LI_API const char* cond_lvalue_to_string(cond_lvalue_t t);
 
-LI_API gboolean condition_check(server *srv, connection *con, condition *cond);
+LI_API gboolean condition_check(connection *con, condition *cond);
 
 /* parser */
 /** parse an IPv4 (if netmask is not NULL with cidr netmask) */

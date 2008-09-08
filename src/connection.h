@@ -22,15 +22,15 @@ typedef enum {
 	  *  - direct response: for things like errors/auth/redirect
 	  *    just set the status code, perhaps fill in some headers,
 	  *    append your content (if any) to the queue and do:
-	  *      connection_handle_direct(srv, con);
+	  *      connection_handle_direct(con);
 	  *    this moves into the CON_STATE_HANDLE_RESPONSE_HEADER
 	  *    request body gets dropped
 	  *  - indirect response: you register your plugin as the content handler:
-	  *      connection_handle_indirect(srv, con, plugin);
+	  *      connection_handle_indirect(con, plugin);
 	  *    this moves into the CON_STATE_READ_REQUEST_CONTENT state automatically
 	  *    as soon as you build the response headers (e.g. from a backend),
 	  *    change to the CON_STATE_HANDLE_RESPONSE_HEADER state:
-	  *      connection_set_state(srv, con, CON_STATE_HANDLE_RESPONSE_HEADER);
+	  *      connection_set_state(con, CON_STATE_HANDLE_RESPONSE_HEADER);
 	  */
 	CON_STATE_HANDLE_REQUEST_HEADER,
 
@@ -60,24 +60,18 @@ typedef enum {
 	CON_STATE_ERROR
 } connection_state_t;
 
-struct connection_socket;
-typedef struct connection_socket connection_socket;
-
-struct connection_socket {
-	server *srv;
-	connection *con;
-	ev_io watcher;
-};
-
 struct connection {
 	guint idx; /** index in connection table */
+	server *srv;
+	worker *wrk;
+
 	connection_state_t state;
 	gboolean response_headers_sent, expect_100_cont;
 
 	chunkqueue *raw_in, *raw_out;
 	chunkqueue *in, *out;
 
-	connection_socket sock;
+	ev_io sock_watcher;
 	sock_addr remote_addr, local_addr;
 	GString *remote_addr_str, *local_addr_str;
 	gboolean is_ssl, keep_alive;
@@ -106,13 +100,13 @@ struct connection {
 };
 
 LI_API connection* connection_new(server *srv);
-LI_API void connection_reset(server *srv, connection *con);
-LI_API void connection_free(server *srv, connection *con);
+LI_API void connection_reset(connection *con);
+LI_API void connection_free(connection *con);
 
-LI_API void connection_set_state(server *srv, connection *con, connection_state_t state);
-LI_API void connection_state_machine(server *srv, connection *con);
+LI_API void connection_set_state(connection *con, connection_state_t state);
+LI_API void connection_state_machine(connection *con);
 
-LI_API void connection_handle_direct(server *srv, connection *con);
-LI_API void connection_handle_indirect(server *srv, connection *con, plugin *p);
+LI_API void connection_handle_direct(connection *con);
+LI_API void connection_handle_indirect(connection *con, plugin *p);
 
 #endif

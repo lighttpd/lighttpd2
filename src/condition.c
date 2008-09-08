@@ -248,11 +248,9 @@ const char* cond_lvalue_to_string(cond_lvalue_t t) {
 }
 
 /* COND_VALUE_STRING and COND_VALUE_REGEXP only */
-static gboolean condition_check_eval_string(server *srv, connection *con, condition *cond) {
+static gboolean condition_check_eval_string(connection *con, condition *cond) {
 	const char *value = "";
 	gboolean result = FALSE;
-	UNUSED(srv);
-	UNUSED(con);
 
 	switch (cond->lvalue->type) {
 	case COMP_REQUEST_LOCALIP:
@@ -283,17 +281,17 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 		/* TODO: physical path exists */
 		break;
 	case COMP_REQUEST_HEADER:
-		http_header_get_fast(srv->tmp_str, con->request.headers, GSTR_LEN(cond->lvalue->key));
-		value = srv->tmp_str->str;
+		http_header_get_fast(con->wrk->tmp_str, con->request.headers, GSTR_LEN(cond->lvalue->key));
+		value = con->wrk->tmp_str->str;
 		break;
 	case COMP_PHYSICAL_SIZE:
 		/* TODO: physical size */
-		g_string_printf(srv->tmp_str, "%"L_GOFFSET_FORMAT, (goffset) 0);
-		value = srv->tmp_str->str;
+		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, (goffset) 0);
+		value = con->wrk->tmp_str->str;
 		break;
 	case COMP_REQUEST_CONTENT_LENGTH:
-		g_string_printf(srv->tmp_str, "%"L_GOFFSET_FORMAT, con->request.content_length);
-		value = srv->tmp_str->str;
+		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, con->request.content_length);
+		value = con->wrk->tmp_str->str;
 		break;
 	}
 
@@ -320,9 +318,9 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 	case CONFIG_COND_NOMATCH:
 #ifdef HAVE_PCRE_H
 		/* TODO: pcre */
-		ERROR(srv, "%s", "regexp match not supported yet");
+		CON_ERROR(con, "%s", "regexp match not supported yet");
 #else
-		ERROR(srv, "compiled without pcre, cannot use '%s'", comp_op_to_string(cond->op));
+		CON_ERROR(con, "compiled without pcre, cannot use '%s'", comp_op_to_string(cond->op));
 #endif
 		break;
 	case CONFIG_COND_IP:
@@ -331,7 +329,7 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 	case CONFIG_COND_GT:
 	case CONFIG_COND_LE:
 	case CONFIG_COND_LT:
-		ERROR(srv, "cannot compare string/regexp with '%s'", comp_op_to_string(cond->op));
+		CON_ERROR(con, "cannot compare string/regexp with '%s'", comp_op_to_string(cond->op));
 		break;
 	}
 
@@ -339,9 +337,7 @@ static gboolean condition_check_eval_string(server *srv, connection *con, condit
 }
 
 
-static gboolean condition_check_eval_int(server *srv, connection *con, condition *cond) {
-	UNUSED(srv);
-	UNUSED(con);
+static gboolean condition_check_eval_int(connection *con, condition *cond) {
 	gint64 value;
 
 	switch (cond->lvalue->type) {
@@ -351,7 +347,7 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 		value = con->physical.size;
 		break;
 	default:
-		CON_ERROR(srv, con, "couldn't get int value for '%s', using -1", cond_lvalue_to_string(cond->lvalue->type));
+		CON_ERROR(con, "couldn't get int value for '%s', using -1", cond_lvalue_to_string(cond->lvalue->type));
 		value = -1;
 	}
 
@@ -376,7 +372,7 @@ static gboolean condition_check_eval_int(server *srv, connection *con, condition
 	case CONFIG_COND_NOMATCH:
 	case CONFIG_COND_IP:
 	case CONFIG_COND_NOTIP:
-		ERROR(srv, "cannot compare int with '%s'", comp_op_to_string(cond->op));
+		CON_ERROR(con, "cannot compare int with '%s'", comp_op_to_string(cond->op));
 		return FALSE;
 	}
 
@@ -425,12 +421,10 @@ static gboolean ip_in_net(condition_rvalue *target, condition_rvalue *network) {
 }
 
 /* CONFIG_COND_IP and CONFIG_COND_NOTIP only */
-static gboolean condition_check_eval_ip(server *srv, connection *con, condition *cond) {
+static gboolean condition_check_eval_ip(connection *con, condition *cond) {
 	condition_rvalue ipval;
 	const char *value = NULL;
 	gboolean result = FALSE;
-	UNUSED(srv);
-	UNUSED(con);
 
 	ipval.type = COND_VALUE_INT;
 
@@ -444,34 +438,34 @@ static gboolean condition_check_eval_ip(server *srv, connection *con, condition 
 			return (cond->op == CONFIG_COND_NOTIP);
 		break;
 	case COMP_REQUEST_PATH:
-		ERROR(srv, "%s", "Cannot parse request.path as ip");
+		CON_ERROR(con, "%s", "Cannot parse request.path as ip");
 		return (cond->op == CONFIG_COND_NOTIP);
 		break;
 	case COMP_REQUEST_HOST:
 		value = con->request.uri.host->str;
 		break;
 	case COMP_REQUEST_SCHEME:
-		ERROR(srv, "%s", "Cannot parse request.scheme as ip");
+		CON_ERROR(con, "%s", "Cannot parse request.scheme as ip");
 		return (cond->op == CONFIG_COND_NOTIP);
 	case COMP_REQUEST_QUERY_STRING:
 		value = con->request.uri.query->str;
 		break;
 	case COMP_REQUEST_METHOD:
-		ERROR(srv, "%s", "Cannot request.method as ip");
+		CON_ERROR(con, "%s", "Cannot request.method as ip");
 		return (cond->op == CONFIG_COND_NOTIP);
 		break;
 	case COMP_PHYSICAL_PATH:
 	case COMP_PHYSICAL_PATH_EXISTS:
-		ERROR(srv, "%s", "Cannot physical.path(-exists) as ip");
+		CON_ERROR(con, "%s", "Cannot physical.path(-exists) as ip");
 		return (cond->op == CONFIG_COND_NOTIP);
 		break;
 	case COMP_REQUEST_HEADER:
-		http_header_get_fast(srv->tmp_str, con->request.headers, GSTR_LEN(cond->lvalue->key));
-		value = srv->tmp_str->str;
+		http_header_get_fast(con->wrk->tmp_str, con->request.headers, GSTR_LEN(cond->lvalue->key));
+		value = con->wrk->tmp_str->str;
 		break;
 	case COMP_PHYSICAL_SIZE:
 	case COMP_REQUEST_CONTENT_LENGTH:
-		ERROR(srv, "%s", "Cannot parse integers as ip");
+		CON_ERROR(con, "%s", "Cannot parse integers as ip");
 		return (cond->op == CONFIG_COND_NOTIP);
 		break;
 	}
@@ -498,25 +492,25 @@ static gboolean condition_check_eval_ip(server *srv, connection *con, condition 
 	case CONFIG_COND_GT:
 	case CONFIG_COND_LE:
 	case CONFIG_COND_LT:
-		ERROR(srv, "cannot match ips with '%s'", comp_op_to_string(cond->op));
+		CON_ERROR(con, "cannot match ips with '%s'", comp_op_to_string(cond->op));
 		break;
 	}
 
 	return result;
 }
 
-gboolean condition_check(server *srv, connection *con, condition *cond) {
+gboolean condition_check(connection *con, condition *cond) {
 	switch (cond->rvalue.type) {
 	case COND_VALUE_STRING:
 #ifdef HAVE_PCRE_H
 	case COND_VALUE_REGEXP:
 #endif
-		return condition_check_eval_string(srv, con, cond);
+		return condition_check_eval_string(con, cond);
 	case COND_VALUE_INT:
-		return condition_check_eval_int(srv, con, cond);
+		return condition_check_eval_int(con, cond);
 	case COND_VALUE_SOCKET_IPV4:
 	case COND_VALUE_SOCKET_IPV6:
-		return condition_check_eval_ip(srv, con, cond);
+		return condition_check_eval_ip(con, cond);
 	}
 	return FALSE;
 }

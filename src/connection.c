@@ -1,25 +1,24 @@
 
-#include "connection.h"
+#include "base.h"
 #include "network.h"
 #include "utils.h"
 #include "plugin_core.h"
 
-void con_put(server *srv, connection *con); /* server.c */
+void con_put(connection *con); /* server.c */
 
-void internal_error(server *srv, connection *con) {
+void internal_error(connection *con) {
 	if (con->response_headers_sent) {
-		CON_ERROR(srv, con, "%s", "Couldn't send '500 Internal Error': headers already sent");
-		connection_set_state(srv, con, CON_STATE_ERROR);
+		CON_ERROR(con, "%s", "Couldn't send '500 Internal Error': headers already sent");
+		connection_set_state(con, CON_STATE_ERROR);
 	} else {
 		http_headers_reset(con->response.headers);
 		con->response.http_status = 500;
 		con->content_handler = NULL;
-		connection_set_state(srv, con, CON_STATE_WRITE_RESPONSE);
+		connection_set_state(con, CON_STATE_WRITE_RESPONSE);
 	}
 }
 
-static void parse_request_body(server *srv, connection *con) {
-	UNUSED(srv);
+static void parse_request_body(connection *con) {
 	if (     con->state >= CON_STATE_READ_REQUEST_CONTENT
 	      && con->state <= CON_STATE_WRITE_RESPONSE
 	      && !con->in->is_closed) {
@@ -35,8 +34,7 @@ static void parse_request_body(server *srv, connection *con) {
 	}
 }
 
-static void forward_response_body(server *srv, connection *con) {
-	UNUSED(srv);
+static void forward_response_body(connection *con) {
 	if (con->state == CON_STATE_WRITE_RESPONSE && !con->raw_out->is_closed) {
 		if (con->out->length > 0) {
 			/* TODO: chunked encoding, filters */
@@ -45,17 +43,15 @@ static void forward_response_body(server *srv, connection *con) {
 		if (con->in->is_closed && 0 == con->raw_out->length)
 			con->raw_out->is_closed = TRUE;
 		if (con->raw_out->length > 0) {
-			ev_io_add_events(srv->loop, &con->sock.watcher, EV_WRITE);
+			ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
 		} else {
-			ev_io_rem_events(srv->loop, &con->sock.watcher, EV_WRITE);
+			ev_io_rem_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
 		}
 	}
 }
 
 static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	connection_socket *con_sock = (connection_socket*) w->data;
-	server *srv = con_sock->srv;
-	connection *con = con_sock->con;
+	connection *con = (connection*) w->data;
 	gboolean dojoblist = FALSE;
 	UNUSED(loop);
 
@@ -64,19 +60,19 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			/* don't read the next request before current one is done */
 			ev_io_rem_events(loop, w, EV_READ);
 		} else {
-			switch (network_read(srv, con, w->fd, con->raw_in)) {
+			switch (network_read(con, w->fd, con->raw_in)) {
 			case NETWORK_STATUS_SUCCESS:
 				dojoblist = TRUE;
 				break;
 			case NETWORK_STATUS_FATAL_ERROR:
-				CON_ERROR(srv, con, "%s", "network read fatal error");
-				connection_set_state(srv, con, CON_STATE_ERROR);
+				CON_ERROR(con, "%s", "network read fatal error");
+				connection_set_state(con, CON_STATE_ERROR);
 				dojoblist = TRUE;
 				break;
 			case NETWORK_STATUS_CONNECTION_CLOSE:
 				con->raw_in->is_closed = TRUE;
 				shutdown(w->fd, SHUT_RD);
-				connection_set_state(srv, con, CON_STATE_CLOSE);
+				connection_set_state(con, CON_STATE_CLOSE);
 				dojoblist = TRUE;
 				break;
 			case NETWORK_STATUS_WAIT_FOR_EVENT:
@@ -95,17 +91,17 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	if (revents & EV_WRITE) {
 		if (con->raw_out->length > 0) {
-			switch (network_write(srv, con, w->fd, con->raw_out)) {
+			switch (network_write(con, w->fd, con->raw_out)) {
 			case NETWORK_STATUS_SUCCESS:
 				dojoblist = TRUE;
 				break;
 			case NETWORK_STATUS_FATAL_ERROR:
-				CON_ERROR(srv, con, "%s", "network write fatal error");
-				connection_set_state(srv, con, CON_STATE_ERROR);
+				CON_ERROR(con, "%s", "network write fatal error");
+				connection_set_state(con, CON_STATE_ERROR);
 				dojoblist = TRUE;
 				break;
 			case NETWORK_STATUS_CONNECTION_CLOSE:
-				connection_set_state(srv, con, CON_STATE_CLOSE);
+				connection_set_state(con, CON_STATE_CLOSE);
 				dojoblist = TRUE;
 				break;
 			case NETWORK_STATUS_WAIT_FOR_EVENT:
@@ -127,26 +123,26 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	}
 
 	if (dojoblist)
-		joblist_append(srv, con);
+		joblist_append(con);
 }
 
 static void connection_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	connection *con = (connection*) w->data;
 	UNUSED(loop); UNUSED(revents);
-	con_put(con->sock.srv, con);
+	con_put(con);
 }
 
 connection* connection_new(server *srv) {
 	connection *con = g_slice_new0(connection);
-	UNUSED(srv);
+	con->srv = srv;
 
 	con->state = CON_STATE_DEAD;
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
-	ev_init(&con->sock.watcher, connection_cb);
-	ev_io_set(&con->sock.watcher, -1, 0);
-	con->sock.srv = srv; con->sock.con = con; con->sock.watcher.data = &con->sock;
+	ev_init(&con->sock_watcher, connection_cb);
+	ev_io_set(&con->sock_watcher, -1, 0);
+	con->sock_watcher.data = con;
 	con->remote_addr_str = g_string_sized_new(0);
 	con->local_addr_str = g_string_sized_new(0);
 	con->keep_alive = TRUE;
@@ -173,21 +169,21 @@ connection* connection_new(server *srv) {
 	return con;
 }
 
-void connection_reset(server *srv, connection *con) {
+void connection_reset(connection *con) {
 	con->state = CON_STATE_DEAD;
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
-	ev_io_stop(srv->loop, &con->sock.watcher);
-	if (con->sock.watcher.fd != -1) {
+	ev_io_stop(con->wrk->loop, &con->sock_watcher);
+	if (con->sock_watcher.fd != -1) {
 		if (con->raw_in->is_closed) { /* read already shutdown */
-			shutdown(con->sock.watcher.fd, SHUT_WR);
-			close(con->sock.watcher.fd);
+			shutdown(con->sock_watcher.fd, SHUT_WR);
+			close(con->sock_watcher.fd);
 		} else {
-			server_add_closing_socket(srv, con->sock.watcher.fd);
+			worker_add_closing_socket(con->wrk, con->sock_watcher.fd);
 		}
 	}
-	ev_io_set(&con->sock.watcher, -1, 0);
+	ev_io_set(&con->sock_watcher, -1, 0);
 	g_string_truncate(con->remote_addr_str, 0);
 	g_string_truncate(con->local_addr_str, 0);
 	con->keep_alive = TRUE;
@@ -197,43 +193,43 @@ void connection_reset(server *srv, connection *con) {
 	chunkqueue_reset(con->in);
 	chunkqueue_reset(con->out);
 
-	action_stack_reset(srv, &con->action_stack);
+	action_stack_reset(con->srv, &con->action_stack);
 
-	memcpy(con->options, srv->option_def_values, srv->option_count * sizeof(*srv->option_def_values));
+	memcpy(con->options, con->srv->option_def_values, con->srv->option_count * sizeof(*con->srv->option_def_values));
 
 	request_reset(&con->request);
 	physical_reset(&con->physical);
 	response_reset(&con->response);
 
 	if (con->keep_alive_data.link) {
-		g_queue_delete_link(&srv->keep_alive_queue, con->keep_alive_data.link);
+		g_queue_delete_link(&con->wrk->keep_alive_queue, con->keep_alive_data.link);
 		con->keep_alive_data.link = NULL;
 	}
 	con->keep_alive_data.timeout = 0;
 	con->keep_alive_data.max_idle = 0;
-	ev_timer_stop(srv->loop, &con->keep_alive_data.watcher);
+	ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 }
 
 void server_check_keepalive(server *srv);
-void connection_reset_keep_alive(server *srv, connection *con) {
-	ev_timer_stop(srv->loop, &con->keep_alive_data.watcher);
+void connection_reset_keep_alive(connection *con) {
+	ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 	{
 		con->keep_alive_data.max_idle = GPOINTER_TO_INT(CORE_OPTION(CORE_OPTION_MAX_KEEP_ALIVE_IDLE));
 		if (con->keep_alive_data.max_idle == 0) {
-			con_put(srv, con);
+			con_put(con);
 			return;
 		}
-		if (con->keep_alive_data.max_idle >= srv->keep_alive_queue_timeout) {
+		if (con->keep_alive_data.max_idle >= con->srv->keep_alive_queue_timeout) {
 			/* queue is sorted by con->keep_alive_data.timeout */
-			gboolean need_start = (0 == srv->keep_alive_queue.length);
-			con->keep_alive_data.timeout = ev_now((srv)->loop) + srv->keep_alive_queue_timeout;
-			g_queue_push_tail(&srv->keep_alive_queue, con);
-			con->keep_alive_data.link = g_queue_peek_tail_link(&srv->keep_alive_queue);
+			gboolean need_start = (0 == con->wrk->keep_alive_queue.length);
+			con->keep_alive_data.timeout = ev_now(con->wrk->loop) + con->srv->keep_alive_queue_timeout;
+			g_queue_push_tail(&con->wrk->keep_alive_queue, con);
+			con->keep_alive_data.link = g_queue_peek_tail_link(&con->wrk->keep_alive_queue);
 			if (need_start)
-				server_check_keepalive(srv);
+				worker_check_keepalive(con->wrk);
 		} else {
 			ev_timer_set(&con->keep_alive_data.watcher, con->keep_alive_data.max_idle, 0);
-			ev_timer_start(srv->loop, &con->keep_alive_data.watcher);
+			ev_timer_start(con->wrk->loop, &con->keep_alive_data.watcher);
 		}
 	}
 
@@ -241,7 +237,7 @@ void connection_reset_keep_alive(server *srv, connection *con) {
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
-	ev_io_set_events(srv->loop, &con->sock.watcher, EV_READ);
+	ev_io_set_events(con->wrk->loop, &con->sock_watcher, EV_READ);
 	g_string_truncate(con->remote_addr_str, 0);
 	g_string_truncate(con->local_addr_str, 0);
 	con->keep_alive = TRUE;
@@ -250,30 +246,30 @@ void connection_reset_keep_alive(server *srv, connection *con) {
 	chunkqueue_reset(con->in);
 	chunkqueue_reset(con->out);
 
-	action_stack_reset(srv, &con->action_stack);
+	action_stack_reset(con->srv, &con->action_stack);
 
-	memcpy(con->options, srv->option_def_values, srv->option_count * sizeof(*srv->option_def_values));
+	memcpy(con->options, con->srv->option_def_values, con->srv->option_count * sizeof(*con->srv->option_def_values));
 
 	request_reset(&con->request);
 	physical_reset(&con->physical);
 	response_reset(&con->response);
 }
 
-void connection_free(server *srv, connection *con) {
+void connection_free(connection *con) {
 	con->state = CON_STATE_DEAD;
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
-	ev_io_stop(srv->loop, &con->sock.watcher);
-	if (con->sock.watcher.fd != -1) {
+	ev_io_stop(con->wrk->loop, &con->sock_watcher);
+	if (con->sock_watcher.fd != -1) {
 		if (con->raw_in->is_closed) { /* read already shutdown */
-			shutdown(con->sock.watcher.fd, SHUT_WR);
-			close(con->sock.watcher.fd);
+			shutdown(con->sock_watcher.fd, SHUT_WR);
+			close(con->sock_watcher.fd);
 		} else {
-			server_add_closing_socket(srv, con->sock.watcher.fd);
+			worker_add_closing_socket(con->wrk, con->sock_watcher.fd);
 		}
 	}
-	ev_io_set(&con->sock.watcher, -1, 0);
+	ev_io_set(&con->sock_watcher, -1, 0);
 	g_string_free(con->remote_addr_str, TRUE);
 	g_string_free(con->local_addr_str, TRUE);
 	con->keep_alive = TRUE;
@@ -283,34 +279,34 @@ void connection_free(server *srv, connection *con) {
 	chunkqueue_free(con->in);
 	chunkqueue_free(con->out);
 
-	action_stack_clear(srv, &con->action_stack);
+	action_stack_clear(con->srv, &con->action_stack);
 
-	g_slice_free1(srv->option_count * sizeof(*srv->option_def_values), con->options);
+	g_slice_free1(con->srv->option_count * sizeof(*con->srv->option_def_values), con->options);
 
 	request_clear(&con->request);
 	physical_clear(&con->physical);
 	response_clear(&con->response);
 
 	if (con->keep_alive_data.link) {
-		g_queue_delete_link(&srv->keep_alive_queue, con->keep_alive_data.link);
+		g_queue_delete_link(&con->wrk->keep_alive_queue, con->keep_alive_data.link);
 		con->keep_alive_data.link = NULL;
 	}
 	con->keep_alive_data.timeout = 0;
 	con->keep_alive_data.max_idle = 0;
-	ev_timer_stop(srv->loop, &con->keep_alive_data.watcher);
+	ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 
 	g_slice_free(connection, con);
 }
 
-void connection_set_state(server *srv, connection *con, connection_state_t state) {
+void connection_set_state(connection *con, connection_state_t state) {
 	if (state < con->state) {
-		CON_ERROR(srv, con, "Cannot move into requested state: %i => %i, move to error state", con->state, state);
+		CON_ERROR(con, "Cannot move into requested state: %i => %i, move to error state", con->state, state);
 		state = CON_STATE_ERROR;
 	}
 	con->state = state;
 }
 
-void connection_state_machine(server *srv, connection *con) {
+void connection_state_machine(connection *con) {
 	gboolean done = FALSE;
 	do {
 		switch (con->state) {
@@ -322,31 +318,31 @@ void connection_state_machine(server *srv, connection *con) {
 			if (con->raw_in->length > 0) {
 				/* stop keep alive timeout watchers */
 				if (con->keep_alive_data.link) {
-					g_queue_delete_link(&srv->keep_alive_queue, con->keep_alive_data.link);
+					g_queue_delete_link(&con->wrk->keep_alive_queue, con->keep_alive_data.link);
 					con->keep_alive_data.link = NULL;
 				}
 				con->keep_alive_data.timeout = 0;
-				ev_timer_stop(srv->loop, &con->keep_alive_data.watcher);
+				ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 
-				connection_set_state(srv, con, CON_STATE_REQUEST_START);
+				connection_set_state(con, CON_STATE_REQUEST_START);
 			} else
 				done = TRUE;
 			break;
 
 
 		case CON_STATE_REQUEST_START:
-			connection_set_state(srv, con, CON_STATE_READ_REQUEST_HEADER);
-			action_enter(con, srv->mainaction);
+			connection_set_state(con, CON_STATE_READ_REQUEST_HEADER);
+			action_enter(con, con->srv->mainaction);
 			break;
 
 		case CON_STATE_READ_REQUEST_HEADER:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
-				TRACE(srv, "%s", "reading request header");
+				CON_TRACE(con, "%s", "reading request header");
 			}
-			switch(http_request_parse(srv, con, &con->request.parser_ctx)) {
+			switch(http_request_parse(con, &con->request.parser_ctx)) {
 			case HANDLER_FINISHED:
 			case HANDLER_GO_ON:
-				connection_set_state(srv, con, CON_STATE_VALIDATE_REQUEST_HEADER);
+				connection_set_state(con, CON_STATE_VALIDATE_REQUEST_HEADER);
 				break;
 			case HANDLER_WAIT_FOR_FD:
 				/* TODO: wait for fd */
@@ -358,37 +354,37 @@ void connection_state_machine(server *srv, connection *con) {
 			case HANDLER_ERROR:
 			case HANDLER_COMEBACK: /* unexpected */
 				/* unparsable header */
-				connection_set_state(srv, con, CON_STATE_ERROR);
+				connection_set_state(con, CON_STATE_ERROR);
 				break;
 			}
 			break;
 
 		case CON_STATE_VALIDATE_REQUEST_HEADER:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
-				TRACE(srv, "%s", "validating request header");
+				CON_TRACE(con, "%s", "validating request header");
 			}
-			connection_set_state(srv, con, CON_STATE_HANDLE_REQUEST_HEADER);
-			request_validate_header(srv, con);
-			srv->stats.requests++;
+			connection_set_state(con, CON_STATE_HANDLE_REQUEST_HEADER);
+			request_validate_header(con);
+			con->srv->stats.requests++;
 			break;
 
 		case CON_STATE_HANDLE_REQUEST_HEADER:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
-				TRACE(srv, "%s", "handle request header");
+				CON_TRACE(con, "%s", "handle request header");
 			}
-			switch (action_execute(srv, con)) {
+			switch (action_execute(con)) {
 			case ACTION_WAIT_FOR_EVENT:
 				done = TRUE;
 				break;
 			case ACTION_GO_ON:
 			case ACTION_FINISHED:
 				if (con->state == CON_STATE_HANDLE_REQUEST_HEADER) {
-					internal_error(srv, con);
+					internal_error(con);
 				}
-				connection_set_state(srv, con, CON_STATE_WRITE_RESPONSE);
+				connection_set_state(con, CON_STATE_WRITE_RESPONSE);
 				break;
 			case ACTION_ERROR:
-				internal_error(srv, con);
+				internal_error(con);
 				break;
 			}
 			break;
@@ -396,62 +392,62 @@ void connection_state_machine(server *srv, connection *con) {
 		case CON_STATE_READ_REQUEST_CONTENT:
 		case CON_STATE_HANDLE_RESPONSE_HEADER:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
-				TRACE(srv, "%s", "read request/handle response header");
+				CON_TRACE(con, "%s", "read request/handle response header");
 			}
 			if (con->expect_100_cont) {
 				if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
-					TRACE(srv, "%s", "send 100 Continue");
+					CON_TRACE(con, "%s", "send 100 Continue");
 				}
 				chunkqueue_append_mem(con->raw_out, CONST_STR_LEN("HTTP/1.1 100 Continue\r\n\r\n"));
 				con->expect_100_cont = FALSE;
-				ev_io_add_events(srv->loop, &con->sock.watcher, EV_WRITE);
+				ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
 			}
-			parse_request_body(srv, con);
+			parse_request_body(con);
 
 			if (con->content_handler)
-				con->content_handler->handle_content(srv, con, con->content_handler);
+				con->content_handler->handle_content(con, con->content_handler);
 
-			switch (action_execute(srv, con)) {
+			switch (action_execute(con)) {
 			case ACTION_WAIT_FOR_EVENT:
 				done = TRUE;
 				break;
 			case ACTION_GO_ON:
 			case ACTION_FINISHED:
-				connection_set_state(srv, con, CON_STATE_WRITE_RESPONSE);
+				connection_set_state(con, CON_STATE_WRITE_RESPONSE);
 				break;
 			case ACTION_ERROR:
-				internal_error(srv, con);
+				internal_error(con);
 				break;
 			}
 			break;
 
 		case CON_STATE_WRITE_RESPONSE:
 			if (con->in->is_closed && con->raw_out->is_closed) {
-				connection_set_state(srv, con, CON_STATE_RESPONSE_END);
+				connection_set_state(con, CON_STATE_RESPONSE_END);
 				break;
 			}
 
 			if (!con->response_headers_sent) {
 				con->response_headers_sent = TRUE;
 				if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
-					TRACE(srv, "%s", "write response headers");
+					CON_TRACE(con, "%s", "write response headers");
 				}
-				response_send_headers(srv, con);
+				response_send_headers(con);
 			}
 
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
-				TRACE(srv, "%s", "write response");
+				CON_TRACE(con, "%s", "write response");
 			}
 
-			parse_request_body(srv, con);
+			parse_request_body(con);
 
 			if (con->content_handler)
-				con->content_handler->handle_content(srv, con, con->content_handler);
+				con->content_handler->handle_content(con, con->content_handler);
 
-			forward_response_body(srv, con);
+			forward_response_body(con);
 
 			if (con->in->is_closed && con->raw_out->is_closed) {
-				connection_set_state(srv, con, CON_STATE_RESPONSE_END);
+				connection_set_state(con, CON_STATE_RESPONSE_END);
 				break;
 			}
 			if (con->state == CON_STATE_WRITE_RESPONSE) done = TRUE;
@@ -459,57 +455,57 @@ void connection_state_machine(server *srv, connection *con) {
 
 		case CON_STATE_RESPONSE_END:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
-				TRACE(srv, "response end (keep_alive = %i)", con->keep_alive);
+				CON_TRACE(con, "response end (keep_alive = %i)", con->keep_alive);
 			}
 
-			plugins_handle_close(srv, con);
+			plugins_handle_close(con);
 
 			if (con->keep_alive) {
-				connection_reset_keep_alive(srv, con);
+				connection_reset_keep_alive(con);
 			} else {
-				con_put(srv, con);
+				con_put(con);
 				done = TRUE;
 			}
 			break;
 
 		case CON_STATE_CLOSE:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
-				TRACE(srv, "%s", "connection closed");
+				CON_TRACE(con, "%s", "connection closed");
 			}
 
-			plugins_handle_close(srv, con);
+			plugins_handle_close(con);
 
-			con_put(srv, con);
+			con_put(con);
 			done = TRUE;
 			break;
 
 		case CON_STATE_ERROR:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
-				TRACE(srv, "%s", "connection closed (error)");
+				CON_TRACE(con, "%s", "connection closed (error)");
 			}
 
-			plugins_handle_close(srv, con);
+			plugins_handle_close(con);
 
-			con_put(srv, con);
+			con_put(con);
 			done = TRUE;
 			break;
 		}
 	} while (!done);
 }
 
-void connection_handle_direct(server *srv, connection *con) {
-	connection_set_state(srv, con, CON_STATE_WRITE_RESPONSE);
+void connection_handle_direct(connection *con) {
+	connection_set_state(con, CON_STATE_WRITE_RESPONSE);
 	con->out->is_closed = TRUE;
 }
 
-void connection_handle_indirect(server *srv, connection *con, plugin *p) {
+void connection_handle_indirect(connection *con, plugin *p) {
 	if (!p) {
-		connection_handle_direct(srv, con);
+		connection_handle_direct(con);
 	} else if (p->handle_content) {
-		connection_set_state(srv, con, CON_STATE_READ_REQUEST_CONTENT);
+		connection_set_state(con, CON_STATE_READ_REQUEST_CONTENT);
 		con->content_handler = p;
 	} else {
-		CON_ERROR(srv, con, "Indirect plugin '%s' handler has no handle_content callback", p->name);
-		internal_error(srv, con);
+		CON_ERROR(con, "Indirect plugin '%s' handler has no handle_content callback", p->name);
+		internal_error(con);
 	}
 }

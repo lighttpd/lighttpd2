@@ -5,8 +5,6 @@
 #define LIGHTTPD_SERVER_MAGIC ((guint)0x12AB34CD)
 #endif
 
-#define CUR_TS(srv) ((time_t)ev_now((srv)->loop))
-
 typedef enum {
 	SERVER_STARTING,         /** start up: don't write log files, don't accept connections */
 	SERVER_RUNNING,          /** running: write logs, accept connections */
@@ -33,13 +31,15 @@ struct statistics_t {
 	guint64 actions_executed; /** actions executed */
 };
 
+struct worker;
+
 struct server {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
 	server_state state;
 
+	struct worker *main_worker;
+
 	guint loop_flags;
-	struct ev_loop *loop;
-	ev_timer keep_alive_timer;
 	ev_signal
 		sig_w_INT,
 		sig_w_TERM,
@@ -50,7 +50,6 @@ struct server {
 	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections */
 	GArray *connections;      /** array of (connection*) */
 	GArray *sockets;          /** array of (server_socket*) */
-	GQueue closing_sockets;   /** wait for EOF before shutdown(SHUT_RD) and close() */
 
 	GHashTable *plugins;      /**< const gchar* => (plugin*) */
 
@@ -67,11 +66,6 @@ struct server {
 
 	gboolean exiting;
 
-	GString *tmp_str;         /**< can be used everywhere for local temporary needed strings */
-
-	time_t last_generated_date_ts;
-	GString *ts_date_str;     /**< use server_current_timestamp(srv) */
-
 	/* logs */
 	gboolean rotate_logs;
 	GHashTable *logs;
@@ -84,9 +78,8 @@ struct server {
 	ev_tstamp started;
 	statistics_t stats;
 
-	/* keep alive timeout queue */
+	/* keep alive timeout */
 	guint keep_alive_queue_timeout;
-	GQueue keep_alive_queue;
 };
 
 
@@ -103,11 +96,6 @@ LI_API void server_stop(server *srv);
 /* close connections, close logs, stop log-thread */
 LI_API void server_exit(server *srv);
 
-LI_API void joblist_append(server *srv, connection *con);
-
-LI_API GString *server_current_timestamp(server *srv);
-
-/* shutdown write and wait for eof before shutdown read and close */
-LI_API void server_add_closing_socket(server *srv, int fd);
+LI_API void joblist_append(connection *con);
 
 #endif

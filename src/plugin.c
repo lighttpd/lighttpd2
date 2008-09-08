@@ -283,11 +283,11 @@ void plugins_prepare_callbacks(server *srv) {
 	}
 }
 
-void plugins_handle_close(server *srv, connection *con) {
-	GArray *a = srv->plugins_handle_close;
+void plugins_handle_close(connection *con) {
+	GArray *a = con->srv->plugins_handle_close;
 	guint i, len = a->len;
 	for (i = 0; i < len; i++) {
 		plugin *p = g_array_index(a, plugin*, i);
-		p->handle_close(srv, con, p);
+		p->handle_close(con, p);
 	}
 }

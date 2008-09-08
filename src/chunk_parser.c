@@ -23,7 +23,7 @@ handler_t chunk_parser_prepare(chunk_parser_ctx *ctx) {
 	return HANDLER_GO_ON;
 }
 
-handler_t chunk_parser_next(server *srv, connection *con, chunk_parser_ctx *ctx, char **p, char **pe) {
+handler_t chunk_parser_next(connection *con, chunk_parser_ctx *ctx, char **p, char **pe) {
 	off_t l;
 	handler_t res;
 
@@ -39,7 +39,7 @@ handler_t chunk_parser_next(server *srv, connection *con, chunk_parser_ctx *ctx,
 
 	if (NULL == ctx->curi.element) return HANDLER_WAIT_FOR_EVENT;
 
-	if (HANDLER_GO_ON != (res = chunkiter_read(srv, con, ctx->curi, ctx->start, l - ctx->start, &ctx->buf, &ctx->length))) {
+	if (HANDLER_GO_ON != (res = chunkiter_read(con, ctx->curi, ctx->start, l - ctx->start, &ctx->buf, &ctx->length))) {
 		return res;
 	}
 
@@ -53,7 +53,7 @@ void chunk_parser_done(chunk_parser_ctx *ctx, goffset len) {
 	ctx->start += len;
 }
 
-gboolean chunk_extract_to(server *srv, connection *con, chunk_parser_mark from, chunk_parser_mark to, GString *dest) {
+gboolean chunk_extract_to(connection *con, chunk_parser_mark from, chunk_parser_mark to, GString *dest) {
 	g_string_set_size(dest, 0);
 
 	chunk_parser_mark i;
@@ -62,7 +62,7 @@ gboolean chunk_extract_to(server *srv, connection *con, chunk_parser_mark from, 
 		while (i.pos < len) {
 			char *buf;
 			off_t we_have;
-			if (HANDLER_GO_ON != chunkiter_read(srv, con, i.ci, i.pos, len - i.pos, &buf, &we_have)) goto error;
+			if (HANDLER_GO_ON != chunkiter_read(con, i.ci, i.pos, len - i.pos, &buf, &we_have)) goto error;
 			g_string_append_len(dest, buf, we_have);
 			i.pos += we_have;
 		}
@@ -71,7 +71,7 @@ gboolean chunk_extract_to(server *srv, connection *con, chunk_parser_mark from, 
 	while (i.pos < to.pos) {
 		char *buf;
 		off_t we_have;
-		if (HANDLER_GO_ON != chunkiter_read(srv, con, i.ci, i.pos, to.pos - i.pos, &buf, &we_have)) goto error;
+		if (HANDLER_GO_ON != chunkiter_read(con, i.ci, i.pos, to.pos - i.pos, &buf, &we_have)) goto error;
 		g_string_append_len(dest, buf, we_have);
 		i.pos += we_have;
 	}
@@ -83,9 +83,9 @@ error:
 	return FALSE;
 }
 
-GString* chunk_extract(server *srv, connection *con, chunk_parser_mark from, chunk_parser_mark to) {
+GString* chunk_extract(connection *con, chunk_parser_mark from, chunk_parser_mark to) {
 	GString *str = g_string_sized_new(0);
-	if (chunk_extract_to(srv, con, from, to, str)) return str;
+	if (chunk_extract_to(con, from, to, str)) return str;
 	g_string_free(str, TRUE);
 	return NULL;
 }

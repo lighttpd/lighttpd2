@@ -25,8 +25,7 @@ static void http_chunk_append_len(chunkqueue *cq, size_t len) {
 }
 
 
-handler_t filter_chunked_encode(server *srv, connection *con, chunkqueue *out, chunkqueue *in) {
-	UNUSED(srv);
+handler_t filter_chunked_encode(connection *con, chunkqueue *out, chunkqueue *in) {
 	UNUSED(con);
 
 	if (in->length > 0) {
@@ -43,8 +42,7 @@ handler_t filter_chunked_encode(server *srv, connection *con, chunkqueue *out, c
 	return HANDLER_GO_ON;
 }
 
-handler_t filter_chunked_decode(server *srv, connection *con, chunkqueue *out, chunkqueue *in) {
-	UNUSED(srv);
+handler_t filter_chunked_decode(connection *con, chunkqueue *out, chunkqueue *in) {
 	UNUSED(con);
 	UNUSED(out);
 	UNUSED(in);

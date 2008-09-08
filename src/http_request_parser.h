@@ -22,7 +22,7 @@ LI_API void http_request_parser_init(http_request_ctx* ctx, request *req, chunkq
 LI_API void http_request_parser_reset(http_request_ctx* ctx);
 LI_API void http_request_parser_clear(http_request_ctx *ctx);
 
-LI_API handler_t http_request_parse(struct server *srv, struct connection *con, http_request_ctx *ctx);
+LI_API handler_t http_request_parse(struct connection *con, http_request_ctx *ctx);
 
 
 #endif

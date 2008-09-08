@@ -39,6 +39,7 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	log_level_t log_level_want;
 
 	if (con != NULL) {
+		if (!srv) srv = con->srv;
 		/* get log index from connection */
 		log = CORE_OPTION(CORE_OPTION_LOG_TARGET) ? CORE_OPTION(CORE_OPTION_LOG_TARGET) : srv->log_stderr;
 		log_level_want = (log_level_t) CORE_OPTION(CORE_OPTION_LOG_LEVEL);

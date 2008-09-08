@@ -145,7 +145,7 @@ static action* action_stack_element_action(action_stack_element *ase) {
 	}
 }
 
-action_result action_execute(server *srv, connection *con) {
+action_result action_execute(connection *con) {
 	action *a;
 	action_stack *as = &con->action_stack;
 	action_stack_element *ase;
@@ -154,31 +154,31 @@ action_result action_execute(server *srv, connection *con) {
 	while (NULL != (ase = action_stack_top(as))) {
 		a = action_stack_element_action(ase);
 		if (!a) {
-			action_stack_pop(srv, as);
+			action_stack_pop(con->srv, as);
 			continue;
 		}
 
-		srv->stats.actions_executed++;
+		con->srv->stats.actions_executed++;
 
 		switch (a->type) {
 		case ACTION_TSETTING:
 			con->options[a->value.setting.ndx] = a->value.setting.value;
 			break;
 		case ACTION_TFUNCTION:
-			res = a->value.function.func(srv, con, a->value.function.param);
+			res = a->value.function.func(con, a->value.function.param);
 			switch (res) {
 			case ACTION_GO_ON:
 			case ACTION_FINISHED:
 				break;
 			case ACTION_ERROR:
-				action_stack_reset(srv, as);
+				action_stack_reset(con->srv, as);
 				return res;
 			case ACTION_WAIT_FOR_EVENT:
 				return ACTION_WAIT_FOR_EVENT;
 			}
 			break;
 		case ACTION_TCONDITION:
-			if (condition_check(srv, con, a->value.condition.cond)) {
+			if (condition_check(con, a->value.condition.cond)) {
 				action_enter(con, a->value.condition.target);
 			}
 			else if (a->value.condition.target_else) {

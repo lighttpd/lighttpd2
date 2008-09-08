@@ -29,7 +29,7 @@ struct action_stack {
 };
 
 struct server; struct connection;
-typedef action_result (*ActionFunc)(struct server *srv, struct connection *con, gpointer param);
+typedef action_result (*ActionFunc)(struct connection *con, gpointer param);
 typedef void (*ActionFree)(struct server *srv, gpointer param);
 
 struct action_func {
@@ -69,7 +69,7 @@ LI_API void action_stack_clear(server *srv, action_stack *as);
 
 /** handle sublist now, remember current position (stack) */
 LI_API void action_enter(connection *con, action *a);
-LI_API action_result action_execute(server *srv, connection *con);
+LI_API action_result action_execute(connection *con);
 
 
 LI_API void action_release(server *srv, action *a);

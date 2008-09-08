@@ -38,12 +38,12 @@ typedef void     (*PluginInit)          (server *srv, plugin *p);
 typedef void     (*PluginFree)          (server *srv, plugin *p);
 typedef gboolean (*PluginParseOption)   (server *srv, plugin *p, size_t ndx, option *opt, gpointer *value);
 typedef void     (*PluginFreeOption)    (server *srv, plugin *p, size_t ndx, gpointer value);
-typedef gpointer (*PluginDefaultValue) (server *srv, plugin *p, gsize ndx);
+typedef gpointer (*PluginDefaultValue)  (server *srv, plugin *p, gsize ndx);
 typedef action*  (*PluginCreateAction)  (server *srv, plugin *p, option *opt);
 typedef gboolean (*PluginSetup)         (server *srv, plugin *p, option *opt);
 
-typedef void     (*PluginHandleContent) (server *srv, connection *con, plugin *p);
-typedef void     (*PluginHandleClose)   (server *srv, connection *con, plugin *p);
+typedef void     (*PluginHandleContent) (connection *con, plugin *p);
+typedef void     (*PluginHandleClose)   (connection *con, plugin *p);
 
 struct plugin {
 	size_t version;
@@ -57,7 +57,7 @@ struct plugin {
 
 	/** called if plugin registered as indirect handler with connection_handle_indirect(srv, con, p)
 	  *  - after response headers are created:
-	  *      connection_set_state(srv, con, CON_STATE_HANDLE_RESPONSE_HEADER)
+	  *      connection_set_state(con, CON_STATE_HANDLE_RESPONSE_HEADER)
 	  *  - after content is generated close output queue:
 	  *      con->out->is_closed = TRUE
 	  */
@@ -130,7 +130,7 @@ LI_API gboolean parse_option(server *srv, const char *name, option *opt, option_
 LI_API void release_option(server *srv, option_set *mark); /**< Does not free the option_set memory */
 
 LI_API void plugins_prepare_callbacks(server *srv);
-LI_API void plugins_handle_close(server *srv, connection *con);
+LI_API void plugins_handle_close(connection *con);
 
 /* Needed for config frontends */
 /** For parsing 'somemod.option = "somevalue"' */
