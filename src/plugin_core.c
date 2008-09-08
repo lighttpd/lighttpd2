@@ -166,8 +166,13 @@ static action_result core_handle_static(connection *con, gpointer param) {
 #ifdef FD_CLOEXEC
 		fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
-		con->response.http_status = 200;
-		chunkqueue_append_file_fd(con->out, NULL, 0, st.st_size, fd);
+		if (!S_ISREG(st.st_mode)) {
+			con->response.http_status = 404;
+			close(fd);
+		} else {
+			con->response.http_status = 200;
+			chunkqueue_append_file_fd(con->out, NULL, 0, st.st_size, fd);
+		}
 	}
 	connection_handle_direct(con);
 
