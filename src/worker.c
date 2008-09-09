@@ -29,6 +29,11 @@ void worker_add_closing_socket(worker *wrk, int fd) {
 	worker_closing_socket *scs = g_slice_new0(worker_closing_socket);
 
 	shutdown(fd, SHUT_WR);
+	if (g_atomic_int_get(&wrk->srv->exiting)) {
+		shutdown(fd, SHUT_RD);
+		close(fd);
+		return;
+	}
 
 	scs->wrk = wrk;
 	scs->fd = fd;
