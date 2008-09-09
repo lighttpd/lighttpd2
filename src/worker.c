@@ -39,11 +39,9 @@ void worker_add_closing_socket(worker *wrk, int fd) {
 }
 
 /* Kill it - frees fd */
-/*
 static void worker_rem_closing_socket(worker *wrk, worker_closing_socket *scs) {
 	ev_feed_fd_event(wrk->loop, scs->fd, EV_READ);
 }
-*/
 
 /* Keep alive */
 
@@ -105,6 +103,44 @@ GString *worker_current_timestamp(worker *wrk) {
 	return wrk->ts_date_str;
 }
 
+/* stop worker watcher */
+static void worker_stop_cb(struct ev_loop *loop, ev_async *w, int revents) {
+	UNUSED(loop);
+	UNUSED(revents);
+	worker *wrk = (worker*) w->data;
+	worker_stop(wrk, wrk);
+}
+
+/* exit worker watcher */
+static void worker_exit_cb(struct ev_loop *loop, ev_async *w, int revents) {
+	UNUSED(loop);
+	UNUSED(revents);
+	worker *wrk = (worker*) w->data;
+	worker_exit(wrk, wrk);
+}
+
+/* new con watcher */
+void worker_new_con(worker *wrk, connection *con) {
+	if (wrk == con->wrk) {
+		ev_io_start(wrk->loop, &con->sock_watcher);
+	} else {
+		wrk = con->wrk;
+		g_async_queue_push(wrk->new_con_queue, con);
+		ev_async_send(wrk->loop, &wrk->new_con_watcher);
+	}
+}
+
+static void worker_new_con_cb(struct ev_loop *loop, ev_async *w, int revents) {
+	worker *wrk = (worker*) w->data;
+	connection *con;
+	UNUSED(loop);
+	UNUSED(revents);
+
+	while (NULL != (con = g_async_queue_try_pop(wrk->new_con_queue))) {
+		worker_new_con(wrk, con);
+	}
+}
+
 /* init */
 
 worker* worker_new(struct server *srv, struct ev_loop *loop) {
@@ -120,6 +156,20 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 
 	wrk->last_generated_date_ts = 0;
 	wrk->ts_date_str = g_string_sized_new(255);
+
+	ev_init(&wrk->worker_exit_watcher, worker_exit_cb);
+	wrk->worker_exit_watcher.data = wrk;
+	ev_async_start(wrk->loop, &wrk->worker_exit_watcher);
+	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive; it is never stopped */
+
+	ev_init(&wrk->worker_stop_watcher, worker_stop_cb);
+	wrk->worker_stop_watcher.data = wrk;
+	ev_async_start(wrk->loop, &wrk->worker_stop_watcher);
+
+	ev_init(&wrk->new_con_watcher, worker_new_con_cb);
+	wrk->new_con_watcher.data = wrk;
+	ev_async_start(wrk->loop, &wrk->new_con_watcher);
+	wrk->new_con_queue = g_async_queue_new();
 
 	return wrk;
 }
@@ -143,4 +193,40 @@ void worker_free(worker *wrk) {
 
 void worker_run(worker *wrk) {
 	ev_loop(wrk->loop, 0);
+}
+
+void worker_stop(worker *context, worker *wrk) {
+	if (context == wrk) {
+		guint i;
+		server *srv = wrk->srv;
+
+		ev_async_stop(wrk->loop, &wrk->worker_stop_watcher);
+		ev_async_stop(wrk->loop, &wrk->new_con_watcher);
+
+		WORKER_LOCK(srv, &srv->lock_con);
+		for (i = srv->connections_active; i-- > 0;) {
+			connection *con = g_array_index(srv->connections, connection*, i);
+			if (con->wrk == wrk && con->state == CON_STATE_KEEP_ALIVE)
+				con_put(con);
+		}
+		WORKER_UNLOCK(srv, &srv->lock_con);
+		worker_check_keepalive(wrk);
+
+		{ /* force closing sockets */
+			GList *iter;
+			for (iter = g_queue_peek_head_link(&wrk->closing_sockets); iter; iter = g_list_next(iter)) {
+				worker_rem_closing_socket(wrk, (worker_closing_socket*) iter->data);
+			}
+		}
+	} else {
+		ev_async_send(wrk->loop, &wrk->worker_stop_watcher);
+	}
+}
+
+void worker_exit(worker *context, worker *wrk) {
+	if (context == wrk) {
+		ev_unloop (wrk->loop, EVUNLOOP_ALL);
+	} else {
+		ev_async_send(wrk->loop, &wrk->worker_exit_watcher);
+	}
 }

@@ -17,24 +17,6 @@ static void server_setup_free(gpointer _ss) {
 	g_slice_free(server_setup, _ss);
 }
 
-static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
-	server *srv = (server*) w->data;
-	UNUSED(revents);
-
-	if (!srv->exiting) {
-		INFO(srv, "Got signal, shutdown");
-		server_exit(srv);
-	} else {
-		INFO(srv, "Got second signal, force shutdown");
-		ev_unloop (loop, EVUNLOOP_ALL);
-	}
-}
-
-static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
-	/* ignore */
-	UNUSED(loop); UNUSED(w); UNUSED(revents);
-}
-
 #define CATCH_SIGNAL(loop, cb, n) do {\
 	ev_init(&srv->sig_w_##n, cb); \
 	ev_signal_set(&srv->sig_w_##n, SIG##n); \
@@ -43,12 +25,42 @@ static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	ev_unref(loop); /* Signal watchers shouldn't keep loop alive */ \
 } while (0)
 
+#define UNCATCH_SIGNAL(loop, n) do {\
+	ev_ref(loop); \
+	ev_signal_stop(loop, &srv->sig_w_##n); \
+} while (0)
+
+static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
+	server *srv = (server*) w->data;
+	UNUSED(revents);
+
+	if (!srv->exiting) {
+		INFO(srv, "Got signal, shutdown");
+		server_stop(srv);
+	} else {
+		INFO(srv, "Got second signal, force shutdown");
+
+		/* reset default behaviour which will kill us the third time */
+		UNCATCH_SIGNAL(loop, INT);
+		UNCATCH_SIGNAL(loop, TERM);
+		UNCATCH_SIGNAL(loop, PIPE);
+	}
+}
+
+static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
+	/* ignore */
+	UNUSED(loop); UNUSED(w); UNUSED(revents);
+}
+
 server* server_new() {
 	server* srv = g_slice_new0(server);
 
 	srv->magic = LIGHTTPD_SERVER_MAGIC;
 	srv->state = SERVER_STARTING;
 
+	srv->workers = g_array_new(FALSE, TRUE, sizeof(worker*));
+
+	g_static_rec_mutex_init(&srv->lock_con);
 	srv->connections_active = 0;
 	srv->connections = g_array_new(FALSE, TRUE, sizeof(connection*));
 	srv->sockets = g_array_new(FALSE, TRUE, sizeof(server_socket*));
@@ -75,7 +87,16 @@ void server_free(server* srv) {
 	srv->exiting = TRUE;
 	server_stop(srv);
 
-	worker_free(srv->main_worker);
+	/* join all workers */
+	{
+		guint i;
+		for (i = 1; i < srv->worker_count; i++) {
+			worker *wrk;
+			wrk = g_array_index(srv->workers, worker*, i);
+			worker_exit(srv->main_worker, wrk);
+			g_thread_join(wrk->thread);
+		}
+	}
 
 	{ /* close connections */
 		guint i;
@@ -91,6 +112,16 @@ void server_free(server* srv) {
 			connection_free(g_array_index(srv->connections, connection*, i));
 		}
 		g_array_free(srv->connections, TRUE);
+	}
+
+	/* free all workers */
+	{
+		guint i;
+		for (i = 0; i < srv->worker_count; i++) {
+			worker *wrk;
+			wrk = g_array_index(srv->workers, worker*, i);
+			worker_free(wrk);
+		}
 	}
 
 	{
@@ -129,7 +160,14 @@ void server_free(server* srv) {
 	g_slice_free(server, srv);
 }
 
+static gpointer server_worker_cb(gpointer data) {
+	worker *wrk = (worker*) data;
+	worker_run(wrk);
+	return NULL;
+}
+
 gboolean server_loop_init(server *srv) {
+	guint i;
 	struct ev_loop *loop = ev_default_loop(srv->loop_flags);
 
 	if (!loop) {
@@ -141,13 +179,27 @@ gboolean server_loop_init(server *srv) {
 	CATCH_SIGNAL(loop, sigint_cb, TERM);
 	CATCH_SIGNAL(loop, sigpipe_cb, PIPE);
 
-	srv->main_worker = worker_new(srv, loop);
+	if (srv->worker_count < 1) srv->worker_count = 1;
+	g_array_set_size(srv->workers, srv->worker_count);
+	srv->main_worker = g_array_index(srv->workers, worker*, 0) = worker_new(srv, loop);
+	for (i = 1; i < srv->worker_count; i++) {
+		GError *error = NULL;
+		worker *wrk;
+		loop = ev_loop_new(srv->loop_flags);
+		wrk = g_array_index(srv->workers, worker*, i) = worker_new(srv, loop);
+		if (NULL == (wrk->thread = g_thread_create(server_worker_cb, wrk, TRUE, &error))) {
+			g_error ( "g_thread_create failed: %s", error->message );
+			return FALSE;
+		}
+	}
 
 	return TRUE;
 }
 
 static connection* con_get(server *srv) {
 	connection *con;
+
+	WORKER_LOCK(srv, &srv->lock_con);
 	if (srv->connections_active >= srv->connections->len) {
 		con = connection_new(srv);
 		con->idx = srv->connections_active++;
@@ -155,6 +207,7 @@ static connection* con_get(server *srv) {
 	} else {
 		con = g_array_index(srv->connections, connection*, srv->connections_active++);
 	}
+	WORKER_UNLOCK(srv, &srv->lock_con);
 	return con;
 }
 
@@ -162,6 +215,8 @@ void con_put(connection *con) {
 	server *srv = con->srv;
 
 	connection_reset(con);
+	g_atomic_int_add((gint*) &con->wrk->connection_load, -1);
+	WORKER_LOCK(srv, &srv->lock_con);
 	con->wrk = NULL;
 	srv->connections_active--;
 	if (con->idx != srv->connections_active) {
@@ -174,6 +229,7 @@ void con_put(connection *con) {
 		g_array_index(srv->connections, connection*, con->idx) = con;
 		g_array_index(srv->connections, connection*, tmp->idx) = tmp;
 	}
+	WORKER_UNLOCK(srv, &srv->lock_con);
 }
 
 static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
@@ -187,11 +243,24 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	while (-1 != (s = accept(w->fd, (struct sockaddr*) &remote_addr, &l))) {
 		connection *con = con_get(srv);
-		con->wrk = srv->main_worker; /* TODO: balance workers; push con in a queue for the worker */
+		worker *wrk = srv->main_worker;
+		guint i, min_load = g_atomic_int_get(&wrk->connection_load);
+
+		for (i = 1; i < srv->worker_count; i++) {
+			worker *wt = g_array_index(srv->workers, worker*, i);
+			guint load = g_atomic_int_get(&wt->connection_load);
+			if (load < min_load) {
+				wrk = wt;
+				min_load = load;
+			}
+		}
+
+		g_atomic_int_inc((gint*) &wrk->connection_load);
+		con->wrk = wrk;
 		con->state = CON_STATE_REQUEST_START;
 		con->remote_addr = remote_addr;
 		ev_io_set(&con->sock_watcher, s, EV_READ);
-		ev_io_start(con->wrk->loop, &con->sock_watcher);
+		worker_new_con(srv->main_worker, con);
 	}
 
 #ifdef _WIN32
@@ -274,26 +343,38 @@ void server_start(server *srv) {
 
 void server_stop(server *srv) {
 	guint i;
-	if (srv->state == SERVER_STOPPING) return;
-	srv->state = SERVER_STOPPING;
+	g_atomic_int_set(&srv->exiting, TRUE);
+
+	if (g_atomic_int_get(&srv->state) == SERVER_STOPPING) return;
+	g_atomic_int_set(&srv->state, SERVER_STOPPING);
 
 	for (i = 0; i < srv->sockets->len; i++) {
 		server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
 		ev_io_stop(srv->main_worker->loop, &sock->watcher);
 	}
 
-	for (i = srv->connections_active; i-- > 0;) {
-		connection *con = g_array_index(srv->connections, connection*, i);
-		if (con->state == CON_STATE_KEEP_ALIVE)
-			con_put(con);
+	/* stop all workers */
+	for (i = 0; i < srv->worker_count; i++) {
+		worker *wrk;
+		wrk = g_array_index(srv->workers, worker*, i);
+		worker_stop(srv->main_worker, wrk);
 	}
+
+	log_thread_wakeup(srv);
 }
 
 void server_exit(server *srv) {
-	g_atomic_int_set(&srv->exiting, TRUE);
 	server_stop(srv);
 
-	log_thread_wakeup(srv);
+	/* exit all workers */
+	{
+		guint i;
+		for (i = 0; i < srv->worker_count; i++) {
+			worker *wrk;
+			wrk = g_array_index(srv->workers, worker*, i);
+			worker_exit(srv->main_worker, wrk);
+		}
+	}
 }
 
 void joblist_append(connection *con) {

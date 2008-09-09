@@ -38,6 +38,9 @@ struct server {
 	server_state state;
 
 	struct worker *main_worker;
+	guint worker_count;
+	GArray *workers;
+	GThreadPool *worker_pool;
 
 	guint loop_flags;
 	ev_signal
@@ -47,8 +50,15 @@ struct server {
 	ev_prepare srv_prepare;
 	ev_check srv_check;
 
+	/** this lock protects:
+	  * srv->connections_active (read with g_atomic_get)
+	  * srv->connections
+	  * wkr->connection_load (read with g_atomic_get)
+	  */
+	GStaticRecMutex lock_con;
 	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections */
 	GArray *connections;      /** array of (connection*) */
+
 	GArray *sockets;          /** array of (server_socket*) */
 
 	GHashTable *plugins;      /**< const gchar* => (plugin*) */
@@ -91,9 +101,9 @@ LI_API void server_listen(server *srv, int fd);
 
 /* Start accepting connection, use log files, no new plugins after that */
 LI_API void server_start(server *srv);
-/* stop accepting connections, turn keep-alive off */
+/* stop accepting connections, turn keep-alive off, close all shutdown sockets, set exiting = TRUE */
 LI_API void server_stop(server *srv);
-/* close connections, close logs, stop log-thread */
+/* exit asap with cleanup */
 LI_API void server_exit(server *srv);
 
 LI_API void joblist_append(connection *con);

@@ -4,6 +4,7 @@
 #include "utils.h"
 #include "plugin_core.h"
 
+/* only call it from the worker context the con belongs to */
 void con_put(connection *con); /* server.c */
 
 void internal_error(connection *con) {
