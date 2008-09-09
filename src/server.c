@@ -188,6 +188,7 @@ gboolean server_loop_init(server *srv) {
 	if (srv->worker_count < 1) srv->worker_count = 1;
 	g_array_set_size(srv->workers, srv->worker_count);
 	srv->main_worker = g_array_index(srv->workers, worker*, 0) = worker_new(srv, loop);
+	srv->main_worker->ndx = 0;
 	for (i = 1; i < srv->worker_count; i++) {
 		GError *error = NULL;
 		worker *wrk;
@@ -196,6 +197,7 @@ gboolean server_loop_init(server *srv) {
 			return FALSE;
 		}
 		wrk = g_array_index(srv->workers, worker*, i) = worker_new(srv, loop);
+		wrk->ndx = i;
 		if (NULL == (wrk->thread = g_thread_create(server_worker_cb, wrk, TRUE, &error))) {
 			g_error ( "g_thread_create failed: %s", error->message );
 			return FALSE;

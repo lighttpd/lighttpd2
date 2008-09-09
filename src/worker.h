@@ -20,6 +20,7 @@ struct worker {
 	struct server *srv;
 
 	GThread *thread; /* managed by server.c */
+	guint ndx;       /* worker index */
 
 	struct ev_loop *loop;
 	ev_prepare loop_prepare;

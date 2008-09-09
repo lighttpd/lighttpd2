@@ -1,4 +1,6 @@
 
+#include <sched.h>
+
 #include "base.h"
 
 void con_put(connection *con);
@@ -200,6 +202,23 @@ void worker_free(worker *wrk) {
 }
 
 void worker_run(worker *wrk) {
+	cpu_set_t mask;
+
+	if (0 != sched_getaffinity(0, sizeof(mask), &mask)) {
+		ERROR(wrk->srv, "couldn't get cpu affinity mask: %s", g_strerror(errno));
+	} else {
+		guint cpus = 0;
+		while (CPU_ISSET(cpus, &mask)) cpus++;
+		if (cpus) {
+			CPU_ZERO(&mask);
+			CPU_SET(wrk->ndx % cpus, &mask);
+			if (0 != sched_setaffinity(0, sizeof(mask), &mask)) {
+				ERROR(wrk->srv, "couldn't set cpu affinity mask: %s", g_strerror(errno));
+			}
+		} else {
+			ERROR(wrk->srv, "%s", "cpu 0 not enabled, no affinity set");
+		}
+	}
 	ev_loop(wrk->loop, 0);
 }
 
