@@ -119,8 +119,15 @@ void server_free(server* srv) {
 		guint i;
 		for (i = 0; i < srv->worker_count; i++) {
 			worker *wrk;
+			struct ev_loop *loop;
 			wrk = g_array_index(srv->workers, worker*, i);
+			loop = wrk->loop;
 			worker_free(wrk);
+			if (i == 0) {
+				ev_default_destroy();
+			} else {
+				ev_loop_destroy(loop);
+			}
 		}
 	}
 
@@ -244,7 +251,7 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	while (-1 != (s = accept(w->fd, (struct sockaddr*) &remote_addr, &l))) {
 		connection *con = con_get(srv);
 		worker *wrk = srv->main_worker;
-		guint i, min_load = g_atomic_int_get(&wrk->connection_load);
+		guint i, min_load = g_atomic_int_get(&wrk->connection_load), sel = 0;
 
 		for (i = 1; i < srv->worker_count; i++) {
 			worker *wt = g_array_index(srv->workers, worker*, i);
@@ -252,10 +259,12 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			if (load < min_load) {
 				wrk = wt;
 				min_load = load;
+				sel = i;
 			}
 		}
 
 		g_atomic_int_inc((gint*) &wrk->connection_load);
+		/* TRACE(srv, "selected worker %u with load %u", sel, min_load); */
 		con->wrk = wrk;
 		con->state = CON_STATE_REQUEST_START;
 		con->remote_addr = remote_addr;

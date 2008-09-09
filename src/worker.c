@@ -160,7 +160,7 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	ev_init(&wrk->worker_exit_watcher, worker_exit_cb);
 	wrk->worker_exit_watcher.data = wrk;
 	ev_async_start(wrk->loop, &wrk->worker_exit_watcher);
-	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive; it is never stopped */
+	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
 	ev_init(&wrk->worker_stop_watcher, worker_stop_cb);
 	wrk->worker_stop_watcher.data = wrk;
@@ -184,6 +184,9 @@ void worker_free(worker *wrk) {
 		}
 		g_queue_clear(&wrk->closing_sockets);
 	}
+
+	ev_ref(wrk->loop);
+	ev_async_stop(wrk->loop, &wrk->worker_exit_watcher);
 
 	g_string_free(wrk->tmp_str, TRUE);
 	g_string_free(wrk->ts_date_str, TRUE);
