@@ -397,6 +397,24 @@ static gboolean core_event_handler(server *srv, plugin* p, option *opt) {
 	return TRUE;
 }
 
+static gboolean core_workers(server *srv, plugin* p, option *opt) {
+	gint workers;
+	UNUSED(p);
+
+	workers = opt->value.opt_int;
+	if (opt->type != OPTION_INT || workers < 1) {
+		ERROR(srv, "%s", "workers expects a positive integer as parameter");
+		return FALSE;
+	}
+
+	if (srv->worker_count != 0) {
+		ERROR(srv, "workers already called with '%i', overwriting", srv->worker_count);
+	}
+	srv->worker_count = workers;
+	option_free(opt);
+	return TRUE;
+}
+
 
 gboolean core_option_log_target_parse(server *srv, plugin *p, size_t ndx, option *opt, gpointer *value) {
 	log_t *log;
@@ -485,6 +503,7 @@ static const plugin_action actions[] = {
 static const plugin_setup setups[] = {
 	{ "listen", core_listen },
 	{ "event_handler", core_event_handler },
+	{ "workers", core_workers },
 	{ NULL, NULL }
 };
 
