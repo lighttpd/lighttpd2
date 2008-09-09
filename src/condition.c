@@ -55,14 +55,14 @@ condition_lvalue* condition_lvalue_new(cond_lvalue_t type, GString *key) {
 }
 
 void condition_lvalue_acquire(condition_lvalue *lvalue) {
-	assert(lvalue->refcount > 0);
-	lvalue->refcount++;
+	assert(g_atomic_int_get(&lvalue->refcount) > 0);
+	g_atomic_int_inc(&lvalue->refcount);
 }
 
 void condition_lvalue_release(condition_lvalue *lvalue) {
 	if (!lvalue) return;
-	assert(lvalue->refcount > 0);
-	if (!(--lvalue->refcount)) {
+	assert(g_atomic_int_get(&lvalue->refcount) > 0);
+	if (g_atomic_int_dec_and_test(&lvalue->refcount)) {
 		if (lvalue->key) g_string_free(lvalue->key, TRUE);
 		g_slice_free(condition_lvalue, lvalue);
 	}
@@ -194,15 +194,15 @@ static void condition_free(condition *c) {
 }
 
 void condition_acquire(condition *c) {
-	assert(c->refcount > 0);
-	c->refcount++;
+	assert(g_atomic_int_get(&c->refcount) > 0);
+	g_atomic_int_inc(&c->refcount);
 }
 
 void condition_release(server *srv, condition* c) {
 	UNUSED(srv);
 	if (!c) return;
-	assert(c->refcount > 0);
-	if (!(--c->refcount)) {
+	assert(g_atomic_int_get(&c->refcount) > 0);
+	if (g_atomic_int_dec_and_test(&c->refcount)) {
 		condition_free(c);
 	}
 }

@@ -190,9 +190,8 @@ void log_rotate_logs(server *srv) {
 
 
 void log_ref(server *srv, log_t *log) {
-	g_mutex_lock(srv->log_mutex);
-	log->refcount++;
-	g_mutex_unlock(srv->log_mutex);
+	UNUSED(srv);
+	g_atomic_int_inc(&log->refcount);
 }
 
 void log_unref(server *srv, log_t *log) {
@@ -264,7 +263,7 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	/* log already open, inc refcount */
 	if (log != NULL)
 	{
-		log->refcount++;
+		g_atomic_int_inc(&log->refcount);
 		g_mutex_unlock(srv->log_mutex);
 		return log;
 	}

@@ -14,8 +14,8 @@ struct action_stack_element {
 void action_release(server *srv, action *a) {
 	if (!a) return;
 	guint i;
-	assert(a->refcount > 0);
-	if (!(--a->refcount)) {
+	assert(g_atomic_int_get(&a->refcount) > 0);
+	if (g_atomic_int_dec_and_test(&a->refcount)) {
 		switch (a->type) {
 		case ACTION_TSETTING:
 			release_option(srv, &a->value.setting);
@@ -42,8 +42,8 @@ void action_release(server *srv, action *a) {
 }
 
 void action_acquire(action *a) {
-	assert(a->refcount > 0);
-	a->refcount++;
+	assert(g_atomic_int_get(&a->refcount) > 0);
+	g_atomic_int_inc(&a->refcount);
 }
 
 action *action_new_setting(option_set setting) {

@@ -21,14 +21,14 @@ static chunkfile *chunkfile_new(GString *name, int fd, gboolean is_temp) {
 }
 
 static void chunkfile_acquire(chunkfile *cf) {
-	assert(cf->refcount > 0);
-	cf->refcount++;
+	assert(g_atomic_int_get(&cf->refcount) > 0);
+	g_atomic_int_inc(&cf->refcount);
 }
 
 static void chunkfile_release(chunkfile *cf) {
 	if (!cf) return;
-	assert(cf->refcount > 0);
-	if (!(--cf->refcount)) {
+	assert(g_atomic_int_get(&cf->refcount) > 0);
+	if (g_atomic_int_dec_and_test(&cf->refcount)) {
 		if (-1 != cf->fd) close(cf->fd);
 		cf->fd = -1;
 		if (cf->is_temp) unlink(cf->name->str);
