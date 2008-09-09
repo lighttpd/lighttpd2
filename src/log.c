@@ -122,7 +122,7 @@ gpointer log_thread(server *srv) {
 			g_slice_free(log_entry_t, log_entry);
 
 			/* lighty is exiting, end logging thread */
-			if (g_atomic_int_get(&srv->exiting) && g_async_queue_length(srv->log_queue) == 0)
+			if (g_atomic_int_get(&srv->state) == SERVER_STOPPING && g_async_queue_length(srv->log_queue) == 0)
 				break;
 
 			continue;
@@ -293,6 +293,8 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	log->path = path;
 	log->refcount = 1;
 
+	g_hash_table_insert(srv->logs, path->str, log);
+
 	g_mutex_unlock(srv->log_mutex);
 
 	return log;
@@ -307,8 +309,6 @@ void log_free(server *srv, log_t *log) {
 
 /* only call this if srv->log_mutex IS locked */
 void log_free_unlocked(server *srv, log_t *log) {
-	g_mutex_lock(srv->log_mutex);
-
 	if (log->type == LOG_TYPE_FILE || log->type == LOG_TYPE_PIPE)
 		close(log->fd);
 
@@ -316,8 +316,6 @@ void log_free_unlocked(server *srv, log_t *log) {
 	g_string_free(log->path, TRUE);
 	g_string_free(log->lastmsg, TRUE);
 	g_slice_free(log_t, log);
-
-	g_mutex_unlock(srv->log_mutex);
 }
 
 void log_init(server *srv) {
