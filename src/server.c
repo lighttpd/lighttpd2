@@ -34,7 +34,7 @@ static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	server *srv = (server*) w->data;
 	UNUSED(revents);
 
-	if (!srv->exiting) {
+	if (!g_atomic_int_get(&srv->exiting)) {
 		INFO(srv, "Got signal, shutdown");
 		server_stop(srv);
 	} else {
@@ -84,7 +84,6 @@ server* server_new() {
 void server_free(server* srv) {
 	if (!srv) return;
 
-	srv->exiting = TRUE;
 	server_stop(srv);
 
 	/* join all workers */
@@ -209,11 +208,12 @@ static connection* con_get(server *srv) {
 	WORKER_LOCK(srv, &srv->lock_con);
 	if (srv->connections_active >= srv->connections->len) {
 		con = connection_new(srv);
-		con->idx = srv->connections_active++;
+		con->idx = srv->connections_active;
 		g_array_append_val(srv->connections, con);
 	} else {
-		con = g_array_index(srv->connections, connection*, srv->connections_active++);
+		con = g_array_index(srv->connections, connection*, srv->connections_active);
 	}
+	g_atomic_int_inc((gint*) &srv->connections_active);
 	WORKER_UNLOCK(srv, &srv->lock_con);
 	return con;
 }
@@ -225,7 +225,7 @@ void con_put(connection *con) {
 	g_atomic_int_add((gint*) &con->wrk->connection_load, -1);
 	WORKER_LOCK(srv, &srv->lock_con);
 	con->wrk = NULL;
-	srv->connections_active--;
+	g_atomic_int_add((gint*) &srv->connections_active, -1);
 	if (con->idx != srv->connections_active) {
 		/* Swap [con->idx] and [srv->connections_active] */
 		connection *tmp;
@@ -305,7 +305,7 @@ void server_listen(server *srv, int fd) {
 	fd_init(fd);
 	ev_init(&sock->watcher, server_listen_cb);
 	ev_io_set(&sock->watcher, fd, EV_READ);
-	if (srv->state == SERVER_RUNNING) ev_io_start(srv->main_worker->loop, &sock->watcher);
+	if (g_atomic_int_get(&srv->state) == SERVER_RUNNING) ev_io_start(srv->main_worker->loop, &sock->watcher);
 
 	g_array_append_val(srv->sockets, sock);
 }
@@ -314,8 +314,9 @@ void server_start(server *srv) {
 	guint i;
 	GHashTableIter iter;
 	gpointer k, v;
-	if (srv->state == SERVER_STOPPING || srv->state == SERVER_RUNNING) return; /* no restart after stop */
-	srv->state = SERVER_RUNNING;
+	server_state srvstate = g_atomic_int_get(&srv->state);
+	if (srvstate == SERVER_STOPPING || srvstate == SERVER_RUNNING) return; /* no restart after stop */
+	g_atomic_int_set(&srv->state, SERVER_RUNNING);
 
 	if (!srv->mainaction) {
 		ERROR(srv, "%s", "No action handlers defined");

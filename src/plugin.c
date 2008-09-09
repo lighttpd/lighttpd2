@@ -50,7 +50,7 @@ static void plugin_free_setups(server *srv, plugin *p) {
 void plugin_free(server *srv, plugin *p) {
 	if (!p) return;
 
-	if (srv->state == SERVER_RUNNING) {
+	if (g_atomic_int_get(&srv->state) == SERVER_RUNNING) {
 		ERROR(srv, "Cannot free plugin '%s' while server is running", p->name);
 		return;
 	}
@@ -71,7 +71,7 @@ gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 		return FALSE;
 	}
 
-	if (srv->state != SERVER_STARTING) {
+	if (g_atomic_int_get(&srv->state) != SERVER_STARTING) {
 		ERROR(srv, "Cannot register plugin '%s' after server was started", name);
 		return FALSE;
 	}

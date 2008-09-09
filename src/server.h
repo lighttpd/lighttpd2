@@ -35,12 +35,11 @@ struct worker;
 
 struct server {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
-	server_state state;
+	server_state state;       /** atomic access */
 
 	struct worker *main_worker;
 	guint worker_count;
 	GArray *workers;
-	GThreadPool *worker_pool;
 
 	guint loop_flags;
 	ev_signal
@@ -50,10 +49,10 @@ struct server {
 	ev_prepare srv_prepare;
 	ev_check srv_check;
 
-	/** this lock protects:
-	  * srv->connections_active (read with g_atomic_get)
+	/** this lock protects: (atomic access means here: normal read + atomic write with lock, atomic read without)
+	  * srv->connections_active (atomic access)
 	  * srv->connections
-	  * wkr->connection_load (read with g_atomic_get)
+	  * wrk->connection_load (atomic access)
 	  */
 	GStaticRecMutex lock_con;
 	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections */
@@ -74,10 +73,10 @@ struct server {
 	gpointer *option_def_values;
 	struct action *mainaction;
 
-	gboolean exiting;
+	gboolean exiting;         /** atomic access */
 
 	/* logs */
-	gboolean rotate_logs;
+	gboolean rotate_logs;     /** atomic access */
 	GHashTable *logs;
 	struct log_t *log_stderr;
 	struct log_t *log_syslog;
@@ -86,7 +85,7 @@ struct server {
 	GMutex *log_mutex; /* manage access for the logs hashtable */
 
 	ev_tstamp started;
-	statistics_t stats;
+	statistics_t stats;       /** TODO: sync/worker split */
 
 	/* keep alive timeout */
 	guint keep_alive_queue_timeout;
