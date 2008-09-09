@@ -191,7 +191,10 @@ gboolean server_loop_init(server *srv) {
 	for (i = 1; i < srv->worker_count; i++) {
 		GError *error = NULL;
 		worker *wrk;
-		loop = ev_loop_new(srv->loop_flags);
+		if (NULL == (loop = ev_loop_new(srv->loop_flags))) {
+			fatal ("could not create extra libev loops");
+			return FALSE;
+		}
 		wrk = g_array_index(srv->workers, worker*, i) = worker_new(srv, loop);
 		if (NULL == (wrk->thread = g_thread_create(server_worker_cb, wrk, TRUE, &error))) {
 			g_error ( "g_thread_create failed: %s", error->message );
