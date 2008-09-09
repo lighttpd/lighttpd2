@@ -80,28 +80,15 @@ void response_send_headers(connection *con) {
 
 	/* Append headers */
 	{
-		GHashTableIter iter;
-		GString *key;
 		http_header *header;
-		GList *valiter;
+		GList *iter;
 		gboolean have_date = FALSE, have_server = FALSE;
 
-		g_hash_table_iter_init (&iter, con->response.headers->table);
-		while (g_hash_table_iter_next (&iter, (gpointer*) &key, (gpointer*) &header)) {
-			if (!header) continue;
-
-			valiter = g_queue_peek_head_link(&header->values);
-			if (!valiter) continue;
-			do {
-				g_string_append_len(head, GSTR_LEN(header->key));
-				g_string_append_len(head, CONST_STR_LEN(": "));
-				g_string_append_len(head, GSTR_LEN((GString*) valiter->data));
-				g_string_append_len(head, CONST_STR_LEN("\r\n"));
-			} while (NULL != (valiter = g_list_next(valiter)));
-
-			/* key is lowercase */
-			if (0 == strcmp(key->str, "date")) have_date = TRUE;
-			else if (0 == strcmp(key->str, "server")) have_server = TRUE;
+		for (iter = g_queue_peek_head_link(&con->response.headers->entries); iter; iter = g_list_next(iter)) {
+			header = (http_header*) iter->data;
+			g_string_append_len(head, GSTR_LEN(header->data));
+			if (!have_date && http_header_key_is(header, CONST_STR_LEN("date"))) have_date = TRUE;
+			if (!have_server && http_header_key_is(header, CONST_STR_LEN("server"))) have_server = TRUE;
 		}
 
 		if (!have_date) {

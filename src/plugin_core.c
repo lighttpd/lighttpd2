@@ -240,7 +240,7 @@ static action_result core_handle_test(connection *con, gpointer param) {
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\nevent handler: "));
 	chunkqueue_append_mem(con->out, backend, strlen(backend));
 
-	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n\r\n--- headers ---\r\n"));
+/*	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n\r\n--- headers ---\r\n"));
 	g_hash_table_iter_init(&iter, con->request.headers->table);
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
 		hv = g_queue_peek_head_link(&((http_header*)v)->values);
@@ -251,7 +251,7 @@ static action_result core_handle_test(connection *con, gpointer param) {
 			chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n"));
 			hv = hv->next;
 		}
-	}
+	}*/
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n"));
 	connection_handle_direct(con);
 

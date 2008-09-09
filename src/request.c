@@ -89,6 +89,7 @@ gboolean request_parse_url(connection *con) {
 void request_validate_header(connection *con) {
 	request *req = &con->request;
 	http_header *hh;
+	GList *l;
 
 	switch (req->http_version) {
 	case HTTP_VERSION_1_0:
@@ -110,12 +111,14 @@ void request_validate_header(connection *con) {
 	}
 
 	/* get hostname */
-	hh = http_header_lookup_fast(req->headers, CONST_STR_LEN("host"));
-	if (hh && hh->values.length != 1) {
+	l = http_header_find_first(req->headers, CONST_STR_LEN("host"));
+	if (NULL != l && NULL != http_header_find_next(l, CONST_STR_LEN("host"))) {
+		/* more than one "host" header */
 		bad_request(con, 400); /* bad request */
 		return;
-	} else if (hh) {
-		g_string_append_len(req->uri.authority, GSTR_LEN((GString*) g_queue_peek_head(&hh->values)));
+	} else {
+		hh = (http_header*) l->data;
+		g_string_append_len(req->uri.authority, HEADER_VALUE_LEN(hh));
 		if (!parse_hostname(&req->uri)) {
 			bad_request(con, 400); /* bad request */
 			return;
@@ -135,13 +138,13 @@ void request_validate_header(connection *con) {
 	}
 
 	/* content-length */
-	hh = http_header_lookup_fast(req->headers, CONST_STR_LEN("content-length"));
+	hh = http_header_lookup(req->headers, CONST_STR_LEN("content-length"));
 	if (hh) {
-		GString *val = (GString*) g_queue_peek_head(&hh->values);
+		const gchar *val = HEADER_VALUE(hh);
 		off_t r;
 		char *err;
 
-		r = str_to_off_t(val->str, &err, 10);
+		r = str_to_off_t(val, &err, 10);
 		if (*err != '\0') {
 			CON_TRACE(con, "content-length is not a number: %s (Status: 400)", err);
 			bad_request(con, 400); /* bad request */
@@ -172,13 +175,13 @@ void request_validate_header(connection *con) {
 	}
 
 	/* Expect: 100-continue */
-	hh = http_header_lookup_fast(req->headers, CONST_STR_LEN("expect"));
-	if (hh) {
-		GList *iter;
+	l = http_header_find_first(req->headers, CONST_STR_LEN("expect"));
+	if (l) {
 		gboolean expect_100_cont = FALSE;
 
-		for (iter = g_queue_peek_head_link(&hh->values); NULL != iter; iter = g_list_next(iter)) {
-			if (0 == strcasecmp( ((GString*)iter->data)->str, "100-continue" )) {
+		for ( ; l ; l = http_header_find_next(l, CONST_STR_LEN("expect")) ) {
+			hh = (http_header*) l->data;
+			if (0 == strcasecmp( HEADER_VALUE(hh), "100-continue" )) {
 				expect_100_cont = TRUE;
 			} else {
 				/* we only support 100-continue */
