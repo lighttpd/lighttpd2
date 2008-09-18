@@ -21,7 +21,7 @@ common_source='''
 	log.c
 	network.c
 	network_write.c network_writev.c
-		network_linux_sendfile.c
+	network_linux_sendfile.c
 	options.c
 	plugin.c
 	request.c
