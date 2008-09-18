@@ -3,6 +3,9 @@
 #include "plugin_core.h"
 #include "utils.h"
 
+#include <sys/stat.h>
+#include <fcntl.h>
+
 static action* core_list(server *srv, plugin* p, option *opt) {
 	action *a;
 	guint i;

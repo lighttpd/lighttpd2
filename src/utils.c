@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <fcntl.h>
+
 void fatal(const gchar* msg) {
 	fprintf(stderr, "%s\n", msg);
 	abort();

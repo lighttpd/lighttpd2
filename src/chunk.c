@@ -3,6 +3,9 @@
 #include "chunk.h"
 #include "log.h"
 
+#include <sys/stat.h>
+#include <fcntl.h>
+
 /******************
  *   chunkfile    *
  ******************/
