@@ -88,7 +88,7 @@ struct condition_rvalue {
 	struct {
 		pcre   *regex;
 		pcre_extra *regex_study;
-	};
+	} pcre;
 #endif
 	gint64 i;
 	struct {

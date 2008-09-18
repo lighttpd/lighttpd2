@@ -180,9 +180,9 @@ static void condition_free(condition *c) {
 		g_string_free(c->rvalue.string, TRUE);
 		break;
 #ifdef HAVE_PCRE_H
-	case COND_VALUE_REGEXP
-		if (c->rvalue.regex) pcre_free(c->rvalue.regex);
-		if (c->rvalue.regex_study) pcre_free(c->rvalue.regex_study);
+	case COND_VALUE_REGEXP:
+		if (c->rvalue.pcre.regex) pcre_free(c->rvalue.pcre.regex);
+		if (c->rvalue.pcre.regex_study) pcre_free(c->rvalue.pcre.regex_study);
 #endif
 		break;
 	case COND_VALUE_SOCKET_IPV4:
