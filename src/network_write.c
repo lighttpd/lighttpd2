@@ -28,7 +28,7 @@ network_status_t network_backend_write(connection *con, int fd, chunkqueue *cq, 
 			switch (errno) {
 			case EAGAIN:
 #if EWOULDBLOCK != EAGAIN
-			case EWOULDBLOCK
+			case EWOULDBLOCK:
 #endif
 				return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
 			case ECONNRESET:

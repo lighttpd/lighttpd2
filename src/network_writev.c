@@ -65,7 +65,7 @@ network_status_t network_backend_writev(connection *con, int fd, chunkqueue *cq,
 			switch (errno) {
 			case EAGAIN:
 #if EWOULDBLOCK != EAGAIN
-			case EWOULDBLOCK
+			case EWOULDBLOCK:
 #endif
 				res = did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
 				goto cleanup;
