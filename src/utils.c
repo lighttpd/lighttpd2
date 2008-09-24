@@ -271,3 +271,6 @@ gchar *ev_backend_string(guint backend) {
 }
 
 
+void string_destroy_notify(gpointer str) {
+	g_string_free((GString*)str, TRUE);
+}

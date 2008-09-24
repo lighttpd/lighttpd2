@@ -24,4 +24,6 @@ LI_API gchar counter_format(guint64 *count, guint factor);
 
 LI_API gchar *ev_backend_string(guint backend);
 
+LI_API void string_destroy_notify(gpointer str);
+
 #endif
