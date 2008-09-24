@@ -87,6 +87,7 @@ void response_send_headers(connection *con) {
 		for (iter = g_queue_peek_head_link(&con->response.headers->entries); iter; iter = g_list_next(iter)) {
 			header = (http_header*) iter->data;
 			g_string_append_len(head, GSTR_LEN(header->data));
+			g_string_append_len(head, CONST_STR_LEN("\r\n"));
 			if (!have_date && http_header_key_is(header, CONST_STR_LEN("date"))) have_date = TRUE;
 			if (!have_server && http_header_key_is(header, CONST_STR_LEN("server"))) have_server = TRUE;
 		}
