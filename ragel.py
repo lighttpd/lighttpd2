@@ -10,7 +10,10 @@ def rageltaskfun(task):
 	env = task.env
 	ragelbin = env.get_flat('RAGEL')
 	if ragelbin:
-		cmd = '%s -o %s -C -T1 %s' % (ragelbin, task.outputs[0].bldpath(env), task.inputs[0].srcpath(env))
+		if task.inputs[0].srcpath(env) == '../src/config_parser.rl':
+			cmd = '%s -o %s -C -T0 %s' % (ragelbin, task.outputs[0].bldpath(env), task.inputs[0].srcpath(env))
+		else:
+			cmd = '%s -o %s -C -T1 %s' % (ragelbin, task.outputs[0].bldpath(env), task.inputs[0].srcpath(env))
 	else:
 		src = task.inputs[0].srcpath(env)
 		src = src[:src.rfind('.')] + '.c'
