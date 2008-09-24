@@ -70,9 +70,9 @@
 		else if (g_str_equal(str->str, "mbyte")) o->value.opt_int *= 1024 * 1024;
 		else if (g_str_equal(str->str, "gbyte")) o->value.opt_int *= 1024 * 1024 * 1024;
 
-		else if (g_str_equal(str->str, "kbit")) o->value.opt_int *= 1024;
-		else if (g_str_equal(str->str, "mbit")) o->value.opt_int *= 1024 * 1024;
-		else if (g_str_equal(str->str, "gbit")) o->value.opt_int *= 1024 * 1024 * 1024;
+		else if (g_str_equal(str->str, "kbit")) o->value.opt_int *= 1000;
+		else if (g_str_equal(str->str, "mbit")) o->value.opt_int *= 1000 * 1000;
+		else if (g_str_equal(str->str, "gbit")) o->value.opt_int *= 1000 * 1000 * 1000;
 
 		else if (g_str_equal(str->str, "min")) o->value.opt_int *= 60;
 		else if (g_str_equal(str->str, "hours")) o->value.opt_int *= 60 * 60;
@@ -84,7 +84,7 @@
 
 		/* make sure there was no overflow that led to negative numbers */
 		if (o->value.opt_int < 0) {
-			log_warning(srv, NULL, "integer value overflowed in line %zd of %s\n", ctx->line, ctx->filename);
+			log_warning(srv, NULL, "integer value overflowed in line %zd of %s", ctx->line, ctx->filename);
 			return FALSE;
 		}
 	}
@@ -116,7 +116,7 @@
 	action list_push {
 		option *o, *l;
 
-		/* pop current option form stack and append it to the new top of the stack option (the list) */
+		/* pop current option from stack and append it to the new top of the stack option (the list) */
 		o = g_queue_pop_head(ctx->option_stack);
 
 		l = g_queue_peek_head(ctx->option_stack);
@@ -153,9 +153,10 @@
 		str = g_string_new_len(k->value.opt_string->str, k->value.opt_string->len);
 
 		g_hash_table_insert(h->value.opt_hash, str, v);
-		option_free(k);
 
-		_printf("%s\n", "hash_push");
+		_printf("hash_push: %s: %s => %s\n", option_type_string(k->type), option_type_string(v->type), option_type_string(h->type));
+
+		option_free(k);
 	}
 
 	action hash_end {
@@ -171,9 +172,9 @@
 	}
 
 	action keyvalue_start {
-		fpc--;
-
-		fcall value_scanner;
+		//fpc--;
+		_printf("keyvalue start in line %zd\n", ctx->line);
+		fcall key_value_scanner;
 	}
 
 	action keyvalue_end {
@@ -188,24 +189,86 @@
 		g_array_append_val(l->value.opt_list, k);
 		g_array_append_val(l->value.opt_list, v);
 
+		_printf("key-value pair: %s => %s in line %zd\n", option_type_string(k->type), option_type_string(v->type), ctx->line);
+
 		/* push list on the stack */
 		g_queue_push_head(ctx->option_stack, l);
 
-		fpc--;
+		//fpc--;
 
 		fret;
 	}
 
 	action value {
-		/*
-		_printf("got value %s", "");
-		for (gchar *c = ctx->mark; c < fpc; c++) _printf("%c", *c);
-		_printf(" in line %zd\n", ctx->line);
-		*/
+		option *o;
+
+		o = g_queue_peek_head(ctx->option_stack);
+
+		/* check if we need to cast the value */
+		if (ctx->cast != CFG_PARSER_CAST_NONE) {
+			if (ctx->cast == CFG_PARSER_CAST_INT) {
+				/* cast string to integer */
+				gint x = 0;
+				guint i = 0;
+				gboolean negative = FALSE;
+
+				if (o->type != OPTION_STRING) {
+					log_error(srv, NULL, "can only cast strings to integers, %s given", option_type_string(o->type));
+					return FALSE;
+				}
+
+				if (o->value.opt_string->str[0] == '-') {
+					negative = TRUE;
+					i++;
+				}
+
+				for (; i < o->value.opt_string->len; i++) {
+					gchar c = o->value.opt_string->str[i];
+					if (c < '0' || c > '9') {
+						log_error(srv, NULL, "%s", "cast(int) parameter doesn't look like a numerical string");
+						return FALSE;
+					}
+					x = x * 10 + c - '0';
+				}
+
+				if (negative)
+					x *= -1;
+
+				g_string_free(o->value.opt_string, TRUE);
+				o->value.opt_int = x;
+				o->type = OPTION_INT;
+			}
+			else if (ctx->cast == CFG_PARSER_CAST_STR) {
+				/* cast integer to string */
+				GString *str;
+
+				if (o->type != OPTION_INT) {
+					log_error(srv, NULL, "can only cast integers to strings, %s given", option_type_string(o->type));
+					return FALSE;
+				}
+
+				str = g_string_sized_new(0);
+				g_string_printf(str, "%d", o->value.opt_int);
+				o->value.opt_string = str;
+				o->type = OPTION_STRING;
+			}
+
+			ctx->cast = CFG_PARSER_CAST_NONE;
+		}
+
+		_printf("value (%s) in line %zd\n", option_type_string(o->type), ctx->line);
+	}
+
+	action value_statement_start {
+		fcall value_statement_scanner;
+	}
+
+	action value_statement_end {
+		fret;
 	}
 
 	action value_statement_op {
-		ctx->value_op = *fpc;
+		ctx->value_op = *ctx->mark;
 	}
 
 	action value_statement {
@@ -221,7 +284,15 @@
 		o = NULL;
 
 
-		if (l->type == OPTION_INT && r->type == OPTION_INT) {
+		if (ctx->value_op == '=') {
+			/* value => value */
+			free_l = FALSE;
+			free_r = FALSE;
+			o = option_new_list();
+			g_array_append_val(o->value.opt_list, l);
+			g_array_append_val(o->value.opt_list, r);
+		}
+		else if (l->type == OPTION_INT && r->type == OPTION_INT) {
 			switch (ctx->value_op) {
 				case '+': o = option_new_int(l->value.opt_int + r->value.opt_int); break;
 				case '-': o = option_new_int(l->value.opt_int - r->value.opt_int); break;
@@ -237,10 +308,14 @@
 				/* str + str */
 				o->value.opt_string = g_string_append_len(o->value.opt_string, r->value.opt_string->str, r->value.opt_string->len);
 			}
+			else if (r->type == OPTION_INT && ctx->value_op == '+') {
+				/* str + int */
+				g_string_append_printf(o->value.opt_string, "%d", r->value.opt_int);
+			}
 			else if (r->type == OPTION_INT && ctx->value_op == '*') {
 				/* str * int */
 				if (r->value.opt_int < 0) {
-					log_warning(srv, NULL, "string multiplication with negative number (%d)?", r->value.opt_int);
+					log_error(srv, NULL, "string multiplication with negative number (%d)?", r->value.opt_int);
 					return FALSE;
 				}
 				else if (r->value.opt_int == 0) {
@@ -254,6 +329,8 @@
 					g_string_free(str, TRUE);
 				}
 			}
+			else
+				o = NULL;
 		}
 		else if (l->type == OPTION_LIST) {
 			if (ctx->value_op == '+') {
@@ -262,18 +339,27 @@
 				free_r = FALSE; /* r gets appended to o */
 				o = l;
 
-				g_array_append_val(o->value.opt_list, r);
+				g_array_append_val(l->value.opt_list, r);
 			}
 			else if (ctx->value_op == '*') {
 				/* merge l and r */
-				GArray *a;
-				free_l = FALSE;
-				o = l;
+				//GArray *a;
+				//free_l = free_r = FALSE;
+				//o = l;
 
-				a = g_array_sized_new(FALSE, FALSE, sizeof(option*), r->value.opt_list->len);
-				a = g_array_append_vals(a, r->value.opt_list->data, r->value.opt_list->len); /* copy old list from r to a */
-				o->value.opt_list = g_array_append_vals(o->value.opt_list, a->data, a->len); /* append data from a to o */
-				g_array_free(a, FALSE); /* free a but not the data because it is now in o */
+
+				//a = g_array_sized_new(FALSE, FALSE, sizeof(option*), r->value.opt_list->len);
+				//a = g_array_append_vals(a, r->value.opt_list->data, r->value.opt_list->len); /* copy old list from r to a */
+				//o->value.opt_list = g_array_append_vals(o->value.opt_list, a->data, a->len); /* append data from a to o */
+				//g_array_free(a, FALSE); /* free a but not the data because it is now in o */
+
+				if (r->type == OPTION_LIST) {
+					/* merge lists */
+					free_l = FALSE;
+					g_array_append_vals(l->value.opt_list, r->value.opt_list->data, r->value.opt_list->len);
+					r->type = OPTION_NONE;
+					o = l;
+				}
 			}
 		}
 		else if (l->type == OPTION_HASH && r->type == OPTION_HASH && ctx->value_op == '+') {
@@ -291,11 +377,19 @@
 		}
 
 		if (o == NULL) {
-			log_warning(srv, NULL, "erronous value statement: %s %c %s in line %zd\n", option_type_string(l->type), ctx->value_op, option_type_string(r->type), ctx->line);
+			log_warning(srv, NULL, "erronous value statement: %s %c %s in line %zd\n",
+				option_type_string(l->type), ctx->value_op,
+				option_type_string(r->type), ctx->line);
 			return FALSE;
 		}
 
-		_printf("value statement: %s %c %s => %s in line %zd\n", option_type_string(l->type), ctx->value_op, option_type_string(r->type), option_type_string(o->type), ctx->line);
+		_printf("value statement: %s %c%s %s => %s in line %zd\n",
+			option_type_string(l->type),
+			ctx->value_op,
+			ctx->value_op == '=' ?  ">" : "",
+			option_type_string(r->type),
+			option_type_string(o->type),
+			ctx->line);
 
 		if (free_l)
 			option_free(l);
@@ -332,6 +426,16 @@
 			}
 
 			r = option_copy(t);
+		}
+		else if (g_str_has_prefix(o->value.opt_string->str, "env.")) {
+			/* look up string in environment, push option onto stack */
+			gchar *env = getenv(o->value.opt_string->str + 4);
+			if (env == NULL) {
+				log_error(srv, NULL, "unknown environment variable: %s", o->value.opt_string->str + 4);
+				return FALSE;
+			}
+
+			r = option_new_string(g_string_new(env));
 		}
 		else {
 			/* real action, lookup hashtable and create new action option */
@@ -474,12 +578,11 @@
 			option_free(val);
 		}
 		/* internal functions */
-		else if (g_str_equal(name->value.opt_string->str, "__print")) {
-			g_printerr("%s:%zd type: %s", ctx->filename, ctx->line, option_type_string(val->type));
-			switch (val->type) {
-				case OPTION_INT: g_printerr(", value: %d\n", val->value.opt_int); break;
-				case OPTION_STRING: g_printerr(", value: %s\n", val->value.opt_string->str); break;
-				default: g_printerr("\n");
+		else if (g_str_has_prefix(name->value.opt_string->str, "__")) {
+			if (g_str_equal(name->value.opt_string->str + 2, "print")) {
+				GString *tmpstr = option_to_string(val);
+				g_printerr("%s:%zd type: %s, value: %s\n", ctx->filename, ctx->line, option_type_string(val->type), tmpstr->str);
+				g_string_free(tmpstr, TRUE);
 			}
 		}
 		/* normal function action */
@@ -549,7 +652,7 @@
 				lvalue = condition_lvalue_new(COMP_REQUEST_SCHEME, NULL);
 			else if (g_str_equal(str, "header")) {
 				if (k == NULL) {
-					log_warning(srv, NULL, "header conditional needs a key", "");
+					log_warning(srv, NULL, "%s", "header conditional needs a key");
 					return FALSE;
 				}
 				lvalue = condition_lvalue_new(COMP_REQUEST_HEADER, k->value.opt_string);
@@ -597,7 +700,7 @@
 
 
 		if (cond == NULL) {
-			log_warning(srv, NULL, "could not create condition", "");
+			log_warning(srv, NULL, "%s", "could not create condition");
 			return FALSE;
 		}
 
@@ -747,18 +850,22 @@
 	integer_suffix_bits = ( 'bit' | 'kbit' | 'mbit' | 'gbit' );
 	integer_suffix_seconds = ( 'sec' | 'min' | 'hours' | 'days' );
 	integer_suffix = ( integer_suffix_bytes | integer_suffix_bits | integer_suffix_seconds ) >mark %integer_suffix;
-	integer = ( 0 | ( [1-9] [0-9]* ) %integer (ws? integer_suffix)? );
+	integer = ( ('0' | ( [1-9] [0-9]* )) %integer (ws? integer_suffix)? );
 	string = ( '"' (any-'"')* '"' ) %string;
+
+	# casts
+	cast = ( 'cast(' ( 'int' %{ctx->cast = CFG_PARSER_CAST_INT;} | 'str' %{ctx->cast = CFG_PARSER_CAST_STR;} ) ')' ws* );
 
 	# advanced types
 	varname = ( '__' ? (alpha ( alnum | [._] )*) - (boolean | 'else') ) >mark %varname;
 	actionref = ( varname ) %actionref;
 	list = ( '(' >list_start );
 	hash = ( '[' >hash_start );
-	keyvalue = ( (string | integer) ws* '=>' ws* (any - ws) >keyvalue_start );
-	value = ( boolean | integer | string | list | hash | keyvalue | actionref ) >mark %value;
-	value_statement = ( value (ws* ('+'|'-'|'*'|'/') >value_statement_op ws* value %value_statement)? );
-	hash_elem = ( string >mark noise* ':' noise* value );
+
+	value = ( ( boolean | integer | string | list | hash | actionref) >mark ) %value;
+	value_statement_op = ( '+' | '-' | '*' | '/' | '=>' ) >mark >value_statement_op;
+	value_statement = ( noise* cast? value (ws* value_statement_op ws* cast? value %value_statement)* noise* );
+	hash_elem = ( noise* string >mark noise* ':' value_statement );
 
 	operator = ( '==' | '!=' | '=^' | '!^' | '=$' | '!$' | '<' | '<=' | '>' | '>=' | '=~' | '!~' ) >mark %operator;
 
@@ -778,10 +885,9 @@
 	statement = ( assignment | function | condition_else | action_block );
 
 	# scanner
-	value_scanner := ( value (any - value - ws) >keyvalue_end );
+	list_scanner := ( ((value_statement %list_push ( ',' value_statement %list_push )*)  | noise*) ')' >list_end );
+	hash_scanner := ( ((hash_elem %hash_push ( ',' hash_elem %hash_push )*) | noise*) ']' >hash_end );
 	block_scanner := ( (noise | statement)* '}' >block_end );
-	list_scanner := ( noise* (value %list_push (noise* ',' noise* value %list_push)*)? noise* ')' >list_end );
-	hash_scanner := ( noise* (hash_elem %hash_push (noise* ',' noise* hash_elem %hash_push)*)? noise* ']' >hash_end );
 
 	main := (noise | statement)* '\00';
 }%%
@@ -862,8 +968,27 @@ config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack
 		ctx->uservars = ((config_parser_context_t*) ctx_stack->data)->uservars;
 	}
 	else {
+		GString *str;
+		option *o;
 		ctx->action_blocks = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
 		ctx->uservars = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
+
+		/* initialize var.PID */
+		/* TODO: what if pid_t is not a 32bit integer? */
+		o = option_new_int(getpid());
+		str = g_string_new_len(CONST_STR_LEN("var.PID"));
+			g_hash_table_insert(ctx->uservars, str, o);
+
+		/* initialize var.CWD */
+		str = g_string_sized_new(1024);
+		if (NULL != getcwd(str->str, 1023)) {
+			g_string_set_size(str, strlen(str->str));
+			o = option_new_string(str);
+			str = g_string_new_len(CONST_STR_LEN("var.CWD"));
+			g_hash_table_insert(ctx->uservars, str, o);
+		}
+		else
+			g_string_free(str, TRUE);
 
 		ctx->action_list_stack = g_queue_new();
 		ctx->option_stack = g_queue_new();
@@ -965,7 +1090,7 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 	ctx->len = strlen(_stdout);
 	ctx->ptr = _stdout;
 
-	log_debug(srv, NULL, "included shell output from \"%s\" (%zu bytes)", command, ctx->len, _stdout);
+	log_debug(srv, NULL, "included shell output from \"%s\" (%zu bytes)", command, ctx->len);
 
 	/* push on stack */
 	ctx_stack = g_list_prepend(ctx_stack, ctx);

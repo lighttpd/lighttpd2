@@ -22,6 +22,12 @@ gboolean config_parser_buffer(server *srv, GList *ctx_stack);
 config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack);
 void config_parser_context_free(server *srv, config_parser_context_t *ctx, gboolean free_queues);
 
+typedef enum {
+	CFG_PARSER_CAST_NONE,
+	CFG_PARSER_CAST_INT,
+	CFG_PARSER_CAST_STR
+} cast_type;
+
 struct config_parser_context_t {
 	/* ragel vars */
 	int cs;
@@ -37,6 +43,7 @@ struct config_parser_context_t {
 	comp_operator_t op;
 	gchar value_op;
 
+	cast_type cast;
 
 	GHashTable *action_blocks; /* foo { } */
 	GHashTable *uservars; /* var.foo */
