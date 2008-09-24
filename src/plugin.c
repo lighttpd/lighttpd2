@@ -63,6 +63,30 @@ void plugin_free(server *srv, plugin *p) {
 	g_slice_free(plugin, p);
 }
 
+void server_plugins_free(server *srv) {
+	if (g_atomic_int_get(&srv->state) == SERVER_RUNNING) {
+		ERROR(srv, "%s", "Cannot free plugins while server is running");
+		return;
+	}
+
+	gpointer key, value;
+	GHashTableIter i;
+	g_hash_table_iter_init(&i, srv->plugins);
+	while (g_hash_table_iter_next(&i, &key, &value)) {
+		plugin *p = (plugin*) value;
+	
+		plugin_free_options(srv, p);
+		plugin_free_actions(srv, p);
+		plugin_free_setups(srv, p);
+
+		g_slice_free(plugin, p);
+	}
+	g_hash_table_destroy(srv->plugins);
+	g_hash_table_destroy(srv->options);
+	g_hash_table_destroy(srv->actions);
+	g_hash_table_destroy(srv->setups);
+}
+
 gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 	plugin *p;
 

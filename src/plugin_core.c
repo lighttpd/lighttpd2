@@ -19,6 +19,7 @@ static action* core_list(server *srv, plugin* p, option *opt) {
 	if (opt->type == OPTION_ACTION) {
 		a = opt->value.opt_action.action;
 		action_acquire(a);
+		option_free(opt);
 		return a;
 	}
 
@@ -148,6 +149,7 @@ static action* core_physical(server *srv, plugin* p, option *opt) {
 	}
 
 	docroot = (GString*) option_extract_value(opt);
+	option_free(opt);
 
 	return action_new_function(core_handle_physical, core_physical_free, docroot);
 }
@@ -475,7 +477,7 @@ gpointer core_option_server_tag_default(server *srv, plugin *p, gsize ndx) {
 	UNUSED(p);
 	UNUSED(ndx);
 
-	return g_string_new_len(CONST_STR_LEN("lighttpd-2.0~sandbox"));
+	return g_string_new_len(CONST_STR_LEN("lighttpd-2.0~sandbox")); /* TODO: fix mem leak */
 }
 
 static const plugin_option options[] = {

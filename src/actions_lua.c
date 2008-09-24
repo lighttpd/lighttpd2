@@ -32,7 +32,6 @@ int lua_push_action(server *srv, lua_State *L, action *a) {
 	action **pa;
 
 	pa = (action**) lua_newuserdata(L, sizeof(action*));
-	action_acquire(a);
 	*pa = a;
 
 	if (luaL_newmetatable(L, LUA_ACTION)) {

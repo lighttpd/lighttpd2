@@ -80,7 +80,7 @@ static int handle_server_action(lua_State *L) {
 
 	opt = lua_params_to_option(srv, L);
 
-	TRACE(srv, "%s", "Creating action");
+	/* TRACE(srv, "%s", "Creating action"); */
 
 	if (NULL == (a = sa->create_action(srv, sa->p, opt))) {
 		lua_pushstring(L, "creating action failed");
@@ -124,62 +124,6 @@ static int wrap_server_setup(server *srv, lua_State *L, gpointer ss) {
 	return 1;
 }
 
-static action* action_from_lua(server *srv, lua_State *L) {
-	const gchar *optname;
-	option *value;
-	action *a;
-
-	optname = luaL_checklstring(L, -2, NULL);
-	if (!optname) {
-		lua_pushstring(L, "wrong config argument, expected string");
-		lua_error(L);
-	}
-	value = option_from_lua(srv, L);
-	if (!value) {
-		lua_pushstring(L, "missing config value");
-		lua_error(L);
-	}
-	a = option_action(srv, optname, value);
-	if (!a) {
-		option_free(value);
-		lua_pushstring(L, "couldn't create action from setting");
-		lua_error(L);
-	}
-	return a;
-}
-
-static int handle_option(lua_State *L) {
-	server *srv;
-	action *a, *suba;
-
-	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
-	switch (lua_gettop(L)) {
-	case 1:
-		if (!lua_istable(L, 1)) {
-			lua_pushstring(L, "wrong config argument, expected table");
-			lua_error(L);
-		}
-		a = action_new_list();
-		lua_push_action(srv, L, a);
-		lua_insert(L, 1);
-		lua_pushnil(L);
-		while (lua_next(L, 2) != 0) {
-			suba = action_from_lua(srv, L);
-			g_array_append_val(a->value.list, suba);
-			lua_pop(L, 1);
-		}
-		lua_pop(L, 1);
-		return 1;
-	case 2:
-		a = action_from_lua(srv, L);
-		return lua_push_action(srv, L, a);
-	default:
-		lua_pushstring(L, "wrong count of arguments to config()");
-		lua_error(L);
-	}
-	return 0;
-}
-
 gboolean config_lua_load(server *srv, const gchar *filename) {
 	lua_State *L;
 
@@ -199,10 +143,6 @@ gboolean config_lua_load(server *srv, const gchar *filename) {
 	publish_str_hash(srv, L, srv->actions, wrap_server_action);
 	lua_setfield(L, LUA_GLOBALSINDEX, "action");
 
-	lua_pushlightuserdata(L, srv);
-	lua_pushcclosure(L, handle_option, 1);
-	lua_setfield(L, LUA_GLOBALSINDEX, "option");
-
 	lua_push_lvalues_dict(srv, L);
 
 	if (lua_pcall(L, 0, 1, 0)) {
@@ -214,6 +154,7 @@ gboolean config_lua_load(server *srv, const gchar *filename) {
 
 	lua_getfield(L, LUA_GLOBALSINDEX, "actions");
 	srv->mainaction = lua_get_action(L, -1);
+	action_acquire(srv->mainaction);
 	lua_pop(L, 1);
 
 	assert(lua_gettop(L) == 0);

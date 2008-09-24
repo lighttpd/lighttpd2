@@ -233,6 +233,8 @@ void worker_free(worker *wrk) {
 	g_string_free(wrk->tmp_str, TRUE);
 	g_string_free(wrk->ts_date_str, TRUE);
 
+	g_async_queue_unref(wrk->new_con_queue);
+
 	g_slice_free(worker, wrk);
 }
 

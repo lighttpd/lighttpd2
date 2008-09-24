@@ -125,6 +125,7 @@ LI_API gboolean plugin_register(server *srv, const gchar *name, PluginInit init)
 
 /* Internal needed functions */
 LI_API void plugin_free(server *srv, plugin *p);
+LI_API void server_plugins_free(server *srv);
 
 LI_API gboolean parse_option(server *srv, const char *name, option *opt, option_set *mark);
 LI_API void release_option(server *srv, option_set *mark); /**< Does not free the option_set memory */

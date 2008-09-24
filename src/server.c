@@ -107,6 +107,7 @@ void server_free(server* srv) {
 				ev_loop_destroy(loop);
 			}
 		}
+		g_array_free(srv->workers, TRUE);
 	}
 
 	{
@@ -118,15 +119,13 @@ void server_free(server* srv) {
 		g_array_free(srv->sockets, TRUE);
 	}
 
-	g_hash_table_destroy(srv->plugins);
-	g_hash_table_destroy(srv->options);
-	g_hash_table_destroy(srv->actions);
-	g_hash_table_destroy(srv->setups);
-
-	g_array_free(srv->plugins_handle_close, TRUE);
-
 	action_release(srv, srv->mainaction);
-	g_slice_free1(srv->option_count * sizeof(*srv->option_def_values), srv->option_def_values);
+
+	server_plugins_free(srv);
+	g_array_free(srv->plugins_handle_close, TRUE); /* TODO: */
+
+	if (srv->option_def_values)
+		g_slice_free1(srv->option_count * sizeof(*srv->option_def_values), srv->option_def_values);
 
 	/* free logs */
 	g_thread_join(srv->log_thread);
@@ -211,7 +210,7 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		}
 
 		g_atomic_int_inc((gint*) &wrk->connection_load);
-		TRACE(srv, "selected worker %u with load %u", sel, min_load);
+		/* TRACE(srv, "selected worker %u with load %u", sel, min_load); */
 		worker_new_con(srv->main_worker, wrk, &remote_addr, s);
 	}
 

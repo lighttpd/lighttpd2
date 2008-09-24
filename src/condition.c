@@ -172,6 +172,7 @@ condition* condition_new_int(server *srv, comp_operator_t op, condition_lvalue *
 
 
 static void condition_free(condition *c) {
+	condition_lvalue_release(c->lvalue);
 	switch (c->rvalue.type) {
 	case COND_VALUE_INT:
 		/* nothing to free */
