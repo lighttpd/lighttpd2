@@ -62,6 +62,8 @@ LI_API void option_free(option* opt);
 
 LI_API const char* option_type_string(option_type type);
 
+LI_API GString *option_to_string(option *o);
+
 LI_API void option_list_free(GArray *optlist);
 
 /* Extract value from option, option set to none */

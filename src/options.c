@@ -194,3 +194,74 @@ gpointer option_extract_value(option *opt) {
 	opt->type = OPTION_NONE;
 	return val;
 }
+
+GString *option_to_string(option *opt) {
+	GString *str;
+
+	switch (opt->type) {
+		case OPTION_NONE:
+			return NULL;
+		case OPTION_BOOLEAN:
+			str = g_string_new(opt->value.opt_bool ? "true" : "false");
+			break;
+		case OPTION_INT:
+			str = g_string_sized_new(0);
+			g_string_printf(str, "%d", opt->value.opt_int);
+			break;
+		case OPTION_STRING:
+			str = g_string_new_len(CONST_STR_LEN("\""));
+			g_string_append_len(str, GSTR_LEN(opt->value.opt_string));
+			g_string_append_c(str, '"');
+			break;
+		case OPTION_LIST:
+			str = g_string_new_len(CONST_STR_LEN("("));
+			if (opt->value.opt_list->len) {
+				GString *tmp = option_to_string(g_array_index(opt->value.opt_list, option*, 0));
+				g_string_append(str, tmp->str);
+				g_string_free(tmp, TRUE);
+				for (guint i = 1; i < opt->value.opt_list->len; i++) {
+					tmp = option_to_string(g_array_index(opt->value.opt_list, option*, i));
+					g_string_append_len(str, CONST_STR_LEN(", "));
+					g_string_append(str, tmp->str);
+					g_string_free(tmp, TRUE);
+				}
+			}
+			g_string_append_c(str, ')');
+			break;
+		case OPTION_HASH:
+		{
+			str = g_string_new_len(CONST_STR_LEN("["));
+			GHashTableIter iter;
+			gpointer k, v;
+			GString *tmp;
+			guint i = 0;
+
+
+			g_hash_table_iter_init(&iter, opt->value.opt_hash);
+			while (g_hash_table_iter_next(&iter, &k, &v)) {
+				if (i)
+					g_string_append_len(str, CONST_STR_LEN(", "));
+				tmp = option_to_string((option*)v);
+				g_string_append_len(str, GSTR_LEN((GString*)k));
+				g_string_append_len(str, CONST_STR_LEN(": "));
+				g_string_append_len(str, GSTR_LEN(tmp));
+				g_string_free(tmp, TRUE);
+				i++;
+			}
+
+
+			g_string_append_c(str, ']');
+			break;
+		}
+		case OPTION_ACTION:
+			str = g_string_new_len(CONST_STR_LEN("<action>"));
+			break;
+		case OPTION_CONDITION:
+			str = g_string_new_len(CONST_STR_LEN("<condition>"));
+			break;
+		default:
+			return NULL;
+	}
+
+	return str;
+}
