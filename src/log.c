@@ -1,10 +1,11 @@
 
-#include "log.h"
+#include "base.h"
 #include "plugin_core.h"
-
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdarg.h>
+
+/* from server.h */
 
 #if REMOVE_PATH_FROM_FILE
 const char *remove_path(const char *path) {
@@ -34,51 +35,91 @@ int log_write(server* UNUSED_PARAM(srv), connection* UNUSED_PARAM(con), const ch
 }
 
 
-gboolean log_write_(server *srv, connection *con, log_level_t log_level, const gchar *fmt, ...) {
+gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint flags, const gchar *fmt, ...) {
 	va_list ap;
 	GString *log_line;
-	log_t *log;
+	log_t *log = NULL;
 	log_entry_t *log_entry;
-	log_level_t log_level_want;
+	log_timestamp_t *ts = NULL;
 
 	if (con != NULL) {
+
 		if (!srv) srv = con->srv;
-		/* get log index from connection */
-		log = CORE_OPTION(CORE_OPTION_LOG_TARGET) ? CORE_OPTION(CORE_OPTION_LOG_TARGET) : srv->log_stderr;
-		log_level_want = (log_level_t) CORE_OPTION(CORE_OPTION_LOG_LEVEL);
+		/* get log from connection */
+		log = g_array_index((GArray*)CORE_OPTION(CORE_OPTION_LOG), log_t*, log_level);
+		if (log == NULL)
+			return TRUE;
+		ts = CORE_OPTION(CORE_OPTION_LOG_TS_FORMAT);
+		if (!ts)
+			ts = &g_array_index(srv->logs.timestamps, log_timestamp_t, 0);
 	}
 	else {
-		log = srv->log_stderr;
-		log_level_want = LOG_LEVEL_DEBUG;
+		log = srv->logs.stderr;
+		ts = &g_array_index(srv->logs.timestamps, log_timestamp_t, 0);
 	}
 
-	/* ingore messages we are not interested in */
-	if (log_level < log_level_want)
-		return TRUE;
-
 	log_ref(srv, log);
-
 	log_line = g_string_sized_new(0);
 	va_start(ap, fmt);
 	g_string_vprintf(log_line, fmt, ap);
 	va_end(ap);
 
-	/* check if last message for this log was the same */
-	if (g_string_equal(log->lastmsg, log_line)) {
-		log->lastmsg_count++;
-		log_unref(srv, log);
-		g_string_free(log_line, TRUE);
-		return TRUE;
-	}
-	else {
-		if (log->lastmsg_count > 0) {
-			guint count = log->lastmsg_count;
-			log->lastmsg_count = 0;
-			log_write_(srv, con, log_level, "last message repeated %d times", count);
+	if (!(flags & LOG_FLAG_NOLOCK))
+		log_lock(log);
+
+	if (!(flags & LOG_FLAG_ALLOW_REPEAT)) {
+
+		/* check if last message for this log was the same */
+		if (g_string_equal(log->lastmsg, log_line)) {
+			log->lastmsg_count++;
+			if (!(flags & LOG_FLAG_NOLOCK))
+				log_unlock(log);
+			log_unref(srv, log);
+			g_string_free(log_line, TRUE);
+			return TRUE;
+		}
+		else {
+			if (log->lastmsg_count > 0) {
+				guint count = log->lastmsg_count;
+				log->lastmsg_count = 0;
+				log_write_(srv, con, log_level, flags | LOG_FLAG_NOLOCK | LOG_FLAG_ALLOW_REPEAT, "last message repeated %d times", count);
+			}
 		}
 	}
 
-	log->lastmsg = g_string_assign(log->lastmsg, log_line->str);
+	g_string_assign(log->lastmsg, log_line->str);
+
+	/* for normal error messages, we prepend a timestamp */
+	if (flags & LOG_FLAG_TIMETAMP) {
+		time_t cur_ts;
+
+		g_mutex_lock(srv->logs.mutex);
+
+		/* if we have a worker context, we can use its timestamp to save us a call to time() */
+		if (con != NULL)
+			cur_ts = CUR_TS(con->wrk);
+		else
+			cur_ts = time(NULL);
+
+		if (cur_ts != ts->last_ts) {
+			gsize s;
+			g_string_set_size(ts->cached, 255);
+			s = strftime(ts->cached->str, ts->cached->allocated_len,
+				ts->format->str, localtime(&cur_ts));
+
+			g_string_set_size(ts->cached, s);
+
+			ts->last_ts = cur_ts;
+		}
+
+		g_string_prepend_c(log_line, ' ');
+		g_string_prepend_len(log_line, GSTR_LEN(ts->cached));
+
+		g_mutex_unlock(srv->logs.mutex);
+	}
+
+	if (!(flags & LOG_FLAG_NOLOCK))
+		log_unlock(log);
 
 	g_string_append_len(log_line, CONST_STR_LEN("\r\n"));
 
@@ -88,11 +129,12 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, const g
 	log_entry->msg = log_line;
 	log_entry->level = log_level;
 
-	g_async_queue_push(srv->log_queue, log_entry);
+	g_async_queue_push(srv->logs.queue, log_entry);
 
 	/* on critical error, exit */
-	if (log_level == LOG_LEVEL_ERROR) {
+	if (log_level == LOG_LEVEL_ABORT) {
 		g_atomic_int_set(&srv->exiting, TRUE);
+		g_atomic_int_set(&srv->logs.stop_thread, TRUE);
 		log_thread_wakeup(srv); /* just in case the logging thread is sleeping at this point */
 	}
 
@@ -108,24 +150,30 @@ gpointer log_thread(server *srv) {
 	gssize bytes_written;
 	gssize write_res;
 
-	queue = srv->log_queue;
+	queue = srv->logs.queue;
 
 	while (TRUE) {
 		/* do we need to rotate logs? */
+		/*
 		if (g_atomic_int_get(&srv->rotate_logs)) {
 			g_atomic_int_set(&srv->rotate_logs, FALSE);
-			g_mutex_lock(srv->log_mutex);
-			g_hash_table_foreach(srv->logs, (GHFunc) log_rotate, srv);
-			g_mutex_unlock(srv->log_mutex);
+			g_mutex_lock(srv->logs.mutex);
+			g_hash_table_foreach(srv->logs.targets, (GHFunc) log_rotate, srv);
+			g_mutex_unlock(srv->logs.mutex);
 		}
+		*/
 
-		log_entry = g_async_queue_pop(srv->log_queue);
+		log_entry = g_async_queue_pop(srv->logs.queue);
 
+		/* if log_entry->log is NULL, it means that the logger thread has been woken up probably because it should exit */
 		if (log_entry->log == NULL) {
 			g_slice_free(log_entry_t, log_entry);
 
 			/* lighty is exiting, end logging thread */
-			if (g_atomic_int_get(&srv->state) == SERVER_STOPPING && g_async_queue_length(srv->log_queue) == 0)
+			if (g_atomic_int_get(&srv->state) == SERVER_STOPPING && g_async_queue_length(srv->logs.queue) == 0)
+				break;
+
+			if (g_atomic_int_get(&srv->logs.stop_thread) == TRUE)
 				break;
 
 			continue;
@@ -188,7 +236,9 @@ void log_rotate(gchar * path, log_t *log, server * UNUSED_PARAM(srv)) {
 }
 
 void log_rotate_logs(server *srv) {
-	g_atomic_int_set(&srv->rotate_logs, TRUE);
+	UNUSED(srv);
+
+	/*g_atomic_int_set(&srv->rotate_logs, TRUE);*/
 }
 
 
@@ -198,12 +248,12 @@ void log_ref(server *srv, log_t *log) {
 }
 
 void log_unref(server *srv, log_t *log) {
-	g_mutex_lock(srv->log_mutex);
+	g_mutex_lock(srv->logs.mutex);
 
 	if (g_atomic_int_dec_and_test(&log->refcount))
 		log_free_unlocked(srv, log);
 
-	g_mutex_unlock(srv->log_mutex);
+	g_mutex_unlock(srv->logs.mutex);
 }
 
 log_type_t log_type_from_path(GString *path) {
@@ -233,8 +283,6 @@ log_level_t log_level_from_string(GString *str) {
 		return LOG_LEVEL_DEBUG;
 	if (g_str_equal(str->str, "info"))
 		return LOG_LEVEL_INFO;
-	if (g_str_equal(str->str, "message"))
-		return LOG_LEVEL_MESSAGE;
 	if (g_str_equal(str->str, "warning"))
 		return LOG_LEVEL_WARNING;
 	if (g_str_equal(str->str, "error"))
@@ -248,7 +296,6 @@ gchar* log_level_str(log_level_t log_level) {
 	switch (log_level) {
 		case LOG_LEVEL_DEBUG:	return "debug";
 		case LOG_LEVEL_INFO:	return "info";
-		case LOG_LEVEL_MESSAGE:	return "message";
 		case LOG_LEVEL_WARNING:	return "warning";
 		case LOG_LEVEL_ERROR:	return "error";
 		default:				return "unknown";
@@ -260,14 +307,14 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	log_t *log;
 	gint fd = -1;
 
-	g_mutex_lock(srv->log_mutex);
-	log = g_hash_table_lookup(srv->logs, path->str);
+	g_mutex_lock(srv->logs.mutex);
+	log = g_hash_table_lookup(srv->logs.targets, path->str);
 
 	/* log already open, inc refcount */
 	if (log != NULL)
 	{
 		g_atomic_int_inc(&log->refcount);
-		g_mutex_unlock(srv->log_mutex);
+		g_mutex_unlock(srv->logs.mutex);
 		return log;
 	}
 
@@ -295,19 +342,20 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	log->fd = fd;
 	log->path = path;
 	log->refcount = 1;
+	log->mutex = g_mutex_new();
 
-	g_hash_table_insert(srv->logs, path->str, log);
+	g_hash_table_insert(srv->logs.targets, path->str, log);
 
-	g_mutex_unlock(srv->log_mutex);
+	g_mutex_unlock(srv->logs.mutex);
 
 	return log;
 }
 
-/* only call this if srv->log_mutex is NOT locked */
+/* only call this if srv->logs.mutex is NOT locked */
 void log_free(server *srv, log_t *log) {
-	g_mutex_lock(srv->log_mutex);
+	g_mutex_lock(srv->logs.mutex);
 	log_free_unlocked(srv, log);
-	g_mutex_unlock(srv->log_mutex);
+	g_mutex_unlock(srv->logs.mutex);
 }
 
 /* only call this if srv->log_mutex IS locked */
@@ -315,44 +363,92 @@ void log_free_unlocked(server *srv, log_t *log) {
 	if (log->type == LOG_TYPE_FILE || log->type == LOG_TYPE_PIPE)
 		close(log->fd);
 
-	g_hash_table_remove(srv->logs, log->path);
+	g_hash_table_remove(srv->logs.targets, log->path);
 	g_string_free(log->path, TRUE);
 	g_string_free(log->lastmsg, TRUE);
+
+	g_mutex_free(log->mutex);
+
 	g_slice_free(log_t, log);
 }
 
 void log_init(server *srv) {
 	GString *str;
 
-	srv->logs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
-	srv->log_queue = g_async_queue_new();
-	srv->log_mutex = g_mutex_new();
+	srv->logs.targets = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
+	srv->logs.queue = g_async_queue_new();
+	srv->logs.mutex = g_mutex_new();
+	srv->logs.timestamps = g_array_new(FALSE, FALSE, sizeof(log_timestamp_t));
 
-	/* first entry in srv->logs is the plain good old stderr */
+	/* first entry in srv->logs.timestamps is the default timestamp */
+	log_timestamp_new(srv, g_string_new_len(CONST_STR_LEN("%d/%b/%Y %T %Z")));
+
+	/* first entry in srv->logs.targets is the plain good old stderr */
 	str = g_string_new_len(CONST_STR_LEN("stderr"));
-	srv->log_stderr = log_new(srv, LOG_TYPE_STDERR, str);
-	srv->log_syslog = NULL;
+	srv->logs.stderr = log_new(srv, LOG_TYPE_STDERR, str);
 }
 
 void log_thread_start(server *srv) {
 	GError *err = NULL;
 
-	srv->log_thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
+	srv->logs.thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
 
-	if (srv->log_thread == NULL) {
+	if (srv->logs.thread == NULL) {
 		g_printerr("could not create loggin thread: %s\n", err->message);
-		assert(NULL);
+		g_error_free(err);
+		abort();
 	}
 }
 
 void log_thread_wakeup(server *srv) {
 	log_entry_t *e;
 
-	e = g_slice_new(log_entry_t);
-	e->log = NULL;
-	e->msg = NULL;
+	e = g_slice_new0(log_entry_t);
 
-	g_async_queue_push(srv->log_queue, e);
+	g_async_queue_push(srv->logs.queue, e);
 }
 
 
+void log_lock(log_t *log) {
+	g_mutex_lock(log->mutex);
+}
+
+void log_unlock(log_t *log) {
+	g_mutex_unlock(log->mutex);
+}
+
+log_timestamp_t *log_timestamp_new(server *srv, GString *format) {
+	log_timestamp_t *ts;
+
+	/* check if there already exists a timestamp entry with the same format */
+	for (guint i = 0; i < srv->logs.timestamps->len; i++) {
+		ts = &g_array_index(srv->logs.timestamps, log_timestamp_t, i);
+		if (g_string_equal(ts->format, format)) {
+			g_atomic_int_inc(&(ts->refcount));
+			return ts;
+		}
+	}
+
+	ts = g_slice_new(log_timestamp_t);
+
+	ts->cached = g_string_sized_new(0);
+	ts->last_ts = 0;
+	ts->refcount = 1;
+	ts->format = format;
+
+	g_array_append_val(srv->logs.timestamps, *ts);
+
+	return ts;
+}
+
+void log_timestamp_free(server *srv, log_timestamp_t *ts) {
+	if (g_atomic_int_dec_and_test(&(ts->refcount))) {
+		for (guint i = 0; i < srv->logs.timestamps->len; i++) {
+			if (g_string_equal(g_array_index(srv->logs.timestamps, log_timestamp_t, i).format, ts->format)) {
+				g_array_remove_index_fast(srv->logs.timestamps, i);
+				break;
+			}
+		}
+		g_slice_free(log_timestamp_t, ts);
+	}
+}

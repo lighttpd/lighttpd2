@@ -66,14 +66,15 @@ struct server {
 
 	gboolean exiting;         /** atomic access */
 
-	/* logs */
-	gboolean rotate_logs;     /** atomic access */
-	GHashTable *logs;
-	struct log_t *log_stderr;
-	struct log_t *log_syslog;
-	GAsyncQueue *log_queue;
-	GThread *log_thread;
-	GMutex *log_mutex; /* manage access for the logs hashtable */
+	struct {
+		GMutex *mutex;
+		GHashTable *targets;  /** const gchar* path => (log_t*) */
+		GAsyncQueue *queue;
+		GThread *thread;
+		gboolean stop_thread; /** access with atomic functions */
+		GArray *timestamps;   /** array of log_timestamp_t */
+		struct log_t *stderr;
+	} logs;
 
 	ev_tstamp started;
 	statistics_t stats;       /** TODO: sync/worker split */
@@ -97,5 +98,7 @@ LI_API void server_stop(server *srv);
 LI_API void server_exit(server *srv);
 
 LI_API void joblist_append(connection *con);
+
+LI_API GString *server_current_timestamp();
 
 #endif

@@ -86,8 +86,8 @@ int main(int argc, char *argv[]) {
 		s = d / 1000000;
 		millis = (d - s) / 1000;
 		micros = (d - s - millis) %1000;
-		g_print("parsed config file in %lu seconds, %lu milliseconds, %lu microseconds\n", s, millis, micros);
-		g_print("option_stack: %u action_list_stack: %u (should be 0:1)\n", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
+		log_debug(srv, NULL, "parsed config file in %lu seconds, %lu milliseconds, %lu microseconds", s, millis, micros);
+		log_debug(srv, NULL, "option_stack: %u action_list_stack: %u (should be 0:1)", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
 
 		/* TODO config_parser_finish(srv, ctx_stack); */
 	}
@@ -106,12 +106,6 @@ int main(int argc, char *argv[]) {
 		return 0;
 
 	TRACE(srv, "%s", "Test!");
-
-	/* srv->log_stderr = log_new(srv, LOG_TYPE_FILE, g_string_new("lightytest.log")); */
-	log_write_(srv, NULL, LOG_LEVEL_WARNING, "test %s", "foo1");
-	log_warning(srv, NULL, "test %s", "foo1"); /* duplicate won't be logged */
-	log_warning(srv, NULL, "test %s", "foo2");
-	log_debug(srv, NULL, "test %s", "message");
 
 	server_loop_init(srv);
 	server_start(srv);

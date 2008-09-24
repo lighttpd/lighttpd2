@@ -3,8 +3,11 @@
 #include "plugin_core.h"
 #include "utils.h"
 
+
+
 #include <sys/stat.h>
 #include <fcntl.h>
+
 
 static action* core_list(server *srv, plugin* p, option *opt) {
 	action *a;
@@ -196,9 +199,9 @@ static action* core_static(server *srv, plugin* p, option *opt) {
 
 static action_result core_handle_test(connection *con, gpointer param) {
 	server *srv = con->srv;
-	GHashTableIter iter;
+	/*GHashTableIter iter;
 	gpointer k, v;
-	GList *hv;
+	GList *hv;*/
 	GString *str;
 	gchar *backend;
 	guint64 uptime;
@@ -259,11 +262,6 @@ static action_result core_handle_test(connection *con, gpointer param) {
 	}*/
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n"));
 	connection_handle_direct(con);
-
-	CON_TRACE(con, "core_handle_test: %s%s%s log_level: %s",
-		con->request.uri.path->str, con->request.uri.query->len ? "?" : "", con->request.uri.query->len ? con->request.uri.query->str : "",
-		log_level_str((log_level_t)CORE_OPTION(CORE_OPTION_LOG_LEVEL))
-	);
 
 	return ACTION_GO_ON;
 }
@@ -420,50 +418,6 @@ static gboolean core_workers(server *srv, plugin* p, option *opt) {
 	return TRUE;
 }
 
-
-gboolean core_option_log_target_parse(server *srv, plugin *p, size_t ndx, option *opt, gpointer *value) {
-	log_t *log;
-	log_type_t log_type;
-
-	UNUSED(ndx);
-	UNUSED(p);
-
-	assert(opt->type == OPTION_STRING);
-
-	log_type = log_type_from_path(opt->value.opt_string);
-	log = log_new(srv, log_type, opt->value.opt_string);
-
-	*value = (gpointer)log;
-
-	return TRUE;
-}
-
-void core_option_log_target_free(server *srv, plugin *p, size_t ndx, gpointer value) {
-	UNUSED(srv);
-	UNUSED(p);
-	UNUSED(ndx);
-	UNUSED(value);
-}
-
-gboolean core_option_log_level_parse(server *srv, plugin *p, size_t ndx, option *opt, gpointer *value) {
-	UNUSED(srv);
-	UNUSED(p);
-	UNUSED(ndx);
-
-	assert(opt->type == OPTION_STRING);
-
-	*value = (gpointer)log_level_from_string(opt->value.opt_string);
-
-	return TRUE;
-}
-
-void core_option_log_level_free(server *srv, plugin *p, size_t ndx, gpointer value) {
-	UNUSED(srv);
-	UNUSED(p);
-	UNUSED(ndx);
-	UNUSED(value);
-}
-
 gpointer core_option_max_keep_alive_idle_default(server *srv, plugin *p, gsize ndx) {
 	UNUSED(srv);
 	UNUSED(p);
@@ -480,11 +434,88 @@ gpointer core_option_server_tag_default(server *srv, plugin *p, gsize ndx) {
 	return g_string_new_len(CONST_STR_LEN("lighttpd-2.0~sandbox")); /* TODO: fix mem leak */
 }
 
+gpointer core_option_log_default(server *srv, plugin *p, gsize ndx) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+
+	GArray *arr = g_array_sized_new(FALSE, TRUE, sizeof(log_t*), 5);
+	return arr;
+}
+
+gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, option *opt, gpointer *value) {
+	UNUSED(p);
+	UNUSED(ndx);
+	UNUSED(opt);
+	GHashTableIter iter;
+	gpointer k, v;
+	log_level_t level;
+	GString *path;
+	GString *level_str;
+	GArray *arr = g_array_sized_new(FALSE, TRUE, sizeof(log_t*), 5);
+	g_array_set_size(arr, 5);
+
+	g_hash_table_iter_init(&iter, opt->value.opt_hash);
+	while (g_hash_table_iter_next(&iter, &k, &v)) {
+		path = ((option*)v)->value.opt_string;
+		level_str = (GString*)k;
+
+		if (g_str_equal(level_str->str, "*")) {
+			for (guint i = 0; i < arr->len; i++) {
+				if (NULL != g_array_index(arr, log_t*, i))
+					continue;
+				log_t *log = log_new(srv, log_type_from_path(path), path);
+				g_array_index(arr, log_t*, i) = log;
+			}
+		}
+		else {
+			log_t *log = log_new(srv, log_type_from_path(path), path);
+			level = log_level_from_string(level_str);
+			g_array_index(arr, log_t*, level) = log;
+		}
+	}
+
+	*value = (gpointer)arr;
+
+	return TRUE;
+}
+
+void core_option_log_free(server *srv, plugin *p, size_t ndx, gpointer value) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+	UNUSED(value);
+
+	GArray *arr = value;
+
+	for (guint i = 0; i < arr->len; i++) {
+		if (NULL != g_array_index(arr, log_t*, i))
+			log_unref(srv, g_array_index(arr, log_t*, i));
+	}
+}
+
+gboolean core_option_log_timestamp_parse(server *srv, plugin *p, size_t ndx, option *opt, gpointer *value) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+
+	*value = (gpointer)log_timestamp_new(srv, opt->value.opt_string);
+
+	return TRUE;
+}
+
+void core_option_log_timestamp_free(server *srv, plugin *p, size_t ndx, gpointer value) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+	log_timestamp_free(srv, value);
+}
+
 static const plugin_option options[] = {
 	{ "debug.log_request_handling", OPTION_BOOLEAN, NULL, NULL, NULL },
 
-	{ "log.target", OPTION_STRING, NULL, core_option_log_target_parse, core_option_log_target_free },
-	{ "log.level", OPTION_STRING, NULL, core_option_log_level_parse, core_option_log_level_free },
+	{ "log.timestamp", OPTION_STRING, NULL, core_option_log_timestamp_parse, core_option_log_timestamp_free },
+	{ "log", OPTION_HASH, core_option_log_default, core_option_log_parse, core_option_log_free },
 
 	{ "static-file.exclude", OPTION_LIST, NULL, NULL, NULL },
 

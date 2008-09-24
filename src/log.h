@@ -43,6 +43,28 @@ LI_API const char *remove_path(const char *path);
 	} while(0)
 
 
+#undef ERROR
+#define ERROR(srv, fmt, ...) \
+	log_write_(srv, NULL, LOG_LEVEL_ERROR, LOG_FLAG_TIMETAMP, "(error) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+
+/*#undef INFO
+#define INFO(srv, fmt, ...) \
+	log_write_(srv, NULL, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "%s.%d: (info) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+*/
+#undef TRACE
+#define TRACE(srv, fmt, ...) \
+	log_write_(srv, NULL, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "(trace) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+
+/*
+#undef CON_ERROR
+#define CON_ERROR(con, fmt, ...) \
+	log_write_(con->srv, con, LOG_LEVEL_ERROR, LOG_FLAG_TIMETAMP, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+*/
+#undef CON_TRACE
+#define CON_TRACE(con, fmt, ...) \
+	log_write_(con->srv, con, LOG_LEVEL_DEBUG, LOG_FLAG_TIMETAMP, "%s.%d: (debug) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+
+
 /* TODO: perhaps make portable (detect if cc supports) */
 #define	__ATTRIBUTE_PRINTF_FORMAT(fmt, arg) __attribute__ ((__format__ (__printf__, fmt, arg)))
 
@@ -52,19 +74,19 @@ LI_API int log_write(server *srv, connection *con, const char *fmt, ...) __ATTRI
 
 /* convenience makros */
 #define log_error(srv, con, fmt, ...) \
-	log_write_(srv, con, LOG_LEVEL_ERROR, fmt, __VA_ARGS__)
+	log_write_(srv, con, LOG_LEVEL_ERROR, LOG_FLAG_TIMETAMP, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define log_warning(srv, con, fmt, ...) \
-	log_write_(srv, con, LOG_LEVEL_WARNING, fmt, __VA_ARGS__)
+	log_write_(srv, con, LOG_LEVEL_WARNING, LOG_FLAG_TIMETAMP, "%s.%d: (warning) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define log_info(srv, con, fmt, ...) \
-	log_write_(srv, con, LOG_LEVEL_INFO, fmt, __VA_ARGS__)
+	log_write_(srv, con, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "%s.%d: (info) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define log_message(srv, con, fmt, ...) \
-	log_write_(srv, con, LOG_LEVEL_MESSAGE, fmt, __VA_ARGS__)
+	log_write_(srv, con, LOG_LEVEL_MESSAGE, LOG_FLAG_TIMETAMP, "%s.%d: (message) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define log_debug(srv, con, fmt, ...) \
-	log_write_(srv, con, LOG_LEVEL_DEBUG, fmt, __VA_ARGS__)
+	log_write_(srv, con, LOG_LEVEL_DEBUG, LOG_FLAG_TIMETAMP, "%s.%d: (debug) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 
 
@@ -74,12 +96,15 @@ typedef struct log_t log_t;
 struct log_entry_t;
 typedef struct log_entry_t log_entry_t;
 
+struct log_timestamp_t;
+typedef struct log_timestamp_t log_timestamp_t;
+
 typedef enum {
 	LOG_LEVEL_DEBUG,
 	LOG_LEVEL_INFO,
-	LOG_LEVEL_MESSAGE,
 	LOG_LEVEL_WARNING,
-	LOG_LEVEL_ERROR
+	LOG_LEVEL_ERROR,
+	LOG_LEVEL_ABORT
 } log_level_t;
 
 typedef enum {
@@ -89,14 +114,29 @@ typedef enum {
 	LOG_TYPE_SYSLOG
 } log_type_t;
 
+/* flags for log_write */
+#define LOG_FLAG_NONE         (0x0)      /* default flag */
+#define LOG_FLAG_TIMETAMP     (0x1)      /* prepend a timestamp to the log message */
+#define LOG_FLAG_NOLOCK       (0x1 << 1) /* for internal use only */
+#define LOG_FLAG_ALLOW_REPEAT (0x1 << 2) /* allow writing of multiple equal entries after each other */
+
 struct log_t {
 	log_type_t type;
 	GString *path;
 	gint refcount;
 	gint fd;
+
 	GString *lastmsg;
 	guint lastmsg_count;
+
 	GMutex *mutex;
+};
+
+struct log_timestamp_t {
+	gint refcount;
+	time_t last_ts;
+	GString *format;
+	GString *cached;
 };
 
 struct log_entry_t {
@@ -120,6 +160,9 @@ void log_free_unlocked(server *srv, log_t *log);
 void log_ref(server *srv, log_t *log);
 void log_unref(server *srv, log_t *log);
 
+void log_lock(log_t *log);
+void log_unlock(log_t *log);
+
 /* do not call directly, use log_rotate_logs instead */
 void log_rotate(gchar *path, log_t *log, server *srv);
 
@@ -130,6 +173,10 @@ void log_thread_start(server *srv);
 void log_thread_wakeup(server *srv);
 
 void log_init(server *srv);
-gboolean log_write_(server *srv, connection *con, log_level_t log_level, const gchar *fmt, ...);
+
+LI_API gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint flags, const gchar *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(5, 6);
+
+log_timestamp_t *log_timestamp_new(server *srv, GString *format);
+void log_timestamp_free(server *srv, log_timestamp_t *ts);
 
 #endif

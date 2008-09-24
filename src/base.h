@@ -36,6 +36,8 @@ typedef struct server server;
 struct connection;
 typedef struct connection connection;
 
+LI_API void string_destroy_notify(gpointer *str);
+
 
 #include "server.h"
 #include "worker.h"

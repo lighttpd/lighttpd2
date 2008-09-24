@@ -128,19 +128,19 @@ void server_free(server* srv) {
 		g_slice_free1(srv->option_count * sizeof(*srv->option_def_values), srv->option_def_values);
 
 	/* free logs */
-	g_thread_join(srv->log_thread);
+	g_thread_join(srv->logs.thread);
 	{
 		GHashTableIter iter;
 		gpointer k, v;
-		g_hash_table_iter_init(&iter, srv->logs);
+		g_hash_table_iter_init(&iter, srv->logs.targets);
 		while (g_hash_table_iter_next(&iter, &k, &v)) {
 			log_free(srv, v);
 		}
-		g_hash_table_destroy(srv->logs);
+		g_hash_table_destroy(srv->logs.targets);
 	}
 
-	g_mutex_free(srv->log_mutex);
-	g_async_queue_unref(srv->log_queue);
+	g_mutex_free(srv->logs.mutex);
+	g_async_queue_unref(srv->logs.queue);
 
 	g_slice_free(server, srv);
 }
@@ -331,4 +331,36 @@ void server_exit(server *srv) {
 
 void joblist_append(connection *con) {
 	connection_state_machine(con);
+}
+
+/* cache timestamp */
+GString *server_current_timestamp() {
+	static GStaticPrivate last_ts_key = G_STATIC_PRIVATE_INIT;
+	static GStaticPrivate ts_str_key = G_STATIC_PRIVATE_INIT;
+
+	time_t *last_ts = g_static_private_get(&last_ts_key);
+	GString *ts_str = g_static_private_get(&ts_str_key);
+
+	time_t cur_ts = time(NULL);
+
+	if (last_ts == NULL) {
+		last_ts = g_new0(time_t, 1);
+		g_static_private_set(&last_ts_key, last_ts, g_free);
+	}
+	if (ts_str == NULL) {
+		ts_str = g_string_sized_new(255);
+		g_static_private_set(&ts_str_key, ts_str, (GDestroyNotify)string_destroy_notify);
+	}
+
+	if (cur_ts != *last_ts) {
+		gsize s;
+
+		g_string_set_size(ts_str, 255);
+		s = strftime(ts_str->str, ts_str->allocated_len,
+				"%a, %d %b %Y %H:%M:%S GMT", gmtime(&(cur_ts)));
+		g_string_set_size(ts_str, s);
+		*last_ts = cur_ts;
+	}
+
+	return ts_str;
 }
