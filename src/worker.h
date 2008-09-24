@@ -43,7 +43,7 @@ struct worker {
 	guint connection_load;    /** incremented by server_accept_cb, decremented by worker_con_put. use atomic access */
 
 	time_t last_generated_date_ts;
-	GString *ts_date_str;     /**< use server_current_timestamp(srv) */
+	GString *ts_date_str;     /**< use worker_current_timestamp(wrk) */
 
 	/* incoming queues */
 	/*  - new connections (after accept) */
