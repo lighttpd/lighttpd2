@@ -27,6 +27,11 @@ struct worker {
 	ev_check loop_check;
 	ev_async worker_stop_watcher, worker_exit_watcher;
 
+	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections
+	                            * use with atomic, read direct from local worker context
+	                            */
+	GArray *connections;      /** array of (connection*), use only from local worker context */
+
 	GQueue closing_sockets;   /** wait for EOF before shutdown(SHUT_RD) and close() */
 
 	GString *tmp_str;         /**< can be used everywhere for local temporary needed strings */
@@ -35,7 +40,7 @@ struct worker {
 	ev_timer keep_alive_timer;
 	GQueue keep_alive_queue;
 
-	guint connection_load;
+	guint connection_load;    /** incremented by server_accept_cb, decremented by worker_con_put. use atomic access */
 
 	time_t last_generated_date_ts;
 	GString *ts_date_str;     /**< use server_current_timestamp(srv) */
@@ -53,7 +58,7 @@ LI_API void worker_run(worker *wrk);
 LI_API void worker_stop(worker *context, worker *wrk);
 LI_API void worker_exit(worker *context, worker *wrk);
 
-LI_API void worker_new_con(worker *wrk, connection *con);
+LI_API void worker_new_con(worker *ctx, worker *wrk, sock_addr *remote_addr, int s);
 
 LI_API void worker_check_keepalive(worker *wrk);
 

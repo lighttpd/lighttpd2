@@ -49,15 +49,6 @@ struct server {
 	ev_prepare srv_prepare;
 	ev_check srv_check;
 
-	/** this lock protects: (atomic access means here: normal read + atomic write with lock, atomic read without)
-	  * srv->connections_active (atomic access)
-	  * srv->connections
-	  * wrk->connection_load (atomic access)
-	  */
-	GStaticRecMutex lock_con;
-	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections */
-	GArray *connections;      /** array of (connection*) */
-
 	GArray *sockets;          /** array of (server_socket*) */
 
 	GHashTable *plugins;      /**< const gchar* => (plugin*) */

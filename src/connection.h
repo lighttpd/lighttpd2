@@ -99,7 +99,7 @@ struct connection {
 	} keep_alive_data;
 };
 
-LI_API connection* connection_new(server *srv);
+LI_API connection* connection_new(worker *wrk);
 LI_API void connection_reset(connection *con);
 LI_API void connection_free(connection *con);
 

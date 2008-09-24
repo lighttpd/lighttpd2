@@ -3,7 +3,8 @@
 
 #include "base.h"
 
-void con_put(connection *con);
+static connection* worker_con_get(worker *wrk);
+void worker_con_put(connection *con);
 
 /* closing sockets - wait for proper shutdown */
 
@@ -83,7 +84,7 @@ static void worker_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 			ev_timer_start(wrk->loop, &con->keep_alive_data.watcher);
 		} else {
 			/* close it */
-			con_put(con);
+			worker_con_put(con);
 		}
 	}
 
@@ -126,25 +127,40 @@ static void worker_exit_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	worker_exit(wrk, wrk);
 }
 
+struct worker_new_con_data;
+typedef struct worker_new_con_data worker_new_con_data;
+struct worker_new_con_data {
+	sock_addr remote_addr;
+	int s;
+};
+
 /* new con watcher */
-void worker_new_con(worker *wrk, connection *con) {
-	if (wrk == con->wrk) {
+void worker_new_con(worker *ctx, worker *wrk, sock_addr *remote_addr, int s) {
+	if (ctx == wrk) {
+		connection *con = worker_con_get(wrk);
+
+		con->state = CON_STATE_REQUEST_START;
+		con->remote_addr = *remote_addr;
+		ev_io_set(&con->sock_watcher, s, EV_READ);
 		ev_io_start(wrk->loop, &con->sock_watcher);
 	} else {
-		wrk = con->wrk;
-		g_async_queue_push(wrk->new_con_queue, con);
+		worker_new_con_data *d = g_slice_new(worker_new_con_data);
+		d->remote_addr = *remote_addr;
+		d->s = s;
+		g_async_queue_push(wrk->new_con_queue, d);
 		ev_async_send(wrk->loop, &wrk->new_con_watcher);
 	}
 }
 
 static void worker_new_con_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	worker *wrk = (worker*) w->data;
-	connection *con;
+	worker_new_con_data *d;
 	UNUSED(loop);
 	UNUSED(revents);
 
-	while (NULL != (con = g_async_queue_try_pop(wrk->new_con_queue))) {
-		worker_new_con(wrk, con);
+	while (NULL != (d = g_async_queue_try_pop(wrk->new_con_queue))) {
+		worker_new_con(wrk, wrk, &d->remote_addr, d->s);
+		g_slice_free(worker_new_con_data, d);
 	}
 }
 
@@ -158,6 +174,9 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	g_queue_init(&wrk->keep_alive_queue);
 	ev_init(&wrk->keep_alive_timer, worker_keepalive_cb);
 	wrk->keep_alive_timer.data = wrk;
+
+	wrk->connections_active = 0;
+	wrk->connections = g_array_new(FALSE, TRUE, sizeof(connection*));
 
 	wrk->tmp_str = g_string_sized_new(255);
 
@@ -183,6 +202,22 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 
 void worker_free(worker *wrk) {
 	if (!wrk) return;
+
+	{ /* close connections */
+		guint i;
+		if (wrk->connections_active > 0) {
+			ERROR(wrk->srv, "Server shutdown with unclosed connections: %u", wrk->connections_active);
+			for (i = wrk->connections_active; i-- > 0;) {
+				connection *con = g_array_index(wrk->connections, connection*, i);
+				connection_set_state(con, CON_STATE_ERROR);
+				connection_state_machine(con); /* cleanup plugins */
+			}
+		}
+		for (i = 0; i < wrk->connections->len; i++) {
+			connection_free(g_array_index(wrk->connections, connection*, i));
+		}
+		g_array_free(wrk->connections, TRUE);
+	}
 
 	{ /* force closing sockets */
 		GList *iter;
@@ -225,18 +260,18 @@ void worker_run(worker *wrk) {
 void worker_stop(worker *context, worker *wrk) {
 	if (context == wrk) {
 		guint i;
-		server *srv = wrk->srv;
 
 		ev_async_stop(wrk->loop, &wrk->worker_stop_watcher);
 		ev_async_stop(wrk->loop, &wrk->new_con_watcher);
+		worker_new_con_cb(wrk->loop, &wrk->new_con_watcher, 0); /* handle remaining new connections */
 
-		WORKER_LOCK(srv, &srv->lock_con);
-		for (i = srv->connections_active; i-- > 0;) {
-			connection *con = g_array_index(srv->connections, connection*, i);
-			if (con->wrk == wrk && con->state == CON_STATE_KEEP_ALIVE)
-				con_put(con);
+		/* close keep alive connections */
+		for (i = wrk->connections_active; i-- > 0;) {
+			connection *con = g_array_index(wrk->connections, connection*, i);
+			if (con->state == CON_STATE_KEEP_ALIVE)
+				worker_con_put(con);
 		}
-		WORKER_UNLOCK(srv, &srv->lock_con);
+
 		worker_check_keepalive(wrk);
 
 		{ /* force closing sockets */
@@ -257,3 +292,37 @@ void worker_exit(worker *context, worker *wrk) {
 		ev_async_send(wrk->loop, &wrk->worker_exit_watcher);
 	}
 }
+
+
+static connection* worker_con_get(worker *wrk) {
+	connection *con;
+
+	if (wrk->connections_active >= wrk->connections->len) {
+		con = connection_new(wrk);
+		con->idx = wrk->connections_active;
+		g_array_append_val(wrk->connections, con);
+	} else {
+		con = g_array_index(wrk->connections, connection*, wrk->connections_active);
+	}
+	g_atomic_int_inc((gint*) &wrk->connections_active);
+	return con;
+}
+
+void worker_con_put(connection *con) {
+	worker *wrk = con->wrk;
+
+	connection_reset(con);
+	g_atomic_int_add((gint*) &wrk->connection_load, -1);
+	g_atomic_int_add((gint*) &wrk->connections_active, -1);
+	if (con->idx != wrk->connections_active) {
+		/* Swap [con->idx] and [wrk->connections_active] */
+		connection *tmp;
+		assert(con->idx < wrk->connections_active); /* con must be an active connection */
+		tmp = g_array_index(wrk->connections, connection*, wrk->connections_active);
+		tmp->idx = con->idx;
+		con->idx = wrk->connections_active;
+		g_array_index(wrk->connections, connection*, con->idx) = con;
+		g_array_index(wrk->connections, connection*, tmp->idx) = tmp;
+	}
+}
+

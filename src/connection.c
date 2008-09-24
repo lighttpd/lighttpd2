@@ -5,7 +5,7 @@
 #include "plugin_core.h"
 
 /* only call it from the worker context the con belongs to */
-void con_put(connection *con); /* server.c */
+void worker_con_put(connection *con); /* worker.c */
 
 void internal_error(connection *con) {
 	if (con->response_headers_sent) {
@@ -130,11 +130,13 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 static void connection_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	connection *con = (connection*) w->data;
 	UNUSED(loop); UNUSED(revents);
-	con_put(con);
+	worker_con_put(con);
 }
 
-connection* connection_new(server *srv) {
+connection* connection_new(worker *wrk) {
+	server *srv = wrk->srv;
 	connection *con = g_slice_new0(connection);
+	con->wrk = wrk;
 	con->srv = srv;
 
 	con->state = CON_STATE_DEAD;
@@ -217,7 +219,7 @@ void connection_reset_keep_alive(connection *con) {
 	{
 		con->keep_alive_data.max_idle = GPOINTER_TO_INT(CORE_OPTION(CORE_OPTION_MAX_KEEP_ALIVE_IDLE));
 		if (con->keep_alive_data.max_idle == 0) {
-			con_put(con);
+			worker_con_put(con);
 			return;
 		}
 		if (con->keep_alive_data.max_idle >= con->srv->keep_alive_queue_timeout) {
@@ -463,7 +465,7 @@ void connection_state_machine(connection *con) {
 			if (con->keep_alive) {
 				connection_reset_keep_alive(con);
 			} else {
-				con_put(con);
+				worker_con_put(con);
 				done = TRUE;
 			}
 			break;
@@ -475,7 +477,7 @@ void connection_state_machine(connection *con) {
 
 			plugins_handle_close(con);
 
-			con_put(con);
+			worker_con_put(con);
 			done = TRUE;
 			break;
 
@@ -486,7 +488,7 @@ void connection_state_machine(connection *con) {
 
 			plugins_handle_close(con);
 
-			con_put(con);
+			worker_con_put(con);
 			done = TRUE;
 			break;
 		}

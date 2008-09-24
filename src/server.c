@@ -3,8 +3,6 @@
 #include "utils.h"
 #include "plugin_core.h"
 
-void con_put(connection *con);
-
 static void server_option_free(gpointer _so) {
 	g_slice_free(server_option, _so);
 }
@@ -60,9 +58,6 @@ server* server_new() {
 
 	srv->workers = g_array_new(FALSE, TRUE, sizeof(worker*));
 
-	g_static_rec_mutex_init(&srv->lock_con);
-	srv->connections_active = 0;
-	srv->connections = g_array_new(FALSE, TRUE, sizeof(connection*));
 	srv->sockets = g_array_new(FALSE, TRUE, sizeof(server_socket*));
 
 	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
@@ -95,22 +90,6 @@ void server_free(server* srv) {
 			worker_exit(srv->main_worker, wrk);
 			g_thread_join(wrk->thread);
 		}
-	}
-
-	{ /* close connections */
-		guint i;
-		if (srv->connections_active > 0) {
-			ERROR(srv, "Server shutdown with unclosed connections: %u", srv->connections_active);
-			for (i = srv->connections_active; i-- > 0;) {
-				connection *con = g_array_index(srv->connections, connection*, i);
-				connection_set_state(con, CON_STATE_ERROR);
-				connection_state_machine(con); /* cleanup plugins */
-			}
-		}
-		for (i = 0; i < srv->connections->len; i++) {
-			connection_free(g_array_index(srv->connections, connection*, i));
-		}
-		g_array_free(srv->connections, TRUE);
 	}
 
 	/* free all workers */
@@ -147,6 +126,7 @@ void server_free(server* srv) {
 	g_array_free(srv->plugins_handle_close, TRUE);
 
 	action_release(srv, srv->mainaction);
+	g_slice_free1(srv->option_count * sizeof(*srv->option_def_values), srv->option_def_values);
 
 	/* free logs */
 	g_thread_join(srv->log_thread);
@@ -207,43 +187,6 @@ gboolean server_loop_init(server *srv) {
 	return TRUE;
 }
 
-static connection* con_get(server *srv) {
-	connection *con;
-
-	WORKER_LOCK(srv, &srv->lock_con);
-	if (srv->connections_active >= srv->connections->len) {
-		con = connection_new(srv);
-		con->idx = srv->connections_active;
-		g_array_append_val(srv->connections, con);
-	} else {
-		con = g_array_index(srv->connections, connection*, srv->connections_active);
-	}
-	g_atomic_int_inc((gint*) &srv->connections_active);
-	WORKER_UNLOCK(srv, &srv->lock_con);
-	return con;
-}
-
-void con_put(connection *con) {
-	server *srv = con->srv;
-
-	connection_reset(con);
-	g_atomic_int_add((gint*) &con->wrk->connection_load, -1);
-	WORKER_LOCK(srv, &srv->lock_con);
-	con->wrk = NULL;
-	g_atomic_int_add((gint*) &srv->connections_active, -1);
-	if (con->idx != srv->connections_active) {
-		/* Swap [con->idx] and [srv->connections_active] */
-		connection *tmp;
-		assert(con->idx < srv->connections_active); /* con must be an active connection) */
-		tmp = g_array_index(srv->connections, connection*, srv->connections_active);
-		tmp->idx = con->idx;
-		con->idx = srv->connections_active;
-		g_array_index(srv->connections, connection*, con->idx) = con;
-		g_array_index(srv->connections, connection*, tmp->idx) = tmp;
-	}
-	WORKER_UNLOCK(srv, &srv->lock_con);
-}
-
 static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	server_socket *sock = (server_socket*) w->data;
 	server *srv = sock->srv;
@@ -254,7 +197,6 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	UNUSED(revents);
 
 	while (-1 != (s = accept(w->fd, (struct sockaddr*) &remote_addr, &l))) {
-		connection *con = con_get(srv);
 		worker *wrk = srv->main_worker;
 		guint i, min_load = g_atomic_int_get(&wrk->connection_load), sel = 0;
 
@@ -269,12 +211,8 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		}
 
 		g_atomic_int_inc((gint*) &wrk->connection_load);
-		/* TRACE(srv, "selected worker %u with load %u", sel, min_load); */
-		con->wrk = wrk;
-		con->state = CON_STATE_REQUEST_START;
-		con->remote_addr = remote_addr;
-		ev_io_set(&con->sock_watcher, s, EV_READ);
-		worker_new_con(srv->main_worker, con);
+		TRACE(srv, "selected worker %u with load %u", sel, min_load);
+		worker_new_con(srv->main_worker, wrk, &remote_addr, s);
 	}
 
 #ifdef _WIN32
