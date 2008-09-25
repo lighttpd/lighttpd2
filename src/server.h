@@ -77,7 +77,6 @@ struct server {
 	} logs;
 
 	ev_tstamp started;
-	statistics_t stats;       /** TODO: sync/worker split */
 
 	/* keep alive timeout */
 	guint keep_alive_queue_timeout;

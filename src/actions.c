@@ -158,7 +158,7 @@ action_result action_execute(connection *con) {
 			continue;
 		}
 
-		con->srv->stats.actions_executed++;
+		con->wrk->stats.actions_executed++;
 
 		switch (a->type) {
 		case ACTION_TSETTING:

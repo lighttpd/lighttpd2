@@ -199,6 +199,7 @@ static action* core_static(server *srv, plugin* p, option *opt) {
 
 static action_result core_handle_test(connection *con, gpointer param) {
 	server *srv = con->srv;
+	worker *wrk = con->wrk;
 	/*GHashTableIter iter;
 	gpointer k, v;
 	GList *hv;*/
@@ -223,11 +224,11 @@ static action_result core_handle_test(connection *con, gpointer param) {
 	uptime = (guint64)(ev_now(con->wrk->loop) - srv->started);
 	if (uptime == 0)
 		uptime = 1;
-	avg1 = srv->stats.actions_executed;
+	avg1 = wrk->stats.actions_executed;
 	suffix1[0] = counter_format(&avg1, 1000);
-	avg2 = srv->stats.actions_executed / uptime;
+	avg2 = wrk->stats.actions_executed / uptime;
 	suffix2[0] = counter_format(&avg2, 1000);
-	avg3 = srv->stats.actions_executed / srv->stats.requests;
+	avg3 = wrk->stats.actions_executed / wrk->stats.requests;
 	suffix3[0] = counter_format(&avg3, 1000);
 	str = g_string_sized_new(0);
 	g_string_printf(str,
@@ -236,9 +237,9 @@ static action_result core_handle_test(connection *con, gpointer param) {
 	);
 	chunkqueue_append_string(con->out, str);
 	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\nrequests: "));
-	avg1 = srv->stats.requests;
+	avg1 = wrk->stats.requests;
 	suffix1[0] = counter_format(&avg1, 1000);
-	avg2 = srv->stats.requests / uptime;
+	avg2 = wrk->stats.requests / uptime;
 	suffix2[0] = counter_format(&avg2, 1000);
 	str = g_string_sized_new(0);
 	g_string_printf(str, "%"G_GUINT64_FORMAT"%s (%"G_GUINT64_FORMAT"%s/s)", avg1, suffix1, avg2, suffix2);

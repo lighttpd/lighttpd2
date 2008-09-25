@@ -367,7 +367,7 @@ void connection_state_machine(connection *con) {
 			}
 			connection_set_state(con, CON_STATE_HANDLE_REQUEST_HEADER);
 			request_validate_header(con);
-			con->srv->stats.requests++;
+			con->wrk->stats.requests++;
 			break;
 
 		case CON_STATE_HANDLE_REQUEST_HEADER:

@@ -49,6 +49,8 @@ struct worker {
 	/*  - new connections (after accept) */
 	ev_async new_con_watcher;
 	GAsyncQueue *new_con_queue;
+
+	statistics_t stats;
 };
 
 LI_API worker* worker_new(struct server *srv, struct ev_loop *loop);
