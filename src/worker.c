@@ -164,6 +164,25 @@ static void worker_new_con_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	}
 }
 
+/* stat watcher */
+static void worker_stat_watcher_cb(struct ev_loop *loop, ev_timer *w, int revents) {
+	worker *wrk = (worker*) w->data;
+	UNUSED(loop);
+	UNUSED(revents);
+
+	ev_tstamp now = ev_now(wrk->loop);
+
+	if (wrk->stats.last_update && now != wrk->stats.last_update) {
+		wrk->stats.requests_per_sec =
+			(wrk->stats.requests - wrk->stats.last_requests) / (now - wrk->stats.last_update);
+		if (wrk->stats.requests_per_sec > 0)
+			TRACE(wrk->srv, "worker %u: %2f requests per second", wrk->ndx, wrk->stats.requests_per_sec);
+	}
+
+	wrk->stats.last_requests = wrk->stats.requests;
+	wrk->stats.last_update = now;
+}
+
 /* init */
 
 worker* worker_new(struct server *srv, struct ev_loop *loop) {
@@ -196,6 +215,11 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	wrk->new_con_watcher.data = wrk;
 	ev_async_start(wrk->loop, &wrk->new_con_watcher);
 	wrk->new_con_queue = g_async_queue_new();
+
+	ev_timer_init(&wrk->stat_watcher, worker_stat_watcher_cb, 1, 1);
+	wrk->stat_watcher.data = wrk;
+	ev_timer_start(wrk->loop, &wrk->stat_watcher);
+	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
 	return wrk;
 }
@@ -234,6 +258,9 @@ void worker_free(worker *wrk) {
 	g_string_free(wrk->ts_date_str, TRUE);
 
 	g_async_queue_unref(wrk->new_con_queue);
+
+	ev_ref(wrk->loop);
+	ev_timer_stop(wrk->loop, &wrk->stat_watcher);
 
 	g_slice_free(worker, wrk);
 }

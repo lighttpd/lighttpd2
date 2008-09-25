@@ -19,18 +19,6 @@ struct server_socket {
 	ev_io watcher;
 };
 
-struct statistics_t;
-typedef struct statistics_t statistics_t;
-
-struct statistics_t {
-	guint64 bytes_out;        /** bytes transfered, outgoing */
-	guint64 bytes_int;        /** bytes transfered, incoming */
-
-	guint64 requests;         /** processed requests */
-
-	guint64 actions_executed; /** actions executed */
-};
-
 struct worker;
 
 struct server {

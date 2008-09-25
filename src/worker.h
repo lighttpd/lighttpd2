@@ -6,6 +6,23 @@ typedef struct worker worker;
 
 struct server;
 
+struct statistics_t;
+typedef struct statistics_t statistics_t;
+
+struct statistics_t {
+	guint64 bytes_out;        /** bytes transfered, outgoing */
+	guint64 bytes_int;        /** bytes transfered, incoming */
+
+	guint64 requests;         /** processed requests */
+
+	guint64 actions_executed; /** actions executed */
+
+	/* updated in timer */
+	guint64 last_requests;
+	double requests_per_sec;
+	ev_tstamp last_update;
+};
+
 #include "settings.h"
 
 #define CUR_TS(wrk) ((time_t)ev_now((wrk)->loop))
@@ -50,6 +67,7 @@ struct worker {
 	ev_async new_con_watcher;
 	GAsyncQueue *new_con_queue;
 
+	ev_timer stat_watcher;
 	statistics_t stats;
 };
 
