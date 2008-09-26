@@ -32,6 +32,7 @@ common_source='''
 	sys-socket.c
 	url_parser.rl
 	utils.c
+	value.c
 	worker.c
 
 	plugin_core.c
@@ -41,7 +42,7 @@ common_source_lua='''
 	actions_lua.c
 	condition_lua.c
 	config_lua.c
-	options_lua.c
+	value_lua.c
 '''
 
 main_source = '''
