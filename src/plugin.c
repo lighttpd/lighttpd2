@@ -377,5 +377,4 @@ void plugins_free_default_options(server *srv) {
 		release_option(srv, &mark);
 		srv->option_def_values[sopt->index] = oempty;
 	}
-	return TRUE;
 }
