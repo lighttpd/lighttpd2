@@ -232,19 +232,24 @@ void release_option(server *srv, option_set *mark) { /** Does not free the optio
 			/* Nothing to free */
 			break;
 		case VALUE_STRING:
-			g_string_free(mark->value.string, TRUE);
+			if (mark->value.string)
+				g_string_free(mark->value.string, TRUE);
 			break;
 		case VALUE_LIST:
-			value_list_free(mark->value.list);
+			if (mark->value.list)
+				value_list_free(mark->value.list);
 			break;
 		case VALUE_HASH:
-			g_hash_table_destroy(mark->value.hash);
+			if (mark->value.hash)
+				g_hash_table_destroy(mark->value.hash);
 			break;
 		case VALUE_ACTION:
-			action_release(srv, mark->value.action);
+			if (mark->value.action)
+				action_release(srv, mark->value.action);
 			break;
 		case VALUE_CONDITION:
-			condition_release(srv, mark->value.cond);
+			if (mark->value.cond)
+				condition_release(srv, mark->value.cond);
 			break;
 		}
 	} else {
@@ -302,9 +307,11 @@ gboolean call_setup(server *srv, const char *name, value *val) {
 void plugins_prepare_callbacks(server *srv) {
 	GHashTableIter iter;
 	plugin *p;
+	gpointer v;
 
 	g_hash_table_iter_init(&iter, srv->plugins);
-	while (g_hash_table_iter_next(&iter, NULL, (gpointer*) &p)) {
+	while (g_hash_table_iter_next(&iter, NULL, &v)) {
+		p = (plugin*) v;
 		if (p->handle_close)
 			g_array_append_val(srv->plugins_handle_close, p);
 	}
@@ -317,4 +324,58 @@ void plugins_handle_close(connection *con) {
 		plugin *p = g_array_index(a, plugin*, i);
 		p->handle_close(con, p);
 	}
+}
+
+gboolean plugins_load_default_options(server *srv) {
+	GHashTableIter iter;
+	gpointer k, v;
+
+	g_hash_table_iter_init(&iter, srv->options);
+	while (g_hash_table_iter_next(&iter, &k, &v)) {
+		server_option *sopt = v;
+		option_value oval = { 0 };
+
+		if (!sopt->parse_option) {
+			switch (sopt->type) {
+			case VALUE_NONE:
+				break;
+			case VALUE_BOOLEAN:
+				oval.boolean = GPOINTER_TO_INT(sopt->default_value);
+			case VALUE_NUMBER:
+				oval.number = GPOINTER_TO_INT(sopt->default_value);
+				break;
+			case VALUE_STRING:
+				oval.string = g_string_new((const char*) sopt->default_value);
+				break;
+			default:
+				oval.ptr = NULL;
+			}
+		} else {
+			if (!sopt->parse_option(srv, sopt->p, sopt->module_index, NULL, &oval)) {
+				/* errors should be logged by parse function */
+				return FALSE;
+			}
+		}
+		srv->option_def_values[sopt->index] = oval;
+	}
+	return TRUE;
+}
+
+void plugins_free_default_options(server *srv) {
+	static const option_value oempty = {0};
+	GHashTableIter iter;
+	gpointer k, v;
+
+	g_hash_table_iter_init(&iter, srv->options);
+	while (g_hash_table_iter_next(&iter, &k, &v)) {
+		server_option *sopt = v;
+		option_set mark;
+		mark.sopt = sopt;
+		mark.ndx = sopt->index;
+		mark.value = srv->option_def_values[sopt->index];
+
+		release_option(srv, &mark);
+		srv->option_def_values[sopt->index] = oempty;
+	}
+	return TRUE;
 }

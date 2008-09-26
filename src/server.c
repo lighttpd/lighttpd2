@@ -122,11 +122,13 @@ void server_free(server* srv) {
 
 	action_release(srv, srv->mainaction);
 
+	if (srv->option_def_values) {
+		plugins_free_default_options(srv);
+		g_slice_free1(srv->option_count * sizeof(*srv->option_def_values), srv->option_def_values);
+	}
+
 	server_plugins_free(srv);
 	g_array_free(srv->plugins_handle_close, TRUE); /* TODO: */
-
-	if (srv->option_def_values)
-		g_slice_free1(srv->option_count * sizeof(*srv->option_def_values), srv->option_def_values);
 
 	/* free logs */
 	g_thread_join(srv->logs.thread);
@@ -255,8 +257,6 @@ void server_listen(server *srv, int fd) {
 
 void server_start(server *srv) {
 	guint i;
-	GHashTableIter iter;
-	gpointer k, v;
 	server_state srvstate = g_atomic_int_get(&srv->state);
 	if (srvstate == SERVER_STOPPING || srvstate == SERVER_RUNNING) return; /* no restart after stop */
 	g_atomic_int_set(&srv->state, SERVER_RUNNING);
@@ -273,11 +273,10 @@ void server_start(server *srv) {
 	srv->option_def_values = g_slice_alloc0(srv->option_count * sizeof(*srv->option_def_values));
 
 	/* set default option values */
-	g_hash_table_iter_init(&iter, srv->options);
-	while (g_hash_table_iter_next(&iter, &k, &v)) {
-		server_option *so = v;
-		if (so->default_value)
-			srv->option_def_values[so->index].ptr = so->default_value(srv, so->p, so->index);
+	if (!plugins_load_default_options(srv)) {
+		ERROR(srv, "%s", "Error while loading option default values");
+		server_stop(srv);
+		return;
 	}
 
 	plugins_prepare_callbacks(srv);

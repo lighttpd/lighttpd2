@@ -38,7 +38,6 @@ typedef void     (*PluginInit)          (server *srv, plugin *p);
 typedef void     (*PluginFree)          (server *srv, plugin *p);
 typedef gboolean (*PluginParseOption)   (server *srv, plugin *p, size_t ndx, value *val, option_value *oval);
 typedef void     (*PluginFreeOption)    (server *srv, plugin *p, size_t ndx, option_value oval);
-typedef gpointer (*PluginDefaultValue)  (server *srv, plugin *p, gsize ndx);
 typedef action*  (*PluginCreateAction)  (server *srv, plugin *p, value *val);
 typedef gboolean (*PluginSetup)         (server *srv, plugin *p, value *val);
 
@@ -77,7 +76,7 @@ struct plugin_option {
 	const gchar *name;
 	value_type type;
 
-	PluginDefaultValue default_value;
+	gpointer default_value;
 	PluginParseOption parse_option;
 	PluginFreeOption free_option;
 };
@@ -96,15 +95,27 @@ struct plugin_setup {
 struct server_option {
 	plugin *p;
 
-	/** the plugin must free the _content_ of the value
+	/** the plugin must free the _content_ of the value (e.g. with option_free)
 	  * val is zero to get the global default value if nothing is specified
 	  * save result in value
 	  *
-	  * Default behaviour (NULL) is to just use the value as value
+	  * Default behaviour (NULL) is to extract the inner value from val
 	  */
-	PluginDefaultValue default_value; /* default value callback - if no callback is provided, default value will be NULL, 0 or FALSE */
 	PluginParseOption parse_option;
+
+	/** the free_option handler has to free all allocated resources;
+	  * it may get called with 0 initialized options, so you have to
+	  * check the value.
+	  */
 	PluginFreeOption free_option;
+
+	/** if parse_option is NULL, the default_value is used; it is only used
+	  * for the following value types:
+	  * - BOOLEAN, NUMBER: casted with GPOINTER_TO_INT, i.e. set it with GINT_TO_POINTER
+	  *     the numbers are limited to the 32-bit range according to the glib docs
+	  * - STRING: used for g_string_new, i.e. a const char*
+	  */
+	gpointer default_value;
 
 	size_t index, module_index;
 	value_type type;
@@ -142,6 +153,9 @@ LI_API action* option_action(server *srv, const gchar *name, value *value);
 LI_API action* create_action(server *srv, const gchar *name, value *value);
 /** For setup function, e.g. 'listen "127.0.0.1:8080"' */
 LI_API gboolean call_setup(server *srv, const char *name, value *val);
+
+LI_API gboolean plugins_load_default_options(server *srv);
+LI_API void plugins_free_default_options(server *srv);
 
 /* needs connection *con and plugin *p */
 #define OPTION(idx) _OPTION(con, p, idx)

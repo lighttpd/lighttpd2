@@ -419,32 +419,7 @@ static gboolean core_workers(server *srv, plugin* p, value *val) {
 	return TRUE;
 }
 
-gpointer core_option_max_keep_alive_idle_default(server *srv, plugin *p, gsize ndx) {
-	UNUSED(srv);
-	UNUSED(p);
-	UNUSED(ndx);
-
-	return GINT_TO_POINTER(5);
-}
-
-gpointer core_option_server_tag_default(server *srv, plugin *p, gsize ndx) {
-	UNUSED(srv);
-	UNUSED(p);
-	UNUSED(ndx);
-
-	return g_string_new_len(CONST_STR_LEN("lighttpd-2.0~sandbox")); /* TODO: fix mem leak */
-}
-
-gpointer core_option_log_default(server *srv, plugin *p, gsize ndx) {
-	UNUSED(srv);
-	UNUSED(p);
-	UNUSED(ndx);
-
-	GArray *arr = g_array_sized_new(FALSE, TRUE, sizeof(log_t*), 5);
-	return arr;
-}
-
-gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
+static gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
 	GHashTableIter iter;
 	gpointer k, v;
 	log_level_t level;
@@ -454,7 +429,9 @@ gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value *val, o
 	UNUSED(p);
 	UNUSED(ndx);
 
+	oval->list = arr;
 	g_array_set_size(arr, 5);
+	if (!val) return TRUE; /* default value */
 
 	g_hash_table_iter_init(&iter, val->data.hash);
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
@@ -476,36 +453,38 @@ gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value *val, o
 		}
 	}
 
-	oval->list = arr;
-
 	return TRUE;
 }
 
-void core_option_log_free(server *srv, plugin *p, size_t ndx, option_value oval) {
+static void core_option_log_free(server *srv, plugin *p, size_t ndx, option_value oval) {
 	UNUSED(p);
 	UNUSED(ndx);
 
 	GArray *arr = oval.list;
+	if (!arr) return;
 
 	for (guint i = 0; i < arr->len; i++) {
 		if (NULL != g_array_index(arr, log_t*, i))
 			log_unref(srv, g_array_index(arr, log_t*, i));
 	}
+	g_array_free(arr, TRUE);
 }
 
-gboolean core_option_log_timestamp_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
+static gboolean core_option_log_timestamp_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
 	UNUSED(p);
 	UNUSED(ndx);
 
+	if (!val) return TRUE;
 	oval->ptr = log_timestamp_new(srv, val->data.string);
 
 	return TRUE;
 }
 
-void core_option_log_timestamp_free(server *srv, plugin *p, size_t ndx, option_value oval) {
+static void core_option_log_timestamp_free(server *srv, plugin *p, size_t ndx, option_value oval) {
 	UNUSED(p);
 	UNUSED(ndx);
 
+	if (!oval.ptr) return;
 	log_timestamp_free(srv, oval.ptr);
 }
 
@@ -513,12 +492,12 @@ static const plugin_option options[] = {
 	{ "debug.log_request_handling", VALUE_BOOLEAN, NULL, NULL, NULL },
 
 	{ "log.timestamp", VALUE_STRING, NULL, core_option_log_timestamp_parse, core_option_log_timestamp_free },
-	{ "log", VALUE_HASH, core_option_log_default, core_option_log_parse, core_option_log_free },
+	{ "log", VALUE_HASH, NULL, core_option_log_parse, core_option_log_free },
 
 	{ "static-file.exclude", VALUE_LIST, NULL, NULL, NULL },
 
-	{ "server.tag", VALUE_STRING, core_option_server_tag_default, NULL, NULL },
-	{ "server.max_keep_alive_idle", VALUE_NUMBER, core_option_max_keep_alive_idle_default, NULL, NULL },
+	{ "server.tag", VALUE_STRING, "lighttpd-2.0~sandbox", NULL, NULL },
+	{ "server.max_keep_alive_idle", VALUE_NUMBER, GINT_TO_POINTER(5), NULL, NULL },
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
