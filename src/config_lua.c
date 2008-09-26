@@ -1,7 +1,7 @@
 
 #include "config_lua.h"
 #include "condition_lua.h"
-#include "options_lua.h"
+#include "value_lua.h"
 #include "actions_lua.h"
 
 #include <lualib.h>
@@ -9,25 +9,25 @@
 
 typedef int (*LuaWrapper)(server *srv, lua_State *L, gpointer data);
 
-static option* lua_params_to_option(server *srv, lua_State *L) {
-	option *opt, *subopt;
+static value* lua_params_to_value(server *srv, lua_State *L) {
+	value *val, *subval;
 	switch (lua_gettop(L)) {
 	case 0:
 		return NULL;
 	case 1:
-		return option_from_lua(srv, L);
+		return value_from_lua(srv, L);
 	default:
-		opt = option_new_list();
-		g_array_set_size(opt->value.opt_list, lua_gettop(L));
+		val = value_new_list();
+		g_array_set_size(val->data.list, lua_gettop(L));
 		while (lua_gettop(L) > 0) {
-			if (NULL == (subopt = option_from_lua(srv, L))) {
-				ERROR(srv, "%s", "Couldn't convert option to lua");
-				option_free(opt);
+			if (NULL == (subval = value_from_lua(srv, L))) {
+				ERROR(srv, "%s", "Couldn't convert value from lua");
+				value_free(val);
 				return NULL;
 			}
-			g_array_index(opt->value.opt_list, option*, lua_gettop(L)) = subopt;
+			g_array_index(val->data.list, value*, lua_gettop(L)) = subval;
 		}
-		return opt;
+		return val;
 	}
 	return NULL;
 }
@@ -72,17 +72,17 @@ static gboolean publish_str_hash(server *srv, lua_State *L, GHashTable *ht, LuaW
 static int handle_server_action(lua_State *L) {
 	server *srv;
 	server_action *sa;
-	option *opt;
+	value *val;
 	action *a;
 
 	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
 	sa = (server_action*) lua_touserdata(L, lua_upvalueindex(2));
 
-	opt = lua_params_to_option(srv, L);
+	val = lua_params_to_value(srv, L);
 
 	/* TRACE(srv, "%s", "Creating action"); */
 
-	if (NULL == (a = sa->create_action(srv, sa->p, opt))) {
+	if (NULL == (a = sa->create_action(srv, sa->p, val))) {
 		lua_pushstring(L, "creating action failed");
 		lua_error(L);
 	}
@@ -100,16 +100,16 @@ static int wrap_server_action(server *srv, lua_State *L, gpointer sa) {
 static int handle_server_setup(lua_State *L) {
 	server *srv;
 	server_setup *ss;
-	option *opt;
+	value *val;
 
 	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
 	ss = (server_setup*) lua_touserdata(L, lua_upvalueindex(2));
 
-	opt = lua_params_to_option(srv, L);
+	val = lua_params_to_value(srv, L);
 
 	TRACE(srv, "%s", "Calling setup");
 
-	if (!ss->setup(srv, ss->p, opt)) {
+	if (!ss->setup(srv, ss->p, val)) {
 		lua_pushstring(L, "setup failed");
 		lua_error(L);
 	}

@@ -289,6 +289,7 @@ SET(COMMON_SRC
 	sys-socket.c
 	url_parser.c
 	utils.c
+	value.c
 	worker.c
 
 	plugin_core.c
@@ -299,7 +300,7 @@ SET(COMMON_SRC ${COMMON_SRC}
 	actions_lua.c
 	condition_lua.c
 	config_lua.c
-	options_lua.c
+	value_lua.c
 )
 ENDIF(WITH_LUA)
 

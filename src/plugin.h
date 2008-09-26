@@ -36,11 +36,11 @@ typedef struct server_setup server_setup;
 
 typedef void     (*PluginInit)          (server *srv, plugin *p);
 typedef void     (*PluginFree)          (server *srv, plugin *p);
-typedef gboolean (*PluginParseOption)   (server *srv, plugin *p, size_t ndx, option *opt, gpointer *value);
-typedef void     (*PluginFreeOption)    (server *srv, plugin *p, size_t ndx, gpointer value);
+typedef gboolean (*PluginParseOption)   (server *srv, plugin *p, size_t ndx, value *val, option_value *oval);
+typedef void     (*PluginFreeOption)    (server *srv, plugin *p, size_t ndx, option_value oval);
 typedef gpointer (*PluginDefaultValue)  (server *srv, plugin *p, gsize ndx);
-typedef action*  (*PluginCreateAction)  (server *srv, plugin *p, option *opt);
-typedef gboolean (*PluginSetup)         (server *srv, plugin *p, option *opt);
+typedef action*  (*PluginCreateAction)  (server *srv, plugin *p, value *val);
+typedef gboolean (*PluginSetup)         (server *srv, plugin *p, value *val);
 
 typedef void     (*PluginHandleContent) (connection *con, plugin *p);
 typedef void     (*PluginHandleClose)   (connection *con, plugin *p);
@@ -75,7 +75,7 @@ struct plugin {
 
 struct plugin_option {
 	const gchar *name;
-	option_type type;
+	value_type type;
 
 	PluginDefaultValue default_value;
 	PluginParseOption parse_option;
@@ -96,18 +96,18 @@ struct plugin_setup {
 struct server_option {
 	plugin *p;
 
-	/** the plugin must free the _content_ of the option
-	  * opt is zero to get the global default value if nothing is specified
+	/** the plugin must free the _content_ of the value
+	  * val is zero to get the global default value if nothing is specified
 	  * save result in value
 	  *
-	  * Default behaviour (NULL) is to just use the option as value
+	  * Default behaviour (NULL) is to just use the value as value
 	  */
 	PluginDefaultValue default_value; /* default value callback - if no callback is provided, default value will be NULL, 0 or FALSE */
 	PluginParseOption parse_option;
 	PluginFreeOption free_option;
 
 	size_t index, module_index;
-	option_type type;
+	value_type type;
 };
 
 struct server_action {
@@ -127,7 +127,7 @@ LI_API gboolean plugin_register(server *srv, const gchar *name, PluginInit init)
 LI_API void plugin_free(server *srv, plugin *p);
 LI_API void server_plugins_free(server *srv);
 
-LI_API gboolean parse_option(server *srv, const char *name, option *opt, option_set *mark);
+LI_API gboolean parse_option(server *srv, const char *name, value *val, option_set *mark);
 LI_API void release_option(server *srv, option_set *mark); /**< Does not free the option_set memory */
 
 LI_API void plugins_prepare_callbacks(server *srv);
@@ -135,13 +135,13 @@ LI_API void plugins_handle_close(connection *con);
 
 /* Needed for config frontends */
 /** For parsing 'somemod.option = "somevalue"' */
-LI_API action* option_action(server *srv, const gchar *name, option *value);
+LI_API action* option_action(server *srv, const gchar *name, value *value);
 /** For parsing 'somemod.action value', e.g. 'rewrite "/url" => "/destination"'
-  * You need to free the option after it (it should be of type NONE then)
+  * You need to free the value after it (it should be of type NONE then)
   */
-LI_API action* create_action(server *srv, const gchar *name, option *value);
+LI_API action* create_action(server *srv, const gchar *name, value *value);
 /** For setup function, e.g. 'listen "127.0.0.1:8080"' */
-LI_API gboolean call_setup(server *srv, const char *name, option *opt);
+LI_API gboolean call_setup(server *srv, const char *name, value *val);
 
 /* needs connection *con and plugin *p */
 #define OPTION(idx) _OPTION(con, p, idx)

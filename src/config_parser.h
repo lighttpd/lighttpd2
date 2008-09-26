@@ -49,7 +49,7 @@ struct config_parser_context_t {
 	GHashTable *uservars; /* var.foo */
 
 	GQueue *action_list_stack; /* first entry is current action list */
-	GQueue *option_stack; /* stack of option* */
+	GQueue *option_stack; /* stack of value* */
 	GQueue *condition_stack; /* stack of condition* */
 
 	/* information about currenty parsed file */

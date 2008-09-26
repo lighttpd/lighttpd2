@@ -46,10 +46,10 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint f
 
 		if (!srv) srv = con->srv;
 		/* get log from connection */
-		log = g_array_index((GArray*)CORE_OPTION(CORE_OPTION_LOG), log_t*, log_level);
+		log = g_array_index(CORE_OPTION(CORE_OPTION_LOG).list, log_t*, log_level);
 		if (log == NULL)
 			return TRUE;
-		ts = CORE_OPTION(CORE_OPTION_LOG_TS_FORMAT);
+		ts = CORE_OPTION(CORE_OPTION_LOG_TS_FORMAT).ptr;
 		if (!ts)
 			ts = &g_array_index(srv->logs.timestamps, log_timestamp_t, 0);
 	}

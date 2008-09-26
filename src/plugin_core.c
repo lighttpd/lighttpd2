@@ -9,115 +9,115 @@
 #include <fcntl.h>
 
 
-static action* core_list(server *srv, plugin* p, option *opt) {
+static action* core_list(server *srv, plugin* p, value *val) {
 	action *a;
 	guint i;
 	UNUSED(p);
 
-	if (!opt) {
+	if (!val) {
 		ERROR(srv, "%s", "need parameter");
 		return NULL;
 	}
 
-	if (opt->type == OPTION_ACTION) {
-		a = opt->value.opt_action.action;
+	if (val->type == VALUE_ACTION) {
+		a = val->data.val_action.action;
 		action_acquire(a);
-		option_free(opt);
+		value_free(val);
 		return a;
 	}
 
-	if (opt->type != OPTION_LIST) {
-		ERROR(srv, "expected list, got %s", option_type_string(opt->type));
+	if (val->type != VALUE_LIST) {
+		ERROR(srv, "expected list, got %s", value_type_string(val->type));
 		return NULL;
 	}
 
 	a = action_new_list();
-	for (i = 0; i < opt->value.opt_list->len; i++) {
-		option *oa = g_array_index(opt->value.opt_list, option*, i);
-		if (oa->type != OPTION_ACTION) {
-			ERROR(srv, "expected action at entry %u of list, got %s", i, option_type_string(oa->type));
+	for (i = 0; i < val->data.list->len; i++) {
+		value *oa = g_array_index(val->data.list, value*, i);
+		if (oa->type != VALUE_ACTION) {
+			ERROR(srv, "expected action at entry %u of list, got %s", i, value_type_string(oa->type));
 			action_release(srv, a);
 			return NULL;
 		}
-		assert(srv == oa->value.opt_action.srv);
-		action_acquire(oa->value.opt_action.action);
-		g_array_append_val(a->value.list, oa->value.opt_action.action);
+		assert(srv == oa->data.val_action.srv);
+		action_acquire(oa->data.val_action.action);
+		g_array_append_val(a->data.list, oa->data.val_action.action);
 	}
-	option_free(opt);
+	value_free(val);
 	return a;
 }
 
-static action* core_when(server *srv, plugin* p, option *opt) {
-	option *opt_cond, *opt_act, *opt_act_else;
+static action* core_when(server *srv, plugin* p, value *val) {
+	value *val_cond, *val_act, *val_act_else;
 	action *a, *act_else;
 	UNUSED(p);
 
-	if (!opt) {
+	if (!val) {
 		ERROR(srv, "%s", "need parameter");
 		return NULL;
 	}
-	if (opt->type != OPTION_LIST) {
-		ERROR(srv, "expected list, got %s", option_type_string(opt->type));
+	if (val->type != VALUE_LIST) {
+		ERROR(srv, "expected list, got %s", value_type_string(val->type));
 		return NULL;
 	}
-	if (opt->value.opt_list->len == 2) {
-		opt_act_else = NULL;
+	if (val->data.list->len == 2) {
+		val_act_else = NULL;
 		act_else = NULL;
-	} else if (opt->value.opt_list->len == 3) {
-		opt_act_else = g_array_index(opt->value.opt_list, option*, 2);
-		act_else = opt_act_else->value.opt_action.action;
+	} else if (val->data.list->len == 3) {
+		val_act_else = g_array_index(val->data.list, value*, 2);
+		act_else = val_act_else->data.val_action.action;
 	} else {
-		ERROR(srv, "expected list with length 2 or 3, has length %u", opt->value.opt_list->len);
+		ERROR(srv, "expected list with length 2 or 3, has length %u", val->data.list->len);
 		return NULL;
 	}
-	opt_cond = g_array_index(opt->value.opt_list, option*, 0);
-	opt_act = g_array_index(opt->value.opt_list, option*, 1);
+	val_cond = g_array_index(val->data.list, value*, 0);
+	val_act = g_array_index(val->data.list, value*, 1);
 
-	if (opt_cond->type != OPTION_CONDITION) {
-		ERROR(srv, "expected condition as first parameter, got %s", option_type_string(opt_cond->type));
+	if (val_cond->type != VALUE_CONDITION) {
+		ERROR(srv, "expected condition as first parameter, got %s", value_type_string(val_cond->type));
 		return NULL;
 	}
-	if (opt_act->type != OPTION_ACTION) {
-		ERROR(srv, "expected action as second parameter, got %s", option_type_string(opt_act->type));
+	if (val_act->type != VALUE_ACTION) {
+		ERROR(srv, "expected action as second parameter, got %s", value_type_string(val_act->type));
 		return NULL;
 	}
-	if (opt_act_else && opt_act_else->type != OPTION_ACTION) {
-		ERROR(srv, "expected action as third parameter, got %s", option_type_string(opt_act_else->type));
+	if (val_act_else && val_act_else->type != VALUE_ACTION) {
+		ERROR(srv, "expected action as third parameter, got %s", value_type_string(val_act_else->type));
 		return NULL;
 	}
-	condition_acquire(opt_cond->value.opt_cond.cond);
-	action_acquire(opt_act->value.opt_action.action);
+	condition_acquire(val_cond->data.val_cond.cond);
+	action_acquire(val_act->data.val_action.action);
 	if (act_else) action_acquire(act_else);
-	a = action_new_condition(opt_cond->value.opt_cond.cond, opt_act->value.opt_action.action, act_else);
-	option_free(opt);
+	a = action_new_condition(val_cond->data.val_cond.cond, val_act->data.val_action.action, act_else);
+	value_free(val);
 	return a;
 }
 
-static action* core_set(server *srv, plugin* p, option *opt) {
-	option *value, *opt_name;
+static action* core_set(server *srv, plugin* p, value *val) {
+	value *val_val, *val_name;
 	action *a;
 	UNUSED(p);
 
-	if (!opt) {
+	if (!val) {
 		ERROR(srv, "%s", "need parameter");
 		return NULL;
 	}
-	if (opt->type != OPTION_LIST) {
-		ERROR(srv, "expected list, got %s", option_type_string(opt->type));
+	if (val->type != VALUE_LIST) {
+		ERROR(srv, "expected list, got %s", value_type_string(val->type));
 		return NULL;
 	}
-	if (opt->value.opt_list->len != 2) {
-		ERROR(srv, "expected list with length 2, has length %u", opt->value.opt_list->len);
+	if (val->data.list->len != 2) {
+		ERROR(srv, "expected list with length 2, has length %u", val->data.list->len);
 		return NULL;
 	}
-	opt_name = g_array_index(opt->value.opt_list, option*, 0);
-	value = g_array_index(opt->value.opt_list, option*, 1);
-	if (opt_name->type != OPTION_STRING) {
-		ERROR(srv, "expected string as first parameter, got %s", option_type_string(opt_name->type));
+	val_name = g_array_index(val->data.list, value*, 0);
+	val_val = g_array_index(val->data.list, value*, 1);
+	if (val_name->type != VALUE_STRING) {
+		ERROR(srv, "expected string as first parameter, got %s", value_type_string(val_name->type));
 		return NULL;
 	}
-	a = option_action(srv, opt_name->value.opt_string->str, value);
-	option_free(opt);
+	a = option_action(srv, val_name->data.string->str, val_val);
+	value_free(val);
 	return a;
 }
 
@@ -138,21 +138,21 @@ static void core_physical_free(struct server *srv, gpointer param) {
 	g_string_free((GString*) param, TRUE);
 }
 
-static action* core_physical(server *srv, plugin* p, option *opt) {
+static action* core_physical(server *srv, plugin* p, value *val) {
 	UNUSED(p);
 	GString *docroot;
 
-	if (!opt) {
+	if (!val) {
 		ERROR(srv, "%s", "need parameter");
 		return NULL;
 	}
-	if (opt->type != OPTION_STRING) {
-		ERROR(srv, "expected string as parameter, got %s", option_type_string(opt->type));
+	if (val->type != VALUE_STRING) {
+		ERROR(srv, "expected string as parameter, got %s", value_type_string(val->type));
 		return NULL;
 	}
 
-	docroot = (GString*) option_extract_value(opt);
-	option_free(opt);
+	docroot = (GString*) value_extract_ptr(val);
+	value_free(val);
 
 	return action_new_function(core_handle_physical, core_physical_free, docroot);
 }
@@ -187,9 +187,9 @@ static action_result core_handle_static(connection *con, gpointer param) {
 	return ACTION_GO_ON;
 }
 
-static action* core_static(server *srv, plugin* p, option *opt) {
+static action* core_static(server *srv, plugin* p, value *val) {
 	UNUSED(p);
-	if (opt) {
+	if (val) {
 		ERROR(srv, "%s", "static action doesn't have parameters");
 		return NULL;
 	}
@@ -267,10 +267,10 @@ static action_result core_handle_test(connection *con, gpointer param) {
 	return ACTION_GO_ON;
 }
 
-static action* core_test(server *srv, plugin* p, option *opt) {
+static action* core_test(server *srv, plugin* p, value *val) {
 	UNUSED(p);
 
-	if (opt) {
+	if (val) {
 		ERROR(srv, "%s", "'static' action doesn't have parameters");
 		return NULL;
 	}
@@ -289,10 +289,10 @@ static action_result core_handle_blank(connection *con, gpointer param) {
 	return ACTION_GO_ON;
 }
 
-static action* core_blank(server *srv, plugin* p, option *opt) {
+static action* core_blank(server *srv, plugin* p, value *val) {
 	UNUSED(p);
 
-	if (opt) {
+	if (val) {
 		ERROR(srv, "%s", "'empty' action doesn't have parameters");
 		return NULL;
 	}
@@ -300,17 +300,17 @@ static action* core_blank(server *srv, plugin* p, option *opt) {
 	return action_new_function(core_handle_blank, NULL, NULL);
 }
 
-static gboolean core_listen(server *srv, plugin* p, option *opt) {
+static gboolean core_listen(server *srv, plugin* p, value *val) {
 	guint32 ipv4;
 	guint8 ipv6[16];
 	UNUSED(p);
-	if (opt->type != OPTION_STRING) {
+	if (val->type != VALUE_STRING) {
 		ERROR(srv, "%s", "listen expects a string as parameter");
 		return FALSE;
 	}
 
-	if (parse_ipv4(opt->value.opt_string->str, &ipv4, NULL)) {
-		int s, val;
+	if (parse_ipv4(val->data.string->str, &ipv4, NULL)) {
+		int s, v;
 		struct sockaddr_in addr;
 		memset(&addr, 0, sizeof(addr));
 		addr.sin_family = AF_INET;
@@ -320,8 +320,8 @@ static gboolean core_listen(server *srv, plugin* p, option *opt) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
 			return FALSE;
 		}
-		val = 1;
-		if (-1 == setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val))) {
+		v = 1;
+		if (-1 == setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &v, sizeof(v))) {
 			close(s);
 			ERROR(srv, "Couldn't setsockopt(SO_REUSEADDR) to '%s': %s", inet_ntoa(*(struct in_addr*)&ipv4), g_strerror(errno));
 			return FALSE;
@@ -339,33 +339,33 @@ static gboolean core_listen(server *srv, plugin* p, option *opt) {
 		server_listen(srv, s);
 		TRACE(srv, "listen to ipv4: '%s'", inet_ntoa(*(struct in_addr*)&ipv4));
 #ifdef HAVE_IPV6
-	} else if (parse_ipv6(opt->value.opt_string->str, ipv6, NULL)) {
+	} else if (parse_ipv6(val->data.string->str, ipv6, NULL)) {
 		/* TODO: IPv6 */
 		ERROR(srv, "%s", "IPv6 not supported yet");
 		return FALSE;
 #endif
 	} else {
-		ERROR(srv, "Invalid ip: '%s'", opt->value.opt_string->str);
+		ERROR(srv, "Invalid ip: '%s'", val->data.string->str);
 		return FALSE;
 	}
 
-	TRACE(srv, "will listen to '%s'", opt->value.opt_string->str);
-	option_free(opt);
+	TRACE(srv, "will listen to '%s'", val->data.string->str);
+	value_free(val);
 	return TRUE;
 }
 
 
-static gboolean core_event_handler(server *srv, plugin* p, option *opt) {
+static gboolean core_event_handler(server *srv, plugin* p, value *val) {
 	guint backend;
 	gchar *str;
 	UNUSED(p);
 
-	if (opt->type != OPTION_STRING) {
+	if (val->type != VALUE_STRING) {
 		ERROR(srv, "%s", "event_handler expects a string as parameter");
 		return FALSE;
 	}
 
-	str = opt->value.opt_string->str;
+	str = val->data.string->str;
 	backend = 0; /* libev will chose the right one by default */
 
 	if (g_str_equal(str, "select"))
@@ -401,12 +401,12 @@ static gboolean core_event_handler(server *srv, plugin* p, option *opt) {
 	return TRUE;
 }
 
-static gboolean core_workers(server *srv, plugin* p, option *opt) {
+static gboolean core_workers(server *srv, plugin* p, value *val) {
 	gint workers;
 	UNUSED(p);
 
-	workers = opt->value.opt_int;
-	if (opt->type != OPTION_INT || workers < 1) {
+	workers = val->data.number;
+	if (val->type != VALUE_NUMBER || workers < 1) {
 		ERROR(srv, "%s", "workers expects a positive integer as parameter");
 		return FALSE;
 	}
@@ -415,7 +415,7 @@ static gboolean core_workers(server *srv, plugin* p, option *opt) {
 		ERROR(srv, "workers already called with '%i', overwriting", srv->worker_count);
 	}
 	srv->worker_count = workers;
-	option_free(opt);
+	value_free(val);
 	return TRUE;
 }
 
@@ -444,21 +444,21 @@ gpointer core_option_log_default(server *srv, plugin *p, gsize ndx) {
 	return arr;
 }
 
-gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, option *opt, gpointer *value) {
-	UNUSED(p);
-	UNUSED(ndx);
-	UNUSED(opt);
+gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
 	GHashTableIter iter;
 	gpointer k, v;
 	log_level_t level;
 	GString *path;
 	GString *level_str;
 	GArray *arr = g_array_sized_new(FALSE, TRUE, sizeof(log_t*), 5);
+	UNUSED(p);
+	UNUSED(ndx);
+
 	g_array_set_size(arr, 5);
 
-	g_hash_table_iter_init(&iter, opt->value.opt_hash);
+	g_hash_table_iter_init(&iter, val->data.hash);
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
-		path = ((option*)v)->value.opt_string;
+		path = ((value*)v)->data.string;
 		level_str = (GString*)k;
 
 		if (g_str_equal(level_str->str, "*")) {
@@ -476,18 +476,16 @@ gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, option *opt, 
 		}
 	}
 
-	*value = (gpointer)arr;
+	oval->list = arr;
 
 	return TRUE;
 }
 
-void core_option_log_free(server *srv, plugin *p, size_t ndx, gpointer value) {
-	UNUSED(srv);
+void core_option_log_free(server *srv, plugin *p, size_t ndx, option_value oval) {
 	UNUSED(p);
 	UNUSED(ndx);
-	UNUSED(value);
 
-	GArray *arr = value;
+	GArray *arr = oval.list;
 
 	for (guint i = 0; i < arr->len; i++) {
 		if (NULL != g_array_index(arr, log_t*, i))
@@ -495,33 +493,32 @@ void core_option_log_free(server *srv, plugin *p, size_t ndx, gpointer value) {
 	}
 }
 
-gboolean core_option_log_timestamp_parse(server *srv, plugin *p, size_t ndx, option *opt, gpointer *value) {
-	UNUSED(srv);
+gboolean core_option_log_timestamp_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
 	UNUSED(p);
 	UNUSED(ndx);
 
-	*value = (gpointer)log_timestamp_new(srv, opt->value.opt_string);
+	oval->ptr = log_timestamp_new(srv, val->data.string);
 
 	return TRUE;
 }
 
-void core_option_log_timestamp_free(server *srv, plugin *p, size_t ndx, gpointer value) {
-	UNUSED(srv);
+void core_option_log_timestamp_free(server *srv, plugin *p, size_t ndx, option_value oval) {
 	UNUSED(p);
 	UNUSED(ndx);
-	log_timestamp_free(srv, value);
+
+	log_timestamp_free(srv, oval.ptr);
 }
 
 static const plugin_option options[] = {
-	{ "debug.log_request_handling", OPTION_BOOLEAN, NULL, NULL, NULL },
+	{ "debug.log_request_handling", VALUE_BOOLEAN, NULL, NULL, NULL },
 
-	{ "log.timestamp", OPTION_STRING, NULL, core_option_log_timestamp_parse, core_option_log_timestamp_free },
-	{ "log", OPTION_HASH, core_option_log_default, core_option_log_parse, core_option_log_free },
+	{ "log.timestamp", VALUE_STRING, NULL, core_option_log_timestamp_parse, core_option_log_timestamp_free },
+	{ "log", VALUE_HASH, core_option_log_default, core_option_log_parse, core_option_log_free },
 
-	{ "static-file.exclude", OPTION_LIST, NULL, NULL, NULL },
+	{ "static-file.exclude", VALUE_LIST, NULL, NULL, NULL },
 
-	{ "server.tag", OPTION_STRING, core_option_server_tag_default, NULL, NULL },
-	{ "server.max_keep_alive_idle", OPTION_INT, core_option_max_keep_alive_idle_default, NULL, NULL },
+	{ "server.tag", VALUE_STRING, core_option_server_tag_default, NULL, NULL },
+	{ "server.max_keep_alive_idle", VALUE_NUMBER, core_option_max_keep_alive_idle_default, NULL, NULL },
 	{ NULL, 0, NULL, NULL, NULL }
 };
 

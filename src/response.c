@@ -101,7 +101,7 @@ void response_send_headers(connection *con) {
 		}
 
 		if (!have_server) {
-			GString *tag = CORE_OPTION(CORE_OPTION_SERVER_TAG);
+			GString *tag = CORE_OPTION(CORE_OPTION_SERVER_TAG).string;
 
 			if (tag->len) {
 				g_string_append_len(head, CONST_STR_LEN("Server: "));

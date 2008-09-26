@@ -1,5 +1,5 @@
 
-#include "options_lua.h"
+#include "value_lua.h"
 #include "condition_lua.h"
 #include "actions_lua.h"
 #include "log.h"
@@ -14,8 +14,8 @@ static int lua_fixindex(lua_State *L, int ndx) {
 	return ndx;
 }
 
-static option* option_from_lua_table(server *srv, lua_State *L, int ndx) {
-	option *opt = NULL, *sub_option;
+static value* value_from_lua_table(server *srv, lua_State *L, int ndx) {
+	value *val = NULL, *sub_option;
 	GArray *list = NULL;
 	GHashTable *hash = NULL;
 	int ikey;
@@ -28,8 +28,8 @@ static option* option_from_lua_table(server *srv, lua_State *L, int ndx) {
 		case LUA_TNUMBER:
 			if (hash) goto mixerror;
 			if (!list) {
-				opt = option_new_list();
-				list = opt->value.opt_list;
+				val = value_new_list();
+				list = val->data.list;
 			}
 			ikey = lua_tointeger(L, -2);
 			if (ikey < 0) {
@@ -37,19 +37,19 @@ static option* option_from_lua_table(server *srv, lua_State *L, int ndx) {
 				lua_pop(L, 1);
 				continue;
 			}
-			sub_option = option_from_lua(srv, L);
+			sub_option = value_from_lua(srv, L);
 			if (!sub_option) continue;
 			if ((size_t) ikey >= list->len) {
 				g_array_set_size(list, ikey + 1);
 			}
-			g_array_index(list, option*, ikey) = sub_option;
+			g_array_index(list, value*, ikey) = sub_option;
 			break;
 
 		case LUA_TSTRING:
 			if (list) goto mixerror;
 			if (!hash) {
-				opt = option_new_hash();
-				hash = opt->value.opt_hash;
+				val = value_new_hash();
+				hash = val->data.hash;
 			}
 			skey = lua_togstring(L, -2);
 			if (g_hash_table_lookup(hash, skey)) {
@@ -57,7 +57,7 @@ static option* option_from_lua_table(server *srv, lua_State *L, int ndx) {
 				lua_pop(L, 1);
 				continue;
 			}
-			sub_option = option_from_lua(srv, L);
+			sub_option = value_from_lua(srv, L);
 			if (!sub_option) {
 				g_string_free(skey, TRUE);
 				continue;
@@ -72,17 +72,17 @@ static option* option_from_lua_table(server *srv, lua_State *L, int ndx) {
 		}
 	}
 
-	return opt;
+	return val;
 
 mixerror:
 	ERROR(srv, "%s", "Cannot mix list with hash; skipping remaining part of table");
 	lua_pop(L, 2);
-	return opt;
+	return val;
 }
 
 
-option* option_from_lua(server *srv, lua_State *L) {
-	option *opt;
+value* value_from_lua(server *srv, lua_State *L) {
+	value *val;
 
 	switch (lua_type(L, -1)) {
 	case LUA_TNIL:
@@ -90,24 +90,24 @@ option* option_from_lua(server *srv, lua_State *L) {
 		return NULL;
 
 	case LUA_TBOOLEAN:
-		opt = option_new_bool(lua_toboolean(L, -1));
+		val = value_new_bool(lua_toboolean(L, -1));
 		lua_pop(L, 1);
-		return opt;
+		return val;
 
 	case LUA_TNUMBER:
-		opt = option_new_int(lua_tointeger(L, -1));
+		val = value_new_number(lua_tonumber(L, -1));
 		lua_pop(L, 1);
-		return opt;
+		return val;
 
 	case LUA_TSTRING:
-		opt = option_new_string(lua_togstring(L, -1));
+		val = value_new_string(lua_togstring(L, -1));
 		lua_pop(L, 1);
-		return opt;
+		return val;
 
 	case LUA_TTABLE:
-		opt = option_from_lua_table(srv, L, -1);
+		val = value_from_lua_table(srv, L, -1);
 		lua_pop(L, 1);
-		return opt;
+		return val;
 
 	case LUA_TUSERDATA:
 		{ /* check for action */
@@ -115,7 +115,7 @@ option* option_from_lua(server *srv, lua_State *L) {
 			if (a) {
 				action_acquire(a);
 				lua_pop(L, 1);
-				return opt = option_new_action(srv, a);
+				return val = value_new_action(srv, a);
 			}
 		}
 		{ /* check for condition */
@@ -123,7 +123,7 @@ option* option_from_lua(server *srv, lua_State *L) {
 			if (c) {
 				condition_acquire(c);
 				lua_pop(L, 1);
-				return opt = option_new_condition(srv, c);
+				return val = value_new_condition(srv, c);
 			}
 		}
 		ERROR(srv, "%s", "Unknown lua userdata");

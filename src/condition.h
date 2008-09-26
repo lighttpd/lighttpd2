@@ -71,7 +71,7 @@ struct condition_lvalue {
 };
 
 typedef enum {
-	COND_VALUE_INT,
+	COND_VALUE_NUMBER,
 	COND_VALUE_STRING,
 #ifdef HAVE_PCRE_H
 	COND_VALUE_REGEXP,

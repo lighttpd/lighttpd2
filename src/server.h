@@ -21,6 +21,8 @@ struct server_socket {
 
 struct worker;
 
+union option_value;
+
 struct server {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
 	server_state state;       /** atomic access */
@@ -48,8 +50,8 @@ struct server {
 
 	GArray *plugins_handle_close; /** list of handle_close callbacks */
 
-	size_t option_count;      /**< set to size of option hash table */
-	gpointer *option_def_values;
+	size_t option_count;      /**< set to size of value hash table */
+	union option_value *option_def_values;
 	struct action *mainaction;
 
 	gboolean exiting;         /** atomic access */

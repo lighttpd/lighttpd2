@@ -8,13 +8,13 @@ static void _http_header_free(gpointer p) {
 	g_slice_free(http_header, h);
 }
 
-static http_header* _http_header_new(const gchar *key, size_t keylen, const gchar *value, size_t valuelen) {
+static http_header* _http_header_new(const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	http_header *h = g_slice_new0(http_header);
 	h->data = g_string_sized_new(keylen + valuelen + 2);
 	h->keylen = keylen;
 	g_string_append_len(h->data, key, keylen);
 	g_string_append_len(h->data, CONST_STR_LEN(": "));
-	g_string_append_len(h->data, value, valuelen);
+	g_string_append_len(h->data, val, valuelen);
 	return h;
 }
 
@@ -42,8 +42,8 @@ void http_headers_free(http_headers* headers) {
 }
 
 /** just insert normal header, allow duplicates */
-void http_header_insert(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen) {
-	http_header *h = _http_header_new(key, keylen, value, valuelen);
+void http_header_insert(http_headers *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
+	http_header *h = _http_header_new(key, keylen, val, valuelen);
 	g_queue_push_tail(&headers->entries, h);
 }
 
@@ -80,34 +80,34 @@ GList* http_header_find_last(http_headers *headers, const gchar *key, size_t key
 }
 
 /** If header does not exist, just insert normal header. If it exists, append (", %s", value) to the last inserted one */
-void http_header_append(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen) {
+void http_header_append(http_headers *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	GList *l;
 	http_header *h;
 
 	l = http_header_find_last(headers, key, keylen);
 	if (NULL == l) {
-		http_header_insert(headers, key, keylen, value, valuelen);
+		http_header_insert(headers, key, keylen, val, valuelen);
 	} else {
 		h = (http_header*) l;
 		g_string_append_len(h->data, CONST_STR_LEN(", "));
-		g_string_append_len(h->data, value, valuelen);
+		g_string_append_len(h->data, val, valuelen);
 	}
 }
 
 /** If header does not exist, just insert normal header. If it exists, overwrite the last occurrence */
-void http_header_overwrite(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen) {
+void http_header_overwrite(http_headers *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	GList *l;
 	http_header *h;
 
 	l = http_header_find_last(headers, key, keylen);
 	if (NULL == l) {
-		http_header_insert(headers, key, keylen, value, valuelen);
+		http_header_insert(headers, key, keylen, val, valuelen);
 	} else {
 		h = (http_header*) l;
 		g_string_truncate(h->data, 0);
 		g_string_append_len(h->data, key, keylen);
 		g_string_append_len(h->data, CONST_STR_LEN(": "));
-		g_string_append_len(h->data, value, valuelen);
+		g_string_append_len(h->data, val, valuelen);
 	}
 }
 
@@ -143,14 +143,14 @@ http_header* http_header_lookup(http_headers *headers, const gchar *key, size_t 
 	return NULL == l ? NULL : (http_header*) l->data;
 }
 
-gboolean http_header_is(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen) {
+gboolean http_header_is(http_headers *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	GList *l;
 	UNUSED(valuelen);
 
 	for (l = http_header_find_first(headers, key, keylen); l; l = http_header_find_next(l, key, keylen)) {
 		http_header *h = (http_header*) l->data;
 		if (h->data->len - (h->keylen + 2) != valuelen) continue;
-		if (0 == g_ascii_strcasecmp( &h->data->str[h->keylen+2], value )) return TRUE;
+		if (0 == g_ascii_strcasecmp( &h->data->str[h->keylen+2], val )) return TRUE;
 	}
 	return FALSE;
 }

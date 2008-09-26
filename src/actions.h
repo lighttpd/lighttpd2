@@ -59,7 +59,7 @@ struct action {
 		action_func function;
 
 		GArray* list; /** array of (action*) */
-	} value;
+	} data;
 };
 
 /* no new/free function, so just use the struct direct (i.e. not a pointer) */

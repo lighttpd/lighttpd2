@@ -217,7 +217,7 @@ void server_check_keepalive(server *srv);
 void connection_reset_keep_alive(connection *con) {
 	ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 	{
-		con->keep_alive_data.max_idle = GPOINTER_TO_INT(CORE_OPTION(CORE_OPTION_MAX_KEEP_ALIVE_IDLE));
+		con->keep_alive_data.max_idle = CORE_OPTION(CORE_OPTION_MAX_KEEP_ALIVE_IDLE).number;
 		if (con->keep_alive_data.max_idle == 0) {
 			worker_con_put(con);
 			return;
@@ -338,7 +338,7 @@ void connection_state_machine(connection *con) {
 			break;
 
 		case CON_STATE_READ_REQUEST_HEADER:
-			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				CON_TRACE(con, "%s", "reading request header");
 			}
 			switch(http_request_parse(con, &con->request.parser_ctx)) {
@@ -362,7 +362,7 @@ void connection_state_machine(connection *con) {
 			break;
 
 		case CON_STATE_VALIDATE_REQUEST_HEADER:
-			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				CON_TRACE(con, "%s", "validating request header");
 			}
 			connection_set_state(con, CON_STATE_HANDLE_REQUEST_HEADER);
@@ -371,7 +371,7 @@ void connection_state_machine(connection *con) {
 			break;
 
 		case CON_STATE_HANDLE_REQUEST_HEADER:
-			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				CON_TRACE(con, "%s", "handle request header");
 			}
 			switch (action_execute(con)) {
@@ -393,11 +393,11 @@ void connection_state_machine(connection *con) {
 
 		case CON_STATE_READ_REQUEST_CONTENT:
 		case CON_STATE_HANDLE_RESPONSE_HEADER:
-			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				CON_TRACE(con, "%s", "read request/handle response header");
 			}
 			if (con->expect_100_cont) {
-				if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+				if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 					CON_TRACE(con, "%s", "send 100 Continue");
 				}
 				chunkqueue_append_mem(con->raw_out, CONST_STR_LEN("HTTP/1.1 100 Continue\r\n\r\n"));
@@ -431,13 +431,13 @@ void connection_state_machine(connection *con) {
 
 			if (!con->response_headers_sent) {
 				con->response_headers_sent = TRUE;
-				if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+				if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 					CON_TRACE(con, "%s", "write response headers");
 				}
 				response_send_headers(con);
 			}
 
-			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				CON_TRACE(con, "%s", "write response");
 			}
 
@@ -456,7 +456,7 @@ void connection_state_machine(connection *con) {
 			break;
 
 		case CON_STATE_RESPONSE_END:
-			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				CON_TRACE(con, "response end (keep_alive = %i)", con->keep_alive);
 			}
 
@@ -471,7 +471,7 @@ void connection_state_machine(connection *con) {
 			break;
 
 		case CON_STATE_CLOSE:
-			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				CON_TRACE(con, "%s", "connection closed");
 			}
 
@@ -482,7 +482,7 @@ void connection_state_machine(connection *con) {
 			break;
 
 		case CON_STATE_ERROR:
-			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING)) {
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				CON_TRACE(con, "%s", "connection closed (error)");
 			}
 

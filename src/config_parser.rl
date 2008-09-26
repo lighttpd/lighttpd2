@@ -36,65 +36,65 @@
 
 	# basic types
 	action boolean {
-		option *o;
+		value *o;
 
-		o = option_new_bool(*ctx->mark == 't' ? TRUE : FALSE);
+		o = value_new_bool(*ctx->mark == 't' ? TRUE : FALSE);
 		g_queue_push_head(ctx->option_stack, o);
 
 		_printf("got boolean %s in line %zd\n", *ctx->mark == 't' ? "true" : "false", ctx->line);
 	}
 
 	action integer {
-		option *o;
+		value *o;
 		guint i = 0;
 
 		for (gchar *c = ctx->mark; c < fpc; c++)
 			i = i * 10 + *c - 48;
 
-		o = option_new_int(i);
-		/* push option onto stack */
+		o = value_new_number(i);
+		/* push value onto stack */
 		g_queue_push_head(ctx->option_stack, o);
 
 		_printf("got integer %d in line %zd\n", i, ctx->line);
 	}
 
 	action integer_suffix {
-		option *o;
+		value *o;
 		GString *str;
 
 		o = g_queue_peek_head(ctx->option_stack);
 
 		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
 
-		     if (g_str_equal(str->str, "kbyte")) o->value.opt_int *= 1024;
-		else if (g_str_equal(str->str, "mbyte")) o->value.opt_int *= 1024 * 1024;
-		else if (g_str_equal(str->str, "gbyte")) o->value.opt_int *= 1024 * 1024 * 1024;
+		     if (g_str_equal(str->str, "kbyte")) o->data.number *= 1024;
+		else if (g_str_equal(str->str, "mbyte")) o->data.number *= 1024 * 1024;
+		else if (g_str_equal(str->str, "gbyte")) o->data.number *= 1024 * 1024 * 1024;
 
-		else if (g_str_equal(str->str, "kbit")) o->value.opt_int *= 1000;
-		else if (g_str_equal(str->str, "mbit")) o->value.opt_int *= 1000 * 1000;
-		else if (g_str_equal(str->str, "gbit")) o->value.opt_int *= 1000 * 1000 * 1000;
+		else if (g_str_equal(str->str, "kbit")) o->data.number *= 1000;
+		else if (g_str_equal(str->str, "mbit")) o->data.number *= 1000 * 1000;
+		else if (g_str_equal(str->str, "gbit")) o->data.number *= 1000 * 1000 * 1000;
 
-		else if (g_str_equal(str->str, "min")) o->value.opt_int *= 60;
-		else if (g_str_equal(str->str, "hours")) o->value.opt_int *= 60 * 60;
-		else if (g_str_equal(str->str, "days")) o->value.opt_int *= 60 * 60 * 24;
+		else if (g_str_equal(str->str, "min")) o->data.number *= 60;
+		else if (g_str_equal(str->str, "hours")) o->data.number *= 60 * 60;
+		else if (g_str_equal(str->str, "days")) o->data.number *= 60 * 60 * 24;
 
 		g_string_free(str, TRUE);
 
-		_printf("got int with suffix: %d\n", o->value.opt_int);
+		_printf("got int with suffix: %d\n", o->data.number);
 
 		/* make sure there was no overflow that led to negative numbers */
-		if (o->value.opt_int < 0) {
+		if (o->data.number < 0) {
 			log_warning(srv, NULL, "integer value overflowed in line %zd of %s", ctx->line, ctx->filename);
 			return FALSE;
 		}
 	}
 
 	action string {
-		option *o;
+		value *o;
 		GString *str;
 
 		str = g_string_new_len(ctx->mark+1, fpc - ctx->mark - 2);
-		o = option_new_string(str);
+		o = value_new_string(str);
 		g_queue_push_head(ctx->option_stack, o);
 
 		_printf("got string %s", "");
@@ -104,27 +104,27 @@
 
 	# advanced types
 	action list_start {
-		option *o;
+		value *o;
 
-		/* create new list option and put it on stack, list entries are put in it by getting the previous option from the stack */
-		o = option_new_list();
+		/* create new list value and put it on stack, list entries are put in it by getting the previous value from the stack */
+		o = value_new_list();
 		g_queue_push_head(ctx->option_stack, o);
 
 		fcall list_scanner;
 	}
 
 	action list_push {
-		option *o, *l;
+		value *o, *l;
 
-		/* pop current option from stack and append it to the new top of the stack option (the list) */
+		/* pop current value from stack and append it to the new top of the stack value (the list) */
 		o = g_queue_pop_head(ctx->option_stack);
 
 		l = g_queue_peek_head(ctx->option_stack);
-		assert(l->type == OPTION_LIST);
+		assert(l->type == VALUE_LIST);
 
-		g_array_append_val(l->value.opt_list, o);
+		g_array_append_val(l->data.list, o);
 
-		_printf("list_push %s\n", option_type_string(o->type));
+		_printf("list_push %s\n", value_type_string(o->type));
 	}
 
 	action list_end {
@@ -132,31 +132,31 @@
 	}
 
 	action hash_start {
-		option *o;
+		value *o;
 
-		/* create new hash option and put it on stack, if a key-value pair is encountered, get it by walking 2 steps back the stack */
-		o = option_new_hash();
+		/* create new hash value and put it on stack, if a key-value pair is encountered, get it by walking 2 steps back the stack */
+		o = value_new_hash();
 		g_queue_push_head(ctx->option_stack, o);
 
 		fcall hash_scanner;
 	}
 
 	action hash_push {
-		option *k, *v, *h; /* key value hashtable */
+		value *k, *v, *h; /* key value hashtable */
 		GString *str;
 
 		v = g_queue_pop_head(ctx->option_stack);
 		k = g_queue_pop_head(ctx->option_stack);
 		h = g_queue_peek_head(ctx->option_stack);
 
-		/* duplicate key so option can be free'd */
-		str = g_string_new_len(k->value.opt_string->str, k->value.opt_string->len);
+		/* duplicate key so value can be free'd */
+		str = g_string_new_len(k->data.string->str, k->data.string->len);
 
-		g_hash_table_insert(h->value.opt_hash, str, v);
+		g_hash_table_insert(h->data.hash, str, v);
 
-		_printf("hash_push: %s: %s => %s\n", option_type_string(k->type), option_type_string(v->type), option_type_string(h->type));
+		_printf("hash_push: %s: %s => %s\n", value_type_string(k->type), value_type_string(v->type), value_type_string(h->type));
 
-		option_free(k);
+		value_free(k);
 	}
 
 	action hash_end {
@@ -178,18 +178,18 @@
 	}
 
 	action keyvalue_end {
-		option *k, *v, *l;
+		value *k, *v, *l;
 		/* we have a key and a value on the stack; convert them to a list with 2 elements */
 
 		v = g_queue_pop_head(ctx->option_stack);
 		k = g_queue_pop_head(ctx->option_stack);
 
-		l = option_new_list();
+		l = value_new_list();
 
-		g_array_append_val(l->value.opt_list, k);
-		g_array_append_val(l->value.opt_list, v);
+		g_array_append_val(l->list, k);
+		g_array_append_val(l->list, v);
 
-		_printf("key-value pair: %s => %s in line %zd\n", option_type_string(k->type), option_type_string(v->type), ctx->line);
+		_printf("key-value pair: %s => %s in line %zd\n", value_type_string(k->type), value_type_string(v->type), ctx->line);
 
 		/* push list on the stack */
 		g_queue_push_head(ctx->option_stack, l);
@@ -200,7 +200,7 @@
 	}
 
 	action value {
-		option *o;
+		value *o;
 
 		o = g_queue_peek_head(ctx->option_stack);
 
@@ -212,18 +212,18 @@
 				guint i = 0;
 				gboolean negative = FALSE;
 
-				if (o->type != OPTION_STRING) {
-					log_error(srv, NULL, "can only cast strings to integers, %s given", option_type_string(o->type));
+				if (o->type != VALUE_STRING) {
+					log_error(srv, NULL, "can only cast strings to integers, %s given", value_type_string(o->type));
 					return FALSE;
 				}
 
-				if (o->value.opt_string->str[0] == '-') {
+				if (o->data.string->str[0] == '-') {
 					negative = TRUE;
 					i++;
 				}
 
-				for (; i < o->value.opt_string->len; i++) {
-					gchar c = o->value.opt_string->str[i];
+				for (; i < o->data.string->len; i++) {
+					gchar c = o->data.string->str[i];
 					if (c < '0' || c > '9') {
 						log_error(srv, NULL, "%s", "cast(int) parameter doesn't look like a numerical string");
 						return FALSE;
@@ -234,29 +234,29 @@
 				if (negative)
 					x *= -1;
 
-				g_string_free(o->value.opt_string, TRUE);
-				o->value.opt_int = x;
-				o->type = OPTION_INT;
+				g_string_free(o->data.string, TRUE);
+				o->data.number = x;
+				o->type = VALUE_NUMBER;
 			}
 			else if (ctx->cast == CFG_PARSER_CAST_STR) {
 				/* cast integer to string */
 				GString *str;
 
-				if (o->type != OPTION_INT) {
-					log_error(srv, NULL, "can only cast integers to strings, %s given", option_type_string(o->type));
+				if (o->type != VALUE_NUMBER) {
+					log_error(srv, NULL, "can only cast integers to strings, %s given", value_type_string(o->type));
 					return FALSE;
 				}
 
 				str = g_string_sized_new(0);
-				g_string_printf(str, "%d", o->value.opt_int);
-				o->value.opt_string = str;
-				o->type = OPTION_STRING;
+				g_string_printf(str, "%" G_GINT64_FORMAT, o->data.number);
+				o->data.string = str;
+				o->type = VALUE_STRING;
 			}
 
 			ctx->cast = CFG_PARSER_CAST_NONE;
 		}
 
-		_printf("value (%s) in line %zd\n", option_type_string(o->type), ctx->line);
+		_printf("value (%s) in line %zd\n", value_type_string(o->type), ctx->line);
 	}
 
 	action value_statement_start {
@@ -274,7 +274,7 @@
 	action value_statement {
 		/* value (+|-|*|/) value */
 		/* compute new value out of the two */
-		option *l, *r, *o;
+		value *l, *r, *o;
 		gboolean free_l, free_r;
 
 		free_l = free_r = TRUE;
@@ -288,58 +288,58 @@
 			/* value => value */
 			free_l = FALSE;
 			free_r = FALSE;
-			o = option_new_list();
-			g_array_append_val(o->value.opt_list, l);
-			g_array_append_val(o->value.opt_list, r);
+			o = value_new_list();
+			g_array_append_val(o->data.list, l);
+			g_array_append_val(o->data.list, r);
 		}
-		else if (l->type == OPTION_INT && r->type == OPTION_INT) {
+		else if (l->type == VALUE_NUMBER && r->type == VALUE_NUMBER) {
 			switch (ctx->value_op) {
-				case '+': o = option_new_int(l->value.opt_int + r->value.opt_int); break;
-				case '-': o = option_new_int(l->value.opt_int - r->value.opt_int); break;
-				case '*': o = option_new_int(l->value.opt_int * r->value.opt_int); break;
-				case '/': o = option_new_int(l->value.opt_int / r->value.opt_int); break;
+				case '+': o = value_new_number(l->data.number + r->data.number); break;
+				case '-': o = value_new_number(l->data.number - r->data.number); break;
+				case '*': o = value_new_number(l->data.number * r->data.number); break;
+				case '/': o = value_new_number(l->data.number / r->data.number); break;
 			}
 		}
-		else if (l->type == OPTION_STRING) {
+		else if (l->type == VALUE_STRING) {
 			o = l;
 			free_l = FALSE;
 
-			if (r->type == OPTION_STRING && ctx->value_op == '+') {
+			if (r->type == VALUE_STRING && ctx->value_op == '+') {
 				/* str + str */
-				o->value.opt_string = g_string_append_len(o->value.opt_string, r->value.opt_string->str, r->value.opt_string->len);
+				o->data.string = g_string_append_len(o->data.string, r->data.string->str, r->data.string->len);
 			}
-			else if (r->type == OPTION_INT && ctx->value_op == '+') {
+			else if (r->type == VALUE_NUMBER && ctx->value_op == '+') {
 				/* str + int */
-				g_string_append_printf(o->value.opt_string, "%d", r->value.opt_int);
+				g_string_append_printf(o->data.string, "%" G_GINT64_FORMAT, r->data.number);
 			}
-			else if (r->type == OPTION_INT && ctx->value_op == '*') {
+			else if (r->type == VALUE_NUMBER && ctx->value_op == '*') {
 				/* str * int */
-				if (r->value.opt_int < 0) {
-					log_error(srv, NULL, "string multiplication with negative number (%d)?", r->value.opt_int);
+				if (r->data.number < 0) {
+					log_error(srv, NULL, "string multiplication with negative number (%" G_GINT64_FORMAT ")?", r->data.number);
 					return FALSE;
 				}
-				else if (r->value.opt_int == 0) {
-					o->value.opt_string = g_string_truncate(o->value.opt_string, 0);
+				else if (r->data.number == 0) {
+					o->data.string = g_string_truncate(o->data.string, 0);
 				}
 				else {
 					GString *str;
-					str = g_string_new_len(l->value.opt_string->str, l->value.opt_string->len);
-					for (gint i = 1; i < r->value.opt_int; i++)
-						o->value.opt_string = g_string_append_len(o->value.opt_string, str->str, str->len);
+					str = g_string_new_len(l->data.string->str, l->data.string->len);
+					for (gint i = 1; i < r->data.number; i++)
+						o->data.string = g_string_append_len(o->data.string, str->str, str->len);
 					g_string_free(str, TRUE);
 				}
 			}
 			else
 				o = NULL;
 		}
-		else if (l->type == OPTION_LIST) {
+		else if (l->type == VALUE_LIST) {
 			if (ctx->value_op == '+') {
 				/* append r to the end of l */
 				free_l = FALSE; /* use l as the new o */
 				free_r = FALSE; /* r gets appended to o */
 				o = l;
 
-				g_array_append_val(l->value.opt_list, r);
+				g_array_append_val(l->data.list, r);
 			}
 			else if (ctx->value_op == '*') {
 				/* merge l and r */
@@ -348,110 +348,110 @@
 				//o = l;
 
 
-				//a = g_array_sized_new(FALSE, FALSE, sizeof(option*), r->value.opt_list->len);
-				//a = g_array_append_vals(a, r->value.opt_list->data, r->value.opt_list->len); /* copy old list from r to a */
-				//o->value.opt_list = g_array_append_vals(o->value.opt_list, a->data, a->len); /* append data from a to o */
+				//a = g_array_sized_new(FALSE, FALSE, sizeof(value*), r->list->len);
+				//a = g_array_append_vals(a, r->list->data, r->list->len); /* copy old list from r to a */
+				//o->list = g_array_append_vals(o->list, a->data, a->len); /* append data from a to o */
 				//g_array_free(a, FALSE); /* free a but not the data because it is now in o */
 
-				if (r->type == OPTION_LIST) {
+				if (r->type == VALUE_LIST) {
 					/* merge lists */
 					free_l = FALSE;
-					g_array_append_vals(l->value.opt_list, r->value.opt_list->data, r->value.opt_list->len);
-					r->type = OPTION_NONE;
+					g_array_append_vals(l->data.list, r->data.list->data, r->data.list->len);
+					r->type = VALUE_NONE;
 					o = l;
 				}
 			}
 		}
-		else if (l->type == OPTION_HASH && r->type == OPTION_HASH && ctx->value_op == '+') {
+		else if (l->type == VALUE_HASH && r->type == VALUE_HASH && ctx->value_op == '+') {
 			/* merge hashtables */
 			GHashTableIter iter;
-			gpointer key, value;
+			gpointer key, val;
 			free_l = FALSE; /* keep l, it's the new o */
 			o = l;
 
-			g_hash_table_iter_init(&iter, r->value.opt_hash);
-			while (g_hash_table_iter_next(&iter, &key, &value)) {
-				g_hash_table_insert(o->value.opt_hash, key, value);
+			g_hash_table_iter_init(&iter, r->data.hash);
+			while (g_hash_table_iter_next(&iter, &key, &val)) {
+				g_hash_table_insert(o->data.hash, key, val);
 				g_hash_table_iter_steal(&iter); /* steal key->value so it doesn't get deleted when destroying r */
 			}
 		}
 
 		if (o == NULL) {
 			log_warning(srv, NULL, "erronous value statement: %s %c %s in line %zd\n",
-				option_type_string(l->type), ctx->value_op,
-				option_type_string(r->type), ctx->line);
+				value_type_string(l->type), ctx->value_op,
+				value_type_string(r->type), ctx->line);
 			return FALSE;
 		}
 
 		_printf("value statement: %s %c%s %s => %s in line %zd\n",
-			option_type_string(l->type),
+			value_type_string(l->type),
 			ctx->value_op,
 			ctx->value_op == '=' ?  ">" : "",
-			option_type_string(r->type),
-			option_type_string(o->type),
+			value_type_string(r->type),
+			value_type_string(o->type),
 			ctx->line);
 
 		if (free_l)
-			option_free(l);
+			value_free(l);
 		if (free_r)
-			option_free(r);
+			value_free(r);
 
 		g_queue_push_head(ctx->option_stack, o);
 	}
 
 	action varname {
-		/* varname, push it as string option onto the stack */
-		option *o;
+		/* varname, push it as string value onto the stack */
+		value *o;
 		GString *str;
 
 		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
-		o = option_new_string(str);
+		o = value_new_string(str);
 		g_queue_push_head(ctx->option_stack, o);
 	}
 
 	action actionref {
 		/* varname is on the stack */
-		option *o, *r, *t;
+		value *o, *r, *t;
 
 		o = g_queue_pop_head(ctx->option_stack);
 
 		/* action refs starting with "var." are user defined variables */
-		if (g_str_has_prefix(o->value.opt_string->str, "var.")) {
-			/* look up var in hashtable, copy and push option onto stack */
-			t = g_hash_table_lookup(ctx->uservars, o->value.opt_string);
+		if (g_str_has_prefix(o->data.string->str, "var.")) {
+			/* look up var in hashtable, copy and push value onto stack */
+			t = g_hash_table_lookup(ctx->uservars, o->data.string);
 
 			if (t == NULL) {
-				log_warning(srv, NULL, "unknown variable '%s'", o->value.opt_string->str);
+				log_warning(srv, NULL, "unknown variable '%s'", o->data.string->str);
 				return FALSE;
 			}
 
-			r = option_copy(t);
+			r = value_copy(t);
 		}
-		else if (g_str_has_prefix(o->value.opt_string->str, "env.")) {
-			/* look up string in environment, push option onto stack */
-			gchar *env = getenv(o->value.opt_string->str + 4);
+		else if (g_str_has_prefix(o->data.string->str, "env.")) {
+			/* look up string in environment, push value onto stack */
+			gchar *env = getenv(o->data.string->str + 4);
 			if (env == NULL) {
-				log_error(srv, NULL, "unknown environment variable: %s", o->value.opt_string->str + 4);
+				log_error(srv, NULL, "unknown environment variable: %s", o->data.string->str + 4);
 				return FALSE;
 			}
 
-			r = option_new_string(g_string_new(env));
+			r = value_new_string(g_string_new(env));
 		}
 		else {
-			/* real action, lookup hashtable and create new action option */
+			/* real action, lookup hashtable and create new action value */
 			action *a;
-			a = g_hash_table_lookup(ctx->action_blocks, o->value.opt_string);
+			a = g_hash_table_lookup(ctx->action_blocks, o->data.string);
 
 			if (a == NULL) {
-				log_warning(srv, NULL, "unknown action block referenced: %s", o->value.opt_string->str);
+				log_warning(srv, NULL, "unknown action block referenced: %s", o->data.string->str);
 				return FALSE;
 			}
 
-			r = option_new_action(srv, a);
+			r = value_new_action(srv, a);
 		}
 
 		g_queue_push_head(ctx->option_stack, r);
-		option_free(o);
+		value_free(o);
 	}
 
 	action operator {
@@ -477,111 +477,111 @@
 
 	# statements
 	action assignment {
-		option *val, *name;
+		value *val, *name;
 		action *a, *al;
 
-		/* top of the stack is the value, then the varname as string option */
+		/* top of the stack is the value, then the varname as string value */
 		val = g_queue_pop_head(ctx->option_stack);
 		name = g_queue_pop_head(ctx->option_stack);
 
-		assert(name->type == OPTION_STRING);
+		assert(name->type == VALUE_STRING);
 
-		_printf("got assignment: %s = %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
+		_printf("got assignment: %s = %s; in line %zd\n", name->string->str, value_type_string(val->type), ctx->line);
 
 		if (ctx->in_setup_block) {
 			/* in setup { } block => set default values for options */
 			/* todo name */
 		}
-		else if (g_str_has_prefix(name->value.opt_string->str, "var.")) {
+		else if (g_str_has_prefix(name->data.string->str, "var.")) {
 			/* assignment vor user defined variable, insert into hashtable */
-			g_hash_table_insert(ctx->uservars, name->value.opt_string, val);
+			g_hash_table_insert(ctx->uservars, name->data.string, val);
 		}
 		else {
 			/* normal assignment */
-			a = option_action(srv, name->value.opt_string->str, val);
+			a = option_action(srv, name->data.string->str, val);
 
 			if (a == NULL)
 				return FALSE;
 
 			al = g_queue_peek_head(ctx->action_list_stack);
-			g_array_append_val(al->value.list, a);
-			option_free(name);
+			g_array_append_val(al->data.list, a);
+			value_free(name);
 		}
 	}
 
 	action function_noparam {
-		option *name;
+		value *name;
 		action *a, *al;
 
 		name = g_queue_pop_head(ctx->option_stack);
 
-		assert(name->type == OPTION_STRING);
+		assert(name->type == VALUE_STRING);
 
-		_printf("got function: %s; in line %zd\n", name->value.opt_string->str, ctx->line);
+		_printf("got function: %s; in line %zd\n", name->string->str, ctx->line);
 
-		if (g_str_equal(name->value.opt_string->str, "break")) {
+		if (g_str_equal(name->data.string->str, "break")) {
 		}
-		else if (g_str_equal(name->value.opt_string->str, "__halt")) {
+		else if (g_str_equal(name->data.string->str, "__halt")) {
 		}
 		else {
 			if (ctx->in_setup_block) {
 				/* we are in the setup { } block, call setups and don't append to action list */
-				if (!call_setup(srv, name->value.opt_string->str, NULL)) {
+				if (!call_setup(srv, name->data.string->str, NULL)) {
 					return FALSE;
 				}
 			}
 			else {
 				al = g_queue_peek_head(ctx->action_list_stack);
-				a = create_action(srv, name->value.opt_string->str, NULL);
+				a = create_action(srv, name->data.string->str, NULL);
 
 				if (a == NULL)
 					return FALSE;
 
-				g_array_append_val(al->value.list, a);
+				g_array_append_val(al->data.list, a);
 			}
 		}
 	}
 
 	action function_param {
 		/* similar to assignment */
-		option *val, *name;
+		value *val, *name;
 		action *a, *al;
 
-		/* top of the stack is the value, then the varname as string option */
+		/* top of the stack is the value, then the varname as string value */
 		val = g_queue_pop_head(ctx->option_stack);
 		name = g_queue_pop_head(ctx->option_stack);
 
-		assert(name->type == OPTION_STRING);
+		assert(name->type == VALUE_STRING);
 
-		_printf("got function: %s %s; in line %zd\n", name->value.opt_string->str, option_type_string(val->type), ctx->line);
+		_printf("got function: %s %s; in line %zd\n", name->string->str, value_type_string(val->type), ctx->line);
 
-		if (g_str_equal(name->value.opt_string->str, "include")) {
-			if (val->type != OPTION_STRING) {
-				log_warning(srv, NULL, "include directive takes a string as parameter, %s given", option_type_string(val->type));
+		if (g_str_equal(name->data.string->str, "include")) {
+			if (val->type != VALUE_STRING) {
+				log_warning(srv, NULL, "include directive takes a string as parameter, %s given", value_type_string(val->type));
 				return FALSE;
 			}
 
-			if (!config_parser_file(srv, ctx_stack, val->value.opt_string->str))
+			if (!config_parser_file(srv, ctx_stack, val->data.string->str))
 				return FALSE;
 
-			option_free(val);
+			value_free(val);
 		}
-		else if (g_str_equal(name->value.opt_string->str, "include_shell")) {
-			if (val->type != OPTION_STRING) {
-				log_warning(srv, NULL, "include_shell directive takes a string as parameter, %s given", option_type_string(val->type));
+		else if (g_str_equal(name->data.string->str, "include_shell")) {
+			if (val->type != VALUE_STRING) {
+				log_warning(srv, NULL, "include_shell directive takes a string as parameter, %s given", value_type_string(val->type));
 				return FALSE;
 			}
 
-			if (!config_parser_shell(srv, ctx_stack, val->value.opt_string->str))
+			if (!config_parser_shell(srv, ctx_stack, val->data.string->str))
 				return FALSE;
 
-			option_free(val);
+			value_free(val);
 		}
 		/* internal functions */
-		else if (g_str_has_prefix(name->value.opt_string->str, "__")) {
-			if (g_str_equal(name->value.opt_string->str + 2, "print")) {
-				GString *tmpstr = option_to_string(val);
-				g_printerr("%s:%zd type: %s, value: %s\n", ctx->filename, ctx->line, option_type_string(val->type), tmpstr->str);
+		else if (g_str_has_prefix(name->data.string->str, "__")) {
+			if (g_str_equal(name->data.string->str + 2, "print")) {
+				GString *tmpstr = value_to_string(val);
+				g_printerr("%s:%zd type: %s, value: %s\n", ctx->filename, ctx->line, value_type_string(val->type), tmpstr->str);
 				g_string_free(tmpstr, TRUE);
 			}
 		}
@@ -590,27 +590,27 @@
 			/* TODO */
 			if (ctx->in_setup_block) {
 				/* we are in the setup { } block, call setups and don't append to action list */
-				if (!call_setup(srv, name->value.opt_string->str, val)) {
+				if (!call_setup(srv, name->data.string->str, val)) {
 					return FALSE;
 				}
 			}
 			else {
 				al = g_queue_peek_head(ctx->action_list_stack);
-				a = create_action(srv, name->value.opt_string->str, val);
+				a = create_action(srv, name->data.string->str, val);
 
 				if (a == NULL)
 					return FALSE;
 
-				g_array_append_val(al->value.list, a);
+				g_array_append_val(al->data.list, a);
 			}
 		}
 
-		option_free(name);
+		value_free(name);
 	}
 
 	action condition_start {
 		/* stack: value, varname OR value, key, varname */
-		option *v, *n, *k;
+		value *v, *n, *k;
 		gchar *str;
 		condition *cond;
 		condition_lvalue *lvalue;
@@ -622,12 +622,12 @@
 			k = NULL;
 		n = g_queue_pop_head(ctx->option_stack);
 
-		assert(n->type == OPTION_STRING);
+		assert(n->type == VALUE_STRING);
 
-		_printf("got condition: %s:%s %s %s in line %zd\n", n->value.opt_string->str, ctx->condition_with_key ? k->value.opt_string->str : "", comp_op_to_string(ctx->op), option_type_string(v->type), ctx->line);
+		_printf("got condition: %s:%s %s %s in line %zd\n", n->string->str, ctx->condition_with_key ? k->string->str : "", comp_op_to_string(ctx->op), value_type_string(v->type), ctx->line);
 
 		/* create condition lvalue */
-		str = n->value.opt_string->str;
+		str = n->data.string->str;
 
 		if (g_str_has_prefix(str, "req")) {
 			str += 3;
@@ -636,7 +636,7 @@
 			else if (g_str_has_prefix(str, "uest."))
 				str += 5;
 			else {
-				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->value.opt_string->str);
+				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->data.string->str);
 				return FALSE;
 			}
 
@@ -655,10 +655,10 @@
 					log_warning(srv, NULL, "%s", "header conditional needs a key");
 					return FALSE;
 				}
-				lvalue = condition_lvalue_new(COMP_REQUEST_HEADER, k->value.opt_string);
+				lvalue = condition_lvalue_new(COMP_REQUEST_HEADER, k->data.string);
 			}
 			else {
-				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->value.opt_string->str);
+				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->data.string->str);
 				return FALSE;
 			}
 		}
@@ -669,7 +669,7 @@
 			else if (g_str_has_prefix(str, "ical."))
 				str += 5;
 			else {
-				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->value.opt_string->str);
+				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->data.string->str);
 				return FALSE;
 			}
 
@@ -680,20 +680,20 @@
 			else if (g_str_equal(str, "size"))
 				lvalue = condition_lvalue_new(COMP_PHYSICAL_SIZE, NULL);
 			else {
-				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->value.opt_string->str);
+				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->data.string->str);
 				return FALSE;
 			}
 		}
 		else {
-			log_warning(srv, NULL, "unkown lvalue for condition: %s", n->value.opt_string->str);
+			log_warning(srv, NULL, "unkown lvalue for condition: %s", n->data.string->str);
 			return FALSE;
 		}
 
-		if (v->type == OPTION_STRING) {
-			cond = condition_new_string(srv, ctx->op, lvalue, v->value.opt_string);
+		if (v->type == VALUE_STRING) {
+			cond = condition_new_string(srv, ctx->op, lvalue, v->data.string);
 		}
-		else if (v->type == OPTION_INT)
-			cond = condition_new_int(srv, ctx->op, lvalue, (gint64) v->value.opt_int);
+		else if (v->type == VALUE_NUMBER)
+			cond = condition_new_int(srv, ctx->op, lvalue, (gint64) v->data.number);
 		else {
 			cond = NULL;
 		}
@@ -720,7 +720,7 @@
 		al = g_queue_pop_head(ctx->action_list_stack);
 		a = action_new_condition(cond, al, NULL);
 		al = g_queue_peek_head(ctx->action_list_stack);
-		g_array_append_val(al->value.list, a);
+		g_array_append_val(al->data.list, a);
 	}
 
 	action condition_key {
@@ -746,14 +746,14 @@
 
 		target = g_queue_pop_head(ctx->action_list_stack);
 		al = g_queue_peek_head(ctx->action_list_stack);
-		cond = g_array_index(al->value.list, action*, al->value.list->len - 1); /* last action in the list is our condition */
+		cond = g_array_index(al->data.list, action*, al->data.list->len - 1); /* last action in the list is our condition */
 
-		while (cond->value.condition.target_else) {
+		while (cond->data.condition.target_else) {
 			/* condition has already an else statement, try the target */
-			cond = cond->value.condition.target_else;
+			cond = cond->data.condition.target_else;
 		}
 
-		cond->value.condition.target_else = target;
+		cond->data.condition.target_else = target;
 
 		_printf("got else_nocond_end in line %zd\n", ctx->line);
 	}
@@ -770,53 +770,53 @@
 		action *prev, *cur, *al;
 
 		al = g_queue_peek_head(ctx->action_list_stack);
-		cur = g_array_index(al->value.list, action*, al->value.list->len - 1); /* last element of the action list */
-		prev = g_array_index(al->value.list, action*, al->value.list->len - 2);
+		cur = g_array_index(al->data.list, action*, al->data.list->len - 1); /* last element of the action list */
+		prev = g_array_index(al->data.list, action*, al->data.list->len - 2);
 
 		assert(cur->type == ACTION_TCONDITION);
 		assert(prev->type == ACTION_TCONDITION);
 
-		while (prev->value.condition.target_else) {
+		while (prev->data.condition.target_else) {
 			/* condition has already an else statement, try the target */
-			prev = prev->value.condition.target_else;
+			prev = prev->data.condition.target_else;
 		}
 
-		prev->value.condition.target_else = cur;
-		g_array_remove_index(al->value.list, al->value.list->len - 1);
+		prev->data.condition.target_else = cur;
+		g_array_remove_index(al->data.list, al->data.list->len - 1);
 
 		_printf("got else_cond_end in line %zd\n", ctx->line);
 	}
 
 	action action_block_start {
-		option *o;
+		value *o;
 		action *al;
 
 		o = g_queue_pop_head(ctx->option_stack);
-		assert(o->type == OPTION_STRING);
+		assert(o->type == VALUE_STRING);
 
 		if (ctx->in_setup_block) {
 			/* no block inside the setup block allowed */
 			assert(NULL); /* TODO */
 		}
 
-		if (g_str_equal(o->value.opt_string->str, "setup")) {
+		if (g_str_equal(o->data.string->str, "setup")) {
 			_printf("entered setup block in line %zd\n", ctx->line);
 			ctx->in_setup_block = TRUE;
 		}
 		else {
 			GString *str;
 
-			_printf("action block %s in line %zd\n", o->value.opt_string->str, ctx->line);
+			_printf("action block %s in line %zd\n", o->string->str, ctx->line);
 
 			/* create new action list and put it on the stack */
 			al = action_new_list();
 			g_queue_push_head(ctx->action_list_stack, al);
 			/* insert into hashtable for later lookups */
-			str = g_string_new_len(o->value.opt_string->str, o->value.opt_string->len);
+			str = g_string_new_len(o->data.string->str, o->data.string->len);
 			g_hash_table_insert(ctx->action_blocks, str, al);
 		}
 
-		option_free(o);
+		value_free(o);
 	}
 
 	action action_block_end {
@@ -907,7 +907,7 @@ GList *config_parser_init(server* srv) {
 void config_parser_finish(server *srv, GList *ctx_stack) {
 	config_parser_context_t *ctx;
 	GHashTableIter iter;
-	gpointer key, value;
+	gpointer key, val;
 
 	_printf("ctx_stack size: %u\n", g_list_length(ctx_stack));
 
@@ -920,7 +920,7 @@ void config_parser_finish(server *srv, GList *ctx_stack) {
 
 	g_hash_table_iter_init(&iter, ctx->action_blocks);
 
-	while (g_hash_table_iter_next(&iter, &key, &value)) {
+	while (g_hash_table_iter_next(&iter, &key, &val)) {
 		g_hash_table_iter_steal(&iter);
 		g_string_free(key, TRUE);
 	}
@@ -931,7 +931,7 @@ void config_parser_finish(server *srv, GList *ctx_stack) {
 
 	g_hash_table_iter_init(&iter, ctx->uservars);
 
-	while (g_hash_table_iter_next(&iter, &key, &value)) {
+	while (g_hash_table_iter_next(&iter, &key, &val)) {
 		g_hash_table_iter_steal(&iter);
 		g_string_free(key, TRUE);
 	}
@@ -969,13 +969,13 @@ config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack
 	}
 	else {
 		GString *str;
-		option *o;
+		value *o;
 		ctx->action_blocks = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
 		ctx->uservars = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
 
 		/* initialize var.PID */
 		/* TODO: what if pid_t is not a 32bit integer? */
-		o = option_new_int(getpid());
+		o = value_new_number(getpid());
 		str = g_string_new_len(CONST_STR_LEN("var.PID"));
 			g_hash_table_insert(ctx->uservars, str, o);
 
@@ -983,7 +983,7 @@ config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack
 		str = g_string_sized_new(1024);
 		if (NULL != getcwd(str->str, 1023)) {
 			g_string_set_size(str, strlen(str->str));
-			o = option_new_string(str);
+			o = value_new_string(str);
 			str = g_string_new_len(CONST_STR_LEN("var.CWD"));
 			g_hash_table_insert(ctx->uservars, str, o);
 		}
@@ -1010,9 +1010,9 @@ void config_parser_context_free(server *srv, config_parser_context_t *ctx, gbool
 		}
 
 		if (g_queue_get_length(ctx->option_stack) > 0) {
-			option *o;
+			value *o;
 			while ((o = g_queue_pop_head(ctx->option_stack)))
-				option_free(o);
+				value_free(o);
 		}
 
 		g_queue_free(ctx->action_list_stack);

@@ -3,7 +3,7 @@
 #include "utils.h"
 #include "plugin_core.h"
 
-static void server_option_free(gpointer _so) {
+static void server_value_free(gpointer _so) {
 	g_slice_free(server_option, _so);
 }
 
@@ -61,7 +61,7 @@ server* server_new() {
 	srv->sockets = g_array_new(FALSE, TRUE, sizeof(server_socket*));
 
 	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
-	srv->options = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_option_free);
+	srv->options = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_value_free);
 	srv->actions = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_action_free);
 	srv->setups  = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_setup_free);
 
@@ -277,7 +277,7 @@ void server_start(server *srv) {
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
 		server_option *so = v;
 		if (so->default_value)
-			srv->option_def_values[so->index] = so->default_value(srv, so->p, so->index);
+			srv->option_def_values[so->index].ptr = so->default_value(srv, so->p, so->index);
 	}
 
 	plugins_prepare_callbacks(srv);
