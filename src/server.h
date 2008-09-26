@@ -58,11 +58,13 @@ struct server {
 
 	struct {
 		GMutex *mutex;
-		GHashTable *targets;  /** const gchar* path => (log_t*) */
+		GHashTable *targets;    /** const gchar* path => (log_t*) */
 		GAsyncQueue *queue;
 		GThread *thread;
-		gboolean stop_thread; /** access with atomic functions */
-		GArray *timestamps;   /** array of log_timestamp_t */
+		gboolean thread_finish; /** finish writing logs in the queue, then exit thread; access with atomic functions */
+		gboolean thread_stop;   /** stop thread immediately; access with atomic functions */
+		gboolean thread_alive;  /** access with atomic functions */
+		GArray *timestamps;     /** array of log_timestamp_t */
 		struct log_t *stderr;
 	} logs;
 

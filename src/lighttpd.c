@@ -9,7 +9,7 @@
 void plugin_core_init(server *srv, plugin *p);
 
 int main(int argc, char *argv[]) {
-	GError *error;
+	GError *error = NULL;
 	GOptionContext *context;
 	server *srv;
 	gboolean res;
@@ -18,6 +18,8 @@ int main(int argc, char *argv[]) {
 	gboolean luaconfig = FALSE;
 	gboolean test_config = FALSE;
 	gboolean show_version = FALSE;
+
+	GList *ctx_stack = NULL;
 
 	GOptionEntry entries[] = {
 		{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_path, "filename/path of the config", "PATH" },
@@ -38,6 +40,7 @@ int main(int argc, char *argv[]) {
 
 	if (!res) {
 		g_printerr("failed to parse command line arguments: %s\n", error->message);
+		g_error_free(error);
 		return 1;
 	}
 
@@ -68,10 +71,10 @@ int main(int argc, char *argv[]) {
 		guint64 d;
 
 		/* standard config frontend */
-		GList *ctx_stack = config_parser_init(srv);
+		ctx_stack = config_parser_init(srv);
 		config_parser_context_t *ctx = (config_parser_context_t*) ctx_stack->data;
 		if (!config_parser_file(srv, ctx_stack, config_path)) {
-			config_parser_finish(srv, ctx_stack);
+			config_parser_finish(srv, ctx_stack, TRUE);
 			log_thread_start(srv);
 			g_atomic_int_set(&srv->exiting, TRUE);
 			log_thread_wakeup(srv);
@@ -90,6 +93,7 @@ int main(int argc, char *argv[]) {
 		log_debug(srv, NULL, "option_stack: %u action_list_stack: %u (should be 0:1)", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
 
 		/* TODO config_parser_finish(srv, ctx_stack); */
+		config_parser_finish(srv, ctx_stack, FALSE);
 	}
 	else {
 #ifdef HAVE_LUA_H
@@ -110,6 +114,7 @@ int main(int argc, char *argv[]) {
 	server_loop_init(srv);
 	server_start(srv);
 
+	config_parser_finish(srv, ctx_stack, TRUE);
 	server_free(srv);
 
 	return 0;

@@ -51,11 +51,11 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint f
 			return TRUE;
 		ts = CORE_OPTION(CORE_OPTION_LOG_TS_FORMAT).ptr;
 		if (!ts)
-			ts = &g_array_index(srv->logs.timestamps, log_timestamp_t, 0);
+			ts = g_array_index(srv->logs.timestamps, log_timestamp_t*, 0);
 	}
 	else {
 		log = srv->logs.stderr;
-		ts = &g_array_index(srv->logs.timestamps, log_timestamp_t, 0);
+		ts = g_array_index(srv->logs.timestamps, log_timestamp_t*, 0);
 	}
 
 	log_ref(srv, log);
@@ -133,9 +133,8 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint f
 
 	/* on critical error, exit */
 	if (log_level == LOG_LEVEL_ABORT) {
+		log_thread_stop(srv);
 		g_atomic_int_set(&srv->exiting, TRUE);
-		g_atomic_int_set(&srv->logs.stop_thread, TRUE);
-		log_thread_wakeup(srv); /* just in case the logging thread is sleeping at this point */
 	}
 
 	return TRUE;
@@ -163,19 +162,17 @@ gpointer log_thread(server *srv) {
 		}
 		*/
 
+		if (g_atomic_int_get(&srv->logs.thread_stop) == TRUE)
+			break;
+
+		if (g_atomic_int_get(&srv->logs.thread_finish) == TRUE && g_async_queue_length(srv->logs.queue) == 0)
+			break;
+
 		log_entry = g_async_queue_pop(srv->logs.queue);
 
 		/* if log_entry->log is NULL, it means that the logger thread has been woken up probably because it should exit */
 		if (log_entry->log == NULL) {
 			g_slice_free(log_entry_t, log_entry);
-
-			/* lighty is exiting, end logging thread */
-			if (g_atomic_int_get(&srv->state) == SERVER_STOPPING && g_async_queue_length(srv->logs.queue) == 0)
-				break;
-
-			if (g_atomic_int_get(&srv->logs.stop_thread) == TRUE)
-				break;
-
 			continue;
 		}
 
@@ -378,7 +375,8 @@ void log_init(server *srv) {
 	srv->logs.targets = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
 	srv->logs.queue = g_async_queue_new();
 	srv->logs.mutex = g_mutex_new();
-	srv->logs.timestamps = g_array_new(FALSE, FALSE, sizeof(log_timestamp_t));
+	srv->logs.timestamps = g_array_new(FALSE, FALSE, sizeof(log_timestamp_t*));
+	srv->logs.thread_alive = FALSE;
 
 	/* first entry in srv->logs.timestamps is the default timestamp */
 	log_timestamp_new(srv, g_string_new_len(CONST_STR_LEN("%d/%b/%Y %T %Z")));
@@ -388,15 +386,64 @@ void log_init(server *srv) {
 	srv->logs.stderr = log_new(srv, LOG_TYPE_STDERR, str);
 }
 
+void log_cleanup(server *srv) {
+	guint i;
+	/* wait for logging thread to exit */
+	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE)
+	{
+		log_thread_finish(srv);
+		g_thread_join(srv->logs.thread);
+	}
+
+
+	log_free(srv, srv->logs.stderr);
+
+	g_hash_table_destroy(srv->logs.targets);
+	g_mutex_free(srv->logs.mutex);
+	g_async_queue_unref(srv->logs.queue);
+
+	log_timestamp_t *ts;
+	for (i = 0; i < srv->logs.timestamps->len; i++) {
+		ts = g_array_index(srv->logs.timestamps, log_timestamp_t*, i);
+		g_print("ts #%d refcount: %d\n", i, ts->refcount);
+		/*if (g_atomic_int_dec_and_test(&ts->refcount)) {
+			g_string_free(ts->cached, TRUE);
+			g_string_free(ts->format, TRUE);
+			g_slice_free(log_timestamp_t, ts);
+			g_array_remove_index_fast(srv->logs.timestamps, i);
+			i--;
+		}*/
+	}
+
+	log_timestamp_free(srv, g_array_index(srv->logs.timestamps, log_timestamp_t*, 0));
+
+	g_array_free(srv->logs.timestamps, TRUE);
+}
+
 void log_thread_start(server *srv) {
 	GError *err = NULL;
 
 	srv->logs.thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
+	g_atomic_int_set(&srv->logs.thread_alive, TRUE);
 
 	if (srv->logs.thread == NULL) {
 		g_printerr("could not create loggin thread: %s\n", err->message);
 		g_error_free(err);
 		abort();
+	}
+}
+
+void log_thread_stop(server *srv) {
+	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE) {
+		g_atomic_int_set(&srv->logs.thread_stop, TRUE);
+		log_thread_wakeup(srv);
+	}
+}
+
+void log_thread_finish(server *srv) {
+	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE) {
+		g_atomic_int_set(&srv->logs.thread_finish, TRUE);
+		log_thread_wakeup(srv);
 	}
 }
 
@@ -422,9 +469,10 @@ log_timestamp_t *log_timestamp_new(server *srv, GString *format) {
 
 	/* check if there already exists a timestamp entry with the same format */
 	for (guint i = 0; i < srv->logs.timestamps->len; i++) {
-		ts = &g_array_index(srv->logs.timestamps, log_timestamp_t, i);
+		ts = g_array_index(srv->logs.timestamps, log_timestamp_t*, i);
 		if (g_string_equal(ts->format, format)) {
 			g_atomic_int_inc(&(ts->refcount));
+			g_string_free(format, TRUE);
 			return ts;
 		}
 	}
@@ -436,19 +484,24 @@ log_timestamp_t *log_timestamp_new(server *srv, GString *format) {
 	ts->refcount = 1;
 	ts->format = format;
 
-	g_array_append_val(srv->logs.timestamps, *ts);
+	g_array_append_val(srv->logs.timestamps, ts);
 
 	return ts;
 }
 
-void log_timestamp_free(server *srv, log_timestamp_t *ts) {
+gboolean log_timestamp_free(server *srv, log_timestamp_t *ts) {
 	if (g_atomic_int_dec_and_test(&(ts->refcount))) {
 		for (guint i = 0; i < srv->logs.timestamps->len; i++) {
-			if (g_string_equal(g_array_index(srv->logs.timestamps, log_timestamp_t, i).format, ts->format)) {
+			if (g_string_equal(g_array_index(srv->logs.timestamps, log_timestamp_t*, i)->format, ts->format)) {
 				g_array_remove_index_fast(srv->logs.timestamps, i);
 				break;
 			}
 		}
+		g_string_free(ts->cached, TRUE);
+		g_string_free(ts->format, TRUE);
 		g_slice_free(log_timestamp_t, ts);
+		return TRUE;
 	}
+
+	return FALSE;
 }

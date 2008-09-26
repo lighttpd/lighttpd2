@@ -453,6 +453,8 @@ static gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value 
 		}
 	}
 
+	value_free(val);
+
 	return TRUE;
 }
 
@@ -475,7 +477,7 @@ static gboolean core_option_log_timestamp_parse(server *srv, plugin *p, size_t n
 	UNUSED(ndx);
 
 	if (!val) return TRUE;
-	oval->ptr = log_timestamp_new(srv, val->data.string);
+	oval->ptr = log_timestamp_new(srv, value_extract(val).string);
 
 	return TRUE;
 }

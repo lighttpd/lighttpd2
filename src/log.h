@@ -170,13 +170,16 @@ void log_rotate_logs(server *srv);
 
 gpointer log_thread(server *srv);
 void log_thread_start(server *srv);
+void log_thread_stop(server *srv);
+void log_thread_finish(server *srv);
 void log_thread_wakeup(server *srv);
 
 void log_init(server *srv);
+void log_cleanup(server *srv);
 
 LI_API gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint flags, const gchar *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(5, 6);
 
 log_timestamp_t *log_timestamp_new(server *srv, GString *format);
-void log_timestamp_free(server *srv, log_timestamp_t *ts);
+gboolean log_timestamp_free(server *srv, log_timestamp_t *ts);
 
 #endif

@@ -10,7 +10,7 @@ typedef struct config_parser_context_t config_parser_context_t;
 
 /* returns a new config parser stack with the first context in it */
 GList *config_parser_init(server *srv);
-void config_parser_finish(server *srv, GList *ctx_stack);
+void config_parser_finish(server *srv, GList *ctx_stack, gboolean free_all);
 
 /* loads a file into memory and parses it */
 gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path);

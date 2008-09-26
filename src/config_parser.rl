@@ -2,7 +2,7 @@
 #include "condition.h"
 #include "config_parser.h"
 
-#if 0
+#if 1
 	#define _printf(fmt, ...) g_print(fmt, __VA_ARGS__)
 #else
 	#define _printf(fmt, ...) /* */
@@ -80,7 +80,7 @@
 
 		g_string_free(str, TRUE);
 
-		_printf("got int with suffix: %d\n", o->data.number);
+		_printf("got int with suffix: %" G_GINT64_FORMAT "\n", o->data.number);
 
 		/* make sure there was no overflow that led to negative numbers */
 		if (o->data.number < 0) {
@@ -306,7 +306,7 @@
 
 			if (r->type == VALUE_STRING && ctx->value_op == '+') {
 				/* str + str */
-				o->data.string = g_string_append_len(o->data.string, r->data.string->str, r->data.string->len);
+				o->data.string = g_string_append_len(o->data.string, GSTR_LEN(r->data.string));
 			}
 			else if (r->type == VALUE_NUMBER && ctx->value_op == '+') {
 				/* str + int */
@@ -343,21 +343,11 @@
 			}
 			else if (ctx->value_op == '*') {
 				/* merge l and r */
-				//GArray *a;
-				//free_l = free_r = FALSE;
-				//o = l;
-
-
-				//a = g_array_sized_new(FALSE, FALSE, sizeof(value*), r->list->len);
-				//a = g_array_append_vals(a, r->list->data, r->list->len); /* copy old list from r to a */
-				//o->list = g_array_append_vals(o->list, a->data, a->len); /* append data from a to o */
-				//g_array_free(a, FALSE); /* free a but not the data because it is now in o */
-
 				if (r->type == VALUE_LIST) {
 					/* merge lists */
 					free_l = FALSE;
 					g_array_append_vals(l->data.list, r->data.list->data, r->data.list->len);
-					r->type = VALUE_NONE;
+					g_array_set_size(r->data.list, 0);
 					o = l;
 				}
 			}
@@ -414,6 +404,8 @@
 		value *o, *r, *t;
 
 		o = g_queue_pop_head(ctx->option_stack);
+
+		_printf("got actionref: %s in line %zd\n", o->data.string->str, ctx->line);
 
 		/* action refs starting with "var." are user defined variables */
 		if (g_str_has_prefix(o->data.string->str, "var.")) {
@@ -486,15 +478,27 @@
 
 		assert(name->type == VALUE_STRING);
 
-		_printf("got assignment: %s = %s; in line %zd\n", name->string->str, value_type_string(val->type), ctx->line);
+		_printf("got assignment: %s = %s; in line %zd\n", name->data.string->str, value_type_string(val->type), ctx->line);
 
 		if (ctx->in_setup_block) {
 			/* in setup { } block => set default values for options */
-			/* todo name */
+			/* TODO */
 		}
 		else if (g_str_has_prefix(name->data.string->str, "var.")) {
 			/* assignment vor user defined variable, insert into hashtable */
-			g_hash_table_insert(ctx->uservars, name->data.string, val);
+			gpointer old_key;
+			gpointer old_val;
+			GString *str = value_extract(name).string;
+
+			/* free old key and value if we are overwriting it */
+			if (g_hash_table_lookup_extended(ctx->uservars, str, &old_key, &old_val)) {
+				g_hash_table_remove(ctx->uservars, str);
+				g_string_free(old_key, TRUE);
+				value_free(old_val);
+			}
+
+			g_hash_table_insert(ctx->uservars, str, val);
+			val = NULL; /* prevent free */
 		}
 		else {
 			/* normal assignment */
@@ -505,8 +509,10 @@
 
 			al = g_queue_peek_head(ctx->action_list_stack);
 			g_array_append_val(al->data.list, a);
-			value_free(name);
 		}
+
+		value_free(name);
+		value_free(val);
 	}
 
 	action function_noparam {
@@ -517,7 +523,7 @@
 
 		assert(name->type == VALUE_STRING);
 
-		_printf("got function: %s; in line %zd\n", name->string->str, ctx->line);
+		_printf("got function: %s; in line %zd\n", name->data.string->str, ctx->line);
 
 		if (g_str_equal(name->data.string->str, "break")) {
 		}
@@ -539,6 +545,8 @@
 
 				g_array_append_val(al->data.list, a);
 			}
+
+			value_free(name);
 		}
 	}
 
@@ -553,7 +561,7 @@
 
 		assert(name->type == VALUE_STRING);
 
-		_printf("got function: %s %s; in line %zd\n", name->string->str, value_type_string(val->type), ctx->line);
+		_printf("got function: %s %s; in line %zd\n", name->data.string->str, value_type_string(val->type), ctx->line);
 
 		if (g_str_equal(name->data.string->str, "include")) {
 			if (val->type != VALUE_STRING) {
@@ -583,6 +591,7 @@
 				GString *tmpstr = value_to_string(val);
 				g_printerr("%s:%zd type: %s, value: %s\n", ctx->filename, ctx->line, value_type_string(val->type), tmpstr->str);
 				g_string_free(tmpstr, TRUE);
+				value_free(val);
 			}
 		}
 		/* normal function action */
@@ -624,7 +633,7 @@
 
 		assert(n->type == VALUE_STRING);
 
-		_printf("got condition: %s:%s %s %s in line %zd\n", n->string->str, ctx->condition_with_key ? k->string->str : "", comp_op_to_string(ctx->op), value_type_string(v->type), ctx->line);
+		_printf("got condition: %s:%s %s %s in line %zd\n", n->data.string->str, ctx->condition_with_key ? k->data.string->str : "", comp_op_to_string(ctx->op), value_type_string(v->type), ctx->line);
 
 		/* create condition lvalue */
 		str = n->data.string->str;
@@ -655,7 +664,7 @@
 					log_warning(srv, NULL, "%s", "header conditional needs a key");
 					return FALSE;
 				}
-				lvalue = condition_lvalue_new(COMP_REQUEST_HEADER, k->data.string);
+				lvalue = condition_lvalue_new(COMP_REQUEST_HEADER, value_extract(k).string);
 			}
 			else {
 				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->data.string->str);
@@ -690,10 +699,10 @@
 		}
 
 		if (v->type == VALUE_STRING) {
-			cond = condition_new_string(srv, ctx->op, lvalue, v->data.string);
+			cond = condition_new_string(srv, ctx->op, lvalue, value_extract(v).string);
 		}
 		else if (v->type == VALUE_NUMBER)
-			cond = condition_new_int(srv, ctx->op, lvalue, (gint64) v->data.number);
+			cond = condition_new_int(srv, ctx->op, lvalue, value_extract_number(v));
 		else {
 			cond = NULL;
 		}
@@ -709,6 +718,9 @@
 		g_queue_push_head(ctx->action_list_stack, action_new_list());
 
 		/* TODO: free stuff */
+		value_free(n);
+		value_free(k);
+		value_free(v);
 		ctx->condition_with_key = FALSE;
 	}
 
@@ -806,7 +818,7 @@
 		else {
 			GString *str;
 
-			_printf("action block %s in line %zd\n", o->string->str, ctx->line);
+			_printf("action block %s in line %zd\n", o->data.string->str, ctx->line);
 
 			/* create new action list and put it on the stack */
 			al = action_new_list();
@@ -904,7 +916,7 @@ GList *config_parser_init(server* srv) {
 	return g_list_append(NULL, ctx);
 }
 
-void config_parser_finish(server *srv, GList *ctx_stack) {
+void config_parser_finish(server *srv, GList *ctx_stack, gboolean free_all) {
 	config_parser_context_t *ctx;
 	GHashTableIter iter;
 	gpointer key, val;
@@ -912,37 +924,41 @@ void config_parser_finish(server *srv, GList *ctx_stack) {
 	_printf("ctx_stack size: %u\n", g_list_length(ctx_stack));
 
 	/* clear all contexts from the stack */
-	while ((ctx = g_list_nth_data(ctx_stack, 1)) != NULL) {
+	GList *l = g_list_nth(ctx_stack, 1);
+	while (l) {
+		ctx = l->data;
 		config_parser_context_free(srv, ctx, FALSE);
+		l = l->next;
 	}
 
-	ctx = (config_parser_context_t*) ctx_stack->data;
+	if (free_all) {
+		ctx = (config_parser_context_t*) ctx_stack->data;
 
-	g_hash_table_iter_init(&iter, ctx->action_blocks);
+		g_hash_table_iter_init(&iter, ctx->action_blocks);
 
-	while (g_hash_table_iter_next(&iter, &key, &val)) {
-		g_hash_table_iter_steal(&iter);
-		g_string_free(key, TRUE);
+		while (g_hash_table_iter_next(&iter, &key, &val)) {
+			action_release(srv, val);
+			g_string_free(key, TRUE);
+		}
+
+		g_hash_table_destroy(ctx->action_blocks);
+
+		g_hash_table_iter_init(&iter, ctx->uservars);
+
+		while (g_hash_table_iter_next(&iter, &key, &val)) {
+			value_free(val);
+			g_string_free(key, TRUE);
+		}
+
+		g_hash_table_destroy(ctx->uservars);
+
+
+
+		config_parser_context_free(srv, ctx, TRUE);
+
+		g_list_free(ctx_stack);
+		srv->mainaction = NULL;
 	}
-
-	g_hash_table_destroy(ctx->action_blocks);
-
-
-
-	g_hash_table_iter_init(&iter, ctx->uservars);
-
-	while (g_hash_table_iter_next(&iter, &key, &val)) {
-		g_hash_table_iter_steal(&iter);
-		g_string_free(key, TRUE);
-	}
-
-	g_hash_table_destroy(ctx->uservars);
-
-
-
-	config_parser_context_free(srv, ctx, TRUE);
-
-	g_list_free(ctx_stack);
 }
 
 config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack) {
@@ -1015,8 +1031,15 @@ void config_parser_context_free(server *srv, config_parser_context_t *ctx, gbool
 				value_free(o);
 		}
 
+		if (g_queue_get_length(ctx->condition_stack) > 0) {
+			condition *c;
+			while ((c = g_queue_pop_head(ctx->condition_stack)))
+				condition_release(srv, c);
+		}
+
 		g_queue_free(ctx->action_list_stack);
 		g_queue_free(ctx->option_stack);
+		g_queue_free(ctx->condition_stack);
 	}
 
 	g_slice_free(config_parser_context_t, ctx);

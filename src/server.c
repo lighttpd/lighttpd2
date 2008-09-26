@@ -127,23 +127,10 @@ void server_free(server* srv) {
 		g_slice_free1(srv->option_count * sizeof(*srv->option_def_values), srv->option_def_values);
 	}
 
+	log_cleanup(srv);
+
 	server_plugins_free(srv);
 	g_array_free(srv->plugins_handle_close, TRUE); /* TODO: */
-
-	/* free logs */
-	g_thread_join(srv->logs.thread);
-	{
-		GHashTableIter iter;
-		gpointer k, v;
-		g_hash_table_iter_init(&iter, srv->logs.targets);
-		while (g_hash_table_iter_next(&iter, &k, &v)) {
-			log_free(srv, v);
-		}
-		g_hash_table_destroy(srv->logs.targets);
-	}
-
-	g_mutex_free(srv->logs.mutex);
-	g_async_queue_unref(srv->logs.queue);
 
 	g_slice_free(server, srv);
 }
