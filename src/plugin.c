@@ -74,7 +74,7 @@ void server_plugins_free(server *srv) {
 	g_hash_table_iter_init(&i, srv->plugins);
 	while (g_hash_table_iter_next(&i, &key, &val)) {
 		plugin *p = (plugin*) val;
-	
+
 		plugin_free_options(srv, p);
 		plugin_free_actions(srv, p);
 		plugin_free_setups(srv, p);
@@ -206,6 +206,7 @@ gboolean parse_option(server *srv, const char *name, value *val, option_set *mar
 
 	if (!sopt->parse_option) {
 		mark->value = value_extract(val);
+		value_free(val);
 	} else {
 		if (!sopt->parse_option(srv, sopt->p, sopt->module_index, val, &mark->value)) {
 			/* errors should be logged by parse function */

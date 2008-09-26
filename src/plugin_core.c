@@ -479,6 +479,8 @@ static gboolean core_option_log_timestamp_parse(server *srv, plugin *p, size_t n
 	if (!val) return TRUE;
 	oval->ptr = log_timestamp_new(srv, value_extract(val).string);
 
+	value_free(val);
+
 	return TRUE;
 }
 

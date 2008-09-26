@@ -498,7 +498,6 @@
 			}
 
 			g_hash_table_insert(ctx->uservars, str, val);
-			val = NULL; /* prevent free */
 		}
 		else {
 			/* normal assignment */
@@ -512,7 +511,6 @@
 		}
 
 		value_free(name);
-		value_free(val);
 	}
 
 	action function_noparam {
