@@ -306,7 +306,7 @@ ENDIF(WITH_LUA)
 
 ## Build parsers by using ragel...
 RAGEL_PARSER(condition_parsers.rl)
-RAGEL_PARSER(config_parser.rl)
+RAGEL_PARSER(config_parser.rl -T0)
 RAGEL_PARSER(http_request_parser.rl)
 RAGEL_PARSER(url_parser.rl)
 
