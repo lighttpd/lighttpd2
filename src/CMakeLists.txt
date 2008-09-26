@@ -268,6 +268,7 @@ SET(COMMON_SRC
 	base.c
 	chunk.c
 	chunk_parser.c
+	collect.c
 	condition.c
 	condition_parsers.c
 	config_parser.c

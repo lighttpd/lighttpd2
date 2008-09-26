@@ -11,6 +11,7 @@ common_source='''
 	base.c
 	chunk.c
 	chunk_parser.c
+	collect.c
 	condition.c
 	condition_parsers.rl
 	config_parser.rl

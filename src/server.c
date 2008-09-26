@@ -32,7 +32,7 @@ static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	server *srv = (server*) w->data;
 	UNUSED(revents);
 
-	if (!g_atomic_int_get(&srv->exiting)) {
+	if (g_atomic_int_get(&srv->state) != SERVER_STOPPING) {
 		INFO(srv, "Got signal, shutdown");
 		server_stop(srv);
 	} else {
@@ -80,6 +80,7 @@ void server_free(server* srv) {
 	if (!srv) return;
 
 	server_stop(srv);
+	g_atomic_int_set(&srv->exiting, TRUE);
 
 	/* join all workers */
 	{
@@ -295,7 +296,6 @@ void server_start(server *srv) {
 
 void server_stop(server *srv) {
 	guint i;
-	g_atomic_int_set(&srv->exiting, TRUE);
 
 	if (g_atomic_int_get(&srv->state) == SERVER_STOPPING) return;
 	g_atomic_int_set(&srv->state, SERVER_STOPPING);
@@ -317,6 +317,8 @@ void server_stop(server *srv) {
 
 void server_exit(server *srv) {
 	server_stop(srv);
+
+	g_atomic_int_set(&srv->exiting, TRUE);
 
 	/* exit all workers */
 	{

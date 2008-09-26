@@ -2,6 +2,7 @@
 #include <sched.h>
 
 #include "base.h"
+#include "collect.h"
 
 static connection* worker_con_get(worker *wrk);
 void worker_con_put(connection *con);
@@ -32,7 +33,7 @@ void worker_add_closing_socket(worker *wrk, int fd) {
 	worker_closing_socket *scs = g_slice_new0(worker_closing_socket);
 
 	shutdown(fd, SHUT_WR);
-	if (g_atomic_int_get(&wrk->srv->exiting)) {
+	if (g_atomic_int_get(&wrk->srv->state) == SERVER_STOPPING) {
 		shutdown(fd, SHUT_RD);
 		close(fd);
 		return;
@@ -176,7 +177,7 @@ static void worker_stat_watcher_cb(struct ev_loop *loop, ev_timer *w, int revent
 		wrk->stats.requests_per_sec =
 			(wrk->stats.requests - wrk->stats.last_requests) / (now - wrk->stats.last_update);
 		if (wrk->stats.requests_per_sec > 0)
-			TRACE(wrk->srv, "worker %u: %2f requests per second", wrk->ndx, wrk->stats.requests_per_sec);
+			TRACE(wrk->srv, "worker %u: %.2f requests per second", wrk->ndx, wrk->stats.requests_per_sec);
 	}
 
 	wrk->stats.last_requests = wrk->stats.requests;
@@ -221,6 +222,12 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	ev_timer_start(wrk->loop, &wrk->stat_watcher);
 	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
+	ev_init(&wrk->collect_watcher, collect_watcher_cb);
+	wrk->collect_watcher.data = wrk;
+	ev_async_start(wrk->loop, &wrk->collect_watcher);
+	wrk->collect_queue = g_async_queue_new();
+	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
+
 	return wrk;
 }
 
@@ -261,6 +268,11 @@ void worker_free(worker *wrk) {
 
 	ev_ref(wrk->loop);
 	ev_timer_stop(wrk->loop, &wrk->stat_watcher);
+
+	ev_ref(wrk->loop);
+	ev_async_stop(wrk->loop, &wrk->collect_watcher);
+	collect_watcher_cb(wrk->loop, &wrk->collect_watcher, 0);
+	g_async_queue_unref(wrk->collect_queue);
 
 	g_slice_free(worker, wrk);
 }
