@@ -79,6 +79,7 @@ int main(int argc, char *argv[]) {
 			g_atomic_int_set(&srv->exiting, TRUE);
 			log_thread_wakeup(srv);
 			server_free(srv);
+			g_free(config_path);
 			return 1;
 		}
 
@@ -116,6 +117,7 @@ int main(int argc, char *argv[]) {
 
 	config_parser_finish(srv, ctx_stack, TRUE);
 	server_free(srv);
+	g_free(config_path);
 
 	return 0;
 }
