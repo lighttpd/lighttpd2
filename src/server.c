@@ -291,13 +291,13 @@ void server_stop(server *srv) {
 			server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
 			ev_io_stop(srv->main_worker->loop, &sock->watcher);
 		}
-	}
 
-	/* stop all workers */
-	for (i = 0; i < srv->worker_count; i++) {
-		worker *wrk;
-		wrk = g_array_index(srv->workers, worker*, i);
-		worker_stop(srv->main_worker, wrk);
+		/* stop all workers */
+		for (i = 0; i < srv->worker_count; i++) {
+			worker *wrk;
+			wrk = g_array_index(srv->workers, worker*, i);
+			worker_stop(srv->main_worker, wrk);
+		}
 	}
 
 	log_thread_wakeup(srv);

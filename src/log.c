@@ -448,6 +448,8 @@ void log_thread_finish(server *srv) {
 }
 
 void log_thread_wakeup(server *srv) {
+	if (!g_atomic_int_get(&srv->logs.thread_alive))
+		log_thread_start(srv);
 	log_entry_t *e;
 
 	e = g_slice_new0(log_entry_t);

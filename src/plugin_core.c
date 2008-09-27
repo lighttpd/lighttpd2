@@ -299,19 +299,46 @@ static action* core_blank(server *srv, plugin* p, value *val) {
 static gboolean core_listen(server *srv, plugin* p, value *val) {
 	guint32 ipv4;
 	guint8 ipv6[16];
+	GString *ipstr;
+	guint16 port = 80;
 	UNUSED(p);
+
 	if (val->type != VALUE_STRING) {
 		ERROR(srv, "%s", "listen expects a string as parameter");
 		return FALSE;
 	}
 
-	if (parse_ipv4(val->data.string->str, &ipv4, NULL)) {
+	if (val->data.string->str[0] == '[') {
+		/* ipv6 with port */
+		gchar *pos = g_strrstr(val->data.string->str, "]");
+		if (NULL == pos) {
+			ERROR(srv, "%s", "listen: bogus ipv6 format");
+			return FALSE;
+		}
+		if (pos[1] == ':') {
+			port = atoi(&pos[2]);
+		}
+		ipstr = g_string_new_len(&val->data.string->str[1], pos - &val->data.string->str[1]);
+	} else {
+		/* no brackets, search for :port */
+		gchar *pos = g_strrstr(val->data.string->str, ":");
+		if (NULL != pos) {
+			ipstr = g_string_new_len(val->data.string->str, pos - val->data.string->str);
+			port = atoi(&pos[1]);
+		} else {
+			/* no port, just plain ipv4 or ipv6 address */
+			ipstr = g_string_new_len(GSTR_LEN(val->data.string));
+		}
+	}
+
+	if (parse_ipv4(ipstr->str, &ipv4, NULL)) {
 		int s, v;
 		struct sockaddr_in addr;
 		memset(&addr, 0, sizeof(addr));
 		addr.sin_family = AF_INET;
 		addr.sin_addr.s_addr = ipv4;
-		addr.sin_port = htons(8080);
+		addr.sin_port = htons(port);
+		g_string_free(ipstr, TRUE);
 		if (-1 == (s = socket(AF_INET, SOCK_STREAM, 0))) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
 			return FALSE;
@@ -333,19 +360,20 @@ static gboolean core_listen(server *srv, plugin* p, value *val) {
 			return FALSE;
 		}
 		server_listen(srv, s);
-		TRACE(srv, "listen to ipv4: '%s'", inet_ntoa(*(struct in_addr*)&ipv4));
+		TRACE(srv, "listen to ipv4: '%s' port: %d", inet_ntoa(*(struct in_addr*)&ipv4), port);
 #ifdef HAVE_IPV6
-	} else if (parse_ipv6(val->data.string->str, ipv6, NULL)) {
+	} else if (parse_ipv6(ipstr->str, ipv6, NULL)) {
 		/* TODO: IPv6 */
+		g_string_free(ipstr, TRUE);
 		ERROR(srv, "%s", "IPv6 not supported yet");
 		return FALSE;
 #endif
 	} else {
-		ERROR(srv, "Invalid ip: '%s'", val->data.string->str);
+		ERROR(srv, "Invalid ip: '%s'", ipstr->str);
+		g_string_free(ipstr, TRUE);
 		return FALSE;
 	}
 
-	TRACE(srv, "will listen to '%s'", val->data.string->str);
 	return TRUE;
 }
 

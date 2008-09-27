@@ -2,7 +2,7 @@
 #include "condition.h"
 #include "config_parser.h"
 
-#if 1
+#if 0
 	#define _printf(fmt, ...) g_print(fmt, __VA_ARGS__)
 #else
 	#define _printf(fmt, ...) /* */
@@ -46,7 +46,7 @@
 
 	action integer {
 		value *o;
-		guint i = 0;
+		gint64 i = 0;
 
 		for (gchar *c = ctx->mark; c < fpc; c++)
 			i = i * 10 + *c - 48;
@@ -55,7 +55,7 @@
 		/* push value onto stack */
 		g_queue_push_head(ctx->option_stack, o);
 
-		_printf("got integer %d in line %zd\n", i, ctx->line);
+		_printf("got integer %" G_GINT64_FORMAT " in line %zd\n", i, ctx->line);
 	}
 
 	action integer_suffix {
@@ -69,10 +69,12 @@
 		     if (g_str_equal(str->str, "kbyte")) o->data.number *= 1024;
 		else if (g_str_equal(str->str, "mbyte")) o->data.number *= 1024 * 1024;
 		else if (g_str_equal(str->str, "gbyte")) o->data.number *= 1024 * 1024 * 1024;
+		else if (g_str_equal(str->str, "tbyte")) o->data.number *= 1024 * 1024 * 1024 * G_GINT64_CONSTANT(1024);
 
 		else if (g_str_equal(str->str, "kbit")) o->data.number *= 1000;
 		else if (g_str_equal(str->str, "mbit")) o->data.number *= 1000 * 1000;
 		else if (g_str_equal(str->str, "gbit")) o->data.number *= 1000 * 1000 * 1000;
+		else if (g_str_equal(str->str, "tbit")) o->data.number *= 1000 * 1000 * 1000 * G_GINT64_CONSTANT(1000);
 
 		else if (g_str_equal(str->str, "min")) o->data.number *= 60;
 		else if (g_str_equal(str->str, "hours")) o->data.number *= 60 * 60;
@@ -81,12 +83,6 @@
 		g_string_free(str, TRUE);
 
 		_printf("got int with suffix: %" G_GINT64_FORMAT "\n", o->data.number);
-
-		/* make sure there was no overflow that led to negative numbers */
-		if (o->data.number < 0) {
-			log_warning(srv, NULL, "integer value overflowed in line %zd of %s", ctx->line, ctx->filename);
-			return FALSE;
-		}
 	}
 
 	action string {
@@ -414,6 +410,7 @@
 
 			if (t == NULL) {
 				log_warning(srv, NULL, "unknown variable '%s'", o->data.string->str);
+				value_free(o);
 				return FALSE;
 			}
 
@@ -424,6 +421,7 @@
 			gchar *env = getenv(o->data.string->str + 4);
 			if (env == NULL) {
 				log_error(srv, NULL, "unknown environment variable: %s", o->data.string->str + 4);
+				value_free(o);
 				return FALSE;
 			}
 
@@ -532,6 +530,7 @@
 			if (ctx->in_setup_block) {
 				/* we are in the setup { } block, call setups and don't append to action list */
 				if (!call_setup(srv, name->data.string->str, NULL)) {
+					value_free(name);
 					return FALSE;
 				}
 			}
@@ -539,14 +538,16 @@
 				al = g_queue_peek_head(ctx->action_list_stack);
 				a = create_action(srv, name->data.string->str, NULL);
 
-				if (a == NULL)
+				if (a == NULL) {
+					value_free(name);
 					return FALSE;
+				}
 
 				g_array_append_val(al->data.list, a);
 			}
-
-			value_free(name);
 		}
+
+		value_free(name);
 	}
 
 	action function_param {
@@ -565,22 +566,32 @@
 		if (g_str_equal(name->data.string->str, "include")) {
 			if (val->type != VALUE_STRING) {
 				log_warning(srv, NULL, "include directive takes a string as parameter, %s given", value_type_string(val->type));
+				value_free(name);
+				value_free(val);
 				return FALSE;
 			}
 
-			if (!config_parser_file(srv, ctx_stack, val->data.string->str))
+			if (!config_parser_file(srv, ctx_stack, val->data.string->str)) {
+				value_free(name);
+				value_free(val);
 				return FALSE;
+			}
 
 			value_free(val);
 		}
 		else if (g_str_equal(name->data.string->str, "include_shell")) {
 			if (val->type != VALUE_STRING) {
 				log_warning(srv, NULL, "include_shell directive takes a string as parameter, %s given", value_type_string(val->type));
+				value_free(name);
+				value_free(val);
 				return FALSE;
 			}
 
-			if (!config_parser_shell(srv, ctx_stack, val->data.string->str))
+			if (!config_parser_shell(srv, ctx_stack, val->data.string->str)) {
+				value_free(name);
+				value_free(val);
 				return FALSE;
+			}
 
 			value_free(val);
 		}
@@ -599,6 +610,7 @@
 			if (ctx->in_setup_block) {
 				/* we are in the setup { } block, call setups and don't append to action list */
 				if (!call_setup(srv, name->data.string->str, val)) {
+					value_free(name);
 					value_free(val);
 					return FALSE;
 				}
@@ -609,8 +621,10 @@
 				a = create_action(srv, name->data.string->str, val);
 				value_free(val);
 
-				if (a == NULL)
+				if (a == NULL) {
+					value_free(name);
 					return FALSE;
+				}
 
 				g_array_append_val(al->data.list, a);
 			}
@@ -861,7 +875,7 @@
 	# basic types
 	boolean = ( 'true' | 'false' ) %boolean;
 	integer_suffix_bytes = ( 'byte' | 'kbyte' | 'mbyte' | 'gbyte' | 'tbyte' | 'pbyte' );
-	integer_suffix_bits = ( 'bit' | 'kbit' | 'mbit' | 'gbit' );
+	integer_suffix_bits = ( 'bit' | 'kbit' | 'mbit' | 'gbit' | 'tbit' | 'pbit' );
 	integer_suffix_seconds = ( 'sec' | 'min' | 'hours' | 'days' );
 	integer_suffix = ( integer_suffix_bytes | integer_suffix_bits | integer_suffix_seconds ) >mark %integer_suffix;
 	integer = ( ('0' | ( [1-9] [0-9]* )) %integer (ws? integer_suffix)? );
