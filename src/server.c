@@ -286,9 +286,11 @@ void server_stop(server *srv) {
 	if (g_atomic_int_get(&srv->state) == SERVER_STOPPING) return;
 	g_atomic_int_set(&srv->state, SERVER_STOPPING);
 
-	for (i = 0; i < srv->sockets->len; i++) {
-		server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
-		ev_io_stop(srv->main_worker->loop, &sock->watcher);
+	if (srv->main_worker) {
+		for (i = 0; i < srv->sockets->len; i++) {
+			server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
+			ev_io_stop(srv->main_worker->loop, &sock->watcher);
+		}
 	}
 
 	/* stop all workers */
