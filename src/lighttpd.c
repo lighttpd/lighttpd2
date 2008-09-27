@@ -110,12 +110,14 @@ int main(int argc, char *argv[]) {
 	if (test_config)
 		return 0;
 
-	TRACE(srv, "%s", "Test!");
+	/* TRACE(srv, "%s", "Test!"); */
 
 	server_loop_init(srv);
 	server_start(srv);
 
-	config_parser_finish(srv, ctx_stack, TRUE);
+	if (!luaconfig)
+		config_parser_finish(srv, ctx_stack, TRUE);
+
 	server_free(srv);
 	g_free(config_path);
 

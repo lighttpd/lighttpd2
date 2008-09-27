@@ -95,7 +95,8 @@ struct plugin_setup {
 struct server_option {
 	plugin *p;
 
-	/** the plugin must free the _content_ of the value (e.g. with option_free)
+	/** the value is freed with value_free after the parse call, so you
+	  *   probably want to extract the content via value_extract*
 	  * val is zero to get the global default value if nothing is specified
 	  * save result in value
 	  *
@@ -138,6 +139,7 @@ LI_API gboolean plugin_register(server *srv, const gchar *name, PluginInit init)
 LI_API void plugin_free(server *srv, plugin *p);
 LI_API void server_plugins_free(server *srv);
 
+/** free val after call (val may be modified by parser) */
 LI_API gboolean parse_option(server *srv, const char *name, value *val, option_set *mark);
 LI_API void release_option(server *srv, option_set *mark); /**< Does not free the option_set memory */
 
@@ -145,13 +147,13 @@ LI_API void plugins_prepare_callbacks(server *srv);
 LI_API void plugins_handle_close(connection *con);
 
 /* Needed for config frontends */
-/** For parsing 'somemod.option = "somevalue"' */
+/** For parsing 'somemod.option = "somevalue"', free value after call */
 LI_API action* option_action(server *srv, const gchar *name, value *value);
 /** For parsing 'somemod.action value', e.g. 'rewrite "/url" => "/destination"'
-  * You need to free the value after it (it should be of type NONE then)
+  * free value after call
   */
 LI_API action* create_action(server *srv, const gchar *name, value *value);
-/** For setup function, e.g. 'listen "127.0.0.1:8080"' */
+/** For setup function, e.g. 'listen "127.0.0.1:8080"'; free value after call */
 LI_API gboolean call_setup(server *srv, const char *name, value *val);
 
 LI_API gboolean plugins_load_default_options(server *srv);

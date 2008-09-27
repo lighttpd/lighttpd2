@@ -502,6 +502,7 @@
 		else {
 			/* normal assignment */
 			a = option_action(srv, name->data.string->str, val);
+			value_free(val);
 
 			if (a == NULL)
 				return FALSE;
@@ -598,12 +599,15 @@
 			if (ctx->in_setup_block) {
 				/* we are in the setup { } block, call setups and don't append to action list */
 				if (!call_setup(srv, name->data.string->str, val)) {
+					value_free(val);
 					return FALSE;
 				}
+				value_free(val);
 			}
 			else {
 				al = g_queue_peek_head(ctx->action_list_stack);
 				a = create_action(srv, name->data.string->str, val);
+				value_free(val);
 
 				if (a == NULL)
 					return FALSE;

@@ -81,8 +81,10 @@ static int handle_server_action(lua_State *L) {
 	val = lua_params_to_value(srv, L);
 
 	/* TRACE(srv, "%s", "Creating action"); */
+	a = sa->create_action(srv, sa->p, val);
+	value_free(val);
 
-	if (NULL == (a = sa->create_action(srv, sa->p, val))) {
+	if (NULL == a) {
 		lua_pushstring(L, "creating action failed");
 		lua_error(L);
 	}
@@ -107,13 +109,15 @@ static int handle_server_setup(lua_State *L) {
 
 	val = lua_params_to_value(srv, L);
 
-	TRACE(srv, "%s", "Calling setup");
+	/* TRACE(srv, "%s", "Calling setup"); */
 
 	if (!ss->setup(srv, ss->p, val)) {
+		value_free(val);
 		lua_pushstring(L, "setup failed");
 		lua_error(L);
 	}
 
+	value_free(val);
 	return 0;
 }
 

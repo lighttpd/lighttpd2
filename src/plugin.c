@@ -206,7 +206,6 @@ gboolean parse_option(server *srv, const char *name, value *val, option_set *mar
 
 	if (!sopt->parse_option) {
 		mark->value = value_extract(val);
-		value_free(val);
 	} else {
 		if (!sopt->parse_option(srv, sopt->p, sopt->module_index, val, &mark->value)) {
 			/* errors should be logged by parse function */

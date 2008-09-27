@@ -43,7 +43,6 @@ static action* core_list(server *srv, plugin* p, value *val) {
 		action_acquire(oa->data.val_action.action);
 		g_array_append_val(a->data.list, oa->data.val_action.action);
 	}
-	value_free(val);
 	return a;
 }
 
@@ -89,7 +88,6 @@ static action* core_when(server *srv, plugin* p, value *val) {
 	action_acquire(val_act->data.val_action.action);
 	if (act_else) action_acquire(act_else);
 	a = action_new_condition(val_cond->data.val_cond.cond, val_act->data.val_action.action, act_else);
-	value_free(val);
 	return a;
 }
 
@@ -117,7 +115,6 @@ static action* core_set(server *srv, plugin* p, value *val) {
 		return NULL;
 	}
 	a = option_action(srv, val_name->data.string->str, val_val);
-	value_free(val);
 	return a;
 }
 
@@ -152,7 +149,6 @@ static action* core_physical(server *srv, plugin* p, value *val) {
 	}
 
 	docroot = (GString*) value_extract_ptr(val);
-	value_free(val);
 
 	return action_new_function(core_handle_physical, core_physical_free, docroot);
 }
@@ -350,7 +346,6 @@ static gboolean core_listen(server *srv, plugin* p, value *val) {
 	}
 
 	TRACE(srv, "will listen to '%s'", val->data.string->str);
-	value_free(val);
 	return TRUE;
 }
 
@@ -415,7 +410,6 @@ static gboolean core_workers(server *srv, plugin* p, value *val) {
 		ERROR(srv, "workers already called with '%i', overwriting", srv->worker_count);
 	}
 	srv->worker_count = workers;
-	value_free(val);
 	return TRUE;
 }
 
@@ -453,8 +447,6 @@ static gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value 
 		}
 	}
 
-	value_free(val);
-
 	return TRUE;
 }
 
@@ -478,8 +470,6 @@ static gboolean core_option_log_timestamp_parse(server *srv, plugin *p, size_t n
 
 	if (!val) return TRUE;
 	oval->ptr = log_timestamp_new(srv, value_extract(val).string);
-
-	value_free(val);
 
 	return TRUE;
 }
