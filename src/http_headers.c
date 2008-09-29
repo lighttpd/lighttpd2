@@ -25,45 +25,20 @@ static void _header_queue_free(gpointer data, gpointer userdata) {
 
 http_headers* http_headers_new() {
 	http_headers* headers = g_slice_new0(http_headers);
-	headers->refcount = 1;
 	g_queue_init(&headers->entries);
 	return headers;
 }
 
-static void http_headers_reset(http_headers* headers) {
+void http_headers_reset(http_headers* headers) {
 	g_queue_foreach(&headers->entries, _header_queue_free, NULL);
 	g_queue_clear(&headers->entries);
 }
 
-static void http_headers_free(http_headers* headers) {
+void http_headers_free(http_headers* headers) {
 	if (!headers) return;
 	g_queue_foreach(&headers->entries, _header_queue_free, NULL);
 	g_queue_clear(&headers->entries);
 	g_slice_free(http_headers, headers);
-}
-
-void http_headers_acquire(http_headers* headers) {
-	assert(g_atomic_int_get(&headers->refcount) > 0);
-	g_atomic_int_inc(&headers->refcount);
-}
-
-void http_headers_release(http_headers* headers) {
-	if (!headers) return;
-	assert(g_atomic_int_get(&headers->refcount) > 0);
-	if (g_atomic_int_dec_and_test(&headers->refcount)) {
-		http_headers_free(headers);
-	}
-}
-
-http_headers* http_headers_try_reset(http_headers* headers) {
-	assert(g_atomic_int_get(&headers->refcount) > 0);
-	if (g_atomic_int_dec_and_test(&headers->refcount)) {
-		http_headers_reset(headers);
-		headers->refcount = 1;
-		return headers;
-	} else {
-		return http_headers_new();
-	}
 }
 
 /** just insert normal header, allow duplicates */
