@@ -34,7 +34,7 @@ void request_reset(request *req) {
 	g_string_truncate(req->uri.query, 0);
 	g_string_truncate(req->uri.host, 0);
 
-	http_headers_reset(req->headers);
+	req->headers = http_headers_try_reset(req->headers);
 
 	req->content_length = -1;
 
@@ -53,7 +53,7 @@ void request_clear(request *req) {
 	g_string_free(req->uri.query, TRUE);
 	g_string_free(req->uri.host, TRUE);
 
-	http_headers_free(req->headers);
+	http_headers_release(req->headers);
 
 	req->content_length = -1;
 

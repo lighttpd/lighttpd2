@@ -10,13 +10,13 @@ void response_init(response *resp) {
 }
 
 void response_reset(response *resp) {
-	http_headers_reset(resp->headers);
+	resp->headers = http_headers_try_reset(resp->headers);
 	resp->http_status = 0;
 	resp->transfer_encoding = HTTP_TRANSFER_ENCODING_IDENTITY;
 }
 
 void response_clear(response *resp) {
-	http_headers_free(resp->headers);
+	http_headers_release(resp->headers);
 	resp->http_status = 0;
 	resp->transfer_encoding = HTTP_TRANSFER_ENCODING_IDENTITY;
 }

@@ -12,7 +12,7 @@ void internal_error(connection *con) {
 		CON_ERROR(con, "%s", "Couldn't send '500 Internal Error': headers already sent");
 		connection_set_state(con, CON_STATE_ERROR);
 	} else {
-		http_headers_reset(con->response.headers);
+		con->response.headers = http_headers_try_reset(con->response.headers);
 		con->response.http_status = 500;
 		con->content_handler = NULL;
 		connection_set_state(con, CON_STATE_WRITE_RESPONSE);
