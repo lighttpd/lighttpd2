@@ -79,14 +79,12 @@ struct request {
 	http_headers *headers;
 	/* Parsed headers: */
 	goffset content_length;
-
-	http_request_ctx parser_ctx;
 };
 
 
 #include "base.h"
 
-LI_API void request_init(request *req, chunkqueue *in);
+LI_API void request_init(request *req);
 LI_API void request_reset(request *req);
 LI_API void request_clear(request *req);
 

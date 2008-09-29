@@ -82,8 +82,8 @@ struct connection {
 
 	request request;
 	physical physical;
-
 	response response;
+	http_request_ctx req_parser_ctx;
 
 	plugin *content_handler;
 

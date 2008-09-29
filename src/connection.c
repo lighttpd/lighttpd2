@@ -159,9 +159,10 @@ connection* connection_new(worker *wrk) {
 
 	con->options = g_slice_copy(srv->option_count * sizeof(*srv->option_def_values), srv->option_def_values);
 
-	request_init(&con->request, con->raw_in);
+	request_init(&con->request);
 	physical_init(&con->physical);
 	response_init(&con->response);
+	http_request_parser_init(&con->req_parser_ctx, &con->request, con->raw_in);
 
 	con->keep_alive_data.link = NULL;
 	con->keep_alive_data.timeout = 0;
@@ -203,6 +204,7 @@ void connection_reset(connection *con) {
 	request_reset(&con->request);
 	physical_reset(&con->physical);
 	response_reset(&con->response);
+	http_request_parser_reset(&con->req_parser_ctx);
 
 	if (con->keep_alive_data.link) {
 		g_queue_delete_link(&con->wrk->keep_alive_queue, con->keep_alive_data.link);
@@ -256,6 +258,7 @@ void connection_reset_keep_alive(connection *con) {
 	request_reset(&con->request);
 	physical_reset(&con->physical);
 	response_reset(&con->response);
+	http_request_parser_reset(&con->req_parser_ctx);
 }
 
 void connection_free(connection *con) {
@@ -287,6 +290,7 @@ void connection_free(connection *con) {
 	request_clear(&con->request);
 	physical_clear(&con->physical);
 	response_clear(&con->response);
+	http_request_parser_clear(&con->req_parser_ctx);
 
 	if (con->keep_alive_data.link && con->wrk) {
 		g_queue_delete_link(&con->wrk->keep_alive_queue, con->keep_alive_data.link);
@@ -341,7 +345,7 @@ void connection_state_machine(connection *con) {
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				CON_TRACE(con, "%s", "reading request header");
 			}
-			switch(http_request_parse(con, &con->request.parser_ctx)) {
+			switch(http_request_parse(con, &con->req_parser_ctx)) {
 			case HANDLER_FINISHED:
 			case HANDLER_GO_ON:
 				connection_set_state(con, CON_STATE_VALIDATE_REQUEST_HEADER);

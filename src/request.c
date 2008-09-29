@@ -3,7 +3,7 @@
 #include "url_parser.h"
 #include "utils.h"
 
-void request_init(request *req, chunkqueue *in) {
+void request_init(request *req) {
 	req->http_method = HTTP_METHOD_UNSET;
 	req->http_method_str = g_string_sized_new(0);
 	req->http_version = HTTP_VERSION_UNSET;
@@ -18,8 +18,6 @@ void request_init(request *req, chunkqueue *in) {
 	req->headers = http_headers_new();
 
 	req->content_length = -1;
-
-	http_request_parser_init(&req->parser_ctx, req, in);
 }
 
 void request_reset(request *req) {
@@ -37,8 +35,6 @@ void request_reset(request *req) {
 	http_headers_reset(req->headers);
 
 	req->content_length = -1;
-
-	http_request_parser_reset(&req->parser_ctx);
 }
 
 void request_clear(request *req) {
@@ -56,8 +52,6 @@ void request_clear(request *req) {
 	http_headers_free(req->headers);
 
 	req->content_length = -1;
-
-	http_request_parser_clear(&req->parser_ctx);
 }
 
 /* closes connection after response */
