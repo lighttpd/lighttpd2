@@ -85,7 +85,7 @@ void server_free(server* srv) {
 	/* join all workers */
 	{
 		guint i;
-		for (i = 1; i < srv->worker_count; i++) {
+		for (i = 1; i < srv->workers->len; i++) {
 			worker *wrk;
 			wrk = g_array_index(srv->workers, worker*, i);
 			worker_exit(srv->main_worker, wrk);
@@ -96,7 +96,7 @@ void server_free(server* srv) {
 	/* free all workers */
 	{
 		guint i;
-		for (i = 0; i < srv->worker_count; i++) {
+		for (i = 0; i < srv->workers->len; i++) {
 			worker *wrk;
 			struct ev_loop *loop;
 			wrk = g_array_index(srv->workers, worker*, i);

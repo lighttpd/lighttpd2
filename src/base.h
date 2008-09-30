@@ -44,7 +44,6 @@ typedef struct connection connection;
 #include "plugin.h"
 #include "request.h"
 #include "response.h"
-#include "virtualrequest.h"
 #include "log.h"
 
 #include "connection.h"
