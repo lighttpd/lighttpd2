@@ -158,7 +158,8 @@ LI_API gboolean call_setup(server *srv, const char *name, value *val);
 
 LI_API void plugins_free_default_options(server *srv);
 
-LI_API gboolean plugin_load_default_option(server *srv, server_option *sopt);
+
+/** free val after call */
 LI_API gboolean plugin_set_default_option(server *srv, const gchar* name, value *val);
 
 /* needs connection *con and plugin *p */

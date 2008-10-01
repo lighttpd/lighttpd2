@@ -2,6 +2,8 @@
 #include "plugin.h"
 #include "log.h"
 
+static gboolean plugin_load_default_option(server *srv, server_option *sopt);
+
 static plugin* plugin_new(const gchar *name) {
 	plugin *p = g_slice_new0(plugin);
 	p->name = name;
@@ -221,8 +223,9 @@ gboolean parse_option(server *srv, const char *name, value *val, option_set *mar
 }
 
 void release_option(server *srv, option_set *mark) { /** Does not free the option_set memory */
-	server_option *sopt = mark->sopt;
+	server_option *sopt;
 	if (!srv || !mark || !sopt) return;
+	sopt = mark->sopt;
 
 	mark->sopt = NULL;
 	if (!sopt->free_option) {
@@ -330,6 +333,7 @@ void plugins_handle_close(connection *con) {
 gboolean plugin_set_default_option(server *srv, const gchar* name, value *val) {
 	server_option *sopt;
 	option_set setting;
+	option_value v;
 
 	sopt = find_option(srv, name);
 
@@ -338,24 +342,25 @@ gboolean plugin_set_default_option(server *srv, const gchar* name, value *val) {
 		return FALSE;
 	}
 
-	/* free old value */
-	setting.sopt = sopt;
-	setting.ndx = sopt->index;
-	setting.value = g_array_index(srv->option_def_values, option_value, sopt->index);
-
-	release_option(srv, &setting);
-
 	/* assign new value */
 	if (!parse_option(srv, name, val, &setting)) {
 		return FALSE;
 	}
 
+	v = g_array_index(srv->option_def_values, option_value, sopt->index);
 	g_array_index(srv->option_def_values, option_value, sopt->index) = setting.value;
+
+	/* free old value */
+	setting.sopt = sopt;
+	setting.ndx = sopt->index;
+	setting.value = v;
+
+	release_option(srv, &setting);
 
 	return TRUE;
 }
 
-gboolean plugin_load_default_option(server *srv, server_option *sopt) {
+static gboolean plugin_load_default_option(server *srv, server_option *sopt) {
 	option_value oval = {0};
 
 	if (!sopt)
