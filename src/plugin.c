@@ -134,6 +134,7 @@ gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 			so->p = p;
 			so->default_value = po->default_value;
 			g_hash_table_insert(srv->options, (gchar*) po->name, so);
+			plugin_load_default_option(srv, so);
 		}
 	}
 
@@ -326,38 +327,67 @@ void plugins_handle_close(connection *con) {
 	}
 }
 
-gboolean plugins_load_default_options(server *srv) {
-	GHashTableIter iter;
-	gpointer k, v;
+gboolean plugin_set_default_option(server *srv, const gchar* name, value *val) {
+	server_option *sopt;
+	option_set setting;
 
-	g_hash_table_iter_init(&iter, srv->options);
-	while (g_hash_table_iter_next(&iter, &k, &v)) {
-		server_option *sopt = v;
-		option_value oval = { 0 };
+	sopt = find_option(srv, name);
 
-		if (!sopt->parse_option) {
-			switch (sopt->type) {
-			case VALUE_NONE:
-				break;
-			case VALUE_BOOLEAN:
-				oval.boolean = GPOINTER_TO_INT(sopt->default_value);
-			case VALUE_NUMBER:
-				oval.number = GPOINTER_TO_INT(sopt->default_value);
-				break;
-			case VALUE_STRING:
-				oval.string = g_string_new((const char*) sopt->default_value);
-				break;
-			default:
-				oval.ptr = NULL;
-			}
-		} else {
-			if (!sopt->parse_option(srv, sopt->p, sopt->module_index, NULL, &oval)) {
-				/* errors should be logged by parse function */
-				return FALSE;
-			}
-		}
-		srv->option_def_values[sopt->index] = oval;
+	if (!sopt) {
+		ERROR(srv, "unknown option \"%s\"", name);
+		return FALSE;
 	}
+
+	/* free old value */
+	setting.sopt = sopt;
+	setting.ndx = sopt->index;
+	setting.value = g_array_index(srv->option_def_values, option_value, sopt->index);
+
+	release_option(srv, &setting);
+
+	/* assign new value */
+	if (!parse_option(srv, name, val, &setting)) {
+		return FALSE;
+	}
+
+	g_array_index(srv->option_def_values, option_value, sopt->index) = setting.value;
+
+	return TRUE;
+}
+
+gboolean plugin_load_default_option(server *srv, server_option *sopt) {
+	option_value oval = {0};
+
+	if (!sopt)
+		return FALSE;
+
+	if (!sopt->parse_option) {
+		switch (sopt->type) {
+		case VALUE_NONE:
+			break;
+		case VALUE_BOOLEAN:
+			oval.boolean = GPOINTER_TO_INT(sopt->default_value);
+		case VALUE_NUMBER:
+			oval.number = GPOINTER_TO_INT(sopt->default_value);
+			break;
+		case VALUE_STRING:
+			oval.string = g_string_new((const char*) sopt->default_value);
+			break;
+		default:
+			oval.ptr = NULL;
+		}
+	} else {
+		if (!sopt->parse_option(srv, sopt->p, sopt->module_index, NULL, &oval)) {
+			/* errors should be logged by parse function */
+			return FALSE;
+		}
+	}
+
+	if (srv->option_def_values->len <= sopt->index)
+		g_array_set_size(srv->option_def_values, sopt->index + 1);
+
+	g_array_index(srv->option_def_values, option_value, sopt->index) = oval;
+
 	return TRUE;
 }
 
@@ -372,9 +402,10 @@ void plugins_free_default_options(server *srv) {
 		option_set mark;
 		mark.sopt = sopt;
 		mark.ndx = sopt->index;
-		mark.value = srv->option_def_values[sopt->index];
+
+		mark.value = g_array_index(srv->option_def_values, option_value, sopt->index);
 
 		release_option(srv, &mark);
-		srv->option_def_values[sopt->index] = oempty;
+		g_array_index(srv->option_def_values, option_value, sopt->index) = oempty;
 	}
 }

@@ -66,6 +66,7 @@ server* server_new() {
 	srv->setups  = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_setup_free);
 
 	srv->plugins_handle_close = g_array_new(FALSE, TRUE, sizeof(plugin*));
+	srv->option_def_values = g_array_new(FALSE, TRUE, sizeof(option_value));
 
 	srv->mainaction = NULL;
 
@@ -122,10 +123,10 @@ void server_free(server* srv) {
 
 	action_release(srv, srv->mainaction);
 
-	if (srv->option_def_values) {
+	if (srv->option_def_values->len) {
 		plugins_free_default_options(srv);
-		g_slice_free1(srv->option_count * sizeof(*srv->option_def_values), srv->option_def_values);
 	}
+	g_array_free(srv->option_def_values, TRUE);
 
 	log_cleanup(srv);
 
@@ -255,16 +256,6 @@ void server_start(server *srv) {
 	}
 
 	srv->keep_alive_queue_timeout = 5;
-
-	srv->option_count = g_hash_table_size(srv->options);
-	srv->option_def_values = g_slice_alloc0(srv->option_count * sizeof(*srv->option_def_values));
-
-	/* set default option values */
-	if (!plugins_load_default_options(srv)) {
-		ERROR(srv, "%s", "Error while loading option default values");
-		server_stop(srv);
-		return;
-	}
 
 	plugins_prepare_callbacks(srv);
 

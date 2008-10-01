@@ -132,7 +132,7 @@ struct server_setup {
 	PluginSetup setup;
 };
 
-/* Needed my modules to register their plugin(s) */
+/* Needed by modules to register their plugin(s) */
 LI_API gboolean plugin_register(server *srv, const gchar *name, PluginInit init);
 
 /* Internal needed functions */
@@ -156,8 +156,10 @@ LI_API action* create_action(server *srv, const gchar *name, value *value);
 /** For setup function, e.g. 'listen "127.0.0.1:8080"'; free value after call */
 LI_API gboolean call_setup(server *srv, const char *name, value *val);
 
-LI_API gboolean plugins_load_default_options(server *srv);
 LI_API void plugins_free_default_options(server *srv);
+
+LI_API gboolean plugin_load_default_option(server *srv, server_option *sopt);
+LI_API gboolean plugin_set_default_option(server *srv, const gchar* name, value *val);
 
 /* needs connection *con and plugin *p */
 #define OPTION(idx) _OPTION(con, p, idx)

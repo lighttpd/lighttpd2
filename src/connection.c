@@ -157,7 +157,7 @@ connection* connection_new(worker *wrk) {
 
 	action_stack_init(&con->action_stack);
 
-	con->options = g_slice_copy(srv->option_count * sizeof(*srv->option_def_values), srv->option_def_values);
+	con->options = g_slice_copy(srv->option_def_values->len * sizeof(option_value), srv->option_def_values->data);
 
 	request_init(&con->request);
 	physical_init(&con->physical);
@@ -199,7 +199,7 @@ void connection_reset(connection *con) {
 
 	action_stack_reset(con->srv, &con->action_stack);
 
-	memcpy(con->options, con->srv->option_def_values, con->srv->option_count * sizeof(*con->srv->option_def_values));
+	memcpy(con->options, con->srv->option_def_values->data, con->srv->option_def_values->len * sizeof(option_value));
 
 	request_reset(&con->request);
 	physical_reset(&con->physical);
@@ -253,7 +253,7 @@ void connection_reset_keep_alive(connection *con) {
 
 	action_stack_reset(con->srv, &con->action_stack);
 
-	memcpy(con->options, con->srv->option_def_values, con->srv->option_count * sizeof(*con->srv->option_def_values));
+	memcpy(con->options, con->srv->option_def_values->data, con->srv->option_def_values->len * sizeof(option_value));
 
 	request_reset(&con->request);
 	physical_reset(&con->physical);
@@ -285,7 +285,7 @@ void connection_free(connection *con) {
 
 	action_stack_clear(con->srv, &con->action_stack);
 
-	g_slice_free1(con->srv->option_count * sizeof(*con->srv->option_def_values), con->options);
+	g_slice_free1(con->srv->option_def_values->len * sizeof(option_value), con->options);
 
 	request_clear(&con->request);
 	physical_clear(&con->physical);

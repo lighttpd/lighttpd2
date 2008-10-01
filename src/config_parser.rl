@@ -479,8 +479,16 @@
 		_printf("got assignment: %s = %s; in line %zd\n", name->data.string->str, value_type_string(val->type), ctx->line);
 
 		if (ctx->in_setup_block) {
-			/* in setup { } block => set default values for options */
-			/* TODO */
+			/* in setup { } block, override default values for options */
+
+			if (!plugin_set_default_option(srv, name->data.string->str, val)) {
+				ERROR(srv, "failed overriding default value for option \"%s\"", name->data.string->str);
+				value_free(name);
+				value_free(val);
+				return FALSE;
+			}
+
+			value_free(val);
 		}
 		else if (g_str_has_prefix(name->data.string->str, "var.")) {
 			/* assignment vor user defined variable, insert into hashtable */

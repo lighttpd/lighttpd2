@@ -50,8 +50,7 @@ struct server {
 
 	GArray *plugins_handle_close; /** list of handle_close callbacks */
 
-	size_t option_count;      /**< set to size of value hash table */
-	union option_value *option_def_values;
+	GArray *option_def_values;/** array of option_value */
 	struct action *mainaction;
 
 	gboolean exiting;         /** atomic access */

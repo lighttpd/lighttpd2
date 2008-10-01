@@ -453,7 +453,17 @@ static gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value 
 
 	oval->list = arr;
 	g_array_set_size(arr, 5);
-	if (!val) return TRUE; /* default value */
+
+	/* default value */
+	if (!val) {
+		/* default: log LOG_LEVEL_WARNING and LOG_LEVEL_ERROR to stderr */
+		log_t *log = srv->logs.stderr;
+		log_ref(srv, log);
+		g_array_index(arr, log_t*, LOG_LEVEL_WARNING) = log;
+		log_ref(srv, log);
+		g_array_index(arr, log_t*, LOG_LEVEL_ERROR) = log;
+		return TRUE;
+	}
 
 	g_hash_table_iter_init(&iter, val->data.hash);
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
