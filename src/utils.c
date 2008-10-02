@@ -274,3 +274,13 @@ gchar *ev_backend_string(guint backend) {
 void string_destroy_notify(gpointer str) {
 	g_string_free((GString*)str, TRUE);
 }
+
+
+guint hash_ipv4(gconstpointer key) {
+	return GPOINTER_TO_UINT(key);
+}
+
+guint hash_ipv6(gconstpointer key) {
+	guint *i = ((guint*)key);
+	return i[0] ^ i[1] ^ i[2] ^ i[3];
+}

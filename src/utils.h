@@ -26,4 +26,7 @@ LI_API gchar *ev_backend_string(guint backend);
 
 LI_API void string_destroy_notify(gpointer str);
 
+LI_API guint hash_ipv4(gconstpointer key);
+LI_API guint hash_ipv6(gconstpointer key);
+
 #endif

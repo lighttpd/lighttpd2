@@ -224,7 +224,7 @@ gboolean parse_option(server *srv, const char *name, value *val, option_set *mar
 
 void release_option(server *srv, option_set *mark) { /** Does not free the option_set memory */
 	server_option *sopt;
-	if (!srv || !mark || !sopt) return;
+	if (!srv || !mark || !mark->sopt) return;
 	sopt = mark->sopt;
 
 	mark->sopt = NULL;
