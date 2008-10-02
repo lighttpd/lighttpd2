@@ -449,6 +449,12 @@ static gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value 
 
 	g_hash_table_iter_init(&iter, val->data.hash);
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
+		if (((value*)v)->type != VALUE_STRING) {
+			ERROR(srv, "log expects a hashtable with string values, %s given", value_type_string(((value*)v)->type));
+			g_array_free(arr, TRUE);
+			return FALSE;
+		}
+
 		path = ((value*)v)->data.string;
 		level_str = (GString*)k;
 
