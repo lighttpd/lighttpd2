@@ -245,17 +245,11 @@ gchar *http_status_string(guint status_code, guint *len) {
 #undef SET_LEN_AND_RETURN_STR
 
 void http_status_to_str(gint status_code, gchar status_str[]) {
-	gint status_int;
-
-	status_int = status_code;
-	status_str[0] = status_int / 100;
-	status_int -= 100 * status_str[0];
-	status_str[1] = status_int / 10;
-	status_int -= 10 * status_str[1];
-	status_str[2] = status_int;
-	status_str[0] += '0';
-	status_str[1] += '0';
-	status_str[2] += '0';
+	status_str[2] = status_code % 10 + '0';
+	status_code /= 10;
+	status_str[1] = status_code % 10 + '0';
+	status_code /= 10;
+	status_str[0] = status_code + '0';
 }
 
 
