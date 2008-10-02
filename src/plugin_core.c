@@ -156,7 +156,12 @@ static action_result core_handle_static(connection *con, gpointer param) {
 			con->response.http_status = 404;
 			close(fd);
 		} else {
+			GString *mime_str = mimetype_get(con, con->request.uri.path);
 			con->response.http_status = 200;
+			if (mime_str)
+				http_header_overwrite(con->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
+			else
+				http_header_overwrite(con->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("application/octet-stream"));
 			chunkqueue_append_file_fd(con->out, NULL, 0, st.st_size, fd);
 		}
 	}
