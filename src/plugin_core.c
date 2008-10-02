@@ -118,52 +118,34 @@ static action* core_set(server *srv, plugin* p, value *val) {
 	return a;
 }
 
-static action_result core_handle_physical(connection *con, gpointer param) {
-	GString *docroot = (GString*) param;
-
-	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
-
-	g_string_truncate(con->physical.path, 0);
-	g_string_append_len(con->physical.path, GSTR_LEN(docroot));
-	g_string_append_len(con->physical.path, GSTR_LEN(con->request.uri.path));
-
-	return ACTION_GO_ON;
-}
-
-static void core_physical_free(struct server *srv, gpointer param) {
-	UNUSED(srv);
-	g_string_free((GString*) param, TRUE);
-}
-
-static action* core_physical(server *srv, plugin* p, value *val) {
-	UNUSED(p);
-	GString *docroot;
-
-	if (!val) {
-		ERROR(srv, "%s", "need parameter");
-		return NULL;
-	}
-	if (val->type != VALUE_STRING) {
-		ERROR(srv, "expected string as parameter, got %s", value_type_string(val->type));
-		return NULL;
-	}
-
-	docroot = (GString*) value_extract_ptr(val);
-
-	return action_new_function(core_handle_physical, core_physical_free, docroot);
-}
-
 static action_result core_handle_static(connection *con, gpointer param) {
 	UNUSED(param);
 	int fd;
 
 	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
 
+	/* build physical path: docroot + uri.path */
+	g_string_truncate(con->physical.path, 0);
+	g_string_append_len(con->physical.path, GSTR_LEN(CORE_OPTION(CORE_OPTION_DOCROOT).string));
+	g_string_append_len(con->physical.path, GSTR_LEN(con->request.uri.path));
+
+	CON_TRACE(con, "physical path: %s", con->physical.path->str);
+
 	if (con->physical.path->len == 0) return ACTION_GO_ON;
 
 	fd = open(con->physical.path->str, O_RDONLY);
 	if (fd == -1) {
-		con->response.http_status = 404;
+		CON_TRACE(con, "open() failed: %s (%d)\n", g_strerror(errno), errno);
+
+		switch (errno) {
+		case ENOENT:
+			con->response.http_status = 404; break;
+		case EACCES:
+		case EFAULT:
+			con->response.http_status = 403; break;
+		default:
+			con->response.http_status = 500;
+		}
 	} else {
 		struct stat st;
 		fstat(fd, &st);
@@ -586,6 +568,9 @@ static const plugin_option options[] = {
 	{ "server.max_keep_alive_idle", VALUE_NUMBER, GINT_TO_POINTER(5), NULL, NULL },
 
 	{ "mime_types", VALUE_LIST, NULL, core_option_mime_types_parse, core_option_mime_types_free },
+
+	{ "docroot", VALUE_STRING, NULL, NULL, NULL },
+
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
@@ -594,8 +579,8 @@ static const plugin_action actions[] = {
 	{ "when", core_when },
 	{ "set", core_set },
 
-	{ "physical", core_physical },
 	{ "static", core_static },
+
 	{ "test", core_test },
 	{ "blank", core_blank },
 	{ NULL, NULL }

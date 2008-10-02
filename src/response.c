@@ -164,6 +164,4 @@ void response_send_error_page(connection *con) {
 		" </body>\n"
 		"</html>\n"
 	));
-
-	g_printerr("%u\n", len);
 }

@@ -12,7 +12,9 @@ enum core_options_t {
 	CORE_OPTION_SERVER_TAG,
 	CORE_OPTION_MAX_KEEP_ALIVE_IDLE,
 
-	CORE_OPTION_MIME_TYPES
+	CORE_OPTION_MIME_TYPES,
+
+	CORE_OPTION_DOCROOT
 };
 
 /* the core plugin always has base index 0, as it is the first plugin loaded */
