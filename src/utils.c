@@ -277,7 +277,7 @@ void string_destroy_notify(gpointer str) {
 
 
 guint hash_ipv4(gconstpointer key) {
-	return GPOINTER_TO_UINT(key);
+	return *((guint*)key);
 }
 
 guint hash_ipv6(gconstpointer key) {

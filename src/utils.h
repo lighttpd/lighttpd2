@@ -26,7 +26,9 @@ LI_API gchar *ev_backend_string(guint backend);
 
 LI_API void string_destroy_notify(gpointer str);
 
+/* expects a pointer to a 32bit value */
 LI_API guint hash_ipv4(gconstpointer key);
+/* expects a pointer to a 128bit value */
 LI_API guint hash_ipv6(gconstpointer key);
 
 #endif
