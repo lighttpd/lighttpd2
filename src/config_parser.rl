@@ -510,8 +510,10 @@
 			a = option_action(srv, name->data.string->str, val);
 			value_free(val);
 
-			if (a == NULL)
+			if (a == NULL) {
+				value_free(name);
 				return FALSE;
+			}
 
 			al = g_queue_peek_head(ctx->action_list_stack);
 			g_array_append_val(al->data.list, a);

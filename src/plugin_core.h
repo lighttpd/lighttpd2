@@ -10,7 +10,9 @@ enum core_options_t {
 	CORE_OPTION_STATIC_FILE_EXCLUDE,
 
 	CORE_OPTION_SERVER_TAG,
-	CORE_OPTION_MAX_KEEP_ALIVE_IDLE
+	CORE_OPTION_MAX_KEEP_ALIVE_IDLE,
+
+	CORE_OPTION_MIME_TYPES
 };
 
 /* the core plugin always has base index 0, as it is the first plugin loaded */

@@ -48,6 +48,7 @@ typedef struct connection connection;
 
 #include "connection.h"
 
+#include "utils.h"
 
 #define SERVER_VERSION ((guint) 0x01FF0000)
 

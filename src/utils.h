@@ -34,4 +34,7 @@ LI_API guint hash_ipv4(gconstpointer key);
 /* expects a pointer to a 128bit value */
 LI_API guint hash_ipv6(gconstpointer key);
 
+/* looks up the mimetype for a filename by comparing suffixes. first match is returned. do not free the result */
+LI_API GString *mimetype_get(connection *con, GString *filename);
+
 #endif

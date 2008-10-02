@@ -23,7 +23,7 @@ struct value {
 		gboolean boolean;
 		gint64 number;
 		GString *string;
-		/* array of value */
+		/* array of (value*) */
 		GArray *list;
 		/* hash GString => value */
 		GHashTable *hash;

@@ -520,6 +520,60 @@ static void core_option_log_timestamp_free(server *srv, plugin *p, size_t ndx, o
 	log_timestamp_free(srv, oval.ptr);
 }
 
+static gboolean core_option_mime_types_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+	GArray *arr;
+
+
+	/* default value */
+	if (!val) {
+		oval->list = g_array_new(FALSE, TRUE, sizeof(value));
+		return TRUE;
+	}
+
+	/* check if the passed val is of type (("a", "b"), ("x", y")) */
+	arr = val->data.list;
+	for (guint i = 0; i < arr->len; i++) {
+		value *v = g_array_index(arr, value*, i);
+		value *v1, *v2;
+		if (v->type != VALUE_LIST) {
+			ERROR(srv, "mime_types option expects a list of string tuples, entry #%u is of type %s", i, value_type_string(v->type));
+			return FALSE;
+		}
+
+		if (v->data.list->len != 2) {
+			ERROR(srv, "mime_types option expects a list of string tuples, entry #%u is not a tuple", i);
+			return FALSE;
+		}
+
+		v1 = g_array_index(v->data.list, value*, 0);
+		v2 = g_array_index(v->data.list, value*, 1);
+		if (v1->type != VALUE_STRING || v2->type != VALUE_STRING) {
+			ERROR(srv, "mime_types option expects a list of string tuples, entry #%u is a (%s,%s) tuple", i, value_type_string(v1->type), value_type_string(v2->type));
+			return FALSE;
+		}
+	}
+
+	/* everything ok */
+	oval->list = value_extract(val).list;
+
+	return TRUE;
+}
+
+static void core_option_mime_types_free(server *srv, plugin *p, size_t ndx, option_value oval) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+
+	for (guint i = 0; i < oval.list->len; i++)
+		value_free(g_array_index(oval.list, value*, i));
+
+	g_array_free(oval.list, TRUE);
+}
+
+
 static const plugin_option options[] = {
 	{ "debug.log_request_handling", VALUE_BOOLEAN, NULL, NULL, NULL },
 
@@ -530,6 +584,8 @@ static const plugin_option options[] = {
 
 	{ "server.tag", VALUE_STRING, "lighttpd-2.0~sandbox", NULL, NULL },
 	{ "server.max_keep_alive_idle", VALUE_NUMBER, GINT_TO_POINTER(5), NULL, NULL },
+
+	{ "mime_types", VALUE_LIST, NULL, core_option_mime_types_parse, core_option_mime_types_free },
 	{ NULL, 0, NULL, NULL, NULL }
 };
 

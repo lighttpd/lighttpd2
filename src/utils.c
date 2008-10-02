@@ -1,5 +1,7 @@
 
-#include "utils.h"
+
+#include "base.h"
+#include "plugin_core.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -296,4 +298,39 @@ guint hash_ipv4(gconstpointer key) {
 guint hash_ipv6(gconstpointer key) {
 	guint *i = ((guint*)key);
 	return i[0] ^ i[1] ^ i[2] ^ i[3];
+}
+
+
+GString *mimetype_get(connection *con, GString *filename) {
+	/* search in mime_types option for the first match */
+	GArray *arr;
+
+	if (!con || !filename || !filename->len)
+		return NULL;
+
+	arr = CORE_OPTION(CORE_OPTION_MIME_TYPES).list;
+
+	for (guint i = 0; i < arr->len; i++) {
+		value *tuple = g_array_index(arr, value*, i);
+		GString *ext = g_array_index(tuple->data.list, value*, 0)->data.string;
+		if (ext->len > filename->len)
+			continue;
+
+		/* "" extension matches everything, used for default mimetype */
+		if (!ext->len)
+			return g_array_index(tuple->data.list, value*, 1)->data.string;
+
+		gint k = filename->len - 1;
+		gint j = ext->len - 1;
+		for (; j >= 0; j--) {
+			if (ext->str[j] != filename->str[k])
+				break;
+			k--;
+		}
+
+		if (j == -1)
+			return g_array_index(tuple->data.list, value*, 1)->data.string;
+	}
+
+	return NULL;
 }
