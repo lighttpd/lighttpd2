@@ -171,72 +171,91 @@ void path_simplify(GString *path) {
 	g_string_set_size(path, out - start);
 }
 
-
-gchar *http_status_string(guint status_code) {
+#define SET_LEN_AND_RETURN_STR(x) \
+	do { \
+		*len = sizeof(x) - 1; \
+		return x; \
+	} while(0)
+gchar *http_status_string(guint status_code, guint *len) {
 	/* RFC 2616 (as well as RFC 2518, RFC 2817, RFC 2295, RFC 2774, RFC 4918) */
 	switch (status_code) {
 	/* 1XX information */
-	case 100: return "Continue";
-	case 101: return "Switching Protocols";
-	case 102: return "Processing";
+	case 100: SET_LEN_AND_RETURN_STR("Continue");
+	case 101: SET_LEN_AND_RETURN_STR("Switching Protocols");
+	case 102: SET_LEN_AND_RETURN_STR("Processing");
 	/* 2XX successful operation */
-	case 200: return "OK";
-	case 201: return "Created";
-	case 202: return "Accepted";
-	case 203: return "Non-Authoritative Information";
-	case 204: return "No Content";
-	case 205: return "Reset Content";
-	case 206: return "Partial Content";
-	case 207: return "Multi-Status";
+	case 200: SET_LEN_AND_RETURN_STR("OK");
+	case 201: SET_LEN_AND_RETURN_STR("Created");
+	case 202: SET_LEN_AND_RETURN_STR("Accepted");
+	case 203: SET_LEN_AND_RETURN_STR("Non-Authoritative Information");
+	case 204: SET_LEN_AND_RETURN_STR("No Content");
+	case 205: SET_LEN_AND_RETURN_STR("Reset Content");
+	case 206: SET_LEN_AND_RETURN_STR("Partial Content");
+	case 207: SET_LEN_AND_RETURN_STR("Multi-Status");
 	/* 3XX redirect */
-	case 300: return "Multiple Choice";
-	case 301: return "Moved Permanently";
-	case 302: return "Found";
-	case 303: return "See Other";
-	case 304: return "Not Modified";
-	case 305: return "Use Proxy";
-	case 306: return "(reserved)";
-	case 307: return "Temporary Redirect";
+	case 300: SET_LEN_AND_RETURN_STR("Multiple Choice");
+	case 301: SET_LEN_AND_RETURN_STR("Moved Permanently");
+	case 302: SET_LEN_AND_RETURN_STR("Found");
+	case 303: SET_LEN_AND_RETURN_STR("See Other");
+	case 304: SET_LEN_AND_RETURN_STR("Not Modified");
+	case 305: SET_LEN_AND_RETURN_STR("Use Proxy");
+	case 306: SET_LEN_AND_RETURN_STR("(reserved)");
+	case 307: SET_LEN_AND_RETURN_STR("Temporary Redirect");
 	/* 4XX client error */
-	case 400: return "Bad Request";
-	case 401: return "Unauthorized";
-	case 402: return "Payment Required";
-	case 403: return "Forbidden";
-	case 404: return "Not Found";
-	case 405: return "Method Not Allowed";
-	case 406: return "Not Acceptable";
-	case 407: return "Proxy Authentication Required";
-	case 408: return "Request Time-out";
-	case 409: return "Conflict";
-	case 410: return "Gone";
-	case 411: return "Length Required";
-	case 412: return "Precondition Failed";
-	case 413: return "Request Entity Too Large";
-	case 414: return "Request-URI Too Long";
-	case 415: return "Unsupported Media Type";
-	case 416: return "Request range not satisfiable";
-	case 417: return "Expectation Failed";
-	case 421: return "There are too many connections from your internet address";
-	case 422: return "Unprocessable Entity";
-	case 423: return "Locked";
-	case 424: return "Failed Dependency";
-	case 425: return "Unordered Collection";
-	case 426: return "Upgrade Required";
+	case 400: SET_LEN_AND_RETURN_STR("Bad Request");
+	case 401: SET_LEN_AND_RETURN_STR("Unauthorized");
+	case 402: SET_LEN_AND_RETURN_STR("Payment Required");
+	case 403: SET_LEN_AND_RETURN_STR("Forbidden");
+	case 404: SET_LEN_AND_RETURN_STR("Not Found");
+	case 405: SET_LEN_AND_RETURN_STR("Method Not Allowed");
+	case 406: SET_LEN_AND_RETURN_STR("Not Acceptable");
+	case 407: SET_LEN_AND_RETURN_STR("Proxy Authentication Required");
+	case 408: SET_LEN_AND_RETURN_STR("Request Time-out");
+	case 409: SET_LEN_AND_RETURN_STR("Conflict");
+	case 410: SET_LEN_AND_RETURN_STR("Gone");
+	case 411: SET_LEN_AND_RETURN_STR("Length Required");
+	case 412: SET_LEN_AND_RETURN_STR("Precondition Failed");
+	case 413: SET_LEN_AND_RETURN_STR("Request Entity Too Large");
+	case 414: SET_LEN_AND_RETURN_STR("Request-URI Too Long");
+	case 415: SET_LEN_AND_RETURN_STR("Unsupported Media Type");
+	case 416: SET_LEN_AND_RETURN_STR("Request range not satisfiable");
+	case 417: SET_LEN_AND_RETURN_STR("Expectation Failed");
+	case 421: SET_LEN_AND_RETURN_STR("There are too many connections from your internet address");
+	case 422: SET_LEN_AND_RETURN_STR("Unprocessable Entity");
+	case 423: SET_LEN_AND_RETURN_STR("Locked");
+	case 424: SET_LEN_AND_RETURN_STR("Failed Dependency");
+	case 425: SET_LEN_AND_RETURN_STR("Unordered Collection");
+	case 426: SET_LEN_AND_RETURN_STR("Upgrade Required");
 	/* 5XX server error */
-	case 500: return "Internal Server Error";
-	case 501: return "Not Implemented";
-	case 502: return "Bad Gateway";
-	case 503: return "Service Unavailable";
-	case 504: return "Gateway Time-out";
-	case 505: return "HTTP Version not supported";
-	case 506: return "Variant Also Negotiates";
-	case 507: return "Insufficient Storage";
-	case 509: return "Bandwidth Limit Exceeded";
-	case 510: return "Not Extended";
+	case 500: SET_LEN_AND_RETURN_STR("Internal Server Error");
+	case 501: SET_LEN_AND_RETURN_STR("Not Implemented");
+	case 502: SET_LEN_AND_RETURN_STR("Bad Gateway");
+	case 503: SET_LEN_AND_RETURN_STR("Service Unavailable");
+	case 504: SET_LEN_AND_RETURN_STR("Gateway Time-out");
+	case 505: SET_LEN_AND_RETURN_STR("HTTP Version not supported");
+	case 506: SET_LEN_AND_RETURN_STR("Variant Also Negotiates");
+	case 507: SET_LEN_AND_RETURN_STR("Insufficient Storage");
+	case 509: SET_LEN_AND_RETURN_STR("Bandwidth Limit Exceeded");
+	case 510: SET_LEN_AND_RETURN_STR("Not Extended");
 
 	/* unknown */
-	default: return "unknown status";
+	default: SET_LEN_AND_RETURN_STR("unknown status");
 	}
+}
+#undef SET_LEN_AND_RETURN_STR
+
+void http_status_to_str(gint status_code, gchar status_str[]) {
+	gint status_int;
+
+	status_int = status_code;
+	status_str[0] = status_int / 100;
+	status_int -= 100 * status_str[0];
+	status_str[1] = status_int / 10;
+	status_int -= 10 * status_str[1];
+	status_str[2] = status_int;
+	status_str[0] += '0';
+	status_str[1] += '0';
+	status_str[2] += '0';
 }
 
 

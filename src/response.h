@@ -17,5 +17,6 @@ LI_API void response_reset(response *resp);
 LI_API void response_clear(response *resp);
 
 LI_API void response_send_headers(connection *con);
+LI_API void response_send_error_page(connection *con);
 
 #endif

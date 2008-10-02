@@ -33,7 +33,8 @@ void response_send_headers(connection *con) {
 	if (0 == con->out->length && con->content_handler == NULL
 		&& con->response.http_status >= 400 && con->response.http_status < 600) {
 
-		chunkqueue_append_mem(con->out, CONST_STR_LEN("Custom error\r\n"));
+		/*chunkqueue_append_mem(con->out, CONST_STR_LEN("Custom error\r\n"));*/
+		response_send_error_page(con);
 	}
 
 	if (con->content_handler == NULL) {
@@ -76,7 +77,17 @@ void response_send_headers(connection *con) {
 		if (con->keep_alive)
 			http_header_overwrite(con->response.headers, CONST_STR_LEN("Connection"), CONST_STR_LEN("keep-alive"));
 	}
-	g_string_append_printf(head, "%i %s\r\n", con->response.http_status, http_status_string(con->response.http_status));
+
+	{
+		guint len;
+		gchar status_str[4];
+		gchar *str = http_status_string(con->response.http_status, &len);
+		http_status_to_str(con->response.http_status, status_str);
+		status_str[3] = ' ';
+		g_string_append_len(head, status_str, 4);
+		g_string_append_len(head, str, len);
+		g_string_append_len(head, CONST_STR_LEN("\r\n"));
+	}
 
 	/* Append headers */
 	{
@@ -113,4 +124,46 @@ void response_send_headers(connection *con) {
 
 	g_string_append_len(head, CONST_STR_LEN("\r\n"));
 	chunkqueue_append_string(con->raw_out, head);
+}
+
+
+void response_send_error_page(connection *con) {
+	gchar status_str[3];
+	guint len;
+	gchar *str;
+
+	chunkqueue_append_mem(con->out, CONST_STR_LEN(
+		"<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n"
+		"<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\"\n"
+		"         \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
+		"<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\" lang=\"en\">\n"
+		" <head>\n"
+		"  <title>"
+	));
+
+	http_status_to_str(con->response.http_status, status_str);
+
+	chunkqueue_append_mem(con->out, status_str, 3);
+	chunkqueue_append_mem(con->out, CONST_STR_LEN(" - "));
+	str = http_status_string(con->response.http_status, &len);
+	chunkqueue_append_mem(con->out, str, len);
+
+	chunkqueue_append_mem(con->out, CONST_STR_LEN(
+		"</title>\n"
+		" </head>\n"
+		" <body>\n"
+		"  <h1>"
+	));
+
+	chunkqueue_append_mem(con->out, status_str, 3);
+	chunkqueue_append_mem(con->out, CONST_STR_LEN(" - "));
+	chunkqueue_append_mem(con->out, str, len);
+
+	chunkqueue_append_mem(con->out, CONST_STR_LEN(
+		"</h1>\n"
+		" </body>\n"
+		"</html>\n"
+	));
+
+	g_printerr("%u\n", len);
 }

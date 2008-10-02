@@ -17,7 +17,10 @@ LI_API void url_decode(GString *path);
 
 LI_API void path_simplify(GString *path);
 
-LI_API gchar *http_status_string(guint status_code);
+/* returns the description for a given http status code and sets the len to the length of the returned string */
+LI_API gchar *http_status_string(guint status_code, guint *len);
+/* converts a given 3 digit http status code to a gchar[3] string. e.g. 403 to {'4','0','3'} */
+LI_API void http_status_to_str(gint status_code, gchar status_str[]);
 
 /* */
 LI_API gchar counter_format(guint64 *count, guint factor);
