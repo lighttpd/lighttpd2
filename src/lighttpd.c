@@ -13,6 +13,7 @@ int main(int argc, char *argv[]) {
 	GOptionContext *context;
 	server *srv;
 	gboolean res;
+	gboolean free_config_path = TRUE;
 
 	gchar *config_path = NULL;
 	gboolean luaconfig = FALSE;
@@ -59,8 +60,10 @@ int main(int argc, char *argv[]) {
 	plugin_register(srv, "core", plugin_core_init);
 
 	/* if no path is specified for the config, read lighttpd.conf from current directory */
-	if (config_path == NULL)
+	if (config_path == NULL) {
 		config_path = "lighttpd.conf";
+		free_config_path = FALSE;
+	}
 
 	log_debug(srv, NULL, "config path: %s", config_path);
 
@@ -79,7 +82,8 @@ int main(int argc, char *argv[]) {
 			g_atomic_int_set(&srv->exiting, TRUE);
 			log_thread_wakeup(srv);
 			server_free(srv);
-			g_free(config_path);
+			if (free_config_path)
+				g_free(config_path);
 			return 1;
 		}
 
@@ -119,7 +123,9 @@ int main(int argc, char *argv[]) {
 		config_parser_finish(srv, ctx_stack, TRUE);
 
 	server_free(srv);
-	g_free(config_path);
+
+	if (free_config_path)
+		g_free(config_path);
 
 	return 0;
 }
