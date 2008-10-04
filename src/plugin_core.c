@@ -579,10 +579,7 @@ static action_result core_handle_header_add(connection *con, gpointer param) {
 
 static void core_header_free(struct server *srv, gpointer param) {
 	UNUSED(srv);
-	GArray *l = (GArray*)param;
-	value_free(g_array_index(l, value*, 0));
-	value_free(g_array_index(l, value*, 1));
-	g_array_free(l, TRUE);
+	value_list_free(param);
 }
 
 static action* core_header_add(server *srv, plugin* p, value *val) {
