@@ -88,7 +88,7 @@ void http_header_append(http_headers *headers, const gchar *key, size_t keylen, 
 	if (NULL == l) {
 		http_header_insert(headers, key, keylen, val, valuelen);
 	} else {
-		h = (http_header*) l;
+		h = (http_header*) l->data;
 		g_string_append_len(h->data, CONST_STR_LEN(", "));
 		g_string_append_len(h->data, val, valuelen);
 	}
@@ -103,7 +103,7 @@ void http_header_overwrite(http_headers *headers, const gchar *key, size_t keyle
 	if (NULL == l) {
 		http_header_insert(headers, key, keylen, val, valuelen);
 	} else {
-		h = (http_header*) l;
+		h = (http_header*) l->data;
 		g_string_truncate(h->data, 0);
 		g_string_append_len(h->data, key, keylen);
 		g_string_append_len(h->data, CONST_STR_LEN(": "));
