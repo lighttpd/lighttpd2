@@ -566,6 +566,121 @@ static void core_option_mime_types_free(server *srv, plugin *p, size_t ndx, opti
 	g_array_free(oval.list, TRUE);
 }
 
+static action_result core_handle_header_add(connection *con, gpointer param) {
+	UNUSED(param);
+	GArray *l = (GArray*)param;
+	GString *k = g_array_index(l, value*, 0)->data.string;
+	GString *v = g_array_index(l, value*, 1)->data.string;
+
+	http_header_insert(con->response.headers, GSTR_LEN(k), GSTR_LEN(v));
+
+	return ACTION_GO_ON;
+}
+
+static void core_header_free(struct server *srv, gpointer param) {
+	UNUSED(srv);
+	GArray *l = (GArray*)param;
+	value_free(g_array_index(l, value*, 0));
+	value_free(g_array_index(l, value*, 1));
+	g_array_free(l, TRUE);
+}
+
+static action* core_header_add(server *srv, plugin* p, value *val) {
+	GArray *l;
+	UNUSED(p);
+
+	if (val->type != VALUE_LIST) {
+		ERROR(srv, "'core_header_add' action expects a string tuple as parameter, %s given", value_type_string(val->type));
+		return NULL;
+	}
+
+	l = val->data.list;
+
+	if (l->len != 2) {
+		ERROR(srv, "'core_header_add' action expects a string tuple as parameter, list has %u entries", l->len);
+		return NULL;
+	}
+
+	if (g_array_index(l, value*, 0)->type != VALUE_STRING || g_array_index(l, value*, 0)->type != VALUE_STRING) {
+		ERROR(srv, "%s", "'core_header_add' action expects a string tuple as parameter");
+		return NULL;
+	}
+
+	return action_new_function(core_handle_header_add, core_header_free, value_extract(val).list);
+}
+
+
+static action_result core_handle_header_append(connection *con, gpointer param) {
+	UNUSED(param);
+	GArray *l = (GArray*)param;
+	GString *k = g_array_index(l, value*, 0)->data.string;
+	GString *v = g_array_index(l, value*, 1)->data.string;
+
+	http_header_append(con->response.headers, GSTR_LEN(k), GSTR_LEN(v));
+
+	return ACTION_GO_ON;
+}
+
+static action* core_header_append(server *srv, plugin* p, value *val) {
+	GArray *l;
+	UNUSED(p);
+
+	if (val->type != VALUE_LIST) {
+		ERROR(srv, "'core_header_append' action expects a string tuple as parameter, %s given", value_type_string(val->type));
+		return NULL;
+	}
+
+	l = val->data.list;
+
+	if (l->len != 2) {
+		ERROR(srv, "'core_header_append' action expects a string tuple as parameter, list has %u entries", l->len);
+		return NULL;
+	}
+
+	if (g_array_index(l, value*, 0)->type != VALUE_STRING || g_array_index(l, value*, 0)->type != VALUE_STRING) {
+		ERROR(srv, "%s", "'core_header_append' action expects a string tuple as parameter");
+		return NULL;
+	}
+
+	return action_new_function(core_handle_header_append, core_header_free, value_extract(val).list);
+}
+
+
+static action_result core_handle_header_overwrite(connection *con, gpointer param) {
+	UNUSED(param);
+	GArray *l = (GArray*)param;
+	GString *k = g_array_index(l, value*, 0)->data.string;
+	GString *v = g_array_index(l, value*, 1)->data.string;
+
+	http_header_overwrite(con->response.headers, GSTR_LEN(k), GSTR_LEN(v));
+
+	return ACTION_GO_ON;
+}
+
+static action* core_header_overwrite(server *srv, plugin* p, value *val) {
+	GArray *l;
+	UNUSED(p);
+
+	if (val->type != VALUE_LIST) {
+		ERROR(srv, "'core_header_overwrite' action expects a string tuple as parameter, %s given", value_type_string(val->type));
+		return NULL;
+	}
+
+	l = val->data.list;
+
+	if (l->len != 2) {
+		ERROR(srv, "'core_header_overwrite' action expects a string tuple as parameter, list has %u entries", l->len);
+		return NULL;
+	}
+
+	if (g_array_index(l, value*, 0)->type != VALUE_STRING || g_array_index(l, value*, 0)->type != VALUE_STRING) {
+		ERROR(srv, "%s", "'core_header_overwrite' action expects a string tuple as parameter");
+		return NULL;
+	}
+
+	return action_new_function(core_handle_header_overwrite, core_header_free, value_extract(val).list);
+}
+
 
 static const plugin_option options[] = {
 	{ "debug.log_request_handling", VALUE_BOOLEAN, NULL, NULL, NULL },
@@ -594,6 +709,11 @@ static const plugin_action actions[] = {
 
 	{ "test", core_test },
 	{ "blank", core_blank },
+
+	{ "header_add", core_header_add },
+	{ "header_append", core_header_append },
+	{ "header_overwrite", core_header_overwrite },
+
 	{ NULL, NULL }
 };
 
