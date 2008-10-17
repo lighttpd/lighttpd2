@@ -337,11 +337,11 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	log = g_slice_new0(log_t);
 	log->lastmsg = g_string_sized_new(0);
 	log->fd = fd;
-	log->path = path;
+	log->path = g_string_new_len(GSTR_LEN(path));
 	log->refcount = 1;
 	log->mutex = g_mutex_new();
 
-	g_hash_table_insert(srv->logs.targets, path->str, log);
+	g_hash_table_insert(srv->logs.targets, log->path->str, log);
 
 	g_mutex_unlock(srv->logs.mutex);
 
@@ -384,6 +384,7 @@ void log_init(server *srv) {
 	/* first entry in srv->logs.targets is the plain good old stderr */
 	str = g_string_new_len(CONST_STR_LEN("stderr"));
 	srv->logs.stderr = log_new(srv, LOG_TYPE_STDERR, str);
+	g_string_free(str, TRUE);
 }
 
 void log_cleanup(server *srv) {
