@@ -1,6 +1,7 @@
 
 #include "base.h"
 #include "config_parser.h"
+#include "profiler.h"
 
 #ifdef HAVE_LUA_H
 #include "config_lua.h"
@@ -33,7 +34,8 @@ int main(int argc, char *argv[]) {
 	/* check for environment variable LIGHTY_PROFILE_MEM */
 	gchar *profile_mem = getenv("LIGHTY_PROFILE_MEM");
 	if (profile_mem != NULL && g_str_equal(profile_mem, "true")) {
-		g_mem_set_vtable(glib_mem_profiler_table);
+		/*g_mem_set_vtable(glib_mem_profiler_table);*/
+		profiler_enable();
 	}
 
 	/* parse commandline options */
@@ -131,6 +133,9 @@ int main(int argc, char *argv[]) {
 
 	if (free_config_path)
 		g_free(config_path);
+
+	if (profile_mem)
+		profiler_dump();
 
 	return 0;
 }

@@ -2,6 +2,7 @@
 #include "base.h"
 #include "plugin_core.h"
 #include "utils.h"
+#include "profiler.h"
 
 
 
@@ -287,7 +288,8 @@ static action_result core_handle_profile_mem(connection *con, gpointer param) {
 	UNUSED(con);
 	UNUSED(param);
 
-	g_mem_profile();
+	/*g_mem_profile();*/
+	profiler_dump();
 
 	return ACTION_GO_ON;
 }
