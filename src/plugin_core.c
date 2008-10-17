@@ -283,6 +283,26 @@ static action* core_blank(server *srv, plugin* p, value *val) {
 	return action_new_function(core_handle_blank, NULL, NULL);
 }
 
+static action_result core_handle_profile_mem(connection *con, gpointer param) {
+	UNUSED(con);
+	UNUSED(param);
+
+	g_mem_profile();
+
+	return ACTION_GO_ON;
+}
+
+static action* core_profile_mem(server *srv, plugin* p, value *val) {
+	UNUSED(p);
+
+	if (val) {
+		ERROR(srv, "%s", "'profile_mem' action doesn't have parameters");
+		return NULL;
+	}
+
+	return action_new_function(core_handle_profile_mem, NULL, NULL);
+}
+
 static gboolean core_listen(server *srv, plugin* p, value *val) {
 	guint32 ipv4;
 	guint8 ipv6[16];
@@ -706,6 +726,7 @@ static const plugin_action actions[] = {
 
 	{ "test", core_test },
 	{ "blank", core_blank },
+	{ "profile_mem", core_profile_mem },
 
 	{ "header_add", core_header_add },
 	{ "header_append", core_header_append },

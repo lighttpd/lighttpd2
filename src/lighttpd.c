@@ -30,6 +30,11 @@ int main(int argc, char *argv[]) {
 		{ NULL, 0, 0, 0, NULL, NULL, NULL }
 	};
 
+	/* check for environment variable LIGHTY_PROFILE_MEM */
+	gchar *profile_mem = getenv("LIGHTY_PROFILE_MEM");
+	if (profile_mem != NULL && g_str_equal(profile_mem, "true")) {
+		g_mem_set_vtable(glib_mem_profiler_table);
+	}
 
 	/* parse commandline options */
 	context = g_option_context_new("- fast and lightweight webserver");
