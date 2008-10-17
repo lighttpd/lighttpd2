@@ -182,14 +182,14 @@ static void profiler_free(gpointer mem) {
 	gsize *p = mem;
 
 	assert(p);
-	profiler_entry *e = profiler_hashtable_find(mem);
 	g_static_mutex_lock(&profiler_mutex);
+	profiler_entry *e = profiler_hashtable_find(mem);
 	stats_mem.free_times++;
 	stats_mem.free_bytes += e->len;
 	stats_mem.inuse_bytes -= e->len;
+	profiler_hashtable_remove(mem);
 	g_static_mutex_unlock(&profiler_mutex);
 	free(p);
-	profiler_hashtable_remove(mem);
 }
 
 /* public functions */
@@ -228,4 +228,14 @@ void profiler_dump() {
 	g_print("realloc(): called %" G_GUINT64_FORMAT " times, %" G_GUINT64_FORMAT " bytes total\n", s.realloc_times, s.realloc_bytes);
 	g_print("free(): called %" G_GUINT64_FORMAT " times, %" G_GUINT64_FORMAT " bytes total\n", s.free_times, s.free_bytes);
 	g_print("memory remaining: %" G_GUINT64_FORMAT " bytes, %" G_GUINT64_FORMAT " calls to free()\n", s.inuse_bytes, s.alloc_times + s.calloc_times - s.free_times);
+}
+
+void profiler_dump_table() {
+	for (guint i = 0; i < PROFILER_HASHTABLE_SIZE; i++) {
+		guint n = 1;
+		for (profiler_entry *e = profiler_hashtable.nodes[i]; e; e = e->next) {
+			g_print("profiler entry #%u/%u: addr 0x%zx, size %zu bytes\n", i+1, n, (gsize)e->addr, e->len);
+			n++;
+		}
+	}
 }
