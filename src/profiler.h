@@ -17,6 +17,7 @@ struct profiler_mem {
 };
 
 void profiler_enable(); /* enables the profiler */
+void profiler_finish();
 void profiler_dump(); /* dumps memory statistics to stdout */
 void profiler_dump_table();
 #endif

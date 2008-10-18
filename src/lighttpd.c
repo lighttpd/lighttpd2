@@ -36,6 +36,9 @@ int main(int argc, char *argv[]) {
 	if (profile_mem != NULL && g_str_equal(profile_mem, "true")) {
 		/*g_mem_set_vtable(glib_mem_profiler_table);*/
 		profiler_enable();
+		atexit(profiler_finish);
+		atexit(profiler_dump);
+		/*atexit(profiler_dump_table);*/
 	}
 
 	/* parse commandline options */
@@ -133,9 +136,6 @@ int main(int argc, char *argv[]) {
 
 	if (free_config_path)
 		g_free(config_path);
-
-	if (profile_mem)
-		profiler_dump();
 
 	return 0;
 }

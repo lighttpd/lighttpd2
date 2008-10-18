@@ -11,17 +11,18 @@
 #define PROFILER_HASHTABLE_SIZE 1024
 
 
-static profiler_mem stats_mem = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-static GStaticMutex profiler_mutex = G_STATIC_MUTEX_INIT;
-static gboolean profiler_enabled = FALSE;
-
-
 struct profiler_entry {
 	gpointer addr;
 	gsize len;
 	struct profiler_entry *next;
 };
 typedef struct  profiler_entry profiler_entry;
+
+static profiler_mem stats_mem = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static GStaticMutex profiler_mutex = G_STATIC_MUTEX_INIT;
+static gboolean profiler_enabled = FALSE;
+static profiler_entry *free_list = NULL;
+
 
 static struct {
 	profiler_entry **nodes;
@@ -31,8 +32,15 @@ static void profiler_hashtable_init() {
 	profiler_hashtable.nodes = calloc(1, sizeof(profiler_entry*) * PROFILER_HASHTABLE_SIZE);
 }
 
+static guint profiler_hash_addr(gpointer addr) {
+	guint h = (gsize) addr;
+	h = (h >> 3) * 2654435761; /* ~ golden ratio of 2^32, shift 3 because of 8 byte boundary alignment (use 2 for 4 byte boundary) */
+	//printf("hashing addr 0x%zx: %u ([%u])\n", (gsize)addr, h, h % PROFILER_HASHTABLE_SIZE);
+	return h % PROFILER_HASHTABLE_SIZE;
+}
+
 static profiler_entry *profiler_hashtable_find(gpointer addr) {
-	guint h = (gsize)addr % PROFILER_HASHTABLE_SIZE;
+	guint h = profiler_hash_addr(addr);
 
 	for (profiler_entry *e = profiler_hashtable.nodes[h]; e != NULL; e = e->next) {
 		if (e->addr == addr)
@@ -43,13 +51,14 @@ static profiler_entry *profiler_hashtable_find(gpointer addr) {
 }
 
 static void profiler_hashtable_insert(gpointer addr, gsize len) {
-	profiler_entry *e = malloc(sizeof(profiler_entry));
+	profiler_entry *e = free_list;
+	free_list = free_list->next ? free_list->next : calloc(1, sizeof(profiler_entry));
 
 	e->addr = addr;
 	e->len = len;
 	e->next = NULL;
 
-	guint h = (gsize)addr % PROFILER_HASHTABLE_SIZE;
+	guint h = profiler_hash_addr(addr);
 
 	if (profiler_hashtable.nodes[h] == NULL) {
 		profiler_hashtable.nodes[h] = e;
@@ -65,7 +74,7 @@ static void profiler_hashtable_insert(gpointer addr, gsize len) {
 }
 
 static void profiler_hashtable_remove(gpointer addr) {
-	guint h = (gsize)addr % PROFILER_HASHTABLE_SIZE;
+	guint h = profiler_hash_addr(addr);
 	profiler_entry *prev = profiler_hashtable.nodes[h];
 
 	if (!prev)
@@ -83,7 +92,8 @@ static void profiler_hashtable_remove(gpointer addr) {
 	for (profiler_entry *e = prev->next; e != NULL; e = e->next) {
 		if (e->addr == addr) {
 			prev->next = e->next;
-			free(e);
+			e->next = free_list;
+			free_list = e;
 			return;
 		}
 		prev = e;
@@ -202,6 +212,13 @@ void profiler_enable() {
 	profiler_enabled = TRUE;
 
 	profiler_hashtable_init();
+	/* prealloc 50 hashtable entries */
+	free_list = calloc(1, sizeof(profiler_entry));
+	for (guint i = 0; i < 49; i++) {
+		profiler_entry *e = calloc(1, sizeof(profiler_entry));
+		e->next = free_list;
+		free_list = e;
+	}
 
 	t.malloc = profiler_malloc;
 	t.realloc = profiler_realloc;
@@ -212,6 +229,14 @@ void profiler_enable() {
 	t.try_realloc = profiler_try_realloc;
 
 	g_mem_set_vtable(&t);
+}
+
+void profiler_finish() {
+	for (profiler_entry *e = free_list; e != NULL;) {
+		profiler_entry *prev = e;
+		e = e->next;
+		free(prev);
+	}
 }
 
 void profiler_dump() {
