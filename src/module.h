@@ -6,14 +6,14 @@
 #define MODULE_VERSION ((guint) 0x00000001)
 #define MODULE_VERSION_CHECK(mods) do { \
 	if (mods->version != MODULE_VERSION) { \
-		ERROR("Version mismatch for modules system: is %u, expected %u", mods->version, MODULE_VERSION); \
+		ERROR(mods->main, "Version mismatch for modules system: is %u, expected %u", mods->version, MODULE_VERSION); \
 		return FALSE; \
 	} } while(0)
 
 /** see module_load */
 #define MODULE_DEPENDS(mods, name) do { \
-	if (!modules_load(mods, name)) { \
-		ERROR("Couldn't load dependency '%s'", name); \
+	if (!module_load(mods, name)) { \
+		ERROR(mods->main, "Couldn't load dependency '%s'", name); \
 		return FALSE; \
 	} } while(0)
 
@@ -29,21 +29,23 @@ typedef gboolean (*ModuleFree)(modules *mods, module *mod);
 
 struct module {
 	gint refcount;    /**< count how often module is used. module gets unloaded if refcount reaches zero. */
-	gchar *name;      /**< name of module, can be set my plugin_init */
+	GString *name;      /**< name of module, can be set my plugin_init */
 	GModule *module;  /**< glib handle */
-	
+	gchar *path;      /**< path to the module file */
+
 	gpointer config;  /**< private module data */
 	ModuleFree free;  /**< if set by plugin_init it gets called before module is unloaded */
 };
 
 struct modules {
 	guint version;    /**< api version */
-	
-	GHashTable *mods; /**< hash table of modules */
+
+	GArray *mods;      /**< array of (module*) */
 	gpointer main;    /**< pointer to a application specific main structure, e.g. server */
 };
 
 LI_API modules* modules_init(gpointer main);
+LI_API void modules_cleanup(server *srv);
 
 /** Loads a module if not loaded yet and returns the module struct for it (after increasing refcount)
   * returns NULL if it couldn't load the module.
@@ -52,7 +54,7 @@ LI_API modules* modules_init(gpointer main);
 LI_API module* module_load(modules *mods, const gchar* name);
 
 LI_API void module_acquire(module *mod);
-LI_API void module_release(modules *mods, module *module);
-LI_API void module_release_name(modules *mods, const char* name);
+LI_API void module_release(modules *mods, module *mod);
+LI_API void module_release_name(modules *mods, const gchar* name);
 
 #endif

@@ -3,6 +3,7 @@
 #include "log.h"
 
 static gboolean plugin_load_default_option(server *srv, server_option *sopt);
+static void plugin_free_default_options(server *srv, plugin *p);
 
 static plugin* plugin_new(const gchar *name) {
 	plugin *p = g_slice_new0(plugin);
@@ -58,6 +59,7 @@ void plugin_free(server *srv, plugin *p) {
 	}
 
 	g_hash_table_remove(srv->plugins, p->name);
+	plugin_free_default_options(srv, p);
 	plugin_free_options(srv, p);
 	plugin_free_actions(srv, p);
 	plugin_free_setups(srv, p);
@@ -89,22 +91,22 @@ void server_plugins_free(server *srv) {
 	g_hash_table_destroy(srv->setups);
 }
 
-gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
+plugin *plugin_register(server *srv, const gchar *name, PluginInit init) {
 	plugin *p;
 
 	if (!init) {
 		ERROR(srv, "Module '%s' needs an init function", name);
-		return FALSE;
+		return NULL;
 	}
 
 	if (g_atomic_int_get(&srv->state) != SERVER_STARTING) {
 		ERROR(srv, "Cannot register plugin '%s' after server was started", name);
-		return FALSE;
+		return NULL;
 	}
 
 	if (g_hash_table_lookup(srv->plugins, name)) {
 		ERROR(srv, "Module '%s' already registered", name);
-		return FALSE;
+		return NULL;
 	}
 
 	p = plugin_new(name);
@@ -125,7 +127,7 @@ gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 					so->p ? so->p->name : "<none>",
 					p->name);
 				plugin_free(srv, p);
-				return FALSE;
+				return NULL;
 			}
 			so = g_slice_new0(server_option);
 			so->type = po->type;
@@ -152,7 +154,7 @@ gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 					sa->p ? sa->p->name : "<none>",
 					p->name);
 				plugin_free(srv, p);
-				return FALSE;
+				return NULL;
 			}
 			sa = g_slice_new0(server_action);
 			sa->create_action = pa->create_action;
@@ -173,7 +175,7 @@ gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 					ss->p ? ss->p->name : "<none>",
 					p->name);
 				plugin_free(srv, p);
-				return FALSE;
+				return NULL;
 			}
 			ss = g_slice_new0(server_setup);
 			ss->setup = ps->setup;
@@ -182,7 +184,7 @@ gboolean plugin_register(server *srv, const gchar *name, PluginInit init) {
 		}
 	}
 
-	return TRUE;
+	return p;
 }
 
 
@@ -396,7 +398,7 @@ static gboolean plugin_load_default_option(server *srv, server_option *sopt) {
 	return TRUE;
 }
 
-void plugins_free_default_options(server *srv) {
+static void plugin_free_default_options(server *srv, plugin *p) {
 	static const option_value oempty = {0};
 	GHashTableIter iter;
 	gpointer k, v;
@@ -407,6 +409,9 @@ void plugins_free_default_options(server *srv) {
 		option_set mark;
 		mark.sopt = sopt;
 		mark.ndx = sopt->index;
+
+		if (sopt->p != p)
+			continue;
 
 		mark.value = g_array_index(srv->option_def_values, option_value, sopt->index);
 

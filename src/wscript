@@ -4,7 +4,7 @@
 #import Object, Params, os, sys
 import Options
 
-common_uselib = 'glib gthread'
+common_uselib = 'glib gthread gmodule'
 
 common_source='''
 	actions.c
@@ -20,6 +20,7 @@ common_source='''
 	http_headers.c
 	http_request_parser.rl
 	log.c
+	module.c
 	network.c
 	network_write.c network_writev.c
 	network_linux_sendfile.c
@@ -74,7 +75,7 @@ main_source = '''
 
 def lighty_mod(bld, target, src, uselib = '', option = ''):
 	if option and not getattr(Options.options, option): return
-	mod = bld.new_task_gen('cc', 'plugin')
+	mod = bld.new_task_gen('cc', 'shlib')
 	mod.target = target
 	mod.source = src
 	mod.uselib += 'lightymod ' + common_uselib + uselib

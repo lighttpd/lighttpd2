@@ -36,7 +36,7 @@ def set_options(opt):
 	opt.add_option('--build-static', action='store_true', help='build a static lighttpd with all modules added', dest = 'buildstatic', default = False)
 	opt.add_option('--append', action='store', help='Append string to binary names / library dir', dest = 'append', default = '')
 	opt.add_option('--lib-dir', action='store', help='Module directory [default: prefix + /lib/lighttpd + append]', dest = 'libdir', default = '')
-	
+
 	opt.add_option('--debug', action='store_true', help='Do not compile with -O2', dest = 'debug', default = False)
 
 from Tools.config_c import enumerator_base, check_data
@@ -395,6 +395,10 @@ def configure(conf):
 	PKGCONFIG(conf, "gthread-2.0", uselib = 'gthread', mandatory = 1)
 	incdir = conf.env['CPPPATH_gthread'][0]
 	conf.env['CPPPATH_gthread'] += [ incdir+'/glib-2.0/', incdir + '/glib-2.0/include/' ]
+
+	PKGCONFIG(conf, "gmodule-2.0", uselib = 'gmodule', mandatory = 1)
+	incdir = conf.env['CPPPATH_gmodule'][0]
+	conf.env['CPPPATH_gmodule'] += [ incdir+'/glib-2.0/', incdir + '/glib-2.0/include/' ]
 
 	#if opts.libfcgi:
 		#CHECK_INCLUDE_FILES(conf, "fastcgi.h", "HAVE_FASTCGI_H", uselib = 'libfcgi')

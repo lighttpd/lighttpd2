@@ -60,6 +60,8 @@ server* server_new() {
 
 	srv->sockets = g_array_new(FALSE, TRUE, sizeof(server_socket*));
 
+	srv->modules = modules_init(srv);
+
 	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
 	srv->options = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_value_free);
 	srv->actions = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_action_free);
@@ -94,6 +96,14 @@ void server_free(server* srv) {
 		}
 	}
 
+	action_release(srv, srv->mainaction);
+
+	/* release modules */
+	modules_cleanup(srv);
+
+	plugin_free(srv, srv->core_plugin);
+	g_array_free(srv->option_def_values, TRUE);
+
 	/* free all workers */
 	{
 		guint i;
@@ -120,13 +130,6 @@ void server_free(server* srv) {
 		}
 		g_array_free(srv->sockets, TRUE);
 	}
-
-	action_release(srv, srv->mainaction);
-
-	if (srv->option_def_values->len) {
-		plugins_free_default_options(srv);
-	}
-	g_array_free(srv->option_def_values, TRUE);
 
 	log_cleanup(srv);
 

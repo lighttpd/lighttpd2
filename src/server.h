@@ -41,7 +41,11 @@ struct server {
 
 	GArray *sockets;          /** array of (server_socket*) */
 
+	gchar *module_dir;
+	struct modules *modules;
+
 	GHashTable *plugins;      /**< const gchar* => (plugin*) */
+	struct plugin *core_plugin;
 
 	/* registered by plugins */
 	GHashTable *options;      /**< const gchar* => (server_option*) */

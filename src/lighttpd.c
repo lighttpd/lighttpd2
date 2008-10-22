@@ -17,6 +17,7 @@ int main(int argc, char *argv[]) {
 	gboolean free_config_path = TRUE;
 
 	gchar *config_path = NULL;
+	gchar *module_dir = NULL;
 	gboolean luaconfig = FALSE;
 	gboolean test_config = FALSE;
 	gboolean show_version = FALSE;
@@ -27,6 +28,7 @@ int main(int argc, char *argv[]) {
 		{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_path, "filename/path of the config", "PATH" },
 		{ "lua", 'l', 0, G_OPTION_ARG_NONE, &luaconfig, "use the lua config frontend", NULL },
 		{ "test", 't', 0, G_OPTION_ARG_NONE, &test_config, "test config and exit", NULL },
+		{ "module-dir", 'm', 0, G_OPTION_ARG_STRING, &module_dir, "module directory", NULL },
 		{ "version", 'v', 0, G_OPTION_ARG_NONE, &show_version, "show version and exit", NULL },
 		{ NULL, 0, 0, 0, NULL, NULL, NULL }
 	};
@@ -67,7 +69,8 @@ int main(int argc, char *argv[]) {
 
 	srv = server_new();
 
-	plugin_register(srv, "core", plugin_core_init);
+	srv->module_dir = module_dir;
+	srv->core_plugin = plugin_register(srv, "core", plugin_core_init);
 
 	/* if no path is specified for the config, read lighttpd.conf from current directory */
 	if (config_path == NULL) {

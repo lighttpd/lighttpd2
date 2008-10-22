@@ -150,6 +150,7 @@ static action_result core_handle_static(connection *con, gpointer param) {
 	} else {
 		struct stat st;
 		fstat(fd, &st);
+
 #ifdef FD_CLOEXEC
 		fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
@@ -450,6 +451,57 @@ static gboolean core_workers(server *srv, plugin* p, value *val) {
 	return TRUE;
 }
 
+static gboolean core_module_load(server *srv, plugin* p, value *val) {
+	value *mods = value_new_list();
+	UNUSED(p);
+
+	if (!g_module_supported()) {
+		ERROR(srv, "%s", "module loading not supported on this platform");
+		value_free(mods);
+		return FALSE;
+	}
+
+	if (val->type == VALUE_STRING) {
+		/* load only one module */
+		value *name = value_new_string(value_extract(val).string);
+		g_array_append_val(mods->data.list, name);
+	} else if (val->type == VALUE_LIST) {
+		/* load a list of modules */
+		for (guint i = 0; i < val->data.list->len; i++) {
+			value *v = g_array_index(val->data.list, value*, i);
+			if (v->type != VALUE_STRING) {
+				ERROR(srv, "module_load takes either a string or a list of strings as parameter, list with %s entry given", value_type_string(v->type));
+				value_free(mods);
+				return FALSE;
+			}
+		}
+		mods->data.list = value_extract(val).list;
+	} else {
+		ERROR(srv, "module_load takes either a string or a list of strings as parameter, %s given", value_type_string(val->type));
+		return FALSE;
+	}
+
+	/* parameter types ok, load modules */
+	for (guint i = 0; i < mods->data.list->len; i++) {
+		GString *name = g_array_index(mods->data.list, value*, i)->data.string;
+		if (!module_load(srv->modules, name->str)) {
+			ERROR(srv, "could not load module '%s': %s", name->str, g_module_error());
+			value_free(mods);
+			return FALSE;
+		}
+
+		TRACE(srv, "loaded module '%s'", name->str);
+	}
+
+	value_free(mods);
+
+	return TRUE;
+}
+
+/*
+ * OPTIONS
+ */
+
 static gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
 	GHashTableIter iter;
 	gpointer k, v;
@@ -741,6 +793,7 @@ static const plugin_setup setups[] = {
 	{ "listen", core_listen },
 	{ "event_handler", core_event_handler },
 	{ "workers", core_workers },
+	{ "module_load", core_module_load },
 	{ NULL, NULL }
 };
 
