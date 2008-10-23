@@ -181,8 +181,5 @@ LI_API gboolean mod_fortune_free(modules *mods, module *mod) {
 	if (fortune_plugin)
 		plugin_free(mods->main, fortune_plugin);
 
-	/* release mod_test dep */
-	module_release_name(mods, "mod_test");
-
 	return TRUE;
 }
