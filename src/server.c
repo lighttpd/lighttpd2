@@ -102,7 +102,8 @@ void server_free(server* srv) {
 	modules_cleanup(srv);
 
 	plugin_free(srv, srv->core_plugin);
-	g_array_free(srv->option_def_values, TRUE);
+
+	log_cleanup(srv);
 
 	/* free all workers */
 	{
@@ -131,8 +132,7 @@ void server_free(server* srv) {
 		g_array_free(srv->sockets, TRUE);
 	}
 
-	log_cleanup(srv);
-
+	g_array_free(srv->option_def_values, TRUE);
 	server_plugins_free(srv);
 	g_array_free(srv->plugins_handle_close, TRUE); /* TODO: */
 
@@ -268,6 +268,7 @@ void server_start(server *srv) {
 	}
 
 	srv->started = ev_now(srv->main_worker->loop);
+	srv->started_str = worker_current_timestamp(srv->main_worker);
 
 	log_thread_start(srv);
 

@@ -72,6 +72,7 @@ struct server {
 	} logs;
 
 	ev_tstamp started;
+	GString *started_str;
 
 	/* keep alive timeout */
 	guint keep_alive_queue_timeout;
