@@ -218,6 +218,7 @@ ENDIF(WITH_PCRE)
 
 # glib/gthread
 pkg_check_modules(GTHREAD REQUIRED gthread-2.0)
+pkg_check_modules(GMODULE REQUIRED gmodule-2.0)
 #INCLUDE_DIRECTORIES(${GTHREAD_INCLUDE_DIRS})
 
 IF(WITH_LUA)
@@ -278,11 +279,13 @@ SET(COMMON_SRC
 	http_headers.c
 	http_request_parser.c
 	log.c
+	module.c
 	network.c
 	network_write.c network_writev.c
 	network_linux_sendfile.c
 	options.c
 	plugin.c
+	profiler.c
 	request.c
 	response.c
 	server.c
@@ -339,6 +342,9 @@ ENDIF(CMAKE_COMPILER_IS_GNUCC)
 
 ADD_TARGET_PROPERTIES(lighttpd LINK_FLAGS ${GTHREAD_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd COMPILE_FLAGS ${GTHREAD_CFLAGS})
+
+ADD_TARGET_PROPERTIES(lighttpd LINK_FLAGS ${GMODULE_LDFLAGS})
+ADD_TARGET_PROPERTIES(lighttpd COMPILE_FLAGS ${GMODULE_CFLAGS})
 
 SET_TARGET_PROPERTIES(lighttpd PROPERTIES CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 
