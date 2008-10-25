@@ -144,11 +144,11 @@ void response_send_error_page(connection *con) {
 		"  <title>"
 	));
 
-	http_status_to_str(con->response.http_status, status_str);
+	http_status_to_str(con->mainvr->response.http_status, status_str);
 
 	chunkqueue_append_mem(con->out, status_str, 3);
 	chunkqueue_append_mem(con->out, CONST_STR_LEN(" - "));
-	str = http_status_string(con->response.http_status, &len);
+	str = http_status_string(con->mainvr->response.http_status, &len);
 	chunkqueue_append_mem(con->out, str, len);
 
 	chunkqueue_append_mem(con->out, CONST_STR_LEN(

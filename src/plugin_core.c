@@ -155,14 +155,14 @@ static handler_t core_handle_static(vrequest *vr, gpointer param) {
 
 	VR_TRACE(vr, "physical path: %s", vr->physical.path->str);
 
-	if (con->physical.path->len == 0) return ACTION_GO_ON;
+	if (vr->physical.path->len == 0) return HANDLER_GO_ON;
 
 	if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
 
 	fd = open(vr->physical.path->str, O_RDONLY);
 	if (fd == -1) {
 		vr->response.http_status = 404;
-		VR_TRACE(con, "open() failed: %s (%d)\n", g_strerror(errno), errno);
+		VR_TRACE(vr, "open() failed: %s (%d)\n", g_strerror(errno), errno);
 
 		switch (errno) {
 		case ENOENT:
@@ -184,7 +184,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param) {
 			vr->response.http_status = 404;
 			close(fd);
 		} else {
-			GString *mime_str = mimetype_get(con, vr->request.uri.path);
+			GString *mime_str = mimetype_get(vr, vr->request.uri.path);
 			vr->response.http_status = 200;
 			if (mime_str)
 				http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
@@ -309,14 +309,14 @@ static action* core_blank(server *srv, plugin* p, value *val) {
 	return action_new_function(core_handle_blank, NULL, NULL);
 }
 
-static action_result core_handle_profile_mem(connection *con, gpointer param) {
-	UNUSED(con);
+static handler_t core_handle_profile_mem(vrequest *vr, gpointer param) {
+	UNUSED(vr);
 	UNUSED(param);
 
 	/*g_mem_profile();*/
 	profiler_dump();
 
-	return ACTION_GO_ON;
+	return HANDLER_GO_ON;
 }
 
 static action* core_profile_mem(server *srv, plugin* p, value *val) {
@@ -664,15 +664,15 @@ static void core_option_mime_types_free(server *srv, plugin *p, size_t ndx, opti
 	g_array_free(oval.list, TRUE);
 }
 
-static action_result core_handle_header_add(connection *con, gpointer param) {
+static handler_t core_handle_header_add(vrequest *vr, gpointer param) {
 	UNUSED(param);
 	GArray *l = (GArray*)param;
 	GString *k = g_array_index(l, value*, 0)->data.string;
 	GString *v = g_array_index(l, value*, 1)->data.string;
 
-	http_header_insert(con->response.headers, GSTR_LEN(k), GSTR_LEN(v));
+	http_header_insert(vr->response.headers, GSTR_LEN(k), GSTR_LEN(v));
 
-	return ACTION_GO_ON;
+	return HANDLER_GO_ON;
 }
 
 static void core_header_free(struct server *srv, gpointer param) {
@@ -705,15 +705,15 @@ static action* core_header_add(server *srv, plugin* p, value *val) {
 }
 
 
-static action_result core_handle_header_append(connection *con, gpointer param) {
+static handler_t core_handle_header_append(vrequest *vr, gpointer param) {
 	UNUSED(param);
 	GArray *l = (GArray*)param;
 	GString *k = g_array_index(l, value*, 0)->data.string;
 	GString *v = g_array_index(l, value*, 1)->data.string;
 
-	http_header_append(con->response.headers, GSTR_LEN(k), GSTR_LEN(v));
+	http_header_append(vr->response.headers, GSTR_LEN(k), GSTR_LEN(v));
 
-	return ACTION_GO_ON;
+	return HANDLER_GO_ON;
 }
 
 static action* core_header_append(server *srv, plugin* p, value *val) {
@@ -741,15 +741,15 @@ static action* core_header_append(server *srv, plugin* p, value *val) {
 }
 
 
-static action_result core_handle_header_overwrite(connection *con, gpointer param) {
+static handler_t core_handle_header_overwrite(vrequest *vr, gpointer param) {
 	UNUSED(param);
 	GArray *l = (GArray*)param;
 	GString *k = g_array_index(l, value*, 0)->data.string;
 	GString *v = g_array_index(l, value*, 1)->data.string;
 
-	http_header_overwrite(con->response.headers, GSTR_LEN(k), GSTR_LEN(v));
+	http_header_overwrite(vr->response.headers, GSTR_LEN(k), GSTR_LEN(v));
 
-	return ACTION_GO_ON;
+	return HANDLER_GO_ON;
 }
 
 static action* core_header_overwrite(server *srv, plugin* p, value *val) {

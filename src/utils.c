@@ -301,11 +301,11 @@ guint hash_ipv6(gconstpointer key) {
 }
 
 
-GString *mimetype_get(connection *con, GString *filename) {
+GString *mimetype_get(vrequest *vr, GString *filename) {
 	/* search in mime_types option for the first match */
 	GArray *arr;
 
-	if (!con || !filename || !filename->len)
+	if (!vr || !filename || !filename->len)
 		return NULL;
 
 	arr = CORE_OPTION(CORE_OPTION_MIME_TYPES).list;
