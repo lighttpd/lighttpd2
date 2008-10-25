@@ -314,10 +314,6 @@ void server_exit(server *srv) {
 	}
 }
 
-void joblist_append(connection *con) {
-	connection_state_machine(con);
-}
-
 /* cache timestamp */
 GString *server_current_timestamp() {
 	static GStaticPrivate last_ts_key = G_STATIC_PRIVATE_INIT;

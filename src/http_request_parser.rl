@@ -4,10 +4,10 @@
 
 /** Machine **/
 
-#define _getString(M, FPC) (chunk_extract(con, ctx->M, GETMARK(FPC)))
+#define _getString(M, FPC) (chunk_extract(vr, ctx->M, GETMARK(FPC)))
 #define getString(FPC) _getString(mark, FPC)
 
-#define _getStringTo(M, FPC, s) (chunk_extract_to(con, ctx->M, GETMARK(FPC), s))
+#define _getStringTo(M, FPC, s) (chunk_extract_to(vr, ctx->M, GETMARK(FPC), s))
 #define getStringTo(FPC, s) _getStringTo(mark, FPC, s)
 
 
@@ -148,7 +148,7 @@ void http_request_parser_clear(http_request_ctx *ctx) {
 	g_string_free(ctx->h_value, TRUE);
 }
 
-handler_t http_request_parse(connection *con, http_request_ctx *ctx) {
+handler_t http_request_parse(vrequest *vr, http_request_ctx *ctx) {
 	handler_t res;
 
 	if (http_request_parser_is_finished(ctx)) return HANDLER_GO_ON;
@@ -158,7 +158,7 @@ handler_t http_request_parse(connection *con, http_request_ctx *ctx) {
 	while (!http_request_parser_has_error(ctx) && !http_request_parser_is_finished(ctx)) {
 		char *p, *pe;
 
-		if (HANDLER_GO_ON != (res = chunk_parser_next(con, &ctx->chunk_ctx, &p, &pe))) return res;
+		if (HANDLER_GO_ON != (res = chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
 
 		%% write exec;
 

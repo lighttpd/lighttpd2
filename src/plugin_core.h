@@ -18,7 +18,7 @@ enum core_options_t {
 };
 
 /* the core plugin always has base index 0, as it is the first plugin loaded */
-#define CORE_OPTION(idx) _CORE_OPTION(con, idx)
-#define _CORE_OPTION(con, idx) _OPTION_ABS(con, idx)
+#define CORE_OPTION(idx) _CORE_OPTION(vr, idx)
+#define _CORE_OPTION(vr, idx) _OPTION_ABS(vr, idx)
 
 #endif

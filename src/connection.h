@@ -10,54 +10,17 @@ typedef enum {
 	/** waiting for new input after first request */
 	CON_STATE_KEEP_ALIVE,
 
-	/** after the connect, the request is initialized, keep-alive starts here again */
+	/** after the connect, the request is initialized */
 	CON_STATE_REQUEST_START,
 
 	/** loop in the read-request-header until the full header is received */
 	CON_STATE_READ_REQUEST_HEADER,
-	/** validate the request-header */
-	CON_STATE_VALIDATE_REQUEST_HEADER,
 
-	/** find a handler for the request; there are two ways to produce responses:
-	  *  - direct response: for things like errors/auth/redirect
-	  *    just set the status code, perhaps fill in some headers,
-	  *    append your content (if any) to the queue and do:
-	  *      connection_handle_direct(con);
-	  *    this moves into the CON_STATE_HANDLE_RESPONSE_HEADER
-	  *    request body gets dropped
-	  *  - indirect response: you register your plugin as the content handler:
-	  *      connection_handle_indirect(con, plugin);
-	  *    this moves into the CON_STATE_READ_REQUEST_CONTENT state automatically
-	  *    as soon as you build the response headers (e.g. from a backend),
-	  *    change to the CON_STATE_HANDLE_RESPONSE_HEADER state:
-	  *      connection_set_state(con, CON_STATE_HANDLE_RESPONSE_HEADER);
-	  */
-	CON_STATE_HANDLE_REQUEST_HEADER,
+	/** handle in main virtual request */
+	CON_STATE_HANDLE_MAINVR,
 
-	/** start forwarding the request content to the handler;
-	  * any filter for the request content must register before a handler
-	  * for the response content registers
-	  */
-	CON_STATE_READ_REQUEST_CONTENT,
-
-	/** response headers available; this is were compress/deflate should register
-	  * their response content filters
-	  * if all actions are done (or one returns HANDLER_FINISHED) we start
-	  * writing the response content
-	  */
-	CON_STATE_HANDLE_RESPONSE_HEADER,
-
-	/** start sending content */
-	CON_STATE_WRITE_RESPONSE,
-
-	/** successful request, connection closed - final state */
-	CON_STATE_RESPONSE_END,
-
-	/** connection reset by peer - final state */
-	CON_STATE_CLOSE,
-
-	/** fatal error, connection closed - final state */
-	CON_STATE_ERROR
+	/** write remaining bytes from raw_out, mainvr finished (or not started) */
+	CON_STATE_WRITE,
 } connection_state_t;
 
 struct connection {
@@ -69,23 +32,17 @@ struct connection {
 	gboolean response_headers_sent, expect_100_cont;
 
 	chunkqueue *raw_in, *raw_out;
-	chunkqueue *in, *out;
+	chunkqueue *in, *out;    /* link to mainvr->in/out */
 
 	ev_io sock_watcher;
 	sock_addr remote_addr, local_addr;
 	GString *remote_addr_str, *local_addr_str;
 	gboolean is_ssl, keep_alive;
 
-	action_stack action_stack;
-
 	option_value *options;
 
-	request request;
-	physical physical;
-	response response;
+	vrequest *mainvr;
 	http_request_ctx req_parser_ctx;
-
-	plugin *content_handler;
 
 	struct log_t *log;
 	gint log_level;
@@ -101,10 +58,10 @@ struct connection {
 
 LI_API connection* connection_new(worker *wrk);
 LI_API void connection_reset(connection *con);
+LI_API void connection_reset_keep_alive(connection *con);
 LI_API void connection_free(connection *con);
 
-LI_API void connection_set_state(connection *con, connection_state_t state);
-LI_API void connection_state_machine(connection *con);
+LI_API void connection_error(connection *con);
 
 LI_API void connection_handle_direct(connection *con);
 LI_API void connection_handle_indirect(connection *con, plugin *p);

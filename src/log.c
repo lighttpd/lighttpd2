@@ -41,6 +41,7 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint f
 	log_t *log = NULL;
 	log_entry_t *log_entry;
 	log_timestamp_t *ts = NULL;
+	vrequest *vr = con ? con->mainvr : NULL;
 
 	if (con != NULL) {
 

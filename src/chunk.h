@@ -16,7 +16,7 @@ struct chunkiter;
 typedef struct chunkiter chunkiter;
 
 struct server;
-struct connection;
+struct vrequest;
 
 #include "settings.h"
 
@@ -76,7 +76,7 @@ struct chunkiter {
 /* open the file cf->name if it is not already opened for reading
  * may return HANDLER_GO_ON, HANDLER_ERROR, HANDLER_WAIT_FOR_FD
  */
-LI_API handler_t chunkfile_open(struct connection *con, chunkfile *cf);
+LI_API handler_t chunkfile_open(struct vrequest *vr, chunkfile *cf);
 
 /******************
  * chunk iterator *
@@ -92,7 +92,7 @@ INLINE goffset chunkiter_length(chunkiter iter);
  * the data is _not_ marked as "done"
  * may return HANDLER_GO_ON, HANDLER_ERROR, HANDLER_WAIT_FOR_FD
  */
-LI_API handler_t chunkiter_read(struct connection *con, chunkiter iter, off_t start, off_t length, char **data_start, off_t *data_len);
+LI_API handler_t chunkiter_read(struct vrequest *vr, chunkiter iter, off_t start, off_t length, char **data_start, off_t *data_len);
 
 /******************
  *     chunk      *

@@ -45,16 +45,16 @@ static void chunkfile_release(chunkfile *cf) {
 /* open the file cf->name if it is not already opened for reading
  * may return HANDLER_GO_ON, HANDLER_ERROR, HANDLER_WAIT_FOR_FD
  */
-handler_t chunkfile_open(connection *con, chunkfile *cf) {
+handler_t chunkfile_open(vrequest *vr, chunkfile *cf) {
 	if (!cf) return HANDLER_ERROR;
 	if (-1 != cf->fd) return HANDLER_GO_ON;
 	if (!cf->name) {
-		CON_ERROR(con, "%s", "Missing filename for FILE_CHUNK");
+		VR_ERROR(vr, "%s", "Missing filename for FILE_CHUNK");
 		return HANDLER_ERROR;
 	}
 	if (-1 == (cf->fd = open(cf->name->str, O_RDONLY))) {
 		if (EMFILE == errno) return HANDLER_WAIT_FOR_FD;
-		CON_ERROR(con, "Couldn't open file '%s': %s", GSTR_SAFE_STR(cf->name), g_strerror(errno));
+		VR_ERROR(vr, "Couldn't open file '%s': %s", GSTR_SAFE_STR(cf->name), g_strerror(errno));
 		return HANDLER_ERROR;
 	}
 #ifdef FD_CLOEXEC
@@ -64,7 +64,7 @@ handler_t chunkfile_open(connection *con, chunkfile *cf) {
 	/* tell the kernel that we want to stream the file */
 	if (-1 == posix_fadvise(cf->fd, 0, 0, POSIX_FADV_SEQUENTIAL)) {
 		if (ENOSYS != errno) {
-			CON_ERROR(con, "posix_fadvise failed for '%s': %s (%i)", GSTR_SAFE_STR(cf->name), g_strerror(errno), cf->fd);
+			VR_ERROR(vr, "posix_fadvise failed for '%s': %s (%i)", GSTR_SAFE_STR(cf->name), g_strerror(errno), cf->fd);
 		}
 	}
 #endif
@@ -85,7 +85,7 @@ handler_t chunkfile_open(connection *con, chunkfile *cf) {
  * the data is _not_ marked as "done"
  * may return HANDLER_GO_ON, HANDLER_ERROR, HANDLER_WAIT_FOR_FD
  */
-handler_t chunkiter_read(connection *con, chunkiter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
+handler_t chunkiter_read(vrequest *vr, chunkiter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
 	chunk *c = chunkiter_chunk(iter);
 	off_t we_want, we_have, our_start, our_offset;
 	handler_t res = HANDLER_GO_ON;
@@ -105,7 +105,7 @@ handler_t chunkiter_read(connection *con, chunkiter iter, off_t start, off_t len
 		*data_len = length;
 		break;
 	case FILE_CHUNK:
-		if (HANDLER_GO_ON != (res = chunkfile_open(con, c->file.file))) return res;
+		if (HANDLER_GO_ON != (res = chunkfile_open(vr, c->file.file))) return res;
 
 		if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
 
@@ -142,11 +142,11 @@ handler_t chunkiter_read(connection *con, chunkiter iter, off_t start, off_t len
 				if (-1 == lseek(c->file.file->fd, our_start, SEEK_SET)) {
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
-						CON_ERROR(con, "mmap failed for '%s' (fd = %i): %s",
+						VR_ERROR(vr, "mmap failed for '%s' (fd = %i): %s",
 							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
 							g_strerror(mmap_errno));
 					} else {
-						CON_ERROR(con, "lseek failed for '%s' (fd = %i): %s",
+						VR_ERROR(vr, "lseek failed for '%s' (fd = %i): %s",
 							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
 							g_strerror(errno));
 					}
@@ -159,11 +159,11 @@ read_chunk:
 					if (EINTR == errno) goto read_chunk;
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
-						CON_ERROR(con, "mmap failed for '%s' (fd = %i): %s",
+						VR_ERROR(vr, "mmap failed for '%s' (fd = %i): %s",
 							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
 							g_strerror(mmap_errno));
 					} else {
-						CON_ERROR(con, "read failed for '%s' (fd = %i): %s",
+						VR_ERROR(vr, "read failed for '%s' (fd = %i): %s",
 							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
 							g_strerror(errno));
 					}
@@ -183,7 +183,7 @@ read_chunk:
 				/* don't advise files < 64Kb */
 				if (c->file.mmap.length > (64*1024) &&
 					0 != madvise(c->file.mmap.data, c->file.mmap.length, MADV_WILLNEED)) {
-					CON_ERROR(con, "madvise failed for '%s' (fd = %i): %s",
+					VR_ERROR(vr, "madvise failed for '%s' (fd = %i): %s",
 						GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
 						g_strerror(errno));
 				}

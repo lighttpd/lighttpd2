@@ -2,7 +2,7 @@
 #include "network.h"
 
 /* first chunk must be a FILE_CHUNK ! */
-network_status_t network_backend_sendfile(connection *con, int fd, chunkqueue *cq, goffset *write_max) {
+network_status_t network_backend_sendfile(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
 	off_t file_offset, toSend;
 	ssize_t r;
 	gboolean did_write_something = FALSE;
@@ -18,7 +18,7 @@ network_status_t network_backend_sendfile(connection *con, int fd, chunkqueue *c
 			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_FATAL_ERROR;
 		}
 
-		switch (chunkfile_open(con, c->file.file)) {
+		switch (chunkfile_open(vr, c->file.file)) {
 		case HANDLER_GO_ON:
 			break;
 		case HANDLER_WAIT_FOR_FD:
@@ -49,7 +49,7 @@ network_status_t network_backend_sendfile(connection *con, int fd, chunkqueue *c
 				NETWORK_FALLBACK(network_backend_write, write_max);
 				return NETWORK_STATUS_SUCCESS;
 			default:
-				CON_ERROR(con, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
+				VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 				return NETWORK_STATUS_FATAL_ERROR;
 			}
 		}
@@ -57,13 +57,13 @@ network_status_t network_backend_sendfile(connection *con, int fd, chunkqueue *c
 			/* don't care about cached stat - file is open */
 			struct stat st;
 			if (-1 == fstat(fd, &st)) {
-				CON_ERROR(con, "Couldn't fstat file: %s", g_strerror(errno));
+				VR_ERROR(vr, "Couldn't fstat file: %s", g_strerror(errno));
 				return NETWORK_STATUS_FATAL_ERROR;
 			}
 
 			if (file_offset > st.st_size) {
 				/* file shrinked, close the connection */
-				CON_ERROR(con, "%s", "File shrinked, aborting");
+				VR_ERROR(vr, "%s", "File shrinked, aborting");
 				return NETWORK_STATUS_FATAL_ERROR;
 			}
 			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
@@ -77,7 +77,7 @@ network_status_t network_backend_sendfile(connection *con, int fd, chunkqueue *c
 	return NETWORK_STATUS_SUCCESS;
 }
 
-network_status_t network_write_sendfile(connection *con, int fd, chunkqueue *cq) {
+network_status_t network_write_sendfile(vrequest *vr, int fd, chunkqueue *cq) {
 	goffset write_max = 256*1024; // 256kB //;
 	if (cq->length == 0) return NETWORK_STATUS_FATAL_ERROR;
 	do {

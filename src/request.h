@@ -88,7 +88,7 @@ LI_API void request_init(request *req);
 LI_API void request_reset(request *req);
 LI_API void request_clear(request *req);
 
-LI_API void request_validate_header(connection *con);
+LI_API gboolean request_validate_header(connection *con);
 
 LI_API void physical_init(physical *phys);
 LI_API void physical_reset(physical *phys);

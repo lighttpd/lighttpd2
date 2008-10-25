@@ -121,10 +121,10 @@ void action_stack_clear(server *srv, action_stack *as) {
 }
 
 /** handle sublist now, remember current position (stack) */
-void action_enter(connection *con, action *a) {
+void action_enter(vrequest *vr, action *a) {
 	action_acquire(a);
 	action_stack_element ase = { a, 0 };
-	g_array_append_val(con->action_stack.stack, ase);
+	g_array_append_val(vr->action_stack.stack, ase);
 }
 
 static action_stack_element *action_stack_top(action_stack* as) {
@@ -145,51 +145,66 @@ static action* action_stack_element_action(action_stack_element *ase) {
 	}
 }
 
-action_result action_execute(connection *con) {
+handler_t action_execute(vrequest *vr) {
 	action *a;
-	action_stack *as = &con->action_stack;
+	action_stack *as = &vr->action_stack;
 	action_stack_element *ase;
-	action_result res;
+	handler_t res;
+	gboolean condres;
 
 	while (NULL != (ase = action_stack_top(as))) {
 		a = action_stack_element_action(ase);
 		if (!a) {
-			action_stack_pop(con->srv, as);
+			action_stack_pop(vr->con->srv, as);
 			continue;
 		}
 
-		con->wrk->stats.actions_executed++;
+		vr->con->wrk->stats.actions_executed++;
 
 		switch (a->type) {
 		case ACTION_TSETTING:
-			con->options[a->data.setting.ndx] = a->data.setting.value;
+			vr->con->options[a->data.setting.ndx] = a->data.setting.value;
 			break;
 		case ACTION_TFUNCTION:
-			res = a->data.function.func(con, a->data.function.param);
+			res = a->data.function.func(vr, a->data.function.param);
 			switch (res) {
-			case ACTION_GO_ON:
-			case ACTION_FINISHED:
+			case HANDLER_GO_ON:
+			case HANDLER_FINISHED:
 				break;
-			case ACTION_ERROR:
-				action_stack_reset(con->srv, as);
+			case HANDLER_ERROR:
+				action_stack_reset(vr->con->srv, as);
+			case HANDLER_COMEBACK:
+			case HANDLER_WAIT_FOR_EVENT:
+			case HANDLER_WAIT_FOR_FD:
 				return res;
-			case ACTION_WAIT_FOR_EVENT:
-				return ACTION_WAIT_FOR_EVENT;
 			}
 			break;
 		case ACTION_TCONDITION:
-			if (condition_check(con, a->data.condition.cond)) {
-				action_enter(con, a->data.condition.target);
-			}
-			else if (a->data.condition.target_else) {
-				action_enter(con, a->data.condition.target_else);
+			condres = FALSE;
+			res = condition_check(vr, a->data.condition.cond, &condres);
+			switch (res) {
+			case HANDLER_GO_ON:
+			case HANDLER_FINISHED:
+				if (condres) {
+					action_enter(vr, a->data.condition.target);
+				}
+				else if (a->data.condition.target_else) {
+					action_enter(vr, a->data.condition.target_else);
+				}
+				break;
+			case HANDLER_ERROR:
+				action_stack_reset(vr->con->srv, as);
+			case HANDLER_COMEBACK:
+			case HANDLER_WAIT_FOR_EVENT:
+			case HANDLER_WAIT_FOR_FD:
+				return res;
 			}
 			break;
 		case ACTION_TLIST:
-			action_enter(con, a);
+			action_enter(vr, a);
 			break;
 		}
 		ase->pos++;
 	}
-	return ACTION_FINISHED;
+	return HANDLER_FINISHED;
 }

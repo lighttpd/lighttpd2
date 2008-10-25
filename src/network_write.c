@@ -1,7 +1,7 @@
 
 #include "network.h"
 
-network_status_t network_backend_write(connection *con, int fd, chunkqueue *cq, goffset *write_max) {
+network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	char *block_data;
 	off_t block_len;
@@ -14,7 +14,7 @@ network_status_t network_backend_write(connection *con, int fd, chunkqueue *cq, 
 			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_FATAL_ERROR;
 
 		ci = chunkqueue_iter(cq);
-		switch (chunkiter_read(con, ci, 0, blocksize, &block_data, &block_len)) {
+		switch (chunkiter_read(vr, ci, 0, blocksize, &block_data, &block_len)) {
 		case HANDLER_GO_ON:
 			break;
 		case HANDLER_WAIT_FOR_FD:
@@ -35,7 +35,7 @@ network_status_t network_backend_write(connection *con, int fd, chunkqueue *cq, 
 			case EPIPE:
 				return NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
-				CON_ERROR(con, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
+				VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 				return NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {
