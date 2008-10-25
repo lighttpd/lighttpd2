@@ -249,9 +249,10 @@ const char* cond_lvalue_to_string(cond_lvalue_t t) {
 }
 
 /* COND_VALUE_STRING and COND_VALUE_REGEXP only */
-static gboolean condition_check_eval_string(connection *con, condition *cond) {
+static handler_t condition_check_eval_string(vrequest *vr, condition *cond, gboolean *res) {
+	connection *con = vr->con;
 	const char *val = "";
-	gboolean result = FALSE;
+	*res = FALSE;
 
 	switch (cond->lvalue->type) {
 	case COMP_REQUEST_LOCALIP:
@@ -261,28 +262,28 @@ static gboolean condition_check_eval_string(connection *con, condition *cond) {
 		val = con->remote_addr_str->str;
 		break;
 	case COMP_REQUEST_PATH:
-		val = con->request.uri.path->str;
+		val = vr->request.uri.path->str;
 		break;
 	case COMP_REQUEST_HOST:
-		val = con->request.uri.host->str;
+		val = vr->request.uri.host->str;
 		break;
 	case COMP_REQUEST_SCHEME:
 		val = con->is_ssl ? "https" : "http";
 		break;
 	case COMP_REQUEST_QUERY_STRING:
-		val = con->request.uri.query->str;
+		val = vr->request.uri.query->str;
 		break;
 	case COMP_REQUEST_METHOD:
-		val = con->request.http_method_str->str;
+		val = vr->request.http_method_str->str;
 		break;
 	case COMP_PHYSICAL_PATH:
-		val = con->physical.path->str;
+		val = vr->physical.path->str;
 		break;
 	case COMP_PHYSICAL_PATH_EXISTS:
 		/* TODO: physical path exists */
 		break;
 	case COMP_REQUEST_HEADER:
-		http_header_get_fast(con->wrk->tmp_str, con->request.headers, GSTR_LEN(cond->lvalue->key));
+		http_header_get_fast(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
 		break;
 	case COMP_PHYSICAL_SIZE:
@@ -291,37 +292,39 @@ static gboolean condition_check_eval_string(connection *con, condition *cond) {
 		val = con->wrk->tmp_str->str;
 		break;
 	case COMP_REQUEST_CONTENT_LENGTH:
-		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, con->request.content_length);
+		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
 		val = con->wrk->tmp_str->str;
 		break;
 	}
 
 	switch (cond->op) {
 	case CONFIG_COND_EQ:
-		result = g_str_equal(val, cond->rvalue.string->str);
+		*res = g_str_equal(val, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_NE:
-		result = g_str_equal(val, cond->rvalue.string->str);
+		*res = g_str_equal(val, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_PREFIX:
-		result = g_str_has_prefix(val, cond->rvalue.string->str);
+		*res = g_str_has_prefix(val, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_NOPREFIX:
-		result = !g_str_has_prefix(val, cond->rvalue.string->str);
+		*res = !g_str_has_prefix(val, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_SUFFIX:
-		result = g_str_has_suffix(val, cond->rvalue.string->str);
+		*res = g_str_has_suffix(val, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_NOSUFFIX:
-		result = !g_str_has_suffix(val, cond->rvalue.string->str);
+		*res = !g_str_has_suffix(val, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_MATCH:
 	case CONFIG_COND_NOMATCH:
 #ifdef HAVE_PCRE_H
 		/* TODO: pcre */
-		CON_ERROR(con, "%s", "regexp match not supported yet");
+		VR_ERROR(vr, "%s", "regexp match not supported yet");
+		return HANDLER_ERROR;
 #else
-		CON_ERROR(con, "compiled without pcre, cannot use '%s'", comp_op_to_string(cond->op));
+		VR_ERROR(vr, "compiled without pcre, cannot use '%s'", comp_op_to_string(cond->op));
+		return HANDLER_ERROR;
 #endif
 		break;
 	case CONFIG_COND_IP:
@@ -330,41 +333,49 @@ static gboolean condition_check_eval_string(connection *con, condition *cond) {
 	case CONFIG_COND_GT:
 	case CONFIG_COND_LE:
 	case CONFIG_COND_LT:
-		CON_ERROR(con, "cannot compare string/regexp with '%s'", comp_op_to_string(cond->op));
-		break;
+		VR_ERROR(vr, "cannot compare string/regexp with '%s'", comp_op_to_string(cond->op));
+		return HANDLER_ERROR;
 	}
 
-	return result;
+	return HANDLER_GO_ON;
 }
 
 
-static gboolean condition_check_eval_int(connection *con, condition *cond) {
+static handler_t condition_check_eval_int(vrequest *vr, condition *cond, gboolean *res) {
 	gint64 val;
+	*res = FALSE;
 
 	switch (cond->lvalue->type) {
 	case COMP_REQUEST_CONTENT_LENGTH:
-		val = con->request.content_length;
+		val = vr->request.content_length;
 	case COMP_PHYSICAL_SIZE:
-		val = con->physical.size;
+		/* TODO: stat file */
+		val = vr->physical.size;
 		break;
 	default:
-		CON_ERROR(con, "couldn't get int value for '%s', using -1", cond_lvalue_to_string(cond->lvalue->type));
-		val = -1;
+		VR_ERROR(vr, "couldn't get int value for '%s'", cond_lvalue_to_string(cond->lvalue->type));
+		return HANDLER_ERROR;
 	}
 
-	if (val > 0) switch (cond->op) {
+	switch (cond->op) {
 	case CONFIG_COND_EQ:      /** == */
-		return (val == cond->rvalue.i);
+		*res = (val == cond->rvalue.i);
+		break;
 	case CONFIG_COND_NE:      /** != */
-		return (val != cond->rvalue.i);
+		*res = (val != cond->rvalue.i);
+		break;
 	case CONFIG_COND_LT:      /** < */
-		return (val < cond->rvalue.i);
+		*res = (val < cond->rvalue.i);
+		break;
 	case CONFIG_COND_LE:      /** <= */
-		return (val <= cond->rvalue.i);
+		*res = (val <= cond->rvalue.i);
+		break;
 	case CONFIG_COND_GT:      /** > */
-		return (val > cond->rvalue.i);
+		*res = (val > cond->rvalue.i);
+		break;
 	case CONFIG_COND_GE:      /** >= */
-		return (val >= cond->rvalue.i);
+		*res = (val >= cond->rvalue.i);
+		break;
 	case CONFIG_COND_PREFIX:
 	case CONFIG_COND_NOPREFIX:
 	case CONFIG_COND_SUFFIX:
@@ -373,11 +384,11 @@ static gboolean condition_check_eval_int(connection *con, condition *cond) {
 	case CONFIG_COND_NOMATCH:
 	case CONFIG_COND_IP:
 	case CONFIG_COND_NOTIP:
-		CON_ERROR(con, "cannot compare int with '%s'", comp_op_to_string(cond->op));
-		return FALSE;
+		VR_ERROR(vr, "cannot compare int with '%s'", comp_op_to_string(cond->op));
+		return HANDLER_ERROR;
 	}
 
-	return FALSE;
+	return HANDLER_GO_ON;
 }
 
 static gboolean ipv4_in_ipv4_net(guint32 target, guint32 match, guint32 networkmask) {
@@ -422,65 +433,65 @@ static gboolean ip_in_net(condition_rvalue *target, condition_rvalue *network) {
 }
 
 /* CONFIG_COND_IP and CONFIG_COND_NOTIP only */
-static gboolean condition_check_eval_ip(connection *con, condition *cond) {
+static handler_t condition_check_eval_ip(vrequest *vr, condition *cond, gboolean *res) {
+	connection *con = vr->con;
 	condition_rvalue ipval;
 	const char *val = NULL;
-	gboolean result = FALSE;
+	*res = (cond->op == CONFIG_COND_NOTIP);
 
 	ipval.type = COND_VALUE_NUMBER;
 
 	switch (cond->lvalue->type) {
 	case COMP_REQUEST_LOCALIP:
 		if (!condition_ip_from_socket(&ipval, &con->local_addr))
-			return (cond->op == CONFIG_COND_NOTIP);
+			return HANDLER_GO_ON;
 		break;
 	case COMP_REQUEST_REMOTEIP:
 		if (!condition_ip_from_socket(&ipval, &con->remote_addr))
-			return (cond->op == CONFIG_COND_NOTIP);
+			return HANDLER_GO_ON;
 		break;
 	case COMP_REQUEST_PATH:
-		CON_ERROR(con, "%s", "Cannot parse request.path as ip");
-		return (cond->op == CONFIG_COND_NOTIP);
-		break;
+		VR_ERROR(vr, "%s", "Cannot parse request.path as ip");
+		return HANDLER_ERROR;
 	case COMP_REQUEST_HOST:
-		val = con->request.uri.host->str;
+		val = vr->request.uri.host->str;
 		break;
 	case COMP_REQUEST_SCHEME:
-		CON_ERROR(con, "%s", "Cannot parse request.scheme as ip");
-		return (cond->op == CONFIG_COND_NOTIP);
+		VR_ERROR(vr, "%s", "Cannot parse request.scheme as ip");
+		return HANDLER_ERROR;
 	case COMP_REQUEST_QUERY_STRING:
-		val = con->request.uri.query->str;
+		val = vr->request.uri.query->str;
 		break;
 	case COMP_REQUEST_METHOD:
-		CON_ERROR(con, "%s", "Cannot request.method as ip");
-		return (cond->op == CONFIG_COND_NOTIP);
+		VR_ERROR(vr, "%s", "Cannot parse request.method as ip");
+		return HANDLER_ERROR;
 		break;
 	case COMP_PHYSICAL_PATH:
 	case COMP_PHYSICAL_PATH_EXISTS:
-		CON_ERROR(con, "%s", "Cannot physical.path(-exists) as ip");
-		return (cond->op == CONFIG_COND_NOTIP);
+		VR_ERROR(vr, "%s", "Cannot parse physical.path(-exists) as ip");
+		return HANDLER_ERROR;
 		break;
 	case COMP_REQUEST_HEADER:
-		http_header_get_fast(con->wrk->tmp_str, con->request.headers, GSTR_LEN(cond->lvalue->key));
+		http_header_get_fast(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
 		break;
 	case COMP_PHYSICAL_SIZE:
 	case COMP_REQUEST_CONTENT_LENGTH:
-		CON_ERROR(con, "%s", "Cannot parse integers as ip");
-		return (cond->op == CONFIG_COND_NOTIP);
+		VR_ERROR(vr, "%s", "Cannot parse integers as ip");
+		return HANDLER_ERROR;
 		break;
 	}
 
 	if (ipval.type == COND_VALUE_NUMBER) {
 		if (!val || !condition_parse_ip(&ipval, val))
-			return (cond->op == CONFIG_COND_NOTIP);
+			return HANDLER_GO_ON;
 	}
 
 	switch (cond->op) {
 	case CONFIG_COND_IP:
-		return ip_in_net(&ipval, &cond->rvalue);
+		*res = ip_in_net(&ipval, &cond->rvalue);
 	case CONFIG_COND_NOTIP:
-		return !ip_in_net(&ipval, &cond->rvalue);
+		*res = !ip_in_net(&ipval, &cond->rvalue);
 	case CONFIG_COND_PREFIX:
 	case CONFIG_COND_NOPREFIX:
 	case CONFIG_COND_SUFFIX:
@@ -493,25 +504,26 @@ static gboolean condition_check_eval_ip(connection *con, condition *cond) {
 	case CONFIG_COND_GT:
 	case CONFIG_COND_LE:
 	case CONFIG_COND_LT:
-		CON_ERROR(con, "cannot match ips with '%s'", comp_op_to_string(cond->op));
-		break;
+		VR_ERROR(vr, "cannot match ips with '%s'", comp_op_to_string(cond->op));
+		return HANDLER_ERROR;
 	}
 
-	return result;
+	return HANDLER_GO_ON;
 }
 
-gboolean condition_check(connection *con, condition *cond) {
+handler_t condition_check(vrequest *vr, condition *cond, gboolean *res) {
 	switch (cond->rvalue.type) {
 	case COND_VALUE_STRING:
 #ifdef HAVE_PCRE_H
 	case COND_VALUE_REGEXP:
 #endif
-		return condition_check_eval_string(con, cond);
+		return condition_check_eval_string(vr, cond, res);
 	case COND_VALUE_NUMBER:
-		return condition_check_eval_int(con, cond);
+		return condition_check_eval_int(vr, cond, res);
 	case COND_VALUE_SOCKET_IPV4:
 	case COND_VALUE_SOCKET_IPV6:
-		return condition_check_eval_ip(con, cond);
+		return condition_check_eval_ip(vr, cond, res);
 	}
-	return FALSE;
+	VR_ERROR(vr, "Unsupported conditional type: %i", cond->rvalue.type);
+	return HANDLER_ERROR;
 }

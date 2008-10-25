@@ -290,6 +290,7 @@ SET(COMMON_SRC
 	url_parser.c
 	utils.c
 	value.c
+	virtualrequest.c
 	worker.c
 
 	plugin_core.c

@@ -87,8 +87,6 @@ LI_API void server_stop(server *srv);
 /* exit asap with cleanup */
 LI_API void server_exit(server *srv);
 
-LI_API void joblist_append(connection *con);
-
-LI_API GString *server_current_timestamp();
+GString *server_current_timestamp();
 
 #endif

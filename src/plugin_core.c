@@ -118,16 +118,41 @@ static action* core_set(server *srv, plugin* p, value *val) {
 	return a;
 }
 
-static action_result core_handle_physical(connection *con, gpointer param) {
+static gboolean core_setup_set(server *srv, plugin* p, value *val) {
+	value *val_val, *val_name;
+	UNUSED(p);
+
+	if (!val) {
+		ERROR(srv, "%s", "need parameter");
+		return FALSE;
+	}
+	if (val->type != VALUE_LIST) {
+		ERROR(srv, "expected list, got %s", value_type_string(val->type));
+		return FALSE;
+	}
+	if (val->data.list->len != 2) {
+		ERROR(srv, "expected list with length 2, has length %u", val->data.list->len);
+		return FALSE;
+	}
+	val_name = g_array_index(val->data.list, value*, 0);
+	val_val = g_array_index(val->data.list, value*, 1);
+	if (val_name->type != VALUE_STRING) {
+		ERROR(srv, "expected string as first parameter, got %s", value_type_string(val_name->type));
+		return FALSE;
+	}
+	return plugin_set_default_option(srv, val_name->data.string->str, val_val);
+}
+
+static handler_t core_handle_physical(vrequest *vr, gpointer param) {
 	GString *docroot = (GString*) param;
 
-	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
+	if (vr->state != VRS_HANDLE_REQUEST_HEADERS) return HANDLER_GO_ON;
 
-	g_string_truncate(con->physical.path, 0);
-	g_string_append_len(con->physical.path, GSTR_LEN(docroot));
-	g_string_append_len(con->physical.path, GSTR_LEN(con->request.uri.path));
+	g_string_truncate(vr->physical.path, 0);
+	g_string_append_len(vr->physical.path, GSTR_LEN(docroot));
+	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
 
-	return ACTION_GO_ON;
+	return HANDLER_GO_ON;
 }
 
 static void core_physical_free(struct server *srv, gpointer param) {
@@ -153,17 +178,17 @@ static action* core_physical(server *srv, plugin* p, value *val) {
 	return action_new_function(core_handle_physical, core_physical_free, docroot);
 }
 
-static action_result core_handle_static(connection *con, gpointer param) {
+static handler_t core_handle_static(vrequest *vr, gpointer param) {
 	UNUSED(param);
 	int fd;
 
-	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
+	if (vr->physical.path->len == 0) return HANDLER_GO_ON;
 
-	if (con->physical.path->len == 0) return ACTION_GO_ON;
+	if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
 
-	fd = open(con->physical.path->str, O_RDONLY);
+	fd = open(vr->physical.path->str, O_RDONLY);
 	if (fd == -1) {
-		con->response.http_status = 404;
+		vr->response.http_status = 404;
 	} else {
 		struct stat st;
 		fstat(fd, &st);
@@ -171,16 +196,15 @@ static action_result core_handle_static(connection *con, gpointer param) {
 		fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
 		if (!S_ISREG(st.st_mode)) {
-			con->response.http_status = 404;
+			vr->response.http_status = 404;
 			close(fd);
 		} else {
-			con->response.http_status = 200;
-			chunkqueue_append_file_fd(con->out, NULL, 0, st.st_size, fd);
+			vr->response.http_status = 200;
+			chunkqueue_append_file_fd(vr->out, NULL, 0, st.st_size, fd);
 		}
 	}
-	connection_handle_direct(con);
 
-	return ACTION_GO_ON;
+	return HANDLER_GO_ON;
 }
 
 static action* core_static(server *srv, plugin* p, value *val) {
@@ -193,7 +217,8 @@ static action* core_static(server *srv, plugin* p, value *val) {
 	return action_new_function(core_handle_static, NULL, NULL);
 }
 
-static action_result core_handle_test(connection *con, gpointer param) {
+static handler_t core_handle_test(vrequest *vr, gpointer param) {
+	connection *con = vr->con;
 	server *srv = con->srv;
 	worker *wrk = con->wrk;
 	/*GHashTableIter iter;
@@ -206,17 +231,17 @@ static action_result core_handle_test(connection *con, gpointer param) {
 	gchar suffix1[2] = {0,0}, suffix2[2] = {0,0}, suffix3[2] = {0,0};
 	UNUSED(param);
 
-	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
+	if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
 
-	con->response.http_status = 200;
-	chunkqueue_append_mem(con->out, CONST_STR_LEN("host: "));
-	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.host));
-	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\npath: "));
-	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.path));
-	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\nquery: "));
-	chunkqueue_append_mem(con->out, GSTR_LEN(con->request.uri.query));
+	vr->response.http_status = 200;
+	chunkqueue_append_mem(vr->out, CONST_STR_LEN("host: "));
+	chunkqueue_append_mem(vr->out, GSTR_LEN(vr->request.uri.host));
+	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\npath: "));
+	chunkqueue_append_mem(vr->out, GSTR_LEN(vr->request.uri.path));
+	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\nquery: "));
+	chunkqueue_append_mem(vr->out, GSTR_LEN(vr->request.uri.query));
 
-	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n\r\nactions executed: "));
+	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\n\r\nactions executed: "));
 	uptime = (guint64)(ev_now(con->wrk->loop) - srv->started);
 	if (uptime == 0)
 		uptime = 1;
@@ -231,36 +256,35 @@ static action_result core_handle_test(connection *con, gpointer param) {
 		"%"G_GUINT64_FORMAT"%s (%"G_GUINT64_FORMAT"%s/s, %"G_GUINT64_FORMAT"%s/req)",
 		avg1, suffix1, avg2, suffix2, avg3, suffix3
 	);
-	chunkqueue_append_string(con->out, str);
-	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\nrequests: "));
+	chunkqueue_append_string(vr->out, str);
+	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\nrequests: "));
 	avg1 = wrk->stats.requests;
 	suffix1[0] = counter_format(&avg1, 1000);
 	avg2 = wrk->stats.requests / uptime;
 	suffix2[0] = counter_format(&avg2, 1000);
 	str = g_string_sized_new(0);
 	g_string_printf(str, "%"G_GUINT64_FORMAT"%s (%"G_GUINT64_FORMAT"%s/s)", avg1, suffix1, avg2, suffix2);
-	chunkqueue_append_string(con->out, str);
+	chunkqueue_append_string(vr->out, str);
 
 	backend = ev_backend_string(ev_backend(con->wrk->loop));
-	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\nevent handler: "));
-	chunkqueue_append_mem(con->out, backend, strlen(backend));
+	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\nevent handler: "));
+	chunkqueue_append_mem(vr->out, backend, strlen(backend));
 
-/*	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n\r\n--- headers ---\r\n"));
+/*	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\n\r\n--- headers ---\r\n"));
 	g_hash_table_iter_init(&iter, con->request.headers->table);
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
 		hv = g_queue_peek_head_link(&((http_header*)v)->values);
 		while (hv != NULL) {
-			chunkqueue_append_mem(con->out, GSTR_LEN(((http_header*)v)->key));
-			chunkqueue_append_mem(con->out, CONST_STR_LEN(": "));
-			chunkqueue_append_mem(con->out, GSTR_LEN((GString*)hv->data));
-			chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n"));
+			chunkqueue_append_mem(vr->out, GSTR_LEN(((http_header*)v)->key));
+			chunkqueue_append_mem(vr->out, CONST_STR_LEN(": "));
+			chunkqueue_append_mem(vr->out, GSTR_LEN((GString*)hv->data));
+			chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\n"));
 			hv = hv->next;
 		}
 	}*/
-	chunkqueue_append_mem(con->out, CONST_STR_LEN("\r\n"));
-	connection_handle_direct(con);
+	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\n"));
 
-	return ACTION_GO_ON;
+	return HANDLER_GO_ON;
 }
 
 static action* core_test(server *srv, plugin* p, value *val) {
@@ -274,15 +298,14 @@ static action* core_test(server *srv, plugin* p, value *val) {
 	return action_new_function(core_handle_test, NULL, NULL);
 }
 
-static action_result core_handle_blank(connection *con, gpointer param) {
+static handler_t core_handle_blank(vrequest *vr, gpointer param) {
 	UNUSED(param);
 
-	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER) return ACTION_GO_ON;
+	if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
 
-	con->response.http_status = 200;
-	connection_handle_direct(con);
+	vr->response.http_status = 200;
 
-	return ACTION_GO_ON;
+	return HANDLER_GO_ON;
 }
 
 static action* core_blank(server *srv, plugin* p, value *val) {

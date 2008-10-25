@@ -25,7 +25,7 @@
 #endif
 
 /* first chunk must be a MEM_CHUNK ! */
-network_status_t network_backend_writev(connection *con, int fd, chunkqueue *cq, goffset *write_max) {
+network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
 	off_t we_have;
 	ssize_t r;
 	gboolean did_write_something = FALSE;
@@ -76,7 +76,7 @@ network_status_t network_backend_writev(connection *con, int fd, chunkqueue *cq,
 			case EINTR:
 				break; /* try again */
 			default:
-				CON_ERROR(con, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
+				VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 				goto cleanup;
 			}
 		}
@@ -108,7 +108,7 @@ cleanup:
 	return res;
 }
 
-network_status_t network_write_writev(connection *con, int fd, chunkqueue *cq) {
+network_status_t network_write_writev(vrequest *vr, int fd, chunkqueue *cq) {
 	goffset write_max = 256*1024; // 256k //;
 	if (cq->length == 0) return NETWORK_STATUS_FATAL_ERROR;
 	do {

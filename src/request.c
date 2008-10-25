@@ -57,12 +57,12 @@ void request_clear(request *req) {
 /* closes connection after response */
 static void bad_request(connection *con, int status) {
 	con->keep_alive = FALSE;
-	con->response.http_status = status;
-	connection_handle_direct(con);
+	con->mainvr->response.http_status = status;
+	vrequest_handle_direct(con->mainvr);
 }
 
-gboolean request_parse_url(connection *con) {
-	request *req = &con->request;
+gboolean request_parse_url(vrequest *vr) {
+	request *req = &vr->request;
 
 	g_string_truncate(req->uri.query, 0);
 	g_string_truncate(req->uri.path, 0);
@@ -80,8 +80,8 @@ gboolean request_parse_url(connection *con) {
 	return TRUE;
 }
 
-void request_validate_header(connection *con) {
-	request *req = &con->request;
+gboolean request_validate_header(connection *con) {
+	request *req = &con->mainvr->request;
 	http_header *hh;
 	GList *l;
 
@@ -96,12 +96,12 @@ void request_validate_header(connection *con) {
 		break;
 	case HTTP_VERSION_UNSET:
 		bad_request(con, 505); /* Version not Supported */
-		return;
+		return FALSE;
 	}
 
 	if (req->uri.raw->len == 0) {
 		bad_request(con, 400); /* bad request */
-		return;
+		return FALSE;
 	}
 
 	/* get hostname */
@@ -109,26 +109,26 @@ void request_validate_header(connection *con) {
 	if (NULL != l && NULL != http_header_find_next(l, CONST_STR_LEN("host"))) {
 		/* more than one "host" header */
 		bad_request(con, 400); /* bad request */
-		return;
+		return FALSE;
 	} else {
 		hh = (http_header*) l->data;
 		g_string_append_len(req->uri.authority, HEADER_VALUE_LEN(hh));
 		if (!parse_hostname(&req->uri)) {
 			bad_request(con, 400); /* bad request */
-			return;
+			return FALSE;
 		}
 	}
 
 	/* Need hostname in HTTP/1.1 */
 	if (req->uri.host->len == 0 && req->http_version == HTTP_VERSION_1_1) {
 		bad_request(con, 400); /* bad request */
-		return;
+		return FALSE;
 	}
 
 	/* may override hostname */
-	if (!request_parse_url(con)) {
+	if (!request_parse_url(con->mainvr)) {
 		bad_request(con, 400); /* bad request */
-		return;
+		return FALSE;
 	}
 
 	/* content-length */
@@ -142,7 +142,7 @@ void request_validate_header(connection *con) {
 		if (*err != '\0') {
 			CON_TRACE(con, "content-length is not a number: %s (Status: 400)", err);
 			bad_request(con, 400); /* bad request */
-			return;
+			return FALSE;
 		}
 
 		/**
@@ -151,7 +151,7 @@ void request_validate_header(connection *con) {
 			*/
 		if (r < 0) {
 			bad_request(con, 400); /* bad request */
-			return;
+			return FALSE;
 		}
 
 		/**
@@ -161,11 +161,11 @@ void request_validate_header(connection *con) {
 			r == STR_OFF_T_MAX) {
 			if (errno == ERANGE) {
 				bad_request(con, 413); /* Request Entity Too Large */
-				return;
+				return FALSE;
 			}
 		}
 
-		con->request.content_length = r;
+		con->mainvr->request.content_length = r;
 	}
 
 	/* Expect: 100-continue */
@@ -180,14 +180,14 @@ void request_validate_header(connection *con) {
 			} else {
 				/* we only support 100-continue */
 				bad_request(con, 417); /* Expectation Failed */
-				return;
+				return FALSE;
 			}
 		}
 
 		if (expect_100_cont && req->http_version == HTTP_VERSION_1_0) {
 			/* only HTTP/1.1 clients can send us this header */
 			bad_request(con, 417); /* Expectation Failed */
-			return;
+			return FALSE;
 		}
 		con->expect_100_cont = expect_100_cont;
 	}
@@ -198,32 +198,34 @@ void request_validate_header(connection *con) {
 	 * - Range (duplicate check)
 	 */
 
-	switch(con->request.http_method) {
+	switch(con->mainvr->request.http_method) {
 	case HTTP_METHOD_GET:
 	case HTTP_METHOD_HEAD:
 		/* content-length is forbidden for those */
-		if (con->request.content_length > 0) {
-			CON_ERROR(con, "%s", "GET/HEAD with content-length -> 400");
+		if (con->mainvr->request.content_length > 0) {
+			VR_ERROR(con->mainvr, "%s", "GET/HEAD with content-length -> 400");
 
 			bad_request(con, 400); /* bad request */
-			return;
+			return FALSE;
 		}
-		con->request.content_length = 0;
+		con->mainvr->request.content_length = 0;
 		break;
 	case HTTP_METHOD_POST:
 		/* content-length is required for them */
-		if (con->request.content_length == -1) {
+		if (con->mainvr->request.content_length == -1) {
 			/* content-length is missing */
-			CON_ERROR(con, "%s", "POST-request, but content-length missing -> 411");
+			VR_ERROR(con->mainvr, "%s", "POST-request, but content-length missing -> 411");
 
 			bad_request(con, 411); /* Length Required */
-			return;
+			return FALSE;
 		}
 		break;
 	default:
 		/* the may have a content-length */
 		break;
 	}
+
+	return TRUE;
 }
 
 void physical_init(physical *phys) {

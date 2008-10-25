@@ -32,11 +32,11 @@ struct chunk_parser_mark {
 LI_API void chunk_parser_init(chunk_parser_ctx *ctx, chunkqueue *cq);
 LI_API void chunk_parser_reset(chunk_parser_ctx *ctx);
 LI_API handler_t chunk_parser_prepare(chunk_parser_ctx *ctx);
-LI_API handler_t chunk_parser_next(struct connection *con, chunk_parser_ctx *ctx, char **p, char **pe);
+LI_API handler_t chunk_parser_next(struct vrequest *vr, chunk_parser_ctx *ctx, char **p, char **pe);
 LI_API void chunk_parser_done(chunk_parser_ctx *ctx, goffset len);
 
-LI_API gboolean chunk_extract_to(struct connection *con, chunk_parser_mark from, chunk_parser_mark to, GString *dest);
-LI_API GString* chunk_extract(struct connection *con, chunk_parser_mark from, chunk_parser_mark to);
+LI_API gboolean chunk_extract_to(struct vrequest *vr, chunk_parser_mark from, chunk_parser_mark to, GString *dest);
+LI_API GString* chunk_extract(struct vrequest *vr, chunk_parser_mark from, chunk_parser_mark to);
 
 INLINE chunk_parser_mark chunk_parser_getmark(chunk_parser_ctx *ctx, const char *fpc);
 

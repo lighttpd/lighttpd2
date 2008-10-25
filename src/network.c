@@ -35,7 +35,7 @@ ssize_t net_read(int fd, void *buf, ssize_t nbyte) {
 	return r;
 }
 
-network_status_t network_write(connection *con, int fd, chunkqueue *cq) {
+network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 	network_status_t res;
 #ifdef TCP_CORK
 	int corked = 0;
@@ -52,7 +52,7 @@ network_status_t network_write(connection *con, int fd, chunkqueue *cq) {
 #endif
 
 	/* res = network_write_writev(con, fd, cq); */
-	res = network_write_sendfile(con, fd, cq);
+	res = network_write_sendfile(vr, fd, cq);
 
 #ifdef TCP_CORK
 	if (corked) {
@@ -64,7 +64,7 @@ network_status_t network_write(connection *con, int fd, chunkqueue *cq) {
 	return res;
 }
 
-network_status_t network_read(connection *con, int fd, chunkqueue *cq) {
+network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	const off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
@@ -84,7 +84,7 @@ network_status_t network_read(connection *con, int fd, chunkqueue *cq) {
 			case ECONNRESET:
 				return NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
-				CON_ERROR(con, "oops, read from fd=%d failed: %s", fd, g_strerror(errno) );
+				VR_ERROR(vr, "oops, read from fd=%d failed: %s", fd, g_strerror(errno) );
 				return NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {

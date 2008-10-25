@@ -240,8 +240,7 @@ void worker_free(worker *wrk) {
 			ERROR(wrk->srv, "Server shutdown with unclosed connections: %u", wrk->connections_active);
 			for (i = wrk->connections_active; i-- > 0;) {
 				connection *con = g_array_index(wrk->connections, connection*, i);
-				connection_set_state(con, CON_STATE_ERROR);
-				connection_state_machine(con); /* cleanup plugins */
+				connection_error(con);
 			}
 		}
 		for (i = 0; i < wrk->connections->len; i++) {

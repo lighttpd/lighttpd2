@@ -42,6 +42,9 @@ LI_API const char *remove_path(const char *path);
 		abort();\
 	} while(0)
 
+#define VR_ERROR(vr, fmt, ...) CON_ERROR(vr->con, fmt, __VA_ARGS__)
+#define VR_TRACE(vr, fmt, ...) CON_TRACE(vr->con, fmt, __VA_ARGS__)
+#define VR_SEGFAULT(vr, fmt, ...) CON_SEGFAULT(vr->con, fmt, __VA_ARGS__)
 
 #undef ERROR
 #define ERROR(srv, fmt, ...) \

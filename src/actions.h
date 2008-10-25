@@ -3,12 +3,12 @@
 
 #include "settings.h"
 
-typedef enum {
-	ACTION_GO_ON,
-	ACTION_FINISHED,
-	ACTION_ERROR,
-	ACTION_WAIT_FOR_EVENT
-} action_result;
+// typedef enum {
+// 	ACTION_GO_ON,
+// 	ACTION_FINISHED,
+// 	ACTION_ERROR,
+// 	ACTION_WAIT_FOR_EVENT
+// } action_result;
 
 // action type
 typedef enum {
@@ -28,8 +28,8 @@ struct action_stack {
 	GArray* stack;
 };
 
-struct server; struct connection;
-typedef action_result (*ActionFunc)(struct connection *con, gpointer param);
+struct server; struct connection; struct vrequest;
+typedef handler_t (*ActionFunc)(struct vrequest *vr, gpointer param);
 typedef void (*ActionFree)(struct server *srv, gpointer param);
 
 struct action_func {
@@ -68,8 +68,8 @@ LI_API void action_stack_reset(server *srv, action_stack *as);
 LI_API void action_stack_clear(server *srv, action_stack *as);
 
 /** handle sublist now, remember current position (stack) */
-LI_API void action_enter(connection *con, action *a);
-LI_API action_result action_execute(connection *con);
+LI_API void action_enter(struct vrequest *vr, action *a);
+LI_API handler_t action_execute(struct vrequest *vr);
 
 
 LI_API void action_release(server *srv, action *a);
