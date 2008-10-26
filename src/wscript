@@ -148,7 +148,7 @@ def build(bld):
 	#lighty_mod(bld, 'mod_magnet', 'mod_magnet.c mod_magnet_cache.c', uselib = 'lua')
 	#lighty_mod(bld, 'mod_deflate', 'mod_deflate.c', uselib = 'bzip zlib')
 	#lighty_mod(bld, 'mod_webdav', 'mod_webdav.c', uselib = 'sqlite3 xml uuid')
-	#lighty_mod(bld, 'mod_fortune', 'modules/mod_fortune.c')
+	lighty_mod(bld, 'mod_fortune', 'modules/mod_fortune.c')
 
 	#tests = bld.new_task_gen('cc', 'program')
 	#tests.inst_var = 0

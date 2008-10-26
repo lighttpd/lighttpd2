@@ -37,13 +37,13 @@ static GString *fortune_rand() {
 	return g_array_index(cookies, GString*, r);
 }
 
-static action_result fortune_header_handle(connection *con, gpointer param) {
+static handler_t fortune_header_handle(vrequest *vr, gpointer param) {
 	UNUSED(param);
 	if (cookies->len) {
 		GString *cookie = fortune_rand();
-		http_header_insert(con->response.headers, CONST_STR_LEN("X-fortune"), GSTR_LEN(cookie));
+		http_header_insert(vr->response.headers, CONST_STR_LEN("X-fortune"), GSTR_LEN(cookie));
 	}
-	return ACTION_GO_ON;
+	return HANDLER_GO_ON;
 }
 
 static action* fortune_header(server *srv, plugin* p, value *val) {
@@ -51,24 +51,22 @@ static action* fortune_header(server *srv, plugin* p, value *val) {
 	return action_new_function(fortune_header_handle, NULL, NULL);
 }
 
-static action_result fortune_page_handle(connection *con, gpointer param) {
+static handler_t fortune_page_handle(vrequest *vr, gpointer param) {
 	UNUSED(param);
 
-	if (con->state != CON_STATE_HANDLE_REQUEST_HEADER)
-		return ACTION_GO_ON;
+	if (!vrequest_handle_direct(vr))
+		return HANDLER_GO_ON;
 
-	con->response.http_status = 200;
+	vr->response.http_status = 200;
 
 	if (cookies->len) {
 		GString *cookie = fortune_rand();
-		chunkqueue_append_mem(con->out, GSTR_LEN(cookie));
+		chunkqueue_append_mem(vr->out, GSTR_LEN(cookie));
 	} else {
-		chunkqueue_append_mem(con->out, CONST_STR_LEN("no cookies in the cookie box"));
+		chunkqueue_append_mem(vr->out, CONST_STR_LEN("no cookies in the cookie box"));
 	}
 
-	connection_handle_direct(con);
-
-	return ACTION_GO_ON;
+	return HANDLER_GO_ON;
 }
 
 static action* fortune_page(server *srv, plugin* p, value *val) {
