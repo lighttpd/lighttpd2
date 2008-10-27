@@ -28,39 +28,44 @@
 #include "base.h"
 
 /* globals */
-static plugin *fortune_plugin = NULL;
-static GRand *grand;
-static GArray *cookies;
+struct fortune_data;
+typedef struct fortune_data fortune_data;
 
-static GString *fortune_rand() {
-	guint r = g_rand_int_range(grand, 0, cookies->len);
-	return g_array_index(cookies, GString*, r);
+struct fortune_data {
+	GRand *rand;
+	GArray *cookies;
+};
+
+static GString *fortune_rand(fortune_data *fd) {
+	guint r = g_rand_int_range(fd->rand, 0, fd->cookies->len);
+	return g_array_index(fd->cookies, GString*, r);
 }
 
 static handler_t fortune_header_handle(vrequest *vr, gpointer param) {
-	UNUSED(param);
-	if (cookies->len) {
-		GString *cookie = fortune_rand();
+	fortune_data *fd = param;
+
+	if (fd->cookies->len) {
+		GString *cookie = fortune_rand(fd);
 		http_header_insert(vr->response.headers, CONST_STR_LEN("X-fortune"), GSTR_LEN(cookie));
 	}
 	return HANDLER_GO_ON;
 }
 
 static action* fortune_header(server *srv, plugin* p, value *val) {
-	UNUSED(srv); UNUSED(p); UNUSED(val);
-	return action_new_function(fortune_header_handle, NULL, NULL);
+	UNUSED(srv); UNUSED(val);
+	return action_new_function(fortune_header_handle, NULL, p->data);
 }
 
 static handler_t fortune_page_handle(vrequest *vr, gpointer param) {
-	UNUSED(param);
+	fortune_data *fd = param;
 
 	if (!vrequest_handle_direct(vr))
 		return HANDLER_GO_ON;
 
 	vr->response.http_status = 200;
 
-	if (cookies->len) {
-		GString *cookie = fortune_rand();
+	if (fd->cookies->len) {
+		GString *cookie = fortune_rand(fd);
 		chunkqueue_append_mem(vr->out, GSTR_LEN(cookie));
 	} else {
 		chunkqueue_append_mem(vr->out, CONST_STR_LEN("no cookies in the cookie box"));
@@ -70,8 +75,8 @@ static handler_t fortune_page_handle(vrequest *vr, gpointer param) {
 }
 
 static action* fortune_page(server *srv, plugin* p, value *val) {
-	UNUSED(srv); UNUSED(p); UNUSED(val);
-	return action_new_function(fortune_page_handle, NULL, NULL);
+	UNUSED(srv); UNUSED(val);
+	return action_new_function(fortune_page_handle, NULL, p->data);
 }
 
 static gboolean fortune_load(server *srv, plugin* p, value *val) {
@@ -80,7 +85,7 @@ static gboolean fortune_load(server *srv, plugin* p, value *val) {
 	gchar *data;
 	gsize len;
 	guint count = 0;
-	UNUSED(p);
+	fortune_data *fd = p->data;
 
 	if (!val || val->type != VALUE_STRING) {
 		ERROR(srv, "fortune.load takes a string as parameter, %s given", val ? value_type_string(val->type) : "none");
@@ -101,7 +106,7 @@ static gboolean fortune_load(server *srv, plugin* p, value *val) {
 		gchar *cur;
 		for (cur = data; *cur; cur++) {
 			if (*cur == '\n' && line->len) {
-				g_array_append_val(cookies, line);
+				g_array_append_val(fd->cookies, line);
 				line = g_string_sized_new(128);
 				count++;
 			}
@@ -142,42 +147,53 @@ static const plugin_setup setups[] = {
 };
 
 
+
+static void plugin_fortune_free(server *srv, plugin *p) {
+	UNUSED(srv);
+	fortune_data *fd = p->data;
+
+	/* free the cookies! */
+	for (guint i = 0; i < fd->cookies->len; i++)
+		g_string_free(g_array_index(fd->cookies, GString*, i), TRUE);
+	g_array_free(fd->cookies, TRUE);
+
+	g_rand_free(fd->rand);
+
+	g_slice_free(fortune_data, fd);
+}
+
 static void plugin_fortune_init(server *srv, plugin *p) {
 	UNUSED(srv);
+	fortune_data *fd;
 
 	p->options = options;
 	p->actions = actions;
 	p->setups = setups;
+	p->free = plugin_fortune_free;
+
+	p->data = fd = g_slice_new(fortune_data);
+
+	fd->rand = g_rand_new();
+	fd->cookies = g_array_new(FALSE, TRUE, sizeof(GString*));
 }
 
 
 LI_API gboolean mod_fortune_init(modules *mods, module *mod) {
-	UNUSED(mod);
+	server *srv = mods->main;
 
 	MODULE_VERSION_CHECK(mods);
 
-	server *srv = mods->main;
+	mod->config = plugin_register(srv, "mod_fortune", plugin_fortune_init);
 
-	grand = g_rand_new();
-	cookies = g_array_new(FALSE, TRUE, sizeof(GString*));
+	if (!mod->config)
+		return FALSE;
 
-	fortune_plugin = plugin_register(srv, "mod_fortune", plugin_fortune_init);
-
-	return fortune_plugin != NULL;
+	return TRUE;
 }
 
 LI_API gboolean mod_fortune_free(modules *mods, module *mod) {
-	UNUSED(mods); UNUSED(mod);
-
-	/* free the cookies! */
-	for (guint i = 0; i < cookies->len; i++)
-		g_string_free(g_array_index(cookies, GString*, i), TRUE);
-	g_array_free(cookies, TRUE);
-
-	g_rand_free(grand);
-
-	if (fortune_plugin)
-		plugin_free(mods->main, fortune_plugin);
+	if (mod->config)
+		plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }
