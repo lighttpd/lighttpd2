@@ -93,14 +93,8 @@ void vrequest_reset(vrequest *vr) {
 }
 
 void vrequest_error(vrequest *vr) {
-	if (0 == vr->out->bytes_in) {
-		VR_ERROR(vr, "%s", "vrequest error");
-		vr->response.http_status = 500;
-		vrequest_handle_direct(vr);
-	} else {
-		vr->state = VRS_ERROR;
-		vrequest_joblist_append(vr);
-	}
+	vr->state = VRS_ERROR;
+	vrequest_joblist_append(vr);
 }
 
 /* received all request headers */
