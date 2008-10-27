@@ -63,6 +63,8 @@ void plugin_free(server *srv, plugin *p) {
 	plugin_free_options(srv, p);
 	plugin_free_actions(srv, p);
 	plugin_free_setups(srv, p);
+	if (p->free)
+		p->free(srv, p);
 
 	g_slice_free(plugin, p);
 }
