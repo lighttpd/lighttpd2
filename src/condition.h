@@ -1,16 +1,9 @@
 #ifndef _LIGHTTPD_CONDITION_H_
 #define _LIGHTTPD_CONDITION_H_
 
-#include "settings.h"
-
-struct condition_rvalue;
-typedef struct condition_rvalue condition_rvalue;
-
-struct condition_lvalue;
-typedef struct condition_lvalue condition_lvalue;
-
-struct condition;
-typedef struct condition condition;
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 /**
  * possible compare ops in the configfile parser

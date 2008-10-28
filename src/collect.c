@@ -1,6 +1,5 @@
 
 #include "base.h"
-#include "collect.h"
 
 struct collect_job;
 typedef struct collect_job collect_job;

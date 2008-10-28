@@ -1,6 +1,5 @@
 
 #include "base.h"
-#include "utils.h"
 #include "plugin_core.h"
 
 static void server_value_free(gpointer _so) {
@@ -50,7 +49,7 @@ static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	UNUSED(loop); UNUSED(w); UNUSED(revents);
 }
 
-server* server_new() {
+server* server_new(const gchar *module_dir) {
 	server* srv = g_slice_new0(server);
 
 	srv->magic = LIGHTTPD_SERVER_MAGIC;
@@ -60,7 +59,7 @@ server* server_new() {
 
 	srv->sockets = g_array_new(FALSE, TRUE, sizeof(server_socket*));
 
-	srv->modules = modules_init(srv);
+	srv->modules = modules_init(srv, module_dir);
 
 	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
 	srv->options = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_value_free);
@@ -99,7 +98,7 @@ void server_free(server* srv) {
 	action_release(srv, srv->mainaction);
 
 	/* release modules */
-	modules_cleanup(srv);
+	modules_cleanup(srv->modules);
 
 	plugin_free(srv, srv->core_plugin);
 

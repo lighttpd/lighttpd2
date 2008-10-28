@@ -1,8 +1,11 @@
 #ifndef _LIGHTTPD_LOG_H_
 #define _LIGHTTPD_LOG_H_
 
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
+
 /* #include "valgrind/valgrind.h" */
-#include "base.h"
 
 #define REMOVE_PATH_FROM_FILE 1
 #if REMOVE_PATH_FROM_FILE

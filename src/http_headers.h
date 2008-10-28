@@ -1,13 +1,9 @@
 #ifndef _LIGHTTPD_HTTP_HEADERS_H_
 #define _LIGHTTPD_HTTP_HEADERS_H_
 
-struct http_header;
-typedef struct http_header http_header;
-
-struct http_headers;
-typedef struct http_headers http_headers;
-
-#include "settings.h"
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 #define HEADER_VALUE(h) \
 	(&(h)->data->str[h->keylen + 2])

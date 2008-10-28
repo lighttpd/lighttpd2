@@ -1,6 +1,5 @@
 
 #include "base.h"
-#include "options.h"
 
 /* Extract ovalue from ovalue, ovalue set to none */
 option_value value_extract(value *val) {

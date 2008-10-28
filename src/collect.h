@@ -1,6 +1,10 @@
 #ifndef _LIGHTTPD_COLLECT_H_
 #define _LIGHTTPD_COLLECT_H_
 
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
+
 /* executes a function in each worker context */
 
 /** CollectFunc: the type of functions to execute in each workers context

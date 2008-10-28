@@ -1,6 +1,10 @@
 #ifndef _LIGHTTPD_VIRTUALREQUEST_H_
 #define _LIGHTTPD_VIRTUALREQUEST_H_
 
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
+
 typedef enum {
 	/* waiting for request headers */
 	VRS_CLEAN,
@@ -29,19 +33,8 @@ typedef enum {
 } vrequest_state;
 
 
-struct vrequest;
-typedef struct vrequest vrequest;
-
-struct filter;
-typedef struct filter filter;
-
-struct filters;
-typedef struct filters filters;
-
 typedef handler_t (*filter_handler)(vrequest *vr, filter *f, plugin *p);
 typedef handler_t (*vrequest_handler)(vrequest *vr);
-
-#include "base.h"
 
 struct filter {
 	chunkqueue *in, *out;

@@ -1,5 +1,5 @@
 
-#include "network.h"
+#include "base.h"
 
 network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
 	const ssize_t blocksize = 16*1024; /* 16k */

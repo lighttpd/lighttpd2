@@ -1,6 +1,5 @@
 
 #include "base.h"
-#include "http_headers.h"
 
 static void _http_header_free(gpointer p) {
 	http_header *h = (http_header*) p;

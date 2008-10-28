@@ -1,14 +1,10 @@
 
 #include "base.h"
 #include "plugin_core.h"
-#include "utils.h"
 #include "profiler.h"
-
-
 
 #include <sys/stat.h>
 #include <fcntl.h>
-
 
 static action* core_list(server *srv, plugin* p, value *val) {
 	action *a;

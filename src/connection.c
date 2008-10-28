@@ -1,7 +1,5 @@
 
 #include "base.h"
-#include "network.h"
-#include "utils.h"
 #include "plugin_core.h"
 
 /* only call it from the worker context the con belongs to */

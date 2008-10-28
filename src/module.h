@@ -40,12 +40,13 @@ struct module {
 struct modules {
 	guint version;    /**< api version */
 
-	GArray *mods;      /**< array of (module*) */
 	gpointer main;    /**< pointer to a application specific main structure, e.g. server */
+	GArray *mods;      /**< array of (module*) */
+	gchar *module_dir;
 };
 
-LI_API modules* modules_init(gpointer main);
-LI_API void modules_cleanup(server *srv);
+LI_API modules* modules_init(gpointer main, const gchar *module_dir);
+LI_API void modules_cleanup(modules *mods);
 
 /** Loads a module if not loaded yet and returns the module struct for it (after increasing refcount)
   * returns NULL if it couldn't load the module.

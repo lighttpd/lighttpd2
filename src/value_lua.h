@@ -2,8 +2,6 @@
 #define _LIGHTTPD_OPTIONS_LUA_H_
 
 #include "base.h"
-#include "options.h"
-
 #include <lua.h>
 
 /* converts the top of the stack into an value

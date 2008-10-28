@@ -1,6 +1,5 @@
 
 #include "base.h"
-#include "chunk_parser.h"
 
 void chunk_parser_init(chunk_parser_ctx *ctx, chunkqueue *cq) {
 	ctx->cq = cq;

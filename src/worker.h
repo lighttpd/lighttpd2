@@ -1,10 +1,9 @@
 #ifndef _LIGHTTPD_WORKER_H_
 #define _LIGHTTPD_WORKER_H_
 
-struct worker;
-typedef struct worker worker;
-
-struct server;
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 struct statistics_t;
 typedef struct statistics_t statistics_t;
@@ -22,8 +21,6 @@ struct statistics_t {
 	double requests_per_sec;
 	ev_tstamp last_update;
 };
-
-#include "settings.h"
 
 #define CUR_TS(wrk) ((time_t)ev_now((wrk)->loop))
 

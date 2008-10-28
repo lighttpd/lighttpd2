@@ -1,7 +1,9 @@
 #ifndef _LIGHTTPD_NETWORK_H_
 #define _LIGHTTPD_NETWORK_H_
 
-#include "base.h"
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 typedef enum {
 	NETWORK_STATUS_SUCCESS,             /**< some IO was actually done (read/write) or cq was empty for write */

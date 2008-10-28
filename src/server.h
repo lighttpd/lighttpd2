@@ -19,10 +19,6 @@ struct server_socket {
 	ev_io watcher;
 };
 
-struct worker;
-
-union option_value;
-
 struct server {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
 	server_state state;       /** atomic access */
@@ -41,7 +37,6 @@ struct server {
 
 	GArray *sockets;          /** array of (server_socket*) */
 
-	gchar *module_dir;
 	struct modules *modules;
 
 	GHashTable *plugins;      /**< const gchar* => (plugin*) */
@@ -79,7 +74,7 @@ struct server {
 };
 
 
-LI_API server* server_new();
+LI_API server* server_new(const gchar *module_dir);
 LI_API void server_free(server* srv);
 LI_API gboolean server_loop_init(server *srv);
 

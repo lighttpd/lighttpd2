@@ -1,6 +1,8 @@
 #ifndef _LIGHTTPD_PLUGIN_CORE_H_
 #define _LIGHTTPD_PLUGIN_CORE_H_
 
+#include "base.h"
+
 enum core_options_t {
 	CORE_OPTION_DEBUG_REQUEST_HANDLING = 0,
 

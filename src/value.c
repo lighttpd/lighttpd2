@@ -1,5 +1,4 @@
 #include "base.h"
-#include "value.h"
 
 value* value_new_bool(gboolean val) {
 	value *v = g_slice_new0(value);

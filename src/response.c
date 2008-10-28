@@ -1,6 +1,5 @@
 
 #include "base.h"
-#include "utils.h"
 #include "plugin_core.h"
 
 void response_init(response *resp) {

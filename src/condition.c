@@ -1,5 +1,4 @@
-#include "condition.h"
-#include "log.h"
+#include "base.h"
 
 static gboolean condition_parse_ip(condition_rvalue *val, const char *txt) {
 	if (parse_ipv4(txt, &val->ipv4.addr, NULL)) {

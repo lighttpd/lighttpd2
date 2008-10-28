@@ -1,7 +1,5 @@
 
-#include "settings.h"
-
-#include <stdlib.h>
+#include "base.h"
 
 %%{
 	machine ipv4_parser;

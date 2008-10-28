@@ -1,7 +1,9 @@
 #ifndef _LIGHTTPD_CONNECTION_H_
 #define _LIGHTTPD_CONNECTION_H_
 
-#include "base.h"
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 typedef enum {
 	/** unused */

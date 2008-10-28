@@ -2,7 +2,6 @@
 #include "value_lua.h"
 #include "condition_lua.h"
 #include "actions_lua.h"
-#include "log.h"
 
 /* replace a negative stack index with a positive one,
  * so that you don't need to care about push/pop

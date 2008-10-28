@@ -1,7 +1,6 @@
 
 #include "base.h"
 #include "url_parser.h"
-#include "utils.h"
 
 void request_init(request *req) {
 	req->http_method = HTTP_METHOD_UNSET;

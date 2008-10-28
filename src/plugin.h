@@ -1,26 +1,9 @@
 #ifndef _LIGHTTPD_PLUGIN_H_
 #define _LIGHTTPD_PLUGIN_H_
 
-struct plugin;
-typedef struct plugin plugin;
-
-struct plugin_option;
-typedef struct plugin_option plugin_option;
-
-struct server_option;
-typedef struct server_option server_option;
-
-struct plugin_action;
-typedef struct plugin_action plugin_action;
-
-struct server_action;
-typedef struct server_action server_action;
-
-struct plugin_setup;
-typedef struct plugin_setup plugin_setup;
-
-struct server_setup;
-typedef struct server_setup server_setup;
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 #define INIT_FUNC(x) \
 		LI_EXPORT void * x(server *srv, plugin *)
@@ -28,11 +11,6 @@ typedef struct server_setup server_setup;
 #define PLUGIN_DATA \
 	size_t id; \
 	ssize_t option_base_ndx
-
-#include "base.h"
-#include "options.h"
-#include "actions.h"
-#include "module.h"
 
 typedef void     (*PluginInit)          (server *srv, plugin *p);
 typedef void     (*PluginFree)          (server *srv, plugin *p);

@@ -1,24 +1,9 @@
 #ifndef _LIGHTTPD_CHUNK_H_
 #define _LIGHTTPD_CHUNK_H_
 
-#include <glib.h>
-
-struct chunkfile;
-typedef struct chunkfile chunkfile;
-
-struct chunk;
-typedef struct chunk chunk;
-
-struct chunkqueue;
-typedef struct chunkqueue chunkqueue;
-
-struct chunkiter;
-typedef struct chunkiter chunkiter;
-
-struct server;
-struct vrequest;
-
-#include "settings.h"
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 /* Open a file only once, so it shouldn't get lost;
  * as a file may get split into many chunks, we

@@ -2,9 +2,7 @@
 
 
 #include "base.h"
-#include "log.h"
 
-#include "http_request_parser.h"
 #include "config_parser.h"
 
 int request_test() {

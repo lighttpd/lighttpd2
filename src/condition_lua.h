@@ -1,7 +1,7 @@
 #ifndef _LIGHTTPD_CONDITION_LUA_H_
 #define _LIGHTTPD_CONDITION_LUA_H_
 
-#include "condition.h"
+#include "base.h"
 #include <lua.h>
 
 condition* lua_get_condition(lua_State *L, int ndx);

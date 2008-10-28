@@ -1,16 +1,11 @@
 #ifndef _LIGHTTPD_ACTIONS_H_
 #define _LIGHTTPD_ACTIONS_H_
 
-#include "settings.h"
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
-// typedef enum {
-// 	ACTION_GO_ON,
-// 	ACTION_FINISHED,
-// 	ACTION_ERROR,
-// 	ACTION_WAIT_FOR_EVENT
-// } action_result;
-
-// action type
+/* action type */
 typedef enum {
 	ACTION_TSETTING,
 	ACTION_TFUNCTION,
@@ -18,19 +13,12 @@ typedef enum {
 	ACTION_TLIST
 } action_type;
 
-struct action;
-typedef struct action action;
-
-struct action_stack;
-typedef struct action_stack action_stack;
-
 struct action_stack {
 	GArray* stack;
 };
 
-struct server; struct connection; struct vrequest;
-typedef handler_t (*ActionFunc)(struct vrequest *vr, gpointer param);
-typedef void (*ActionFree)(struct server *srv, gpointer param);
+typedef handler_t (*ActionFunc)(vrequest *vr, gpointer param);
+typedef void (*ActionFree)(server *srv, gpointer param);
 
 struct action_func {
 	ActionFunc func;
@@ -38,10 +26,6 @@ struct action_func {
 	gpointer param;
 };
 typedef struct action_func action_func;
-
-#include "condition.h"
-#include "plugin.h"
-#include "options.h"
 
 struct action {
 	gint refcount;

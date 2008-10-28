@@ -20,28 +20,21 @@
   (ev)->repeat = (repeat_);                    \
 } while (0)
 
-#define CONST_STR_LEN(x) (x), (x) ? sizeof(x) - 1 : 0
+#include "typedefs.h"
+#include "module.h"
 
-#define GSTR_LEN(x) (x) ? (x)->str : "", (x) ? (x)->len : 0
-#define GSTR_SAFE_STR(x) ((x && x->str) ? x->str : "(null)")
-
-typedef enum {
-	HTTP_TRANSFER_ENCODING_IDENTITY,
-	HTTP_TRANSFER_ENCODING_CHUNKED
-} transfer_encoding_t;
-
-struct server;
-typedef struct server server;
-
-struct connection;
-typedef struct connection connection;
-
+#include "chunk.h"
+#include "chunk_parser.h"
 
 #include "server.h"
 #include "worker.h"
-#include "actions.h"
+#include "condition.h"
 #include "options.h"
+#include "value.h"
+#include "actions.h"
 #include "plugin.h"
+#include "http_headers.h"
+#include "http_request_parser.h"
 #include "request.h"
 #include "response.h"
 #include "virtualrequest.h"
@@ -49,6 +42,8 @@ typedef struct connection connection;
 
 #include "connection.h"
 
+#include "network.h"
+#include "collect.h"
 #include "utils.h"
 
 #define SERVER_VERSION ((guint) 0x01FF0000)

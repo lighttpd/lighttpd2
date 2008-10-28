@@ -1,13 +1,9 @@
 #ifndef _LIGHTTPD_CHUNK_PARSER_H_
 #define _LIGHTTPD_CHUNK_PARSER_H_
 
-struct chunk_parser_ctx;
-typedef struct chunk_parser_ctx chunk_parser_ctx;
-
-struct chunk_parser_mark;
-typedef struct chunk_parser_mark chunk_parser_mark;
-
-#include "chunk.h"
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 struct chunk_parser_ctx {
 	chunkqueue *cq;

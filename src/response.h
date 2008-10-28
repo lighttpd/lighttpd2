@@ -1,10 +1,9 @@
 #ifndef _LIGHTTPD_RESPONSE_H_
 #define _LIGHTTPD_RESPONSE_H_
 
-struct response;
-typedef struct response response;
-
-#include "http_headers.h"
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 struct response {
 	http_headers *headers;

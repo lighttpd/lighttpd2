@@ -1,7 +1,5 @@
 
-#include "log.h"
-#include "actions.h"
-#include "condition.h"
+#include "base.h"
 
 struct action_stack_element;
 typedef struct action_stack_element action_stack_element;

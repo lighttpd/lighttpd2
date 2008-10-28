@@ -17,7 +17,8 @@ int main(int argc, char *argv[]) {
 	gboolean free_config_path = TRUE;
 
 	gchar *config_path = NULL;
-	gchar *module_dir = NULL;
+	const gchar *def_module_dir = "/usr/local/lib"; /* TODO: configure module-dir with make-system */
+	const gchar *module_dir = def_module_dir;
 	gboolean luaconfig = FALSE;
 	gboolean test_config = FALSE;
 	gboolean show_version = FALSE;
@@ -28,7 +29,7 @@ int main(int argc, char *argv[]) {
 		{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_path, "filename/path of the config", "PATH" },
 		{ "lua", 'l', 0, G_OPTION_ARG_NONE, &luaconfig, "use the lua config frontend", NULL },
 		{ "test", 't', 0, G_OPTION_ARG_NONE, &test_config, "test config and exit", NULL },
-		{ "module-dir", 'm', 0, G_OPTION_ARG_STRING, &module_dir, "module directory", NULL },
+		{ "module-dir", 'm', 0, G_OPTION_ARG_STRING, &module_dir, "module directory", "PATH" },
 		{ "version", 'v', 0, G_OPTION_ARG_NONE, &show_version, "show version and exit", NULL },
 		{ NULL, 0, 0, 0, NULL, NULL, NULL }
 	};
@@ -67,9 +68,8 @@ int main(int argc, char *argv[]) {
 	/* initialize threading */
 	g_thread_init(NULL);
 
-	srv = server_new();
+	srv = server_new(module_dir);
 
-	srv->module_dir = module_dir;
 	srv->core_plugin = plugin_register(srv, "core", plugin_core_init);
 
 	/* if no path is specified for the config, read lighttpd.conf from current directory */

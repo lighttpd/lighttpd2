@@ -1,7 +1,9 @@
 #ifndef _LIGHTTPD_UTILS_H_
 #define _LIGHTTPD_UTILS_H_
 
-#include "settings.h"
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 LI_API void fatal(const gchar* msg);
 

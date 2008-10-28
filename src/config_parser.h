@@ -1,8 +1,7 @@
 #ifndef _LIGHTTPD_CONFIGPARSER_H_
 #define _LIGHTTPD_CONFIGPARSER_H_
 
-
-#include "condition.h"
+#include "base.h"
 
 struct config_parser_context_t;
 typedef struct config_parser_context_t config_parser_context_t;

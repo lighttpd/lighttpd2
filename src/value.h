@@ -1,21 +1,9 @@
 #ifndef _LIGHTTPD_VALUE_H_
 #define _LIGHTTPD_VALUE_H_
 
-typedef enum {
-	VALUE_NONE,
-	VALUE_BOOLEAN,
-	VALUE_NUMBER,
-	VALUE_STRING,
-	VALUE_LIST,
-	VALUE_HASH,
-	VALUE_ACTION,     /**< shouldn't be used for options, but may be needed for constructing actions */
-	VALUE_CONDITION   /**< shouldn't be used for options, but may be needed for constructing actions */
-} value_type;
-
-struct value;
-typedef struct value value;
-
-#include "settings.h"
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 struct value {
 	value_type type;

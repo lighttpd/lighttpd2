@@ -1,13 +1,13 @@
-#include "base.h"
+
 #include "module.h"
 
-
-modules *modules_init(gpointer main) {
+modules *modules_init(gpointer main, const gchar *module_dir) {
 	modules *m = g_slice_new(modules);
 
 	m->version = MODULE_VERSION;
 	m->main = main;
 	m->mods = g_array_new(FALSE, TRUE, sizeof(module*));
+	m->module_dir = g_strdup(module_dir);
 
 	return m;
 }
@@ -26,23 +26,21 @@ static module *module_lookup(modules *mods, const gchar *name) {
 	return NULL;
 }
 
-void modules_cleanup(server *srv) {
+void modules_cleanup(modules* mods) {
 	/* unload all modules */
-	GArray *a = srv->modules->mods;
+	GArray *a = mods->mods;
 	module *mod;
 
 	for (guint i = 0; i < a->len; i++) {
 		mod = g_array_index(a, module*, i);
 		if (!mod)
 			continue;
-		module_release(srv->modules, mod);
+		module_release(mods, mod);
 	}
 
-	g_array_free(srv->modules->mods, TRUE);
-	g_slice_free(modules, srv->modules);
-
-	if (srv->module_dir)
-		g_free(srv->module_dir);
+	g_array_free(mods->mods, TRUE);
+	g_free(mods->module_dir);
+	g_slice_free(modules, mods);
 }
 
 
@@ -63,8 +61,7 @@ module* module_load(modules *mods, const gchar* name) {
 	mod = g_slice_new0(module);
 	mod->name = g_string_new(name);
 	mod->refcount = 1;
-	mod->path = g_module_build_path(((server *)mods->main)->module_dir, name);
-	TRACE(mods->main, "loading module '%s' from path: %s", name, mod->path);
+	mod->path = g_module_build_path(mods->module_dir, name);
 
 	mod->module = g_module_open(mod->path, G_MODULE_BIND_LAZY);
 

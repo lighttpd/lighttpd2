@@ -1,7 +1,7 @@
 #ifndef _LIGHTTPD_ACTIONS_LUA_H_
 #define _LIGHTTPD_ACTIONS_LUA_H_
 
-#include "actions.h"
+#include "base.h"
 #include <lua.h>
 
 action* lua_get_action(lua_State *L, int ndx);

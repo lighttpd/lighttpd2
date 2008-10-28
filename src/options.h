@@ -1,14 +1,9 @@
 #ifndef _LIGHTTPD_OPTIONS_H_
 #define _LIGHTTPD_OPTIONS_H_
 
-struct option_set;
-typedef struct option_set option_set;
-
-union option_value;
-typedef union option_value option_value;
-
-#include "settings.h"
-#include "value.h"
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include "base.h" instead of this file
+#endif
 
 union option_value {
 	gpointer ptr;
@@ -23,11 +18,10 @@ union option_value {
 	condition *cond;
 };
 
-struct server_option;
 struct option_set {
 	size_t ndx;
 	option_value value;
-	struct server_option *sopt;
+	server_option *sopt;
 };
 
 /* Extract content from value, value set to none */
