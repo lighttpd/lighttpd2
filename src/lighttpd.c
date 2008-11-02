@@ -137,6 +137,9 @@ int main(int argc, char *argv[]) {
 
 	server_free(srv);
 
+	if (module_dir != def_module_dir)
+		g_free((gpointer)module_dir);
+
 	if (free_config_path)
 		g_free(config_path);
 
