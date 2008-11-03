@@ -1,5 +1,6 @@
 
-/* lighty memory profiler
+/*
+ * lighty memory profiler
  * counts how many times malloc/realloc/free have been called and the amounts of bytes allocated/freed
  * TODO: move hashtable to utils.c, optimize hashtable? implementation is very basic
  */
@@ -19,7 +20,7 @@ struct profiler_entry {
 typedef struct  profiler_entry profiler_entry;
 
 static profiler_mem stats_mem = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-static GStaticMutex profiler_mutex = G_STATIC_MUTEX_INIT;
+static GMutex *profiler_mutex = NULL;
 static gboolean profiler_enabled = FALSE;
 static profiler_entry *free_list = NULL;
 
@@ -107,12 +108,12 @@ static gpointer profiler_try_malloc(gsize n_bytes) {
 	p = malloc(n_bytes);
 
 	if (p) {
-		g_static_mutex_lock(&profiler_mutex);
+		g_mutex_lock(profiler_mutex);
 		profiler_hashtable_insert(p, n_bytes);
 		stats_mem.alloc_times++;
 		stats_mem.alloc_bytes += n_bytes;
 		stats_mem.inuse_bytes += n_bytes;
-		g_static_mutex_unlock(&profiler_mutex);
+		g_mutex_unlock(profiler_mutex);
 	}
 
 	return p;
@@ -132,27 +133,27 @@ static gpointer profiler_try_realloc(gpointer mem, gsize n_bytes) {
 
 	if (!mem) {
 		p = malloc(n_bytes);
-		g_static_mutex_lock(&profiler_mutex);
+		g_mutex_lock(profiler_mutex);
 		stats_mem.alloc_times++;
-		g_static_mutex_unlock(&profiler_mutex);
+		g_mutex_unlock(profiler_mutex);
 		l = 0;
 	}
 	else {
 		p = realloc(p, n_bytes);
-		g_static_mutex_lock(&profiler_mutex);
+		g_mutex_lock(profiler_mutex);
 		profiler_entry *e = profiler_hashtable_find(mem);
 		l = e->len;
 		profiler_hashtable_remove(mem);
-		g_static_mutex_unlock(&profiler_mutex);
+		g_mutex_unlock(profiler_mutex);
 	}
 
 	if (p) {
-		g_static_mutex_lock(&profiler_mutex);
+		g_mutex_lock(profiler_mutex);
 		profiler_hashtable_insert(p, n_bytes);
 		stats_mem.realloc_times++;
 		stats_mem.realloc_bytes += n_bytes;
 		stats_mem.inuse_bytes += n_bytes - l;
-		g_static_mutex_unlock(&profiler_mutex);
+		g_mutex_unlock(profiler_mutex);
 	}
 
 	return p;
@@ -175,12 +176,12 @@ static gpointer profiler_calloc(gsize n_blocks, gsize n_bytes) {
 	p = calloc(1, l);
 
 	if (p) {
-		g_static_mutex_lock(&profiler_mutex);
+		g_mutex_lock(profiler_mutex);
 		profiler_hashtable_insert(p, l);
 		stats_mem.calloc_times++;
 		stats_mem.calloc_bytes += l;
 		stats_mem.inuse_bytes += l;
-		g_static_mutex_unlock(&profiler_mutex);
+		g_mutex_unlock(profiler_mutex);
 	}
 
 	assert(p);
@@ -192,13 +193,14 @@ static void profiler_free(gpointer mem) {
 	gsize *p = mem;
 
 	assert(p);
-	g_static_mutex_lock(&profiler_mutex);
+	g_mutex_lock(profiler_mutex);
 	profiler_entry *e = profiler_hashtable_find(mem);
 	stats_mem.free_times++;
 	stats_mem.free_bytes += e->len;
 	stats_mem.inuse_bytes -= e->len;
 	profiler_hashtable_remove(mem);
-	g_static_mutex_unlock(&profiler_mutex);
+	g_mutex_unlock(profiler_mutex);
+	g_mutex_free(profiler_mutex);
 	free(p);
 }
 
@@ -208,6 +210,8 @@ void profiler_enable() {
 
 	if (profiler_enabled)
 		return;
+
+	profiler_mutex = g_mutex_new();
 
 	profiler_enabled = TRUE;
 
@@ -243,9 +247,9 @@ void profiler_dump() {
 	if (!profiler_enabled)
 		return;
 
-	g_static_mutex_lock(&profiler_mutex);
+	g_mutex_lock(profiler_mutex);
 	profiler_mem s = stats_mem;
-	g_static_mutex_unlock(&profiler_mutex);
+	g_mutex_unlock(profiler_mutex);
 
 	g_print("--- memory profiler stats ---\n");
 	g_print("malloc(): called %" G_GUINT64_FORMAT " times, %" G_GUINT64_FORMAT " bytes total\n", s.alloc_times, s.alloc_bytes);
