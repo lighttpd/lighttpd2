@@ -10,11 +10,22 @@ typedef struct statistics_t statistics_t;
 
 struct statistics_t {
 	guint64 bytes_out;        /** bytes transfered, outgoing */
-	guint64 bytes_int;        /** bytes transfered, incoming */
+	guint64 bytes_in;         /** bytes transfered, incoming */
 
 	guint64 requests;         /** processed requests */
+	guint64 active_cons_cum;  /** cummulative value of active connections, updated once a second */
 
 	guint64 actions_executed; /** actions executed */
+
+	/* 5 seconds frame avg */
+	guint64 requests_5s;
+	guint64 requests_5s_diff;
+	guint64 bytes_out_5s;
+	guint64 bytes_out_5s_diff;
+	guint64 bytes_in_5s;
+	guint64 bytes_in_5s_diff;
+	guint active_cons_5s;
+	time_t last_avg;
 
 	/* updated in timer */
 	guint64 last_requests;
@@ -64,7 +75,7 @@ struct worker {
 	ev_async new_con_watcher;
 	GAsyncQueue *new_con_queue;
 
-	ev_timer stat_watcher;
+	ev_timer stats_watcher;
 	statistics_t stats;
 
 	/* collect framework */

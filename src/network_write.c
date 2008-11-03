@@ -8,6 +8,8 @@ network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, gof
 	ssize_t r;
 	gboolean did_write_something = FALSE;
 	chunkiter ci;
+	worker *wrk;
+	time_t ts;
 
 	do {
 		if (0 == cq->length)
@@ -44,6 +46,21 @@ network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, gof
 		chunkqueue_skip(cq, r);
 		did_write_something = TRUE;
 		*write_max -= r;
+
+		/* stats */
+		wrk = vr->con->wrk;
+		vr->con->wrk->stats.bytes_out += r;
+		vr->con->stats.bytes_out += r;
+
+		/* update 5s stats */
+		ts = CUR_TS(wrk);
+
+		if ((ts - vr->con->stats.last_avg) > 5) {
+			vr->con->stats.bytes_out_5s_diff = vr->con->stats.bytes_out - vr->con->stats.bytes_out_5s;
+			vr->con->stats.bytes_out_5s = vr->con->stats.bytes_out;
+			vr->con->stats.last_avg = ts;
+		}
+
 	} while (r == block_len && *write_max > 0);
 
 	return NETWORK_STATUS_SUCCESS;

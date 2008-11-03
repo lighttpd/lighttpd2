@@ -122,6 +122,7 @@ static gboolean connection_handle_read(connection *con) {
 		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 
 		con->state = CON_STATE_READ_REQUEST_HEADER;
+		con->ts = CUR_TS(con->wrk);
 	} else if (con->state == CON_STATE_REQUEST_START) {
 		con->state = CON_STATE_READ_REQUEST_HEADER;
 	}
@@ -294,8 +295,8 @@ connection* connection_new(worker *wrk) {
 	ev_init(&con->sock_watcher, connection_cb);
 	ev_io_set(&con->sock_watcher, -1, 0);
 	con->sock_watcher.data = con;
-	con->remote_addr_str = g_string_sized_new(0);
-	con->local_addr_str = g_string_sized_new(0);
+	con->remote_addr_str = g_string_sized_new(INET6_ADDRSTRLEN);
+	con->local_addr_str = g_string_sized_new(INET6_ADDRSTRLEN);
 	con->keep_alive = TRUE;
 
 	con->raw_in  = chunkqueue_new();
@@ -356,6 +357,15 @@ void connection_reset(connection *con) {
 	con->keep_alive_data.timeout = 0;
 	con->keep_alive_data.max_idle = 0;
 	ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
+
+	/* reset stats */
+	con->stats.bytes_in = G_GUINT64_CONSTANT(0);
+	con->stats.bytes_in_5s = G_GUINT64_CONSTANT(0);
+	con->stats.bytes_in_5s_diff = G_GUINT64_CONSTANT(0);
+	con->stats.bytes_out = G_GUINT64_CONSTANT(0);
+	con->stats.bytes_out_5s = G_GUINT64_CONSTANT(0);
+	con->stats.bytes_out_5s_diff = G_GUINT64_CONSTANT(0);
+	con->stats.last_avg = 0;
 }
 
 void server_check_keepalive(server *srv);
@@ -387,8 +397,6 @@ void connection_reset_keep_alive(connection *con) {
 	con->expect_100_cont = FALSE;
 
 	ev_io_set_events(con->wrk->loop, &con->sock_watcher, EV_READ);
-	g_string_truncate(con->remote_addr_str, 0);
-	g_string_truncate(con->local_addr_str, 0);
 	con->keep_alive = TRUE;
 
 	con->raw_out->is_closed = FALSE;
@@ -397,6 +405,17 @@ void connection_reset_keep_alive(connection *con) {
 
 	vrequest_reset(con->mainvr);
 	http_request_parser_reset(&con->req_parser_ctx);
+
+	con->ts = CUR_TS(con->wrk);
+
+	/* reset stats */
+	con->stats.bytes_in = G_GUINT64_CONSTANT(0);
+	con->stats.bytes_in_5s = G_GUINT64_CONSTANT(0);
+	con->stats.bytes_in_5s_diff = G_GUINT64_CONSTANT(0);
+	con->stats.bytes_out = G_GUINT64_CONSTANT(0);
+	con->stats.bytes_out_5s = G_GUINT64_CONSTANT(0);
+	con->stats.bytes_out_5s_diff = G_GUINT64_CONSTANT(0);
+	con->stats.last_avg = 0;
 }
 
 void connection_free(connection *con) {
@@ -434,4 +453,17 @@ void connection_free(connection *con) {
 		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 
 	g_slice_free(connection, con);
+}
+
+gchar *connection_state_str(connection_state_t state) {
+	static const gchar *states[] = {
+		"dead",
+		"keep-alive",
+		"request start",
+		"read request header",
+		"handle main vrequest",
+		"write"
+	};
+
+	return (gchar*)states[state];
 }

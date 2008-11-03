@@ -8,6 +8,8 @@ network_status_t network_backend_sendfile(vrequest *vr, int fd, chunkqueue *cq, 
 	gboolean did_write_something = FALSE;
 	chunkiter ci;
 	chunk *c;
+	worker *wrk;
+	time_t ts;
 
 	if (0 == cq->length) return NETWORK_STATUS_FATAL_ERROR;
 
@@ -71,6 +73,21 @@ network_status_t network_backend_sendfile(vrequest *vr, int fd, chunkqueue *cq, 
 		chunkqueue_skip(cq, r);
 		*write_max -= r;
 		did_write_something = TRUE;
+
+		/* stats */
+		wrk = vr->con->wrk;
+		wrk->stats.bytes_out += r;
+		vr->con->stats.bytes_out += r;
+
+		/* update 5s stats */
+		ts = CUR_TS(wrk);
+
+		if ((ts - vr->con->stats.last_avg) > 5) {
+			vr->con->stats.bytes_out_5s_diff = vr->con->wrk->stats.bytes_out - vr->con->wrk->stats.bytes_out_5s;
+			vr->con->stats.bytes_out_5s = vr->con->stats.bytes_out;
+			vr->con->stats.last_avg = ts;
+		}
+
 		if (0 == cq->length) return NETWORK_STATUS_SUCCESS;
 	} while (r == toSend && *write_max > 0);
 

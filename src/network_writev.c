@@ -31,6 +31,8 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 	gboolean did_write_something = FALSE;
 	chunkiter ci;
 	chunk *c;
+	worker *wrk;
+	time_t ts;
 	network_status_t res = NETWORK_STATUS_FATAL_ERROR;
 
 	GArray *chunks = g_array_sized_new(FALSE, TRUE, sizeof(struct iovec), UIO_MAXIOV);
@@ -86,6 +88,21 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 		}
 		chunkqueue_skip(cq, r);
 		*write_max -= r;
+
+		/* stats */
+		wrk = vr->con->wrk;
+		vr->con->wrk->stats.bytes_out += r;
+		vr->con->stats.bytes_out += r;
+
+		/* update 5s stats */
+		ts = CUR_TS(wrk);
+
+		if ((ts - vr->con->stats.last_avg) > 5) {
+			vr->con->stats.bytes_out_5s_diff = vr->con->stats.bytes_out - vr->con->stats.bytes_out_5s;
+			vr->con->stats.bytes_out_5s = vr->con->stats.bytes_out;
+			vr->con->stats.last_avg = ts;
+		}
+
 		if (r != we_have) {
 			res = NETWORK_STATUS_SUCCESS;
 			goto cleanup;

@@ -56,6 +56,18 @@ struct connection {
 		guint max_idle;
 		ev_timer watcher;
 	} keep_alive_data;
+
+	time_t ts;
+
+	struct {
+		guint64 bytes_in;
+		guint64 bytes_out;
+		time_t last_avg;
+		guint64 bytes_in_5s;
+		guint64 bytes_out_5s;
+		guint64 bytes_in_5s_diff;
+		guint64 bytes_out_5s_diff;
+	} stats;
 };
 
 LI_API connection* connection_new(worker *wrk);
@@ -67,5 +79,7 @@ LI_API void connection_error(connection *con);
 
 LI_API void connection_handle_direct(connection *con);
 LI_API void connection_handle_indirect(connection *con, plugin *p);
+
+LI_API gchar *connection_state_str(connection_state_t state);
 
 #endif

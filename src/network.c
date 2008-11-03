@@ -69,6 +69,8 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 	const off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
 	off_t len = 0;
+	worker *wrk;
+	ev_tstamp ts;
 
 	do {
 		GString *buf = g_string_sized_new(blocksize);
@@ -94,6 +96,20 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 		g_string_truncate(buf, r);
 		chunkqueue_append_string(cq, buf);
 		len += r;
+
+		/* stats */
+		wrk = vr->con->wrk;
+		wrk->stats.bytes_in += r;
+		vr->con->stats.bytes_in += r;
+
+		/* update 5s stats */
+		ts = CUR_TS(wrk);
+
+		if ((ts - vr->con->stats.last_avg) > 5) {
+			vr->con->stats.bytes_in_5s_diff = vr->con->stats.bytes_in - vr->con->stats.bytes_in_5s;
+			vr->con->stats.bytes_in_5s = vr->con->stats.bytes_in;
+			vr->con->stats.last_avg = ts;
+		}
 	} while (r == blocksize && len < max_read);
 
 	return NETWORK_STATUS_SUCCESS;

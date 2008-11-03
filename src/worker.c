@@ -143,6 +143,8 @@ void worker_new_con(worker *ctx, worker *wrk, sock_addr *remote_addr, int s) {
 		con->remote_addr = *remote_addr;
 		ev_io_set(&con->sock_watcher, s, EV_READ);
 		ev_io_start(wrk->loop, &con->sock_watcher);
+		con->ts = CUR_TS(con->wrk);
+		sockaddr_to_string(remote_addr, con->remote_addr_str);
 	} else {
 		worker_new_con_data *d = g_slice_new(worker_new_con_data);
 		d->remote_addr = *remote_addr;
@@ -164,8 +166,8 @@ static void worker_new_con_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	}
 }
 
-/* stat watcher */
-static void worker_stat_watcher_cb(struct ev_loop *loop, ev_timer *w, int revents) {
+/* stats watcher */
+static void worker_stats_watcher_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	worker *wrk = (worker*) w->data;
 	UNUSED(loop);
 	UNUSED(revents);
@@ -178,6 +180,28 @@ static void worker_stat_watcher_cb(struct ev_loop *loop, ev_timer *w, int revent
 		if (wrk->stats.requests_per_sec > 0)
 			TRACE(wrk->srv, "worker %u: %.2f requests per second", wrk->ndx, wrk->stats.requests_per_sec);
 	}
+
+	/* 5s averages */
+	if ((now - wrk->stats.last_avg) > 5) {
+		/* bytes in */
+		wrk->stats.bytes_in_5s_diff = wrk->stats.bytes_in - wrk->stats.bytes_in_5s;
+		wrk->stats.bytes_in_5s = wrk->stats.bytes_in;
+
+		/* bytes out */
+		wrk->stats.bytes_out_5s_diff = wrk->stats.bytes_out - wrk->stats.bytes_out_5s;
+		wrk->stats.bytes_out_5s = wrk->stats.bytes_out;
+
+		/* requests */
+		wrk->stats.requests_5s_diff = wrk->stats.requests - wrk->stats.requests_5s;
+		wrk->stats.requests_5s = wrk->stats.requests;
+
+		/* active connections */
+		wrk->stats.active_cons_5s = wrk->connections_active;
+
+		wrk->stats.last_avg = now;
+	}
+
+	wrk->stats.active_cons_cum += wrk->connections_active;
 
 	wrk->stats.last_requests = wrk->stats.requests;
 	wrk->stats.last_update = now;
@@ -216,9 +240,9 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	ev_async_start(wrk->loop, &wrk->new_con_watcher);
 	wrk->new_con_queue = g_async_queue_new();
 
-	ev_timer_init(&wrk->stat_watcher, worker_stat_watcher_cb, 1, 1);
-	wrk->stat_watcher.data = wrk;
-	ev_timer_start(wrk->loop, &wrk->stat_watcher);
+	ev_timer_init(&wrk->stats_watcher, worker_stats_watcher_cb, 1, 1);
+	wrk->stats_watcher.data = wrk;
+	ev_timer_start(wrk->loop, &wrk->stats_watcher);
 	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
 	ev_init(&wrk->collect_watcher, collect_watcher_cb);
@@ -265,7 +289,7 @@ void worker_free(worker *wrk) {
 	g_async_queue_unref(wrk->new_con_queue);
 
 	ev_ref(wrk->loop);
-	ev_timer_stop(wrk->loop, &wrk->stat_watcher);
+	ev_timer_stop(wrk->loop, &wrk->stats_watcher);
 
 	ev_ref(wrk->loop);
 	ev_async_stop(wrk->loop, &wrk->collect_watcher);
@@ -364,4 +388,3 @@ void worker_con_put(connection *con) {
 		g_array_index(wrk->connections, connection*, tmp->idx) = tmp;
 	}
 }
-
