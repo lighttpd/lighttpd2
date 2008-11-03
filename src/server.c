@@ -135,6 +135,9 @@ void server_free(server* srv) {
 	server_plugins_free(srv);
 	g_array_free(srv->plugins_handle_close, TRUE); /* TODO: */
 
+	if (srv->started_str)
+		g_string_free(srv->started_str, TRUE);
+
 	g_slice_free(server, srv);
 }
 
@@ -267,7 +270,11 @@ void server_start(server *srv) {
 	}
 
 	srv->started = ev_now(srv->main_worker->loop);
-	srv->started_str = worker_current_timestamp(srv->main_worker);
+	{
+		GString *str = worker_current_timestamp(srv->main_worker);
+		srv->started = ev_now(srv->main_worker->loop);
+		srv->started_str = g_string_new_len(GSTR_LEN(str));
+	}
 
 	log_thread_start(srv);
 
