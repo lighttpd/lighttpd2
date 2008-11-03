@@ -29,7 +29,7 @@ static void worker_closing_socket_cb(int revents, void* arg) {
 }
 
 void worker_add_closing_socket(worker *wrk, int fd) {
-	worker_closing_socket *scs = g_slice_new0(worker_closing_socket);
+	worker_closing_socket *scs;
 
 	shutdown(fd, SHUT_WR);
 	if (g_atomic_int_get(&wrk->srv->state) == SERVER_STOPPING) {
@@ -38,6 +38,7 @@ void worker_add_closing_socket(worker *wrk, int fd) {
 		return;
 	}
 
+	scs = g_slice_new0(worker_closing_socket);
 	scs->wrk = wrk;
 	scs->fd = fd;
 	g_queue_push_tail(&wrk->closing_sockets, scs);
