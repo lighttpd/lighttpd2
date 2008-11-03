@@ -5,6 +5,13 @@
 #error Please include "base.h" instead of this file
 #endif
 
+typedef enum {
+	COUNTER_TIME,
+	COUNTER_BYTES,
+	COUNTER_BITS,
+	COUNTER_UNITS
+} counter_type;
+
 LI_API void fatal(const gchar* msg);
 
 /* set O_NONBLOCK and FD_CLOEXEC */
@@ -26,6 +33,8 @@ LI_API void http_status_to_str(gint status_code, gchar status_str[]);
 
 /* */
 LI_API gchar counter_format(guint64 *count, guint factor);
+/* formats a given guint64 for output. accuracy can be a positiv integer or -1 for infinite */
+LI_API GString *counter_format2(guint64 count, counter_type t, gint accuracy);
 
 LI_API gchar *ev_backend_string(guint backend);
 
@@ -38,5 +47,8 @@ LI_API guint hash_ipv6(gconstpointer key);
 
 /* looks up the mimetype for a filename by comparing suffixes. first match is returned. do not free the result */
 LI_API GString *mimetype_get(vrequest *vr, GString *filename);
+
+/* converts a sock_addr to a human readable string. ipv4 and ipv6 supported. if dest is NULL, a new string will be allocated */
+LI_API GString *sockaddr_to_string(sock_addr *saddr, GString *dest);
 
 #endif
