@@ -105,11 +105,13 @@ gboolean request_validate_header(connection *con) {
 
 	/* get hostname */
 	l = http_header_find_first(req->headers, CONST_STR_LEN("host"));
-	if (NULL != l && NULL != http_header_find_next(l, CONST_STR_LEN("host"))) {
-		/* more than one "host" header */
-		bad_request(con, 400); /* bad request */
-		return FALSE;
-	} else {
+	if (NULL != l) {
+		if (NULL != http_header_find_next(l, CONST_STR_LEN("host"))) {
+			/* more than one "host" header */
+			bad_request(con, 400); /* bad request */
+			return FALSE;
+		}
+
 		hh = (http_header*) l->data;
 		g_string_append_len(req->uri.authority, HEADER_VALUE_LEN(hh));
 		if (!parse_hostname(&req->uri)) {
@@ -145,7 +147,7 @@ gboolean request_validate_header(connection *con) {
 		}
 
 		/**
-			* negative content-length is not supported 
+			* negative content-length is not supported
 			* and is a bad request
 			*/
 		if (r < 0) {
