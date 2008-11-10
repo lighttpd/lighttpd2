@@ -983,7 +983,6 @@ void config_parser_finish(server *srv, GList *ctx_stack, gboolean free_all) {
 		config_parser_context_free(srv, ctx, TRUE);
 
 		g_list_free(ctx_stack);
-		srv->mainaction = NULL;
 	}
 }
 
@@ -1045,12 +1044,6 @@ void config_parser_context_free(server *srv, config_parser_context_t *ctx, gbool
 	g_free(ctx->stack);
 
 	if (free_queues) {
-		if (g_queue_get_length(ctx->action_list_stack) > 0) {
-			action *a;
-			while ((a = g_queue_pop_head(ctx->action_list_stack)))
-				action_release(srv, a);
-		}
-
 		if (g_queue_get_length(ctx->option_stack) > 0) {
 			value *o;
 			while ((o = g_queue_pop_head(ctx->option_stack)))

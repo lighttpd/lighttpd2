@@ -70,6 +70,7 @@ int main(int argc, char *argv[]) {
 
 	srv = server_new(module_dir);
 
+	/* load core plugin */
 	srv->core_plugin = plugin_register(srv, "core", plugin_core_init);
 
 	/* if no path is specified for the config, read lighttpd.conf from current directory */
@@ -85,6 +86,7 @@ int main(int argc, char *argv[]) {
 		gulong s, millis, micros;
 		g_get_current_time(&start);
 		guint64 d;
+		action *a;
 
 		/* standard config frontend */
 		ctx_stack = config_parser_init(srv);
@@ -100,6 +102,10 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 
+		/* append fallback "static" action */
+		a = create_action(srv, "static", NULL);
+		g_array_append_val(srv->mainaction->data.list, a);
+
 		g_get_current_time(&end);
 		d = end.tv_sec - start.tv_sec;
 		d *= 1000000;
@@ -110,7 +116,6 @@ int main(int argc, char *argv[]) {
 		log_debug(srv, NULL, "parsed config file in %lu seconds, %lu milliseconds, %lu microseconds", s, millis, micros);
 		log_debug(srv, NULL, "option_stack: %u action_list_stack: %u (should be 0:1)", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
 
-		/* TODO config_parser_finish(srv, ctx_stack); */
 		config_parser_finish(srv, ctx_stack, FALSE);
 	}
 	else {
