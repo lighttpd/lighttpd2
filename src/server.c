@@ -75,6 +75,8 @@ server* server_new(const gchar *module_dir) {
 
 	log_init(srv);
 
+	srv->io_timeout = 30; /* default I/O timeout */
+
 	return srv;
 }
 

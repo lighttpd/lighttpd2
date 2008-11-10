@@ -518,6 +518,19 @@ static gboolean core_module_load(server *srv, plugin* p, value *val) {
 	return TRUE;
 }
 
+static gboolean core_io_timeout(server *srv, plugin* p, value *val) {
+	UNUSED(p);
+
+	if (!val || val->type != VALUE_NUMBER || val->data.number < 1) {
+		ERROR(srv, "%s", "io_timeout expects a positive number as parameter");
+		return FALSE;
+	}
+
+	srv->io_timeout = value_extract(val).number;
+
+	return TRUE;
+}
+
 /*
  * OPTIONS
  */
@@ -814,6 +827,7 @@ static const plugin_setup setups[] = {
 	{ "event_handler", core_event_handler },
 	{ "workers", core_workers },
 	{ "module_load", core_module_load },
+	{ "io_timeout", core_io_timeout },
 	{ NULL, NULL }
 };
 

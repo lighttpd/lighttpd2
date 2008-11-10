@@ -61,6 +61,9 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 	}
 #endif
 
+	if (vr->con->io_timeout.last_io != CUR_TS(vr->con->wrk))
+		connection_io_timeout_reset(vr->con);
+
 	return res;
 }
 

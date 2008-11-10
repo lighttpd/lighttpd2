@@ -123,8 +123,13 @@ static gboolean connection_handle_read(connection *con) {
 
 		con->state = CON_STATE_READ_REQUEST_HEADER;
 		con->ts = CUR_TS(con->wrk);
-	} else if (con->state == CON_STATE_REQUEST_START) {
-		con->state = CON_STATE_READ_REQUEST_HEADER;
+
+		connection_io_timeout_init(con);
+	} else {
+		if (vr->con->io_timeout.last_io != CUR_TS(vr->con->wrk))
+			connection_io_timeout_reset(con);
+		if (con->state == CON_STATE_REQUEST_START)
+			con->state = CON_STATE_READ_REQUEST_HEADER;
 	}
 
 	if (con->state == CON_STATE_READ_REQUEST_HEADER && con->mainvr->state == VRS_CLEAN) {
@@ -366,6 +371,9 @@ void connection_reset(connection *con) {
 	con->stats.bytes_out_5s = G_GUINT64_CONSTANT(0);
 	con->stats.bytes_out_5s_diff = G_GUINT64_CONSTANT(0);
 	con->stats.last_avg = 0;
+
+	/* remove from timeout queue */
+	connection_io_timeout_remove(con);
 }
 
 void server_check_keepalive(server *srv);
@@ -416,6 +424,8 @@ void connection_reset_keep_alive(connection *con) {
 	con->stats.bytes_out_5s = G_GUINT64_CONSTANT(0);
 	con->stats.bytes_out_5s_diff = G_GUINT64_CONSTANT(0);
 	con->stats.last_avg = 0;
+
+	connection_io_timeout_remove(con);
 }
 
 void connection_free(connection *con) {
@@ -466,4 +476,58 @@ gchar *connection_state_str(connection_state_t state) {
 	};
 
 	return (gchar*)states[state];
+}
+
+void connection_io_timeout_init(connection *con) {
+	worker *wrk = con->wrk;
+
+	if (wrk->io_timeout_queue_tail)
+		wrk->io_timeout_queue_tail->io_timeout.next = con;
+	else
+		/* if there is no tail, it means the queue is empty */
+		wrk->io_timeout_queue_head = con;
+
+	wrk->io_timeout_queue_tail = con;
+	con->io_timeout.last_io = CUR_TS(wrk);
+	con->io_timeout.next = NULL;
+}
+
+void connection_io_timeout_reset(connection *con) {
+	/* move con to the end of the timeout queue */
+	worker *wrk = con->wrk;
+
+	if (con == wrk->io_timeout_queue_head && con != wrk->io_timeout_queue_tail)
+		wrk->io_timeout_queue_head = con->io_timeout.next;
+
+	if (con != wrk->io_timeout_queue_tail)
+		con->io_timeout.prev = wrk->io_timeout_queue_tail;
+
+	if (wrk->io_timeout_queue_tail)
+		wrk->io_timeout_queue_tail->io_timeout.next = con;
+
+	con->io_timeout.next = NULL;
+	wrk->io_timeout_queue_tail = con;
+	con->io_timeout.last_io = CUR_TS(wrk);
+}
+
+void connection_io_timeout_remove(connection *con) {
+	/* remove con from the timeout queue */
+	worker *wrk = con->wrk;
+
+	/* check if connection is in the timeout queue, it might not be the case when it is in keep alive idle state */
+	if (con->io_timeout.prev == NULL && con->io_timeout.next == NULL && con != wrk->io_timeout_queue_head)
+		return;
+
+	if (con == wrk->io_timeout_queue_head)
+		wrk->io_timeout_queue_head = con->io_timeout.next;
+	else
+		con->io_timeout.prev->io_timeout.next = con->io_timeout.next;
+
+	if (con == wrk->io_timeout_queue_tail)
+		wrk->io_timeout_queue_tail = con->io_timeout.prev;
+	else
+		con->io_timeout.next->io_timeout.prev = con->io_timeout.prev;
+
+	con->io_timeout.prev = NULL;
+	con->io_timeout.next = NULL;
 }
