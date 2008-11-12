@@ -33,7 +33,7 @@ struct statistics_t {
 	ev_tstamp last_update;
 };
 
-#define CUR_TS(wrk) ((time_t)ev_now((wrk)->loop))
+#define CUR_TS(wrk) ev_now((wrk)->loop)
 
 /* only locks if there is more than one worker */
 #define WORKER_LOCK(srv, lock) \
