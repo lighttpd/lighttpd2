@@ -72,7 +72,7 @@ struct server {
 	/* keep alive timeout */
 	guint keep_alive_queue_timeout;
 
-	guint io_timeout;
+	gdouble io_timeout;
 };
 
 

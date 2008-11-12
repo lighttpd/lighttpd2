@@ -37,6 +37,7 @@ ssize_t net_read(int fd, void *buf, ssize_t nbyte) {
 
 network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 	network_status_t res;
+	ev_tstamp now = CUR_TS(vr->con->wrk);
 #ifdef TCP_CORK
 	int corked = 0;
 #endif
@@ -61,8 +62,9 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 	}
 #endif
 
-	if (vr->con->io_timeout.last_io != CUR_TS(vr->con->wrk))
-		connection_io_timeout_reset(vr->con);
+	/* only update once a second, the cast is to round the timestamp */
+	if ((guint)vr->con->io_timeout_elem.ts != now)
+		waitqueue_push(&vr->con->wrk->io_timeout_queue, &vr->con->io_timeout_elem);
 
 	return res;
 }
@@ -72,8 +74,8 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 	const off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
 	off_t len = 0;
-	worker *wrk;
-	ev_tstamp ts;
+	worker *wrk = vr->con->wrk;
+	ev_tstamp now = CUR_TS(wrk);
 
 	do {
 		GString *buf = g_string_sized_new(blocksize);
@@ -106,14 +108,17 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 		vr->con->stats.bytes_in += r;
 
 		/* update 5s stats */
-		ts = CUR_TS(wrk);
 
-		if ((ts - vr->con->stats.last_avg) > 5) {
+		if ((now - vr->con->stats.last_avg) > 5) {
 			vr->con->stats.bytes_in_5s_diff = vr->con->stats.bytes_in - vr->con->stats.bytes_in_5s;
 			vr->con->stats.bytes_in_5s = vr->con->stats.bytes_in;
-			vr->con->stats.last_avg = ts;
+			vr->con->stats.last_avg = now;
 		}
 	} while (r == blocksize && len < max_read);
+
+	/* only update once a second, the cast is to round the timestamp */
+	if ((guint)vr->con->io_timeout_elem.ts != now)
+		waitqueue_push(&vr->con->wrk->io_timeout_queue, &vr->con->io_timeout_elem);
 
 	return NETWORK_STATUS_SUCCESS;
 }

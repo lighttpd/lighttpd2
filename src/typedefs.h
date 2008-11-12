@@ -154,6 +154,16 @@ typedef struct response response;
 struct server;
 typedef struct server server;
 
+/* utils.h */
+
+struct waitqueue_elem;
+typedef struct waitqueue_elem waitqueue_elem;
+
+struct waitqueue;
+typedef struct waitqueue waitqueue;
+
+typedef void (*waitqueue_cb) (struct ev_loop *loop, struct ev_timer *w, int revents);
+
 /* value.h */
 
 struct value;

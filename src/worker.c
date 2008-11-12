@@ -101,20 +101,21 @@ static void worker_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	worker *wrk = (worker*) w->data;
 	connection *con;
+	waitqueue_elem *wqe;
+	ev_tstamp now = CUR_TS(wrk);
 
 	UNUSED(loop);
 	UNUSED(revents);
 
-	for (con = wrk->io_timeout_queue_head; con != NULL; con = con->io_timeout.next) {
-		if ((con->io_timeout.last_io + wrk->srv->io_timeout) < CUR_TS(wrk)) {
-			/* connection has timed out */
-			CON_TRACE(con, "connection io-timeout from %s after %u seconds", con->remote_addr_str->str, wrk->srv->io_timeout);
-			plugins_handle_close(con);
-			worker_con_put(con);
-		} else {
-			break;
-		}
+	while ((wqe = waitqueue_pop(&wrk->io_timeout_queue)) != NULL) {
+		/* connection has timed out */
+		con = wqe->data;
+		CON_TRACE(con, "connection io-timeout from %s after %.2f seconds", con->remote_addr_str->str, now - wqe->ts);
+		plugins_handle_close(con);
+		worker_con_put(con);
 	}
+
+	waitqueue_update(&wrk->io_timeout_queue);
 }
 
 /* cache timestamp */
@@ -166,7 +167,7 @@ void worker_new_con(worker *ctx, worker *wrk, sock_addr *remote_addr, int s) {
 		ev_io_start(wrk->loop, &con->sock_watcher);
 		con->ts = CUR_TS(con->wrk);
 		sockaddr_to_string(remote_addr, con->remote_addr_str);
-		connection_io_timeout_init(con);
+		waitqueue_push(&wrk->io_timeout_queue, &con->io_timeout_elem);
 	} else {
 		worker_new_con_data *d = g_slice_new(worker_new_con_data);
 		d->remote_addr = *remote_addr;
@@ -273,9 +274,8 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	wrk->collect_queue = g_async_queue_new();
 	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
-	ev_timer_init(&wrk->io_timer, worker_io_timeout_cb, 1, 1);
-	wrk->io_timer.data = wrk;
-	ev_timer_start(wrk->loop, &wrk->io_timer);
+	/* io timeout timer */
+	waitqueue_init(&wrk->io_timeout_queue, wrk->loop, worker_io_timeout_cb, srv->io_timeout, wrk);
 	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
 	return wrk;

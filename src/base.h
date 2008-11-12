@@ -21,6 +21,8 @@
 } while (0)
 
 #include "typedefs.h"
+#include "utils.h"
+
 #include "module.h"
 
 #include "chunk.h"

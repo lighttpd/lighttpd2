@@ -58,11 +58,7 @@ struct connection {
 	} keep_alive_data;
 
 	/* I/O timeout data */
-	struct {
-		ev_tstamp last_io;
-		connection *prev;
-		connection *next;
-	} io_timeout;
+	waitqueue_elem io_timeout_elem;
 
 	time_t ts;
 
@@ -81,10 +77,6 @@ LI_API connection* connection_new(worker *wrk);
 LI_API void connection_reset(connection *con);
 LI_API void connection_reset_keep_alive(connection *con);
 LI_API void connection_free(connection *con);
-
-LI_API void connection_io_timeout_init(connection *con);
-LI_API void connection_io_timeout_reset(connection *con);
-LI_API void connection_io_timeout_remove(connection *con);
 
 LI_API void connection_error(connection *con);
 

@@ -65,9 +65,9 @@ struct worker {
 	ev_timer keep_alive_timer;
 	GQueue keep_alive_queue;
 
-	ev_timer io_timer;
-	connection *io_timeout_queue_head;
-	connection *io_timeout_queue_tail;
+	waitqueue io_timeout_queue;
+
+	waitqueue throttle_queue;
 
 	guint connection_load;    /** incremented by server_accept_cb, decremented by worker_con_put. use atomic access */
 
