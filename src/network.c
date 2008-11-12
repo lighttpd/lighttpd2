@@ -63,7 +63,7 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 #endif
 
 	/* only update once a second, the cast is to round the timestamp */
-	if ((guint)vr->con->io_timeout_elem.ts != now)
+	if ((vr->con->io_timeout_elem.ts + 1.) < now)
 		waitqueue_push(&vr->con->wrk->io_timeout_queue, &vr->con->io_timeout_elem);
 
 	return res;
@@ -109,7 +109,7 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 
 		/* update 5s stats */
 
-		if ((now - vr->con->stats.last_avg) > 5) {
+		if ((now - vr->con->stats.last_avg) >= 5.0) {
 			vr->con->stats.bytes_in_5s_diff = vr->con->stats.bytes_in - vr->con->stats.bytes_in_5s;
 			vr->con->stats.bytes_in_5s = vr->con->stats.bytes_in;
 			vr->con->stats.last_avg = now;
@@ -117,7 +117,7 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 	} while (r == blocksize && len < max_read);
 
 	/* only update once a second, the cast is to round the timestamp */
-	if ((guint)vr->con->io_timeout_elem.ts != now)
+	if ((vr->con->io_timeout_elem.ts + 1.) < now)
 		waitqueue_push(&vr->con->wrk->io_timeout_queue, &vr->con->io_timeout_elem);
 
 	return NETWORK_STATUS_SUCCESS;

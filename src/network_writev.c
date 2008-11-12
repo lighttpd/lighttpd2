@@ -32,7 +32,7 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 	chunkiter ci;
 	chunk *c;
 	worker *wrk;
-	time_t ts;
+	ev_tstamp ts;
 	network_status_t res = NETWORK_STATUS_FATAL_ERROR;
 
 	GArray *chunks = g_array_sized_new(FALSE, TRUE, sizeof(struct iovec), UIO_MAXIOV);

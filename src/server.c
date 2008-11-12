@@ -346,7 +346,7 @@ GString *server_current_timestamp() {
 
 		g_string_set_size(ts_str, 255);
 		s = strftime(ts_str->str, ts_str->allocated_len,
-				"%a, %d %b %Y %H:%M:%S GMT", gmtime(&(cur_ts)));
+				"%a, %d %b %Y %H:%M:%S GMT", gmtime(&cur_ts));
 		g_string_set_size(ts_str, s);
 		*last_ts = cur_ts;
 	}

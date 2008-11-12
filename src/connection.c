@@ -324,6 +324,7 @@ connection* connection_new(worker *wrk) {
 	con->keep_alive_data.watcher.data = con;
 
 	con->io_timeout_elem.data = con;
+	con->throttle.queue_elem.data = con;
 
 	return con;
 }
@@ -374,6 +375,8 @@ void connection_reset(connection *con) {
 
 	/* remove from timeout queue */
 	waitqueue_remove(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
+	/* remove from throttle queue */
+	waitqueue_remove(&con->wrk->throttle_queue, &con->throttle.queue_elem);
 }
 
 void server_check_keepalive(server *srv);

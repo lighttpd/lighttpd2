@@ -98,7 +98,7 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint f
 
 		/* if we have a worker context, we can use its timestamp to save us a call to time() */
 		if (con != NULL)
-			cur_ts = CUR_TS(con->wrk);
+			cur_ts = (time_t)CUR_TS(con->wrk);
 		else
 			cur_ts = time(NULL);
 

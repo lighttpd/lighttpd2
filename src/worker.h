@@ -25,7 +25,7 @@ struct statistics_t {
 	guint64 bytes_in_5s;
 	guint64 bytes_in_5s_diff;
 	guint active_cons_5s;
-	time_t last_avg;
+	ev_tstamp last_avg;
 
 	/* updated in timer */
 	guint64 last_requests;
@@ -71,7 +71,7 @@ struct worker {
 
 	guint connection_load;    /** incremented by server_accept_cb, decremented by worker_con_put. use atomic access */
 
-	time_t last_generated_date_ts;
+	ev_tstamp last_generated_date_ts;
 	GString *ts_date_str;     /**< use worker_current_timestamp(wrk) */
 
 	/* incoming queues */

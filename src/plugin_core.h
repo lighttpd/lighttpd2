@@ -16,7 +16,9 @@ enum core_options_t {
 
 	CORE_OPTION_MIME_TYPES,
 
-	CORE_OPTION_DOCROOT
+	CORE_OPTION_DOCROOT,
+
+	CORE_OPTION_THROTTLE
 };
 
 /* the core plugin always has base index 0, as it is the first plugin loaded */

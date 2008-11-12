@@ -146,7 +146,7 @@ struct mod_status_con_data {
 	GString *remote_addr_str, *local_addr_str;
 	gboolean is_ssl, keep_alive;
 	GString *host, *path;
-	time_t ts;
+	ev_tstamp ts;
 	guint64 bytes_in;
 	guint64 bytes_out;
 	guint64 bytes_in_5s_diff;
@@ -394,7 +394,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 				for (guint j = 0; j < sd->connections->len; j++) {
 					mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
 
-					ts = counter_format2(CUR_TS(vr->con->wrk) - cd->ts, COUNTER_TIME, -1);
+					ts = counter_format2((guint64)(CUR_TS(vr->con->wrk) - cd->ts), COUNTER_TIME, -1);
 					bytes_in = counter_format2(cd->bytes_in, COUNTER_BYTES, 1);
 					bytes_in_5s = counter_format2(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, 1);
 					bytes_out = counter_format2(cd->bytes_out, COUNTER_BYTES, 1);

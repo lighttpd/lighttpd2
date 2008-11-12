@@ -141,7 +141,7 @@ struct log_t {
 
 struct log_timestamp_t {
 	gint refcount;
-	time_t last_ts;
+	ev_tstamp last_ts;
 	GString *format;
 	GString *cached;
 };

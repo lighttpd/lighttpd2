@@ -118,9 +118,26 @@ static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents)
 	waitqueue_update(&wrk->io_timeout_queue);
 }
 
+/* check for throttled connections */
+static void worker_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
+	worker *wrk = (worker*) w->data;
+	connection *con;
+	waitqueue_elem *wqe;
+
+	UNUSED(revents);
+
+	while ((wqe = waitqueue_pop(&wrk->throttle_queue)) != NULL) {
+		/* connection waited long enough to reenable sending of data again */
+		con = wqe->data;
+		ev_io_add_events(loop, &con->sock_watcher, EV_WRITE);
+	}
+
+	waitqueue_update(&wrk->throttle_queue);
+}
+
 /* cache timestamp */
 GString *worker_current_timestamp(worker *wrk) {
-	time_t cur_ts = CUR_TS(wrk);
+	time_t cur_ts = (time_t)CUR_TS(wrk);
 	if (cur_ts != wrk->last_generated_date_ts) {
 		g_string_set_size(wrk->ts_date_str, 255);
 		strftime(wrk->ts_date_str->str, wrk->ts_date_str->allocated_len,
@@ -276,6 +293,10 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 
 	/* io timeout timer */
 	waitqueue_init(&wrk->io_timeout_queue, wrk->loop, worker_io_timeout_cb, srv->io_timeout, wrk);
+	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
+
+	/* throttling */
+	waitqueue_init(&wrk->throttle_queue, wrk->loop, worker_throttle_cb, 0.5, wrk);
 	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
 	return wrk;

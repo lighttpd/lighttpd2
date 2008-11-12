@@ -801,6 +801,8 @@ static const plugin_option options[] = {
 
 	{ "docroot", VALUE_STRING, NULL, NULL, NULL },
 
+	{ "throttle", VALUE_NUMBER, GINT_TO_POINTER(0), NULL, NULL },
+
 	{ NULL, 0, NULL, NULL, NULL }
 };
 

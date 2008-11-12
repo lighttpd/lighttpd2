@@ -1,5 +1,6 @@
 
 #include "base.h"
+#include "plugin_core.h"
 
 /* first chunk must be a FILE_CHUNK ! */
 network_status_t network_backend_sendfile(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
@@ -9,7 +10,7 @@ network_status_t network_backend_sendfile(vrequest *vr, int fd, chunkqueue *cq, 
 	chunkiter ci;
 	chunk *c;
 	worker *wrk;
-	time_t ts;
+	ev_tstamp ts;
 
 	if (0 == cq->length) return NETWORK_STATUS_FATAL_ERROR;
 
@@ -82,7 +83,7 @@ network_status_t network_backend_sendfile(vrequest *vr, int fd, chunkqueue *cq, 
 		/* update 5s stats */
 		ts = CUR_TS(wrk);
 
-		if ((ts - vr->con->stats.last_avg) > 5) {
+		if ((ts - vr->con->stats.last_avg) >= 5.0) {
 			vr->con->stats.bytes_out_5s_diff = vr->con->wrk->stats.bytes_out - vr->con->wrk->stats.bytes_out_5s;
 			vr->con->stats.bytes_out_5s = vr->con->stats.bytes_out;
 			vr->con->stats.last_avg = ts;
@@ -95,8 +96,24 @@ network_status_t network_backend_sendfile(vrequest *vr, int fd, chunkqueue *cq, 
 }
 
 network_status_t network_write_sendfile(vrequest *vr, int fd, chunkqueue *cq) {
-	goffset write_max = 256*1024; // 256kB //;
+	goffset write_max;
+
+	if (CORE_OPTION(CORE_OPTION_THROTTLE).number) {
+		/* throttling is enabled */
+		ev_tstamp now = CUR_TS(vr->con->wrk);
+		if (G_UNLIKELY((now - vr->con->throttle.ts) > vr->con->wrk->throttle_queue.delay)) {
+			vr->con->throttle.magazine += CORE_OPTION(CORE_OPTION_THROTTLE).number * (now - vr->con->throttle.ts);
+			if (vr->con->throttle.magazine > CORE_OPTION(CORE_OPTION_THROTTLE).number)
+				vr->con->throttle.magazine = CORE_OPTION(CORE_OPTION_THROTTLE).number;
+			vr->con->throttle.ts = now;
+			/*g_print("throttle magazine: %u kbytes\n", vr->con->throttle.magazine / 1024);*/
+		}
+		write_max = vr->con->throttle.magazine;
+	} else
+		write_max = 256*1024; /* 256kB */
+
 	if (cq->length == 0) return NETWORK_STATUS_FATAL_ERROR;
+
 	do {
 		switch (chunkqueue_first_chunk(cq)->type) {
 		case MEM_CHUNK:
@@ -108,6 +125,16 @@ network_status_t network_write_sendfile(vrequest *vr, int fd, chunkqueue *cq) {
 		default:
 			return NETWORK_STATUS_FATAL_ERROR;
 		}
+
+		/* check if throttle magazine is empty */
+		if (CORE_OPTION(CORE_OPTION_THROTTLE).number && write_max == 0) {
+			/* remove EV_WRITE from sockwatcher for now */
+			vr->con->throttle.magazine = 0;
+			ev_io_rem_events(vr->con->wrk->loop, &vr->con->sock_watcher, EV_WRITE);
+			waitqueue_push(&vr->con->wrk->throttle_queue, &vr->con->throttle.queue_elem);
+			return NETWORK_STATUS_WAIT_FOR_EVENT;
+		}
+
 		if (cq->length == 0) return NETWORK_STATUS_SUCCESS;
 	} while (write_max > 0);
 	return NETWORK_STATUS_SUCCESS;

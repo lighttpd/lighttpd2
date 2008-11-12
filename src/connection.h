@@ -60,12 +60,19 @@ struct connection {
 	/* I/O timeout data */
 	waitqueue_elem io_timeout_elem;
 
-	time_t ts;
+	/* I/O throttling */
+	struct {
+		waitqueue_elem queue_elem;
+		guint magazine;
+		ev_tstamp ts;
+	} throttle;
+
+	ev_tstamp ts;
 
 	struct {
 		guint64 bytes_in;
 		guint64 bytes_out;
-		time_t last_avg;
+		ev_tstamp last_avg;
 		guint64 bytes_in_5s;
 		guint64 bytes_out_5s;
 		guint64 bytes_in_5s_diff;
