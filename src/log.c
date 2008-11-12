@@ -225,6 +225,7 @@ void log_rotate(gchar * path, log_t *log, server * UNUSED_PARAM(srv)) {
 			break;
 		case LOG_TYPE_PIPE:
 		case LOG_TYPE_SYSLOG:
+		case LOG_TYPE_NONE:
 			/* TODO */
 			assert(NULL);
 	}
@@ -256,7 +257,7 @@ void log_unref(server *srv, log_t *log) {
 
 log_type_t log_type_from_path(GString *path) {
 	if (path->len == 0)
-		return LOG_TYPE_STDERR;
+		return LOG_TYPE_NONE;
 
 	/* targets starting with a slash are absolute paths and therefor file targets */
 	if (*path->str == '/')
@@ -305,6 +306,9 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	log_t *log;
 	gint fd = -1;
 
+	if (type == LOG_TYPE_NONE)
+		return NULL;
+
 	g_mutex_lock(srv->logs.mutex);
 	log = g_hash_table_lookup(srv->logs.targets, path->str);
 
@@ -325,6 +329,7 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 			break;
 		case LOG_TYPE_PIPE:
 		case LOG_TYPE_SYSLOG:
+		case LOG_TYPE_NONE:
 			/* TODO */
 			fd = -1;
 			assert(NULL);

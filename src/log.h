@@ -117,7 +117,8 @@ typedef enum {
 	LOG_TYPE_STDERR,
 	LOG_TYPE_FILE,
 	LOG_TYPE_PIPE,
-	LOG_TYPE_SYSLOG
+	LOG_TYPE_SYSLOG,
+	LOG_TYPE_NONE
 } log_type_t;
 
 /* flags for log_write */
