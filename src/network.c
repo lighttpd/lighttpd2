@@ -1,5 +1,5 @@
 
-#include "base.h"
+#include <lighttpd/base.h>
 
 /** repeats write after EINTR */
 ssize_t net_write(int fd, void *buf, ssize_t nbyte) {

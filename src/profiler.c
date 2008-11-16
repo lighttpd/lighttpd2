@@ -6,8 +6,8 @@
  */
 
 
-#include "base.h"
-#include "profiler.h"
+#include <lighttpd/base.h>
+#include <lighttpd/profiler.h>
 
 #define PROFILER_HASHTABLE_SIZE 1024
 

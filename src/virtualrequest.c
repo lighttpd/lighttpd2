@@ -1,6 +1,6 @@
 
-#include "base.h"
-#include "plugin_core.h"
+#include <lighttpd/base.h>
+#include <lighttpd/plugin_core.h>
 
 static filter* filter_new() {
 	filter *f = g_slice_new0(filter);

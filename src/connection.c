@@ -1,6 +1,6 @@
 
-#include "base.h"
-#include "plugin_core.h"
+#include <lighttpd/base.h>
+#include <lighttpd/plugin_core.h>
 
 /* only call it from the worker context the con belongs to */
 void worker_con_put(connection *con); /* worker.c */

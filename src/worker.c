@@ -1,7 +1,7 @@
 
 #include <sched.h>
 
-#include "base.h"
+#include <lighttpd/base.h>
 
 static connection* worker_con_get(worker *wrk);
 void worker_con_put(connection *con);

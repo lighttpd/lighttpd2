@@ -1,5 +1,5 @@
 
-#include "module.h"
+#include <lighttpd/module.h>
 
 modules *modules_init(gpointer main, const gchar *module_dir) {
 	modules *m = g_slice_new(modules);

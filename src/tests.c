@@ -1,9 +1,9 @@
 #include <stdio.h>
 
 
-#include "base.h"
+#include <lighttpd/base.h>
 
-#include "config_parser.h"
+#include <lighttpd/config_parser.h>
 
 int request_test() {
 	chunkqueue *cq;

@@ -1,7 +1,7 @@
 
 
-#include "base.h"
-#include "plugin_core.h"
+#include <lighttpd/base.h>
+#include <lighttpd/plugin_core.h>
 
 #include <stdio.h>
 #include <stdlib.h>

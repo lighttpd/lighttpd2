@@ -1,5 +1,5 @@
 
-#include "base.h"
+#include <lighttpd/base.h>
 
 void chunk_parser_init(chunk_parser_ctx *ctx, chunkqueue *cq) {
 	ctx->cq = cq;

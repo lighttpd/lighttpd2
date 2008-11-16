@@ -1,6 +1,6 @@
 
-#include "condition_lua.h"
-#include "value_lua.h"
+#include <lighttpd/condition_lua.h>
+#include <lighttpd/value_lua.h>
 
 #include <lualib.h>
 #include <lauxlib.h>

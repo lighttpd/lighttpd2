@@ -1,5 +1,5 @@
 
-#include "base.h"
+#include <lighttpd/base.h>
 
 struct collect_job;
 typedef struct collect_job collect_job;

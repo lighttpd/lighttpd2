@@ -1,5 +1,5 @@
 
-#include "base.h"
+#include <lighttpd/base.h>
 
 %%{
 	machine ipv4_parser;

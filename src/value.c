@@ -1,4 +1,4 @@
-#include "base.h"
+#include <lighttpd/base.h>
 
 value* value_new_bool(gboolean val) {
 	value *v = g_slice_new0(value);

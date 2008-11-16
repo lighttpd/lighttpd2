@@ -1,5 +1,5 @@
 
-#include "actions_lua.h"
+#include <lighttpd/actions_lua.h>
 
 #include <lualib.h>
 #include <lauxlib.h>

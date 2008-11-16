@@ -1,6 +1,6 @@
 
-#include "base.h"
-#include "plugin_core.h"
+#include <lighttpd/base.h>
+#include <lighttpd/plugin_core.h>
 
 /* first chunk must be a FILE_CHUNK ! */
 network_status_t network_backend_sendfile(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {

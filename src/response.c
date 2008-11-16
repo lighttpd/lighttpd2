@@ -1,6 +1,6 @@
 
-#include "base.h"
-#include "plugin_core.h"
+#include <lighttpd/base.h>
+#include <lighttpd/plugin_core.h>
 
 void response_init(response *resp) {
 	resp->headers = http_headers_new();

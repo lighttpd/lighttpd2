@@ -1,5 +1,5 @@
 
-#include "base.h"
+#include <lighttpd/base.h>
 
 /* Extract ovalue from ovalue, ovalue set to none */
 option_value value_extract(value *val) {

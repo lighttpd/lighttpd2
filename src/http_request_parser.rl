@@ -1,6 +1,6 @@
 
-#include "base.h"
-#include "http_request_parser.h"
+#include <lighttpd/base.h>
+#include <lighttpd/http_request_parser.h>
 
 /** Machine **/
 

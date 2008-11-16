@@ -1,5 +1,5 @@
 
-#include "filter_chunked.h"
+#include <lighttpd/filter_chunked.h>
 
 /* len != 0 */
 static void http_chunk_append_len(chunkqueue *cq, size_t len) {

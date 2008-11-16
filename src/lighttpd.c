@@ -1,10 +1,10 @@
 
-#include "base.h"
-#include "config_parser.h"
-#include "profiler.h"
+#include <lighttpd/base.h>
+#include <lighttpd/config_parser.h>
+#include <lighttpd/profiler.h>
 
 #ifdef HAVE_LUA_H
-#include "config_lua.h"
+#include <lighttpd/config_lua.h>
 #endif
 
 void plugin_core_init(server *srv, plugin *p);

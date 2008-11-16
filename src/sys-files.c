@@ -1,4 +1,4 @@
-#include "sys-files.h"
+#include <lighttpd/sys-files.h>
 
 #ifdef _WIN32
 DIR *opendir(const char *dn) {

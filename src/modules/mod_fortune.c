@@ -25,7 +25,7 @@
  *     }
  */
 
-#include "base.h"
+#include <lighttpd/base.h>
 
 /* globals */
 struct fortune_data;

@@ -1,5 +1,5 @@
 
-#include "base.h"
+#include <lighttpd/base.h>
 
 struct action_stack_element;
 typedef struct action_stack_element action_stack_element;

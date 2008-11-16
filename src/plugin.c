@@ -1,5 +1,5 @@
 
-#include "base.h"
+#include <lighttpd/base.h>
 
 static gboolean plugin_load_default_option(server *srv, server_option *sopt);
 static void plugin_free_default_options(server *srv, plugin *p);

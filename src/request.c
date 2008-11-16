@@ -1,6 +1,6 @@
 
-#include "base.h"
-#include "url_parser.h"
+#include <lighttpd/base.h>
+#include <lighttpd/url_parser.h>
 
 void request_init(request *req) {
 	req->http_method = HTTP_METHOD_UNSET;

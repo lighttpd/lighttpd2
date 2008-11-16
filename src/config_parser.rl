@@ -1,6 +1,5 @@
-#include "base.h"
-#include "condition.h"
-#include "config_parser.h"
+#include <lighttpd/base.h>
+#include <lighttpd/config_parser.h>
 
 #if 0
 	#define _printf(fmt, ...) g_print(fmt, __VA_ARGS__)

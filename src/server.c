@@ -1,6 +1,6 @@
 
-#include "base.h"
-#include "plugin_core.h"
+#include <lighttpd/base.h>
+#include <lighttpd/plugin_core.h>
 
 static void server_value_free(gpointer _so) {
 	g_slice_free(server_option, _so);

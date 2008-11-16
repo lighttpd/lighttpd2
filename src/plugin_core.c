@@ -1,7 +1,7 @@
 
-#include "base.h"
-#include "plugin_core.h"
-#include "profiler.h"
+#include <lighttpd/base.h>
+#include <lighttpd/plugin_core.h>
+#include <lighttpd/profiler.h>
 
 #include <sys/stat.h>
 #include <fcntl.h>

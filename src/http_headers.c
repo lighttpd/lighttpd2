@@ -1,5 +1,5 @@
 
-#include "base.h"
+#include <lighttpd/base.h>
 
 static void _http_header_free(gpointer p) {
 	http_header *h = (http_header*) p;
