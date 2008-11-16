@@ -28,8 +28,8 @@
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
 
-#include "base.h"
-#include "collect.h"
+#include <lighttpd/base.h>
+#include <lighttpd/collect.h>
 
 
 /* html snippet constants */

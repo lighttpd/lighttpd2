@@ -232,7 +232,9 @@ def configure(conf):
 #		'-fno-strict-aliasing',
 		]
 	conf.env['CCFLAGS'] = tolist(conf.env['CCFLAGS']) + common_ccflags
+	conf.env['CPPPATH_lighty'] += [ '../include' ]
 	conf.env['CCFLAGS_lighty'] += lighty_common_ccflags + [ '-DLI_DECLARE_EXPORTS' ]
+	conf.env['CPPPATH_lightymod'] += [ '../include' ]
 	conf.env['CCFLAGS_lightymod'] += lighty_common_ccflags
 	conf.env['plugin_PREFIX'] = ''
 	conf.env['LINKFLAGS_lighty'] += [ '-export-dynamic' ]
@@ -439,7 +441,7 @@ def configure(conf):
 	if conf.is_defined("HAVE_CRYPT_H"):
 		CHECK_LIBRARY_EXISTS(conf, "crypt", "crypt", "HAVE_LIBCRYPT", uselib = 'crypt')
 
-	conf.write_config_header('src/config.h')
+	conf.write_config_header('include/lighttpd/config.h')
 
 def build(bld):
 	# process subfolders from here
