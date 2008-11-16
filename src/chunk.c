@@ -58,7 +58,7 @@ handler_t chunkfile_open(vrequest *vr, chunkfile *cf) {
 #ifdef FD_CLOEXEC
 	fcntl(cf->fd, F_SETFD, FD_CLOEXEC);
 #endif
-#ifdef HAVE_POSIX_FADVISE
+#if defined(HAVE_POSIX_FADVISE) && defined(POSIX_FADV_SEQUENTIAL)
 	/* tell the kernel that we want to stream the file */
 	if (-1 == posix_fadvise(cf->fd, 0, 0, POSIX_FADV_SEQUENTIAL)) {
 		if (ENOSYS != errno) {
