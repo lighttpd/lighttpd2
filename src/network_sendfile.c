@@ -63,7 +63,7 @@ static network_sendfile_result lighty_sendfile(vrequest *vr, int fd, int filefd,
 		case EINTR:
 			if (r) {
 				*wrote = r;
-				return NSR_SUCCSES;
+				return NSR_SUCCESS;
 			}
 			break; /* try again */
 		case EINVAL:
@@ -129,7 +129,7 @@ static network_sendfile_result lighty_sendfile(vrequest *vr, int fd, int filefd,
 		case EINTR:
 			if (bytes) {
 				*wrote = bytes;
-				return NSR_SUCCSES;
+				return NSR_SUCCESS;
 			}
 			break; /* try again */
 		case ENOTSUP:
