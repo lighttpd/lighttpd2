@@ -47,17 +47,24 @@ static network_sendfile_result lighty_sendfile(vrequest *vr, int fd, int filefd,
 #elif defined(USE_FREEBSD_SENDFILE)
 
 static network_sendfile_result lighty_sendfile(vrequest *vr, int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote) {
-	off_t file_offset = offset;
 	off_t r = 0;
 
-	while (-1 == sendfile(filefd, fd, file_offset, len, NULL, &r, 0)) {
+	while (-1 == sendfile(filefd, fd, offset, len, NULL, &r, 0)) {
 		switch (errno) {
 		case EAGAIN:
+			if (r) {
+				*wrote = r;
+				return NSR_SUCCSES;
+			}
 			return NSR_WAIT_FOR_EVENT;
 		case ENOTCONN:
 		case EPIPE:
 			return NSR_CLOSE;
 		case EINTR:
+			if (r) {
+				*wrote = r;
+				return NSR_SUCCSES;
+			}
 			break; /* try again */
 		case EINVAL:
 		case EOPNOTSUPP:
@@ -100,6 +107,42 @@ static network_sendfile_result lighty_sendfile(vrequest *vr, int fd, int filefd,
 			return NSR_FATAL_ERROR;
 		}
 	}
+	return NSR_SUCCESS;
+}
+
+#elif defined(USE_OSX_SENDFILE)
+
+static network_sendfile_result lighty_sendfile(vrequest *vr, int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote) {
+	off_t bytes = len;
+
+	while (-1 == sendfile(filefd, fd, offset, &bytes, NULL, 0)) {
+		switch (errno) {
+		case EAGAIN:
+			if (bytes) {
+				*wrote = bytes;
+				return NSR_SUCCSES;
+			}
+			return NSR_WAIT_FOR_EVENT;
+		case ENOTCONN:
+		case EPIPE:
+			return NSR_CLOSE;
+		case EINTR:
+			if (bytes) {
+				*wrote = bytes;
+				return NSR_SUCCSES;
+			}
+			break; /* try again */
+		case ENOTSUP:
+		case EOPNOTSUPP:
+		case ENOTSOCK:
+			/* TODO: print a warning? */
+			return NSR_FALLBACK;
+		default:
+			VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
+			return NSR_FATAL_ERROR;
+		}
+	}
+	*wrote = bytes;
 	return NSR_SUCCESS;
 }
 

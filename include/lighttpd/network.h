@@ -5,7 +5,7 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-#if defined(USE_LINUX_SENDFILE) || defined(USE_FREEBSD_SENDFILE) || defined(USE_SOLARIS_SENDFILEV)
+#if defined(USE_LINUX_SENDFILE) || defined(USE_FREEBSD_SENDFILE) || defined(USE_SOLARIS_SENDFILEV) || defined(USE_OSX_SENDFILE)
 # define USE_SENDFILE
 #endif
 
