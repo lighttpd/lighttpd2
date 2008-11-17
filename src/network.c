@@ -88,7 +88,7 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 		/* remove EV_WRITE from sockwatcher for now */
 		ev_io_rem_events(vr->con->wrk->loop, &vr->con->sock_watcher, EV_WRITE);
 		waitqueue_push(&vr->con->wrk->throttle_queue, &vr->con->throttle.queue_elem);
-		return NETWORK_STATUS_WAIT_FOR_EVENT;
+		return NETWORK_STATUS_WAIT_FOR_AIO_EVENT;
 	}
 
 	/* stats */
