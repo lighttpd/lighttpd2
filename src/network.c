@@ -67,9 +67,13 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 	}
 #endif
 
-	/* res = network_write_writev(con, fd, cq); */
 	write_bytes = write_max;
+	/* TODO: add setup-option to select the backend */
+#ifdef USE_SENDFILE
 	res = network_write_sendfile(vr, fd, cq, &write_bytes);
+#else
+	res = network_write_writev(con, fd, cq, &write_bytes);
+#endif
 
 #ifdef TCP_CORK
 	if (corked) {

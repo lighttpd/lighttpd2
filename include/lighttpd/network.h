@@ -5,6 +5,10 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
+#if defined(USE_LINUX_SENDFILE) || defined(USE_FREEBSD_SENDFILE) || defined(USE_SOLARIS_SENDFILEV)
+# define USE_SENDFILE
+#endif
+
 typedef enum {
 	NETWORK_STATUS_SUCCESS,             /**< some IO was actually done (read/write) or cq was empty for write */
 	NETWORK_STATUS_FATAL_ERROR,
@@ -26,8 +30,10 @@ LI_API network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq);
 /* use writev for mem chunks, buffered read/write for files */
 LI_API network_status_t network_write_writev(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
 
+#ifdef USE_SENDFILE
 /* use sendfile for files, writev for mem chunks */
 LI_API network_status_t network_write_sendfile(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
+#endif
 
 /* write backends */
 LI_API network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
