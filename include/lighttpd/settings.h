@@ -98,6 +98,11 @@
 # include <sys/uio.h>
 #endif
 
+#if defined HAVE_SYS_UIO_H && defined HAVE_SENDFILE && defined(__APPLE__)
+# define USE_OSX_SENDFILE
+# include <sys/uio.h>
+#endif
+
 #if defined HAVE_SYS_UIO_H && defined HAVE_WRITEV
 # define USE_WRITEV
 # include <sys/uio.h>
