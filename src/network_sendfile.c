@@ -54,7 +54,7 @@ static network_sendfile_result lighty_sendfile(vrequest *vr, int fd, int filefd,
 		case EAGAIN:
 			if (r) {
 				*wrote = r;
-				return NSR_SUCCSES;
+				return NSR_SUCCESS;
 			}
 			return NSR_WAIT_FOR_EVENT;
 		case ENOTCONN:
@@ -120,7 +120,7 @@ static network_sendfile_result lighty_sendfile(vrequest *vr, int fd, int filefd,
 		case EAGAIN:
 			if (bytes) {
 				*wrote = bytes;
-				return NSR_SUCCSES;
+				return NSR_SUCCESS;
 			}
 			return NSR_WAIT_FOR_EVENT;
 		case ENOTCONN:
