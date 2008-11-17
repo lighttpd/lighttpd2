@@ -291,6 +291,7 @@ SET(COMMON_SRC
 	utils.c
 	value.c
 	virtualrequest.c
+	waitqueue.c
 	worker.c
 
 	plugin_core.c

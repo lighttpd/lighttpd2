@@ -21,11 +21,12 @@
 } while (0)
 
 #include <lighttpd/typedefs.h>
-#include <lighttpd/utils.h>
 #include <lighttpd/module.h>
 
 #include <lighttpd/chunk.h>
 #include <lighttpd/chunk_parser.h>
+
+#include <lighttpd/waitqueue.h>
 
 #include <lighttpd/server.h>
 #include <lighttpd/worker.h>
