@@ -31,8 +31,6 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 	gboolean did_write_something = FALSE;
 	chunkiter ci;
 	chunk *c;
-	worker *wrk;
-	ev_tstamp ts;
 	network_status_t res = NETWORK_STATUS_FATAL_ERROR;
 
 	GArray *chunks = g_array_sized_new(FALSE, TRUE, sizeof(struct iovec), UIO_MAXIOV);
@@ -69,7 +67,7 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 #if EWOULDBLOCK != EAGAIN
 			case EWOULDBLOCK:
 #endif
-				res = did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+				res = NETWORK_STATUS_WAIT_FOR_EVENT;
 				goto cleanup;
 			case ECONNRESET:
 			case EPIPE:
@@ -83,28 +81,14 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 			}
 		}
 		if (0 == r) {
-			res = did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+			res = NETWORK_STATUS_WAIT_FOR_EVENT;
 			goto cleanup;
 		}
 		chunkqueue_skip(cq, r);
 		*write_max -= r;
 
-		/* stats */
-		wrk = vr->con->wrk;
-		vr->con->wrk->stats.bytes_out += r;
-		vr->con->stats.bytes_out += r;
-
-		/* update 5s stats */
-		ts = CUR_TS(wrk);
-
-		if ((ts - vr->con->stats.last_avg) > 5) {
-			vr->con->stats.bytes_out_5s_diff = vr->con->stats.bytes_out - vr->con->stats.bytes_out_5s;
-			vr->con->stats.bytes_out_5s = vr->con->stats.bytes_out;
-			vr->con->stats.last_avg = ts;
-		}
-
 		if (r != we_have) {
-			res = NETWORK_STATUS_SUCCESS;
+			res = NETWORK_STATUS_WAIT_FOR_EVENT;
 			goto cleanup;
 		}
 
@@ -112,7 +96,6 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 			res = NETWORK_STATUS_SUCCESS;
 			goto cleanup;
 		}
-
 
 		did_write_something = TRUE;
 		g_array_set_size(chunks, 0);
@@ -125,21 +108,20 @@ cleanup:
 	return res;
 }
 
-network_status_t network_write_writev(vrequest *vr, int fd, chunkqueue *cq) {
-	goffset write_max = 256*1024; // 256k //;
+network_status_t network_write_writev(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
 	if (cq->length == 0) return NETWORK_STATUS_FATAL_ERROR;
 	do {
 		switch (chunkqueue_first_chunk(cq)->type) {
 		case MEM_CHUNK:
-			NETWORK_FALLBACK(network_backend_writev, &write_max);
+			NETWORK_FALLBACK(network_backend_writev, write_max);
 			break;
 		case FILE_CHUNK:
-			NETWORK_FALLBACK(network_backend_write, &write_max);
+			NETWORK_FALLBACK(network_backend_write, write_max);
 			break;
 		default:
 			return NETWORK_STATUS_FATAL_ERROR;
 		}
 		if (cq->length == 0) return NETWORK_STATUS_SUCCESS;
-	} while (write_max > 0);
+	} while (*write_max > 0);
 	return NETWORK_STATUS_SUCCESS;
 }

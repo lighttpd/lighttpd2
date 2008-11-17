@@ -1,5 +1,6 @@
 
 #include <lighttpd/base.h>
+#include <lighttpd/plugin_core.h>
 
 /** repeats write after EINTR */
 ssize_t net_write(int fd, void *buf, ssize_t nbyte) {
@@ -37,10 +38,24 @@ ssize_t net_read(int fd, void *buf, ssize_t nbyte) {
 
 network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 	network_status_t res;
-	ev_tstamp now = CUR_TS(vr->con->wrk);
+	ev_tstamp ts, now = CUR_TS(vr->con->wrk);
+	worker *wrk;
 #ifdef TCP_CORK
 	int corked = 0;
 #endif
+	goffset write_max = 256*1024, write_bytes, wrote; /* 256 kb */
+
+	if (CORE_OPTION(CORE_OPTION_THROTTLE).number) {
+		/* throttling is enabled */
+		if (G_UNLIKELY((now - vr->con->throttle.ts) > vr->con->wrk->throttle_queue.delay)) {
+			vr->con->throttle.magazine += CORE_OPTION(CORE_OPTION_THROTTLE).number * (now - vr->con->throttle.ts);
+			if (vr->con->throttle.magazine > CORE_OPTION(CORE_OPTION_THROTTLE).number)
+				vr->con->throttle.magazine = CORE_OPTION(CORE_OPTION_THROTTLE).number;
+			vr->con->throttle.ts = now;
+			/*g_print("throttle magazine: %u kbytes\n", vr->con->throttle.magazine / 1024);*/
+		}
+		write_max = vr->con->throttle.magazine;
+	}
 
 #ifdef TCP_CORK
 	/* Linux: put a cork into the socket as we want to combine the write() calls
@@ -53,7 +68,8 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 #endif
 
 	/* res = network_write_writev(con, fd, cq); */
-	res = network_write_sendfile(vr, fd, cq);
+	write_bytes = write_max;
+	res = network_write_sendfile(vr, fd, cq, &write_bytes);
 
 #ifdef TCP_CORK
 	if (corked) {
@@ -61,6 +77,30 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 		setsockopt(fd, IPPROTO_TCP, TCP_CORK, &corked, sizeof(corked));
 	}
 #endif
+
+	vr->con->throttle.magazine = write_bytes;
+	/* check if throttle magazine is empty */
+	if (CORE_OPTION(CORE_OPTION_THROTTLE).number && write_bytes == 0) {
+		/* remove EV_WRITE from sockwatcher for now */
+		ev_io_rem_events(vr->con->wrk->loop, &vr->con->sock_watcher, EV_WRITE);
+		waitqueue_push(&vr->con->wrk->throttle_queue, &vr->con->throttle.queue_elem);
+		return NETWORK_STATUS_WAIT_FOR_EVENT;
+	}
+
+	/* stats */
+	wrote = write_max - write_bytes;
+	wrk = vr->con->wrk;
+	wrk->stats.bytes_out += wrote;
+	vr->con->stats.bytes_out += wrote;
+
+	/* update 5s stats */
+	ts = CUR_TS(wrk);
+
+	if ((ts - vr->con->stats.last_avg) >= 5.0) {
+		vr->con->stats.bytes_out_5s_diff = vr->con->wrk->stats.bytes_out - vr->con->wrk->stats.bytes_out_5s;
+		vr->con->stats.bytes_out_5s = vr->con->stats.bytes_out;
+		vr->con->stats.last_avg = ts;
+	}
 
 	/* only update once a second, the cast is to round the timestamp */
 	if ((vr->con->io_timeout_elem.ts + 1.) < now)

@@ -24,14 +24,13 @@ LI_API network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq);
 LI_API network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq);
 
 /* use writev for mem chunks, buffered read/write for files */
-LI_API network_status_t network_write_writev(vrequest *vr, int fd, chunkqueue *cq);
+LI_API network_status_t network_write_writev(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
 
 /* use sendfile for files, writev for mem chunks */
-LI_API network_status_t network_write_sendfile(vrequest *vr, int fd, chunkqueue *cq);
+LI_API network_status_t network_write_sendfile(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
 
 /* write backends */
 LI_API network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
-LI_API network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
 LI_API network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
 
 #define NETWORK_FALLBACK(f, write_max) do { \
