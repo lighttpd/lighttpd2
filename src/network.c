@@ -74,6 +74,8 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 #else
 	res = network_write_writev(con, fd, cq, &write_bytes);
 #endif
+	wrote = write_max - write_bytes;
+	if (wrote > 0 && res == NETWORK_STATUS_WAIT_FOR_EVENT) res = NETWORK_STATUS_SUCCESS;
 
 #ifdef TCP_CORK
 	if (corked) {
@@ -92,7 +94,6 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 	}
 
 	/* stats */
-	wrote = write_max - write_bytes;
 	wrk = vr->con->wrk;
 	wrk->stats.bytes_out += wrote;
 	vr->con->stats.bytes_out += wrote;

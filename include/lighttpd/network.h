@@ -13,7 +13,8 @@ typedef enum {
 	NETWORK_STATUS_SUCCESS,             /**< some IO was actually done (read/write) or cq was empty for write */
 	NETWORK_STATUS_FATAL_ERROR,
 	NETWORK_STATUS_CONNECTION_CLOSE,
-	NETWORK_STATUS_WAIT_FOR_EVENT,      /**< read/write returned -1 with errno=EAGAIN/EWOULDBLOCK; no real IO was done */
+	NETWORK_STATUS_WAIT_FOR_EVENT,      /**< read/write returned -1 with errno=EAGAIN/EWOULDBLOCK; no real IO was done
+	                                         internal: some io may be done */
 	NETWORK_STATUS_WAIT_FOR_AIO_EVENT,  /**< nothing done yet, read/write will be done somewhere else */
 	NETWORK_STATUS_WAIT_FOR_FD,         /**< need a fd to open a file */
 } network_status_t;

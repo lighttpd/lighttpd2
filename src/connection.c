@@ -206,7 +206,6 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	}
 
 	if (revents & EV_WRITE) {
-		ev_io_rem_events(loop, w, EV_WRITE);
 		if (con->raw_out->length > 0) {
 			switch (network_write(con->mainvr, w->fd, con->raw_out)) {
 			case NETWORK_STATUS_SUCCESS:
@@ -222,12 +221,19 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			case NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;
 			case NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
+				ev_io_rem_events(loop, w, EV_WRITE);
+				CON_ERROR(con, "%s", "TODO: wait for aio");
 				/* TODO: aio */
 				break;
 			case NETWORK_STATUS_WAIT_FOR_FD:
+				ev_io_rem_events(loop, w, EV_WRITE);
+				CON_ERROR(con, "%s", "TODO: wait for fd");
 				/* TODO: wait for fd */
 				break;
 			}
+		} else {
+			CON_TRACE(con, "%s", "write event for empty queue");
+			ev_io_rem_events(loop, w, EV_WRITE);
 		}
 	}
 
