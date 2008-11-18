@@ -36,7 +36,7 @@ static void profiler_hashtable_init() {
 static guint profiler_hash_addr(gpointer addr) {
 	guint h = (gsize) addr;
 	h = (h >> 3) * 2654435761; /* ~ golden ratio of 2^32, shift 3 because of 8 byte boundary alignment (use 2 for 4 byte boundary) */
-	//printf("hashing addr 0x%zx: %u ([%u])\n", (gsize)addr, h, h % PROFILER_HASHTABLE_SIZE);
+	/* printf("hashing addr 0x%zx: %u ([%u])\n", (gsize)addr, h, h % PROFILER_HASHTABLE_SIZE); */
 	return h % PROFILER_HASHTABLE_SIZE;
 }
 

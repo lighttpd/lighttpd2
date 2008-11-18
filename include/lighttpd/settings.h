@@ -225,7 +225,7 @@
 
 #if __GNUC__
 #define INLINE static inline
-// # define INLINE extern inline
+/* # define INLINE extern inline */
 #else
 # define INLINE static
 #endif

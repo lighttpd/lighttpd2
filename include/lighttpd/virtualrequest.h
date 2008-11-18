@@ -27,7 +27,7 @@ typedef enum {
 	VRS_WRITE_CONTENT,
 
 	/* request done */
-// 	VRS_END,
+/* 	VRS_END, */
 
 	VRS_ERROR
 } vrequest_state;

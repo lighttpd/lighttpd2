@@ -20,7 +20,7 @@
 	access ctx->;
 
 	prepush {
-		//_printf("current stacksize: %d, top: %d\n", ctx->stacksize, ctx->top);
+		/* _printf("current stacksize: %d, top: %d\n", ctx->stacksize, ctx->top); */
 		/* increase stacksize if necessary */
 		if (ctx->stacksize == ctx->top)
 		{
@@ -167,7 +167,7 @@
 	}
 
 	action keyvalue_start {
-		//fpc--;
+		/* fpc--; */
 		_printf("keyvalue start in line %zd\n", ctx->line);
 		fcall key_value_scanner;
 	}
@@ -189,7 +189,7 @@
 		/* push list on the stack */
 		g_queue_push_head(ctx->option_stack, l);
 
-		//fpc--;
+		/* fpc--; */
 
 		fret;
 	}

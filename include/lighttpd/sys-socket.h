@@ -12,8 +12,8 @@
 #endif /* FD_SETSIZE */
 #include <winsock2.h>
 #include <ws2tcpip.h>
-//#include <wspiapi.h>
-//#define HAVE_IPV6 -- not until we've resolved the inet_ntop issue.
+/* #include <wspiapi.h> */
+/* #define HAVE_IPV6 -- not until we've resolved the inet_ntop issue. */
 
 #define ECONNRESET WSAECONNRESET
 #define EINPROGRESS WSAEINPROGRESS

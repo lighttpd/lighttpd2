@@ -49,7 +49,7 @@ const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
 
 	int ipv6 = af == AF_INET6;
 
-	// DebugBreak();
+	/* DebugBreak(); */
 
 	if ( ipv6 )
 	{
