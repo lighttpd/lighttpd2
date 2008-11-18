@@ -126,11 +126,11 @@ LI_API void plugins_handle_close(connection *con);
 
 /* Needed for config frontends */
 /** For parsing 'somemod.option = "somevalue"', free value after call */
-LI_API action* option_action(server *srv, const gchar *name, value *value);
+LI_API action* option_action(server *srv, const gchar *name, value *val);
 /** For parsing 'somemod.action value', e.g. 'rewrite "/url" => "/destination"'
   * free value after call
   */
-LI_API action* create_action(server *srv, const gchar *name, value *value);
+LI_API action* create_action(server *srv, const gchar *name, value *val);
 /** For setup function, e.g. 'listen "127.0.0.1:8080"'; free value after call */
 LI_API gboolean call_setup(server *srv, const char *name, value *val);
 

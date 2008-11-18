@@ -27,11 +27,11 @@ LI_API void http_headers_reset(http_headers* headers);
 LI_API void http_headers_free(http_headers* headers);
 
 /** If header does not exist, just insert normal header. If it exists, append (", %s", value) */
-LI_API void http_header_append(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen);
+LI_API void http_header_append(http_headers *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen);
 /** If header does not exist, just insert normal header. If it exists, append ("\r\n%s: %s", key, value) */
-LI_API void http_header_insert(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen);
+LI_API void http_header_insert(http_headers *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen);
 /** If header does not exist, just insert normal header. If it exists, overwrite the value */
-LI_API void http_header_overwrite(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen);
+LI_API void http_header_overwrite(http_headers *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen);
 LI_API gboolean http_header_remove(http_headers *headers, const gchar *key, size_t keylen);
 LI_API void http_header_remove_link(http_headers *headers, GList *l);
 
@@ -42,7 +42,7 @@ LI_API GList* http_header_find_next(GList *l, const gchar *key, size_t keylen);
 LI_API GList* http_header_find_last(http_headers *headers, const gchar *key, size_t keylen);
 
 /** Use lowercase keys! values are compared case-insensitive */
-LI_API gboolean http_header_is(http_headers *headers, const gchar *key, size_t keylen, const gchar *value, size_t valuelen);
+LI_API gboolean http_header_is(http_headers *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen);
 
 /** concats all headers with key with ', ' - empty if no header exists - use lowercase key*/
 LI_API void http_header_get_fast(GString *dest, http_headers *headers, const gchar *key, size_t keylen);

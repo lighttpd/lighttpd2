@@ -60,7 +60,7 @@ LI_API void action_release(server *srv, action *a);
 LI_API void action_acquire(action *a);
 /* create new action */
 LI_API action *action_new_setting(option_set setting);
-LI_API action *action_new_function(ActionFunc func, ActionFree free, gpointer param);
+LI_API action *action_new_function(ActionFunc func, ActionFree ffree, gpointer param);
 LI_API action *action_new_list();
 LI_API action *action_new_condition(condition *cond, action *target, action *target_else);
 
