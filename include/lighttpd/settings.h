@@ -92,13 +92,6 @@
 # endif
 #endif
 
-/* on linux 2.4.x you get either sendfile or LFS */
-#if defined HAVE_SYS_SENDFILE_H && defined HAVE_SENDFILE && (!defined _LARGEFILE_SOURCE || defined HAVE_SENDFILE64) && defined HAVE_WRITEV && defined(__linux__) && !defined HAVE_SENDFILE_BROKEN
-# define USE_LINUX_SENDFILE
-# include <sys/sendfile.h>
-# include <sys/uio.h>
-#endif
-
 /* all the Async IO backends need GTHREAD support */
 #if defined(USE_GTHREAD)
 # if defined(USE_LINUX_SENDFILE)
@@ -119,28 +112,35 @@
 # endif
 #endif
 
-#if defined HAVE_SYS_UIO_H && defined HAVE_SENDFILE && defined HAVE_WRITEV && (defined(__FreeBSD__) || defined(__DragonFly__))
+/* on linux 2.4.x you get either sendfile or LFS */
+#if defined(LIGHTY_OS_LINUX) && defined(HAVE_SYS_SENDFILE_H) && defined(HAVE_SENDFILE) && (!defined(_LARGEFILE_SOURCE) || defined(HAVE_SENDFILE64)) && defined(HAVE_WRITEV) && !defined(HAVE_SENDFILE_BROKEN)
+# define USE_LINUX_SENDFILE
+# include <sys/sendfile.h>
+# include <sys/uio.h>
+#endif
+
+#if (defined(LIGHTY_OS_FREEBSD) || defined(__DragonFly__)) && defined(HAVE_SYS_UIO_H) && defined(HAVE_SENDFILE) && defined(HAVE_WRITEV)
 # define USE_FREEBSD_SENDFILE
 # include <sys/uio.h>
 #endif
 
-#if defined HAVE_SYS_SENDFILE_H && defined HAVE_SENDFILEV && defined HAVE_WRITEV && defined(__sun)
+#if defined(LIGHT_OS_SOLARIS) && defined(HAVE_SYS_SENDFILE_H) && defined(HAVE_SENDFILEV) && defined(HAVE_WRITEV)
 # define USE_SOLARIS_SENDFILEV
 # include <sys/sendfile.h>
 # include <sys/uio.h>
 #endif
 
-#if defined HAVE_SYS_UIO_H && defined HAVE_SENDFILE && defined(__APPLE__)
+#if defined(LIGHTY_OS_MACOSX) && defined(HAVE_SYS_UIO_H) && defined(HAVE_SENDFILE)
 # define USE_OSX_SENDFILE
 # include <sys/uio.h>
 #endif
 
-#if defined HAVE_SYS_UIO_H && defined HAVE_WRITEV
+#if defined(HAVE_SYS_UIO_H) && defined(HAVE_WRITEV)
 # define USE_WRITEV
 # include <sys/uio.h>
 #endif
 
-#if defined HAVE_SYS_MMAN_H && defined HAVE_MMAP
+#if defined(HAVE_SYS_MMAN_H) && defined(HAVE_MMAP)
 # define USE_MMAP
 # include <sys/mman.h>
 /* NetBSD 1.3.x needs it */
@@ -149,15 +149,15 @@
 # endif
 
 #if defined(MAP_ANON)
-#define HAVE_MEM_MMAP_ANON
+# define HAVE_MEM_MMAP_ANON
 #else
 /* let's try /dev/zero */
-#define HAVE_MEM_MMAP_ZERO
+# define HAVE_MEM_MMAP_ZERO
 #endif
 
 #endif
 
-#if defined HAVE_SYS_UIO_H && defined HAVE_WRITEV && defined HAVE_SEND_FILE && defined(__aix)
+#if defined(LIGHTY_OS_AIX) && defined(HAVE_SYS_UIO_H) && defined(HAVE_WRITEV) && defined(HAVE_SEND_FILE)
 # define USE_AIX_SENDFILE
 #endif
 
