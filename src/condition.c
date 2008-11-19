@@ -39,8 +39,8 @@ static gboolean condition_ip_from_socket(condition_rvalue *val, sock_addr *addr)
 		memcpy(val->ipv6.addr, addr->ipv6.sin6_addr.s6_addr, 16);
 		val->ipv6.network = 128;
 		return TRUE;
-	}
 #endif
+	}
 	return FALSE;
 }
 
