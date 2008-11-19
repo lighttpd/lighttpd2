@@ -72,7 +72,7 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 #ifdef USE_SENDFILE
 	res = network_write_sendfile(vr, fd, cq, &write_bytes);
 #else
-	res = network_write_writev(con, fd, cq, &write_bytes);
+	res = network_write_writev(vr, fd, cq, &write_bytes);
 #endif
 	wrote = write_max - write_bytes;
 	if (wrote > 0 && res == NETWORK_STATUS_WAIT_FOR_EVENT) res = NETWORK_STATUS_SUCCESS;
