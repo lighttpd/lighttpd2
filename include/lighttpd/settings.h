@@ -83,34 +83,6 @@
 #include <errno.h>
 #include <string.h>
 
-/**
- * if glib supports threads we will use it for async file-io
- */
-#ifdef G_THREADS_ENABLED
-# ifndef USE_GTHREAD
-#  define USE_GTHREAD
-# endif
-#endif
-
-/* all the Async IO backends need GTHREAD support */
-#if defined(USE_GTHREAD)
-# if defined(USE_LINUX_SENDFILE)
-#  if 0 && defined(HAVE_LIBAIO_H)
-     /** disabled for now as not all FSs are async-io capable */
-#    define USE_LINUX_AIO_SENDFILE
-#  endif
-#  define USE_GTHREAD_SENDFILE
-# endif
-# if defined(HAVE_AIO_H) && (!defined(__FreeBSD__))
-/* FreeBSD has no SIGEV_THREAD for us */
-#  define USE_POSIX_AIO
-#  include <sys/types.h> /* macosx wants it */
-#  include <aio.h>
-# endif
-# ifdef HAVE_MMAP
-#  define USE_GTHREAD_AIO
-# endif
-#endif
 
 /* on linux 2.4.x you get either sendfile or LFS */
 #if defined(LIGHTY_OS_LINUX) && defined(HAVE_SYS_SENDFILE_H) && defined(HAVE_SENDFILE) && (!defined(_LARGEFILE_SOURCE) || defined(HAVE_SENDFILE64)) && defined(HAVE_WRITEV) && !defined(HAVE_SENDFILE_BROKEN)
