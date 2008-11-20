@@ -348,6 +348,8 @@ void worker_free(worker *wrk) {
 }
 
 void worker_run(worker *wrk) {
+	#ifdef LIGHTY_OS_LINUX
+	/* sched_setaffinity is only available on linux */
 	cpu_set_t mask;
 
 	if (0 != sched_getaffinity(0, sizeof(mask), &mask)) {
@@ -365,6 +367,8 @@ void worker_run(worker *wrk) {
 			ERROR(wrk->srv, "%s", "cpu 0 not enabled, no affinity set");
 		}
 	}
+	#endif
+	
 	ev_loop(wrk->loop, 0);
 }
 
