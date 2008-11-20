@@ -71,7 +71,7 @@ def configure(conf):
 	conf.check(header_name='sys/un.h')
 	
 	# check for available functions
-	if sys.platform == 'linux':
+	if sys.platform == 'linux2':
 		conf.check(function_name='sendfile', header_name='sys/sendfile.h', define_name='HAVE_SENDFILE')
 		conf.check(function_name='sendfile64', header_name='sys/sendfile.h', define_name='HAVE_SENDFILE64')
 	else:
