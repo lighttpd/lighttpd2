@@ -498,6 +498,7 @@ GString *sockaddr_to_string(sock_addr *saddr, GString *dest) {
 		dest->str[len-1] = 0;
 		dest->len = len-1;
 		break;
+#ifdef HAVE_IPV6
 	case AF_INET6:
 		/* ipv6 - not yet implemented with own function */
 		if (!dest)
@@ -506,6 +507,7 @@ GString *sockaddr_to_string(sock_addr *saddr, GString *dest) {
 			g_string_set_size(dest, INET6_ADDRSTRLEN);
 
 		inet_ntop(AF_INET6, saddr->ipv6.sin6_addr.s6_addr, dest->str, INET6_ADDRSTRLEN);
+#endif
 	}
 
 	return dest;
