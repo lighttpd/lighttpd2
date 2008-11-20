@@ -328,7 +328,9 @@ static action* core_profile_mem(server *srv, plugin* p, value *val) {
 
 static gboolean core_listen(server *srv, plugin* p, value *val) {
 	guint32 ipv4;
+#ifdef HAVE_IPV6
 	guint8 ipv6[16];
+#endif
 	GString *ipstr;
 	guint16 port = 80;
 	UNUSED(p);
@@ -379,7 +381,7 @@ static gboolean core_listen(server *srv, plugin* p, value *val) {
 			ERROR(srv, "Couldn't setsockopt(SO_REUSEADDR) to '%s': %s", inet_ntoa(*(struct in_addr*)&ipv4), g_strerror(errno));
 			return FALSE;
 		}
-		if (-1 == bind(s, &addr, sizeof(addr))) {
+		if (-1 == bind(s, (struct sockaddr*)&addr, sizeof(addr))) {
 			close(s);
 			ERROR(srv, "Couldn't bind socket to '%s': %s", inet_ntoa(*(struct in_addr*)&ipv4), g_strerror(errno));
 			return FALSE;
@@ -825,6 +827,7 @@ static const plugin_action actions[] = {
 };
 
 static const plugin_setup setups[] = {
+	{ "set_default", core_setup_set },
 	{ "listen", core_listen },
 	{ "event_handler", core_event_handler },
 	{ "workers", core_workers },
