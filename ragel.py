@@ -18,12 +18,12 @@ def rageltaskfun(task):
 		src = task.inputs[0].srcpath(env)
 		src = src[:src.rfind('.')] + '.c'
 		cmd = 'cp %s %s' % (src, task.outputs[0].bldpath(env))
-	return Runner.exec_command(cmd)
+	return task.generator.bld.exec_command(cmd)
 
 rageltask = Task.task_type_from_func('ragel', rageltaskfun, vars = ['RAGEL'], color = 'BLUE', ext_in = '.rl', ext_out = '.c', before = 'c')
 
 @TaskGen.extension('.rl')
-@TaskGen.before('c')
+@TaskGen.before('apply_core')
 def ragel(self, node):
 	out = node.change_ext('.c')
 	self.allnodes.append(out)

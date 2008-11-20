@@ -1,12 +1,20 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 # encoding: utf-8
 
-#import Object, Params, os, sys
-import Options
+"""
+waf build script for Lighttpd 2.x
+License and Copyright: see COPYING file
+"""
 
-common_uselib = 'glib gthread gmodule'
+import Options, sys
 
-common_source='''
+common_uselib = ['glib', 'gthread', 'gmodule']
+
+common_ccflags = [
+	'-std=gnu99', '-Wall', '-g', '-Wshadow', '-W', '-pedantic'
+]
+
+common_src = '''
 	actions.c
 	base.c
 	chunk.c
@@ -26,6 +34,7 @@ common_source='''
 	network_sendfile.c
 	options.c
 	plugin.c
+	plugin_core.c
 	profiler.c
 	request.c
 	response.c
@@ -38,136 +47,66 @@ common_source='''
 	virtualrequest.c
 	waitqueue.c
 	worker.c
-
-	plugin_core.c
 '''
 
-common_source_lua='''
+common_src_lua = '''
 	actions_lua.c
 	condition_lua.c
 	config_lua.c
 	value_lua.c
 '''
 
-main_source = '''
+main_src = '''
 	lighttpd.c
-	'''
+'''
 
-#def node_in_same_dir(node, name):
-	#p = node.m_parent
-	#n = p.m_files_lookup.get(name, None)
-	#if not n: n = p.m_build_lookup.get(name, None)
-	#if n: return n
+lighty_common_ccflags = [
+	'-fPIC',
+	'-DHAVE_CONFIG_H', '-D_GNU_SOURCE',
+	'-D_FILE_OFFSET_BITS=64', '-D_LARGEFILE_SOURCE', '-D_LARGE_FILES',
+#	'-fno-strict-aliasing',
+	]
 
-	#newnode = Node(name, p)
-	#p.m_build_lookup[newnode.m_name]=newnode
-
-	#return newnode
-
-#def lemon_file(self, node):
-	#lemon_task = self.create_task('lemon', nice=40)
-	#lemon_task.set_inputs([node, node_in_same_dir(node, 'lempar.c')])
-
-	#newnodes = [node.change_ext('.c'), node.change_ext('.h')]
-	#lemon_task.set_outputs(newnodes)
-
-	#task = self.create_task(self.m_type_initials)
-	#task.set_inputs(lemon_task.m_outputs[0])
-	#task.set_outputs(node.change_ext('.o'))
-
-def lighty_mod(bld, target, src, uselib = '', option = ''):
-	if option and not getattr(Options.options, option): return
+def lighty_mod(bld, target, src, uselib = [], option = ''):
+	if option and not getattr(Options.options, option):
+		return
 	mod = bld.new_task_gen('cc', 'shlib')
 	mod.target = target
 	mod.source = src
-	mod.uselib += 'lightymod ' + common_uselib + uselib
+	mod.uselib = ['lightymod'] + common_uselib + uselib
+	#mod.ccflags = common_ccflags
+
+def configure(conf):
+	opts = Options.options
+
+	conf.env['CCFLAGS_lighty'] = conf.env['CCFLAGS'] + common_ccflags + lighty_common_ccflags
+	conf.env['CCFLAGS_lightymod'] = conf.env['CCFLAGS'] + common_ccflags + [ '-DHAVE_CONFIG_H' ]
+	if not opts.debug:
+		conf.env['CCFLAGS'] += ['-O2']
+	if opts.static:
+		conf.env['LINKFLAGS_lighty'] += ['-static']
+	if sys.platform != 'darwin':
+		conf.env['LINKFLAGS_lighty'] += [ '-export-dynamic' ]
+		conf.env['LINKFLAGS_lightymod'] += [ '-module', '-export-dynamic', '-avoid-version', '-W,l-no-undefined' ]
+	else:
+		# OSX aka darwin needs special treatment
+		conf.env['shlib_PATTERN'] = 'lib%s.so'
+		conf.env['LINKFLAGS_lighty'] += ['-flat_namespace']
+		conf.env['LINKFLAGS_lightymod'] += ['-flat_namespace', '-undefined dynamic_lookup']
+
 
 def build(bld):
 	env = bld.env
-
-	# 1. Build lemon (parser generator)
-	#lemon = bld.new_task_gen('cc', 'program')
-	#lemon.install_var = 0
-	#lemon.source = 'lemon.c'
-	#lemon.target = 'lemon'
-
-	#bld.add_group('lemon')
-	#lem_task = lemon.m_tasks[1]
-	#lem_node = lem_task.m_outputs[0]
-	#lemon_exec = lem_node.abspath(lem_task.m_env)
-	#Action.simple_action('lemon', 'cd ${TGT[0].bld_dir(env)}; ' + lemon_exec + ' ${SRC[0].abspath()} ${SRC[1].abspath()}', color='BLUE')
-
-	# hook .y to lemon
-	#Object.hook('cc', 'LEMON_EXT', lemon_file)
-
-	main = bld.new_task_gen('cc', 'program')
-	main.name = 'lighttpd'
-	main.source = common_source + main_source
-	if env['LIB_lua']:
-		main.source += common_source_lua
-	main.target='lighttpd' + env['APPEND']
-	main.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib + ' lightylast'
-	main.includes = '.'
-
-	#lighty_mod(bld, 'mod_access', 'mod_access.c')
-	#lighty_mod(bld, 'mod_alias', 'mod_alias.c')
-	#lighty_mod(bld, 'mod_dirlisting', 'mod_dirlisting.c', uselib = 'pcre')
-	#lighty_mod(bld, 'mod_staticfile', 'mod_staticfile.c')
-	#lighty_mod(bld, 'mod_indexfile', 'mod_indexfile.c')
-	#lighty_mod(bld, 'mod_setenv', 'mod_setenv.c')
-	#lighty_mod(bld, 'mod_rrdtool', 'mod_rrdtool.c')
-	#lighty_mod(bld, 'mod_usertrack', 'mod_usertrack.c')
-	#lighty_mod(bld, 'mod_proxy_core', '''
-		#mod_proxy_core.c mod_proxy_core_pool.c mod_proxy_core_backend.c
-		#mod_proxy_core_address.c mod_proxy_core_backlog.c mod_proxy_core_protocol.c
-		#mod_proxy_core_rewrites.c mod_proxy_core_spawn.c
-		#''', uselib = 'pcre')
-	#lighty_mod(bld, 'mod_proxy_backend_http', 'mod_proxy_backend_http.c')
-	#lighty_mod(bld, 'mod_proxy_backend_fastcgi', 'mod_proxy_backend_fastcgi.c')
-	#lighty_mod(bld, 'mod_proxy_backend_scgi', 'mod_proxy_backend_scgi.c')
-	#lighty_mod(bld, 'mod_proxy_backend_ajp13', 'mod_proxy_backend_ajp13.c')
-	#lighty_mod(bld, 'mod_userdir', 'mod_userdir.c')
-	#lighty_mod(bld, 'mod_secdownload', 'mod_secure_download.c')
-	#lighty_mod(bld, 'mod_accesslog', 'mod_accesslog.c')
-	#lighty_mod(bld, 'mod_simple_vhost', 'mod_simple_vhost.c')
-	#lighty_mod(bld, 'mod_evhost', 'mod_evhost.c')
-	#lighty_mod(bld, 'mod_expire', 'mod_expire.c')
-	#lighty_mod(bld, 'mod_status', 'mod_status.c')
-	#lighty_mod(bld, 'mod_compress', 'mod_compress.c', uselib = 'bzip zlib')
-	#lighty_mod(bld, 'mod_redirect', 'mod_redirect.c', uselib = 'pcre')
-	#lighty_mod(bld, 'mod_rewrite', 'mod_rewrite.c', uselib = 'pcre')
-	#lighty_mod(bld, 'mod_auth', 'mod_auth.c http_auth_digest.c http_auth.c', uselib = 'crypt ldap') ## lber?
-	#lighty_mod(bld, 'mod_sql_vhost_core', 'mod_sql_vhost_core.c')
-	#lighty_mod(bld, 'mod_postgresql_vhost', 'mod_postgresql_vhost.c', uselib = 'postgresql', option = 'postgresql')
-	#lighty_mod(bld, 'mod_mysql_vhost', 'mod_mysql_vhost.c', uselib = 'mysql', option = 'mysql')
-	#lighty_mod(bld, 'mod_trigger_b4_dl', 'mod_trigger_b4_dl.c', uselib = 'pcre')
-	#lighty_mod(bld, 'mod_uploadprogress', 'mod_uploadprogress.c')
-	#lighty_mod(bld, 'mod_evasive', 'mod_evasive.c')
-	#lighty_mod(bld, 'mod_ssi', 'mod_ssi_exprparser.y mod_ssi_expr.c mod_ssi.c', uselib = 'pcre')
-	#lighty_mod(bld, 'mod_flv_streaming', 'mod_flv_streaming.c')
-	#lighty_mod(bld, 'mod_chunked', 'mod_chunked.c')
-	#lighty_mod(bld, 'mod_magnet', 'mod_magnet.c mod_magnet_cache.c', uselib = 'lua')
-	#lighty_mod(bld, 'mod_deflate', 'mod_deflate.c', uselib = 'bzip zlib')
-	#lighty_mod(bld, 'mod_webdav', 'mod_webdav.c', uselib = 'sqlite3 xml uuid')
+	opts = Options.options
+	
+	lighty = bld.new_task_gen('cc', 'program')
+	lighty.source = main_src + common_src
+	lighty.target = 'lighttpd' + opts.append
+	lighty.includes = '.'
+	lighty.uselib = common_uselib + ['ev', 'lighty']
+	#lighty.install_path = '${SOME_PATH}/bin'
+	
 	lighty_mod(bld, 'mod_fortune', 'modules/mod_fortune.c')
-	#lighty_mod(bld, 'mod_track', 'modules/mod_track.c')
 	lighty_mod(bld, 'mod_status', 'modules/mod_status.c')
 
-	#tests = bld.new_task_gen('cc', 'program')
-	#tests.inst_var = 0
-	#tests.unit_test = 1
-	#tests.name = 'tests'
-	#tests.source = 'tests.c ' + common_source
-	#if env['LIB_lua']:
-		#tests.source += common_source_lua
-	#tests.target = 'tests'
-	#tests.uselib += 'lighty dl ev openssl pcre lua ' + common_uselib + ' lightylast'
-	#tests.includes = '.'
 
-def configure(conf):
-	env = conf.env
-	#env['LEMON_EXT'] = [ '.y' ]
-	env['LIBDIR'] = Options.options.libdir
-	env['APPEND'] = Options.options.append
-	env['plugin_INST_VAR'] = 'LIBDIR'
-	env['plugin_INST_DIR'] = ''
