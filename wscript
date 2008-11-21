@@ -32,12 +32,14 @@ def set_options(opt):
 
 def configure(conf):
 	opts = Options.options
-	
+
 	conf.define('APPNAME', APPNAME)
 	conf.define('VERSION', VERSION)
-	
+
 	conf.check_tool('compiler_cc')
 	conf.check_tool('ragel', tooldir = '.')
+
+	conf.env['CCFLAGS'] = tolist(conf.env['CCFLAGS'])
 	
 	# check for available libraries
 	conf.check_cfg(package='glib-2.0', uselib_store='glib', atleast_version='2.16', args='--cflags --libs', mandatory=True)
@@ -115,4 +117,8 @@ def print_summary(conf, msg, result, color = 'GREEN'):
 	conf.check_message_1(msg)
 	conf.check_message_2(result, color)
 
+def tolist(x):
+	if type(x) is types.ListType:
+		return x
+	return [x]
 
