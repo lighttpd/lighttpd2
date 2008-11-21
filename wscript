@@ -61,7 +61,7 @@ def configure(conf):
 		conf.define('HAVE_LIBLUA', 1)
 	
 	if not opts.static:
-		conf.check(lib='dl', uselib_store='dl', mandatory=True)
+		conf.check(lib='dl', uselib_store='dl')
 	
 	# check for available headers
 	conf.check(header_name='sys/socket.h')
