@@ -425,6 +425,10 @@ static connection* worker_con_get(worker *wrk) {
 
 void worker_con_put(connection *con) {
 	worker *wrk = con->wrk;
+	
+	if (con->state == CON_STATE_DEAD)
+		/* already disconnected */
+		return;
 
 	connection_reset(con);
 	g_atomic_int_add((gint*) &wrk->connection_load, -1);
