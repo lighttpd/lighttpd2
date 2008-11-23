@@ -34,8 +34,9 @@ void waitqueue_push(waitqueue *queue, waitqueue_elem *elem) {
 	elem->ts = ev_now(queue->loop);
 
 	if (!elem->queued) {
-		elem->queued = TRUE;
 		/* not in the queue yet, insert at the end */
+		elem->queued = TRUE;
+		
 		if (!queue->head) {
 			/* queue is empty */
 			queue->head = elem;
@@ -54,12 +55,12 @@ void waitqueue_push(waitqueue *queue, waitqueue_elem *elem) {
 		if (elem == queue->tail)
 			return;
 
-		if (elem == queue->head) {
+		if (elem == queue->head)
 			queue->head = elem->next;
-			if (elem->next)
-				elem->next->prev = NULL;
-		}
-
+		else
+			elem->prev->next = elem->next;
+		
+		elem->next->prev = elem->prev;
 		elem->prev = queue->tail;
 		elem->next = NULL;
 		queue->tail->next = elem;
@@ -75,7 +76,9 @@ waitqueue_elem *waitqueue_pop(waitqueue *queue) {
 		return NULL;
 	}
 
-	if (elem != queue->tail)
+	if (elem == queue->tail)
+		queue->tail = NULL;
+	else
 		elem->next->prev = NULL;
 
 	queue->head = elem->next;
