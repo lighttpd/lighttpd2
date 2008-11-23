@@ -434,7 +434,10 @@ void connection_reset_keep_alive(connection *con) {
 	con->stats.bytes_out_5s_diff = G_GUINT64_CONSTANT(0);
 	con->stats.last_avg = 0;
 
+	/* remove from timeout queue */
 	waitqueue_remove(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
+	/* remove from throttle queue */
+	waitqueue_remove(&con->wrk->throttle_queue, &con->throttle.queue_elem);
 }
 
 void connection_free(connection *con) {
