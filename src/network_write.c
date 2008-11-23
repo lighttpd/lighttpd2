@@ -43,24 +43,10 @@ network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, gof
 		} else if (0 == r) {
 			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
 		}
+
 		chunkqueue_skip(cq, r);
 		did_write_something = TRUE;
 		*write_max -= r;
-
-		/* stats */
-		wrk = vr->con->wrk;
-		vr->con->wrk->stats.bytes_out += r;
-		vr->con->stats.bytes_out += r;
-
-		/* update 5s stats */
-		ts = CUR_TS(wrk);
-
-		if ((ts - vr->con->stats.last_avg) > 5) {
-			vr->con->stats.bytes_out_5s_diff = vr->con->stats.bytes_out - vr->con->stats.bytes_out_5s;
-			vr->con->stats.bytes_out_5s = vr->con->stats.bytes_out;
-			vr->con->stats.last_avg = ts;
-		}
-
 	} while (r == block_len && *write_max > 0);
 
 	return NETWORK_STATUS_SUCCESS;
