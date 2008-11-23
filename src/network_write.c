@@ -8,8 +8,6 @@ network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, gof
 	ssize_t r;
 	gboolean did_write_something = FALSE;
 	chunkiter ci;
-	worker *wrk;
-	ev_tstamp ts;
 
 	do {
 		if (0 == cq->length)
