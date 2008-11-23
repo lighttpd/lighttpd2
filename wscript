@@ -78,7 +78,7 @@ def configure(conf):
 		conf.check(function_name='sendfile64', header_name='sys/sendfile.h', define_name='HAVE_SENDFILE64')
 	else:
 		conf.check(function_name='sendfile', header_name=['sys/types.h','sys/socket.h','sys/uio.h'], define_name='HAVE_SENDFILE')
-	conf.check(function_name='writev', header_name='sys/uio.h', define_name='HAVE_SENDFILE')
+	conf.check(function_name='writev', header_name='sys/uio.h', define_name='HAVE_WRITEV')
 	conf.check(function_name='inet_aton', header_name='arpa/inet.h', define_name='HAVE_INET_ATON')
 	conf.check(function_name='inet_atop', define_name='HAVE_IPV6')
 	conf.check(function_name='posix_fadvise', header_name='fcntl.h', define_name='HAVE_POSIX_FADVISE')
