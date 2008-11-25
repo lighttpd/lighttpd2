@@ -6,7 +6,7 @@ waf build script for Lighttpd 2.x
 License and Copyright: see COPYING file
 """
 
-import Options, types, sys, Runner, Utils
+import Options, types, os, sys, Runner, Utils
 from time import gmtime, strftime, timezone
 
 # the following two variables are used by the target "waf dist"
@@ -97,11 +97,18 @@ def configure(conf):
 	conf.define('PACKAGE_BUILD_DATE', strftime("%b %d %Y %H:%M:%S UTC", gmtime()));
 	conf.define('LIBRARY_DIR', opts.libdir)
 	conf.define('HAVE_CONFIG_H', 1)
+
+	revno = get_revno(conf)
+	if revno:
+		conf.define('LIGHTTPD_REVISION', revno)
+
 	conf.write_config_header('include/lighttpd/config.h')
 	
 	Utils.pprint('WHITE', '----------------------------------------')
 	Utils.pprint('BLUE', 'Summary:')
 	print_summary(conf, 'Install Lighttpd/' + VERSION + ' in', conf.env['PREFIX'])
+	if revno:
+		print_summary(conf, 'Revision', revno)
 	print_summary(conf, 'Using glib version', glib_version)
 	print_summary(conf, 'With library directory', opts.libdir)
 	print_summary(conf, 'Build static binary', 'yes' if opts.static else 'no', 'YELLOW' if opts.static else 'GREEN')
@@ -122,3 +129,11 @@ def tolist(x):
 		return x
 	return [x]
 
+def get_revno(conf):
+	if os.path.exists('.bzr'):
+		try:
+			revno = Utils.cmd_output('bzr version-info --custom --template="{revno}"')
+			if revno:
+				return revno.strip()
+		except:
+			pass

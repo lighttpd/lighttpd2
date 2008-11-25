@@ -62,6 +62,9 @@ int main(int argc, char *argv[]) {
 	if (show_version) {
 		g_print("%s-%s - a fast and lightweight webserver\n", PACKAGE_NAME, PACKAGE_VERSION);
 		g_print("Build date: %s\n", PACKAGE_BUILD_DATE);
+		#ifdef LIGHTTPD_REVISION
+		g_print("Revision: %s\n", LIGHTTPD_REVISION);
+		#endif
 		return 0;
 	}
 
