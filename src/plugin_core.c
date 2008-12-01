@@ -158,7 +158,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param) {
 	fd = open(vr->physical.path->str, O_RDONLY);
 	if (fd == -1) {
 		vr->response.http_status = 404;
-		VR_TRACE(vr, "open() failed: %s (%d)\n", g_strerror(errno), errno);
+		VR_TRACE(vr, "open() failed: %s (%d)", g_strerror(errno), errno);
 
 		switch (errno) {
 		case ENOENT:
