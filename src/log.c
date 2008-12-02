@@ -17,23 +17,17 @@ const char *remove_path(const char *path) {
 }
 #endif
 
-int log_write(server* UNUSED_PARAM(srv), connection* UNUSED_PARAM(con), const char *fmt, ...) {
-	va_list ap;
-	GString *logline;
+void log_write(server *srv, log_t *log, GString *msg) {
+	log_entry_t *log_entry;
 
-	logline = g_string_sized_new(0);
-	va_start(ap, fmt);
-	g_string_vprintf(logline, fmt, ap);
-	va_end(ap);
+	log_ref(srv, log);
 
+	log_entry = g_slice_new(log_entry_t);
+	log_entry->log = log;
+	log_entry->msg = msg;
 
-	g_string_append_len(logline, CONST_STR_LEN("\r\n"));
-	write(STDERR_FILENO, logline->str, logline->len);
-	g_string_free(logline, TRUE);
-
-	return 0;
+	g_async_queue_push(srv->logs.queue, log_entry);
 }
-
 
 gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint flags, const gchar *fmt, ...) {
 	va_list ap;

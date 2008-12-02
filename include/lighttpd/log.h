@@ -15,58 +15,23 @@ LI_API const char *remove_path(const char *path);
 #define REMOVE_PATH(file) file
 #endif
 
-
-#define ERROR(srv, fmt, ...) \
-	log_write(srv, NULL, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
-
-#define INFO(srv, ...) \
-	log_write(srv, NULL, __VA_ARGS__)
-
-#define TRACE(srv, fmt, ...) \
-	log_write(srv, NULL, "%s.%d: (trace) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
-
-#define SEGFAULT(srv, fmt, ...) \
-	do { \
-		log_write(srv, NULL, "%s.%d: (crashing) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
-		/* VALGRIND_PRINTF_BACKTRACE(fmt, __VA_ARGS__); */\
-		abort();\
-	} while(0)
-
-#define CON_ERROR(con, fmt, ...) \
-	log_write(NULL, con, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__) \
-
-#define CON_TRACE(con, fmt, ...) \
-	log_write(NULL, con, "%s.%d: (trace) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
-
-#define CON_SEGFAULT(con, fmt, ...) \
-	do { \
-		log_write(NULL, con, "%s.%d: (crashing) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
-		/* VALGRIND_PRINTF_BACKTRACE(fmt, __VA_ARGS__); */ \
-		abort();\
-	} while(0)
-
 #define VR_ERROR(vr, fmt, ...) CON_ERROR(vr->con, fmt, __VA_ARGS__)
 #define VR_TRACE(vr, fmt, ...) CON_TRACE(vr->con, fmt, __VA_ARGS__)
 #define VR_SEGFAULT(vr, fmt, ...) CON_SEGFAULT(vr->con, fmt, __VA_ARGS__)
 
-#undef ERROR
 #define ERROR(srv, fmt, ...) \
 	log_write_(srv, NULL, LOG_LEVEL_ERROR, LOG_FLAG_TIMETAMP, "(error) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
-/*#undef INFO
 #define INFO(srv, fmt, ...) \
-	log_write_(srv, NULL, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "%s.%d: (info) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
-*/
-#undef TRACE
-#define TRACE(srv, fmt, ...) \
-	log_write_(srv, NULL, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "(trace) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, NULL, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "(info) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
-/*
-#undef CON_ERROR
+#define TRACE(srv, fmt, ...) \
+	log_write_(srv, NULL, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "(debug) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+
+
 #define CON_ERROR(con, fmt, ...) \
 	log_write_(con->srv, con, LOG_LEVEL_ERROR, LOG_FLAG_TIMETAMP, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
-*/
-#undef CON_TRACE
+
 #define CON_TRACE(con, fmt, ...) \
 	log_write_(con->srv, con, LOG_LEVEL_DEBUG, LOG_FLAG_TIMETAMP, "%s.%d: (debug) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
@@ -74,7 +39,7 @@ LI_API const char *remove_path(const char *path);
 /* TODO: perhaps make portable (detect if cc supports) */
 #define	__ATTRIBUTE_PRINTF_FORMAT(fmt, arg) __attribute__ ((__format__ (__printf__, fmt, arg)))
 
-LI_API int log_write(server *srv, connection *con, const char *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(3, 4);
+/*LI_API int log_write(server *srv, connection *con, const char *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(3, 4);*/
 
 
 
@@ -184,6 +149,9 @@ void log_thread_wakeup(server *srv);
 void log_init(server *srv);
 void log_cleanup(server *srv);
 
+/* log_write is used to directly write a message to a log target */
+LI_API void log_write(server *srv, log_t *log, GString *msg);
+/* log_write_ is used to write to the errorlog */
 LI_API gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint flags, const gchar *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(5, 6);
 
 log_timestamp_t *log_timestamp_new(server *srv, GString *format);

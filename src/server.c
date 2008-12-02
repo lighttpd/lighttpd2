@@ -32,10 +32,10 @@ static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	UNUSED(revents);
 
 	if (g_atomic_int_get(&srv->state) != SERVER_STOPPING) {
-		INFO(srv, "Got signal, shutdown");
+		INFO(srv, "%s", "Got signal, shutdown");
 		server_stop(srv);
 	} else {
-		INFO(srv, "Got second signal, force shutdown");
+		INFO(srv, "%s", "Got second signal, force shutdown");
 
 		/* reset default behaviour which will kill us the third time */
 		UNCATCH_SIGNAL(loop, INT);
