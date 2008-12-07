@@ -56,6 +56,7 @@ struct connection {
 		guint max_idle;
 		ev_timer watcher;
 	} keep_alive_data;
+	guint keep_alive_requests;
 
 	/* I/O timeout data */
 	waitqueue_elem io_timeout_elem;

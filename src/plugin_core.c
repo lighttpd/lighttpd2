@@ -798,6 +798,7 @@ static const plugin_option options[] = {
 
 	{ "server.tag", VALUE_STRING, "lighttpd-2.0~sandbox", NULL, NULL },
 	{ "server.max_keep_alive_idle", VALUE_NUMBER, GINT_TO_POINTER(5), NULL, NULL },
+	{ "server.max_keep_alive_requests", VALUE_NUMBER, GINT_TO_POINTER(15), NULL, NULL },
 
 	{ "mime_types", VALUE_LIST, NULL, core_option_mime_types_parse, core_option_mime_types_free },
 

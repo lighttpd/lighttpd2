@@ -122,6 +122,11 @@ static gboolean connection_handle_read(connection *con) {
 		con->keep_alive_data.timeout = 0;
 		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 
+		con->keep_alive_requests++;
+		/* disable keep alive if limit is reached */
+		if (con->keep_alive_requests == CORE_OPTION(CORE_OPTION_MAX_KEEP_ALIVE_REQUESTS).number)
+			con->keep_alive = FALSE;
+
 		con->state = CON_STATE_READ_REQUEST_HEADER;
 		con->ts = CUR_TS(con->wrk);
 
@@ -369,6 +374,7 @@ void connection_reset(connection *con) {
 	con->keep_alive_data.timeout = 0;
 	con->keep_alive_data.max_idle = 0;
 	ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
+	con->keep_alive_requests = 0;
 
 	/* reset stats */
 	con->stats.bytes_in = G_GUINT64_CONSTANT(0);
