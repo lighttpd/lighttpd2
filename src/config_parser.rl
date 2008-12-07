@@ -87,8 +87,54 @@
 	action string {
 		value *o;
 		GString *str;
+		gchar ch;
 
-		str = g_string_new_len(ctx->mark+1, fpc - ctx->mark - 2);
+		str = g_string_sized_new(fpc - ctx->mark - 2);
+		for (gchar *c = (ctx->mark+1); c != (fpc-1); c++) {
+			if (*c != '\\')
+				g_string_append_c(str, *c);
+			else {
+				guint avail = fpc - 1 - c;
+				if (avail == 0) {
+					ERROR(srv, "%s", "invalid \\ at end of string");
+					g_string_free(str, TRUE);
+					return FALSE;
+				}
+
+				switch (*(c+1)) {
+				case 'n': g_string_append_c(str, '\n'); c++; break;
+				case 'r': g_string_append_c(str, '\r'); c++; break;
+				case 't': g_string_append_c(str, '\t'); c++; break;
+				case 'x':
+					if (avail < 3 || !(
+						((*(c+2) >= '0' && *(c+2) <= '9') && (*(c+3) >= '0' && *(c+3) <= '9')) ||
+						((*(c+2) >= 'A' && *(c+2) <= 'F') && (*(c+3) >= 'A' && *(c+3) <= 'F')) ||
+						((*(c+2) >= 'a' && *(c+2) <= 'f') && (*(c+3) >= 'a' && *(c+3) <= 'f')))) {
+						ERROR(srv, "%s", "invalid \\xHH in string");
+						g_string_free(str, TRUE);
+						return FALSE;
+					}
+					/* append char from hex */
+					/* first char */
+					if (*(c+2) <= '9')
+						ch = 16 * (*(c+2) - '0');
+					else if (*(c+2) <= 'F')
+						ch = 16 * (10 + *(c+2) - 'A');
+					else
+						ch = 16 * (10 + *(c+2) - 'a');
+					/* second char */
+					if (*(c+3) <= '9')
+						ch += *(c+3) - '0';
+					else if (*(c+3) <= 'F')
+						ch += 10 + *(c+3) - 'A';
+					else
+						ch += 10 + *(c+3) - 'a';
+					c += 3;
+					g_string_append_c(str, ch);
+				}
+			}
+		}
+
 		o = value_new_string(str);
 		g_queue_push_head(ctx->option_stack, o);
 
@@ -477,19 +523,7 @@
 
 		_printf("got assignment: %s = %s; in line %zd\n", name->data.string->str, value_type_string(val->type), ctx->line);
 
-		if (ctx->in_setup_block) {
-			/* in setup { } block, override default values for options */
-
-			if (!plugin_set_default_option(srv, name->data.string->str, val)) {
-				ERROR(srv, "failed overriding default value for option \"%s\"", name->data.string->str);
-				value_free(name);
-				value_free(val);
-				return FALSE;
-			}
-
-			value_free(val);
-		}
-		else if (g_str_has_prefix(name->data.string->str, "var.")) {
+		if (g_str_has_prefix(name->data.string->str, "var.")) {
 			/* assignment vor user defined variable, insert into hashtable */
 			gpointer old_key;
 			gpointer old_val;
@@ -503,6 +537,18 @@
 			}
 
 			g_hash_table_insert(ctx->uservars, str, val);
+		}
+		else if (ctx->in_setup_block) {
+			/* in setup { } block, override default values for options */
+
+			if (!plugin_set_default_option(srv, name->data.string->str, val)) {
+				ERROR(srv, "failed overriding default value for option \"%s\"", name->data.string->str);
+				value_free(name);
+				value_free(val);
+				return FALSE;
+			}
+
+			value_free(val);
 		}
 		else {
 			/* normal assignment */
@@ -888,7 +934,10 @@
 	integer_suffix_seconds = ( 'sec' | 'min' | 'hours' | 'days' );
 	integer_suffix = ( integer_suffix_bytes | integer_suffix_bits | integer_suffix_seconds ) >mark %integer_suffix;
 	integer = ( ('0' | ( [1-9] [0-9]* )) %integer (ws? integer_suffix)? );
-	string = ( '"' (any-'"')* '"' ) %string;
+	escaped_hex = ( '\\x' xdigit{2} );
+	special_chars = ( '\\' [nrt] );
+	string = ( '"' ( ( any - ["\\] ) | special_chars | escaped_hex | '\\"' )* '"' ) %string;
+	#string = ( '"' ( ( any - ["\\] ) | '\\"' )* '"' ) %string;
 
 	# casts
 	cast = ( 'cast(' ( 'int' %{ctx->cast = CFG_PARSER_CAST_INT;} | 'str' %{ctx->cast = CFG_PARSER_CAST_STR;} ) ')' ws* );
