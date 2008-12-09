@@ -72,7 +72,7 @@ void vrequest_free(vrequest* vr) {
 	filters_clean(&vr->filters_in);
 	filters_clean(&vr->filters_out);
 
-	action_stack_clear(vr->con->srv, &vr->action_stack);
+	action_stack_clear(vr, &vr->action_stack);
 
 	g_slice_free(vrequest, vr);
 }
@@ -89,7 +89,7 @@ void vrequest_reset(vrequest *vr) {
 	filters_reset(&vr->filters_in);
 	filters_reset(&vr->filters_out);
 
-	action_stack_reset(vr->con->srv, &vr->action_stack);
+	action_stack_reset(vr, &vr->action_stack);
 }
 
 void vrequest_error(vrequest *vr) {

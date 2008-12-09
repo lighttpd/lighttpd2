@@ -140,8 +140,9 @@ static gboolean core_setup_set(server *srv, plugin* p, value *val) {
 	return plugin_set_default_option(srv, val_name->data.string->str, val_val);
 }
 
-static handler_t core_handle_static(vrequest *vr, gpointer param) {
+static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *context) {
 	UNUSED(param);
+	UNUSED(context);
 	int fd;
 
 	/* build physical path: docroot + uri.path */
@@ -200,10 +201,10 @@ static action* core_static(server *srv, plugin* p, value *val) {
 		return NULL;
 	}
 
-	return action_new_function(core_handle_static, NULL, NULL);
+	return action_new_function(core_handle_static, NULL, NULL, NULL);
 }
 
-static handler_t core_handle_test(vrequest *vr, gpointer param) {
+static handler_t core_handle_test(vrequest *vr, gpointer param, gpointer *context) {
 	connection *con = vr->con;
 	server *srv = con->srv;
 	worker *wrk = con->wrk;
@@ -216,6 +217,7 @@ static handler_t core_handle_test(vrequest *vr, gpointer param) {
 	guint64 avg1, avg2, avg3;
 	gchar suffix1[2] = {0,0}, suffix2[2] = {0,0}, suffix3[2] = {0,0};
 	UNUSED(param);
+	UNUSED(context);
 
 	if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
 
@@ -281,11 +283,12 @@ static action* core_test(server *srv, plugin* p, value *val) {
 		return NULL;
 	}
 
-	return action_new_function(core_handle_test, NULL, NULL);
+	return action_new_function(core_handle_test, NULL, NULL, NULL);
 }
 
-static handler_t core_handle_blank(vrequest *vr, gpointer param) {
+static handler_t core_handle_blank(vrequest *vr, gpointer param, gpointer *context) {
 	UNUSED(param);
+	UNUSED(context);
 
 	if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
 
@@ -302,12 +305,13 @@ static action* core_blank(server *srv, plugin* p, value *val) {
 		return NULL;
 	}
 
-	return action_new_function(core_handle_blank, NULL, NULL);
+	return action_new_function(core_handle_blank, NULL, NULL, NULL);
 }
 
-static handler_t core_handle_profile_mem(vrequest *vr, gpointer param) {
+static handler_t core_handle_profile_mem(vrequest *vr, gpointer param, gpointer *context) {
 	UNUSED(vr);
 	UNUSED(param);
+	UNUSED(context);
 
 	/*g_mem_profile();*/
 	profiler_dump();
@@ -323,7 +327,7 @@ static action* core_profile_mem(server *srv, plugin* p, value *val) {
 		return NULL;
 	}
 
-	return action_new_function(core_handle_profile_mem, NULL, NULL);
+	return action_new_function(core_handle_profile_mem, NULL, NULL, NULL);
 }
 
 static gboolean core_listen(server *srv, plugin* p, value *val) {
@@ -623,10 +627,10 @@ static void core_option_log_timestamp_free(server *srv, plugin *p, size_t ndx, o
 }
 
 static gboolean core_option_mime_types_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
+	GArray *arr;
 	UNUSED(srv);
 	UNUSED(p);
 	UNUSED(ndx);
-	GArray *arr;
 
 
 	/* default value */
@@ -675,11 +679,12 @@ static void core_option_mime_types_free(server *srv, plugin *p, size_t ndx, opti
 	g_array_free(oval.list, TRUE);
 }
 
-static handler_t core_handle_header_add(vrequest *vr, gpointer param) {
-	UNUSED(param);
+static handler_t core_handle_header_add(vrequest *vr, gpointer param, gpointer *context) {
 	GArray *l = (GArray*)param;
 	GString *k = g_array_index(l, value*, 0)->data.string;
 	GString *v = g_array_index(l, value*, 1)->data.string;
+	UNUSED(param);
+	UNUSED(context);
 
 	http_header_insert(vr->response.headers, GSTR_LEN(k), GSTR_LEN(v));
 
@@ -712,15 +717,16 @@ static action* core_header_add(server *srv, plugin* p, value *val) {
 		return NULL;
 	}
 
-	return action_new_function(core_handle_header_add, core_header_free, value_extract(val).list);
+	return action_new_function(core_handle_header_add, NULL, core_header_free, value_extract(val).list);
 }
 
 
-static handler_t core_handle_header_append(vrequest *vr, gpointer param) {
-	UNUSED(param);
+static handler_t core_handle_header_append(vrequest *vr, gpointer param, gpointer *context) {
 	GArray *l = (GArray*)param;
 	GString *k = g_array_index(l, value*, 0)->data.string;
 	GString *v = g_array_index(l, value*, 1)->data.string;
+	UNUSED(param);
+	UNUSED(context);
 
 	http_header_append(vr->response.headers, GSTR_LEN(k), GSTR_LEN(v));
 
@@ -748,15 +754,16 @@ static action* core_header_append(server *srv, plugin* p, value *val) {
 		return NULL;
 	}
 
-	return action_new_function(core_handle_header_append, core_header_free, value_extract(val).list);
+	return action_new_function(core_handle_header_append, NULL, core_header_free, value_extract(val).list);
 }
 
 
-static handler_t core_handle_header_overwrite(vrequest *vr, gpointer param) {
-	UNUSED(param);
+static handler_t core_handle_header_overwrite(vrequest *vr, gpointer param, gpointer *context) {
 	GArray *l = (GArray*)param;
 	GString *k = g_array_index(l, value*, 0)->data.string;
 	GString *v = g_array_index(l, value*, 1)->data.string;
+	UNUSED(param);
+	UNUSED(context);
 
 	http_header_overwrite(vr->response.headers, GSTR_LEN(k), GSTR_LEN(v));
 
@@ -784,7 +791,7 @@ static action* core_header_overwrite(server *srv, plugin* p, value *val) {
 		return NULL;
 	}
 
-	return action_new_function(core_handle_header_overwrite, core_header_free, value_extract(val).list);
+	return action_new_function(core_handle_header_overwrite, NULL, core_header_free, value_extract(val).list);
 }
 
 

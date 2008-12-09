@@ -6,7 +6,11 @@ typedef struct action_stack_element action_stack_element;
 
 struct action_stack_element {
 	action *act;
-	guint pos;
+	union {
+		gpointer context;
+		guint pos;
+	} data;
+	gboolean finished;
 };
 
 void action_release(server *srv, action *a) {
@@ -54,13 +58,14 @@ action *action_new_setting(option_set setting) {
 	return a;
 }
 
-action *action_new_function(ActionFunc func, ActionFree ffree, gpointer param) {
+action *action_new_function(ActionFunc func, ActionCleanup fcleanup, ActionFree ffree, gpointer param) {
 	action *a;
 
 	a = g_slice_new(action);
 	a->refcount = 1;
 	a->type = ACTION_TFUNCTION;
 	a->data.function.func = func;
+	a->data.function.cleanup = fcleanup;
 	a->data.function.free = ffree;
 	a->data.function.param = param;
 
@@ -91,28 +96,35 @@ action *action_new_condition(condition *cond, action *target, action *target_els
 	return a;
 }
 
-void action_stack_element_release(server *srv, action_stack_element *ase) {
-	if (!ase || !ase->act) return;
+static void action_stack_element_release(server *srv, vrequest *vr, action_stack_element *ase) {
+	action *a = ase->act;
+	if (!ase || !a) return;
+	if (a->type == ACTION_TFUNCTION && ase->data.context && a->data.function.cleanup) {
+		a->data.function.cleanup(vr, a->data.function.param, ase->data.context);
+	}
 	action_release(srv, ase->act);
 	ase->act = NULL;
+	ase->data.context = NULL;
 }
 
 void action_stack_init(action_stack *as) {
 	as->stack = g_array_sized_new(FALSE, TRUE, sizeof(action_stack_element), 15);
 }
 
-void action_stack_reset(server *srv, action_stack *as) {
+void action_stack_reset(vrequest *vr, action_stack *as) {
+	server *srv = vr->con->srv;
 	guint i;
 	for (i = as->stack->len; i-- > 0; ) {
-		action_stack_element_release(srv, &g_array_index(as->stack, action_stack_element, i));
+		action_stack_element_release(srv, vr, &g_array_index(as->stack, action_stack_element, i));
 	}
 	g_array_set_size(as->stack, 0);
 }
 
-void action_stack_clear(server *srv, action_stack *as) {
+void action_stack_clear(vrequest *vr, action_stack *as) {
+	server *srv = vr->con->srv;
 	guint i;
 	for (i = as->stack->len; i-- > 0; ) {
-		action_stack_element_release(srv, &g_array_index(as->stack, action_stack_element, i));
+		action_stack_element_release(srv, vr, &g_array_index(as->stack, action_stack_element, i));
 	}
 	g_array_free(as->stack, TRUE);
 	as->stack = NULL;
@@ -121,7 +133,7 @@ void action_stack_clear(server *srv, action_stack *as) {
 /** handle sublist now, remember current position (stack) */
 void action_enter(vrequest *vr, action *a) {
 	action_acquire(a);
-	action_stack_element ase = { a, 0 };
+	action_stack_element ase = { a, { 0 }, FALSE };
 	g_array_append_val(vr->action_stack.stack, ase);
 }
 
@@ -129,18 +141,9 @@ static action_stack_element *action_stack_top(action_stack* as) {
 	return as->stack->len > 0 ? &g_array_index(as->stack, action_stack_element, as->stack->len - 1) : NULL;
 }
 
-static void action_stack_pop(server *srv, action_stack *as) {
-	action_stack_element_release(srv, &g_array_index(as->stack, action_stack_element, as->stack->len - 1));
+static void action_stack_pop(server *srv, vrequest *vr, action_stack *as) {
+	action_stack_element_release(srv, vr, &g_array_index(as->stack, action_stack_element, as->stack->len - 1));
 	g_array_set_size(as->stack, as->stack->len - 1);
-}
-
-static action* action_stack_element_action(action_stack_element *ase) {
-	action *a = ase->act;
-	if (a->type == ACTION_TLIST) {
-		return ase->pos < a->data.list->len ? g_array_index(a->data.list, action*, ase->pos) : NULL;
-	} else {
-		return ase->pos == 0 ? a : NULL;
-	}
 }
 
 handler_t action_execute(vrequest *vr) {
@@ -149,28 +152,34 @@ handler_t action_execute(vrequest *vr) {
 	action_stack_element *ase;
 	handler_t res;
 	gboolean condres;
+	server *srv = vr->con->srv;
 
 	while (NULL != (ase = action_stack_top(as))) {
-		a = action_stack_element_action(ase);
-		if (!a) {
-			action_stack_pop(vr->con->srv, as);
+		if (ase->finished) {
+			/* a TFUNCTION may enter sub actions _and_ return GO_ON, so we cannot pop the last element
+			 * but we have to remember we already executed it
+			 */
+			action_stack_pop(srv, vr, as);
 			continue;
 		}
 
+		a = ase->act;
 		vr->con->wrk->stats.actions_executed++;
 
 		switch (a->type) {
 		case ACTION_TSETTING:
 			vr->con->options[a->data.setting.ndx] = a->data.setting.value;
+			action_stack_pop(srv, vr, as);
 			break;
 		case ACTION_TFUNCTION:
-			res = a->data.function.func(vr, a->data.function.param);
+			res = a->data.function.func(vr, a->data.function.param, &ase->data.context);
 			switch (res) {
 			case HANDLER_GO_ON:
 			case HANDLER_FINISHED:
+				ase->finished = TRUE;
 				break;
 			case HANDLER_ERROR:
-				action_stack_reset(vr->con->srv, as);
+				action_stack_reset(vr, as);
 			case HANDLER_COMEBACK:
 			case HANDLER_WAIT_FOR_EVENT:
 			case HANDLER_WAIT_FOR_FD:
@@ -183,6 +192,7 @@ handler_t action_execute(vrequest *vr) {
 			switch (res) {
 			case HANDLER_GO_ON:
 			case HANDLER_FINISHED:
+				action_stack_pop(srv, vr, as);
 				if (condres) {
 					action_enter(vr, a->data.condition.target);
 				}
@@ -191,7 +201,7 @@ handler_t action_execute(vrequest *vr) {
 				}
 				break;
 			case HANDLER_ERROR:
-				action_stack_reset(vr->con->srv, as);
+				action_stack_reset(vr, as);
 			case HANDLER_COMEBACK:
 			case HANDLER_WAIT_FOR_EVENT:
 			case HANDLER_WAIT_FOR_FD:
@@ -199,10 +209,14 @@ handler_t action_execute(vrequest *vr) {
 			}
 			break;
 		case ACTION_TLIST:
-			action_enter(vr, a);
+			if (ase->data.pos >= a->data.list->len) {
+				action_stack_pop(srv, vr, as);
+			} else {
+				action_enter(vr, g_array_index(a->data.list, action*, ase->data.pos));
+				ase->data.pos++;
+			}
 			break;
 		}
-		ase->pos++;
 	}
 	return HANDLER_FINISHED;
 }

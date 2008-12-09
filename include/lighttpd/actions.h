@@ -17,11 +17,19 @@ struct action_stack {
 	GArray* stack;
 };
 
-typedef handler_t (*ActionFunc)(vrequest *vr, gpointer param);
+/* param is the param registered with the callbacks;
+ * in context the function can save extra data (like data for the stat-call)
+ * If the context gets popped from the action stack and context is not zero,
+ * the cleanup callback gets called.
+ * you should not use *context without a cleanup callback!!!
+ */
+typedef handler_t (*ActionFunc)(vrequest *vr, gpointer param, gpointer *context);
+typedef handler_t (*ActionCleanup)(vrequest *vr, gpointer param, gpointer context);
 typedef void (*ActionFree)(server *srv, gpointer param);
 
 struct action_func {
 	ActionFunc func;
+	ActionCleanup cleanup;
 	ActionFree free;
 	gpointer param;
 };
@@ -48,8 +56,8 @@ struct action {
 
 /* no new/free function, so just use the struct direct (i.e. not a pointer) */
 LI_API void action_stack_init(action_stack *as);
-LI_API void action_stack_reset(server *srv, action_stack *as);
-LI_API void action_stack_clear(server *srv, action_stack *as);
+LI_API void action_stack_reset(vrequest *vr, action_stack *as);
+LI_API void action_stack_clear(vrequest *vr, action_stack *as);
 
 /** handle sublist now, remember current position (stack) */
 LI_API void action_enter(struct vrequest *vr, action *a);
@@ -60,7 +68,7 @@ LI_API void action_release(server *srv, action *a);
 LI_API void action_acquire(action *a);
 /* create new action */
 LI_API action *action_new_setting(option_set setting);
-LI_API action *action_new_function(ActionFunc func, ActionFree ffree, gpointer param);
+LI_API action *action_new_function(ActionFunc func, ActionCleanup fcleanup, ActionFree ffree, gpointer param);
 LI_API action *action_new_list();
 LI_API action *action_new_condition(condition *cond, action *target, action *target_else);
 
