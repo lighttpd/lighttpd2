@@ -16,11 +16,19 @@
 	lua_setfield(L, -2, name); \
 } while(0)
 
+#define lua_mt_register_cmp(srv, L, name, func, cmp) do {\
+	lua_pushlightuserdata(L, srv); \
+	lua_pushinteger(L, cmp); \
+	lua_pushcclosure(L, func, 2); \
+	lua_setfield(L, -2, name); \
+} while(0)
+
 #define lua_mt_register(L, name, func) do {\
 	lua_pushcclosure(L, func, 0); \
 	lua_setfield(L, -2, name); \
 } while(0)
 
+/* save the top of the stack in dicts described by a '.' separated path */
 static void lua_settop_in_dicts(lua_State *L, const gchar *path) {
 	int ndx, curtable;
 	gchar** segments;
@@ -125,6 +133,8 @@ int lua_push_condition(server *srv, lua_State *L, condition *c) {
 
 
 /* cond_lvalue metatable (except __gc) */
+
+/* ::_tostring */
 static int lua_cond_lvalue_tostring(lua_State *L) {
 	condition_lvalue *lvalue = lua_get_condition_lvalue(L, 1);
 	if (!lvalue) return 0;
@@ -138,15 +148,16 @@ static int lua_cond_lvalue_tostring(lua_State *L) {
 	return 1;
 }
 
-static int lua_cond_lvalue_eq(lua_State *L) {
+static int lua_cond_lvalue_cmp(lua_State *L) {
 	server *srv;
 	GString *sval;
 	condition *c;
 	condition_lvalue *lvalue = lua_get_condition_lvalue(L, 1);
 	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
+	comp_operator_t cmpop = (comp_operator_t) lua_tointeger(L, lua_upvalueindex(2));
 
 	if (NULL == (sval = lua_togstring(L, 2))) return 0;
-	c = condition_new_string(srv, CONFIG_COND_EQ, lvalue, sval);
+	c = condition_new_string(srv, cmpop, lvalue, sval);
 	if (c) {
 		condition_lvalue_acquire(lvalue);
 		lua_push_condition(srv, L, c);
@@ -160,7 +171,20 @@ static void lua_push_cond_lvalue_metatable(server *srv, lua_State *L) {
 		lua_mt_register(L, "__gc", lua_cond_lvalue_gc);
 		lua_mt_register(L, "__tostring", lua_cond_lvalue_tostring);
 
-		lua_mt_register_srv(srv, L, "eq", lua_cond_lvalue_eq);
+		lua_mt_register_cmp(srv, L, "eq", lua_cond_lvalue_cmp, CONFIG_COND_EQ);
+		lua_mt_register_cmp(srv, L, "ne", lua_cond_lvalue_cmp, CONFIG_COND_NE);
+		lua_mt_register_cmp(srv, L, "prefix", lua_cond_lvalue_cmp, CONFIG_COND_PREFIX);
+		lua_mt_register_cmp(srv, L, "notprefix", lua_cond_lvalue_cmp, CONFIG_COND_NOPREFIX);
+		lua_mt_register_cmp(srv, L, "suffix", lua_cond_lvalue_cmp, CONFIG_COND_SUFFIX);
+		lua_mt_register_cmp(srv, L, "notsuffix", lua_cond_lvalue_cmp, CONFIG_COND_NOSUFFIX);
+		lua_mt_register_cmp(srv, L, "match", lua_cond_lvalue_cmp, CONFIG_COND_MATCH);
+		lua_mt_register_cmp(srv, L, "nomatch", lua_cond_lvalue_cmp, CONFIG_COND_NOMATCH);
+		lua_mt_register_cmp(srv, L, "ip", lua_cond_lvalue_cmp, CONFIG_COND_IP);
+		lua_mt_register_cmp(srv, L, "notip", lua_cond_lvalue_cmp, CONFIG_COND_NOTIP);
+		lua_mt_register_cmp(srv, L, "gt", lua_cond_lvalue_cmp, CONFIG_COND_GT);
+		lua_mt_register_cmp(srv, L, "ge", lua_cond_lvalue_cmp, CONFIG_COND_GE);
+		lua_mt_register_cmp(srv, L, "lt", lua_cond_lvalue_cmp, CONFIG_COND_LT);
+		lua_mt_register_cmp(srv, L, "le", lua_cond_lvalue_cmp, CONFIG_COND_LE);
 
 		lua_pushvalue(L, -1);
 		lua_setfield(L, -2, "__index");
