@@ -301,7 +301,7 @@ static handler_t condition_check_eval_string(vrequest *vr, condition *cond, gboo
 		*res = g_str_equal(val, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_NE:
-		*res = g_str_equal(val, cond->rvalue.string->str);
+		*res = !g_str_equal(val, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_PREFIX:
 		*res = g_str_has_prefix(val, cond->rvalue.string->str);
