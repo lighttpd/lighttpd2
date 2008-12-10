@@ -355,6 +355,9 @@ void connection_reset(connection *con) {
 		}
 	}
 	ev_io_set(&con->sock_watcher, -1, 0);
+
+	vrequest_reset(con->mainvr);
+
 	g_string_truncate(con->remote_addr_str, 0);
 	g_string_truncate(con->local_addr_str, 0);
 	con->keep_alive = TRUE;
@@ -364,7 +367,6 @@ void connection_reset(connection *con) {
 
 	memcpy(con->options, con->srv->option_def_values->data, con->srv->option_def_values->len * sizeof(option_value));
 
-	vrequest_reset(con->mainvr);
 	http_request_parser_reset(&con->req_parser_ctx);
 
 	if (con->keep_alive_data.link) {
