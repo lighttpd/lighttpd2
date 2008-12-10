@@ -177,6 +177,7 @@ void path_simplify(GString *path) {
 		*len = sizeof(x) - 1; \
 		return x; \
 	} while(0)
+
 gchar *http_status_string(guint status_code, guint *len) {
 	/* RFC 2616 (as well as RFC 2518, RFC 2817, RFC 2295, RFC 2774, RFC 4918) */
 	switch (status_code) {
@@ -243,6 +244,38 @@ gchar *http_status_string(guint status_code, guint *len) {
 	default: SET_LEN_AND_RETURN_STR("unknown status");
 	}
 }
+
+gchar *http_method_string(http_method_t method, guint *len) {
+	switch (method) {
+	case HTTP_METHOD_UNSET:           SET_LEN_AND_RETURN_STR("UNKNOWN");
+	case HTTP_METHOD_GET:             SET_LEN_AND_RETURN_STR("GET");
+	case HTTP_METHOD_POST:            SET_LEN_AND_RETURN_STR("POST");
+	case HTTP_METHOD_HEAD:            SET_LEN_AND_RETURN_STR("HEAD");
+	case HTTP_METHOD_OPTIONS:         SET_LEN_AND_RETURN_STR("OPTIONS");
+	case HTTP_METHOD_PROPFIND:        SET_LEN_AND_RETURN_STR("PROPFIND");
+	case HTTP_METHOD_MKCOL:           SET_LEN_AND_RETURN_STR("MKCOL");
+	case HTTP_METHOD_PUT:             SET_LEN_AND_RETURN_STR("PUT");
+	case HTTP_METHOD_DELETE:          SET_LEN_AND_RETURN_STR("DELETE");
+	case HTTP_METHOD_COPY:            SET_LEN_AND_RETURN_STR("COPY");
+	case HTTP_METHOD_MOVE:            SET_LEN_AND_RETURN_STR("MOVE");
+	case HTTP_METHOD_PROPPATCH:       SET_LEN_AND_RETURN_STR("PROPPATCH");
+	case HTTP_METHOD_REPORT:          SET_LEN_AND_RETURN_STR("REPORT");
+	case HTTP_METHOD_CHECKOUT:        SET_LEN_AND_RETURN_STR("CHECKOUT");
+	case HTTP_METHOD_CHECKIN:         SET_LEN_AND_RETURN_STR("CHECKIN");
+	case HTTP_METHOD_VERSION_CONTROL: SET_LEN_AND_RETURN_STR("VERSION_CONTROL");
+	case HTTP_METHOD_UNCHECKOUT:      SET_LEN_AND_RETURN_STR("UNCHECKOUT");
+	case HTTP_METHOD_MKACTIVITY:      SET_LEN_AND_RETURN_STR("MKACTIVITY");
+	case HTTP_METHOD_MERGE:           SET_LEN_AND_RETURN_STR("MERGE");
+	case HTTP_METHOD_LOCK:            SET_LEN_AND_RETURN_STR("LOCK");
+	case HTTP_METHOD_UNLOCK:          SET_LEN_AND_RETURN_STR("UNLOCK");
+	case HTTP_METHOD_LABEL:           SET_LEN_AND_RETURN_STR("LABEL");
+	case HTTP_METHOD_CONNECT:         SET_LEN_AND_RETURN_STR("CONNECT");
+	}
+
+	*len = 0;
+	return NULL;
+}
+
 #undef SET_LEN_AND_RETURN_STR
 
 void http_status_to_str(gint status_code, gchar status_str[]) {
@@ -511,4 +544,16 @@ GString *sockaddr_to_string(sock_addr *saddr, GString *dest) {
 	}
 
 	return dest;
+}
+
+void gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, guint len) {
+	for (guint i = 0; i < gstr->len; i++) {
+		if (gstr->str[i] == c) {
+			/* char found, replace */
+			gstr->str[i] = str[0];
+			if (len > 1)
+				g_string_insert_len(gstr, i, &str[1], len-1);
+			i += len - 1;
+		}
+	}
 }
