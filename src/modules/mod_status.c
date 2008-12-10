@@ -193,13 +193,14 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 	UNUSED(fdata);
 	vrequest *vr = cbdata;
 
-	VR_TRACE(vr, "finished collecting data: %s", complete ? "complete" : "not complete");
-	vr->response.http_status = 200;
 
 	if (complete) {
 		GString *css;
 		GString *tmpstr;
 		guint total_connections = 0;
+
+		VR_TRACE(vr, "finished collecting data: %s", complete ? "complete" : "not complete");
+		vr->response.http_status = 200;
 
 		/* we got everything */
 		statistics_t totals = {
@@ -440,14 +441,14 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		chunkqueue_append_string(vr->con->out, html);
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
 		g_string_free(tmpstr, TRUE);
+
 		vrequest_handle_direct(vr);
+		vrequest_joblist_append(vr);
 	} else {
-		/* something went wrong, issue error page */
+		/* something went wrong, client may have dropped the connection */
 		CON_ERROR(vr->con, "%s", "collect request didn't end up complete");
 		vrequest_error(vr);
 	}
-
-	vrequest_joblist_append(vr);
 }
 
 static handler_t status_page_handle(vrequest *vr, gpointer param, gpointer *context) {
