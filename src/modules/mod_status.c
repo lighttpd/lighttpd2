@@ -450,22 +450,35 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 	vrequest_joblist_append(vr);
 }
 
-static handler_t status_page_handle(vrequest *vr, gpointer param) {
+static handler_t status_page_handle(vrequest *vr, gpointer param, gpointer *context) {
 	UNUSED(param);
 
 	if (vr->state == VRS_HANDLE_REQUEST_HEADERS) {
+		collect_info *ci;
 		VR_TRACE(vr, "%s", "collecting stats...");
 		/* abuse fdata as pointer to plugin */
-		collect_start(vr->con->wrk, status_collect_func, param, NULL, status_collect_cb, vr);
+		ci = collect_start(vr->con->wrk, status_collect_func, param, NULL, status_collect_cb, vr);
+		*context = ci;
 		return HANDLER_WAIT_FOR_EVENT;
 	}
 
 	return HANDLER_GO_ON;
 }
 
+static handler_t status_page_cleanup(vrequest *vr, gpointer param, gpointer context) {
+	collect_info *ci = context;
+
+	UNUSED(vr);
+	UNUSED(param);
+
+	collect_break(ci);
+
+	return HANDLER_GO_ON;
+}
+
 static action* status_page(server *srv, plugin* p, value *val) {
 	UNUSED(srv); UNUSED(p); UNUSED(val);
-	return action_new_function(status_page_handle, NULL, p);
+	return action_new_function(status_page_handle, status_page_cleanup, NULL, p);
 }
 
 

@@ -41,8 +41,10 @@ static GString *fortune_rand(fortune_data *fd) {
 	return g_array_index(fd->cookies, GString*, r);
 }
 
-static handler_t fortune_header_handle(vrequest *vr, gpointer param) {
+static handler_t fortune_header_handle(vrequest *vr, gpointer param, gpointer *context) {
 	fortune_data *fd = param;
+
+	UNUSED(context);
 
 	if (fd->cookies->len) {
 		GString *cookie = fortune_rand(fd);
@@ -53,11 +55,13 @@ static handler_t fortune_header_handle(vrequest *vr, gpointer param) {
 
 static action* fortune_header(server *srv, plugin* p, value *val) {
 	UNUSED(srv); UNUSED(val);
-	return action_new_function(fortune_header_handle, NULL, p->data);
+	return action_new_function(fortune_header_handle, NULL, NULL, p->data);
 }
 
-static handler_t fortune_page_handle(vrequest *vr, gpointer param) {
+static handler_t fortune_page_handle(vrequest *vr, gpointer param, gpointer *context) {
 	fortune_data *fd = param;
+
+	UNUSED(context);
 
 	if (!vrequest_handle_direct(vr))
 		return HANDLER_GO_ON;
@@ -76,7 +80,7 @@ static handler_t fortune_page_handle(vrequest *vr, gpointer param) {
 
 static action* fortune_page(server *srv, plugin* p, value *val) {
 	UNUSED(srv); UNUSED(val);
-	return action_new_function(fortune_page_handle, NULL, p->data);
+	return action_new_function(fortune_page_handle, NULL, NULL, p->data);
 }
 
 static gboolean fortune_load(server *srv, plugin* p, value *val) {
