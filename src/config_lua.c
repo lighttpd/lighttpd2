@@ -13,26 +13,71 @@ static value* lua_params_to_value(server *srv, lua_State *L) {
 	value *val, *subval;
 	switch (lua_gettop(L)) {
 	case 0:
-		return NULL;
 	case 1:
+		return NULL;
+	case 2:
 		return value_from_lua(srv, L);
 	default:
 		val = value_new_list();
-		g_array_set_size(val->data.list, lua_gettop(L));
-		while (lua_gettop(L) > 0) {
+		g_array_set_size(val->data.list, lua_gettop(L) - 1);
+		while (lua_gettop(L) > 1) {
 			if (NULL == (subval = value_from_lua(srv, L))) {
-				ERROR(srv, "%s", "Couldn't convert value from lua");
+				ERROR(srv, "Couldn't convert value from lua (lua type '%s')", lua_typename(L, lua_type(L, -1)));
 				value_free(val);
 				return NULL;
 			}
-			g_array_index(val->data.list, value*, lua_gettop(L)) = subval;
+			g_array_index(val->data.list, value*, lua_gettop(L) - 1) = subval;
 		}
 		return val;
 	}
 	return NULL;
 }
 
+/* Creates a table on the lua stack */
+static void lua_push_publish_hash_metatable(server *srv, lua_State *L);
+
 static int lua_str_hash_index(lua_State *L) {
+	server *srv;
+	GHashTable *ht;
+	LuaWrapper wrapper;
+
+	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
+	lua_pushstring(L, "__ht"); lua_rawget(L, 1);
+	ht = (GHashTable*) lua_touserdata(L, -1); lua_pop(L, 1);
+	lua_pushstring(L, "__wrapper"); lua_rawget(L, 1);
+	wrapper = (LuaWrapper)(intptr_t) lua_touserdata(L, -1); lua_pop(L, 1);
+	if (!lua_isstring(L, 2) || !ht || !wrapper) {
+		lua_pop(L, lua_gettop(L));
+		lua_pushstring(L, "lookup failed");
+		lua_error(L);
+		return 0;
+	}
+
+	/* TRACE(srv, "str hash index: '%s'", luaL_checklstring(L, 2, NULL)); */
+
+	lua_newtable(L);
+	lua_pushlightuserdata(L, ht);
+	lua_setfield(L, -2, "__ht");
+	lua_pushlightuserdata(L, (void*)(intptr_t)wrapper);
+	lua_setfield(L, -2, "__wrapper");
+
+	lua_pushstring(L, "__key"); lua_rawget(L, 1);
+	if (lua_isstring(L, -1)) {
+		lua_pushstring(L, ".");
+		lua_pushvalue(L, 2);
+		lua_concat(L, 3);
+	} else {
+		lua_pop(L, 1);
+		lua_pushvalue(L, 2);
+	}
+	lua_setfield(L, -2, "__key");
+	
+	lua_push_publish_hash_metatable(srv, L);
+	lua_setmetatable(L, -2);
+	return 1;
+}
+
+static int lua_str_hash_call(lua_State *L) {
 	server *srv;
 	GHashTable *ht;
 	LuaWrapper wrapper;
@@ -40,44 +85,58 @@ static int lua_str_hash_index(lua_State *L) {
 	gpointer d;
 
 	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
-	ht = (GHashTable*) lua_touserdata(L, lua_upvalueindex(2));
-	wrapper = (LuaWrapper)(intptr_t) lua_touserdata(L, lua_upvalueindex(3));
-	key = luaL_checklstring(L, 2, NULL);
+	lua_pushstring(L, "__ht"); lua_rawget(L, 1);
+	ht = (GHashTable*) lua_touserdata(L, -1); lua_pop(L, 1);
+	lua_pushstring(L, "__wrapper"); lua_rawget(L, 1);
+	wrapper = (LuaWrapper)(intptr_t) lua_touserdata(L, -1); lua_pop(L, 1);
+	lua_pushstring(L, "__key"); lua_rawget(L, 1);
+	key = luaL_checklstring(L, -1, NULL);
+
+	/* TRACE(srv, "str hash call: '%s'", key); */
 
 	if (key && NULL != (d = g_hash_table_lookup(ht, key))) {
-		lua_pop(L, lua_gettop(L));
+		lua_pop(L, 1);
 		return wrapper(srv, L, d);
 	}
 
 	lua_pop(L, lua_gettop(L));
-	lua_pushnil(L);
-	return 1;
+	lua_pushstring(L, "lookup failed");
+	lua_error(L);
+	return 0;
 }
 
-/* Creates a table on the lua stack */
+#define LUA_PUBLISH_HASH "GHashTable*"
+static void lua_push_publish_hash_metatable(server *srv, lua_State *L) {
+	if (luaL_newmetatable(L, LUA_PUBLISH_HASH)) {
+		lua_pushlightuserdata(L, srv);
+		lua_pushcclosure(L, lua_str_hash_index, 1);
+		lua_setfield(L, -2, "__index");
+		
+		lua_pushlightuserdata(L, srv);
+		lua_pushcclosure(L, lua_str_hash_call, 1);
+		lua_setfield(L, -2, "__call");
+	}
+}
+
 static gboolean publish_str_hash(server *srv, lua_State *L, GHashTable *ht, LuaWrapper wrapper) {
 	lua_newtable(L);                   /* { } */
-	lua_newtable(L);                   /* metatable */
-
-	lua_pushlightuserdata(L, srv);
 	lua_pushlightuserdata(L, ht);
+	lua_setfield(L, -2, "__ht");
 	lua_pushlightuserdata(L, (void*)(intptr_t)wrapper);
-	lua_pushcclosure(L, lua_str_hash_index, 3);
+	lua_setfield(L, -2, "__wrapper");
 
-	lua_setfield(L, -2, "__index");
+	lua_push_publish_hash_metatable(srv, L);
 	lua_setmetatable(L, -2);
 	return TRUE;
 }
 
-static int handle_server_action(lua_State *L) {
-	server *srv;
-	server_action *sa;
+
+static int handle_server_action(server *srv, lua_State *L, gpointer _sa) {
+	server_action *sa = (server_action*) _sa;
 	value *val;
 	action *a;
 
-	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
-	sa = (server_action*) lua_touserdata(L, lua_upvalueindex(2));
-
+	lua_checkstack(L, 16);
 	val = lua_params_to_value(srv, L);
 
 	/* TRACE(srv, "%s", "Creating action"); */
@@ -92,21 +151,11 @@ static int handle_server_action(lua_State *L) {
 	return lua_push_action(srv, L, a);
 }
 
-static int wrap_server_action(server *srv, lua_State *L, gpointer sa) {
-	lua_pushlightuserdata(L, srv);
-	lua_pushlightuserdata(L, sa);
-	lua_pushcclosure(L, handle_server_action, 2);
-	return 1;
-}
-
-static int handle_server_setup(lua_State *L) {
-	server *srv;
-	server_setup *ss;
+static int handle_server_setup(server *srv, lua_State *L, gpointer _ss) {
+	server_setup *ss = (server_setup*) _ss;
 	value *val;
 
-	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
-	ss = (server_setup*) lua_touserdata(L, lua_upvalueindex(2));
-
+	lua_checkstack(L, 16);
 	val = lua_params_to_value(srv, L);
 
 	/* TRACE(srv, "%s", "Calling setup"); */
@@ -119,13 +168,6 @@ static int handle_server_setup(lua_State *L) {
 
 	value_free(val);
 	return 0;
-}
-
-static int wrap_server_setup(server *srv, lua_State *L, gpointer ss) {
-	lua_pushlightuserdata(L, srv);
-	lua_pushlightuserdata(L, ss);
-	lua_pushcclosure(L, handle_server_setup, 2);
-	return 1;
 }
 
 gboolean config_lua_load(server *srv, const gchar *filename) {
@@ -141,10 +183,10 @@ gboolean config_lua_load(server *srv, const gchar *filename) {
 
 	TRACE(srv, "Loaded config script '%s'", filename);
 
-	publish_str_hash(srv, L, srv->setups, wrap_server_setup);
+	publish_str_hash(srv, L, srv->setups, handle_server_setup);
 	lua_setfield(L, LUA_GLOBALSINDEX, "setup");
 
-	publish_str_hash(srv, L, srv->actions, wrap_server_action);
+	publish_str_hash(srv, L, srv->actions, handle_server_action);
 	lua_setfield(L, LUA_GLOBALSINDEX, "action");
 
 	lua_push_lvalues_dict(srv, L);
