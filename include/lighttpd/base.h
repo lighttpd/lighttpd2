@@ -30,6 +30,7 @@
 
 #include <lighttpd/server.h>
 #include <lighttpd/worker.h>
+#include <lighttpd/angel.h>
 #include <lighttpd/condition.h>
 #include <lighttpd/options.h>
 #include <lighttpd/value.h>

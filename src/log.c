@@ -20,6 +20,11 @@ const char *remove_path(const char *path) {
 void log_write(server *srv, log_t *log, GString *msg) {
 	log_entry_t *log_entry;
 
+	if (g_atomic_int_get(&srv->state) == SERVER_STARTING) {
+		angel_log(srv, msg);
+		return;
+	}
+
 	log_ref(srv, log);
 
 	log_entry = g_slice_new(log_entry_t);
@@ -118,7 +123,10 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint f
 
 	g_string_append_len(log_line, CONST_STR_LEN("\r\n"));
 
-
+	if (g_atomic_int_get(&srv->state) == SERVER_STARTING) {
+		log_unref(srv, log);
+		return angel_log(srv, log_line);
+	}
 	log_entry = g_slice_new(log_entry_t);
 	log_entry->log = log;
 	log_entry->msg = log_line;
