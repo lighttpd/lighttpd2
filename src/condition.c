@@ -1,12 +1,12 @@
 #include <lighttpd/base.h>
 
 static gboolean condition_parse_ip(condition_rvalue *val, const char *txt) {
-	if (parse_ipv4(txt, &val->ipv4.addr, NULL)) {
+	if (parse_ipv4(txt, &val->ipv4.addr, NULL, NULL)) {
 		val->type = COND_VALUE_SOCKET_IPV4;
 		val->ipv4.networkmask = 0xFFFFFFFF;
 		return TRUE;
 	}
-	if (parse_ipv6(txt, val->ipv6.addr, NULL)) {
+	if (parse_ipv6(txt, val->ipv6.addr, NULL, NULL)) {
 		val->type = COND_VALUE_SOCKET_IPV6;
 		val->ipv6.network = 128;
 		return TRUE;
@@ -15,11 +15,11 @@ static gboolean condition_parse_ip(condition_rvalue *val, const char *txt) {
 }
 
 static gboolean condition_parse_ip_net(condition_rvalue *val, const char *txt) {
-	if (parse_ipv4(txt, &val->ipv4.addr, &val->ipv4.networkmask)) {
+	if (parse_ipv4(txt, &val->ipv4.addr, &val->ipv4.networkmask, NULL)) {
 		val->type = COND_VALUE_SOCKET_IPV4;
 		return TRUE;
 	}
-	if (parse_ipv6(txt, val->ipv6.addr, &val->ipv6.network)) {
+	if (parse_ipv6(txt, val->ipv6.addr, &val->ipv6.network, NULL)) {
 		val->type = COND_VALUE_SOCKET_IPV6;
 		return TRUE;
 	}
