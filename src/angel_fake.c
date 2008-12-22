@@ -78,7 +78,7 @@ int angel_fake_listen(server *srv, GString *str) {
 	}
 }
 
-/* send log messages while startup to angel */
+/* print log messages during startup to stderr */
 gboolean angel_fake_log(server *srv, GString *str) {
 	const char *buf;
 	guint len;
@@ -92,6 +92,11 @@ gboolean angel_fake_log(server *srv, GString *str) {
 	while (len > 0) {
 		written = write(2, buf, len);
 		if (written < 0) {
+			switch (errno) {
+			case EAGAIN:
+			case EINTR:
+				continue;
+			}
 			g_string_free(str, TRUE);
 			return FALSE;
 		}

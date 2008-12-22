@@ -6,7 +6,7 @@
 /* listen to a socket */
 LI_API int angel_listen(server *srv, GString *str);
 
-/* send log messages while startup to angel, frees the string */
+/* send log messages during startup to angel, frees the string */
 LI_API gboolean angel_log(server *srv, GString *str);
 
 
