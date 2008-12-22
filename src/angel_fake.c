@@ -24,7 +24,7 @@ int angel_fake_listen(server *srv, GString *str) {
 		v = 1;
 		if (-1 == setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &v, sizeof(v))) {
 			close(s);
-			ERROR(srv, "Couldn't setsockopt(SO_REUSEADDR) to '%s': %s", inet_ntoa(*(struct in_addr*)&ipv4), g_strerror(errno));
+			ERROR(srv, "Couldn't setsockopt(SO_REUSEADDR): %s", g_strerror(errno));
 			return -1;
 		}
 		if (-1 == bind(s, (struct sockaddr*)&addr, sizeof(addr))) {
@@ -58,7 +58,13 @@ int angel_fake_listen(server *srv, GString *str) {
 		v = 1;
 		if (-1 == setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &v, sizeof(v))) {
 			close(s);
-			ERROR(srv, "Couldn't setsockopt(SO_REUSEADDR) to '%s': %s", ipv6_str->str, g_strerror(errno));
+			ERROR(srv, "Couldn't setsockopt(SO_REUSEADDR): %s", g_strerror(errno));
+			g_string_free(ipv6_str, TRUE);
+			return -1;
+		}
+		if (-1 == setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, &v, sizeof(v))) {
+			close(s);
+			ERROR(srv, "Couldn't setsockopt(IPV6_V6ONLY): %s", g_strerror(errno));
 			g_string_free(ipv6_str, TRUE);
 			return -1;
 		}
