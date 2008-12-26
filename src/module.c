@@ -12,8 +12,7 @@ modules *modules_init(gpointer main, const gchar *module_dir) {
 	return m;
 }
 
-/* for internal use only */
-static module *module_lookup(modules *mods, const gchar *name) {
+module *module_lookup(modules *mods, const gchar *name) {
 	module *mod;
 	GArray *a = mods->mods;
 

@@ -54,6 +54,9 @@ LI_API void modules_cleanup(modules *mods);
   * You should release modules after you used them with module_release or module_release_name */
 LI_API module* module_load(modules *mods, const gchar* name);
 
+/* find module by name */
+LI_API module *module_lookup(modules *mods, const gchar *name);
+
 LI_API void module_acquire(module *mod);
 LI_API void module_release(modules *mods, module *mod);
 LI_API void module_release_name(modules *mods, const gchar* name);
