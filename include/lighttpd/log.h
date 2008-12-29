@@ -22,6 +22,9 @@ LI_API const char *remove_path(const char *path);
 #define ERROR(srv, fmt, ...) \
 	log_write_(srv, NULL, LOG_LEVEL_ERROR, LOG_FLAG_TIMETAMP, "(error) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
+#define WARNING(srv, fmt, ...) \
+	log_write_(srv, NULL, LOG_LEVEL_WARNING, LOG_FLAG_TIMETAMP, "(warning) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+
 #define INFO(srv, fmt, ...) \
 	log_write_(srv, NULL, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "(info) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
@@ -30,10 +33,16 @@ LI_API const char *remove_path(const char *path);
 
 
 #define CON_ERROR(con, fmt, ...) \
-	log_write_(con->srv, con, LOG_LEVEL_ERROR, LOG_FLAG_TIMETAMP, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(con->srv, con, LOG_LEVEL_ERROR, LOG_FLAG_TIMETAMP, "(error) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+
+#define CON_WARNING(con, fmt, ...) \
+	log_write_(con->srv, con, LOG_LEVEL_WARNING, LOG_FLAG_TIMETAMP, "(warning) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+
+#define CON_INFO(con, fmt, ...) \
+	log_write_(con->srv, con, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "(info) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define CON_TRACE(con, fmt, ...) \
-	log_write_(con->srv, con, LOG_LEVEL_DEBUG, LOG_FLAG_TIMETAMP, "%s.%d: (debug) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(con->srv, con, LOG_LEVEL_DEBUG, LOG_FLAG_TIMETAMP, "(debug) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 
 /* TODO: perhaps make portable (detect if cc supports) */
@@ -45,19 +54,19 @@ LI_API const char *remove_path(const char *path);
 
 /* convenience makros */
 #define log_error(srv, con, fmt, ...) \
-	log_write_(srv, con, LOG_LEVEL_ERROR, LOG_FLAG_TIMETAMP, "%s.%d: (error) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, con, LOG_LEVEL_ERROR, LOG_FLAG_TIMETAMP, "(error) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define log_warning(srv, con, fmt, ...) \
-	log_write_(srv, con, LOG_LEVEL_WARNING, LOG_FLAG_TIMETAMP, "%s.%d: (warning) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, con, LOG_LEVEL_WARNING, LOG_FLAG_TIMETAMP, "(warning) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define log_info(srv, con, fmt, ...) \
-	log_write_(srv, con, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "%s.%d: (info) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, con, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "(info) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define log_message(srv, con, fmt, ...) \
-	log_write_(srv, con, LOG_LEVEL_MESSAGE, LOG_FLAG_TIMETAMP, "%s.%d: (message) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, con, LOG_LEVEL_MESSAGE, LOG_FLAG_TIMETAMP, "(message) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define log_debug(srv, con, fmt, ...) \
-	log_write_(srv, con, LOG_LEVEL_DEBUG, LOG_FLAG_TIMETAMP, "%s.%d: (debug) "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, con, LOG_LEVEL_DEBUG, LOG_FLAG_TIMETAMP, "(debug) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 
 
