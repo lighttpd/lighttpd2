@@ -19,7 +19,6 @@ static action* core_list(server *srv, plugin* p, value *val) {
 	if (val->type == VALUE_ACTION) {
 		a = val->data.val_action.action;
 		action_acquire(a);
-		value_free(val);
 		return a;
 	}
 
