@@ -141,7 +141,7 @@ gboolean request_validate_header(connection *con) {
 
 		r = str_to_off_t(val, &err, 10);
 		if (*err != '\0') {
-			CON_TRACE(con, "content-length is not a number: %s (Status: 400)", err);
+			_DEBUG(con->srv, con->mainvr, "content-length is not a number: %s (Status: 400)", err);
 			bad_request(con, 400); /* bad request */
 			return FALSE;
 		}

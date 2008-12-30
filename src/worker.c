@@ -110,7 +110,7 @@ static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents)
 	while ((wqe = waitqueue_pop(&wrk->io_timeout_queue)) != NULL) {
 		/* connection has timed out */
 		con = wqe->data;
-		CON_TRACE(con, "connection io-timeout from %s after %.2f seconds", con->remote_addr_str->str, now - wqe->ts);
+		_DEBUG(con->srv, con->mainvr, "connection io-timeout from %s after %.2f seconds", con->remote_addr_str->str, now - wqe->ts);
 		plugins_handle_close(con);
 		worker_con_put(con);
 	}
@@ -218,7 +218,7 @@ static void worker_stats_watcher_cb(struct ev_loop *loop, ev_timer *w, int reven
 		wrk->stats.requests_per_sec =
 			(wrk->stats.requests - wrk->stats.last_requests) / (now - wrk->stats.last_update);
 		if (wrk->stats.requests_per_sec > 0)
-			TRACE(wrk->srv, "worker %u: %.2f requests per second", wrk->ndx, wrk->stats.requests_per_sec);
+			DEBUG(wrk->srv, "worker %u: %.2f requests per second", wrk->ndx, wrk->stats.requests_per_sec);
 	}
 
 	/* 5s averages */

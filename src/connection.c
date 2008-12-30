@@ -31,7 +31,7 @@ static void forward_response_body(connection *con) {
 		if (!con->response_headers_sent) {
 			con->response_headers_sent = TRUE;
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-				CON_TRACE(con, "%s", "write response headers");
+				VR_DEBUG(vr, "%s", "write response headers");
 			}
 			response_send_headers(con);
 		}
@@ -51,7 +51,7 @@ static void forward_response_body(connection *con) {
 static void connection_request_done(connection *con) {
 	vrequest *vr = con->mainvr;
 	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-		CON_TRACE(con, "response end (keep_alive = %i)", con->keep_alive);
+		VR_DEBUG(con->mainvr, "response end (keep_alive = %i)", con->keep_alive);
 	}
 
 	plugins_handle_close(con);
@@ -74,7 +74,7 @@ static gboolean check_response_done(connection *con) {
 static void connection_close(connection *con) {
 	vrequest *vr = con->mainvr;
 	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-		CON_TRACE(con, "%s", "connection closed");
+		VR_DEBUG(vr, "%s", "connection closed");
 	}
 
 	plugins_handle_close(con);
@@ -85,7 +85,7 @@ static void connection_close(connection *con) {
 void connection_error(connection *con) {
 	vrequest *vr = con->mainvr;
 	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-		CON_TRACE(con, "%s", "connection closed (error)");
+		VR_DEBUG(vr, "%s", "connection closed (error)");
 	}
 
 	plugins_handle_close(con);
@@ -137,7 +137,7 @@ static gboolean connection_handle_read(connection *con) {
 
 	if (con->state == CON_STATE_READ_REQUEST_HEADER && con->mainvr->state == VRS_CLEAN) {
 		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-			CON_TRACE(con, "%s", "reading request header");
+			VR_DEBUG(vr, "%s", "reading request header");
 		}
 		switch(http_request_parse(con->mainvr, &con->req_parser_ctx)) {
 		case HANDLER_FINISHED:
@@ -157,7 +157,7 @@ static gboolean connection_handle_read(connection *con) {
 
 		/* headers ready */
 		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-			CON_TRACE(con, "%s", "validating request header");
+			VR_DEBUG(vr, "%s", "validating request header");
 		}
 		if (!request_validate_header(con)) {
 			/* skip mainvr handling */
@@ -188,7 +188,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				if (!connection_handle_read(con)) return;
 				break;
 			case NETWORK_STATUS_FATAL_ERROR:
-				CON_ERROR(con, "%s", "network read fatal error");
+				_ERROR(con->srv, con->mainvr, "%s", "network read fatal error");
 				connection_error(con);
 				return;
 			case NETWORK_STATUS_CONNECTION_CLOSE:
@@ -217,7 +217,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				vrequest_joblist_append(con->mainvr);
 				break;
 			case NETWORK_STATUS_FATAL_ERROR:
-				CON_ERROR(con, "%s", "network write fatal error");
+				_ERROR(con->srv, con->mainvr, "%s", "network write fatal error");
 				connection_error(con);
 				break;
 			case NETWORK_STATUS_CONNECTION_CLOSE:
@@ -227,17 +227,17 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				break;
 			case NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
 				ev_io_rem_events(loop, w, EV_WRITE);
-				CON_ERROR(con, "%s", "TODO: wait for aio");
+				_ERROR(con->srv, con->mainvr, "%s", "TODO: wait for aio");
 				/* TODO: aio */
 				break;
 			case NETWORK_STATUS_WAIT_FOR_FD:
 				ev_io_rem_events(loop, w, EV_WRITE);
-				CON_ERROR(con, "%s", "TODO: wait for fd");
+				_ERROR(con->srv, con->mainvr, "%s", "TODO: wait for fd");
 				/* TODO: wait for fd */
 				break;
 			}
 		} else {
-			CON_TRACE(con, "%s", "write event for empty queue");
+			_DEBUG(con->srv, con->mainvr, "%s", "write event for empty queue");
 			ev_io_rem_events(loop, w, EV_WRITE);
 		}
 	}
@@ -254,11 +254,11 @@ static void connection_keepalive_cb(struct ev_loop *loop, ev_timer *w, int reven
 static handler_t mainvr_handle_response_headers(vrequest *vr) {
 	connection *con = vr->con;
 	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-		VR_TRACE(vr, "%s", "read request/handle response header");
+		VR_DEBUG(vr, "%s", "read request/handle response header");
 	}
 	if (con->expect_100_cont) {
 		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-			VR_TRACE(vr, "%s", "send 100 Continue");
+			VR_DEBUG(vr, "%s", "send 100 Continue");
 		}
 		chunkqueue_append_mem(con->raw_out, CONST_STR_LEN("HTTP/1.1 100 Continue\r\n\r\n"));
 		con->expect_100_cont = FALSE;
@@ -274,7 +274,7 @@ static handler_t mainvr_handle_response_body(vrequest *vr) {
 	if (check_response_done(con)) return HANDLER_FINISHED;
 
 	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-		CON_TRACE(con, "%s", "write response");
+		VR_DEBUG(vr, "%s", "write response");
 	}
 
 	parse_request_body(con);

@@ -181,7 +181,7 @@ gboolean config_lua_load(server *srv, const gchar *filename) {
 		return FALSE;
 	}
 
-	TRACE(srv, "Loaded config script '%s'", filename);
+	DEBUG(srv, "Loaded config script '%s'", filename);
 
 	publish_str_hash(srv, L, srv->setups, handle_server_setup);
 	lua_setfield(L, LUA_GLOBALSINDEX, "setup");

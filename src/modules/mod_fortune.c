@@ -127,7 +127,7 @@ static gboolean fortune_load(server *srv, plugin* p, value *val) {
 
 	g_free(data);
 
-	TRACE(srv, "loaded %u cookies from file '%s'", count, file);
+	DEBUG(srv, "loaded %u cookies from file '%s'", count, file);
 
 	return TRUE;
 }

@@ -254,7 +254,7 @@
 				gboolean negative = FALSE;
 
 				if (o->type != VALUE_STRING) {
-					log_error(srv, NULL, "can only cast strings to integers, %s given", value_type_string(o->type));
+					ERROR(srv, "can only cast strings to integers, %s given", value_type_string(o->type));
 					return FALSE;
 				}
 
@@ -266,7 +266,7 @@
 				for (; i < o->data.string->len; i++) {
 					gchar c = o->data.string->str[i];
 					if (c < '0' || c > '9') {
-						log_error(srv, NULL, "%s", "cast(int) parameter doesn't look like a numerical string");
+						ERROR(srv, "%s", "cast(int) parameter doesn't look like a numerical string");
 						return FALSE;
 					}
 					x = x * 10 + c - '0';
@@ -284,7 +284,7 @@
 				GString *str;
 
 				if (o->type != VALUE_NUMBER) {
-					log_error(srv, NULL, "can only cast integers to strings, %s given", value_type_string(o->type));
+					ERROR(srv, "can only cast integers to strings, %s given", value_type_string(o->type));
 					return FALSE;
 				}
 
@@ -356,7 +356,7 @@
 			else if (r->type == VALUE_NUMBER && ctx->value_op == '*') {
 				/* str * int */
 				if (r->data.number < 0) {
-					log_error(srv, NULL, "string multiplication with negative number (%" G_GINT64_FORMAT ")?", r->data.number);
+					ERROR(srv, "string multiplication with negative number (%" G_GINT64_FORMAT ")?", r->data.number);
 					return FALSE;
 				}
 				else if (r->data.number == 0) {
@@ -408,7 +408,7 @@
 		}
 
 		if (o == NULL) {
-			log_warning(srv, NULL, "erronous value statement: %s %c %s in line %zd\n",
+			WARNING(srv, "erronous value statement: %s %c %s in line %zd\n",
 				value_type_string(l->type), ctx->value_op,
 				value_type_string(r->type), ctx->line);
 			return FALSE;
@@ -454,7 +454,7 @@
 			t = g_hash_table_lookup(ctx->uservars, o->data.string);
 
 			if (t == NULL) {
-				log_warning(srv, NULL, "unknown variable '%s'", o->data.string->str);
+				WARNING(srv, "unknown variable '%s'", o->data.string->str);
 				value_free(o);
 				return FALSE;
 			}
@@ -465,7 +465,7 @@
 			/* look up string in environment, push value onto stack */
 			gchar *env = getenv(o->data.string->str + 4);
 			if (env == NULL) {
-				log_error(srv, NULL, "unknown environment variable: %s", o->data.string->str + 4);
+				ERROR(srv, "unknown environment variable: %s", o->data.string->str + 4);
 				value_free(o);
 				return FALSE;
 			}
@@ -478,7 +478,7 @@
 			a = g_hash_table_lookup(ctx->action_blocks, o->data.string);
 
 			if (a == NULL) {
-				log_warning(srv, NULL, "unknown action block referenced: %s", o->data.string->str);
+				WARNING(srv,  "unknown action block referenced: %s", o->data.string->str);
 				return FALSE;
 			}
 
@@ -620,7 +620,7 @@
 
 		if (g_str_equal(name->data.string->str, "include")) {
 			if (val->type != VALUE_STRING) {
-				log_warning(srv, NULL, "include directive takes a string as parameter, %s given", value_type_string(val->type));
+				WARNING(srv,  "include directive takes a string as parameter, %s given", value_type_string(val->type));
 				value_free(name);
 				value_free(val);
 				return FALSE;
@@ -636,7 +636,7 @@
 		}
 		else if (g_str_equal(name->data.string->str, "include_shell")) {
 			if (val->type != VALUE_STRING) {
-				log_warning(srv, NULL, "include_shell directive takes a string as parameter, %s given", value_type_string(val->type));
+				WARNING(srv,  "include_shell directive takes a string as parameter, %s given", value_type_string(val->type));
 				value_free(name);
 				value_free(val);
 				return FALSE;
@@ -716,7 +716,7 @@
 			else if (g_str_has_prefix(str, "uest."))
 				str += 5;
 			else {
-				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->data.string->str);
+				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
 				return FALSE;
 			}
 
@@ -732,13 +732,13 @@
 				lvalue = condition_lvalue_new(COMP_REQUEST_SCHEME, NULL);
 			else if (g_str_equal(str, "header")) {
 				if (k == NULL) {
-					log_warning(srv, NULL, "%s", "header conditional needs a key");
+					WARNING(srv, "%s", "header conditional needs a key");
 					return FALSE;
 				}
 				lvalue = condition_lvalue_new(COMP_REQUEST_HEADER, value_extract(k).string);
 			}
 			else {
-				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->data.string->str);
+				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
 				return FALSE;
 			}
 		}
@@ -749,7 +749,7 @@
 			else if (g_str_has_prefix(str, "ical."))
 				str += 5;
 			else {
-				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->data.string->str);
+				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
 				return FALSE;
 			}
 
@@ -760,12 +760,12 @@
 			else if (g_str_equal(str, "size"))
 				lvalue = condition_lvalue_new(COMP_PHYSICAL_SIZE, NULL);
 			else {
-				log_warning(srv, NULL, "unkown lvalue for condition: %s", n->data.string->str);
+				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
 				return FALSE;
 			}
 		}
 		else {
-			log_warning(srv, NULL, "unkown lvalue for condition: %s", n->data.string->str);
+			WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
 			return FALSE;
 		}
 
@@ -780,7 +780,7 @@
 
 
 		if (cond == NULL) {
-			log_warning(srv, NULL, "%s", "could not create condition");
+			WARNING(srv, "%s", "could not create condition");
 			return FALSE;
 		}
 
@@ -1123,7 +1123,7 @@ gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path) {
 	if (!g_file_get_contents(path, &ctx->ptr, &ctx->len, &err))
 	{
 		/* could not read file */
-		log_warning(srv, NULL, "could not read config file \"%s\". reason: \"%s\" (%d)", path, err->message, err->code);
+		WARNING(srv, "could not read config file \"%s\". reason: \"%s\" (%d)", path, err->message, err->code);
 		config_parser_context_free(srv, ctx, FALSE);
 		g_error_free(err);
 		return FALSE;
@@ -1135,7 +1135,7 @@ gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path) {
 	res = config_parser_buffer(srv, ctx_stack);
 
 	if (!res)
-		log_warning(srv, NULL, "config parsing failed in line %zd of %s", ctx->line, ctx->filename);
+		WARNING(srv, "config parsing failed in line %zd of %s", ctx->line, ctx->filename);
 
 	/* pop from stack */
 	ctx_stack = g_list_delete_link(ctx_stack, ctx_stack);
@@ -1161,7 +1161,7 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 
 	if (!g_spawn_command_line_sync(command, &_stdout, &_stderr, &status, &err))
 	{
-		log_warning(srv, NULL, "error launching shell command \"%s\": %s (%d)", command, err->message, err->code);
+		WARNING(srv, "error launching shell command \"%s\": %s (%d)", command, err->message, err->code);
 		config_parser_context_free(srv, ctx, FALSE);
 		g_error_free(err);
 		return FALSE;
@@ -1169,8 +1169,8 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 
 	if (status != 0)
 	{
-		log_warning(srv, NULL, "shell command \"%s\" exited with status %d", command, status);
-		log_debug(srv, NULL, "stdout:\n-----\n%s\n-----\nstderr:\n-----\n%s\n-----", _stdout, _stderr);
+		WARNING(srv, "shell command \"%s\" exited with status %d", command, status);
+		DEBUG(srv, "stdout:\n-----\n%s\n-----\nstderr:\n-----\n%s\n-----", _stdout, _stderr);
 		g_free(_stdout);
 		g_free(_stderr);
 		config_parser_context_free(srv, ctx, FALSE);
@@ -1180,7 +1180,7 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 	ctx->len = strlen(_stdout);
 	ctx->ptr = _stdout;
 
-	log_debug(srv, NULL, "included shell output from \"%s\" (%zu bytes)", command, ctx->len);
+	DEBUG(srv, "included shell output from \"%s\" (%zu bytes)", command, ctx->len);
 
 	/* push on stack */
 	ctx_stack = g_list_prepend(ctx_stack, ctx);
@@ -1213,7 +1213,7 @@ gboolean config_parser_buffer(server *srv, GList *ctx_stack)
 	if (ctx->cs == config_parser_error || ctx->cs == config_parser_first_final)
 	{
 		/* parse error */
-		log_warning(srv, NULL, "parse error in line %zd of \"%s\" at character '%c' (0x%.2x)", ctx->line, ctx->filename, *ctx->p, *ctx->p);
+		WARNING(srv, "parse error in line %zd of \"%s\" at character '%c' (0x%.2x)", ctx->line, ctx->filename, *ctx->p, *ctx->p);
 		return FALSE;
 	}
 

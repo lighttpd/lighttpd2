@@ -244,7 +244,7 @@ void vrequest_state_machine(vrequest *vr) {
 
 		case VRS_HANDLE_REQUEST_HEADERS:
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-				VR_TRACE(vr, "%s", "handle request header");
+				VR_DEBUG(vr, "%s", "handle request header");
 			}
 			if (!vrequest_do_handle_actions(vr)) return;
 			res = vr->handle_request_headers(vr);

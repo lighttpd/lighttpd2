@@ -199,7 +199,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		GString *tmpstr;
 		guint total_connections = 0;
 
-		VR_TRACE(vr, "finished collecting data: %s", complete ? "complete" : "not complete");
+		VR_DEBUG(vr, "finished collecting data: %s", complete ? "complete" : "not complete");
 		vr->response.http_status = 200;
 
 		/* we got everything */
@@ -446,7 +446,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		vrequest_joblist_append(vr);
 	} else {
 		/* something went wrong, client may have dropped the connection */
-		CON_ERROR(vr->con, "%s", "collect request didn't end up complete");
+		VR_ERROR(vr, "%s", "collect request didn't end up complete");
 		vrequest_error(vr);
 	}
 }
@@ -456,7 +456,7 @@ static handler_t status_page_handle(vrequest *vr, gpointer param, gpointer *cont
 
 	if (vr->state == VRS_HANDLE_REQUEST_HEADERS) {
 		collect_info *ci;
-		VR_TRACE(vr, "%s", "collecting stats...");
+		VR_DEBUG(vr, "%s", "collecting stats...");
 		/* abuse fdata as pointer to plugin */
 		ci = collect_start(vr->con->wrk, status_collect_func, param, NULL, status_collect_cb, vr);
 		*context = ci;

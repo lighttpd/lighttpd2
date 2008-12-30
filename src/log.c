@@ -34,17 +34,16 @@ void log_write(server *srv, log_t *log, GString *msg) {
 	g_async_queue_push(srv->logs.queue, log_entry);
 }
 
-gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint flags, const gchar *fmt, ...) {
+gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flags, const gchar *fmt, ...) {
 	va_list ap;
 	GString *log_line;
 	log_t *log = NULL;
 	log_entry_t *log_entry;
 	log_timestamp_t *ts = NULL;
-	vrequest *vr = con ? con->mainvr : NULL;
 
-	if (con != NULL) {
+	if (vr != NULL) {
 
-		if (!srv) srv = con->srv;
+		if (!srv) srv = vr->con->srv;
 		/* get log from connection */
 		log = g_array_index(CORE_OPTION(CORE_OPTION_LOG).list, log_t*, log_level);
 		if (log == NULL)
@@ -82,7 +81,7 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint f
 			if (log->lastmsg_count > 0) {
 				guint count = log->lastmsg_count;
 				log->lastmsg_count = 0;
-				log_write_(srv, con, log_level, flags | LOG_FLAG_NOLOCK | LOG_FLAG_ALLOW_REPEAT, "last message repeated %d times", count);
+				log_write_(srv, vr, log_level, flags | LOG_FLAG_NOLOCK | LOG_FLAG_ALLOW_REPEAT, "last message repeated %d times", count);
 			}
 		}
 	}
@@ -96,8 +95,8 @@ gboolean log_write_(server *srv, connection *con, log_level_t log_level, guint f
 		g_mutex_lock(srv->logs.mutex);
 
 		/* if we have a worker context, we can use its timestamp to save us a call to time() */
-		if (con != NULL)
-			cur_ts = (time_t)CUR_TS(con->wrk);
+		if (vr != NULL)
+			cur_ts = (time_t)CUR_TS(vr->con->wrk);
 		else
 			cur_ts = time(NULL);
 

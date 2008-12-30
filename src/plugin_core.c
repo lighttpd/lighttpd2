@@ -149,7 +149,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 	g_string_append_len(vr->physical.path, GSTR_LEN(CORE_OPTION(CORE_OPTION_DOCROOT).string));
 	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
 
-	VR_TRACE(vr, "physical path: %s", vr->physical.path->str);
+	VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
 
 	if (vr->physical.path->len == 0) return HANDLER_GO_ON;
 
@@ -158,7 +158,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 	fd = open(vr->physical.path->str, O_RDONLY);
 	if (fd == -1) {
 		vr->response.http_status = 404;
-		VR_TRACE(vr, "open() failed: %s (%d)", g_strerror(errno), errno);
+		VR_DEBUG(vr, "open() failed: %s (%d)", g_strerror(errno), errno);
 
 		switch (errno) {
 		case ENOENT:
@@ -388,7 +388,7 @@ static gboolean core_event_handler(server *srv, plugin* p, value *val) {
 		}
 
 		if (!(ev_recommended_backends() & backend)) {
-			TRACE(srv, "warning: event handler '%s' not recommended for this platform!", str);
+			DEBUG(srv, "warning: event handler '%s' not recommended for this platform!", str);
 		}
 	}
 
@@ -453,7 +453,7 @@ static gboolean core_module_load(server *srv, plugin* p, value *val) {
 			return FALSE;
 		}
 
-		TRACE(srv, "loaded module '%s'", name->str);
+		DEBUG(srv, "loaded module '%s'", name->str);
 	}
 
 	value_free(mods);

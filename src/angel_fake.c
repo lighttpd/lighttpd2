@@ -37,7 +37,7 @@ int angel_fake_listen(server *srv, GString *str) {
 			ERROR(srv, "Couldn't listen on '%s': %s", inet_ntoa(*(struct in_addr*)&ipv4), g_strerror(errno));
 			return -1;
 		}
-		TRACE(srv, "listen to ipv4: '%s' port: %d", inet_ntoa(*(struct in_addr*)&ipv4), port);
+		DEBUG(srv, "listen to ipv4: '%s' port: %d", inet_ntoa(*(struct in_addr*)&ipv4), port);
 		return s;
 #ifdef HAVE_IPV6
 	} else if (parse_ipv6(str->str, ipv6, NULL, &port)) {
@@ -80,7 +80,7 @@ int angel_fake_listen(server *srv, GString *str) {
 			g_string_free(ipv6_str, TRUE);
 			return -1;
 		}
-		TRACE(srv, "listen to ipv6: '%s' port: %d", ipv6_str->str, port);
+		DEBUG(srv, "listen to ipv6: '%s' port: %d", ipv6_str->str, port);
 		g_string_free(ipv6_str, TRUE);
 		return s;
 #endif
