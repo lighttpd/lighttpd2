@@ -77,6 +77,11 @@ void vrequest_free(vrequest* vr) {
 
 	action_stack_clear(vr, &vr->action_stack);
 
+	if (vr->job_queue_link) {
+		g_queue_delete_link(&vr->con->wrk->job_queue, vr->job_queue_link);
+		vr->job_queue_link = NULL;
+	}
+
 	g_slice_free1(vr->con->srv->option_def_values->len * sizeof(option_value), vr->options);
 
 	g_slice_free(vrequest, vr);
@@ -95,6 +100,11 @@ void vrequest_reset(vrequest *vr) {
 	filters_reset(&vr->filters_out);
 
 	action_stack_reset(vr, &vr->action_stack);
+
+	if (vr->job_queue_link) {
+		g_queue_delete_link(&vr->con->wrk->job_queue, vr->job_queue_link);
+		vr->job_queue_link = NULL;
+	}
 
 	memcpy(vr->options, vr->con->srv->option_def_values->data, vr->con->srv->option_def_values->len * sizeof(option_value));
 }
@@ -161,7 +171,6 @@ static gboolean vrequest_do_handle_actions(vrequest *vr) {
 	handler_t res = action_execute(vr);
 	switch (res) {
 	case HANDLER_GO_ON:
-	case HANDLER_FINISHED:
 		if (vr->state == VRS_HANDLE_REQUEST_HEADERS) {
 			VR_ERROR(vr, "%s", "actions didn't handle request");
 			/* request not handled */
@@ -192,7 +201,6 @@ static gboolean vrequest_do_handle_read(vrequest *vr) {
 		res = vr->handle_request_body(vr);
 		switch (res) {
 		case HANDLER_GO_ON:
-		case HANDLER_FINISHED:
 			break;
 		case HANDLER_COMEBACK:
 			vrequest_joblist_append(vr); /* come back later */
@@ -218,7 +226,6 @@ static gboolean vrequest_do_handle_write(vrequest *vr) {
 	res = vr->handle_response_body(vr);
 	switch (res) {
 	case HANDLER_GO_ON:
-	case HANDLER_FINISHED:
 		break;
 	case HANDLER_COMEBACK:
 		vrequest_joblist_append(vr); /* come back later */
@@ -250,7 +257,6 @@ void vrequest_state_machine(vrequest *vr) {
 			res = vr->handle_request_headers(vr);
 			switch (res) {
 			case HANDLER_GO_ON:
-			case HANDLER_FINISHED:
 				break;
 			case HANDLER_COMEBACK:
 				vrequest_joblist_append(vr); /* come back later */
@@ -258,7 +264,7 @@ void vrequest_state_machine(vrequest *vr) {
 				break;
 			case HANDLER_WAIT_FOR_FD: /* TODO: wait for fd */
 			case HANDLER_WAIT_FOR_EVENT:
-				done = TRUE;
+				done = (vr->state == VRS_HANDLE_REQUEST_HEADERS);
 				break;
 			case HANDLER_ERROR:
 				vrequest_error(vr);
@@ -275,7 +281,6 @@ void vrequest_state_machine(vrequest *vr) {
 			res = vr->handle_response_headers(vr);
 			switch (res) {
 			case HANDLER_GO_ON:
-			case HANDLER_FINISHED:
 				vr->state = VRS_WRITE_CONTENT;
 				break;
 			case HANDLER_COMEBACK:
@@ -284,7 +289,7 @@ void vrequest_state_machine(vrequest *vr) {
 				break;
 			case HANDLER_WAIT_FOR_FD: /* TODO: wait for fd */
 			case HANDLER_WAIT_FOR_EVENT:
-				done = TRUE;
+				done = (vr->state == VRS_HANDLE_REQUEST_HEADERS);
 				break;
 			case HANDLER_ERROR:
 				vrequest_error(vr);
@@ -306,6 +311,10 @@ void vrequest_state_machine(vrequest *vr) {
 }
 
 void vrequest_joblist_append(vrequest *vr) {
-	/* TODO */
-	vrequest_state_machine(vr);
+	GQueue *const q = &vr->con->wrk->job_queue;
+	worker *wrk = vr->con->wrk;
+	if (vr->job_queue_link) return; /* already in queue */
+	g_queue_push_tail(q, vr);
+	vr->job_queue_link = g_queue_peek_tail_link(q);
+	ev_timer_start(wrk->loop, &wrk->job_queue_watcher);
 }

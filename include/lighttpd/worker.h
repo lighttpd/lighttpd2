@@ -85,6 +85,9 @@ struct worker {
 	/* collect framework */
 	ev_async collect_watcher;
 	GAsyncQueue *collect_queue;
+
+	GQueue job_queue;
+	ev_timer job_queue_watcher;
 };
 
 LI_API worker* worker_new(struct server *srv, struct ev_loop *loop);

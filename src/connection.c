@@ -140,7 +140,6 @@ static gboolean connection_handle_read(connection *con) {
 			VR_DEBUG(vr, "%s", "reading request header");
 		}
 		switch(http_request_parse(con->mainvr, &con->req_parser_ctx)) {
-		case HANDLER_FINISHED:
 		case HANDLER_GO_ON:
 			break; /* go on */
 		case HANDLER_WAIT_FOR_EVENT:
@@ -271,7 +270,7 @@ static handler_t mainvr_handle_response_headers(vrequest *vr) {
 
 static handler_t mainvr_handle_response_body(vrequest *vr) {
 	connection *con = vr->con;
-	if (check_response_done(con)) return HANDLER_FINISHED;
+	if (check_response_done(con)) return HANDLER_GO_ON;
 
 	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "%s", "write response");
@@ -280,14 +279,14 @@ static handler_t mainvr_handle_response_body(vrequest *vr) {
 	parse_request_body(con);
 	forward_response_body(con);
 
-	if (check_response_done(con)) return HANDLER_FINISHED;
+	if (check_response_done(con)) return HANDLER_GO_ON;
 
 	return HANDLER_GO_ON;
 }
 
 static handler_t mainvr_handle_response_error(vrequest *vr) {
 	connection_internal_error(vr->con);
-	return HANDLER_FINISHED;
+	return HANDLER_GO_ON;
 }
 
 static handler_t mainvr_handle_request_headers(vrequest *vr) {

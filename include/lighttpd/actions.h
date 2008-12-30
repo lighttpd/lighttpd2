@@ -10,11 +10,19 @@ typedef enum {
 	ACTION_TSETTING,
 	ACTION_TFUNCTION,
 	ACTION_TCONDITION,
-	ACTION_TLIST
+	ACTION_TLIST,
+	ACTION_TBALANCER
 } action_type;
+
+typedef enum {
+	BACKEND_OVERLOAD,
+	BACKEND_DEAD
+} backend_error;
 
 struct action_stack {
 	GArray* stack;
+	gboolean handle_backend_fail;
+	backend_error backend_error;
 };
 
 /* param is the param registered with the callbacks;
@@ -35,6 +43,22 @@ struct action_func {
 };
 typedef struct action_func action_func;
 
+
+typedef handler_t (*BackendSelect)(vrequest *vr, gpointer param, gpointer *context);
+typedef handler_t (*BackendFallback)(vrequest *vr, gpointer param, gpointer *context);
+typedef handler_t (*BackendFinished)(vrequest *vr, gpointer param, gpointer context);
+typedef handler_t (*BalancerFree)(server *srv, gpointer param);
+struct balancer_func {
+	BackendSelect select;
+	BackendFallback fallback;
+	BackendFinished finished;
+	BalancerFree free;
+	gpointer param;
+	gboolean provide_backlog;
+};
+typedef struct balancer_func balancer_func;
+
+
 struct action {
 	gint refcount;
 	action_type type;
@@ -51,6 +75,8 @@ struct action {
 		action_func function;
 
 		GArray* list; /** array of (action*) */
+
+		balancer_func balancer;
 	} data;
 };
 

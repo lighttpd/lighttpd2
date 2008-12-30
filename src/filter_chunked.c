@@ -37,7 +37,7 @@ handler_t filter_chunked_encode(connection *con, chunkqueue *out, chunkqueue *in
 			chunkqueue_append_mem(out, CONST_STR_LEN("0\r\n"));
 			out->is_closed = TRUE;
 		}
-		return HANDLER_FINISHED;
+		return HANDLER_GO_ON;
 	}
 	return HANDLER_GO_ON;
 }

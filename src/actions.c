@@ -99,8 +99,20 @@ action *action_new_condition(condition *cond, action *target, action *target_els
 static void action_stack_element_release(server *srv, vrequest *vr, action_stack_element *ase) {
 	action *a = ase->act;
 	if (!ase || !a) return;
-	if (a->type == ACTION_TFUNCTION && ase->data.context && a->data.function.cleanup) {
-		a->data.function.cleanup(vr, a->data.function.param, ase->data.context);
+	switch (a->type) {
+	case ACTION_TSETTING:
+		break;
+	case ACTION_TFUNCTION:
+		if (ase->data.context && a->data.function.cleanup) {
+			a->data.function.cleanup(vr, a->data.function.param, ase->data.context);
+		}
+		break;
+	case ACTION_TCONDITION:
+	case ACTION_TLIST:
+		break;
+	case ACTION_TBALANCER:
+		a->data.balancer.finished(vr, a->data.balancer.param, ase->data.context);
+		break;
 	}
 	action_release(srv, ase->act);
 	ase->act = NULL;
@@ -175,7 +187,6 @@ handler_t action_execute(vrequest *vr) {
 			res = a->data.function.func(vr, a->data.function.param, &ase->data.context);
 			switch (res) {
 			case HANDLER_GO_ON:
-			case HANDLER_FINISHED:
 				ase->finished = TRUE;
 				break;
 			case HANDLER_ERROR:
@@ -191,7 +202,6 @@ handler_t action_execute(vrequest *vr) {
 			res = condition_check(vr, a->data.condition.cond, &condres);
 			switch (res) {
 			case HANDLER_GO_ON:
-			case HANDLER_FINISHED:
 				action_stack_pop(srv, vr, as);
 				if (condres) {
 					action_enter(vr, a->data.condition.target);
@@ -216,7 +226,21 @@ handler_t action_execute(vrequest *vr) {
 				ase->data.pos++;
 			}
 			break;
+		case ACTION_TBALANCER:
+			res = a->data.balancer.select(vr, a->data.balancer.param, &ase->data.context);
+			switch (res) {
+			case HANDLER_GO_ON:
+				ase->finished = TRUE;
+				break;
+			case HANDLER_ERROR:
+				action_stack_reset(vr, as);
+			case HANDLER_COMEBACK:
+			case HANDLER_WAIT_FOR_EVENT:
+			case HANDLER_WAIT_FOR_FD:
+				return res;
+			}
+			break;
 		}
 	}
-	return HANDLER_FINISHED;
+	return HANDLER_GO_ON;
 }

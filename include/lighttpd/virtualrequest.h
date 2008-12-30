@@ -75,6 +75,8 @@ struct vrequest {
 
 	action_stack action_stack;
 	gboolean actions_wait_for_response;
+
+	GList *job_queue_link;
 };
 
 LI_API vrequest* vrequest_new(struct connection *con, vrequest_handler handle_response_headers, vrequest_handler handle_response_body, vrequest_handler handle_response_error, vrequest_handler handle_request_headers);

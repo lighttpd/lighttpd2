@@ -135,6 +135,22 @@ static void worker_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	waitqueue_update(&wrk->throttle_queue);
 }
 
+/* run vreqest state machine */
+static void worker_job_queue_cb(struct ev_loop *loop, ev_timer *w, int revents) {
+	worker *wrk = (worker*) w->data;
+	GQueue q = wrk->job_queue;
+	vrequest *vr;
+	UNUSED(loop);
+	UNUSED(revents);
+
+	g_queue_init(&wrk->job_queue); /* reset queue, elements are in q */
+
+	while (NULL != (vr = g_queue_pop_head(&q))) {
+		vr->job_queue_link = NULL;
+		vrequest_state_machine(vr);
+	}
+}
+
 /* cache timestamp */
 GString *worker_current_timestamp(worker *wrk) {
 	time_t cur_ts = (time_t)CUR_TS(wrk);
@@ -298,6 +314,11 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	/* throttling */
 	waitqueue_init(&wrk->throttle_queue, wrk->loop, worker_throttle_cb, 0.5, wrk);
 	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
+
+	/* job queue */
+	g_queue_init(&wrk->job_queue);
+	ev_timer_init(&wrk->job_queue_watcher, worker_job_queue_cb, 0, 0);
+	wrk->job_queue_watcher.data = wrk;
 
 	return wrk;
 }
