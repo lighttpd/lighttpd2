@@ -316,8 +316,6 @@ connection* connection_new(worker *wrk) {
 	con->raw_in  = chunkqueue_new();
 	con->raw_out = chunkqueue_new();
 
-	con->options = g_slice_copy(srv->option_def_values->len * sizeof(option_value), srv->option_def_values->data);
-
 	con->mainvr = vrequest_new(con,
 		mainvr_handle_response_headers,
 		mainvr_handle_response_body,
@@ -364,8 +362,6 @@ void connection_reset(connection *con) {
 
 	chunkqueue_reset(con->raw_in);
 	chunkqueue_reset(con->raw_out);
-
-	memcpy(con->options, con->srv->option_def_values->data, con->srv->option_def_values->len * sizeof(option_value));
 
 	http_request_parser_reset(&con->req_parser_ctx);
 
@@ -426,8 +422,6 @@ void connection_reset_keep_alive(connection *con) {
 
 	con->raw_out->is_closed = FALSE;
 
-	memcpy(con->options, con->srv->option_def_values->data, con->srv->option_def_values->len * sizeof(option_value));
-
 	vrequest_reset(con->mainvr);
 	http_request_parser_reset(&con->req_parser_ctx);
 
@@ -467,8 +461,6 @@ void connection_free(connection *con) {
 
 	chunkqueue_free(con->raw_in);
 	chunkqueue_free(con->raw_out);
-
-	g_slice_free1(con->srv->option_def_values->len * sizeof(option_value), con->options);
 
 	vrequest_free(con->mainvr);
 	http_request_parser_clear(&con->req_parser_ctx);

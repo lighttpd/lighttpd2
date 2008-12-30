@@ -38,6 +38,7 @@ static void filters_reset(filters *fs) {
 }
 
 vrequest* vrequest_new(connection *con, vrequest_handler handle_response_headers, vrequest_handler handle_response_body, vrequest_handler handle_response_error, vrequest_handler handle_request_headers) {
+	server *srv = con->srv;
 	vrequest *vr = g_slice_new0(vrequest);
 
 	vr->con = con;
@@ -47,6 +48,8 @@ vrequest* vrequest_new(connection *con, vrequest_handler handle_response_headers
 	vr->handle_response_body = handle_response_body;
 	vr->handle_response_error = handle_response_error;
 	vr->handle_request_headers = handle_request_headers;
+
+	vr->options = g_slice_copy(srv->option_def_values->len * sizeof(option_value), srv->option_def_values->data);
 
 	request_init(&vr->request);
 	physical_init(&vr->physical);
@@ -74,6 +77,8 @@ void vrequest_free(vrequest* vr) {
 
 	action_stack_clear(vr, &vr->action_stack);
 
+	g_slice_free1(vr->con->srv->option_def_values->len * sizeof(option_value), vr->options);
+
 	g_slice_free(vrequest, vr);
 }
 
@@ -90,6 +95,8 @@ void vrequest_reset(vrequest *vr) {
 	filters_reset(&vr->filters_out);
 
 	action_stack_reset(vr, &vr->action_stack);
+
+	memcpy(vr->options, vr->con->srv->option_def_values->data, vr->con->srv->option_def_values->len * sizeof(option_value));
 }
 
 void vrequest_error(vrequest *vr) {

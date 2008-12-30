@@ -137,9 +137,9 @@ LI_API gboolean call_setup(server *srv, const char *name, value *val);
 /** free val after call */
 LI_API gboolean plugin_set_default_option(server *srv, const gchar* name, value *val);
 
-/* needs connection *con and plugin *p */
+/* needs vrequest *vr and plugin *p */
 #define OPTION(idx) _OPTION(vr, p, idx)
-#define _OPTION(vr, p, idx) (vr->con->options[p->opt_base_index + idx])
-#define _OPTION_ABS(vr, idx) (vr->con->options[idx])
+#define _OPTION(vr, p, idx) (vr->options[p->opt_base_index + idx])
+#define _OPTION_ABS(vr, idx) (vr->options[idx])
 
 #endif

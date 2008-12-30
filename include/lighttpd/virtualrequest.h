@@ -52,7 +52,8 @@ struct connection;
 struct vrequest {
 	struct connection *con;
 
-	/* TODO: move options from con */
+	option_value *options;
+
 	vrequest_state state;
 
 	vrequest_handler

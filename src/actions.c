@@ -168,7 +168,7 @@ handler_t action_execute(vrequest *vr) {
 
 		switch (a->type) {
 		case ACTION_TSETTING:
-			vr->con->options[a->data.setting.ndx] = a->data.setting.value;
+			vr->options[a->data.setting.ndx] = a->data.setting.value;
 			action_stack_pop(srv, vr, as);
 			break;
 		case ACTION_TFUNCTION:

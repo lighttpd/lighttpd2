@@ -41,8 +41,6 @@ struct connection {
 	GString *remote_addr_str, *local_addr_str;
 	gboolean is_ssl, keep_alive;
 
-	option_value *options;
-
 	vrequest *mainvr;
 	http_request_ctx req_parser_ctx;
 
