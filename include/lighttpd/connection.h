@@ -44,9 +44,6 @@ struct connection {
 	vrequest *mainvr;
 	http_request_ctx req_parser_ctx;
 
-	struct log_t *log;
-	gint log_level;
-
 	/* Keep alive timeout data */
 	struct {
 		GList *link;
