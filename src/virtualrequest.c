@@ -257,6 +257,11 @@ void vrequest_state_machine(vrequest *vr) {
 			res = vr->handle_request_headers(vr);
 			switch (res) {
 			case HANDLER_GO_ON:
+				if (vr->state == VRS_HANDLE_REQUEST_HEADERS) {
+					/* unhandled request */
+					vr->response.http_status = 404;
+					vrequest_handle_direct(vr);
+				}
 				break;
 			case HANDLER_COMEBACK:
 				vrequest_joblist_append(vr); /* come back later */

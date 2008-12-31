@@ -21,7 +21,7 @@ typedef enum {
 
 struct action_stack {
 	GArray* stack;
-	gboolean handle_backend_fail;
+	gboolean backend_failed;
 	backend_error backend_error;
 };
 
@@ -44,10 +44,10 @@ struct action_func {
 typedef struct action_func action_func;
 
 
-typedef handler_t (*BackendSelect)(vrequest *vr, gpointer param, gpointer *context);
-typedef handler_t (*BackendFallback)(vrequest *vr, gpointer param, gpointer *context);
+typedef handler_t (*BackendSelect)(vrequest *vr, gboolean backlog_provided, gpointer param, gpointer *context);
+typedef handler_t (*BackendFallback)(vrequest *vr, gboolean backlog_provided, gpointer param, gpointer *context, backend_error error);
 typedef handler_t (*BackendFinished)(vrequest *vr, gpointer param, gpointer context);
-typedef handler_t (*BalancerFree)(server *srv, gpointer param);
+typedef void (*BalancerFree)(server *srv, gpointer param);
 struct balancer_func {
 	BackendSelect select;
 	BackendFallback fallback;
@@ -97,5 +97,6 @@ LI_API action *action_new_setting(option_set setting);
 LI_API action *action_new_function(ActionFunc func, ActionCleanup fcleanup, ActionFree ffree, gpointer param);
 LI_API action *action_new_list();
 LI_API action *action_new_condition(condition *cond, action *target, action *target_else);
+LI_API action *action_new_balancer(BackendSelect bselect, BackendFallback bfallback, BackendFinished bfinished, BalancerFree bfree, gpointer param, gboolean provide_backlog);
 
 #endif

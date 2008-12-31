@@ -79,6 +79,16 @@ struct vrequest {
 	GList *job_queue_link;
 };
 
+#define VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr) \
+	do { \
+		if (vr->state == VRS_HANDLE_REQUEST_HEADERS) { \
+			VR_ERROR(vr, "%s", "Cannot wait for response headers as no backend handler found - fix your config"); \
+			return HANDLER_ERROR; \
+		} else if (vr->state < VRS_HANDLE_RESPONSE_HEADERS) { \
+			return HANDLER_WAIT_FOR_EVENT; \
+		} \
+	} while (0)
+
 LI_API vrequest* vrequest_new(struct connection *con, vrequest_handler handle_response_headers, vrequest_handler handle_response_body, vrequest_handler handle_response_error, vrequest_handler handle_request_headers);
 LI_API void vrequest_free(vrequest *vr);
 LI_API void vrequest_reset(vrequest *vr);

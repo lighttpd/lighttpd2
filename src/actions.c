@@ -10,7 +10,7 @@ struct action_stack_element {
 		gpointer context;
 		guint pos;
 	} data;
-	gboolean finished;
+	gboolean finished, backlog_provided;
 };
 
 void action_release(server *srv, action *a) {
@@ -37,6 +37,11 @@ void action_release(server *srv, action *a) {
 				action_release(srv, g_array_index(a->data.list, action*, i));
 			}
 			g_array_free(a->data.list, TRUE);
+			break;
+		case ACTION_TBALANCER:
+			if (a->data.balancer.free) {
+				a->data.balancer.free(srv, a->data.balancer.param);
+			}
 			break;
 		}
 		g_slice_free(action, a);
@@ -96,6 +101,22 @@ action *action_new_condition(condition *cond, action *target, action *target_els
 	return a;
 }
 
+action *action_new_balancer(BackendSelect bselect, BackendFallback bfallback, BackendFinished bfinished, BalancerFree bfree, gpointer param, gboolean provide_backlog) {
+	action *a;
+
+	a = g_slice_new(action);
+	a->refcount = 1;
+	a->type = ACTION_TBALANCER;
+	a->data.balancer.select = bselect;
+	a->data.balancer.fallback = bfallback;
+	a->data.balancer.finished = bfinished;
+	a->data.balancer.free = bfree;
+	a->data.balancer.param = param;
+	a->data.balancer.provide_backlog = provide_backlog;
+
+	return a;
+}
+
 static void action_stack_element_release(server *srv, vrequest *vr, action_stack_element *ase) {
 	action *a = ase->act;
 	if (!ase || !a) return;
@@ -142,15 +163,18 @@ void action_stack_clear(vrequest *vr, action_stack *as) {
 	as->stack = NULL;
 }
 
-/** handle sublist now, remember current position (stack) */
-void action_enter(vrequest *vr, action *a) {
-	action_acquire(a);
-	action_stack_element ase = { a, { 0 }, FALSE };
-	g_array_append_val(vr->action_stack.stack, ase);
-}
-
 static action_stack_element *action_stack_top(action_stack* as) {
 	return as->stack->len > 0 ? &g_array_index(as->stack, action_stack_element, as->stack->len - 1) : NULL;
+}
+
+/** handle sublist now, remember current position (stack) */
+void action_enter(vrequest *vr, action *a) {
+	action_stack *as = &vr->action_stack;
+	action_stack_element *top_ase = action_stack_top(as);
+	action_stack_element ase = { a, { 0 }, FALSE,
+		(top_ase ? top_ase->backlog_provided || (top_ase->act->type == ACTION_TBALANCER && top_ase->act->data.balancer.provide_backlog) : FALSE) };
+	action_acquire(a);
+	g_array_append_val(as->stack, ase);
 }
 
 static void action_stack_pop(server *srv, vrequest *vr, action_stack *as) {
@@ -167,10 +191,47 @@ handler_t action_execute(vrequest *vr) {
 	server *srv = vr->con->srv;
 
 	while (NULL != (ase = action_stack_top(as))) {
+		if (as->backend_failed) {
+			while (ase->act->type != ACTION_TBALANCER || !ase->act->data.balancer.provide_backlog) {
+				action_stack_pop(srv, vr, as);
+				ase = action_stack_top(as);
+				if (!ase) { /* no backlogging balancer found */
+					if (vrequest_handle_direct(vr))
+						vr->response.http_status = 503;
+					return HANDLER_GO_ON;
+				}
+			}
+			as->backend_failed = FALSE;
+			
+			ase->finished = FALSE;
+			res = a->data.balancer.fallback(vr, ase->backlog_provided, a->data.balancer.param, &ase->data.context, as->backend_error);
+			switch (res) {
+			case HANDLER_GO_ON:
+				ase->finished = TRUE;
+				break;
+			case HANDLER_ERROR:
+				action_stack_reset(vr, as);
+			case HANDLER_COMEBACK:
+			case HANDLER_WAIT_FOR_EVENT:
+			case HANDLER_WAIT_FOR_FD:
+				return res;
+			}
+			if (as->backend_failed) { /* if balancer failed, pop it */
+				action_stack_element *tmp_ase;
+				while (ase != (tmp_ase = action_stack_top(as))) {
+					action_stack_pop(srv, vr, as);
+				}
+			}
+			continue;
+		}
 		if (ase->finished) {
 			/* a TFUNCTION may enter sub actions _and_ return GO_ON, so we cannot pop the last element
 			 * but we have to remember we already executed it
 			 */
+			if (ase->act->type == ACTION_TBALANCER) {
+				/* wait until we found a backend */
+				VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+			}
 			action_stack_pop(srv, vr, as);
 			continue;
 		}
@@ -227,7 +288,7 @@ handler_t action_execute(vrequest *vr) {
 			}
 			break;
 		case ACTION_TBALANCER:
-			res = a->data.balancer.select(vr, a->data.balancer.param, &ase->data.context);
+			res = a->data.balancer.select(vr, ase->backlog_provided, a->data.balancer.param, &ase->data.context);
 			switch (res) {
 			case HANDLER_GO_ON:
 				ase->finished = TRUE;
@@ -241,6 +302,10 @@ handler_t action_execute(vrequest *vr) {
 			}
 			break;
 		}
+	}
+	if (as->backend_failed) {
+		if (vrequest_handle_direct(vr))
+			vr->response.http_status = 503;
 	}
 	return HANDLER_GO_ON;
 }
