@@ -17,22 +17,24 @@ LI_API const char *remove_path(const char *path);
 
 #define _SEGFAULT(srv, vr, fmt, ...) \
 	do { \
-		log_write_(srv, NULL, LOG_LEVEL_ABORT, LOG_FLAG_TIMETAMP, "(crashing) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
+		log_write_(srv, NULL, LOG_LEVEL_ABORT, LOG_FLAG_TIMESTAMP, "(crashing) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
 		/* VALGRIND_PRINTF_BACKTRACE(fmt, __VA_ARGS__); */\
 		abort();\
 	} while(0)
 
 #define _ERROR(srv, vr, fmt, ...) \
-	log_write_(srv, vr, LOG_LEVEL_ERROR, LOG_FLAG_TIMETAMP, "(error) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, vr, LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "(error) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _WARNING(srv, vr, fmt, ...) \
-	log_write_(srv, vr, LOG_LEVEL_WARNING, LOG_FLAG_TIMETAMP, "(warning) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, vr, LOG_LEVEL_WARNING, LOG_FLAG_TIMESTAMP, "(warning) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _INFO(srv, vr, fmt, ...) \
-	log_write_(srv, vr, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "(info) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, vr, LOG_LEVEL_INFO, LOG_FLAG_TIMESTAMP, "(info) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _DEBUG(srv, vr, fmt, ...) \
-	log_write_(srv, vr, LOG_LEVEL_INFO, LOG_FLAG_TIMETAMP, "(debug) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, vr, LOG_LEVEL_INFO, LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+#define _BACKEND(srv, vr, fmt, ...) \
+	log_write_(srv, vr, LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP)
 
 
 #define VR_SEGFAULT(vr, fmt, ...) _SEGFAULT(vr->con->srv, vr, fmt, __VA_ARGS__)
@@ -40,12 +42,14 @@ LI_API const char *remove_path(const char *path);
 #define VR_WARNING(vr, fmt, ...)  _WARNING(vr->con->srv, vr, fmt, __VA_ARGS__)
 #define VR_INFO(vr, fmt, ...)     _INFO(vr->con->srv, vr, fmt, __VA_ARGS__)
 #define VR_DEBUG(vr, fmt, ...)    _DEBUG(vr->con->srv, vr, fmt, __VA_ARGS__)
+#define VR_BACKEND(vr, fmt, ...)    _BACKEND(vr->con->srv, vr, fmt, __VA_ARGS__)
 
 #define SEGFAULT(srv, fmt, ...)   _SEGFAULT(srv, NULL, fmt, __VA_ARGS__)
 #define ERROR(srv, fmt, ...)      _ERROR(srv, NULL, fmt, __VA_ARGS__)
 #define WARNING(srv, fmt, ...)    _WARNING(srv, NULL, fmt, __VA_ARGS__)
 #define INFO(srv, fmt, ...)       _INFO(srv, NULL, fmt, __VA_ARGS__)
 #define DEBUG(srv, fmt, ...)      _DEBUG(srv, NULL, fmt, __VA_ARGS__)
+#define BACKEND(srv, fmt, ...)      _BACKEND(srv, NULL, fmt, __VA_ARGS__)
 
 
 /* TODO: perhaps make portable (detect if cc supports) */
@@ -68,7 +72,8 @@ typedef enum {
 	LOG_LEVEL_INFO,
 	LOG_LEVEL_WARNING,
 	LOG_LEVEL_ERROR,
-	LOG_LEVEL_ABORT
+	LOG_LEVEL_ABORT,
+	LOG_LEVEL_BACKEND
 } log_level_t;
 
 typedef enum {
@@ -81,7 +86,7 @@ typedef enum {
 
 /* flags for log_write */
 #define LOG_FLAG_NONE         (0x0)      /* default flag */
-#define LOG_FLAG_TIMETAMP     (0x1)      /* prepend a timestamp to the log message */
+#define LOG_FLAG_TIMESTAMP    (0x1)      /* prepend a timestamp to the log message */
 #define LOG_FLAG_NOLOCK       (0x1 << 1) /* for internal use only */
 #define LOG_FLAG_ALLOW_REPEAT (0x1 << 2) /* allow writing of multiple equal entries after each other */
 

@@ -1,3 +1,9 @@
+/*
+	todo:
+	- write out logs at startup directly
+	- scheme:// prefix
+
+*/
 
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
@@ -89,7 +95,7 @@ gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flag
 	g_string_assign(log->lastmsg, log_line->str);
 
 	/* for normal error messages, we prepend a timestamp */
-	if (flags & LOG_FLAG_TIMETAMP) {
+	if (flags & LOG_FLAG_TIMESTAMP) {
 		time_t cur_ts;
 
 		g_mutex_lock(srv->logs.mutex);
@@ -260,6 +266,16 @@ log_type_t log_type_from_path(GString *path) {
 	if (path->len == 0)
 		return LOG_TYPE_NONE;
 
+	/* look for scheme:// paths */
+	if (g_str_has_prefix(path->str, "file://"))
+		return LOG_TYPE_FILE;
+	if (g_str_has_prefix(path->str, "pipe://"))
+		return LOG_TYPE_PIPE;
+	if (g_str_has_prefix(path->str, "stderr://"))
+		return LOG_TYPE_STDERR;
+	if (g_str_has_prefix(path->str, "syslog://"))
+		return LOG_TYPE_SYSLOG;
+
 	/* targets starting with a slash are absolute paths and therefor file targets */
 	if (*path->str == '/')
 		return LOG_TYPE_FILE;
@@ -287,6 +303,8 @@ log_level_t log_level_from_string(GString *str) {
 		return LOG_LEVEL_WARNING;
 	if (g_str_equal(str->str, "error"))
 		return LOG_LEVEL_ERROR;
+	if (g_str_equal(str->str, "backend"))
+		return LOG_LEVEL_BACKEND;
 
 	/* fall back to debug level */
 	return LOG_LEVEL_DEBUG;
@@ -298,6 +316,7 @@ gchar* log_level_str(log_level_t log_level) {
 		case LOG_LEVEL_INFO:	return "info";
 		case LOG_LEVEL_WARNING:	return "warning";
 		case LOG_LEVEL_ERROR:	return "error";
+		case LOG_LEVEL_BACKEND:	return "backend";
 		default:				return "unknown";
 	}
 }

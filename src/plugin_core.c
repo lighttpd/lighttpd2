@@ -484,21 +484,23 @@ static gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value 
 	log_level_t level;
 	GString *path;
 	GString *level_str;
-	GArray *arr = g_array_sized_new(FALSE, TRUE, sizeof(log_t*), 5);
+	GArray *arr = g_array_sized_new(FALSE, TRUE, sizeof(log_t*), 6);
 	UNUSED(p);
 	UNUSED(ndx);
 
 	oval->list = arr;
-	g_array_set_size(arr, 5);
+	g_array_set_size(arr, 6);
 
 	/* default value */
 	if (!val) {
-		/* default: log LOG_LEVEL_WARNING and LOG_LEVEL_ERROR to stderr */
+		/* default: log LOG_LEVEL_WARNING, LOG_LEVEL_ERROR and LOG_LEVEL_BACKEND to stderr */
 		log_t *log = srv->logs.stderr;
 		log_ref(srv, log);
 		g_array_index(arr, log_t*, LOG_LEVEL_WARNING) = log;
 		log_ref(srv, log);
 		g_array_index(arr, log_t*, LOG_LEVEL_ERROR) = log;
+		log_ref(srv, log);
+		g_array_index(arr, log_t*, LOG_LEVEL_BACKEND) = log;
 		return TRUE;
 	}
 
