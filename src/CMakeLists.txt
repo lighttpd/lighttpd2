@@ -282,6 +282,7 @@ SET(COMMON_SRC
 	condition_parsers.c
 	config_parser.c
 	connection.c
+	environment.c
 	filter_chunked.c
 	http_headers.c
 	http_request_parser.c
@@ -334,9 +335,9 @@ SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd)
 SET(COMMON_LDFLAGS "${LUA_LDFLAGS} ${EV_LDFLAGS} ${GTHREAD_LDFLAGS} ${GMODULE_LDFLAGS}")
 SET(COMMON_CFLAGS "${LUA_CFLAGS} ${EV_CFLAGS} ${GTHREAD_CFLAGS} ${GMODULE_CFLAGS}")
 
+ADD_AND_INSTALL_LIBRARY(mod_balancer "modules/mod_balancer.c")
 ADD_AND_INSTALL_LIBRARY(mod_fortune "modules/mod_fortune.c")
 ADD_AND_INSTALL_LIBRARY(mod_status "modules/mod_status.c")
-ADD_AND_INSTALL_LIBRARY(mod_balancer "modules/mod_balancer.c")
 
 ADD_TARGET_PROPERTIES(lighttpd LINK_FLAGS ${COMMON_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd COMPILE_FLAGS ${COMMON_CFLAGS})

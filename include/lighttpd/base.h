@@ -40,6 +40,7 @@
 #include <lighttpd/http_request_parser.h>
 #include <lighttpd/request.h>
 #include <lighttpd/response.h>
+#include <lighttpd/environment.h>
 #include <lighttpd/virtualrequest.h>
 #include <lighttpd/log.h>
 

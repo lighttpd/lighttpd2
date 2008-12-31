@@ -67,6 +67,8 @@ struct vrequest {
 	physical physical;
 	response response;
 
+	environment env;
+
 	/* -> vr_in -> filters_in -> in -> handle -> out -> filters_out -> vr_out -> */
 	gboolean cq_memory_limit_hit; /* stop feeding chunkqueues with memory chunks */
 	filters filters_in, filters_out;

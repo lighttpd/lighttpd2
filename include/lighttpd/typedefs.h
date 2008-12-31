@@ -62,6 +62,10 @@ typedef struct condition condition;
 struct connection;
 typedef struct connection connection;
 
+/* environment.h */
+struct environment;
+typedef struct environment environment;
+
 /* hhtp_headers.h */
 
 struct http_header;

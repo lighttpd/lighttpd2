@@ -54,6 +54,7 @@ vrequest* vrequest_new(connection *con, vrequest_handler handle_response_headers
 	request_init(&vr->request);
 	physical_init(&vr->physical);
 	response_init(&vr->response);
+	environment_init(&vr->env);
 
 	filters_init(&vr->filters_in);
 	filters_init(&vr->filters_out);
@@ -68,14 +69,15 @@ vrequest* vrequest_new(connection *con, vrequest_handler handle_response_headers
 }
 
 void vrequest_free(vrequest* vr) {
+	action_stack_clear(vr, &vr->action_stack);
+
 	request_clear(&vr->request);
 	physical_clear(&vr->physical);
 	response_clear(&vr->response);
+	environment_clear(&vr->env);
 
 	filters_clean(&vr->filters_in);
 	filters_clean(&vr->filters_out);
-
-	action_stack_clear(vr, &vr->action_stack);
 
 	if (vr->job_queue_link) {
 		g_queue_delete_link(&vr->con->wrk->job_queue, vr->job_queue_link);
@@ -88,6 +90,8 @@ void vrequest_free(vrequest* vr) {
 }
 
 void vrequest_reset(vrequest *vr) {
+	action_stack_reset(vr, &vr->action_stack);
+
 	vr->state = VRS_CLEAN;
 
 	vr->handle_request_body = NULL;
@@ -95,11 +99,10 @@ void vrequest_reset(vrequest *vr) {
 	request_reset(&vr->request);
 	physical_reset(&vr->physical);
 	response_reset(&vr->response);
+	environment_reset(&vr->env);
 
 	filters_reset(&vr->filters_in);
 	filters_reset(&vr->filters_out);
-
-	action_stack_reset(vr, &vr->action_stack);
 
 	if (vr->job_queue_link) {
 		g_queue_delete_link(&vr->con->wrk->job_queue, vr->job_queue_link);
