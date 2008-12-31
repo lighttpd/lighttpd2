@@ -192,14 +192,16 @@ handler_t action_execute(vrequest *vr) {
 
 	while (NULL != (ase = action_stack_top(as))) {
 		if (as->backend_failed) {
-			while (ase->act->type != ACTION_TBALANCER || !ase->act->data.balancer.provide_backlog) {
+			/* pop top action in every case (if the balancer itself failed we don't want to restart it) */
+			action_stack_pop(srv, vr, as);
+			while (NULL != (ase = action_stack_top(as)) && (ase->act->type != ACTION_TBALANCER || !ase->act->data.balancer.provide_backlog)) {
 				action_stack_pop(srv, vr, as);
 				ase = action_stack_top(as);
-				if (!ase) { /* no backlogging balancer found */
-					if (vrequest_handle_direct(vr))
-						vr->response.http_status = 503;
-					return HANDLER_GO_ON;
-				}
+			}
+			if (!ase) { /* no backlogging balancer found */
+				if (vrequest_handle_direct(vr))
+					vr->response.http_status = 503;
+				return HANDLER_GO_ON;
 			}
 			as->backend_failed = FALSE;
 			
@@ -215,12 +217,6 @@ handler_t action_execute(vrequest *vr) {
 			case HANDLER_WAIT_FOR_EVENT:
 			case HANDLER_WAIT_FOR_FD:
 				return res;
-			}
-			if (as->backend_failed) { /* if balancer failed, pop it */
-				action_stack_element *tmp_ase;
-				while (ase != (tmp_ase = action_stack_top(as))) {
-					action_stack_pop(srv, vr, as);
-				}
 			}
 			continue;
 		}

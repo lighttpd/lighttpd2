@@ -95,6 +95,10 @@ LI_API void vrequest_reset(vrequest *vr);
 
 LI_API void vrequest_error(vrequest *vr);
 
+LI_API void vrequest_backend_overloaded(vrequest *vr);
+LI_API void vrequest_backend_dead(vrequest *vr);
+LI_API void vrequest_backend_error(vrequest *vr, backend_error berror);
+
 /* received all request headers */
 LI_API void vrequest_handle_request_headers(vrequest *vr);
 /* received (partial) request content */

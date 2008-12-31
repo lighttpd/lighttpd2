@@ -114,6 +114,21 @@ void vrequest_error(vrequest *vr) {
 	vrequest_joblist_append(vr);
 }
 
+void vrequest_backend_overloaded(vrequest *vr) {
+	vr->action_stack.backend_failed = TRUE;
+	vr->action_stack.backend_error = BACKEND_OVERLOAD;
+}
+
+void vrequest_backend_error(vrequest *vr, backend_error berror) {
+	vr->action_stack.backend_failed = TRUE;
+	vr->action_stack.backend_error = berror;
+}
+
+void vrequest_backend_dead(vrequest *vr) {
+	vr->action_stack.backend_failed = TRUE;
+	vr->action_stack.backend_error = BACKEND_DEAD;
+}
+
 /* received all request headers */
 void vrequest_handle_request_headers(vrequest *vr) {
 	if (VRS_CLEAN == vr->state) {

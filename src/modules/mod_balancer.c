@@ -94,7 +94,7 @@ static handler_t balancer_act_select(vrequest *vr, gboolean backlog_provided, gp
 
 static handler_t balancer_act_fallback(vrequest *vr, gboolean backlog_provided, gpointer param, gpointer *context, backend_error error) {
 	balancer *b = (balancer*) param;
-	gint be_ndx = GPOINTER_TO_INT(context);
+	gint be_ndx = GPOINTER_TO_INT(*context);
 	backend *be = &g_array_index(b->backends, backend, be_ndx);
 
 	UNUSED(backlog_provided);
@@ -105,8 +105,8 @@ static handler_t balancer_act_fallback(vrequest *vr, gboolean backlog_provided, 
 	/* TODO implement fallback/backlog */
 
 	be->load--;
-	if (vrequest_handle_direct(vr))
-		vr->response.http_status = 503;
+	*context = GINT_TO_POINTER(-1);
+	vrequest_backend_error(vr, error);
 	return HANDLER_GO_ON;
 }
 
