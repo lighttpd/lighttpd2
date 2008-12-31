@@ -482,6 +482,7 @@
 				return FALSE;
 			}
 
+			action_acquire(a);
 			r = value_new_action(srv, a);
 		}
 
@@ -878,8 +879,8 @@
 		assert(o->type == VALUE_STRING);
 
 		if (ctx->in_setup_block) {
-			/* no block inside the setup block allowed */
-			assert(NULL); /* TODO */
+			ERROR(srv, "%s", "no block inside the setup block allowed");
+			return FALSE;
 		}
 
 		if (g_str_equal(o->data.string->str, "setup")) {
@@ -907,9 +908,36 @@
 			ctx->in_setup_block = FALSE;
 		}
 		else {
+			action *al;
 			/* pop action list stack */
-			g_queue_pop_head(ctx->action_list_stack);
+			al = g_queue_pop_head(ctx->action_list_stack);
+
 		}
+	}
+
+	action action_block_noname_start {
+		action *al;
+
+		if (ctx->in_setup_block) {
+			ERROR(srv, "%s", "no block inside the setup block allowed");
+			return FALSE;
+		}
+
+		_printf("action block in line %zd\n", ctx->line);
+
+		/* create new action list and put it on the stack */
+		al = action_new_list();
+		g_queue_push_head(ctx->action_list_stack, al);
+	}
+
+	action action_block_noname_end {
+		value *v;
+		action *a;
+
+		/* pop action list stack */
+		a = g_queue_pop_head(ctx->action_list_stack);
+		v = value_new_action(srv, a);
+		g_queue_push_head(ctx->option_stack, v);
 	}
 
 
@@ -948,7 +976,10 @@
 	list = ( '(' >list_start );
 	hash = ( '[' >hash_start );
 
-	value = ( ( boolean | integer | string | list | hash | actionref) >mark ) %value;
+	action_block = ( varname noise* block >action_block_start ) %action_block_end;
+	action_block_noname = ( '$' block > action_block_noname_start ) %action_block_noname_end;
+
+	value = ( ( boolean | integer | string | list | hash | actionref | action_block_noname ) >mark ) %value;
 	value_statement_op = ( '+' | '-' | '*' | '/' | '=>' ) >mark >value_statement_op;
 	value_statement = ( noise* cast? value (ws* value_statement_op ws* cast? value %value_statement)* noise* );
 	hash_elem = ( noise* string >mark noise* ':' value_statement );
@@ -965,8 +996,6 @@
 	else_cond = ( 'else' noise+ condition ) %else_cond_end;
 	else_nocond = ( 'else' noise+ block >else_nocond_start ) %else_nocond_end;
 	condition_else = ( condition noise* (else_cond| noise)* else_nocond? );
-
-	action_block = ( varname noise* block >action_block_start ) %action_block_end;
 
 	statement = ( assignment | function | condition_else | action_block );
 
