@@ -110,4 +110,4 @@ def build(bld):
 	
 	lighty_mod(bld, 'mod_fortune', 'modules/mod_fortune.c')
 	lighty_mod(bld, 'mod_status', 'modules/mod_status.c')
-	lighty_mod(bld, 'mod_accesslog', 'modules/mod_accesslog.c')
+	lighty_mod(bld, 'mod_balancer', 'modules/mod_balancer.c')
