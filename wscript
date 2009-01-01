@@ -29,6 +29,7 @@ def set_options(opt):
 	opt.add_option('--append', action='store', help='Append string to binary names / library dir', dest = 'append', default = '')
 	opt.add_option('--lib-dir', action='store', help='Module directory [default: prefix + /lib/lighttpd + append]', dest = 'libdir', default = '')
 	opt.add_option('--debug', action='store_true', help='Do not compile with -O2', dest = 'debug', default = False)
+	opt.add_option('--extra-warnings', action='store_true', help='show more warnings while compiling', dest='extra_warnings', default=False)
 
 def configure(conf):
 	opts = Options.options
@@ -50,7 +51,19 @@ def configure(conf):
 	
 	conf.check(lib='ev', uselib_store='ev', mandatory=True)
 	conf.check(header_name='ev.h', uselib='ev', mandatory=True)
-	
+
+	if opts.extra_warnings:
+		conf.env['CCFLAGS'] += [
+			'-g', '-g2', '-Wall', '-Wmissing-prototypes', '-Wmissing-declarations',
+		 	'-Wdeclaration-after-statement', '-Wno-pointer-sign', '-Wcast-align', '-Winline', '-Wsign-compare',
+			'-Wnested-externs', '-Wpointer-arith'#, '-Werror', '-Wbad-function-cast'
+		]
+		conf.env['LDFLAGS'] += [
+			'-g', '-g2', '-Wall', '-Wmissing-prototypes', '-Wmissing-declarations',
+		 	'-Wdeclaration-after-statement', '-Wno-pointer-sign', '-Wcast-align', '-Winline', '-Wsign-compare',
+			'-Wnested-externs', '-Wpointer-arith', '-Wl,--as-needed'#, '-Werror', '-Wbad-function-cast'
+		]
+
 	if opts.lua:
 		if not conf.check_cfg(package='lua5.1', uselib_store='lua', args='--cflags --libs'):
 			conf.env['LIB_lua'] = [ 'm' ]

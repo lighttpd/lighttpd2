@@ -26,6 +26,7 @@ common_src = '''
 	condition_parsers.rl
 	config_parser.rl
 	connection.c
+	environment.c
 	filter_chunked.c
 	http_headers.c
 	http_request_parser.rl
@@ -111,3 +112,4 @@ def build(bld):
 	lighty_mod(bld, 'mod_fortune', 'modules/mod_fortune.c')
 	lighty_mod(bld, 'mod_status', 'modules/mod_status.c')
 	lighty_mod(bld, 'mod_balancer', 'modules/mod_balancer.c')
+	lighty_mod(bld, 'mod_fastcgi', 'modules/mod_fastcgi.c')
