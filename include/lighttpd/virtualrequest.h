@@ -35,6 +35,7 @@ typedef enum {
 
 typedef handler_t (*filter_handler)(vrequest *vr, filter *f, plugin *p);
 typedef handler_t (*vrequest_handler)(vrequest *vr);
+typedef handler_t (*vrequest_plugin_handler)(vrequest *vr, plugin *p);
 
 struct filter {
 	chunkqueue *in, *out;
@@ -57,11 +58,12 @@ struct vrequest {
 	vrequest_state state;
 
 	vrequest_handler
-		handle_request_headers, handle_request_body,
+		handle_request_headers,
 		handle_response_headers, handle_response_body,
 		handle_response_error; /* this is _not_ for 500 - internal error */
 
 	GPtrArray *plugin_ctx;
+	plugin *backend;
 
 	request request;
 	physical physical;
@@ -113,7 +115,7 @@ LI_API void vrequest_handle_response_body(vrequest *vr);
 /* response completely ready */
 LI_API gboolean vrequest_handle_direct(vrequest *vr);
 /* handle request over time */
-LI_API gboolean vrequest_handle_indirect(vrequest *vr, vrequest_handler handle_request_body);
+LI_API gboolean vrequest_handle_indirect(vrequest *vr, plugin *p);
 
 LI_API void vrequest_state_machine(vrequest *vr);
 LI_API void vrequest_joblist_append(vrequest *vr);

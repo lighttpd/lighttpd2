@@ -53,9 +53,10 @@ void chunk_parser_done(chunk_parser_ctx *ctx, goffset len) {
 }
 
 gboolean chunk_extract_to(vrequest *vr, chunk_parser_mark from, chunk_parser_mark to, GString *dest) {
+	chunk_parser_mark i;
+
 	g_string_set_size(dest, 0);
 
-	chunk_parser_mark i;
 	for ( i = from; i.ci.element != to.ci.element; chunkiter_next(&i.ci) ) {
 		goffset len = chunkiter_length(i.ci);
 		while (i.pos < len) {

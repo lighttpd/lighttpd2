@@ -467,6 +467,7 @@ GString *mimetype_get(vrequest *vr, GString *filename) {
 	arr = CORE_OPTION(CORE_OPTION_MIME_TYPES).list;
 
 	for (guint i = 0; i < arr->len; i++) {
+		gint k, j;
 		value *tuple = g_array_index(arr, value*, i);
 		GString *ext = g_array_index(tuple->data.list, value*, 0)->data.string;
 		if (ext->len > filename->len)
@@ -476,8 +477,8 @@ GString *mimetype_get(vrequest *vr, GString *filename) {
 		if (!ext->len)
 			return g_array_index(tuple->data.list, value*, 1)->data.string;
 
-		gint k = filename->len - 1;
-		gint j = ext->len - 1;
+		k = filename->len - 1;
+		j = ext->len - 1;
 		for (; j >= 0; j--) {
 			if (ext->str[j] != filename->str[k])
 				break;
@@ -536,16 +537,49 @@ GString *sockaddr_to_string(sock_addr *saddr, GString *dest) {
 		/* ipv6 - not yet implemented with own function */
 		if (!dest)
 			dest = g_string_sized_new(INET6_ADDRSTRLEN);
-		else
-			g_string_set_size(dest, INET6_ADDRSTRLEN);
 
-		inet_ntop(AF_INET6, saddr->ipv6.sin6_addr.s6_addr, dest->str, INET6_ADDRSTRLEN);
+		ipv6_tostring(dest, saddr->ipv6.sin6_addr.s6_addr);
 #endif
+	default:
+		if (dest) g_string_truncate(dest, 0);
 	}
 
 	return dest;
 }
 
+sockaddr sockaddr_from_string(GString *str, guint tcp_default_port) {
+	guint32 ipv4;
+#ifdef HAVE_IPV6
+	guint8 ipv6[16];
+#endif
+	guint16 port = tcp_default_port;
+	sockaddr saddr = { 0, NULL };
+
+	if (parse_ipv4(str->str, &ipv4, NULL, &port)) {
+		if (!port) return saddr;
+		saddr.len = sizeof(struct sockaddr_in);
+		saddr.addr = (sock_addr*) g_slice_alloc0(saddr.len);
+		saddr.addr->ipv4.sin_family = AF_INET;
+		saddr.addr->ipv4.sin_addr.s_addr = ipv4;
+		saddr.addr->ipv4.sin_port = htons(port);
+#ifdef HAVE_IPV6
+	} else if (parse_ipv6(str->str, ipv6, NULL, &port)) {
+		if (!port) return saddr;
+		saddr.len = sizeof(struct sockaddr_in6);
+		saddr.addr = (sock_addr*) g_slice_alloc0(saddr.len);
+		saddr.addr->ipv6.sin6_family = AF_INET6;
+		memcpy(&saddr.addr->ipv6.sin6_addr, ipv6, 16);
+		saddr.addr->ipv6.sin6_port = htons(port);
+#endif
+	}
+	return saddr;
+}
+
+void sockaddr_clear(sockaddr *saddr) {
+	g_slice_free1(saddr->len, saddr->addr);
+}
+
+/* unused */
 void gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, guint len) {
 	for (guint i = 0; i < gstr->len; i++) {
 		if (gstr->str[i] == c) {

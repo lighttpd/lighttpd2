@@ -1,6 +1,9 @@
 
 #include <lighttpd/base.h>
 
+LI_API gboolean mod_balancer_init(modules *mods, module *mod);
+LI_API gboolean mod_balancer_free(modules *mods, module *mod);
+
 typedef enum {
 	BE_ALIVE,
 	BE_OVERLOADED,
@@ -65,9 +68,11 @@ static gboolean balancer_fill_backends(balancer *b, server *srv, value *val) {
 				return FALSE;
 			}
 			assert(srv == oa->data.val_action.srv);
-			backend be = { oa->data.val_action.action, 0, BE_ALIVE };
-			action_acquire(be.act);
-			g_array_append_val(b->backends, be);
+			{
+				backend be = { oa->data.val_action.action, 0, BE_ALIVE };
+				action_acquire(be.act);
+				g_array_append_val(b->backends, be);
+			}
 		}
 		return TRUE;
 	} else {
@@ -173,7 +178,7 @@ static void plugin_init(server *srv, plugin *p) {
 }
 
 
-LI_API gboolean mod_balancer_init(modules *mods, module *mod) {
+gboolean mod_balancer_init(modules *mods, module *mod) {
 	MODULE_VERSION_CHECK(mods);
 
 	mod->config = plugin_register(mods->main, "mod_balancer", plugin_init);
@@ -181,7 +186,7 @@ LI_API gboolean mod_balancer_init(modules *mods, module *mod) {
 	return mod->config != NULL;
 }
 
-LI_API gboolean mod_balancer_free(modules *mods, module *mod) {
+gboolean mod_balancer_free(modules *mods, module *mod) {
 	if (mod->config)
 		plugin_free(mods->main, mod->config);
 

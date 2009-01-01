@@ -26,10 +26,9 @@ void response_send_headers(connection *con) {
 
 	if (vr->response.http_status < 100 || vr->response.http_status > 999) {
 		VR_ERROR(vr, "wrong status: %i", vr->response.http_status);
-		vrequest_reset(con->mainvr);
-		http_headers_reset(con->mainvr->response.headers);
-		con->mainvr->response.http_status = 500;
-		con->state = CON_STATE_WRITE;
+		con->response_headers_sent = FALSE;
+		connection_internal_error(con);
+		return;
 	}
 
 	if (0 == con->out->length && con->mainvr->handle_response_body == NULL

@@ -415,6 +415,8 @@ void log_init(server *srv) {
 
 void log_cleanup(server *srv) {
 	guint i;
+	log_timestamp_t *ts;
+
 	/* wait for logging thread to exit */
 	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE)
 	{
@@ -422,14 +424,12 @@ void log_cleanup(server *srv) {
 		g_thread_join(srv->logs.thread);
 	}
 
-
 	log_free(srv, srv->logs.stderr);
 
 	g_hash_table_destroy(srv->logs.targets);
 	g_mutex_free(srv->logs.mutex);
 	g_async_queue_unref(srv->logs.queue);
 
-	log_timestamp_t *ts;
 	for (i = 0; i < srv->logs.timestamps->len; i++) {
 		ts = g_array_index(srv->logs.timestamps, log_timestamp_t*, i);
 		g_print("ts #%d refcount: %d\n", i, ts->refcount);
@@ -475,9 +475,10 @@ void log_thread_finish(server *srv) {
 }
 
 void log_thread_wakeup(server *srv) {
+	log_entry_t *e;
+
 	if (!g_atomic_int_get(&srv->logs.thread_alive))
 		log_thread_start(srv);
-	log_entry_t *e;
 
 	e = g_slice_new0(log_entry_t);
 

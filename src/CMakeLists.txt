@@ -22,6 +22,8 @@ OPTION(WITH_OPENSSL "with openssl-support [default: on]" ON)
 OPTION(WITH_PCRE "with regex support [default: on]" ON)
 OPTION(WITH_LUA "with lua 5.1 for lua-configfile [default: on]" ON)
 OPTION(BUILD_STATIC "build a static lighttpd with all modules added")
+OPTION(BUILD_EXTRA_WARNINGS "extra warnings")
+
 IF(BUILD_STATIC)
   SET(LIGHTTPD_STATIC 1)
 ELSE(BUILD_STATIC)
@@ -332,10 +334,18 @@ ADD_EXECUTABLE(lighttpd
 )
 SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd)
 
-SET(COMMON_LDFLAGS "${LUA_LDFLAGS} ${EV_LDFLAGS} ${GTHREAD_LDFLAGS} ${GMODULE_LDFLAGS}")
-SET(COMMON_CFLAGS "${LUA_CFLAGS} ${EV_CFLAGS} ${GTHREAD_CFLAGS} ${GMODULE_CFLAGS}")
+IF(BUILD_EXTRA_WARNINGS)
+	SET(WARN_FLAGS "-g -O2 -g2 -Wall -Wmissing-prototypes -Wmissing-declarations -Wdeclaration-after-statement -Wno-pointer-sign -Wcast-align -Winline -Wsign-compare -Wnested-externs -Wpointer-arith -Wl,--as-needed")
+	# -Werror -Wbad-function-cast
+ELSE(BUILD_EXTRA_WARNINGS)
+	SET(WARN_FLAGS "")
+ENDIF(BUILD_EXTRA_WARNINGS)
+
+SET(COMMON_LDFLAGS "${LUA_LDFLAGS} ${EV_LDFLAGS} ${GTHREAD_LDFLAGS} ${GMODULE_LDFLAGS} ${WARN_FLAGS}")
+SET(COMMON_CFLAGS "${LUA_CFLAGS} ${EV_CFLAGS} ${GTHREAD_CFLAGS} ${GMODULE_CFLAGS} ${WARN_FLAGS}")
 
 ADD_AND_INSTALL_LIBRARY(mod_balancer "modules/mod_balancer.c")
+ADD_AND_INSTALL_LIBRARY(mod_fastcgi "modules/mod_fastcgi.c")
 ADD_AND_INSTALL_LIBRARY(mod_fortune "modules/mod_fortune.c")
 ADD_AND_INSTALL_LIBRARY(mod_status "modules/mod_status.c")
 

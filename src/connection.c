@@ -99,11 +99,15 @@ void connection_internal_error(connection *con) {
 		VR_ERROR(vr, "%s", "Couldn't send '500 Internal Error': headers already sent");
 		connection_error(con);
 	} else {
-		vrequest_reset(con->mainvr);
 		http_headers_reset(con->mainvr->response.headers);
 		VR_ERROR(vr, "%s", "internal error");
 		con->mainvr->response.http_status = 500;
 		con->state = CON_STATE_WRITE;
+		con->mainvr->state = VRS_WRITE_CONTENT;
+		chunkqueue_reset(con->mainvr->out);
+		chunkqueue_reset(con->out);
+		con->mainvr->out->is_closed = TRUE;
+		con->out->is_closed = TRUE;
 		forward_response_body(con);
 	}
 }

@@ -1,5 +1,6 @@
 
 #include <lighttpd/base.h>
+#include <lighttpd/url_parser.h>
 
 #include <stdlib.h>
 

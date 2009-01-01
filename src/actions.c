@@ -14,8 +14,8 @@ struct action_stack_element {
 };
 
 void action_release(server *srv, action *a) {
-	if (!a) return;
 	guint i;
+	if (!a) return;
 	assert(g_atomic_int_get(&a->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&a->refcount)) {
 		switch (a->type) {
@@ -192,6 +192,9 @@ handler_t action_execute(vrequest *vr) {
 
 	while (NULL != (ase = action_stack_top(as))) {
 		if (as->backend_failed) {
+			vr->state = VRS_HANDLE_REQUEST_HEADERS;
+			vr->backend = NULL;
+
 			/* pop top action in every case (if the balancer itself failed we don't want to restart it) */
 			action_stack_pop(srv, vr, as);
 			while (NULL != (ase = action_stack_top(as)) && (ase->act->type != ACTION_TBALANCER || !ase->act->data.balancer.provide_backlog)) {
@@ -206,6 +209,7 @@ handler_t action_execute(vrequest *vr) {
 			as->backend_failed = FALSE;
 			
 			ase->finished = FALSE;
+			a = ase->act;
 			res = a->data.balancer.fallback(vr, ase->backlog_provided, a->data.balancer.param, &ase->data.context, as->backend_error);
 			switch (res) {
 			case HANDLER_GO_ON:
@@ -232,8 +236,8 @@ handler_t action_execute(vrequest *vr) {
 			continue;
 		}
 
-		a = ase->act;
 		vr->con->wrk->stats.actions_executed++;
+		a = ase->act;
 
 		switch (a->type) {
 		case ACTION_TSETTING:

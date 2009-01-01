@@ -87,13 +87,15 @@ int main(int argc, char *argv[]) {
 	if (!luaconfig) {
 		GTimeVal start, end;
 		gulong s, millis, micros;
-		g_get_current_time(&start);
 		guint64 d;
 		action *a;
+		config_parser_context_t *ctx;
+
+		g_get_current_time(&start);
 
 		/* standard config frontend */
 		ctx_stack = config_parser_init(srv);
-		config_parser_context_t *ctx = (config_parser_context_t*) ctx_stack->data;
+		ctx = (config_parser_context_t*) ctx_stack->data;
 		if (!config_parser_file(srv, ctx_stack, config_path)) {
 			config_parser_finish(srv, ctx_stack, TRUE);
 			log_thread_start(srv);

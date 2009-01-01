@@ -11,6 +11,7 @@ void request_init(request *req) {
 	req->uri.scheme = g_string_sized_new(0);
 	req->uri.authority = g_string_sized_new(0);
 	req->uri.path = g_string_sized_new(0);
+	req->uri.orig_path = g_string_sized_new(0);
 	req->uri.query = g_string_sized_new(0);
 	req->uri.host = g_string_sized_new(0);
 
@@ -28,6 +29,7 @@ void request_reset(request *req) {
 	g_string_truncate(req->uri.scheme, 0);
 	g_string_truncate(req->uri.authority, 0);
 	g_string_truncate(req->uri.path, 0);
+	g_string_truncate(req->uri.orig_path, 0);
 	g_string_truncate(req->uri.query, 0);
 	g_string_truncate(req->uri.host, 0);
 
@@ -45,6 +47,7 @@ void request_clear(request *req) {
 	g_string_free(req->uri.scheme, TRUE);
 	g_string_free(req->uri.authority, TRUE);
 	g_string_free(req->uri.path, TRUE);
+	g_string_free(req->uri.orig_path, TRUE);
 	g_string_free(req->uri.query, TRUE);
 	g_string_free(req->uri.host, TRUE);
 
@@ -60,7 +63,7 @@ static void bad_request(connection *con, int status) {
 	vrequest_handle_direct(con->mainvr);
 }
 
-gboolean request_parse_url(vrequest *vr) {
+static gboolean request_parse_url(vrequest *vr) {
 	request *req = &vr->request;
 
 	g_string_truncate(req->uri.query, 0);
@@ -75,6 +78,10 @@ gboolean request_parse_url(vrequest *vr) {
 
 	url_decode(req->uri.path);
 	path_simplify(req->uri.path);
+
+	if (0 == req->uri.orig_path->len) {
+		g_string_append_len(req->uri.orig_path, GSTR_LEN(req->uri.path)); /* save orig path */
+	}
 
 	return TRUE;
 }

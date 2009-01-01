@@ -49,6 +49,8 @@ vrequest* vrequest_new(connection *con, vrequest_handler handle_response_headers
 	vr->handle_response_error = handle_response_error;
 	vr->handle_request_headers = handle_request_headers;
 
+	vr->plugin_ctx = g_ptr_array_new();
+	g_ptr_array_set_size(vr->plugin_ctx, g_hash_table_size(srv->plugins));
 	vr->options = g_slice_copy(srv->option_def_values->len * sizeof(option_value), srv->option_def_values->data);
 
 	request_init(&vr->request);
@@ -70,6 +72,8 @@ vrequest* vrequest_new(connection *con, vrequest_handler handle_response_headers
 
 void vrequest_free(vrequest* vr) {
 	action_stack_clear(vr, &vr->action_stack);
+	plugins_handle_vrclose(vr);
+	g_ptr_array_free(vr->plugin_ctx, TRUE);
 
 	request_clear(&vr->request);
 	physical_clear(&vr->physical);
@@ -91,10 +95,16 @@ void vrequest_free(vrequest* vr) {
 
 void vrequest_reset(vrequest *vr) {
 	action_stack_reset(vr, &vr->action_stack);
+	plugins_handle_vrclose(vr);
+	{
+		gint len = vr->plugin_ctx->len;
+		g_ptr_array_set_size(vr->plugin_ctx, 0);
+		g_ptr_array_set_size(vr->plugin_ctx, len);
+	}
 
 	vr->state = VRS_CLEAN;
 
-	vr->handle_request_body = NULL;
+	vr->backend = NULL;
 
 	request_reset(&vr->request);
 	physical_reset(&vr->physical);
@@ -114,23 +124,25 @@ void vrequest_reset(vrequest *vr) {
 
 void vrequest_error(vrequest *vr) {
 	vr->state = VRS_ERROR;
+	vr->out->is_closed = TRUE;
 	vrequest_joblist_append(vr);
-}
-
-void vrequest_backend_overloaded(vrequest *vr) {
-	vr->action_stack.backend_failed = TRUE;
-	vr->action_stack.backend_error = BACKEND_OVERLOAD;
 }
 
 void vrequest_backend_error(vrequest *vr, backend_error berror) {
 	vr->action_stack.backend_failed = TRUE;
 	vr->action_stack.backend_error = berror;
+	vr->state = VRS_HANDLE_REQUEST_HEADERS;
+	vr->backend = NULL;
+	vrequest_joblist_append(vr);
 }
 
-void vrequest_backend_dead(vrequest *vr) {
-	vr->action_stack.backend_failed = TRUE;
-	vr->action_stack.backend_error = BACKEND_DEAD;
+void vrequest_backend_overloaded(vrequest *vr) {
+	vrequest_backend_error(vr, BACKEND_OVERLOAD);
 }
+void vrequest_backend_dead(vrequest *vr) {
+	vrequest_backend_error(vr, BACKEND_DEAD);
+}
+
 
 /* received all request headers */
 void vrequest_handle_request_headers(vrequest *vr) {
@@ -167,7 +179,7 @@ gboolean vrequest_handle_direct(vrequest *vr) {
 	if (vr->state < VRS_READ_CONTENT) {
 		vr->state = VRS_HANDLE_RESPONSE_HEADERS;
 		vr->out->is_closed = TRUE;
-		vr->handle_request_body = NULL;
+		vr->backend = NULL;
 		return TRUE;
 	} else {
 		return FALSE;
@@ -175,10 +187,10 @@ gboolean vrequest_handle_direct(vrequest *vr) {
 }
 
 /* handle request over time */
-gboolean vrequest_handle_indirect(vrequest *vr, vrequest_handler handle_request_body) {
+gboolean vrequest_handle_indirect(vrequest *vr, plugin *p) {
 	if (vr->state < VRS_READ_CONTENT) {
 		vr->state = VRS_READ_CONTENT;
-		vr->handle_request_body = handle_request_body;
+		vr->backend = p;
 		return TRUE;
 	} else {
 		return FALSE;
@@ -213,10 +225,10 @@ static gboolean vrequest_do_handle_actions(vrequest *vr) {
 static gboolean vrequest_do_handle_read(vrequest *vr) {
 	handler_t res;
 	if (vr->in->is_closed && vr->in->bytes_in == vr->in->bytes_out) return TRUE;
-	if (vr->handle_request_body) {
+	if (vr->backend && vr->backend->handle_request_body) {
 		chunkqueue_steal_all(vr->in, vr->vr_in); /* TODO: filters */
 		if (vr->vr_in->is_closed) vr->in->is_closed = TRUE;
-		res = vr->handle_request_body(vr);
+		res = vr->backend->handle_request_body(vr, vr->backend);
 		switch (res) {
 		case HANDLER_GO_ON:
 			break;

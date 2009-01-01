@@ -10,7 +10,7 @@ struct request_uri {
 
 	GString *scheme;
 	GString *authority;
-	GString *path;
+	GString *path, *orig_path;
 	GString *query;
 
 	GString *host; /* without userinfo and port */

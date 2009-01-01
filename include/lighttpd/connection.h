@@ -82,6 +82,7 @@ LI_API void connection_reset_keep_alive(connection *con);
 LI_API void connection_free(connection *con);
 
 LI_API void connection_error(connection *con);
+LI_API void connection_internal_error(connection *con);
 
 LI_API void connection_handle_direct(connection *con);
 LI_API void connection_handle_indirect(connection *con, plugin *p);

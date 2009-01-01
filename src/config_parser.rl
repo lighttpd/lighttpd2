@@ -1023,11 +1023,12 @@ void config_parser_finish(server *srv, GList *ctx_stack, gboolean free_all) {
 	config_parser_context_t *ctx;
 	GHashTableIter iter;
 	gpointer key, val;
+	GList *l;
 
 	_printf("ctx_stack size: %u\n", g_list_length(ctx_stack));
 
 	/* clear all contexts from the stack */
-	GList *l = g_list_nth(ctx_stack, 1);
+	l = g_list_nth(ctx_stack, 1);
 	while (l) {
 		ctx = l->data;
 		config_parser_context_free(srv, ctx, FALSE);

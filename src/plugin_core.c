@@ -140,9 +140,9 @@ static gboolean core_setup_set(server *srv, plugin* p, value *val) {
 }
 
 static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *context) {
+	int fd;
 	UNUSED(param);
 	UNUSED(context);
-	int fd;
 
 	/* build physical path: docroot + uri.path */
 	g_string_truncate(vr->physical.path, 0);
@@ -517,9 +517,11 @@ static gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value 
 
 		if (g_str_equal(level_str->str, "*")) {
 			for (guint i = 0; i < arr->len; i++) {
+				log_t *log;
+
 				if (NULL != g_array_index(arr, log_t*, i))
 					continue;
-				log_t *log = log_new(srv, log_type_from_path(path), path);
+				log = log_new(srv, log_type_from_path(path), path);
 				g_array_index(arr, log_t*, i) = log;
 			}
 		}
@@ -534,10 +536,10 @@ static gboolean core_option_log_parse(server *srv, plugin *p, size_t ndx, value 
 }
 
 static void core_option_log_free(server *srv, plugin *p, size_t ndx, option_value oval) {
+	GArray *arr = oval.list;
 	UNUSED(p);
 	UNUSED(ndx);
 
-	GArray *arr = oval.list;
 	if (!arr) return;
 
 	for (guint i = 0; i < arr->len; i++) {
@@ -783,6 +785,7 @@ static const plugin_setup setups[] = {
 	{ NULL, NULL }
 };
 
+void plugin_core_init(server *srv, plugin *p);
 void plugin_core_init(server *srv, plugin *p) {
 	UNUSED(srv);
 

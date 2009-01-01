@@ -99,7 +99,7 @@ LI_API void chunkqueue_free(chunkqueue *cq);
 LI_API void chunkqueue_append_string(chunkqueue *cq, GString *str);
 
 /* memory gets copied */
-LI_API void chunkqueue_append_mem(chunkqueue *cq, void *mem, gssize len);
+LI_API void chunkqueue_append_mem(chunkqueue *cq, const void *mem, gssize len);
 
 /* pass ownership of filename, do not free it */
 LI_API void chunkqueue_append_file(chunkqueue *cq, GString *filename, off_t start, off_t length);
@@ -134,6 +134,8 @@ LI_API goffset chunkqueue_skip_all(chunkqueue *cq);
 INLINE chunkiter chunkqueue_iter(chunkqueue *cq);
 
 INLINE chunk* chunkqueue_first_chunk(chunkqueue *cq);
+
+LI_API gboolean chunkqueue_extract_to(vrequest *vr, chunkqueue *cq, goffset len, GString *dest);
 
 /********************
  * Inline functions *

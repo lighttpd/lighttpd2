@@ -27,6 +27,9 @@
 
 #include <lighttpd/base.h>
 
+LI_API gboolean mod_fortune_init(modules *mods, module *mod);
+LI_API gboolean mod_fortune_free(modules *mods, module *mod);
+
 /* globals */
 struct fortune_data;
 typedef struct fortune_data fortune_data;
@@ -153,8 +156,8 @@ static const plugin_setup setups[] = {
 
 
 static void plugin_fortune_free(server *srv, plugin *p) {
-	UNUSED(srv);
 	fortune_data *fd = p->data;
+	UNUSED(srv);
 
 	/* free the cookies! */
 	for (guint i = 0; i < fd->cookies->len; i++)
@@ -167,8 +170,8 @@ static void plugin_fortune_free(server *srv, plugin *p) {
 }
 
 static void plugin_fortune_init(server *srv, plugin *p) {
-	UNUSED(srv);
 	fortune_data *fd;
+	UNUSED(srv);
 
 	p->options = options;
 	p->actions = actions;
@@ -182,7 +185,7 @@ static void plugin_fortune_init(server *srv, plugin *p) {
 }
 
 
-LI_API gboolean mod_fortune_init(modules *mods, module *mod) {
+gboolean mod_fortune_init(modules *mods, module *mod) {
 	server *srv = mods->main;
 
 	MODULE_VERSION_CHECK(mods);
@@ -195,7 +198,7 @@ LI_API gboolean mod_fortune_init(modules *mods, module *mod) {
 	return TRUE;
 }
 
-LI_API gboolean mod_fortune_free(modules *mods, module *mod) {
+gboolean mod_fortune_free(modules *mods, module *mod) {
 	if (mod->config)
 		plugin_free(mods->main, mod->config);
 

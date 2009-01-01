@@ -53,13 +53,15 @@ static profiler_entry *profiler_hashtable_find(gpointer addr) {
 
 static void profiler_hashtable_insert(gpointer addr, gsize len) {
 	profiler_entry *e = free_list;
+	guint h;
+
 	free_list = free_list->next ? free_list->next : calloc(1, sizeof(profiler_entry));
 
 	e->addr = addr;
 	e->len = len;
 	e->next = NULL;
 
-	guint h = profiler_hash_addr(addr);
+	h = profiler_hash_addr(addr);
 
 	if (profiler_hashtable.nodes[h] == NULL) {
 		profiler_hashtable.nodes[h] = e;
@@ -139,9 +141,11 @@ static gpointer profiler_try_realloc(gpointer mem, gsize n_bytes) {
 		l = 0;
 	}
 	else {
+		profiler_entry *e;
+
 		p = realloc(p, n_bytes);
 		g_mutex_lock(profiler_mutex);
-		profiler_entry *e = profiler_hashtable_find(mem);
+		e = profiler_hashtable_find(mem);
 		l = e->len;
 		profiler_hashtable_remove(mem);
 		g_mutex_unlock(profiler_mutex);
@@ -191,10 +195,11 @@ static gpointer profiler_calloc(gsize n_blocks, gsize n_bytes) {
 
 static void profiler_free(gpointer mem) {
 	gsize *p = mem;
+	profiler_entry *e;
 
 	assert(p);
 	g_mutex_lock(profiler_mutex);
-	profiler_entry *e = profiler_hashtable_find(mem);
+	e = profiler_hashtable_find(mem);
 	stats_mem.free_times++;
 	stats_mem.free_bytes += e->len;
 	stats_mem.inuse_bytes -= e->len;
@@ -244,11 +249,13 @@ void profiler_finish() {
 }
 
 void profiler_dump() {
+	profiler_mem s;
+
 	if (!profiler_enabled)
 		return;
 
 	g_mutex_lock(profiler_mutex);
-	profiler_mem s = stats_mem;
+	s = stats_mem;
 	g_mutex_unlock(profiler_mutex);
 
 	g_print("--- memory profiler stats ---\n");

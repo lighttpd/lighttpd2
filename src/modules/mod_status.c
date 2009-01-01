@@ -31,6 +31,8 @@
 #include <lighttpd/base.h>
 #include <lighttpd/collect.h>
 
+LI_API gboolean mod_status_init(modules *mods, module *mod);
+LI_API gboolean mod_status_free(modules *mods, module *mod);
 
 /* html snippet constants */
 static const gchar header[] =
@@ -162,8 +164,9 @@ struct mod_status_wrk_data {
 
 /* the CollectFunc */
 static gpointer status_collect_func(worker *wrk, gpointer fdata) {
-	UNUSED(fdata);
 	mod_status_wrk_data *sd = g_slice_new(mod_status_wrk_data);
+	UNUSED(fdata);
+
 	sd->stats = wrk->stats;
 	sd->worker_ndx = wrk->ndx;
 	/* gather connection info */
@@ -190,17 +193,13 @@ static gpointer status_collect_func(worker *wrk, gpointer fdata) {
 
 /* the CollectCallback */
 static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
-	UNUSED(fdata);
 	vrequest *vr = cbdata;
-
+	UNUSED(fdata);
 
 	if (complete) {
 		GString *css;
 		GString *tmpstr;
 		guint total_connections = 0;
-
-		VR_DEBUG(vr, "finished collecting data: %s", complete ? "complete" : "not complete");
-		vr->response.http_status = 200;
 
 		/* we got everything */
 		statistics_t totals = {
@@ -210,6 +209,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			0, 0, G_GUINT64_CONSTANT(0), 0, 0
 		};
 		GString *html = g_string_sized_new(8 * 1024);
+
+		VR_DEBUG(vr, "finished collecting data: %s", complete ? "complete" : "not complete");
+		vr->response.http_status = 200;
 
 		/* calculate total stats over all workers */
 		for (guint i = 0; i < result->len; i++) {
@@ -510,7 +512,7 @@ static void plugin_status_init(server *srv, plugin *p) {
 }
 
 
-LI_API gboolean mod_status_init(modules *mods, module *mod) {
+gboolean mod_status_init(modules *mods, module *mod) {
 	UNUSED(mod);
 
 	MODULE_VERSION_CHECK(mods);
@@ -520,7 +522,7 @@ LI_API gboolean mod_status_init(modules *mods, module *mod) {
 	return mod->config != NULL;
 }
 
-LI_API gboolean mod_status_free(modules *mods, module *mod) {
+gboolean mod_status_free(modules *mods, module *mod) {
 	UNUSED(mods); UNUSED(mod);
 
 	if (mod->config)

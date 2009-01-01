@@ -67,6 +67,7 @@ server* server_new(const gchar *module_dir) {
 	srv->setups  = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_setup_free);
 
 	srv->plugins_handle_close = g_array_new(FALSE, TRUE, sizeof(plugin*));
+	srv->plugins_handle_vrclose = g_array_new(FALSE, TRUE, sizeof(plugin*));
 	srv->option_def_values = g_array_new(FALSE, TRUE, sizeof(option_value));
 
 	srv->mainaction = NULL;
@@ -99,13 +100,6 @@ void server_free(server* srv) {
 
 	action_release(srv, srv->mainaction);
 
-	/* release modules */
-	modules_cleanup(srv->modules);
-
-	plugin_free(srv, srv->core_plugin);
-
-	log_cleanup(srv);
-
 	/* free all workers */
 	{
 		guint i;
@@ -124,6 +118,13 @@ void server_free(server* srv) {
 		g_array_free(srv->workers, TRUE);
 	}
 
+	/* release modules */
+	modules_cleanup(srv->modules);
+
+	plugin_free(srv, srv->core_plugin);
+
+	log_cleanup(srv);
+
 	{
 		guint i; for (i = 0; i < srv->sockets->len; i++) {
 			server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
@@ -135,7 +136,8 @@ void server_free(server* srv) {
 
 	g_array_free(srv->option_def_values, TRUE);
 	server_plugins_free(srv);
-	g_array_free(srv->plugins_handle_close, TRUE); /* TODO: */
+	g_array_free(srv->plugins_handle_close, TRUE);
+	g_array_free(srv->plugins_handle_vrclose, TRUE);
 
 	if (srv->started_str)
 		g_string_free(srv->started_str, TRUE);

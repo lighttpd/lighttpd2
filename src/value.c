@@ -194,12 +194,12 @@ GString *value_to_string(value *val) {
 			break;
 		case VALUE_HASH:
 		{
-			str = g_string_new_len(CONST_STR_LEN("["));
 			GHashTableIter iter;
 			gpointer k, v;
 			GString *tmp;
 			guint i = 0;
 
+			str = g_string_new_len(CONST_STR_LEN("["));
 
 			g_hash_table_iter_init(&iter, val->data.hash);
 			while (g_hash_table_iter_next(&iter, &k, &v)) {

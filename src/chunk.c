@@ -280,7 +280,7 @@ void chunkqueue_append_string(chunkqueue *cq, GString *str) {
 }
 
 /* memory gets copied */
-void chunkqueue_append_mem(chunkqueue *cq, void *mem, gssize len) {
+void chunkqueue_append_mem(chunkqueue *cq, const void *mem, gssize len) {
 	chunk *c;
 	if (!len) return;
 	c = chunk_new();
@@ -383,6 +383,8 @@ goffset chunkqueue_steal_len(chunkqueue *out, chunkqueue *in, goffset length) {
 
 /* steal all chunks from in and put them into out, return number of bytes stolen */
 goffset chunkqueue_steal_all(chunkqueue *out, chunkqueue *in) {
+	goffset len;
+
 	/* if in->queue is empty, do nothing */
 	if (!in->length) return 0;
 	/* if out->queue is empty, just swap in->queue/out->queue */
@@ -399,7 +401,7 @@ goffset chunkqueue_steal_all(chunkqueue *out, chunkqueue *in) {
 		g_queue_init(in->queue);
 	}
 	/* count bytes in chunkqueues */
-	goffset len = in->length;
+	len = in->length;
 	in->bytes_out += len;
 	in->length = 0;
 	out->bytes_in += len;
@@ -458,3 +460,36 @@ goffset chunkqueue_skip_all(chunkqueue *cq) {
 
 	return bytes;
 }
+
+gboolean chunkqueue_extract_to(vrequest *vr, chunkqueue *cq, goffset len, GString *dest) {
+	chunkiter ci;
+	goffset coff, clen;
+	g_string_set_size(dest, 0);
+	if (len > cq->length) return FALSE;
+
+	ci = chunkqueue_iter(cq);
+	coff = 0;
+	clen = chunkiter_length(ci);
+
+	while (len > 0) {
+		coff = 0;
+		clen = chunkiter_length(ci);
+		while (coff < clen) {
+			gchar *buf;
+			off_t we_have;
+			if (HANDLER_GO_ON != chunkiter_read(vr, ci, coff, len, &buf, &we_have)) goto error;
+			g_string_append_len(dest, buf, we_have);
+			coff += we_have;
+			len -= we_have;
+			if (len <= 0) return TRUE;
+		}
+		chunkiter_next(&ci);
+	}
+
+	return TRUE;
+
+error:
+	g_string_assign(dest, "");
+	return FALSE;
+}
+

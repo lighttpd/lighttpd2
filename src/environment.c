@@ -25,6 +25,15 @@ void environment_set(environment *env, const gchar *key, size_t keylen, const gc
 	g_hash_table_insert(env->table, skey, sval);
 }
 
+void environment_insert(environment *env, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
+	GString *sval = environment_get(env, key, keylen), *skey;
+	if (!sval) {
+		skey = g_string_new_len(key, keylen);
+		sval = g_string_new_len(val, valuelen);
+		g_hash_table_insert(env->table, skey, sval);
+	}
+}
+
 void environment_remove(environment *env, const gchar *key, size_t keylen) {
 	const GString skey = { (gchar*) key, keylen, 0 }; /* fake a constant GString */
 	g_hash_table_remove(env->table, &skey);

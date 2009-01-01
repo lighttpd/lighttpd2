@@ -19,12 +19,14 @@ typedef void     (*PluginFreeOption)    (server *srv, plugin *p, size_t ndx, opt
 typedef action*  (*PluginCreateAction)  (server *srv, plugin *p, value *val);
 typedef gboolean (*PluginSetup)         (server *srv, plugin *p, value *val);
 
-typedef void     (*PluginHandleContent) (connection *con, plugin *p);
 typedef void     (*PluginHandleClose)   (connection *con, plugin *p);
+typedef handler_t(*PluginHandleVRequest)(vrequest *vr, plugin *p);
+typedef void     (*PluginHandleVRClose) (vrequest *vr, plugin *p);
 
 struct plugin {
 	size_t version;
 	const gchar *name; /**< name of the plugin */
+	guint id;          /**< index in some plugin arrays */
 
 	gpointer data;     /**< private plugin data */
 
@@ -32,18 +34,15 @@ struct plugin {
 
 	PluginFree free;   /**< called before plugin is unloaded */
 
-	/** called if plugin registered as indirect handler with connection_handle_indirect(srv, con, p)
-	  *  - after response headers are created:
-	  *      connection_set_state(con, CON_STATE_HANDLE_RESPONSE_HEADER)
-	  *  - after content is generated close output queue:
-	  *      con->out->is_closed = TRUE
-	  */
-	PluginHandleContent handle_content;
+	PluginHandleVRequest handle_request_body;
 
 	/** called for every plugin after connection got closed (response end, reset by peer, error)
 	  * the plugins code must not depend on any order of plugins loaded
 	  */
 	PluginHandleClose handle_close;
+
+	/** called for every plugin after vrequest got reset */
+	PluginHandleVRClose handle_vrclose;
 
 	const plugin_option *options;
 	const plugin_action *actions;
@@ -123,6 +122,7 @@ LI_API void release_option(server *srv, option_set *mark); /**< Does not free th
 
 LI_API void plugins_prepare_callbacks(server *srv);
 LI_API void plugins_handle_close(connection *con);
+LI_API void plugins_handle_vrclose(vrequest *vr);
 
 /* Needed for config frontends */
 /** For parsing 'somemod.option = "somevalue"', free value after call */

@@ -116,7 +116,7 @@ void http_header_remove_link(http_headers *headers, GList *l) {
 }
 
 gboolean http_header_remove(http_headers *headers, const gchar *key, size_t keylen) {
-	GList *l, *lp = NULL;;
+	GList *l, *lp = NULL;
 	gboolean res = FALSE;
 
 	for (l = http_header_find_first(headers, key, keylen); l; l = http_header_find_next(l, key, keylen)) {

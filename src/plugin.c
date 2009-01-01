@@ -69,13 +69,14 @@ void plugin_free(server *srv, plugin *p) {
 }
 
 void server_plugins_free(server *srv) {
+	gpointer key, val;
+	GHashTableIter i;
+
 	if (g_atomic_int_get(&srv->state) == SERVER_RUNNING) {
 		ERROR(srv, "%s", "Cannot free plugins while server is running");
 		return;
 	}
 
-	gpointer key, val;
-	GHashTableIter i;
 	g_hash_table_iter_init(&i, srv->plugins);
 	while (g_hash_table_iter_next(&i, &key, &val)) {
 		plugin *p = (plugin*) val;
@@ -111,6 +112,7 @@ plugin *plugin_register(server *srv, const gchar *name, PluginInit init) {
 	}
 
 	p = plugin_new(name);
+	p->id = g_hash_table_size(srv->plugins);
 	g_hash_table_insert(srv->plugins, (gchar*) p->name, p);
 
 	init(srv, p);
@@ -321,6 +323,8 @@ void plugins_prepare_callbacks(server *srv) {
 		p = (plugin*) v;
 		if (p->handle_close)
 			g_array_append_val(srv->plugins_handle_close, p);
+		if (p->handle_vrclose)
+			g_array_append_val(srv->plugins_handle_vrclose, p);
 	}
 }
 
@@ -330,6 +334,15 @@ void plugins_handle_close(connection *con) {
 	for (i = 0; i < len; i++) {
 		plugin *p = g_array_index(a, plugin*, i);
 		p->handle_close(con, p);
+	}
+}
+
+void plugins_handle_vrclose(vrequest *vr) {
+	GArray *a = vr->con->srv->plugins_handle_vrclose;
+	guint i, len = a->len;
+	for (i = 0; i < len; i++) {
+		plugin *p = g_array_index(a, plugin*, i);
+		p->handle_vrclose(vr, p);
 	}
 }
 

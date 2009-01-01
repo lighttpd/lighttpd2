@@ -151,7 +151,7 @@ static network_sendfile_result lighty_sendfile(vrequest *vr, int fd, int filefd,
 
 
 /* first chunk must be a FILE_CHUNK ! */
-network_status_t network_backend_sendfile(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
+static network_status_t network_backend_sendfile(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
 	off_t file_offset, toSend;
 	ssize_t r;
 	gboolean did_write_something = FALSE;

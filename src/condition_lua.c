@@ -67,7 +67,7 @@ condition* lua_get_condition(lua_State *L, int ndx) {
 	return *(condition**) lua_touserdata(L, ndx);
 }
 
-condition_lvalue* lua_get_condition_lvalue(lua_State *L, int ndx) {
+static condition_lvalue* lua_get_condition_lvalue(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_COND_LVALUE);
@@ -79,7 +79,7 @@ condition_lvalue* lua_get_condition_lvalue(lua_State *L, int ndx) {
 	return *(condition_lvalue**) lua_touserdata(L, ndx);
 }
 
-cond_lvalue_t lua_get_cond_lvalue_t(lua_State *L, int ndx) {
+static cond_lvalue_t lua_get_cond_lvalue_t(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return -1;
 	if (!lua_getmetatable(L, ndx)) return -1;
 	luaL_getmetatable(L, LUA_COND_LVALUE_T);
@@ -152,9 +152,12 @@ static int lua_cond_lvalue_cmp(lua_State *L) {
 	server *srv;
 	GString *sval;
 	condition *c;
-	condition_lvalue *lvalue = lua_get_condition_lvalue(L, 1);
+	condition_lvalue *lvalue;
+	comp_operator_t cmpop;
+
+	lvalue = lua_get_condition_lvalue(L, 1);
 	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
-	comp_operator_t cmpop = (comp_operator_t) lua_tointeger(L, lua_upvalueindex(2));
+	cmpop = (comp_operator_t) lua_tointeger(L, lua_upvalueindex(2));
 
 	if (NULL == (sval = lua_togstring(L, 2))) return 0;
 	c = condition_new_string(srv, cmpop, lvalue, sval);
@@ -191,7 +194,7 @@ static void lua_push_cond_lvalue_metatable(server *srv, lua_State *L) {
 	}
 }
 
-int lua_push_cond_lvalue(server *srv, lua_State *L, condition_lvalue *lvalue) {
+static int lua_push_cond_lvalue(server *srv, lua_State *L, condition_lvalue *lvalue) {
 	condition_lvalue **pv;
 
 	pv = (condition_lvalue**) lua_newuserdata(L, sizeof(condition_lvalue*));
@@ -231,7 +234,7 @@ static void lua_push_cond_lvalue_t_metatable(server *srv, lua_State *L) {
 
 /* cond_lvalue_t */
 
-int lua_push_cond_lvalue_t(server *srv, lua_State *L, cond_lvalue_t t) {
+static int lua_push_cond_lvalue_t(server *srv, lua_State *L, cond_lvalue_t t) {
 	cond_lvalue_t *pt;
 
 	pt = (cond_lvalue_t*) lua_newuserdata(L, sizeof(cond_lvalue_t));

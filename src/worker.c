@@ -168,17 +168,19 @@ GString *worker_current_timestamp(worker *wrk) {
 
 /* stop worker watcher */
 static void worker_stop_cb(struct ev_loop *loop, ev_async *w, int revents) {
+	worker *wrk = (worker*) w->data;
 	UNUSED(loop);
 	UNUSED(revents);
-	worker *wrk = (worker*) w->data;
+
 	worker_stop(wrk, wrk);
 }
 
 /* exit worker watcher */
 static void worker_exit_cb(struct ev_loop *loop, ev_async *w, int revents) {
+	worker *wrk = (worker*) w->data;
 	UNUSED(loop);
 	UNUSED(revents);
-	worker *wrk = (worker*) w->data;
+
 	worker_exit(wrk, wrk);
 }
 
@@ -225,10 +227,9 @@ static void worker_new_con_cb(struct ev_loop *loop, ev_async *w, int revents) {
 /* stats watcher */
 static void worker_stats_watcher_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	worker *wrk = (worker*) w->data;
+	ev_tstamp now = ev_now(wrk->loop);
 	UNUSED(loop);
 	UNUSED(revents);
-
-	ev_tstamp now = ev_now(wrk->loop);
 
 	if (wrk->stats.last_update && now != wrk->stats.last_update) {
 		wrk->stats.requests_per_sec =

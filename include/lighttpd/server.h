@@ -48,6 +48,7 @@ struct server {
 	GHashTable *setups;       /**< const gchar* => (server_setup*) */
 
 	GArray *plugins_handle_close; /** list of handle_close callbacks */
+	GArray *plugins_handle_vrclose; /** list of handle_vrclose callbacks */
 
 	GArray *option_def_values;/** array of option_value */
 	struct action *mainaction;

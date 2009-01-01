@@ -77,4 +77,9 @@ typedef union {
 	struct sockaddr plain;
 } sock_addr;
 
+typedef struct {
+	socklen_t len;
+	sock_addr *addr;
+} sockaddr;
+
 #endif
