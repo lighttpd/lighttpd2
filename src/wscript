@@ -77,13 +77,13 @@ def lighty_mod(bld, target, src, uselib = [], option = ''):
 	mod.target = target
 	mod.source = src
 	mod.uselib = ['lightymod'] + common_uselib + uselib
-	#mod.ccflags = common_ccflags
+	mod.ccflags = common_ccflags
 
 def configure(conf):
 	opts = Options.options
 
 	conf.env['CCFLAGS_lighty'] = conf.env['CCFLAGS'] + common_ccflags + lighty_common_ccflags
-	conf.env['CCFLAGS_lightymod'] = conf.env['CCFLAGS'] + common_ccflags + [ '-DHAVE_CONFIG_H' ]
+	conf.env['CCFLAGS_lightymod'] = conf.env['CCFLAGS'] + common_ccflags + lighty_common_ccflags
 	if not opts.debug:
 		conf.env['CCFLAGS'] += ['-O2']
 	if opts.static:
