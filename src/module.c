@@ -8,6 +8,7 @@ modules *modules_init(gpointer main, const gchar *module_dir) {
 	m->main = main;
 	m->mods = g_array_new(FALSE, TRUE, sizeof(module*));
 	m->module_dir = g_strdup(module_dir);
+	m->sizeof_off_t = sizeof(off_t);
 
 	return m;
 }

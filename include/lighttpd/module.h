@@ -5,10 +5,15 @@
 
 #define MODULE_VERSION ((guint) 0x00000001)
 #define MODULE_VERSION_CHECK(mods) do { \
-	if (mods->version != MODULE_VERSION) { \
-		ERROR(mods->main, "Version mismatch for modules system: is %u, expected %u", mods->version, MODULE_VERSION); \
-		return FALSE; \
-	} } while(0)
+		if (mods->version != MODULE_VERSION) { \
+			ERROR(mods->main, "Version mismatch for modules system: is %u, expected %u", mods->version, MODULE_VERSION); \
+			return FALSE; \
+		} \
+		if (mods->sizeof_off_t != (guint8)sizeof(off_t)) { \
+			ERROR(mods->main, "Compile flags mismatch: sizeof(off_t) is %u, expected %u", (guint) sizeof(off_t), mods->sizeof_off_t); \
+			return FALSE; \
+		} \
+	} while(0)
 
 /** see module_load */
 #define MODULE_DEPENDS(mods, name) do { \
@@ -43,6 +48,8 @@ struct modules {
 	gpointer main;    /**< pointer to a application specific main structure, e.g. server */
 	GArray *mods;      /**< array of (module*) */
 	gchar *module_dir;
+
+	guint8 sizeof_off_t; /** holds the value of sizeof(off_t) to check if loaded module was compiled with the same flags */
 };
 
 LI_API modules* modules_init(gpointer main, const gchar *module_dir);
