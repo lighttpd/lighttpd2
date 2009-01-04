@@ -392,14 +392,14 @@ static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
 	return TRUE;
 }
 
-static void fastcgi_parse_response(fastcgi_connection *fcon) {
+static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 	while (fastcgi_get_packet(fcon)) {
 		if (fcon->fcgi_in_record.version != FCGI_VERSION_1) {
 			VR_ERROR(fcon->vr, "Unknown fastcgi protocol version %i", (gint) fcon->fcgi_in_record.version);
 			close(fcon->fd);
 			fcon->fd = -1;
 			vrequest_error(fcon->vr);
-			return;
+			return FALSE;
 		}
 		chunkqueue_skip(fcon->fcgi_in, FCGI_HEADER_LEN);
 		switch (fcon->fcgi_in_record.type) {
@@ -421,6 +421,7 @@ static void fastcgi_parse_response(fastcgi_connection *fcon) {
 		}
 		chunkqueue_skip(fcon->fcgi_in, fcon->fcgi_in_record.paddingLength);
 	}
+	return TRUE;
 }
 
 /**********************************************************************************/
@@ -500,7 +501,7 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		}
 	}
 
-	fastcgi_parse_response(fcon);
+	if (!fastcgi_parse_response(fcon)) return;
 
 	/* TODO: parse stdout response */
 	if (fcon->vr->out->bytes_in == 0 && fcon->stdout->length > 0) {

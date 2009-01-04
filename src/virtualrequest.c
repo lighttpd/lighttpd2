@@ -222,9 +222,9 @@ static gboolean vrequest_do_handle_actions(vrequest *vr) {
 	return TRUE;
 }
 
+
 static gboolean vrequest_do_handle_read(vrequest *vr) {
 	handler_t res;
-	if (vr->in->is_closed && vr->in->bytes_in == vr->in->bytes_out) return TRUE;
 	if (vr->backend && vr->backend->handle_request_body) {
 		chunkqueue_steal_all(vr->in, vr->vr_in); /* TODO: filters */
 		if (vr->vr_in->is_closed) vr->in->is_closed = TRUE;
@@ -309,6 +309,7 @@ void vrequest_state_machine(vrequest *vr) {
 
 		case VRS_READ_CONTENT:
 			done = !vrequest_do_handle_read(vr);
+			done = done || (vr->state == VRS_READ_CONTENT);
 			break;
 
 		case VRS_HANDLE_RESPONSE_HEADERS:
@@ -339,6 +340,7 @@ void vrequest_state_machine(vrequest *vr) {
 			break;
 
 		case VRS_ERROR:
+			/* this will probably reset the vrequest, so stop handling after it */
 			vr->handle_response_error(vr);
 			return;
 		}

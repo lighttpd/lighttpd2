@@ -97,6 +97,7 @@ LI_API vrequest* vrequest_new(struct connection *con, vrequest_handler handle_re
 LI_API void vrequest_free(vrequest *vr);
 LI_API void vrequest_reset(vrequest *vr);
 
+/* Signals an internal error; handles the error in the _next_ loop */
 LI_API void vrequest_error(vrequest *vr);
 
 LI_API void vrequest_backend_overloaded(vrequest *vr);

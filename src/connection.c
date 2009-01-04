@@ -99,15 +99,21 @@ void connection_internal_error(connection *con) {
 		VR_ERROR(vr, "%s", "Couldn't send '500 Internal Error': headers already sent");
 		connection_error(con);
 	} else {
-		http_headers_reset(con->mainvr->response.headers);
+		http_version_t v;
 		VR_ERROR(vr, "%s", "internal error");
+
+		/* We only need the http version from the http request */
+		v = con->mainvr->request.http_version;
+		vrequest_reset(con->mainvr);
+		con->mainvr->request.http_version = v;
+
+		con->keep_alive = FALSE;
 		con->mainvr->response.http_status = 500;
-		con->state = CON_STATE_WRITE;
-		con->mainvr->state = VRS_WRITE_CONTENT;
-		chunkqueue_reset(con->mainvr->out);
+		con->state = CON_STATE_WRITE; /* skips further vrequest handling */
+
 		chunkqueue_reset(con->out);
-		con->mainvr->out->is_closed = TRUE;
 		con->out->is_closed = TRUE;
+		con->in->is_closed = TRUE;
 		forward_response_body(con);
 	}
 }
@@ -222,7 +228,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			case NETWORK_STATUS_FATAL_ERROR:
 				_ERROR(con->srv, con->mainvr, "%s", "network write fatal error");
 				connection_error(con);
-				break;
+				return;
 			case NETWORK_STATUS_CONNECTION_CLOSE:
 				connection_close(con);
 				return;
@@ -358,6 +364,7 @@ void connection_reset(connection *con) {
 	ev_io_set(&con->sock_watcher, -1, 0);
 
 	vrequest_reset(con->mainvr);
+	http_request_parser_reset(&con->req_parser_ctx);
 
 	g_string_truncate(con->remote_addr_str, 0);
 	g_string_truncate(con->local_addr_str, 0);
@@ -365,8 +372,6 @@ void connection_reset(connection *con) {
 
 	chunkqueue_reset(con->raw_in);
 	chunkqueue_reset(con->raw_out);
-
-	http_request_parser_reset(&con->req_parser_ctx);
 
 	if (con->keep_alive_data.link) {
 		g_queue_delete_link(&con->wrk->keep_alive_queue, con->keep_alive_data.link);
