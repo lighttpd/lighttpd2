@@ -335,8 +335,8 @@ ADD_EXECUTABLE(lighttpd
 SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd)
 
 IF(BUILD_EXTRA_WARNINGS)
-	SET(WARN_FLAGS "-g -O2 -g2 -Wall -Wmissing-prototypes -Wmissing-declarations -Wdeclaration-after-statement -Wno-pointer-sign -Wcast-align -Winline -Wsign-compare -Wnested-externs -Wpointer-arith -Wl,--as-needed")
-	# -Werror -Wbad-function-cast
+	SET(WARN_FLAGS "-g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wno-pointer-sign -Wcast-align -Winline -Wsign-compare -Wnested-externs -Wpointer-arith -Wl,--as-needed")
+	# -Werror -Wbad-function-cast -Wmissing-prototypes
 ELSE(BUILD_EXTRA_WARNINGS)
 	SET(WARN_FLAGS "")
 ENDIF(BUILD_EXTRA_WARNINGS)

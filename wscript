@@ -54,9 +54,9 @@ def configure(conf):
 
 	if opts.extra_warnings:
 		conf.env['CCFLAGS'] += [
-			'-g', '-g2', '-Wall', '-Wmissing-prototypes', '-Wmissing-declarations',
+			'-g', '-g2', '-Wall', '-Wmissing-declarations',
 		 	'-Wdeclaration-after-statement', '-Wno-pointer-sign', '-Wcast-align', '-Winline', '-Wsign-compare',
-			'-Wnested-externs', '-Wpointer-arith'#, '-Werror', '-Wbad-function-cast'
+			'-Wnested-externs', '-Wpointer-arith'#, '-Werror', '-Wbad-function-cast', '-Wmissing-prototypes'
 		]
 		conf.env['LDFLAGS'] += [
 			'-g', '-g2', '-Wall', '-Wmissing-prototypes', '-Wmissing-declarations',
