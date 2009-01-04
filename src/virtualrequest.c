@@ -212,7 +212,6 @@ static gboolean vrequest_do_handle_actions(vrequest *vr) {
 	case HANDLER_COMEBACK:
 		vrequest_joblist_append(vr); /* come back later */
 		return FALSE;
-	case HANDLER_WAIT_FOR_FD: /* TODO: wait for fd */
 	case HANDLER_WAIT_FOR_EVENT:
 		return FALSE;
 	case HANDLER_ERROR:
@@ -235,7 +234,6 @@ static gboolean vrequest_do_handle_read(vrequest *vr) {
 		case HANDLER_COMEBACK:
 			vrequest_joblist_append(vr); /* come back later */
 			return FALSE;
-		case HANDLER_WAIT_FOR_FD: /* TODO: wait for fd */
 		case HANDLER_WAIT_FOR_EVENT:
 			return FALSE;
 		case HANDLER_ERROR:
@@ -260,7 +258,6 @@ static gboolean vrequest_do_handle_write(vrequest *vr) {
 	case HANDLER_COMEBACK:
 		vrequest_joblist_append(vr); /* come back later */
 		return FALSE;
-	case HANDLER_WAIT_FOR_FD: /* TODO: wait for fd */
 	case HANDLER_WAIT_FOR_EVENT:
 		return FALSE;
 	case HANDLER_ERROR:
@@ -297,7 +294,6 @@ void vrequest_state_machine(vrequest *vr) {
 				vrequest_joblist_append(vr); /* come back later */
 				done = TRUE;
 				break;
-			case HANDLER_WAIT_FOR_FD: /* TODO: wait for fd */
 			case HANDLER_WAIT_FOR_EVENT:
 				done = (vr->state == VRS_HANDLE_REQUEST_HEADERS);
 				break;
@@ -323,7 +319,6 @@ void vrequest_state_machine(vrequest *vr) {
 				vrequest_joblist_append(vr); /* come back later */
 				done = TRUE;
 				break;
-			case HANDLER_WAIT_FOR_FD: /* TODO: wait for fd */
 			case HANDLER_WAIT_FOR_EVENT:
 				done = (vr->state == VRS_HANDLE_REQUEST_HEADERS);
 				break;

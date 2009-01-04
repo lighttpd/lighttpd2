@@ -461,10 +461,6 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				/* TODO: aio */
 				ev_io_rem_events(loop, w, EV_READ);
 				break;
-			case NETWORK_STATUS_WAIT_FOR_FD:
-				/* TODO: wait for fd */
-				ev_io_rem_events(loop, w, EV_READ);
-				break;
 			}
 		}
 	}
@@ -489,10 +485,6 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			case NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
 				ev_io_rem_events(loop, w, EV_WRITE);
 				/* TODO: aio */
-				break;
-			case NETWORK_STATUS_WAIT_FOR_FD:
-				ev_io_rem_events(loop, w, EV_WRITE);
-				/* TODO: wait for fd */
 				break;
 			}
 		}
@@ -533,10 +525,12 @@ static handler_t fastcgi_statemachine(vrequest *vr, fastcgi_connection *fcon) {
 
 		/* fall through */
 	case FS_CONNECT:
-		fcon->fd = socket(fcon->ctx->socket.addr->plain.sa_family, SOCK_STREAM, 0);
+		do {
+			fcon->fd = socket(fcon->ctx->socket.addr->plain.sa_family, SOCK_STREAM, 0);
+		} while (-1 == fcon->fd && errno == EINTR);
 		if (-1 == fcon->fd) {
-			if (errno == EMFILE || errno == EINTR) {
-				return HANDLER_WAIT_FOR_FD;
+			if (errno == EMFILE) {
+				server_out_of_fds(vr->con->srv);
 			}
 			VR_ERROR(vr, "Couldn't open socket: %s", g_strerror(errno));
 			return HANDLER_ERROR;

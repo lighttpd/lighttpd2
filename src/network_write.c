@@ -17,8 +17,6 @@ network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, gof
 		switch (chunkiter_read(vr, ci, 0, blocksize, &block_data, &block_len)) {
 		case HANDLER_GO_ON:
 			break;
-		case HANDLER_WAIT_FOR_FD:
-			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_FD;
 		case HANDLER_ERROR:
 		default:
 			return NETWORK_STATUS_FATAL_ERROR;

@@ -10,8 +10,7 @@ typedef enum {
 	HANDLER_GO_ON,
 	HANDLER_COMEBACK,
 	HANDLER_WAIT_FOR_EVENT,
-	HANDLER_ERROR,
-	HANDLER_WAIT_FOR_FD
+	HANDLER_ERROR
 } handler_t;
 
 /* structs from headers, in alphabetic order */

@@ -170,8 +170,6 @@ static network_status_t network_backend_sendfile(vrequest *vr, int fd, chunkqueu
 		switch (chunkfile_open(vr, c->file.file)) {
 		case HANDLER_GO_ON:
 			break;
-		case HANDLER_WAIT_FOR_FD:
-			return NETWORK_STATUS_WAIT_FOR_FD;
 		default:
 			return NETWORK_STATUS_FATAL_ERROR;
 		}

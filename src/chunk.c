@@ -41,7 +41,7 @@ static void chunkfile_release(chunkfile *cf) {
 }
 
 /* open the file cf->name if it is not already opened for reading
- * may return HANDLER_GO_ON, HANDLER_ERROR, HANDLER_WAIT_FOR_FD
+ * may return HANDLER_GO_ON, HANDLER_ERROR
  */
 handler_t chunkfile_open(vrequest *vr, chunkfile *cf) {
 	if (!cf) return HANDLER_ERROR;
@@ -51,7 +51,9 @@ handler_t chunkfile_open(vrequest *vr, chunkfile *cf) {
 		return HANDLER_ERROR;
 	}
 	if (-1 == (cf->fd = open(cf->name->str, O_RDONLY))) {
-		if (EMFILE == errno) return HANDLER_WAIT_FOR_FD;
+		if (EMFILE == errno) {
+			server_out_of_fds(vr->con->srv);
+		}
 		VR_ERROR(vr, "Couldn't open file '%s': %s", GSTR_SAFE_STR(cf->name), g_strerror(errno));
 		return HANDLER_ERROR;
 	}
@@ -81,7 +83,7 @@ handler_t chunkfile_open(vrequest *vr, chunkfile *cf) {
  * but needs to do io in case of FILE_CHUNK; it tries mmap and
  * falls back to read(...)
  * the data is _not_ marked as "done"
- * may return HANDLER_GO_ON, HANDLER_ERROR, HANDLER_WAIT_FOR_FD
+ * may return HANDLER_GO_ON, HANDLER_ERROR
  */
 handler_t chunkiter_read(vrequest *vr, chunkiter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
 	chunk *c = chunkiter_chunk(iter);

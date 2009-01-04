@@ -59,7 +59,7 @@ struct chunkiter {
  ******************/
 
 /* open the file cf->name if it is not already opened for reading
- * may return HANDLER_GO_ON, HANDLER_ERROR, HANDLER_WAIT_FOR_FD
+ * may return HANDLER_GO_ON, HANDLER_ERROR
  */
 LI_API handler_t chunkfile_open(struct vrequest *vr, chunkfile *cf);
 
@@ -75,7 +75,7 @@ INLINE goffset chunkiter_length(chunkiter iter);
  * but needs to do io in case of FILE_CHUNK; it tries mmap and
  * falls back to read(...)
  * the data is _not_ marked as "done"
- * may return HANDLER_GO_ON, HANDLER_ERROR, HANDLER_WAIT_FOR_FD
+ * may return HANDLER_GO_ON, HANDLER_ERROR
  */
 LI_API handler_t chunkiter_read(struct vrequest *vr, chunkiter iter, off_t start, off_t length, char **data_start, off_t *data_len);
 

@@ -90,6 +90,8 @@ LI_API void server_stop(server *srv);
 /* exit asap with cleanup */
 LI_API void server_exit(server *srv);
 
-GString *server_current_timestamp();
+LI_API GString *server_current_timestamp();
+
+LI_API void server_out_of_fds(server *srv);
 
 #endif

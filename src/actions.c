@@ -219,7 +219,6 @@ handler_t action_execute(vrequest *vr) {
 				action_stack_reset(vr, as);
 			case HANDLER_COMEBACK:
 			case HANDLER_WAIT_FOR_EVENT:
-			case HANDLER_WAIT_FOR_FD:
 				return res;
 			}
 			continue;
@@ -254,7 +253,6 @@ handler_t action_execute(vrequest *vr) {
 				action_stack_reset(vr, as);
 			case HANDLER_COMEBACK:
 			case HANDLER_WAIT_FOR_EVENT:
-			case HANDLER_WAIT_FOR_FD:
 				return res;
 			}
 			break;
@@ -275,7 +273,6 @@ handler_t action_execute(vrequest *vr) {
 				action_stack_reset(vr, as);
 			case HANDLER_COMEBACK:
 			case HANDLER_WAIT_FOR_EVENT:
-			case HANDLER_WAIT_FOR_FD:
 				return res;
 			}
 			break;
@@ -297,7 +294,6 @@ handler_t action_execute(vrequest *vr) {
 				action_stack_reset(vr, as);
 			case HANDLER_COMEBACK:
 			case HANDLER_WAIT_FOR_EVENT:
-			case HANDLER_WAIT_FOR_FD:
 				return res;
 			}
 			break;

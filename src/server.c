@@ -230,7 +230,8 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		break;
 
 	case EMFILE: /* we are out of FDs */
-		/* TODO: server_out_of_fds(srv, NULL); */
+		server_out_of_fds(srv);
+		/* TODO: disable accept callbacks? */
 		break;
 	default:
 		ERROR(srv, "accept failed on fd=%d with error: %s", w->fd, g_strerror(errno));
@@ -354,4 +355,8 @@ GString *server_current_timestamp() {
 	}
 
 	return ts_str;
+}
+
+void server_out_of_fds(server *srv) {
+	ERROR(srv, "%s", "Too many open files. Either raise your fd limit or use a lower connection limit.");
 }

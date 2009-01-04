@@ -156,7 +156,6 @@ static gboolean connection_handle_read(connection *con) {
 			return TRUE;
 		case HANDLER_ERROR:
 		case HANDLER_COMEBACK: /* unexpected */
-		case HANDLER_WAIT_FOR_FD: /* unexpected */
 			/* unparsable header */
 			connection_error(con);
 			return FALSE;
@@ -211,10 +210,6 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				/* TODO: aio */
 				ev_io_rem_events(loop, w, EV_READ);
 				break;
-			case NETWORK_STATUS_WAIT_FOR_FD:
-				/* TODO: wait for fd */
-				ev_io_rem_events(loop, w, EV_READ);
-				break;
 			}
 		}
 	}
@@ -238,11 +233,6 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				ev_io_rem_events(loop, w, EV_WRITE);
 				_ERROR(con->srv, con->mainvr, "%s", "TODO: wait for aio");
 				/* TODO: aio */
-				break;
-			case NETWORK_STATUS_WAIT_FOR_FD:
-				ev_io_rem_events(loop, w, EV_WRITE);
-				_ERROR(con->srv, con->mainvr, "%s", "TODO: wait for fd");
-				/* TODO: wait for fd */
 				break;
 			}
 		} else {
