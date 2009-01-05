@@ -348,8 +348,24 @@ static handler_t condition_check_eval_int(vrequest *vr, condition *cond, gboolea
 	case COMP_REQUEST_CONTENT_LENGTH:
 		val = vr->request.content_length;
 	case COMP_PHYSICAL_SIZE:
-		/* TODO: stat file */
-		val = vr->physical.size;
+		if (!vr->physical.have_stat) {
+			if (!vrequest_stat(vr)) {
+				switch (errno) {
+				case EACCES: vr->response.http_status = 403; break;
+				case EBADF: vr->response.http_status = 500; break;
+				case EFAULT: vr->response.http_status = 500; break;
+				case ELOOP: vr->response.http_status = 500; break;
+				case ENAMETOOLONG: vr->response.http_status = 500; break;
+				case ENOENT: vr->response.http_status = 404; break;
+				case ENOMEM: vr->response.http_status = 500; break;
+				case ENOTDIR: vr->response.http_status = 404; break;
+				default: vr->response.http_status = 500;
+				}
+				vrequest_handle_direct(vr);
+				return HANDLER_GO_ON;
+			}
+		}
+		val = (gint64)vr->physical.stat.st_size;
 		break;
 	default:
 		VR_ERROR(vr, "couldn't get int value for '%s'", cond_lvalue_to_string(cond->lvalue->type));

@@ -242,7 +242,7 @@ void physical_init(physical *phys) {
 	phys->doc_root = g_string_sized_new(256);
 	phys->rel_path = g_string_sized_new(256);
 	phys->pathinfo = g_string_sized_new(256);
-	phys->size = -1;
+	phys->have_stat = FALSE;
 }
 
 void physical_reset(physical *phys) {
@@ -251,7 +251,7 @@ void physical_reset(physical *phys) {
 	g_string_truncate(phys->doc_root, 0);
 	g_string_truncate(phys->rel_path, 0);
 	g_string_truncate(phys->pathinfo, 0);
-	phys->size = -1;
+	phys->have_stat = FALSE;
 }
 
 void physical_clear(physical *phys) {
@@ -260,5 +260,5 @@ void physical_clear(physical *phys) {
 	g_string_free(phys->doc_root, TRUE);
 	g_string_free(phys->rel_path, TRUE);
 	g_string_free(phys->pathinfo, TRUE);
-	phys->size = -1;
+	phys->have_stat = FALSE;
 }

@@ -121,4 +121,6 @@ LI_API gboolean vrequest_handle_indirect(vrequest *vr, plugin *p);
 LI_API void vrequest_state_machine(vrequest *vr);
 LI_API void vrequest_joblist_append(vrequest *vr);
 
+LI_API gboolean vrequest_stat(vrequest *vr);
+
 #endif

@@ -350,3 +350,13 @@ void vrequest_joblist_append(vrequest *vr) {
 	vr->job_queue_link = g_queue_peek_tail_link(q);
 	ev_timer_start(wrk->loop, &wrk->job_queue_watcher);
 }
+
+gboolean vrequest_stat(vrequest *vr) {
+	if (-1 == stat(vr->physical.path->str, &vr->physical.stat)) {
+		VR_DEBUG(vr, "stat(%s) failed: %s (%d)", vr->physical.path->str, g_strerror(errno), errno);
+		return FALSE;
+	}
+
+	vr->physical.have_stat = TRUE;
+	return TRUE;
+}

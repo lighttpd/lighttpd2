@@ -139,17 +139,43 @@ static gboolean core_setup_set(server *srv, plugin* p, value *val) {
 	return plugin_set_default_option(srv, val_name->data.string->str, val_val);
 }
 
+static handler_t core_handle_docroot(vrequest *vr, gpointer param, gpointer *context) {
+	UNUSED(context);
+
+	g_string_truncate(vr->physical.doc_root, 0);
+	g_string_append_len(vr->physical.doc_root, GSTR_LEN((GString*) param));
+	/* reset stat info because path has changed */
+	vr->physical.have_stat = FALSE;
+
+	/* build physical path: docroot + uri.path */
+	g_string_truncate(vr->physical.path, 0);
+	g_string_append_len(vr->physical.path, GSTR_LEN((GString*) param));
+	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
+
+	VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
+
+	return HANDLER_GO_ON;
+}
+
+static void core_docroot_free(server *srv, gpointer param) {
+	UNUSED(srv);
+	g_string_free(param, TRUE);
+}
+
+static action* core_docroot(server *srv, plugin* p, value *val) {
+	UNUSED(p);
+	if (!val || val->type != VALUE_STRING) {
+		ERROR(srv, "%s", "docroot action expects a string parameter");
+		return NULL;
+	}
+
+	return action_new_function(core_handle_docroot, NULL, core_docroot_free, value_extract(val).string);
+}
+
 static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *context) {
 	int fd;
 	UNUSED(param);
 	UNUSED(context);
-
-	/* build physical path: docroot + uri.path */
-	g_string_truncate(vr->physical.path, 0);
-	g_string_append_len(vr->physical.path, GSTR_LEN(CORE_OPTION(CORE_OPTION_DOCROOT).string));
-	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
-
-	VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
 
 	if (vr->physical.path->len == 0) return HANDLER_GO_ON;
 
@@ -750,8 +776,6 @@ static const plugin_option options[] = {
 
 	{ "mime_types", VALUE_LIST, NULL, core_option_mime_types_parse, core_option_mime_types_free },
 
-	{ "docroot", VALUE_STRING, NULL, NULL, NULL },
-
 	{ "throttle", VALUE_NUMBER, GINT_TO_POINTER(0), NULL, NULL },
 
 	{ NULL, 0, NULL, NULL, NULL }
@@ -762,6 +786,7 @@ static const plugin_action actions[] = {
 	{ "when", core_when },
 	{ "set", core_set },
 
+	{ "docroot", core_docroot },
 	{ "static", core_static },
 
 	{ "test", core_test },

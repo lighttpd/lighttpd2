@@ -17,8 +17,6 @@ enum core_options_t {
 
 	CORE_OPTION_MIME_TYPES,
 
-	CORE_OPTION_DOCROOT,
-
 	CORE_OPTION_THROTTLE
 };
 

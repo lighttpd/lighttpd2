@@ -25,7 +25,8 @@ struct physical {
 
 	GString *pathinfo;
 
-	gint64 size;
+	gboolean have_stat;
+	struct stat stat; /* contains valid data only if have_stat is true */
 };
 
 struct request {
