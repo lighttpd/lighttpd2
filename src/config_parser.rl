@@ -744,7 +744,7 @@
 			}
 		}
 		else if (g_str_has_prefix(str, "phys")) {
-			str += 3;
+			str += 4;
 			if (g_str_has_prefix(str, "."))
 				str++;
 			else if (g_str_has_prefix(str, "ical."))
