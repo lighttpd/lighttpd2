@@ -770,6 +770,7 @@ static const plugin_option options[] = {
 
 	{ "static-file.exclude", VALUE_LIST, NULL, NULL, NULL },
 
+	{ "server.name", VALUE_STRING, NULL, NULL, NULL },
 	{ "server.tag", VALUE_STRING, "lighttpd-2.0~sandbox", NULL, NULL },
 	{ "server.max_keep_alive_idle", VALUE_NUMBER, GINT_TO_POINTER(5), NULL, NULL },
 	{ "server.max_keep_alive_requests", VALUE_NUMBER, GINT_TO_POINTER(15), NULL, NULL },
