@@ -32,6 +32,8 @@ LI_API void path_simplify(GString *path);
 LI_API gchar *http_status_string(guint status_code, guint *len);
 /* returns the http method as a string and sets len to the length of the returned string */
 LI_API gchar *http_method_string(http_method_t method, guint *len);
+/* returns the http version as a string and sets len to the length of the returned string */
+LI_API gchar *http_version_string(http_version_t method, guint *len);
 /* converts a given 3 digit http status code to a gchar[3] string. e.g. 403 to {'4','0','3'} */
 LI_API void http_status_to_str(gint status_code, gchar status_str[]);
 
@@ -57,5 +59,7 @@ LI_API GString *sockaddr_to_string(sock_addr *saddr, GString *dest);
 
 LI_API sockaddr sockaddr_from_string(GString *str, guint tcp_default_port);
 LI_API void sockaddr_clear(sockaddr *saddr);
+
+LI_API void gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, guint len);
 
 #endif

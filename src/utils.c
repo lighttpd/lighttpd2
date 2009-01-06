@@ -276,6 +276,17 @@ gchar *http_method_string(http_method_t method, guint *len) {
 	return NULL;
 }
 
+gchar *http_version_string(http_version_t method, guint *len) {
+	switch (method) {
+	case HTTP_VERSION_1_1: SET_LEN_AND_RETURN_STR("HTTP/1.1");
+	case HTTP_VERSION_1_0: SET_LEN_AND_RETURN_STR("HTTP/1.0");
+	case HTTP_VERSION_UNSET: SET_LEN_AND_RETURN_STR("HTTP/??");
+	}
+
+	*len = 0;
+	return NULL;
+}
+
 #undef SET_LEN_AND_RETURN_STR
 
 void http_status_to_str(gint status_code, gchar status_str[]) {
@@ -429,6 +440,7 @@ GString *counter_format2(guint64 count, counter_type t, gint accuracy) {
 	return str;
 }
 
+
 gchar *ev_backend_string(guint backend) {
 	switch (backend) {
 		case EVBACKEND_SELECT:	return "select";
@@ -448,12 +460,12 @@ void string_destroy_notify(gpointer str) {
 
 
 guint hash_ipv4(gconstpointer key) {
-	return *((guint*)key);
+	return *((guint*)key) * 2654435761;
 }
 
 guint hash_ipv6(gconstpointer key) {
 	guint *i = ((guint*)key);
-	return i[0] ^ i[1] ^ i[2] ^ i[3];
+	return (i[0] ^ i[1] ^ i[2] ^ i[3]) * 2654435761;
 }
 
 
