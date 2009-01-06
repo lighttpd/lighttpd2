@@ -217,8 +217,9 @@ static GString *al_format_log(connection *con, GArray *format) {
 	response *resp = &vr->response;
 	request *req = &vr->request;
 	physical *phys = &vr->physical;
-	gchar *tmp_str;
+	gchar *tmp_str = NULL;
 	GString *tmp_gstr = g_string_sized_new(128);
+	guint len = 0;
 
 	for (guint i = 0; i < format->len; i++) {
 		al_format_entry *e = &g_array_index(format, al_format_entry, i);
@@ -266,6 +267,9 @@ static GString *al_format_log(connection *con, GArray *format) {
 				al_append_escaped(str, req->uri.orig_path);
 				g_string_append_c(str, '?');
 				al_append_escaped(str, req->uri.query);
+				g_string_append_c(str, ' ');
+				tmp_str = http_version_string(req->http_version, &len);
+				g_string_append_len(str, tmp_str, len);
 				break;
 			case AL_FORMAT_STATUS_CODE:
 				g_string_append_printf(str, "%d", resp->http_status);
