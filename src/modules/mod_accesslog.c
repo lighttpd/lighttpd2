@@ -285,7 +285,7 @@ static GString *al_format_log(connection *con, GArray *format) {
 				if (CORE_OPTION(CORE_OPTION_LOG).string)
 					g_string_append_len(str, GSTR_LEN(req->uri.host));
 				else
-					g_string_append_len(str, GSTR_LEN(CORE_OPTION(CORE_OPTION_LOG).string));
+					g_string_append_len(str, GSTR_LEN(CORE_OPTION(CORE_OPTION_SERVER_NAME).string));
 				break;
 			case AL_FORMAT_HOSTNAME:
 				g_string_append_len(str, GSTR_LEN(req->uri.host));
