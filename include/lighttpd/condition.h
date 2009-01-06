@@ -48,6 +48,8 @@ typedef enum {
 	COMP_PHYSICAL_PATH,
 	COMP_PHYSICAL_PATH_EXISTS,
 	COMP_PHYSICAL_SIZE,
+	COMP_PHYSICAL_ISDIR,
+	COMP_PHYSICAL_ISFILE,
 
 /* needs a key */
 	COMP_REQUEST_HEADER          /**< needs lowercase key, enforced by condition_lvalue_new */
@@ -64,6 +66,7 @@ struct condition_lvalue {
 };
 
 typedef enum {
+	COND_VALUE_BOOL,
 	COND_VALUE_NUMBER,
 	COND_VALUE_STRING,
 #ifdef HAVE_PCRE_H
@@ -76,6 +79,7 @@ typedef enum {
 struct condition_rvalue {
 	cond_rvalue_t type;
 
+	gboolean b;
 	GString *string;
 #ifdef HAVE_PCRE_H
 	struct {
@@ -109,6 +113,7 @@ LI_API condition_lvalue* condition_lvalue_new(cond_lvalue_t type, GString *key);
 LI_API void condition_lvalue_acquire(condition_lvalue *lvalue);
 LI_API void condition_lvalue_release(condition_lvalue *lvalue);
 
+LI_API condition* condition_new_bool(server *srv, condition_lvalue *lvalue, gboolean b);
 LI_API condition* condition_new_string(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str);
 LI_API condition* condition_new_int(server *srv, comp_operator_t op, condition_lvalue *lvalue, gint64 i);
 

@@ -106,6 +106,15 @@ static condition* cond_new_ip(server *srv, comp_operator_t op, condition_lvalue 
 	return c;
 }
 
+condition* condition_new_bool(server *srv, condition_lvalue *lvalue, gboolean b) {
+	condition *c;
+	UNUSED(srv);
+	c = condition_new(CONFIG_COND_EQ, lvalue);
+	c->rvalue.type = COND_VALUE_BOOL;
+	c->rvalue.b = b;
+	return c;
+}
+
 condition* condition_new_string(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str) {
 	switch (op) {
 	case CONFIG_COND_EQ:
@@ -173,6 +182,7 @@ condition* condition_new_int(server *srv, comp_operator_t op, condition_lvalue *
 static void condition_free(condition *c) {
 	condition_lvalue_release(c->lvalue);
 	switch (c->rvalue.type) {
+	case COND_VALUE_BOOL:
 	case COND_VALUE_NUMBER:
 		/* nothing to free */
 		break;
@@ -241,10 +251,51 @@ const char* cond_lvalue_to_string(cond_lvalue_t t) {
 	case COMP_PHYSICAL_PATH: return "physical.path";
 	case COMP_PHYSICAL_PATH_EXISTS: return "physical.pathexist";
 	case COMP_PHYSICAL_SIZE: return "physical.size";
+	case COMP_PHYSICAL_ISDIR: return "physical.is_dir";
+	case COMP_PHYSICAL_ISFILE: return "physical.is_file";
 	case COMP_REQUEST_HEADER: return "request.header";
 	}
 
 	return "<unknown>";
+}
+
+static handler_t condition_check_eval_bool(vrequest *vr, condition *cond, gboolean *res) {
+	*res = FALSE;
+
+	if (cond->lvalue->type == COMP_PHYSICAL_ISDIR ||
+		cond->lvalue->type == COMP_PHYSICAL_ISFILE) {
+		if (!vr->physical.have_stat) {
+			if (!vrequest_stat(vr)) {
+				switch (errno) {
+				case EACCES: vr->response.http_status = 403; break;
+				case EBADF: vr->response.http_status = 500; break;
+				case EFAULT: vr->response.http_status = 500; break;
+				case ELOOP: vr->response.http_status = 500; break;
+				case ENAMETOOLONG: vr->response.http_status = 500; break;
+				case ENOENT: vr->response.http_status = 404; break;
+				case ENOMEM: vr->response.http_status = 500; break;
+				case ENOTDIR: vr->response.http_status = 404; break;
+				default: vr->response.http_status = 500;
+				}
+				vrequest_handle_direct(vr);
+				return HANDLER_GO_ON;
+			}
+		}
+	}
+
+	switch (cond->lvalue->type) {
+	case COMP_PHYSICAL_ISDIR:
+		*res = S_ISDIR(vr->physical.stat.st_mode);
+		break;
+	case COMP_PHYSICAL_ISFILE:
+		*res = S_ISREG(vr->physical.stat.st_mode);
+		break;
+	default:
+		VR_ERROR(vr, "invalid lvalue \"%s\" for boolean comparison", cond_lvalue_to_string(cond->lvalue->type));
+		return HANDLER_ERROR;
+	}
+
+	return HANDLER_GO_ON;
 }
 
 /* COND_VALUE_STRING and COND_VALUE_REGEXP only */
@@ -285,15 +336,12 @@ static handler_t condition_check_eval_string(vrequest *vr, condition *cond, gboo
 		http_header_get_fast(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
 		break;
-	case COMP_PHYSICAL_SIZE:
-		/* TODO: physical size */
-		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, (goffset) 0);
-		val = con->wrk->tmp_str->str;
-		break;
 	case COMP_REQUEST_CONTENT_LENGTH:
 		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
 		val = con->wrk->tmp_str->str;
 		break;
+	default:
+		return HANDLER_ERROR;
 	}
 
 	switch (cond->op) {
@@ -494,7 +542,10 @@ static handler_t condition_check_eval_ip(vrequest *vr, condition *cond, gboolean
 	case COMP_REQUEST_CONTENT_LENGTH:
 		VR_ERROR(vr, "%s", "Cannot parse integers as ip");
 		return HANDLER_ERROR;
-		break;
+	case COMP_PHYSICAL_ISDIR:
+	case COMP_PHYSICAL_ISFILE:
+		VR_ERROR(vr, "%s", "phys.is_dir and phys.is_file are boolean conditionals");
+		return HANDLER_ERROR;
 	}
 
 	if (ipval.type == COND_VALUE_NUMBER) {
@@ -528,6 +579,8 @@ static handler_t condition_check_eval_ip(vrequest *vr, condition *cond, gboolean
 
 handler_t condition_check(vrequest *vr, condition *cond, gboolean *res) {
 	switch (cond->rvalue.type) {
+	case COND_VALUE_BOOL:
+		return condition_check_eval_bool(vr, cond, res);
 	case COND_VALUE_STRING:
 #ifdef HAVE_PCRE_H
 	case COND_VALUE_REGEXP:

@@ -37,7 +37,11 @@ struct config_parser_context_t {
 
 	gchar *mark;
 	gboolean in_setup_block;
+
+
 	gboolean condition_with_key;
+	gboolean condition_nonbool;
+	gboolean condition_negated;
 
 	comp_operator_t op;
 	gchar value_op;

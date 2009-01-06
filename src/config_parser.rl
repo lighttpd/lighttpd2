@@ -696,16 +696,23 @@
 		condition *cond;
 		condition_lvalue *lvalue;
 
-		v = g_queue_pop_head(ctx->option_stack);
-		if (ctx->condition_with_key)
-			k = g_queue_pop_head(ctx->option_stack);
-		else
+		/* if condition is nonbool, then it has a value and maybe a key too on the stack */
+		if (ctx->condition_nonbool) {
+			v = g_queue_pop_head(ctx->option_stack);
+			if (ctx->condition_with_key)
+				k = g_queue_pop_head(ctx->option_stack);
+			else
+				k = NULL;
+		} else {
+			v = NULL;
 			k = NULL;
+		}
+
 		n = g_queue_pop_head(ctx->option_stack);
 
 		assert(n->type == VALUE_STRING);
 
-		_printf("got condition: %s:%s %s %s in line %zd\n", n->data.string->str, ctx->condition_with_key ? k->data.string->str : "", comp_op_to_string(ctx->op), value_type_string(v->type), ctx->line);
+		/*_printf("got condition: %s:%s %s %s in line %zd\n", n->data.string->str, ctx->condition_with_key ? k->data.string->str : "", comp_op_to_string(ctx->op), value_type_string(v->type), ctx->line);*/
 
 		/* create condition lvalue */
 		str = n->data.string->str;
@@ -760,6 +767,10 @@
 				lvalue = condition_lvalue_new(COMP_PHYSICAL_PATH_EXISTS, NULL);
 			else if (g_str_equal(str, "size"))
 				lvalue = condition_lvalue_new(COMP_PHYSICAL_SIZE, NULL);
+			else if (g_str_equal(str, "is_dir"))
+				lvalue = condition_lvalue_new(COMP_PHYSICAL_ISDIR, NULL);
+			else if (g_str_equal(str, "is_file"))
+				lvalue = condition_lvalue_new(COMP_PHYSICAL_ISFILE, NULL);
 			else {
 				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
 				return FALSE;
@@ -770,15 +781,19 @@
 			return FALSE;
 		}
 
-		if (v->type == VALUE_STRING) {
-			cond = condition_new_string(srv, ctx->op, lvalue, value_extract(v).string);
+		if (ctx->condition_nonbool) {
+			if (v->type == VALUE_STRING) {
+				cond = condition_new_string(srv, ctx->op, lvalue, value_extract(v).string);
+			}
+			else if (v->type == VALUE_NUMBER)
+				cond = condition_new_int(srv, ctx->op, lvalue, value_extract_number(v));
+			else {
+				cond = NULL;
+			}
+		} else {
+			/* boolean condition */
+			cond = condition_new_bool(srv, lvalue, !ctx->condition_negated);
 		}
-		else if (v->type == VALUE_NUMBER)
-			cond = condition_new_int(srv, ctx->op, lvalue, value_extract_number(v));
-		else {
-			cond = NULL;
-		}
-
 
 		if (cond == NULL) {
 			WARNING(srv, "%s", "could not create condition");
@@ -789,11 +804,15 @@
 
 		g_queue_push_head(ctx->action_list_stack, action_new_list());
 
-		/* TODO: free stuff */
 		value_free(n);
-		value_free(k);
-		value_free(v);
+		if (ctx->condition_nonbool) {
+			value_free(k);
+			value_free(v);
+		}
+
 		ctx->condition_with_key = FALSE;
+		ctx->condition_nonbool = FALSE;
+		ctx->condition_negated = FALSE;
 	}
 
 	action condition_end {
@@ -970,8 +989,10 @@
 	# casts
 	cast = ( 'cast(' ( 'int' %{ctx->cast = CFG_PARSER_CAST_INT;} | 'str' %{ctx->cast = CFG_PARSER_CAST_STR;} ) ')' ws* );
 
+	keywords = ( 'true' | 'false' | 'if' | 'else' );
+
 	# advanced types
-	varname = ( '__' ? (alpha ( alnum | [._] )*) - (boolean | 'else') ) >mark %varname;
+	varname = ( '__' ? (alpha ( alnum | [._] )*) - keywords ) >mark %varname;
 	actionref = ( varname ) %actionref;
 	list = ( '(' >list_start );
 	hash = ( '[' >hash_start );
@@ -992,7 +1013,7 @@
 	function_param = ( varname ws+ value_statement ';') %function_param;
 	function = ( function_noparam | function_param );
 
-	condition = ( varname ('[' string >mark ']' %condition_key)? ws* operator ws* value_statement noise* block >condition_start ) %condition_end;
+	condition = ( 'if' noise+ ('!' %{ctx->condition_negated = TRUE;})? varname ('[' string >mark ']' %condition_key)? ws* (operator ws* value_statement %{ctx->condition_nonbool = TRUE;})? noise* block >condition_start ) %condition_end;
 	else_cond = ( 'else' noise+ condition ) %else_cond_end;
 	else_nocond = ( 'else' noise+ block >else_nocond_start ) %else_nocond_end;
 	condition_else = ( condition noise* (else_cond| noise)* else_nocond? );
