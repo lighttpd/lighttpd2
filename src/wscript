@@ -108,8 +108,9 @@ def build(bld):
 	lighty.includes = '.'
 	lighty.uselib = common_uselib + ['ev', 'lighty']
 	#lighty.install_path = '${SOME_PATH}/bin'
-	
-	lighty_mod(bld, 'mod_fortune', 'modules/mod_fortune.c')
-	lighty_mod(bld, 'mod_status', 'modules/mod_status.c')
+
+	lighty_mod(bld, 'mod_accesslog', 'modules/mod_accesslog.c')
 	lighty_mod(bld, 'mod_balancer', 'modules/mod_balancer.c')
 	lighty_mod(bld, 'mod_fastcgi', 'modules/mod_fastcgi.c')
+	lighty_mod(bld, 'mod_fortune', 'modules/mod_fortune.c')
+	lighty_mod(bld, 'mod_status', 'modules/mod_status.c')
