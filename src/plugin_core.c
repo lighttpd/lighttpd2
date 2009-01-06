@@ -229,6 +229,26 @@ static action* core_static(server *srv, plugin* p, value *val) {
 	return action_new_function(core_handle_static, NULL, NULL, NULL);
 }
 
+static handler_t core_handle_log_write(vrequest *vr, gpointer param, gpointer *context) {
+	GString *msg = param;
+
+	UNUSED(context);
+
+	VR_INFO(vr, "%s", msg->str);
+
+	return HANDLER_GO_ON;
+}
+
+static action* core_log_write(server *srv, plugin* p, value *val) {
+	UNUSED(p);
+	if (!val || val->type != VALUE_STRING) {
+		ERROR(srv, "%s", "log.write expects a string parameter");
+		return NULL;
+	}
+
+	return action_new_function(core_handle_log_write, NULL, NULL, value_extract(val).string);
+}
+
 static handler_t core_handle_test(vrequest *vr, gpointer param, gpointer *context) {
 	connection *con = vr->con;
 	server *srv = con->srv;
@@ -789,6 +809,8 @@ static const plugin_action actions[] = {
 
 	{ "docroot", core_docroot },
 	{ "static", core_static },
+
+	{ "log.write", core_log_write },
 
 	{ "test", core_test },
 	{ "blank", core_blank },
