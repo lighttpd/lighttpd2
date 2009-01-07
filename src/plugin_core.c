@@ -146,6 +146,7 @@ static handler_t core_handle_docroot(vrequest *vr, gpointer param, gpointer *con
 	g_string_append_len(vr->physical.doc_root, GSTR_LEN((GString*) param));
 	/* reset stat info because path has changed */
 	vr->physical.have_stat = FALSE;
+	vr->physical.have_errno = FALSE;
 
 	/* build physical path: docroot + uri.path */
 	g_string_truncate(vr->physical.path, 0);

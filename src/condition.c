@@ -265,8 +265,8 @@ static handler_t condition_check_eval_bool(vrequest *vr, condition *cond, gboole
 	if (cond->lvalue->type == COMP_PHYSICAL_ISDIR ||
 		cond->lvalue->type == COMP_PHYSICAL_ISFILE) {
 		if (!vr->physical.have_stat) {
-			if (!vrequest_stat(vr)) {
-				switch (errno) {
+			if (vr->physical.have_errno || !vrequest_stat(vr)) {
+				switch (vr->physical.stat_errno) {
 				case EACCES: vr->response.http_status = 403; break;
 				case EBADF: vr->response.http_status = 500; break;
 				case EFAULT: vr->response.http_status = 500; break;
@@ -397,8 +397,8 @@ static handler_t condition_check_eval_int(vrequest *vr, condition *cond, gboolea
 		val = vr->request.content_length;
 	case COMP_PHYSICAL_SIZE:
 		if (!vr->physical.have_stat) {
-			if (!vrequest_stat(vr)) {
-				switch (errno) {
+			if (vr->physical.have_errno || !vrequest_stat(vr)) {
+				switch (vr->physical.stat_errno) {
 				case EACCES: vr->response.http_status = 403; break;
 				case EBADF: vr->response.http_status = 500; break;
 				case EFAULT: vr->response.http_status = 500; break;

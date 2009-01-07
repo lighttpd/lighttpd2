@@ -353,7 +353,10 @@ void vrequest_joblist_append(vrequest *vr) {
 
 gboolean vrequest_stat(vrequest *vr) {
 	if (-1 == stat(vr->physical.path->str, &vr->physical.stat)) {
-		VR_DEBUG(vr, "stat(%s) failed: %s (%d)", vr->physical.path->str, g_strerror(errno), errno);
+		vr->physical.have_stat = FALSE;
+		vr->physical.have_errno = TRUE;
+		vr->physical.stat_errno = errno;
+		VR_DEBUG(vr, "stat(%s) failed: %s (%d)", vr->physical.path->str, g_strerror(vr->physical.stat_errno), vr->physical.stat_errno);
 		return FALSE;
 	}
 

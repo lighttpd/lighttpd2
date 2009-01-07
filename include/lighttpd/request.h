@@ -26,6 +26,8 @@ struct physical {
 	GString *pathinfo;
 
 	gboolean have_stat;
+	gboolean have_errno;
+	guint stat_errno;
 	struct stat stat; /* contains valid data only if have_stat is true */
 };
 
