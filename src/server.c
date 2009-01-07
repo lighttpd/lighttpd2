@@ -74,6 +74,10 @@ server* server_new(const gchar *module_dir) {
 
 	srv->exiting = FALSE;
 
+	srv->ts_formats = g_array_new(FALSE, TRUE, sizeof(GString*));
+	/* error log ts format */
+	server_ts_format_add(srv, g_string_new("%a, %d %b %Y %H:%M:%S GMT"));
+
 	log_init(srv);
 
 	srv->io_timeout = 30; /* default I/O timeout */
@@ -132,6 +136,13 @@ void server_free(server* srv) {
 			g_slice_free(server_socket, sock);
 		}
 		g_array_free(srv->sockets, TRUE);
+	}
+
+	{
+		guint i;
+		for (i = 0; i < srv->ts_formats->len; i++)
+			g_string_free(g_array_index(srv->ts_formats, GString*, i), TRUE);
+		g_array_free(srv->ts_formats, TRUE);
 	}
 
 	g_array_free(srv->option_def_values, TRUE);
@@ -276,7 +287,7 @@ void server_start(server *srv) {
 
 	srv->started = ev_now(srv->main_worker->loop);
 	{
-		GString *str = worker_current_timestamp(srv->main_worker);
+		GString *str = worker_current_timestamp(srv->main_worker, 0);
 		srv->started = ev_now(srv->main_worker->loop);
 		srv->started_str = g_string_new_len(GSTR_LEN(str));
 	}
@@ -359,4 +370,16 @@ GString *server_current_timestamp() {
 
 void server_out_of_fds(server *srv) {
 	ERROR(srv, "%s", "Too many open files. Either raise your fd limit or use a lower connection limit.");
+}
+
+guint server_ts_format_add(server *srv, GString* format) {
+	/* check if not already registered */
+	guint i;
+	for (i = 0; i < srv->ts_formats->len; i++) {
+		if (g_string_equal(g_array_index(srv->ts_formats, GString*, i), format))
+			return i;
+	}
+
+	g_array_append_val(srv->ts_formats, format);
+	return i;
 }

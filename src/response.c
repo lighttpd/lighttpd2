@@ -105,7 +105,7 @@ void response_send_headers(connection *con) {
 		}
 
 		if (!have_date) {
-			GString *d = worker_current_timestamp(con->wrk);
+			GString *d = worker_current_timestamp(con->wrk, 0);
 			/* HTTP/1.1 requires a Date: header */
 			g_string_append_len(head, CONST_STR_LEN("Date: "));
 			g_string_append_len(head, GSTR_LEN(d));

@@ -26,6 +26,7 @@ struct server {
 	struct worker *main_worker;
 	guint worker_count;
 	GArray *workers;
+	GArray *ts_formats;      /** array of (GString*), add with server_ts_format_add() */
 
 	guint loop_flags;
 	ev_signal
@@ -93,5 +94,7 @@ LI_API void server_exit(server *srv);
 LI_API GString *server_current_timestamp();
 
 LI_API void server_out_of_fds(server *srv);
+
+LI_API guint server_ts_format_add(server *srv, GString* format);
 
 #endif

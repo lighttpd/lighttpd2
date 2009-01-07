@@ -151,19 +151,25 @@ static void worker_job_queue_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 	}
 }
 
+
 /* cache timestamp */
-GString *worker_current_timestamp(worker *wrk) {
-	time_t cur_ts = (time_t)CUR_TS(wrk);
-	if (cur_ts != wrk->last_generated_date_ts) {
-		g_string_set_size(wrk->ts_date_str, 255);
-		strftime(wrk->ts_date_str->str, wrk->ts_date_str->allocated_len,
-				"%a, %d %b %Y %H:%M:%S GMT", gmtime(&(cur_ts)));
+GString *worker_current_timestamp(worker *wrk, guint format_ndx) {
+	gsize len;
+	worker_ts *wts = &g_array_index(wrk->timestamps, worker_ts, format_ndx);
+	ev_tstamp now = CUR_TS(wrk);
 
-		g_string_set_size(wrk->ts_date_str, strlen(wrk->ts_date_str->str));
+	/* cache hit */
+	if ((now - wts->last_generated) > 1.0)
+		return wts->str;
 
-		wrk->last_generated_date_ts = cur_ts;
-	}
-	return wrk->ts_date_str;
+	g_string_set_size(wts->str, 255);
+	len = strftime(wts->str->str, wts->str->allocated_len, g_array_index(wrk->srv->ts_formats, GString*, format_ndx)->str, gmtime((time_t*)(&wts->last_generated)));
+	if (len == 0)
+		return NULL;
+
+	g_string_set_size(wts->str, len);
+	wts->last_generated = now;
+	return wts->str;
 }
 
 /* stop worker watcher */
@@ -280,8 +286,12 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 
 	wrk->tmp_str = g_string_sized_new(255);
 
-	wrk->last_generated_date_ts = 0;
-	wrk->ts_date_str = g_string_sized_new(255);
+	wrk->timestamps = g_array_sized_new(FALSE, TRUE, sizeof(worker_ts), srv->ts_formats->len);
+	{
+		guint i;
+		for (i = 0; i < srv->ts_formats->len; i++)
+			g_array_index(wrk->timestamps, worker_ts, i).str = g_string_sized_new(255);
+	}
 
 	ev_init(&wrk->worker_exit_watcher, worker_exit_cb);
 	wrk->worker_exit_watcher.data = wrk;
@@ -353,8 +363,11 @@ void worker_free(worker *wrk) {
 	ev_ref(wrk->loop);
 	ev_async_stop(wrk->loop, &wrk->worker_exit_watcher);
 
-	g_string_free(wrk->tmp_str, TRUE);
-	g_string_free(wrk->ts_date_str, TRUE);
+	{ /* free timestamps */
+		guint i;
+		for (i = 0; i < wrk->timestamps->len; i++)
+			g_string_free(g_array_index(wrk->timestamps, worker_ts, i).str, TRUE);
+	}
 
 	g_async_queue_unref(wrk->new_con_queue);
 

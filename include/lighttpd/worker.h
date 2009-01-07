@@ -41,6 +41,12 @@ struct statistics_t {
 #define WORKER_UNLOCK(srv, lock) \
 	if ((srv)->worker_count > 1) g_static_rec_mutex_unlock(lock)
 
+struct worker_ts {
+	ev_tstamp last_generated;
+	GString *str;
+};
+typedef struct worker_ts worker_ts;
+
 struct worker {
 	struct server *srv;
 
@@ -71,8 +77,8 @@ struct worker {
 
 	guint connection_load;    /** incremented by server_accept_cb, decremented by worker_con_put. use atomic access */
 
-	ev_tstamp last_generated_date_ts;
-	GString *ts_date_str;     /**< use worker_current_timestamp(wrk) */
+	
+	GArray *timestamps;      /** array of (worker_ts), use only from local worker context and through worker_current_timestamp(wrk, ndx) */
 
 	/* incoming queues */
 	/*  - new connections (after accept) */
@@ -101,7 +107,7 @@ LI_API void worker_new_con(worker *ctx, worker *wrk, sock_addr *remote_addr, int
 
 LI_API void worker_check_keepalive(worker *wrk);
 
-LI_API GString *worker_current_timestamp(worker *wrk);
+LI_API GString* worker_current_timestamp(worker *wrk, guint format_ndx);
 
 /* shutdown write and wait for eof before shutdown read and close */
 LI_API void worker_add_closing_socket(worker *wrk, int fd);
