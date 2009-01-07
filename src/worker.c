@@ -287,6 +287,7 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	wrk->tmp_str = g_string_sized_new(255);
 
 	wrk->timestamps = g_array_sized_new(FALSE, TRUE, sizeof(worker_ts), srv->ts_formats->len);
+	g_array_set_size(wrk->timestamps, srv->ts_formats->len);
 	{
 		guint i;
 		for (i = 0; i < srv->ts_formats->len; i++)
