@@ -20,6 +20,7 @@
  *     accesslog.format = "%h %V %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"";
  *
  * Todo:
+ *     - implement format key for %t: %{format}t
  *     - implement missing format identifiers
  *
  * Author:
@@ -85,6 +86,7 @@ static const al_format al_format_mapping[] = {
 	{ 'a', FALSE, AL_FORMAT_REMOTE_ADDR },
 	{ 'A', FALSE, AL_FORMAT_LOCAL_ADDR },
 	{ 'b', FALSE, AL_FORMAT_BYTES_RESPONSE },
+	{ 'B', FALSE, AL_FORMAT_BYTES_RESPONSE_CLF },
 	{ 'C', FALSE, AL_FORMAT_COOKIE },
 	{ 'D', FALSE, AL_FORMAT_DURATION_MICROSECONDS },
 	{ 'e', TRUE, AL_FORMAT_ENV },
@@ -103,7 +105,7 @@ static const al_format al_format_mapping[] = {
 	{ 'U', FALSE, AL_FORMAT_PATH },
 	{ 'v', FALSE, AL_FORMAT_SERVER_NAME },
 	{ 'V', FALSE, AL_FORMAT_HOSTNAME },
-	{ 'T', FALSE, AL_FORMAT_CONNECTION_STATUS },
+	{ 'X', FALSE, AL_FORMAT_CONNECTION_STATUS },
 	{ 'I', FALSE, AL_FORMAT_BYTES_IN },
 	{ 'O', FALSE, AL_FORMAT_BYTES_OUT },
 
@@ -234,6 +236,15 @@ static GString *al_format_log(connection *con, GArray *format) {
 			case AL_FORMAT_LOCAL_ADDR:
 				g_string_append_len(str, GSTR_LEN(con->local_addr_str));
 				break;
+			case AL_FORMAT_BYTES_RESPONSE:
+				g_string_append_printf(str, "%jd", vr->out->bytes_out);
+				break;
+			case AL_FORMAT_BYTES_RESPONSE_CLF:
+				if (vr->out->bytes_out)
+					g_string_append_printf(str, "%jd", vr->out->bytes_out);
+				else
+					g_string_append_c(str, '-');
+				break;
 			case AL_FORMAT_ENV:
 				tmp_str = getenv(e->key->str);
 				if (tmp_str)
@@ -265,8 +276,10 @@ static GString *al_format_log(connection *con, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(req->http_method_str));
 				g_string_append_c(str, ' ');
 				al_append_escaped(str, req->uri.orig_path);
-				g_string_append_c(str, '?');
-				al_append_escaped(str, req->uri.query);
+				if (req->uri.query->len) {
+					g_string_append_c(str, '?');
+					al_append_escaped(str, req->uri.query);
+				}
 				g_string_append_c(str, ' ');
 				tmp_str = http_version_string(req->http_version, &len);
 				g_string_append_len(str, tmp_str, len);
@@ -290,6 +303,13 @@ static GString *al_format_log(connection *con, GArray *format) {
 			case AL_FORMAT_HOSTNAME:
 				g_string_append_len(str, GSTR_LEN(req->uri.host));
 				break;
+			case AL_FORMAT_CONNECTION_STATUS:
+				/* was request completed? */
+				if (con->in->is_closed && con->raw_out->is_closed && 0 == con->raw_out->length)
+					g_string_append_c(str, 'X');
+				else
+					g_string_append_c(str, con->keep_alive ? '+' : '-');
+				break;
 			case AL_FORMAT_BYTES_IN:
 				g_string_append_printf(str, "%"G_GUINT64_FORMAT, con->stats.bytes_in);
 				break;
@@ -298,14 +318,13 @@ static GString *al_format_log(connection *con, GArray *format) {
 				break;
 			default:
 				/* not implemented:
-				{ 'b', FALSE, AL_FORMAT_BYTES_RESPONSE }
 				{ 'C', FALSE, AL_FORMAT_COOKIE }
 				{ 'D', FALSE, AL_FORMAT_DURATION_MICROSECONDS }
 				{ 'p', FALSE, AL_FORMAT_LOCAL_PORT },
 				{ 't', FALSE, AL_FORMAT_TIME },
 				{ 'T', FALSE, AL_FORMAT_DURATION_SECONDS },
-				{ 'T', FALSE, AL_FORMAT_CONNECTION_STATUS },
 				*/
+				g_string_append_c(str, '?');
 				break;
 			}
 		} else {
