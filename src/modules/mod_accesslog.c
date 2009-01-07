@@ -35,6 +35,11 @@
 LI_API gboolean mod_accesslog_init(modules *mods, module *mod);
 LI_API gboolean mod_accesslog_free(modules *mods, module *mod);
 
+struct al_data {
+	guint ts_ndx_gmtime;
+};
+typedef struct al_data al_data;
+
 enum {
 	AL_OPTION_ACCESSLOG,
 	AL_OPTION_ACCESSLOG_FORMAT
@@ -213,7 +218,7 @@ static GArray *al_parse_format(server *srv, GString *formatstr) {
 	return arr;
 }
 
-static GString *al_format_log(connection *con, GArray *format) {
+static GString *al_format_log(connection *con, al_data *ald, GArray *format) {
 	GString *str = g_string_sized_new(256);
 	vrequest *vr = con->mainvr;
 	response *resp = &vr->response;
@@ -221,6 +226,7 @@ static GString *al_format_log(connection *con, GArray *format) {
 	physical *phys = &vr->physical;
 	gchar *tmp_str = NULL;
 	GString *tmp_gstr = g_string_sized_new(128);
+	GString *tmp_gstr2;
 	guint len = 0;
 
 	for (guint i = 0; i < format->len; i++) {
@@ -287,6 +293,11 @@ static GString *al_format_log(connection *con, GArray *format) {
 			case AL_FORMAT_STATUS_CODE:
 				g_string_append_printf(str, "%d", resp->http_status);
 				break;
+			case AL_FORMAT_TIME:
+				/* todo: implement format string */
+				tmp_gstr2 = worker_current_timestamp(con->wrk, ald->ts_ndx_gmtime);
+				g_string_append_len(str, GSTR_LEN(tmp_gstr2));
+				break;
 			case AL_FORMAT_AUTHED_USER:
 				/* TODO: implement ;) */
 				g_string_append_c(str, '-');
@@ -351,7 +362,7 @@ static void al_handle_close(connection *con, plugin *p) {
 		/* if status code is zero, it means the connection was closed while in keep alive state or similar and no logging is needed */
 		return;
 
-	msg = al_format_log(con, format);
+	msg = al_format_log(con, p->data, format);
 
 	g_string_append_len(msg, CONST_STR_LEN("\r\n"));
 	log_write(con->srv, log, msg);
@@ -448,15 +459,27 @@ static const plugin_setup setups[] = {
 };
 
 
-static void plugin_accesslog_init(server *srv, plugin *p) {
+static void plugin_accesslog_free(server *srv, plugin *p) {
 	UNUSED(srv);
 
+	g_slice_free(al_data, p->data);
+}
+
+static void plugin_accesslog_init(server *srv, plugin *p) {
+	al_data *ald;
+
+	UNUSED(srv);
+
+	p->free = plugin_accesslog_free;
 	p->options = options;
 	p->actions = actions;
 	p->setups = setups;
 	p->handle_close = al_handle_close;
-}
 
+	ald = g_slice_new0(al_data);
+	ald->ts_ndx_gmtime = server_ts_format_add(srv, g_string_new_len(CONST_STR_LEN("[%d/%b/%Y:%H:%M:%S +0000]")));
+	p->data = ald;
+}
 
 LI_API gboolean mod_accesslog_init(modules *mods, module *mod) {
 	UNUSED(mod);
