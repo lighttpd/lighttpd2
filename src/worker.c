@@ -155,15 +155,18 @@ static void worker_job_queue_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 /* cache timestamp */
 GString *worker_current_timestamp(worker *wrk, guint format_ndx) {
 	gsize len;
+	struct tm tm;
 	worker_ts *wts = &g_array_index(wrk->timestamps, worker_ts, format_ndx);
 	ev_tstamp now = CUR_TS(wrk);
 
 	/* cache hit */
-	if ((now - wts->last_generated) > 1.0)
+	if ((now - wts->last_generated) < 1.0)
 		return wts->str;
 
 	g_string_set_size(wts->str, 255);
-	len = strftime(wts->str->str, wts->str->allocated_len, g_array_index(wrk->srv->ts_formats, GString*, format_ndx)->str, gmtime((time_t*)(&wts->last_generated)));
+	if (!gmtime_r((time_t*)&now, &tm))
+		return NULL;
+	len = strftime(wts->str->str, wts->str->allocated_len, g_array_index(wrk->srv->ts_formats, GString*, format_ndx)->str, &tm);
 	if (len == 0)
 		return NULL;
 
