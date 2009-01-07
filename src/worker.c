@@ -367,6 +367,7 @@ void worker_free(worker *wrk) {
 		guint i;
 		for (i = 0; i < wrk->timestamps->len; i++)
 			g_string_free(g_array_index(wrk->timestamps, worker_ts, i).str, TRUE);
+		g_array_free(wrk->timestamps, TRUE);
 	}
 
 	g_async_queue_unref(wrk->new_con_queue);
@@ -378,6 +379,8 @@ void worker_free(worker *wrk) {
 	ev_async_stop(wrk->loop, &wrk->collect_watcher);
 	collect_watcher_cb(wrk->loop, &wrk->collect_watcher, 0);
 	g_async_queue_unref(wrk->collect_queue);
+
+	g_string_free(wrk->tmp_str, TRUE);
 
 	g_slice_free(worker, wrk);
 }
