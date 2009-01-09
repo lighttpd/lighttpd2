@@ -31,10 +31,11 @@ handler_t filter_chunked_encode(connection *con, chunkqueue *out, chunkqueue *in
 	if (in->length > 0) {
 		http_chunk_append_len(out, in->length);
 		chunkqueue_steal_all(out, in);
+		chunkqueue_append_mem(out, CONST_STR_LEN("\r\n"));
 	}
 	if (in->is_closed) {
 		if (!out->is_closed) {
-			chunkqueue_append_mem(out, CONST_STR_LEN("0\r\n"));
+			chunkqueue_append_mem(out, CONST_STR_LEN("0\r\n\r\n"));
 			out->is_closed = TRUE;
 		}
 		return HANDLER_GO_ON;

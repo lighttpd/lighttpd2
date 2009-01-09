@@ -36,7 +36,11 @@ static void forward_response_body(connection *con) {
 			response_send_headers(con);
 		}
 
-		chunkqueue_steal_all(con->raw_out, con->out);
+		if (vr->response.transfer_encoding & HTTP_TRANSFER_ENCODING_CHUNKED) {
+			filter_chunked_encode(con, con->raw_out, con->out);
+		} else {
+			chunkqueue_steal_all(con->raw_out, con->out);
+		}
 		if (con->out->is_closed) con->raw_out->is_closed = TRUE;
 		if (con->raw_out->length > 0) {
 			ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
