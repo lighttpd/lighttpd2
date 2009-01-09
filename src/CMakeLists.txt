@@ -344,6 +344,7 @@ ENDIF(BUILD_EXTRA_WARNINGS)
 SET(COMMON_LDFLAGS "${LUA_LDFLAGS} ${EV_LDFLAGS} ${GTHREAD_LDFLAGS} ${GMODULE_LDFLAGS} ${WARN_FLAGS}")
 SET(COMMON_CFLAGS "${LUA_CFLAGS} ${EV_CFLAGS} ${GTHREAD_CFLAGS} ${GMODULE_CFLAGS} ${WARN_FLAGS}")
 
+ADD_AND_INSTALL_LIBRARY(mod_accesslog "modules/mod_accesslog.c")
 ADD_AND_INSTALL_LIBRARY(mod_balancer "modules/mod_balancer.c")
 ADD_AND_INSTALL_LIBRARY(mod_fastcgi "modules/mod_fastcgi.c")
 ADD_AND_INSTALL_LIBRARY(mod_fortune "modules/mod_fortune.c")
