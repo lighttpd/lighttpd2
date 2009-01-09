@@ -42,7 +42,7 @@ struct statistics_t {
 	if ((srv)->worker_count > 1) g_static_rec_mutex_unlock(lock)
 
 struct worker_ts {
-	ev_tstamp last_generated;
+	time_t last_generated;
 	GString *str;
 };
 typedef struct worker_ts worker_ts;
