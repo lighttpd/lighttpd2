@@ -53,6 +53,7 @@ void response_send_headers(connection *con) {
 		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, con->out->length);
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(con->wrk->tmp_str));
 	} else if (con->keep_alive && vr->request.http_version == HTTP_VERSION_1_1) {
+		/* TODO: maybe someone set a content length header? */
 		if (!(vr->response.transfer_encoding & HTTP_TRANSFER_ENCODING_CHUNKED)) {
 			vr->response.transfer_encoding |= HTTP_TRANSFER_ENCODING_CHUNKED;
 			http_header_append(vr->response.headers, CONST_STR_LEN("Transfer-Encoding"), CONST_STR_LEN("chunked"));
