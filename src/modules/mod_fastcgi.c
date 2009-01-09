@@ -228,7 +228,8 @@ static void stream_send_chunks(chunkqueue *out, guint8 type, guint16 requestid, 
 		chunkqueue_append_mem(out, __padding, padlen);
 	}
 
-	if (in->is_closed) {
+	if (in->is_closed && !out->is_closed) {
+		out->is_closed = TRUE;
 		stream_send_fcgi_record(out, type, requestid, 0);
 	}
 }
