@@ -569,10 +569,10 @@ sockaddr sockaddr_from_string(GString *str, guint tcp_default_port) {
 
 #ifdef HAVE_SYS_UN_H
 	if (0 == strncmp(str->str, "unix:/", 6)) {
-		saddr.len = str->len + 1 + sizeof(saddr.addr->un.sun_family);
+		saddr.len = str->len + 1 - 5 + sizeof(saddr.addr->un.sun_family);
 		saddr.addr = (sock_addr*) g_slice_alloc0(saddr.len);
 		saddr.addr->un.sun_family = AF_UNIX;
-		strcpy(saddr.addr->un.sun_path, str->str);
+		strcpy(saddr.addr->un.sun_path, str->str + 5);
 	} else
 #endif
 	if (parse_ipv4(str->str, &ipv4, NULL, &port)) {
