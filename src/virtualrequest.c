@@ -352,11 +352,21 @@ void vrequest_joblist_append(vrequest *vr) {
 }
 
 gboolean vrequest_stat(vrequest *vr) {
+	/* Do not stat again */
+	if (vr->physical.have_stat || vr->physical.have_errno) return vr->physical.have_stat;
+
 	if (-1 == stat(vr->physical.path->str, &vr->physical.stat)) {
 		vr->physical.have_stat = FALSE;
 		vr->physical.have_errno = TRUE;
 		vr->physical.stat_errno = errno;
-		VR_DEBUG(vr, "stat(%s) failed: %s (%d)", vr->physical.path->str, g_strerror(vr->physical.stat_errno), vr->physical.stat_errno);
+		switch (errno) {
+		case EACCES:
+		case ENOENT:
+		case ENOTDIR:
+			break;
+		default:
+			VR_DEBUG(vr, "stat(%s) failed: %s (%d)", vr->physical.path->str, g_strerror(vr->physical.stat_errno), vr->physical.stat_errno);
+		}
 		return FALSE;
 	}
 

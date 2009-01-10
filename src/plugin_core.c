@@ -44,7 +44,7 @@ static action* core_list(server *srv, plugin* p, value *val) {
 
 static action* core_when(server *srv, plugin* p, value *val) {
 	value *val_cond, *val_act, *val_act_else;
-	action *a, *act_else;
+	action *a, *act = NULL, *act_else = NULL;
 	UNUSED(p);
 
 	if (!val) {
@@ -60,7 +60,6 @@ static action* core_when(server *srv, plugin* p, value *val) {
 		act_else = NULL;
 	} else if (val->data.list->len == 3) {
 		val_act_else = g_array_index(val->data.list, value*, 2);
-		act_else = val_act_else->data.val_action.action;
 	} else {
 		ERROR(srv, "expected list with length 2 or 3, has length %u", val->data.list->len);
 		return NULL;
@@ -72,18 +71,28 @@ static action* core_when(server *srv, plugin* p, value *val) {
 		ERROR(srv, "expected condition as first parameter, got %s", value_type_string(val_cond->type));
 		return NULL;
 	}
-	if (val_act->type != VALUE_ACTION) {
+	if (val_act->type == VALUE_NONE) {
+		act = NULL;
+	} else if (val_act->type == VALUE_ACTION) {
+		act = val_act->data.val_action.action;
+	} else {
 		ERROR(srv, "expected action as second parameter, got %s", value_type_string(val_act->type));
 		return NULL;
 	}
-	if (val_act_else && val_act_else->type != VALUE_ACTION) {
-		ERROR(srv, "expected action as third parameter, got %s", value_type_string(val_act_else->type));
-		return NULL;
+	if (val_act_else) {
+		if (val_act_else->type == VALUE_NONE) {
+			act_else = NULL;
+		} else if (val_act_else->type == VALUE_ACTION) {
+			act_else = val_act_else->data.val_action.action;
+		} else {
+			ERROR(srv, "expected action as third parameter, got %s", value_type_string(val_act_else->type));
+			return NULL;
+		}
 	}
 	condition_acquire(val_cond->data.val_cond.cond);
-	action_acquire(val_act->data.val_action.action);
+	if (act) action_acquire(act);
 	if (act_else) action_acquire(act_else);
-	a = action_new_condition(val_cond->data.val_cond.cond, val_act->data.val_action.action, act_else);
+	a = action_new_condition(val_cond->data.val_cond.cond, act, act_else);
 	return a;
 }
 
@@ -782,6 +791,125 @@ static action* core_header_overwrite(server *srv, plugin* p, value *val) {
 	return action_new_function(core_handle_header_overwrite, NULL, core_header_free, value_extract(val).list);
 }
 
+typedef struct {
+	action *target_true, *target_false;
+} core_conditional;
+
+static core_conditional* core_conditional_create(server *srv, value *val, guint idx) {
+	core_conditional *cc;
+	value *val_true = NULL, *val_false = NULL;
+	action *act_true = NULL, *act_false = NULL;
+	GArray *l;
+
+	if (idx == 0 && val->type == VALUE_ACTION) {
+		cc = g_slice_new0(core_conditional);
+		act_true = val->data.val_action.action;
+		action_acquire(act_true);
+		cc->target_true = act_true;
+		return cc;
+	}
+
+	if (val->type != VALUE_LIST) {
+		ERROR(srv, "unexpected parameter of type %s, expected list", value_type_string(val->type));
+		return NULL;
+	}
+
+	l = val->data.list;
+
+	if (idx >= l->len) {
+		ERROR(srv, "expected at least %u parameters, %u given", idx+1, l->len);
+	}
+
+	val_true = g_array_index(l, value*, idx);
+	if (idx + 1 < l->len) val_false = g_array_index(l, value*, idx+1);
+
+	if (val_true->type == VALUE_NONE) {
+		act_true = NULL;
+	} else if (val_true->type == VALUE_ACTION) {
+		act_true = val_true->data.val_action.action;
+	} else {
+		ERROR(srv, "expected action at entry %u of list, got %s", idx, value_type_string(val_true->type));
+	}
+
+	if (val_false) {
+		if (val_false->type == VALUE_NONE) {
+			act_false = NULL;
+		} else if (val_false->type == VALUE_ACTION) {
+			act_false = val_false->data.val_action.action;
+		} else {
+			ERROR(srv, "expected action at entry %u of list, got %s", idx+1, value_type_string(val_false->type));
+		}
+	} else {
+		act_false = NULL;
+	}
+
+	cc = g_slice_new0(core_conditional);
+	if (act_true) action_acquire(act_true);
+	if (act_false) action_acquire(act_false);
+	cc->target_true = act_true;
+	cc->target_false = act_false;
+	return cc;
+}
+
+static void core_conditional_free(struct server *srv, gpointer param) {
+	core_conditional *cc = (core_conditional*) param;
+	if (!cc) return;
+	action_release(srv, cc->target_true);
+	action_release(srv, cc->target_false);
+	g_slice_free(core_conditional, cc);
+}
+
+static handler_t core_conditional_do(vrequest *vr, gpointer param, gboolean way) {
+	core_conditional *cc = (core_conditional*)param;
+	if (way) { if (cc->target_true) action_enter(vr, cc->target_true); }
+	else { if (cc->target_false) action_enter(vr, cc->target_false); }
+	return HANDLER_GO_ON;
+}
+
+static handler_t core_handle_physical_exists(vrequest *vr, gpointer param, gpointer *context) {
+	UNUSED(context);
+
+	if (0 == vr->physical.path->len) return core_conditional_do(vr, param, FALSE);
+	vrequest_stat(vr);
+	return core_conditional_do(vr, param, vr->physical.have_stat);
+}
+static action* core_physical_exists(server *srv, plugin* p, value *val) {
+	core_conditional *cc = core_conditional_create(srv, val, 0);
+	UNUSED(p);
+	if (!cc) return NULL;
+
+	return action_new_function(core_handle_physical_exists, NULL, core_conditional_free, cc);
+}
+
+static handler_t core_handle_physical_is_file(vrequest *vr, gpointer param, gpointer *context) {
+	UNUSED(context);
+
+	if (0 == vr->physical.path->len) return core_conditional_do(vr, param, FALSE);
+	vrequest_stat(vr);
+	return core_conditional_do(vr, param, vr->physical.have_stat && S_ISREG(vr->physical.stat.st_mode));
+}
+static action* core_physical_is_file(server *srv, plugin* p, value *val) {
+	core_conditional *cc = core_conditional_create(srv, val, 0);
+	UNUSED(p);
+	if (!cc) return NULL;
+
+	return action_new_function(core_handle_physical_is_file, NULL, core_conditional_free, cc);
+}
+
+static handler_t core_handle_physical_is_dir(vrequest *vr, gpointer param, gpointer *context) {
+	UNUSED(context);
+
+	if (0 == vr->physical.path->len) return core_conditional_do(vr, param, FALSE);
+	vrequest_stat(vr);
+	return core_conditional_do(vr, param, vr->physical.have_stat && S_ISDIR(vr->physical.stat.st_mode));
+}
+static action* core_physical_is_dir(server *srv, plugin* p, value *val) {
+	core_conditional *cc = core_conditional_create(srv, val, 0);
+	UNUSED(p);
+	if (!cc) return NULL;
+
+	return action_new_function(core_handle_physical_is_dir, NULL, core_conditional_free, cc);
+}
 
 static const plugin_option options[] = {
 	{ "debug.log_request_handling", VALUE_BOOLEAN, NULL, NULL, NULL },
@@ -820,6 +948,10 @@ static const plugin_action actions[] = {
 	{ "header_add", core_header_add },
 	{ "header_append", core_header_append },
 	{ "header_overwrite", core_header_overwrite },
+
+	{ "physical.exists", core_physical_exists },
+	{ "physical.is_file", core_physical_is_file },
+	{ "physical.is_dir", core_physical_is_dir },
 
 	{ NULL, NULL }
 };

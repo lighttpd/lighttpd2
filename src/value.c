@@ -1,5 +1,11 @@
 #include <lighttpd/base.h>
 
+value* value_new_none() {
+	value *v = g_slice_new0(value);
+	v->type = VALUE_NONE;
+	return v;
+}
+
 value* value_new_bool(gboolean val) {
 	value *v = g_slice_new0(value);
 	v->data.boolean = val;

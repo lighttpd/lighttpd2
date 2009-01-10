@@ -263,7 +263,7 @@ handler_t action_execute(vrequest *vr) {
 			case HANDLER_GO_ON:
 				action_stack_pop(srv, vr, as);
 				if (condres) {
-					action_enter(vr, a->data.condition.target);
+					if (a->data.condition.target) action_enter(vr, a->data.condition.target);
 				}
 				else if (a->data.condition.target_else) {
 					action_enter(vr, a->data.condition.target_else);

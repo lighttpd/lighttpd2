@@ -86,7 +86,7 @@ value* value_from_lua(server *srv, lua_State *L) {
 	switch (lua_type(L, -1)) {
 	case LUA_TNIL:
 		lua_pop(L, 1);
-		return NULL;
+		return value_new_none();
 
 	case LUA_TBOOLEAN:
 		val = value_new_bool(lua_toboolean(L, -1));

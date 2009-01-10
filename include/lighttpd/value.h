@@ -26,6 +26,7 @@ struct value {
 	} data;
 };
 
+LI_API value* value_new_none();
 LI_API value* value_new_bool(gboolean val);
 LI_API value* value_new_number(gint64 val);
 LI_API value* value_new_string(GString *val);
