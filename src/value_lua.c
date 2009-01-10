@@ -30,9 +30,9 @@ static value* value_from_lua_table(server *srv, lua_State *L, int ndx) {
 				val = value_new_list();
 				list = val->data.list;
 			}
-			ikey = lua_tointeger(L, -2);
+			ikey = lua_tointeger(L, -2) - 1;
 			if (ikey < 0) {
-				ERROR(srv, "Invalid key < 0: %i - skipping entry", ikey);
+				ERROR(srv, "Invalid key < 0: %i - skipping entry", ikey + 1);
 				lua_pop(L, 1);
 				continue;
 			}
