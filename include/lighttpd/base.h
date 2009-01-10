@@ -38,6 +38,7 @@
 #include <lighttpd/plugin.h>
 #include <lighttpd/http_headers.h>
 #include <lighttpd/http_request_parser.h>
+#include <lighttpd/http_response_parser.h>
 #include <lighttpd/request.h>
 #include <lighttpd/response.h>
 #include <lighttpd/environment.h>

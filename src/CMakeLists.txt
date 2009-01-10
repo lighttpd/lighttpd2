@@ -288,6 +288,7 @@ SET(COMMON_SRC
 	filter_chunked.c
 	http_headers.c
 	http_request_parser.c
+	http_response_parser.c
 	log.c
 	module.c
 	network.c
@@ -324,6 +325,7 @@ ENDIF(WITH_LUA)
 RAGEL_PARSER(condition_parsers.rl)
 RAGEL_PARSER(config_parser.rl -T0)
 RAGEL_PARSER(http_request_parser.rl)
+RAGEL_PARSER(http_response_parser.rl)
 RAGEL_PARSER(url_parser.rl)
 
 SET(L_INSTALL_TARGETS)

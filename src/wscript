@@ -30,6 +30,7 @@ common_src = '''
 	filter_chunked.c
 	http_headers.c
 	http_request_parser.rl
+	http_response_parser.rl
 	log.c
 	module.c
 	network.c

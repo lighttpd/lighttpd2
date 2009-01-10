@@ -62,4 +62,6 @@ LI_API void sockaddr_clear(sockaddr *saddr);
 
 LI_API void gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, guint len);
 
+LI_API gboolean l_g_strncase_equal(GString *str, const gchar *s, guint len);
+
 #endif

@@ -603,3 +603,8 @@ void gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, guint
 		}
 	}
 }
+
+gboolean l_g_strncase_equal(GString *str, const gchar *s, guint len) {
+	if (str->len != len) return FALSE;
+	return 0 == g_ascii_strncasecmp(str->str, s, len);
+}

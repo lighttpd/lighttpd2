@@ -1,0 +1,147 @@
+
+#include <lighttpd/base.h>
+#include <lighttpd/http_response_parser.h>
+
+/** Machine **/
+
+#define _getString(M, FPC) (chunk_extract(vr, ctx->M, GETMARK(FPC)))
+#define getString(FPC) _getString(mark, FPC)
+
+#define _getStringTo(M, FPC, s) (chunk_extract_to(vr, ctx->M, GETMARK(FPC), s))
+#define getStringTo(FPC, s) _getStringTo(mark, FPC, s)
+
+
+%%{
+
+	machine http_response_parser;
+	variable cs ctx->chunk_ctx.cs;
+
+	action mark { ctx->mark = GETMARK(fpc); }
+	action done { fbreak; }
+
+	action status {
+		getStringTo(fpc, ctx->h_value);
+		ctx->response->http_status = atoi(ctx->h_value->str);
+	}
+
+	action header_key {
+		getStringTo(fpc, ctx->h_key);
+		g_string_truncate(ctx->h_value, 0);
+	}
+	action header_value {
+		getStringTo(fpc, ctx->h_value);
+	}
+	action header {
+		if (ctx->accept_cgi && l_g_strncase_equal(ctx->h_key, CONST_STR_LEN("Status"))) {
+			ctx->response->http_status = atoi(ctx->h_value->str);
+		} else {
+			http_header_insert(ctx->response->headers, GSTR_LEN(ctx->h_key), GSTR_LEN(ctx->h_value));
+		}
+	}
+
+# RFC 2616
+	OCTET = any;
+	CHAR = ascii;
+	UPALPHA = upper;
+	LOALPHA = lower;
+	ALPHA = alpha;
+	DIGIT = digit;
+	CTL = ( 0 .. 31 | 127 );
+	CR = '\r';
+	LF = '\n';
+	SP = ' ';
+	HT = '\t';
+	DQUOTE = '"';
+
+	CRLF = CR LF;
+	LWS = CRLF? (SP | HT)+; # linear white space
+	TEXT = (OCTET - CTL) | LWS;
+	HEX = [a-fA-F0-9];
+
+	Separators = [()<>@,;:\\\"/\[\]?={}] | SP | HT;
+	Token = (OCTET - Separators - CTL)+;
+
+	# original definition
+	# Comment = "(" ( CText | Quoted_Pair | Comment )* ")";
+	# CText   = TEXT - [()];
+
+	Quoted_Pair    = "\\" CHAR;
+	Comment        = ( TEXT | Quoted_Pair )*;
+	QDText         = TEXT - DQUOTE;
+	Quoted_String   = DQUOTE ( QDText | Quoted_Pair )* DQUOTE;
+
+	HTTP_Version = (
+		  "HTTP/1.0"  %{ ctx->response->http_version = HTTP_VERSION_1_0; }
+		| "HTTP/1.1"  %{ ctx->response->http_version = HTTP_VERSION_1_1; }
+		| "HTTP" "/" DIGIT+ "." DIGIT+ ) >{ ctx->response->http_version = HTTP_VERSION_UNSET; };
+	#HTTP_URL = "http:" "//" Host ( ":" Port )? ( abs_path ( "?" query )? )?;
+
+	Status = (digit digit digit) >mark %status;
+	Response_Line = "HTTP/" digit+ "." digit+ SP Status SP (any - CTL - CR - LF)* CRLF;
+
+	Field_Content = ( TEXT+ | ( Token | Separators | Quoted_String )+ );
+	Field_Value = " "* (Field_Content+ ( Field_Content | LWS )*)? >mark %header_value;
+	Message_Header = Token >mark %header_key ":" Field_Value? % header;
+
+	main := Response_Line? (Message_Header CRLF)* CRLF @ done;
+}%%
+
+%% write data;
+
+static int http_response_parser_has_error(http_response_ctx *ctx) {
+	return ctx->chunk_ctx.cs == http_response_parser_error;
+}
+
+static int http_response_parser_is_finished(http_response_ctx *ctx) {
+	return ctx->chunk_ctx.cs >= http_response_parser_first_final;
+}
+
+void http_response_parser_init(http_response_ctx* ctx, response *req, chunkqueue *cq, gboolean accept_cgi, gboolean accept_nph) {
+	chunk_parser_init(&ctx->chunk_ctx, cq);
+	ctx->response = req;
+	ctx->accept_cgi = accept_cgi;
+	ctx->accept_nph = accept_nph;
+	ctx->h_key = g_string_sized_new(0);
+	ctx->h_value = g_string_sized_new(0);
+
+	%% write init;
+}
+
+void http_response_parser_reset(http_response_ctx* ctx) {
+	chunk_parser_reset(&ctx->chunk_ctx);
+	g_string_truncate(ctx->h_key, 0);
+	g_string_truncate(ctx->h_value, 0);
+
+	%% write init;
+}
+
+void http_response_parser_clear(http_response_ctx *ctx) {
+	g_string_free(ctx->h_key, TRUE);
+	g_string_free(ctx->h_value, TRUE);
+}
+
+handler_t http_response_parse(vrequest *vr, http_response_ctx *ctx) {
+	handler_t res;
+
+	if (http_response_parser_is_finished(ctx)) return HANDLER_GO_ON;
+
+	if (HANDLER_GO_ON != (res = chunk_parser_prepare(&ctx->chunk_ctx))) return res;
+
+	while (!http_response_parser_has_error(ctx) && !http_response_parser_is_finished(ctx)) {
+		char *p, *pe;
+
+		if (HANDLER_GO_ON != (res = chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
+
+		%% write exec;
+
+		chunk_parser_done(&ctx->chunk_ctx, p - ctx->chunk_ctx.buf);
+	}
+
+	if (http_response_parser_has_error(ctx)) return HANDLER_ERROR;
+	if (http_response_parser_is_finished(ctx)) {
+		chunkqueue_skip(ctx->chunk_ctx.cq, ctx->chunk_ctx.bytes_in);
+		if (ctx->response->http_status == 0) ctx->response->http_status = 200;
+		return HANDLER_GO_ON;
+	}
+	return HANDLER_ERROR;
+}

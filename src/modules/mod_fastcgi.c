@@ -43,6 +43,9 @@ struct fastcgi_connection {
 	GString *buf_in_record;
 	FCGI_Record fcgi_in_record;
 	guint16 requestid;
+	
+	http_response_ctx parse_response_ctx;
+	gboolean response_headers_finished;
 };
 
 struct fastcgi_context {
@@ -139,6 +142,8 @@ static fastcgi_connection* fastcgi_connection_new(vrequest *vr, fastcgi_context 
 	fcon->buf_in_record = g_string_sized_new(FCGI_HEADER_LEN);
 	fcon->requestid = 1;
 	fcon->state = FS_WAIT_FOR_REQUEST;
+	http_response_parser_init(&fcon->parse_response_ctx, &vr->response, fcon->stdout, TRUE, FALSE);
+	fcon->response_headers_finished = FALSE;
 	return fcon;
 }
 
@@ -155,6 +160,8 @@ static void fastcgi_connection_free(fastcgi_connection *fcon) {
 	chunkqueue_free(fcon->fcgi_out);
 	chunkqueue_free(fcon->stdout);
 	g_string_free(fcon->buf_in_record, TRUE);
+
+	http_response_parser_clear(&fcon->parse_response_ctx);
 
 	g_slice_free(fastcgi_connection, fcon);
 }
@@ -496,14 +503,16 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	if (!fastcgi_parse_response(fcon)) return;
 
-	/* TODO: parse stdout response */
-	if (fcon->vr->out->bytes_in == 0 && fcon->stdout->length > 0) {
-		fcon->vr->response.http_status = 200;
+	if (!fcon->response_headers_finished && HANDLER_GO_ON == http_response_parse(fcon->vr, &fcon->parse_response_ctx)) {
+		fcon->response_headers_finished = TRUE;
 		vrequest_handle_response_headers(fcon->vr);
 	}
-	chunkqueue_steal_all(fcon->vr->out, fcon->stdout);
-	fcon->vr->out->is_closed = fcon->stdout->is_closed;
-	vrequest_handle_response_body(fcon->vr);
+	
+	if (fcon->response_headers_finished) {
+		chunkqueue_steal_all(fcon->vr->out, fcon->stdout);
+		fcon->vr->out->is_closed = fcon->stdout->is_closed;
+		vrequest_handle_response_body(fcon->vr);
+	}
 
 	if (fcon->fcgi_in->is_closed && !fcon->vr->out->is_closed) {
 		VR_ERROR(fcon->vr, "%s", "unexpected end-of-file (perhaps the fastcgi process died)");
