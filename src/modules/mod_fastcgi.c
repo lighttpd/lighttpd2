@@ -382,7 +382,7 @@ static void fastcgi_forward_request(vrequest *vr, fastcgi_connection *fcon) {
 }
 
 static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
-	const gchar *data;
+	const unsigned char *data;
 	gint len;
 	if (!chunkqueue_extract_to(fcon->vr, fcon->fcgi_in, FCGI_HEADER_LEN, fcon->buf_in_record)) return FALSE; /* need more data */
 
