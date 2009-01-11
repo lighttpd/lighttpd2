@@ -157,12 +157,7 @@ static handler_t core_handle_docroot(vrequest *vr, gpointer param, gpointer *con
 	vr->physical.have_stat = FALSE;
 	vr->physical.have_errno = FALSE;
 
-	/* build physical path: docroot + uri.path */
-	g_string_truncate(vr->physical.path, 0);
-	g_string_append_len(vr->physical.path, GSTR_LEN((GString*) param));
-	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
-
-	VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
+	VR_DEBUG(vr, "docroot: %s", vr->physical.doc_root->str);
 
 	return HANDLER_GO_ON;
 }
@@ -187,9 +182,16 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 	UNUSED(param);
 	UNUSED(context);
 
+	/* build physical path: docroot + uri.path */
+	g_string_truncate(vr->physical.path, 0);
+	g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
+	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
+
 	if (vr->physical.path->len == 0) return HANDLER_GO_ON;
 
 	if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
+
+	VR_DEBUG(vr, "serving static file: %s", vr->physical.path->str);
 
 	fd = open(vr->physical.path->str, O_RDONLY);
 	if (fd == -1) {
