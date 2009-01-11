@@ -142,6 +142,9 @@ typedef struct mod_status_wrk_data mod_status_wrk_data;
 struct mod_status_con_data;
 typedef struct mod_status_con_data mod_status_con_data;
 
+struct mod_status_job;
+typedef struct mod_status_job mod_status_job;
+
 struct mod_status_con_data {
 	guint worker_ndx;
 	connection_state_t state;
@@ -159,6 +162,11 @@ struct mod_status_wrk_data {
 	guint worker_ndx;
 	statistics_t stats;
 	GArray *connections;
+};
+
+struct mod_status_job {
+	vrequest *vr;
+	gpointer *context;
 };
 
 
@@ -193,8 +201,14 @@ static gpointer status_collect_func(worker *wrk, gpointer fdata) {
 
 /* the CollectCallback */
 static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
-	vrequest *vr = cbdata;
+	mod_status_job *job = cbdata;
+	vrequest *vr = job->vr;
 	UNUSED(fdata);
+
+	/* clear context so it doesn't get cleaned up anymore */
+	*(job->context) = NULL;
+
+	g_slice_free(mod_status_job, job);
 
 	if (complete) {
 		GString *css;
@@ -458,10 +472,16 @@ static handler_t status_page_handle(vrequest *vr, gpointer param, gpointer *cont
 
 	if (vr->state == VRS_HANDLE_REQUEST_HEADERS) {
 		collect_info *ci;
+		mod_status_job *j = g_slice_new(mod_status_job);
+		j->vr = vr;
+		j->context = context;
+
 		VR_DEBUG(vr, "%s", "collecting stats...");
+
 		/* abuse fdata as pointer to plugin */
-		ci = collect_start(vr->con->wrk, status_collect_func, param, NULL, status_collect_cb, vr);
+		ci = collect_start(vr->con->wrk, status_collect_func, param, NULL, status_collect_cb, j);
 		*context = ci;
+
 		return HANDLER_WAIT_FOR_EVENT;
 	}
 
