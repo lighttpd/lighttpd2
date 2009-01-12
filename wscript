@@ -52,6 +52,9 @@ def configure(conf):
 	conf.check(lib='ev', uselib_store='ev', mandatory=True)
 	conf.check(header_name='ev.h', uselib='ev', mandatory=True)
 
+	if opts.all:
+		opts.lua = True
+
 	if opts.extra_warnings:
 		conf.env['CCFLAGS'] += [
 			'-g', '-g2', '-Wall', '-Wmissing-declarations',
