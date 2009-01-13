@@ -351,6 +351,7 @@ ADD_AND_INSTALL_LIBRARY(mod_balancer "modules/mod_balancer.c")
 ADD_AND_INSTALL_LIBRARY(mod_fastcgi "modules/mod_fastcgi.c")
 ADD_AND_INSTALL_LIBRARY(mod_fortune "modules/mod_fortune.c")
 ADD_AND_INSTALL_LIBRARY(mod_status "modules/mod_status.c")
+ADD_AND_INSTALL_LIBRARY(mod_vhost "modules/mod_vhost.c")
 
 ADD_TARGET_PROPERTIES(lighttpd LINK_FLAGS ${COMMON_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd COMPILE_FLAGS ${COMMON_CFLAGS})
