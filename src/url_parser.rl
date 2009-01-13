@@ -36,8 +36,11 @@
 	reserved    = gen_delims | sub_delims;
 	unreserved  = alpha | digit | "-" | "." | "_" | "~";
 
+	# many clients don't encode these, e.g. curl, wget, ...
+	delims      = "<" | ">" | "#" | "%" | '"';
+	unwise      = " " | "{" | "}" | "|" | "\\" | "^" | "[" | "]" | "`";
 
-	pchar = unreserved | pct_encoded | sub_delims | ":" | "@";
+	pchar = unreserved | pct_encoded | sub_delims | ":" | "@" | delims | unwise;
 	path = ("/" ( "/" | pchar)*) >mark %save_path;
 
 #	scheme      = alpha *( alpha | digit | "+" | "-" | "." );
