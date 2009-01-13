@@ -20,6 +20,7 @@ static void parse_request_body(connection *con) {
 				ev_io_rem_events(con->wrk->loop, &con->sock_watcher, EV_READ);
 			}
 		}
+		vrequest_handle_request_body(con->mainvr);
 	} else {
 		ev_io_rem_events(con->wrk->loop, &con->sock_watcher, EV_READ);
 	}
@@ -178,10 +179,25 @@ static gboolean connection_handle_read(connection *con) {
 			con->in->is_closed = TRUE;
 			forward_response_body(con);
 		} else {
+			/* When does a client ask for 100 Continue? probably not while trying to ddos us
+			 * as post content probably goes to a dynamic backend anyway, we don't
+			 * care about the rare cases we could determine that we don't want a request at all
+			 * before sending it to a backend - so just send the stupid header
+			 */
+			if (con->expect_100_cont) {
+				if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+					VR_DEBUG(vr, "%s", "send 100 Continue");
+				}
+				chunkqueue_append_mem(con->raw_out, CONST_STR_LEN("HTTP/1.1 100 Continue\r\n\r\n"));
+				con->expect_100_cont = FALSE;
+				ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
+			}
 			con->state = CON_STATE_HANDLE_MAINVR;
 			action_enter(con->mainvr, con->srv->mainaction);
 			vrequest_handle_request_headers(con->mainvr);
 		}
+	} else {
+		parse_request_body(con);
 	}
 
 	return TRUE;
@@ -258,14 +274,6 @@ static handler_t mainvr_handle_response_headers(vrequest *vr) {
 	connection *con = vr->con;
 	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "%s", "read request/handle response header");
-	}
-	if (con->expect_100_cont) {
-		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-			VR_DEBUG(vr, "%s", "send 100 Continue");
-		}
-		chunkqueue_append_mem(con->raw_out, CONST_STR_LEN("HTTP/1.1 100 Continue\r\n\r\n"));
-		con->expect_100_cont = FALSE;
-		ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
 	}
 	parse_request_body(con);
 
