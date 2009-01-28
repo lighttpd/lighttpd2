@@ -80,12 +80,81 @@ handler_t chunkfile_open(vrequest *vr, chunkfile *cf) {
 #define MMAP_CHUNK_ALIGN (4*1024)
 
 /* get the data from a chunk; easy in case of a MEM_CHUNK,
- * but needs to do io in case of FILE_CHUNK; it tries mmap and
- * falls back to read(...)
- * the data is _not_ marked as "done"
+ * but needs to do io in case of FILE_CHUNK; the data is _not_ marked as "done"
  * may return HANDLER_GO_ON, HANDLER_ERROR
  */
 handler_t chunkiter_read(vrequest *vr, chunkiter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
+	chunk *c = chunkiter_chunk(iter);
+	off_t we_have, our_start;
+	handler_t res = HANDLER_GO_ON;
+
+	if (!c) return HANDLER_ERROR;
+	if (!data_start || !data_len) return HANDLER_ERROR;
+
+	we_have = chunk_length(c) - start;
+	if (length > we_have) length = we_have;
+	if (length <= 0) return HANDLER_ERROR;
+
+	switch (c->type) {
+	case UNUSED_CHUNK: return HANDLER_ERROR;
+	case MEM_CHUNK:
+		*data_start = c->mem->str + c->offset + start;
+		*data_len = length;
+		break;
+	case FILE_CHUNK:
+		if (HANDLER_GO_ON != (res = chunkfile_open(vr, c->file.file))) return res;
+
+		if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
+
+		if (!c->mem) {
+			c->mem = g_string_sized_new(length);
+		} else {
+			g_string_set_size(c->mem, length);
+		}
+
+		our_start = start + c->offset + c->file.start;
+
+		if (-1 == lseek(c->file.file->fd, our_start, SEEK_SET)) {
+			VR_ERROR(vr, "lseek failed for '%s' (fd = %i): %s",
+				GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+				g_strerror(errno));
+			g_string_free(c->mem, TRUE);
+			c->mem = NULL;
+			return HANDLER_ERROR;
+		}
+read_chunk:
+		if (-1 == (we_have = read(c->file.file->fd, c->mem->str, length))) {
+			if (EINTR == errno) goto read_chunk;
+			VR_ERROR(vr, "read failed for '%s' (fd = %i): %s",
+				GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+				g_strerror(errno));
+			g_string_free(c->mem, TRUE);
+			c->mem = NULL;
+			return HANDLER_ERROR;
+		} else if (we_have != length) {
+			/* may return less than requested bytes due to signals */
+			/* CON_TRACE(srv, "read return unexpected number of bytes"); */
+			if (we_have == 0) {
+				VR_ERROR(vr, "read returned 0 bytes for '%s' (fd = %i): unexpected end of file?",
+					GSTR_SAFE_STR(c->file.file->name), c->file.file->fd);
+				g_string_free(c->mem, TRUE);
+				c->mem = NULL;
+				return HANDLER_ERROR;
+			}
+			length = we_have;
+			g_string_set_size(c->mem, length);
+		}
+		*data_start = c->mem->str;
+		*data_len = length;
+		break;
+	}
+	return HANDLER_GO_ON;
+}
+
+/* same as chunkiter_read, but tries mmap() first and falls back to read();
+ * as accessing mmap()-ed areas may result in SIGBUS, you have to handle that signal somehow.
+ */
+handler_t chunkiter_read_mmap(struct vrequest *vr, chunkiter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
 	chunk *c = chunkiter_chunk(iter);
 	off_t we_want, we_have, our_start, our_offset;
 	handler_t res = HANDLER_GO_ON;
