@@ -210,6 +210,8 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		worker *wrk = srv->main_worker;
 		guint i, min_load = g_atomic_int_get(&wrk->connection_load), sel = 0;
 
+		fd_init(s);
+
 		for (i = 1; i < srv->worker_count; i++) {
 			worker *wt = g_array_index(srv->workers, worker*, i);
 			guint load = g_atomic_int_get(&wt->connection_load);
