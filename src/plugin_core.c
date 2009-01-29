@@ -216,7 +216,32 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 #ifdef FD_CLOEXEC
 		fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
-		if (!S_ISREG(st.st_mode)) {
+
+		/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
+		/* TODO: local addr if HTTP 1.0 without host header */
+		if (S_ISDIR(st.st_mode) && vr->request.uri.orig_path->str[vr->request.uri.orig_path->len-1] != '/') {
+			GString *host = vr->request.uri.authority->len ? vr->request.uri.authority : vr->con->local_addr_str;
+			GString *uri = g_string_sized_new(
+				 8 /* https:// */ + host->len +
+				vr->request.uri.orig_path->len + 2 /* /? */ + vr->request.uri.query->len
+			);
+			if (vr->con->is_ssl)
+				g_string_append_len(uri, CONST_STR_LEN("https://"));
+			else
+				g_string_append_len(uri, CONST_STR_LEN("http://"));
+			g_string_append_len(uri, GSTR_LEN(host));
+			g_string_append_len(uri, GSTR_LEN(vr->request.uri.orig_path));
+			g_string_append_c(uri, '/');
+			if (vr->request.uri.query->len) {
+				g_string_append_c(uri, '?');
+				g_string_append_len(uri, GSTR_LEN(vr->request.uri.query));
+			}
+
+			vr->response.http_status = 301;
+			http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
+			g_string_free(uri, TRUE);
+			close(fd);
+		} else if (!S_ISREG(st.st_mode)) {
 			vr->response.http_status = 404;
 			close(fd);
 		} else {
