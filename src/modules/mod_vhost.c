@@ -9,7 +9,7 @@
  * Setups:
  *     none
  * Options:
- *     vhost.debug = <true|fast> - enable debug output
+ *     vhost.debug = <true|false> - enable debug output
  * Actions:
  *     vhost.simple ("server-root" => string, "docroot" => string, "default" => string);
  *         - builds the document root by concatinating server-root + hostname + docroot
