@@ -941,7 +941,7 @@ static action* core_physical_is_dir(server *srv, plugin* p, value *val) {
 }
 
 static const plugin_option options[] = {
-	{ "debug.log_request_handling", VALUE_BOOLEAN, NULL, NULL, NULL },
+	{ "debug.log_request_handling", VALUE_BOOLEAN, GINT_TO_POINTER(FALSE), NULL, NULL },
 
 	{ "log.timestamp", VALUE_STRING, NULL, core_option_log_timestamp_parse, core_option_log_timestamp_free },
 	{ "log", VALUE_HASH, NULL, core_option_log_parse, core_option_log_free },

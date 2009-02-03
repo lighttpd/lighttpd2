@@ -34,7 +34,9 @@ LI_API const char *remove_path(const char *path);
 #define _DEBUG(srv, vr, fmt, ...) \
 	log_write_(srv, vr, LOG_LEVEL_INFO, LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 #define _BACKEND(srv, vr, fmt, ...) \
-	log_write_(srv, vr, LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP)
+	log_write_(srv, vr, LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, "(backend) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+#define _BACKEND_LINES(srv, vr, txt, fmt, ...) \
+	log_split_lines_(srv, vr, LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, txt, "(backend) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 
 #define VR_SEGFAULT(vr, fmt, ...) _SEGFAULT(vr->con->srv, vr, fmt, __VA_ARGS__)
@@ -42,20 +44,19 @@ LI_API const char *remove_path(const char *path);
 #define VR_WARNING(vr, fmt, ...)  _WARNING(vr->con->srv, vr, fmt, __VA_ARGS__)
 #define VR_INFO(vr, fmt, ...)     _INFO(vr->con->srv, vr, fmt, __VA_ARGS__)
 #define VR_DEBUG(vr, fmt, ...)    _DEBUG(vr->con->srv, vr, fmt, __VA_ARGS__)
-#define VR_BACKEND(vr, fmt, ...)    _BACKEND(vr->con->srv, vr, fmt, __VA_ARGS__)
+#define VR_BACKEND(vr, fmt, ...)  _BACKEND(vr->con->srv, vr, fmt, __VA_ARGS__)
+#define VR_BACKEND_LINES(vr, txt, fmt, ...) _BACKEND_LINES(vr->con->srv, vr, txt, fmt, __VA_ARGS__)
 
 #define SEGFAULT(srv, fmt, ...)   _SEGFAULT(srv, NULL, fmt, __VA_ARGS__)
 #define ERROR(srv, fmt, ...)      _ERROR(srv, NULL, fmt, __VA_ARGS__)
 #define WARNING(srv, fmt, ...)    _WARNING(srv, NULL, fmt, __VA_ARGS__)
 #define INFO(srv, fmt, ...)       _INFO(srv, NULL, fmt, __VA_ARGS__)
 #define DEBUG(srv, fmt, ...)      _DEBUG(srv, NULL, fmt, __VA_ARGS__)
-#define BACKEND(srv, fmt, ...)      _BACKEND(srv, NULL, fmt, __VA_ARGS__)
+#define BACKEND(srv, fmt, ...)    _BACKEND(srv, NULL, fmt, __VA_ARGS__)
 
 
 /* TODO: perhaps make portable (detect if cc supports) */
 #define	__ATTRIBUTE_PRINTF_FORMAT(fmt, arg) __attribute__ ((__format__ (__printf__, fmt, arg)))
-
-/*LI_API int log_write(server *srv, connection *con, const char *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(3, 4);*/
 
 
 struct log_t;
@@ -152,7 +153,12 @@ LI_API void log_write(server *srv, log_t *log, GString *msg);
 /* log_write_ is used to write to the errorlog */
 LI_API gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flags, const gchar *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(5, 6);
 
-log_timestamp_t *log_timestamp_new(server *srv, GString *format);
-gboolean log_timestamp_free(server *srv, log_timestamp_t *ts);
+LI_API log_timestamp_t *log_timestamp_new(server *srv, GString *format);
+LI_API gboolean log_timestamp_free(server *srv, log_timestamp_t *ts);
+
+/* replaces '\r' and '\n' with '\0' */
+LI_API void log_split_lines(server *srv, vrequest *vr, log_level_t log_level, guint flags, gchar *txt, const gchar *prefix);
+LI_API void log_split_lines_(server *srv, vrequest *vr, log_level_t log_level, guint flags, gchar *txt, const gchar *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(6, 7);
+
 
 #endif

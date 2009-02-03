@@ -1,6 +1,41 @@
+/*
+ * mod_fastcgi - connect to fastcgi backends for generating content
+ *
+ * Description:
+ *     mod_fastcgi connects to a backend over tcp oder unix sockets
+ *
+ * Setups:
+ *     none
+ * Options:
+ *     fastcgi.log_plain_errors <value> - whether to prepend timestamp and other info to
+ *                                        fastcgi stderr lines in the "backend" log.
+ *         type: boolean
+ * Actions:
+ *     fastcgi <socket>  - connect to backend at <socket>
+ *         socket: string, either "ip:port" or "unix:/path"
+ *
+ * Example config:
+ *     fastcgi "127.0.0.1:9090"
+ *
+ * Todo:
+ *     - reuse fastcgi connections (keepalive)
+ *     - send more infos to backend (http headers, auth info)
+ *     - option for alternative doc-root?
+ *
+ * Author:
+ *     Copyright (c) 2009 Stefan Bühler
+ */
 
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
+
+enum fastcgi_options_t {
+	FASTCGI_OPTION_LOG_PLAIN_ERRORS = 0,
+};
+
+#define FASTCGI_OPTION(idx) _FASTCGI_OPTION(vr, idx)
+#define _FASTCGI_OPTION(vr, idx) _OPTION_ABS(vr, p->opt_base_index + idx)
+
 
 LI_API gboolean mod_fastcgi_init(modules *mods, module *mod);
 LI_API gboolean mod_fastcgi_free(modules *mods, module *mod);
@@ -401,12 +436,14 @@ static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
 }
 
 static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
+	vrequest *vr = fcon->vr;
+	plugin *p = fcon->ctx->plugin;
 	while (fastcgi_get_packet(fcon)) {
 		if (fcon->fcgi_in_record.version != FCGI_VERSION_1) {
-			VR_ERROR(fcon->vr, "Unknown fastcgi protocol version %i", (gint) fcon->fcgi_in_record.version);
+			VR_ERROR(vr, "Unknown fastcgi protocol version %i", (gint) fcon->fcgi_in_record.version);
 			close(fcon->fd);
 			fcon->fd = -1;
-			vrequest_error(fcon->vr);
+			vrequest_error(vr);
 			return FALSE;
 		}
 		chunkqueue_skip(fcon->fcgi_in, FCGI_HEADER_LEN);
@@ -422,8 +459,17 @@ static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 				chunkqueue_steal_len(fcon->stdout, fcon->fcgi_in, fcon->fcgi_in_record.contentLength);
 			}
 			break;
+		case FCGI_STDERR:
+			chunkqueue_extract_to(vr, fcon->fcgi_in, fcon->fcgi_in_record.contentLength, vr->con->wrk->tmp_str);
+			if (FASTCGI_OPTION(FASTCGI_OPTION_LOG_PLAIN_ERRORS).boolean) {
+				log_split_lines(vr->con->srv, vr, LOG_LEVEL_BACKEND, 0, vr->con->wrk->tmp_str->str, "");
+			} else {
+				VR_BACKEND_LINES(vr, vr->con->wrk->tmp_str->str, "%s", "(fcgi-stderr) ");
+			}
+			chunkqueue_skip(fcon->fcgi_in, fcon->fcgi_in_record.contentLength);
+			break;
 		default:
-			VR_WARNING(fcon->vr, "Unhandled fastcgi record type %i", (gint) fcon->fcgi_in_record.type);
+			VR_WARNING(vr, "Unhandled fastcgi record type %i", (gint) fcon->fcgi_in_record.type);
 			chunkqueue_skip(fcon->fcgi_in, fcon->fcgi_in_record.contentLength);
 			break;
 		}
@@ -645,6 +691,8 @@ static action* fastcgi_create(server *srv, plugin* p, value *val) {
 }
 
 static const plugin_option options[] = {
+	{ "fastcgi.log_plain_errors", VALUE_BOOLEAN, GINT_TO_POINTER(FALSE), NULL, NULL },
+
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
