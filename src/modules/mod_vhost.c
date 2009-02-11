@@ -19,17 +19,30 @@
  *         - lookup action by using the hostname as the key of the hashtable
  *         - if not found, use default action
  *         - fast and flexible but no matching on hostnames possible
- *     vhost.map_regex ["host1regex": action1, "host2regex": action2, "default": action0];
+ *     (todo) vhost.map_regex ["host1regex": action1, "host2regex": action2, "default": action0];
  *         - lookup action by traversing the list and applying a regex match of the hostname on each entry
  *         - if no match, use default action
  *         - slowest method but the most flexible one
  *         - somewhat optimized internally and automatically to speed up lookup of frequently accessed hosts
+ *     vhost.pattern string;
+ *         - builds document root by substituting $0..$9 with parts of the hostname
+ *         - parts are defined by splitting the hostname at each dot
+ *         - $0 is the whole hostname, $1 the last part aka the tld, $2 the second last and so on
+ *         - ${n-} is part n and all others, concatinated by dots (0 < n <= 9)
+ *         - ${n-m} is parts n to m, concatinated by dots (0 < n < m <= 9)
  *
  * Example config:
  *     vhost.simple ("server-root" => "/var/www/vhosts/", "docroot" => "/pub", "default" => "localhost");
+ *         - maps test.lighttpd.net to /var/www/vhosts/test.lighttpd.net/pub/
+ *           and lighttpd.net to /var/www/vhosts/lighttpd.net/pub/
+ *     
  *     mydom1 {...} mydom2 {...} defaultdom {...}
  *     vhost.map ["dom1.com": mydom1, "dom2.tld": mydom2, "default": defaultdom];
  *     vhost.map_regex ["^(.+\.)?dom1\.com$": mydom1, "^dom2\.(com|net|org)$": mydom2, "default": defaultdom];
+ *
+ *     vhost.pattern "/var/www/vhosts/$2$1/$0/pub/";
+ *         - maps test.lighttpd.net to /var/www/vhosts/lighttpd.net/test.lighttpd.net/pub/
+ *           and lighttpd.net to /var/www/vhosts/lighttpd.net/lighttpd.net/pub/
  *
  * Tip:
  *     You can combine vhost.map and vhost.map_regex to create a reasonably fast and flexible vhost mapping mechanism.
@@ -74,6 +87,36 @@ struct vhost_map_data {
 	value *default_action;
 };
 typedef struct vhost_map_data vhost_map_data;
+
+struct vhost_pattern_part {
+	enum {
+		VHOST_PATTERN_STRING,
+		VHOST_PATTERN_PART,
+		VHOST_PATTERN_RANGE
+	} type;
+	union {
+		GString *str;
+		guint8 idx;
+		struct {
+			guint8 n;
+			guint8 m;
+		} range;
+	} data;
+};
+typedef struct vhost_pattern_part vhost_pattern_part;
+
+struct vhost_pattern_hostpart {
+	gchar *str;
+	guint len;
+};
+typedef struct vhost_pattern_hostpart vhost_pattern_hostpart;
+
+struct vhost_pattern_data {
+	GArray *parts;
+	guint max_idx;
+	plugin *plugin;
+};
+typedef struct vhost_pattern_data vhost_pattern_data;
 
 
 static handler_t vhost_simple(vrequest *vr, gpointer param, gpointer *context) {
@@ -268,6 +311,186 @@ static action* vhost_map_create(server *srv, plugin* p, value *val) {
 	return action_new_function(vhost_map, NULL, vhost_map_free, md);
 }
 
+static handler_t vhost_pattern(vrequest *vr, gpointer param, gpointer *context) {
+	GArray *parts = g_array_sized_new(FALSE, TRUE, sizeof(vhost_pattern_hostpart), 6);
+	vhost_pattern_data *pattern = param;
+	gboolean debug = _OPTION(vr, pattern->plugin, 0).boolean;
+	guint i, j;
+	gchar *c, *c_last;
+	vhost_pattern_hostpart hp;
+
+	UNUSED(context);
+
+	if (!vr->request.uri.host->len) {
+		if (debug)
+			VR_DEBUG(vr, "%s", "vhost_pattern: no host given");
+		return HANDLER_GO_ON;
+	}
+
+	/* parse host. we traverse the host in reverse order */
+	/* foo.bar.baz. */
+	c = &vr->request.uri.host->str[vr->request.uri.host->len-1];
+	c_last = c+1;
+	for (i = 0; i < pattern->max_idx && c >= vr->request.uri.host->str; c--) {
+		if (*c == '.') {
+			hp.str = c+1;
+			hp.len = c_last - c - 1;
+			g_array_append_val(parts, hp);
+			i++;
+			c_last = c;
+		}
+	}
+
+	/* now construct the new docroot */
+	g_string_truncate(vr->physical.doc_root, 0);
+	for (i = 0; i < pattern->parts->len; i++) {
+		vhost_pattern_part *p = &g_array_index(pattern->parts, vhost_pattern_part, i);
+		switch (p->type) {
+		case VHOST_PATTERN_STRING:
+			g_string_append_len(vr->physical.doc_root, GSTR_LEN(p->data.str));
+			break;
+		case VHOST_PATTERN_PART:
+			if (p->data.idx == 0) {
+				/* whole hostname */
+				g_string_append_len(vr->physical.doc_root, GSTR_LEN(vr->request.uri.host));
+			} else if (p->data.idx <= parts->len) {
+				/* specific part */
+				g_string_append_len(vr->physical.doc_root, g_array_index(parts, vhost_pattern_hostpart, p->data.idx-1).str, g_array_index(parts, vhost_pattern_hostpart, p->data.idx-1).len);
+			}
+			break;
+		case VHOST_PATTERN_RANGE:
+			if (p->data.range.n > parts->len)
+				continue;
+			for (j = p->data.range.n; j < MIN(p->data.range.m, parts->len); j++) {
+				if (j > p->data.range.n)
+					g_string_append_c(vr->physical.doc_root, '.');
+				g_string_append_len(vr->physical.doc_root, g_array_index(parts, vhost_pattern_hostpart, j-1).str, g_array_index(parts, vhost_pattern_hostpart, j-1).len);
+			}
+			break;
+		}
+	}
+
+	if (debug)
+		VR_DEBUG(vr, "vhost.pattern: mapped host \"%s\" to docroot \"%s\"", vr->request.uri.host->str, vr->physical.doc_root->str);
+
+	g_array_free(parts, TRUE);
+
+	return HANDLER_GO_ON;
+}
+
+static void vhost_pattern_free(server *srv, gpointer param) {
+	vhost_pattern_data *pd = param;
+	guint i;
+
+	UNUSED(srv);
+
+	for (i = 0; i < pd->parts->len; i++) {
+		vhost_pattern_part *p = &g_array_index(pd->parts, vhost_pattern_part, i);
+		if (p->type == VHOST_PATTERN_STRING) {
+			g_string_free(p->data.str, TRUE);
+		}
+	}
+
+	g_array_free(pd->parts, TRUE);
+	g_slice_free(vhost_pattern_data, pd);
+}
+
+static action* vhost_pattern_create(server *srv, plugin* p, value *val) {
+	vhost_pattern_data *pd;
+	GString *str;
+	gchar *c, *c_last;
+	vhost_pattern_part part;
+
+	if (!val || val->type != VALUE_STRING) {
+		ERROR(srv, "%s", "vhost.map expects a hashtable as parameter");
+		return NULL;
+	}
+
+	str = value_extract(val).string;
+
+	pd = g_slice_new0(vhost_pattern_data);
+	pd->parts = g_array_sized_new(FALSE, TRUE, sizeof(vhost_pattern_part), 6);
+	pd->plugin = p;
+
+	/* parse pattern */
+	for (c_last = c = str->str; *c; c++) {
+		if (*c == '$') {
+			if (c - c_last > 0) {
+				/* normal string */
+				part.type = VHOST_PATTERN_STRING;
+				part.data.str = g_string_new_len(c_last, c - c_last);
+				g_array_append_val(pd->parts, part);
+			}
+
+			c++;
+			c_last = c+1;
+
+			if (*c == '$') {
+				/* $$ */
+				if (pd->parts->len && g_array_index(pd->parts, vhost_pattern_part, pd->parts->len - 1).type == VHOST_PATTERN_STRING) {
+					g_string_append_c(g_array_index(pd->parts, vhost_pattern_part, pd->parts->len - 1).data.str, '$');
+					continue;
+				} else if (!pd->parts->len) {
+					continue;
+				} else {
+					part.type = VHOST_PATTERN_STRING;
+					part.data.str = g_string_new_len(CONST_STR_LEN("$"));
+				}
+
+				g_array_append_val(pd->parts, part);
+			}
+			else if (*c >= '0' && *c <= '9') {
+				/* $n */
+				part.type = VHOST_PATTERN_PART;
+				part.data.idx = *c - '0';
+				pd->max_idx = MAX(pd->max_idx, part.data.idx);
+				g_array_append_val(pd->parts, part);
+			} else if (*c == '{') {
+				/* ${n-} or ${n-m} */
+				c++;
+				if (!(*c > '0' && *c <= '9') || *(c+1) != '-') {
+					vhost_pattern_free(srv, pd);
+					ERROR(srv, "vhost.pattern: malformed pattern \"%s\"", str->str);
+					return NULL;
+				}
+
+				part.type = VHOST_PATTERN_RANGE;
+
+				if (*(c+2) == '}') {
+					/* ${n-} */
+					part.data.range.n = *c - '0';
+					part.data.range.m = 0;
+					c_last += 3;
+					pd->max_idx = MAX(pd->max_idx, part.data.range.n);
+				} else if (*(c+2) > '0' && *(c+2) <= '9' && *c < *(c+2)) {
+					/* ${n-m} */
+					part.data.range.n = *c - '0';
+					part.data.range.m = *(c+2) - '0';
+					c_last += 4;
+					pd->max_idx = MAX(pd->max_idx, part.data.range.m);
+				} else {
+					vhost_pattern_free(srv, pd);
+					ERROR(srv, "vhost.pattern: malformed pattern \"%s\"", str->str);
+					return NULL;
+				}
+
+				g_array_append_val(pd->parts, part);
+			} else {
+				vhost_pattern_free(srv, pd);
+				ERROR(srv, "vhost.pattern: malformed pattern \"%s\"", str->str);
+				return NULL;
+			}
+		}
+	}
+
+	if (c - c_last > 0) {
+		part.type = VHOST_PATTERN_STRING;
+		part.data.str = g_string_new_len(c_last, c - c_last);
+	}
+
+	return action_new_function(vhost_pattern, NULL, vhost_pattern_free, pd);
+}
+
 
 static const plugin_option options[] = {
 	{ "vhost.debug", VALUE_BOOLEAN, NULL, NULL, NULL },
@@ -278,6 +501,7 @@ static const plugin_option options[] = {
 static const plugin_action actions[] = {
 	{ "vhost.simple", vhost_simple_create },
 	{ "vhost.map", vhost_map_create },
+	{ "vhost.pattern", vhost_pattern_create },
 
 	{ NULL, NULL }
 };
