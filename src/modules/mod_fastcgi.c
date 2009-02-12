@@ -2,7 +2,7 @@
  * mod_fastcgi - connect to fastcgi backends for generating content
  *
  * Description:
- *     mod_fastcgi connects to a backend over tcp oder unix sockets
+ *     mod_fastcgi connects to a backend over tcp or unix sockets
  *
  * Setups:
  *     none
