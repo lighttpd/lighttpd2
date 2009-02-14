@@ -40,7 +40,7 @@
  *     vhost.map ["dom1.com": mydom1, "dom2.tld": mydom2, "default": defaultdom];
  *     vhost.map_regex ["^(.+\.)?dom1\.com$": mydom1, "^dom2\.(com|net|org)$": mydom2, "default": defaultdom];
  *
- *     vhost.pattern "/var/www/vhosts/$2$1/$0/pub/";
+ *     vhost.pattern "/var/www/vhosts/$2.$1/$0/pub/";
  *         - maps test.lighttpd.net to /var/www/vhosts/lighttpd.net/test.lighttpd.net/pub/
  *           and lighttpd.net to /var/www/vhosts/lighttpd.net/lighttpd.net/pub/
  *
