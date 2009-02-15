@@ -69,6 +69,7 @@ struct vrequest {
 	physical physical;
 	response response;
 
+	/* environment entries will be passed to the backends */
 	environment env;
 
 	/* -> vr_in -> filters_in -> in -> handle -> out -> filters_out -> vr_out -> */

@@ -65,6 +65,9 @@ typedef struct connection connection;
 struct environment;
 typedef struct environment environment;
 
+struct environment_dup;
+typedef struct environment_dup environment_dup;
+
 /* hhtp_headers.h */
 
 struct http_header;

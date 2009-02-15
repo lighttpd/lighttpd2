@@ -43,3 +43,30 @@ GString* environment_get(environment *env, const gchar *key, size_t keylen) {
 	const GString skey = { (gchar*) key, keylen, 0 }; /* fake a constant GString */
 	return (GString*) g_hash_table_lookup(env->table, &skey);
 }
+
+environment_dup* environment_make_dup(environment *env) {
+	GHashTableIter i;
+	GHashTable *tdst;
+	gpointer key, val;
+	environment_dup *envdup = g_slice_new0(environment_dup);
+	envdup->table = tdst = g_hash_table_new((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal);
+
+	g_hash_table_iter_init(&i, env->table);
+	while (g_hash_table_iter_next(&i, &key, &val)) {
+		g_hash_table_insert(tdst, key, val);
+	}
+	return envdup;
+}
+
+void environment_dup_free(environment_dup *envdup) {
+	g_hash_table_destroy(envdup->table);
+	g_slice_free(environment_dup, envdup);
+}
+
+GString* environment_dup_pop(environment_dup *envdup, const gchar *key, size_t keylen) {
+	const GString skey = { (gchar*) key, keylen, 0 }; /* fake a constant GString */
+	GString *sval = (GString*) g_hash_table_lookup(envdup->table, &skey);
+	if (sval) g_hash_table_remove(envdup->table, &skey);
+	return sval;
+}
+
