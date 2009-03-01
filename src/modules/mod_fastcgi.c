@@ -470,7 +470,7 @@ static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
 	gint len;
 	if (!chunkqueue_extract_to(fcon->vr, fcon->fcgi_in, FCGI_HEADER_LEN, fcon->buf_in_record)) return FALSE; /* need more data */
 
-	data = fcon->buf_in_record->str;
+	data = (const unsigned char*) fcon->buf_in_record->str;
 	fcon->fcgi_in_record.version = data[0];
 	fcon->fcgi_in_record.type = data[1];
 	fcon->fcgi_in_record.requestID = (data[2] << 8) | (data[3]);
