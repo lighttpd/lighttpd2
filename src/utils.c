@@ -568,7 +568,7 @@ GString *sockaddr_to_string(sock_addr *saddr, GString *dest, gboolean showport) 
 		if (!dest)
 			dest = g_string_new_len(CONST_STR_LEN("unknown sockaddr family"));
 		else
-			l_g_string_assign_len(dest, "unknown sockaddr family");
+			l_g_string_assign_len(dest, CONST_STR_LEN("unknown sockaddr family"));
 	}
 
 	return dest;
@@ -636,4 +636,5 @@ gboolean l_g_strncase_equal(GString *str, const gchar *s, guint len) {
 GString *l_g_string_assign_len(GString *string, const gchar *val, gssize len) {
 	g_string_truncate(string, 0);
 	g_string_append_len(string, val, len);
+	return string;
 }
