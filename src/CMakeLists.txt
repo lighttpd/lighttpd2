@@ -300,6 +300,7 @@ SET(COMMON_SRC
 	request.c
 	response.c
 	server.c
+	stat_cache.c
 	sys-files.c
 	sys-socket.c
 	url_parser.c
