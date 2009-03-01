@@ -186,18 +186,38 @@ static action* core_docroot(server *srv, plugin* p, value *val) {
 
 static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *context) {
 	int fd;
+	stat_cache_entry *sce;
+
 	UNUSED(param);
 	UNUSED(context);
 
-	if (vr->physical.path->len == 0) return HANDLER_GO_ON;
+	if (!vr->stat_cache_entry) {
+		if (vr->physical.path->len == 0) return HANDLER_GO_ON;
 
-	if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
+		if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
+	}
+
+	sce = stat_cache_entry_get(vr, vr->physical.path);
+	if (!sce)
+		return HANDLER_WAIT_FOR_EVENT;
 
 	VR_DEBUG(vr, "serving static file: %s", vr->physical.path->str);
 
-	fd = open(vr->physical.path->str, O_RDONLY);
-	if (fd == -1) {
-		vr->response.http_status = 404;
+	if (sce->failed) {
+		/* stat failed */
+		VR_DEBUG(vr, "stat() failed: %s (%d)", g_strerror(sce->err), sce->err);
+
+		switch (errno) {
+		case ENOENT:
+			vr->response.http_status = 404; break;
+		case EACCES:
+		case EFAULT:
+			vr->response.http_status = 403; break;
+		default:
+			vr->response.http_status = 500;
+		}
+		g_print("%d\n", vr->response.http_status);
+	} else if ((fd = open(vr->physical.path->str, O_RDONLY)) == -1) {
 		VR_DEBUG(vr, "open() failed: %s (%d)", g_strerror(errno), errno);
 
 		switch (errno) {
@@ -210,8 +230,6 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 			vr->response.http_status = 500;
 		}
 	} else {
-		struct stat st;
-		fstat(fd, &st);
 
 #ifdef FD_CLOEXEC
 		fcntl(fd, F_SETFD, FD_CLOEXEC);
@@ -219,7 +237,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 
 		/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
 		/* TODO: local addr if HTTP 1.0 without host header */
-		if (S_ISDIR(st.st_mode) && vr->request.uri.orig_path->str[vr->request.uri.orig_path->len-1] != '/') {
+		if (S_ISDIR(sce->st.st_mode) && vr->request.uri.orig_path->str[vr->request.uri.orig_path->len-1] != '/') {
 			GString *host = vr->request.uri.authority->len ? vr->request.uri.authority : vr->con->local_addr_str;
 			GString *uri = g_string_sized_new(
 				 8 /* https:// */ + host->len +
@@ -241,7 +259,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 			http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
 			g_string_free(uri, TRUE);
 			close(fd);
-		} else if (!S_ISREG(st.st_mode)) {
+		} else if (!S_ISREG(sce->st.st_mode)) {
 			vr->response.http_status = 404;
 			close(fd);
 		} else {
@@ -251,9 +269,11 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 				http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
 			else
 				http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("application/octet-stream"));
-			chunkqueue_append_file_fd(vr->out, NULL, 0, st.st_size, fd);
+			chunkqueue_append_file_fd(vr->out, NULL, 0, sce->st.st_size, fd);
 		}
 	}
+
+	stat_cache_entry_release(vr);
 
 	return HANDLER_GO_ON;
 }

@@ -82,6 +82,8 @@ struct vrequest {
 	gboolean actions_wait_for_response;
 
 	GList *job_queue_link;
+
+	stat_cache_entry *stat_cache_entry;
 };
 
 #define VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr) \
@@ -123,5 +125,7 @@ LI_API void vrequest_state_machine(vrequest *vr);
 LI_API void vrequest_joblist_append(vrequest *vr);
 
 LI_API gboolean vrequest_stat(vrequest *vr);
+
+LI_API gboolean vrequest_redirect(vrequest *vr, GString *uri);
 
 #endif

@@ -94,6 +94,8 @@ struct worker {
 
 	GQueue job_queue;
 	ev_timer job_queue_watcher;
+
+	stat_cache *stat_cache;
 };
 
 LI_API worker* worker_new(struct server *srv, struct ev_loop *loop);

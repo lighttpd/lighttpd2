@@ -335,6 +335,8 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	ev_timer_init(&wrk->job_queue_watcher, worker_job_queue_cb, 0, 0);
 	wrk->job_queue_watcher.data = wrk;
 
+	stat_cache_new(wrk, 10.0);
+
 	return wrk;
 }
 
@@ -385,6 +387,8 @@ void worker_free(worker *wrk) {
 	g_async_queue_unref(wrk->collect_queue);
 
 	g_string_free(wrk->tmp_str, TRUE);
+
+	stat_cache_free(wrk->stat_cache);
 
 	g_slice_free(worker, wrk);
 }

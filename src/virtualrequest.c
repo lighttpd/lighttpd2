@@ -119,6 +119,11 @@ void vrequest_reset(vrequest *vr) {
 		vr->job_queue_link = NULL;
 	}
 
+	if (vr->stat_cache_entry) {
+		g_ptr_array_remove_fast(vr->stat_cache_entry->vrequests, vr);
+		vr->stat_cache_entry = NULL;
+	}
+
 	memcpy(vr->options, vr->con->srv->option_def_values->data, vr->con->srv->option_def_values->len * sizeof(option_value));
 }
 
@@ -371,5 +376,15 @@ gboolean vrequest_stat(vrequest *vr) {
 	}
 
 	vr->physical.have_stat = TRUE;
+	return TRUE;
+}
+
+gboolean vrequest_redirect(vrequest *vr, GString *uri) {
+	if (!vrequest_handle_direct(vr))
+		return FALSE;
+
+	vr->response.http_status = 301;
+	http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
+
 	return TRUE;
 }

@@ -201,4 +201,9 @@ typedef struct filters filters;
 struct worker;
 typedef struct worker worker;
 
+struct stat_cache_entry;
+typedef struct stat_cache_entry stat_cache_entry;
+struct stat_cache;
+typedef struct stat_cache stat_cache;
+
 #endif

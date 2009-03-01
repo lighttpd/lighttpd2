@@ -43,6 +43,7 @@ common_src = '''
 	request.c
 	response.c
 	server.c
+	stat_cache.c
 	sys-files.c
 	sys-socket.c
 	url_parser.rl
