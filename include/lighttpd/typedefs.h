@@ -31,6 +31,9 @@ typedef struct chunkfile chunkfile;
 struct chunk;
 typedef struct chunk chunk;
 
+struct cqlimit;
+typedef struct cqlimit cqlimit;
+
 struct chunkqueue;
 typedef struct chunkqueue chunkqueue;
 

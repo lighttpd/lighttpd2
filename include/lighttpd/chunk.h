@@ -40,11 +40,26 @@ struct chunk {
 	} file;
 };
 
+typedef void (*cqlimit_notify)(vrequest *vr, gpointer context, gboolean locked);
+struct cqlimit {
+	gint refcount;
+	vrequest *vr;
+
+	goffset limit, current;
+	gboolean locked;
+
+	ev_io *io_watcher;
+
+	cqlimit_notify notify; /* callback to reactivate input */
+	gpointer context;
+};
+
 struct chunkqueue {
 /* public */
 	gboolean is_closed;
 /* read only */
-	goffset bytes_in, bytes_out, length;
+	goffset bytes_in, bytes_out, length, mem_usage;
+	cqlimit *limit; /* limit is the sum of all { c->mem->len | c->type == MEM_CHUNK } */
 /* private */
 	GQueue *queue;
 };
@@ -87,6 +102,15 @@ LI_API handler_t chunkiter_read_mmap(struct vrequest *vr, chunkiter iter, off_t 
  ******************/
 
 INLINE goffset chunk_length(chunk *c);
+
+/******************
+ *    cqlimit     *
+ ******************/
+
+LI_API cqlimit* cqlimit_new(vrequest *vr);
+LI_API void cqlimit_acquire(cqlimit *cql);
+LI_API void cqlimit_release(cqlimit *cql);
+
 
 /******************
  *   chunkqueue   *
