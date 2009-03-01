@@ -367,12 +367,12 @@ static void cqlimit_update(chunkqueue *cq, goffset d) {
 	cq->mem_usage += d;
 	assert(cq->mem_usage >= 0);
 	cql = cq->limit;
-	fprintf(stderr, "cqlimit_update: cq->mem_usage: %"L_GOFFSET_FORMAT"\n", cq->mem_usage);
+	g_printerr("cqlimit_update: cq->mem_usage: %"L_GOFFSET_FORMAT"\n", cq->mem_usage);
 
 	if (!cql) return;
 	cql->current += d;
 	assert(cql->current >= 0);
-	fprintf(stderr, "cqlimit_update: cql->current: %"L_GOFFSET_FORMAT", cql->limit: %"L_GOFFSET_FORMAT"\n", cql->current, cql->limit);
+	g_printerr("cqlimit_update: cql->current: %"L_GOFFSET_FORMAT", cql->limit: %"L_GOFFSET_FORMAT"\n", cql->current, cql->limit);
 	if (cql->locked) {
 		if (cql->limit <= 0 || cql->current < cql->limit) {
 			cqlimit_unlock(cql);
@@ -445,9 +445,13 @@ void chunkqueue_use_limit(chunkqueue *cq, vrequest *vr) {
 }
 
 void chunkqueue_set_limit(chunkqueue *cq, cqlimit* cql) {
+	gboolean upd_limit = (cql != cq->limit);
+	goffset memusage = cq->mem_usage;
 	if (cql) cqlimit_acquire(cql);
+	if (upd_limit) cqlimit_update(cq, -memusage);
 	cqlimit_release(cq->limit);
 	cq->limit = cql;
+	if (upd_limit) cqlimit_update(cq, memusage);
 }
 
  /* pass ownership of str to chunkqueue, do not free/modify it afterwards
@@ -573,6 +577,7 @@ goffset chunkqueue_steal_len(chunkqueue *out, chunkqueue *in, goffset length) {
 	out->length += bytes;
 	cqlimit_update(out, memoutbytes);
 	cqlimit_update(in, meminbytes);
+
 	return bytes;
 }
 
@@ -601,7 +606,7 @@ goffset chunkqueue_steal_all(chunkqueue *out, chunkqueue *in) {
 		/* update the queue tail and length */
 		out->queue->tail = in->queue->tail;
 		out->queue->length += in->queue->length;
-		/* reset in->queue) */
+		/* reset in->queue */
 		g_queue_init(in->queue);
 	}
 	/* count bytes in chunkqueues */
@@ -610,6 +615,7 @@ goffset chunkqueue_steal_all(chunkqueue *out, chunkqueue *in) {
 	in->length = 0;
 	out->bytes_in += len;
 	out->length += len;
+
 	return len;
 }
 

@@ -983,8 +983,10 @@ static action* core_limit_out(server *srv, plugin* p, value *val) {
 
 	if (limit < 0) {
 		limit = 0; /* no limit */
-	}
-	if (limit > (1 << 30)) {
+	} else if (limit < (16*1024)) {
+		ERROR(srv, "limit %"G_GINT64_FORMAT" is too low (need at least 16 kb)", limit);
+		return NULL;
+	} else if (limit > (1 << 30)) {
 		ERROR(srv, "limit %"G_GINT64_FORMAT" is too high (1GB is the maximum)", limit);
 		return NULL;
 	}

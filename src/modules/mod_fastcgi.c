@@ -64,6 +64,8 @@ struct FCGI_Record {
 	guint16 requestID;
 	guint16 contentLength;
 	guint8 paddingLength;
+	gint remainingContent, remainingPadding;
+	gboolean valid, first;
 };
 
 
@@ -162,7 +164,7 @@ static void fastcgi_context_acquire(fastcgi_context *ctx) {
 static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents);
 
 static fastcgi_connection* fastcgi_connection_new(vrequest *vr, fastcgi_context *ctx) {
-	fastcgi_connection* fcon = g_slice_new(fastcgi_connection);
+	fastcgi_connection* fcon = g_slice_new0(fastcgi_connection);
 
 	fastcgi_context_acquire(ctx);
 	fcon->ctx = ctx;
@@ -467,7 +469,22 @@ static void fastcgi_forward_request(vrequest *vr, fastcgi_connection *fcon) {
 
 static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
 	const unsigned char *data;
-	gint len;
+
+	/* already got packet */
+	if (fcon->fcgi_in_record.valid) {
+		if (0 == fcon->fcgi_in_record.remainingContent) {
+			/* wait for padding data ? */
+			gint len = fcon->fcgi_in->length;
+			if (len > fcon->fcgi_in_record.remainingPadding) len = fcon->fcgi_in_record.remainingPadding;
+			chunkqueue_skip(fcon->fcgi_in, len);
+			fcon->fcgi_in_record.remainingPadding -= len;
+			if (0 != fcon->fcgi_in_record.remainingPadding) return TRUE; /* wait for data */
+			fcon->fcgi_in_record.valid = FALSE; /* read next packet */
+		} else {
+			return TRUE; /* wait for/handle more content */
+		}
+	}
+
 	if (!chunkqueue_extract_to(fcon->vr, fcon->fcgi_in, FCGI_HEADER_LEN, fcon->buf_in_record)) return FALSE; /* need more data */
 
 	data = (const unsigned char*) fcon->buf_in_record->str;
@@ -476,18 +493,30 @@ static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
 	fcon->fcgi_in_record.requestID = (data[2] << 8) | (data[3]);
 	fcon->fcgi_in_record.contentLength = (data[4] << 8) | (data[5]);
 	fcon->fcgi_in_record.paddingLength = data[6];
+	fcon->fcgi_in_record.remainingContent = fcon->fcgi_in_record.contentLength;
+	fcon->fcgi_in_record.remainingPadding = fcon->fcgi_in_record.paddingLength;
+	fcon->fcgi_in_record.valid = TRUE;
+	fcon->fcgi_in_record.first = TRUE;
 
-	len = ((gint) fcon->fcgi_in_record.contentLength) + fcon->fcgi_in_record.paddingLength + FCGI_HEADER_LEN;
-
-	if (len > fcon->fcgi_in->length) return FALSE; /* need more data */
+	chunkqueue_skip(fcon->fcgi_in, FCGI_HEADER_LEN);
 
 	return TRUE;
+}
+
+/* get available data and mark it as read (subtract it from contentLength) */
+static int fastcgi_available(fastcgi_connection *fcon) {
+	gint len = fcon->fcgi_in->length;
+	if (len > fcon->fcgi_in_record.remainingContent) len = fcon->fcgi_in_record.remainingContent;
+	fcon->fcgi_in_record.remainingContent -= len;
+	return len;
 }
 
 static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 	vrequest *vr = fcon->vr;
 	plugin *p = fcon->ctx->plugin;
+	gint len;
 	while (fastcgi_get_packet(fcon)) {
+		VR_WARNING(vr, "Fastcgi record type %i", (gint) fcon->fcgi_in_record.type);
 		if (fcon->fcgi_in_record.version != FCGI_VERSION_1) {
 			VR_ERROR(vr, "Unknown fastcgi protocol version %i", (gint) fcon->fcgi_in_record.version);
 			close(fcon->fd);
@@ -495,34 +524,34 @@ static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 			vrequest_error(vr);
 			return FALSE;
 		}
-		chunkqueue_skip(fcon->fcgi_in, FCGI_HEADER_LEN);
 		switch (fcon->fcgi_in_record.type) {
 		case FCGI_END_REQUEST:
-			chunkqueue_skip(fcon->fcgi_in, fcon->fcgi_in_record.contentLength);
+			chunkqueue_skip(fcon->fcgi_in, fastcgi_available(fcon));
 			fcon->stdout->is_closed = TRUE;
 			break;
 		case FCGI_STDOUT:
 			if (0 == fcon->fcgi_in_record.contentLength) {
 				fcon->stdout->is_closed = TRUE;
 			} else {
-				chunkqueue_steal_len(fcon->stdout, fcon->fcgi_in, fcon->fcgi_in_record.contentLength);
+				chunkqueue_steal_len(fcon->stdout, fcon->fcgi_in, fastcgi_available(fcon));
 			}
 			break;
 		case FCGI_STDERR:
-			chunkqueue_extract_to(vr, fcon->fcgi_in, fcon->fcgi_in_record.contentLength, vr->con->wrk->tmp_str);
+			len = fastcgi_available(fcon);
+			chunkqueue_extract_to(vr, fcon->fcgi_in, len, vr->con->wrk->tmp_str);
 			if (FASTCGI_OPTION(FASTCGI_OPTION_LOG_PLAIN_ERRORS).boolean) {
 				log_split_lines(vr->con->srv, vr, LOG_LEVEL_BACKEND, 0, vr->con->wrk->tmp_str->str, "");
 			} else {
 				VR_BACKEND_LINES(vr, vr->con->wrk->tmp_str->str, "%s", "(fcgi-stderr) ");
 			}
-			chunkqueue_skip(fcon->fcgi_in, fcon->fcgi_in_record.contentLength);
+			chunkqueue_skip(fcon->fcgi_in, len);
 			break;
 		default:
-			VR_WARNING(vr, "Unhandled fastcgi record type %i", (gint) fcon->fcgi_in_record.type);
-			chunkqueue_skip(fcon->fcgi_in, fcon->fcgi_in_record.contentLength);
+			if (fcon->fcgi_in_record.first) VR_WARNING(vr, "Unhandled fastcgi record type %i", (gint) fcon->fcgi_in_record.type);
+			chunkqueue_skip(fcon->fcgi_in, fastcgi_available(fcon));
 			break;
 		}
-		chunkqueue_skip(fcon->fcgi_in, fcon->fcgi_in_record.paddingLength);
+		fcon->fcgi_in_record.first = FALSE;
 	}
 	return TRUE;
 }
@@ -703,7 +732,7 @@ static handler_t fastcgi_handle(vrequest *vr, gpointer param, gpointer *context)
 	chunkqueue_set_limit(fcon->fcgi_in, vr->out->limit);
 	chunkqueue_set_limit(fcon->stdout, vr->out->limit);
 	chunkqueue_set_limit(fcon->fcgi_out, vr->in->limit);
-	vr->out->limit->io_watcher = &fcon->fd_watcher;
+	if (vr->out->limit) vr->out->limit->io_watcher = &fcon->fd_watcher;
 
 	return fastcgi_statemachine(vr, fcon);
 }
@@ -720,7 +749,7 @@ static void fastcgi_close(vrequest *vr, plugin *p) {
 	fastcgi_connection *fcon = (fastcgi_connection*) g_ptr_array_index(vr->plugin_ctx, p->id);
 	g_ptr_array_index(vr->plugin_ctx, p->id) = NULL;
 	if (fcon) {
-		vr->out->limit->io_watcher = NULL;
+		if (vr->out->limit) vr->out->limit->io_watcher = NULL;
 		fastcgi_connection_free(fcon);
 	}
 }

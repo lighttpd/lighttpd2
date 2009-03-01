@@ -116,11 +116,21 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 
 network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 	const ssize_t blocksize = 16*1024; /* 16k */
-	const off_t max_read = 16 * blocksize; /* 256k */
+	off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
 	off_t len = 0;
 	worker *wrk = vr->con->wrk;
 	ev_tstamp now = CUR_TS(wrk);
+
+	if (cq->limit && cq->limit->limit > 0) {
+		if (max_read > cq->limit->limit - cq->limit->current) {
+			max_read = cq->limit->limit - cq->limit->current;
+			if (max_read <= 0) {
+				max_read = 0; /* we still have to read something */
+				VR_ERROR(vr, "%s", "network_read: fd should be disabled as chunkqueue is already full");
+			}
+		}
+	}
 
 	do {
 		GString *buf = g_string_sized_new(blocksize);
