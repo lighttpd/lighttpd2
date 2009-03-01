@@ -64,4 +64,6 @@ LI_API void gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str
 
 LI_API gboolean l_g_strncase_equal(GString *str, const gchar *s, guint len);
 
+LI_API GString *l_g_string_assign_len(GString *string, const gchar *val, gssize len);
+
 #endif
