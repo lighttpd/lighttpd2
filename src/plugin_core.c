@@ -960,6 +960,70 @@ static action* core_physical_is_dir(server *srv, plugin* p, value *val) {
 	return action_new_function(core_handle_physical_is_dir, NULL, core_conditional_free, cc);
 }
 
+/* chunkqueue memory limits */
+static handler_t core_handle_limit_out(vrequest *vr, gpointer param, gpointer *context) {
+	gint limit = GPOINTER_TO_INT(param);
+	UNUSED(context);
+
+	cqlimit_set_limit(vr->out->limit, limit);
+
+	return HANDLER_GO_ON;
+}
+
+static action* core_limit_out(server *srv, plugin* p, value *val) {
+	gint64 limit;
+	UNUSED(p);
+
+	if (val->type != VALUE_NUMBER) {
+		ERROR(srv, "'core_limit_out' action expects an integer as parameter, %s given", value_type_string(val->type));
+		return NULL;
+	}
+
+	limit = val->data.number;
+
+	if (limit < 0) {
+		limit = 0; /* no limit */
+	}
+	if (limit > (1 << 30)) {
+		ERROR(srv, "limit %"G_GINT64_FORMAT" is too high (1GB is the maximum)", limit);
+		return NULL;
+	}
+
+	return action_new_function(core_handle_limit_out, NULL, NULL, GINT_TO_POINTER(limit));
+}
+
+static handler_t core_handle_limit_in(vrequest *vr, gpointer param, gpointer *context) {
+	gint limit = GPOINTER_TO_INT(param);
+	UNUSED(context);
+
+	cqlimit_set_limit(vr->out->limit, limit);
+
+	return HANDLER_GO_ON;
+}
+
+static action* core_limit_in(server *srv, plugin* p, value *val) {
+	gint64 limit;
+	UNUSED(p);
+
+	if (val->type != VALUE_NUMBER) {
+		ERROR(srv, "'core_limit_in' action expects an integer as parameter, %s given", value_type_string(val->type));
+		return NULL;
+	}
+
+	limit = val->data.number;
+
+	if (limit < 0) {
+		limit = 0; /* no limit */
+	}
+	if (limit > (1 << 30)) {
+		ERROR(srv, "limit %"G_GINT64_FORMAT" is too high (1GB is the maximum)", limit);
+		return NULL;
+	}
+
+	return action_new_function(core_handle_limit_in, NULL, NULL, GINT_TO_POINTER(limit));
+}
+
+
 static const plugin_option options[] = {
 	{ "debug.log_request_handling", VALUE_BOOLEAN, GINT_TO_POINTER(FALSE), NULL, NULL },
 
@@ -1001,6 +1065,9 @@ static const plugin_action actions[] = {
 	{ "physical.exists", core_physical_exists },
 	{ "physical.is_file", core_physical_is_file },
 	{ "physical.is_dir", core_physical_is_dir },
+
+	{ "limit.out", core_limit_out },
+	{ "limit.in", core_limit_in },
 
 	{ NULL, NULL }
 };

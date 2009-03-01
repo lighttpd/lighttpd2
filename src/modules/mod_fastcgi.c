@@ -602,7 +602,7 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		fcon->response_headers_finished = TRUE;
 		vrequest_handle_response_headers(fcon->vr);
 	}
-	
+
 	if (fcon->response_headers_finished) {
 		chunkqueue_steal_all(fcon->vr->out, fcon->stdout);
 		fcon->vr->out->is_closed = fcon->stdout->is_closed;
@@ -700,6 +700,11 @@ static handler_t fastcgi_handle(vrequest *vr, gpointer param, gpointer *context)
 	}
 	g_ptr_array_index(vr->plugin_ctx, ctx->plugin->id) = fcon;
 
+	chunkqueue_set_limit(fcon->fcgi_in, vr->out->limit);
+	chunkqueue_set_limit(fcon->stdout, vr->out->limit);
+	chunkqueue_set_limit(fcon->fcgi_out, vr->in->limit);
+	vr->out->limit->io_watcher = &fcon->fd_watcher;
+
 	return fastcgi_statemachine(vr, fcon);
 }
 
@@ -714,8 +719,10 @@ static handler_t fastcgi_handle_request_body(vrequest *vr, plugin *p) {
 static void fastcgi_close(vrequest *vr, plugin *p) {
 	fastcgi_connection *fcon = (fastcgi_connection*) g_ptr_array_index(vr->plugin_ctx, p->id);
 	g_ptr_array_index(vr->plugin_ctx, p->id) = NULL;
-
-	fastcgi_connection_free(fcon);
+	if (fcon) {
+		vr->out->limit->io_watcher = NULL;
+		fastcgi_connection_free(fcon);
+	}
 }
 
 

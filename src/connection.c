@@ -337,6 +337,13 @@ connection* connection_new(worker *wrk) {
 	con->in      = con->mainvr->vr_in;
 	con->out     = con->mainvr->vr_out;
 
+	chunkqueue_use_limit(con->raw_in, con->mainvr);
+	chunkqueue_use_limit(con->raw_out, con->mainvr);
+	chunkqueue_set_limit(con->mainvr->vr_in, con->raw_in->limit);
+	chunkqueue_set_limit(con->mainvr->vr_out, con->raw_out->limit);
+	chunkqueue_set_limit(con->mainvr->in, con->raw_in->limit);
+	chunkqueue_set_limit(con->mainvr->out, con->raw_out->limit);
+
 	con->keep_alive_data.link = NULL;
 	con->keep_alive_data.timeout = 0;
 	con->keep_alive_data.max_idle = 0;
@@ -367,6 +374,9 @@ void connection_reset(connection *con) {
 
 	vrequest_reset(con->mainvr);
 	http_request_parser_reset(&con->req_parser_ctx);
+
+	cqlimit_reset(con->raw_in->limit);
+	cqlimit_reset(con->raw_out->limit);
 
 	g_string_truncate(con->remote_addr_str, 0);
 	g_string_truncate(con->local_addr_str, 0);
