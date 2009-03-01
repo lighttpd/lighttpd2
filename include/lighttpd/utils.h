@@ -55,7 +55,7 @@ LI_API guint hash_ipv6(gconstpointer key);
 LI_API GString *mimetype_get(vrequest *vr, GString *filename);
 
 /* converts a sock_addr to a human readable string. ipv4 and ipv6 supported. if dest is NULL, a new string will be allocated */
-LI_API GString *sockaddr_to_string(sock_addr *saddr, GString *dest);
+LI_API GString *sockaddr_to_string(sock_addr *saddr, GString *dest, gboolean showport);
 
 LI_API sockaddr sockaddr_from_string(GString *str, guint tcp_default_port);
 LI_API void sockaddr_clear(sockaddr *saddr);

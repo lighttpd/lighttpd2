@@ -339,7 +339,7 @@ static void fastcgi_env_create(vrequest *vr, environment_dup *envdup, GString* b
 		}
 	}
 	{
-		sockaddr_to_string(&con->local_addr, tmp);
+		sockaddr_to_string(&con->local_addr, tmp, FALSE);
 		fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_ADDR"), GSTR_LEN(tmp));
 	}
 
@@ -357,7 +357,7 @@ static void fastcgi_env_create(vrequest *vr, environment_dup *envdup, GString* b
 		}
 	}
 	{
-		sockaddr_to_string(&con->remote_addr, tmp);
+		sockaddr_to_string(&con->remote_addr, tmp, FALSE);
 		fastcgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_ADDR"), GSTR_LEN(tmp));
 	}
 
@@ -658,7 +658,9 @@ static handler_t fastcgi_statemachine(vrequest *vr, fastcgi_connection *fcon) {
 				vrequest_backend_overloaded(vr);
 				return HANDLER_GO_ON;
 			default:
-				VR_ERROR(vr, "Couldn't connect: %s", g_strerror(errno));
+				VR_ERROR(vr, "Couldn't connect to '%s': %s",
+					sockaddr_to_string(fcon->ctx->socket.addr, vr->con->wrk->tmp_str, TRUE)->str,
+					g_strerror(errno));
 				fastcgi_close(vr, p);
 				vrequest_backend_dead(vr);
 				return HANDLER_GO_ON;

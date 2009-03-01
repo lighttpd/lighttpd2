@@ -505,7 +505,7 @@ GString *mimetype_get(vrequest *vr, GString *filename) {
 }
 
 
-GString *sockaddr_to_string(sock_addr *saddr, GString *dest) {
+GString *sockaddr_to_string(sock_addr *saddr, GString *dest, gboolean showport) {
 	gchar *p;
 	guint8 len = 0;
 	guint8 tmp;
@@ -516,9 +516,9 @@ GString *sockaddr_to_string(sock_addr *saddr, GString *dest) {
 	case AF_INET:
 		/* ipv4 */
 		if (!dest)
-			dest = g_string_sized_new(16);
+			dest = g_string_sized_new(16+6);
 		else
-			g_string_set_size(dest, 16);
+			g_string_set_size(dest, 16+6);
 
 		p = dest->str;
 
@@ -543,17 +543,32 @@ GString *sockaddr_to_string(sock_addr *saddr, GString *dest) {
 
 		dest->str[len-1] = 0;
 		dest->len = len-1;
+		if (showport) g_string_append_printf(dest, ":%u", (unsigned int) ntohs(saddr->ipv4.sin_port));
 		break;
 #ifdef HAVE_IPV6
 	case AF_INET6:
 		/* ipv6 - not yet implemented with own function */
 		if (!dest)
-			dest = g_string_sized_new(INET6_ADDRSTRLEN);
+			dest = g_string_sized_new(INET6_ADDRSTRLEN+6);
 
 		ipv6_tostring(dest, saddr->ipv6.sin6_addr.s6_addr);
+		if (showport) g_string_append_printf(dest, ":%u", (unsigned int) ntohs(saddr->ipv6.sin6_port));
+#endif
+#ifdef HAVE_SYS_UN_H
+	case AF_UNIX:
+		if (!dest)
+			dest = g_string_sized_new(0);
+		else
+			g_string_truncate(dest, 0);
+		g_string_append_len(dest, CONST_STR_LEN("unix:"));
+		g_string_append(dest, saddr->un.sun_path);
+		break;
 #endif
 	default:
-		if (dest) g_string_truncate(dest, 0);
+		if (!dest)
+			dest = g_string_new_len(CONST_STR_LEN("unknown sockaddr family"));
+		else
+			g_string_assign(dest, "unknown sockaddr family");
 	}
 
 	return dest;

@@ -210,7 +210,7 @@ void worker_new_con(worker *ctx, worker *wrk, sock_addr *remote_addr, int s) {
 		ev_io_set(&con->sock_watcher, s, EV_READ);
 		ev_io_start(wrk->loop, &con->sock_watcher);
 		con->ts = CUR_TS(con->wrk);
-		sockaddr_to_string(remote_addr, con->remote_addr_str);
+		sockaddr_to_string(remote_addr, con->remote_addr_str, FALSE);
 		waitqueue_push(&wrk->io_timeout_queue, &con->io_timeout_elem);
 	} else {
 		worker_new_con_data *d = g_slice_new(worker_new_con_data);
