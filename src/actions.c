@@ -151,6 +151,7 @@ void action_stack_reset(vrequest *vr, action_stack *as) {
 		action_stack_element_release(srv, vr, &g_array_index(as->stack, action_stack_element, i));
 	}
 	g_array_set_size(as->stack, 0);
+	as->backend_failed = FALSE;
 }
 
 void action_stack_clear(vrequest *vr, action_stack *as) {
