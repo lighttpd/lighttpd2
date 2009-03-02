@@ -961,7 +961,7 @@ static action* core_physical_is_dir(server *srv, plugin* p, value *val) {
 }
 
 /* chunkqueue memory limits */
-static handler_t core_handle_limit_out(vrequest *vr, gpointer param, gpointer *context) {
+static handler_t core_handle_buffer_out(vrequest *vr, gpointer param, gpointer *context) {
 	gint limit = GPOINTER_TO_INT(param);
 	UNUSED(context);
 
@@ -970,12 +970,12 @@ static handler_t core_handle_limit_out(vrequest *vr, gpointer param, gpointer *c
 	return HANDLER_GO_ON;
 }
 
-static action* core_limit_out(server *srv, plugin* p, value *val) {
+static action* core_buffer_out(server *srv, plugin* p, value *val) {
 	gint64 limit;
 	UNUSED(p);
 
 	if (val->type != VALUE_NUMBER) {
-		ERROR(srv, "'core_limit_out' action expects an integer as parameter, %s given", value_type_string(val->type));
+		ERROR(srv, "'core_buffer_out' action expects an integer as parameter, %s given", value_type_string(val->type));
 		return NULL;
 	}
 
@@ -984,17 +984,17 @@ static action* core_limit_out(server *srv, plugin* p, value *val) {
 	if (limit < 0) {
 		limit = 0; /* no limit */
 	} else if (limit < (16*1024)) {
-		ERROR(srv, "limit %"G_GINT64_FORMAT" is too low (need at least 16 kb)", limit);
+		ERROR(srv, "buffer %"G_GINT64_FORMAT" is too low (need at least 16 kb)", limit);
 		return NULL;
 	} else if (limit > (1 << 30)) {
-		ERROR(srv, "limit %"G_GINT64_FORMAT" is too high (1GB is the maximum)", limit);
+		ERROR(srv, "buffer %"G_GINT64_FORMAT" is too high (1GB is the maximum)", limit);
 		return NULL;
 	}
 
-	return action_new_function(core_handle_limit_out, NULL, NULL, GINT_TO_POINTER((gint) limit));
+	return action_new_function(core_handle_buffer_out, NULL, NULL, GINT_TO_POINTER((gint) limit));
 }
 
-static handler_t core_handle_limit_in(vrequest *vr, gpointer param, gpointer *context) {
+static handler_t core_handle_buffer_in(vrequest *vr, gpointer param, gpointer *context) {
 	gint limit = GPOINTER_TO_INT(param);
 	UNUSED(context);
 
@@ -1003,12 +1003,12 @@ static handler_t core_handle_limit_in(vrequest *vr, gpointer param, gpointer *co
 	return HANDLER_GO_ON;
 }
 
-static action* core_limit_in(server *srv, plugin* p, value *val) {
+static action* core_buffer_in(server *srv, plugin* p, value *val) {
 	gint64 limit;
 	UNUSED(p);
 
 	if (val->type != VALUE_NUMBER) {
-		ERROR(srv, "'core_limit_in' action expects an integer as parameter, %s given", value_type_string(val->type));
+		ERROR(srv, "'core_buffer_in' action expects an integer as parameter, %s given", value_type_string(val->type));
 		return NULL;
 	}
 
@@ -1018,11 +1018,11 @@ static action* core_limit_in(server *srv, plugin* p, value *val) {
 		limit = 0; /* no limit */
 	}
 	if (limit > (1 << 30)) {
-		ERROR(srv, "limit %"G_GINT64_FORMAT" is too high (1GB is the maximum)", limit);
+		ERROR(srv, "buffer %"G_GINT64_FORMAT" is too high (1GB is the maximum)", limit);
 		return NULL;
 	}
 
-	return action_new_function(core_handle_limit_in, NULL, NULL, GINT_TO_POINTER((gint) limit));
+	return action_new_function(core_handle_buffer_in, NULL, NULL, GINT_TO_POINTER((gint) limit));
 }
 
 
@@ -1068,8 +1068,8 @@ static const plugin_action actions[] = {
 	{ "physical.is_file", core_physical_is_file },
 	{ "physical.is_dir", core_physical_is_dir },
 
-	{ "limit.out", core_limit_out },
-	{ "limit.in", core_limit_in },
+	{ "buffer.out", core_buffer_out },
+	{ "buffer.in", core_buffer_in },
 
 	{ NULL, NULL }
 };
