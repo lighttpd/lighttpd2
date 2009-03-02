@@ -991,7 +991,7 @@ static action* core_limit_out(server *srv, plugin* p, value *val) {
 		return NULL;
 	}
 
-	return action_new_function(core_handle_limit_out, NULL, NULL, GINT_TO_POINTER(limit));
+	return action_new_function(core_handle_limit_out, NULL, NULL, GINT_TO_POINTER((gint) limit));
 }
 
 static handler_t core_handle_limit_in(vrequest *vr, gpointer param, gpointer *context) {
@@ -1022,7 +1022,7 @@ static action* core_limit_in(server *srv, plugin* p, value *val) {
 		return NULL;
 	}
 
-	return action_new_function(core_handle_limit_in, NULL, NULL, GINT_TO_POINTER(limit));
+	return action_new_function(core_handle_limit_in, NULL, NULL, GINT_TO_POINTER((gint) limit));
 }
 
 

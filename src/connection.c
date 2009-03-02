@@ -375,15 +375,14 @@ void connection_reset(connection *con) {
 	vrequest_reset(con->mainvr);
 	http_request_parser_reset(&con->req_parser_ctx);
 
-	cqlimit_reset(con->raw_in->limit);
-	cqlimit_reset(con->raw_out->limit);
-
 	g_string_truncate(con->remote_addr_str, 0);
 	g_string_truncate(con->local_addr_str, 0);
 	con->keep_alive = TRUE;
 
 	chunkqueue_reset(con->raw_in);
 	chunkqueue_reset(con->raw_out);
+	cqlimit_reset(con->raw_in->limit);
+	cqlimit_reset(con->raw_out->limit);
 
 	if (con->keep_alive_data.link) {
 		g_queue_delete_link(&con->wrk->keep_alive_queue, con->keep_alive_data.link);

@@ -478,10 +478,10 @@ static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
 			if (len > fcon->fcgi_in_record.remainingPadding) len = fcon->fcgi_in_record.remainingPadding;
 			chunkqueue_skip(fcon->fcgi_in, len);
 			fcon->fcgi_in_record.remainingPadding -= len;
-			if (0 != fcon->fcgi_in_record.remainingPadding) return TRUE; /* wait for data */
+			if (0 != fcon->fcgi_in_record.remainingPadding) return FALSE; /* wait for data */
 			fcon->fcgi_in_record.valid = FALSE; /* read next packet */
 		} else {
-			return TRUE; /* wait for/handle more content */
+			return (fcon->fcgi_in->length > 0); /* wait for/handle more content */
 		}
 	}
 
@@ -516,7 +516,6 @@ static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 	plugin *p = fcon->ctx->plugin;
 	gint len;
 	while (fastcgi_get_packet(fcon)) {
-		VR_WARNING(vr, "Fastcgi record type %i", (gint) fcon->fcgi_in_record.type);
 		if (fcon->fcgi_in_record.version != FCGI_VERSION_1) {
 			VR_ERROR(vr, "Unknown fastcgi protocol version %i", (gint) fcon->fcgi_in_record.version);
 			close(fcon->fd);
