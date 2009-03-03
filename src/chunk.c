@@ -413,7 +413,7 @@ chunkqueue* chunkqueue_new() {
 static void __chunk_free(gpointer _c, gpointer userdata) {
 	chunk *c = (chunk *)_c;
 	chunkqueue *cq = (chunkqueue*) userdata;
-	if (c->type == MEM_CHUNK) cqlimit_update(cq, - c->mem->len);
+	if (c->type == MEM_CHUNK) cqlimit_update(cq, - (goffset)c->mem->len);
 	chunk_free(c);
 }
 
@@ -635,7 +635,7 @@ goffset chunkqueue_steal_chunk(chunkqueue *out, chunkqueue *in) {
 	out->length += length;
 	if (in->limit != out->limit && c->type == MEM_CHUNK) {
 		cqlimit_update(out, c->mem->len);
-		cqlimit_update(in, - c->mem->len);
+		cqlimit_update(in, - (goffset)c->mem->len);
 	}
 	return length;
 }
@@ -649,7 +649,7 @@ goffset chunkqueue_skip(chunkqueue *cq, goffset length) {
 	while ( (NULL != (c = chunkqueue_first_chunk(cq))) && (0 == (we_have = chunk_length(c)) || length > 0) ) {
 		if (we_have <= length) {
 			/* skip (delete) complete chunk */
-			if (c->type == MEM_CHUNK) cqlimit_update(cq, - c->mem->len);
+			if (c->type == MEM_CHUNK) cqlimit_update(cq, - (goffset)c->mem->len);
 			chunk_free(c);
 			g_queue_pop_head(cq->queue);
 			bytes += we_have;
