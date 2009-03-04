@@ -26,6 +26,7 @@ common_src = '''
 	condition_parsers.rl
 	config_parser.rl
 	connection.c
+	encoding.c
 	environment.c
 	filter_chunked.c
 	http_headers.c
