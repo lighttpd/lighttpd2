@@ -99,7 +99,9 @@ def configure(conf):
 	conf.check(function_name='inet_atop', define_name='HAVE_IPV6')
 	conf.check(function_name='posix_fadvise', header_name='fcntl.h', define_name='HAVE_POSIX_FADVISE')
 	conf.check(function_name='mmap', header_name='sys/mman.h', define_name='HAVE_MMAP')
-	conf.check(function_name='madvise', header_name='sys/mman.h', define_name='HAVE_MADVISE')
+	conf.check(function_name='fpathconf', header_name='unistd.h', define_name='HAVE_FPATHCONF')
+	conf.check(function_name='pathconf', header_name='unistd.h', define_name='HAVE_PATHCONF')
+	conf.check(function_name='dirfd', header_name=['sys/types.h', 'dirent.h'], define_name='HAVE_DIRFD')
 	
 	conf.env['CPPPATH_lighty'] += [ '../include' ]
 	
