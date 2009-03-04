@@ -39,28 +39,39 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-struct stat_cache_entry {
+struct stat_cache_entry_data {
 	GString *path;
 	GString *etag;
 	GString *content_type;
-	struct stat st;
-	ev_tstamp ts;                  /* timestamp the entry was created (not when the stat() was done) */
-	gint err;
 	gboolean failed;
+	struct stat st;
+	gint err;
+};
+
+struct stat_cache_entry {
 	enum {
-		STAT_CACHE_ENTRY_WAITING,  /* waiting for stat thread to do the work, no info available */
-		STAT_CACHE_ENTRY_FINISHED, /* stat() done, info available */
+		STAT_CACHE_ENTRY_SINGLE,      /* single file, this is the default or "normal" */
+		STAT_CACHE_ENTRY_DIR          /* get a directory listing (with stat info) */
+	} type;
+
+	enum {
+		STAT_CACHE_ENTRY_WAITING,     /* waiting for stat thread to do the work, no info available */
+		STAT_CACHE_ENTRY_FINISHED,    /* stat() done, info available */
 	} state;
-	GPtrArray *vrequests;          /* vrequests waiting for this info */
+
+	stat_cache_entry_data data;
+	GArray *dirlist;                  /* array of stat_cache_dirlist_entry, used together with STAT_CACHE_ENTRY_DIR */
+	ev_tstamp ts;                     /* timestamp the entry was created (not when the stat() was done) */
+	GPtrArray *vrequests;             /* vrequests waiting for this info */
 	guint refcount;
-	waitqueue_elem queue_elem;     /* queue element for the delete_queue */
+	waitqueue_elem queue_elem;        /* queue element for the delete_queue */
 	gboolean in_cache;
 };
 
 struct stat_cache {
 	GHashTable *entries;
-	GAsyncQueue *job_queue_out;    /* elements waiting for stat */
-	GAsyncQueue *job_queue_in;     /* elements with finished stat */
+	GAsyncQueue *job_queue_out;       /* elements waiting for stat */
+	GAsyncQueue *job_queue_in;        /* elements with finished stat */
 	waitqueue delete_queue;
 	GThread *thread;
 	ev_async job_watcher;
@@ -73,17 +84,15 @@ struct stat_cache {
 
 void stat_cache_new(worker *wrk, gdouble ttl);
 void stat_cache_free(stat_cache *sc);
-void stat_cache_job_cb(struct ev_loop *loop, ev_async *w, int revents);
-void stat_cache_delete_cb(struct ev_loop *loop, ev_timer *w, int revents);
-gpointer stat_cache_thread(gpointer data);
-
-void stat_cache_entry_free(stat_cache_entry *sce);
 
 /*
  gets a stat_cache_entry for a specified path
  returns NULL in case of a cache MISS and you should return HANDLER_WAIT_FOR_EVENT
 */
-LI_API stat_cache_entry *stat_cache_entry_get(vrequest *vr, GString *path);
+LI_API stat_cache_entry *stat_cache_get(vrequest *vr, GString *path);
+
+/* like stat_cache_entry_get but gets stat info for a whole directory */
+LI_API stat_cache_entry *stat_cache_get_dir(vrequest *vr, GString *path);
 
 /* release a stat_cache_entry so it can be cleaned up */
 LI_API void stat_cache_entry_release(vrequest *vr);

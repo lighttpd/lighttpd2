@@ -197,15 +197,15 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 		if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
 	}
 
-	sce = stat_cache_entry_get(vr, vr->physical.path);
+	sce = stat_cache_get(vr, vr->physical.path);
 	if (!sce)
 		return HANDLER_WAIT_FOR_EVENT;
 
 	VR_DEBUG(vr, "serving static file: %s", vr->physical.path->str);
 
-	if (sce->failed) {
+	if (sce->data.failed) {
 		/* stat failed */
-		VR_DEBUG(vr, "stat() failed: %s (%d)", g_strerror(sce->err), sce->err);
+		VR_DEBUG(vr, "stat() failed: %s (%d)", g_strerror(sce->data.err), sce->data.err);
 
 		switch (errno) {
 		case ENOENT:
@@ -237,7 +237,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 
 		/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
 		/* TODO: local addr if HTTP 1.0 without host header */
-		if (S_ISDIR(sce->st.st_mode) && vr->request.uri.orig_path->str[vr->request.uri.orig_path->len-1] != '/') {
+		if (S_ISDIR(sce->data.st.st_mode) && vr->request.uri.orig_path->str[vr->request.uri.orig_path->len-1] != '/') {
 			GString *host = vr->request.uri.authority->len ? vr->request.uri.authority : vr->con->local_addr_str;
 			GString *uri = g_string_sized_new(
 				 8 /* https:// */ + host->len +
@@ -259,7 +259,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 			http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
 			g_string_free(uri, TRUE);
 			close(fd);
-		} else if (!S_ISREG(sce->st.st_mode)) {
+		} else if (!S_ISREG(sce->data.st.st_mode)) {
 			vr->response.http_status = 404;
 			close(fd);
 		} else {
@@ -269,7 +269,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 				http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
 			else
 				http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("application/octet-stream"));
-			chunkqueue_append_file_fd(vr->out, NULL, 0, sce->st.st_size, fd);
+			chunkqueue_append_file_fd(vr->out, NULL, 0, sce->data.st.st_size, fd);
 		}
 	}
 
@@ -575,6 +575,19 @@ static gboolean core_io_timeout(server *srv, plugin* p, value *val) {
 	}
 
 	srv->io_timeout = value_extract(val).number;
+
+	return TRUE;
+}
+
+static gboolean core_stat_cache_ttl(server *srv, plugin* p, value *val) {
+	UNUSED(p);
+
+	if (!val || val->type != VALUE_NUMBER || val->data.number < 1) {
+		ERROR(srv, "%s", "stat_cache.ttl expects a positive number as parameter");
+		return FALSE;
+	}
+
+	srv->stat_cache_ttl = (gdouble)value_extract(val).number;
 
 	return TRUE;
 }
@@ -1081,6 +1094,8 @@ static const plugin_setup setups[] = {
 	{ "workers", core_workers },
 	{ "module_load", core_module_load },
 	{ "io_timeout", core_io_timeout },
+	{ "stat_cache.ttl", core_stat_cache_ttl },
+
 	{ NULL, NULL }
 };
 

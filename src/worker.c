@@ -335,7 +335,7 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	ev_timer_init(&wrk->job_queue_watcher, worker_job_queue_cb, 0, 0);
 	wrk->job_queue_watcher.data = wrk;
 
-	stat_cache_new(wrk, 10.0);
+	stat_cache_new(wrk, srv->stat_cache_ttl);
 
 	return wrk;
 }

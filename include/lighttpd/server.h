@@ -75,6 +75,8 @@ struct server {
 	guint keep_alive_queue_timeout;
 
 	gdouble io_timeout;
+
+	gdouble stat_cache_ttl;
 };
 
 
