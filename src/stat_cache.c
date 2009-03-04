@@ -209,7 +209,7 @@ static stat_cache_entry *stat_cache_get_internal(vrequest *vr, GString *path, gb
 		/* cache hit, check state */
 		if (g_atomic_int_get(&sce->state) == STAT_CACHE_ENTRY_FINISHED) {
 			/* stat info available, check if it is fresh */
-			if (sce->ts >= (CUR_TS(vr->con->wrk) - (ev_tstamp)sc->ttl)) {
+			if (!(sce->type == STAT_CACHE_ENTRY_SINGLE && dir) && sce->ts >= (CUR_TS(vr->con->wrk) - (ev_tstamp)sc->ttl)) {
 				/* entry fresh */
 				if (!vr->stat_cache_entry) {
 					sc->hits++;
