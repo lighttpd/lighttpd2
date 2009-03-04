@@ -638,3 +638,33 @@ GString *l_g_string_assign_len(GString *string, const gchar *val, gssize len) {
 	g_string_append_len(string, val, len);
 	return string;
 }
+
+/* http://womble.decadentplace.org.uk/readdir_r-advisory.html */
+gsize dirent_buf_size(DIR * dirp) {
+	glong name_max;
+ 	gsize name_end;
+
+#	if !defined(HAVE_DIRFD)
+		UNUSED(dirp);
+#	endif
+
+#	if defined(HAVE_FPATHCONF) && defined(HAVE_DIRFD) && defined(_PC_NAME_MAX)
+		name_max = fpathconf(dirfd(dirp), _PC_NAME_MAX);
+		if (name_max == -1)
+#			if defined(NAME_MAX)
+				name_max = (NAME_MAX > 255) ? NAME_MAX : 255;
+#			else
+				return (gsize)(-1);
+#			endif
+#	else
+#		if defined(NAME_MAX)
+			name_max = (NAME_MAX > 255) ? NAME_MAX : 255;
+#		else
+#			error "buffer size for readdir_r cannot be determined"
+#		endif
+#	endif
+
+    name_end = (gsize)offsetof(struct dirent, d_name) + name_max + 1;
+
+    return (name_end > sizeof(struct dirent) ? name_end : sizeof(struct dirent));
+}
