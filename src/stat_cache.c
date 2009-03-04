@@ -167,6 +167,12 @@ static gpointer stat_cache_thread(gpointer data) {
 
 
 				while ((error = readdir_r(dirp, entry, &result)) != 0 && result != NULL) {
+					/* hide "." and ".." */
+					if (result->d_name[0] == '.' && (result->d_name[1] == '\0' ||
+						(result->d_name[1] == '.' && result->d_name[2] == '\0'))) {
+						continue;
+					}
+
 					sced.path = g_string_sized_new(32);
 					g_string_assign(sced.path, result->d_name);
 					if (stat(result->d_name, &sced.st) == -1) {
