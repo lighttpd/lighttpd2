@@ -21,6 +21,7 @@
  *             "hide-header" => bool     - hide HEADER.txt from the directory listing, default: false
  *             "include-readme" => bool  - include README.txt below the directory listing, default: false
  *             "hide-header" => bool     - hide README.txt from the directory listing, default: false
+ *             "debug" => bool           - outout debug information to log, default: false
  *
  * Example config:
  *     dirlist ("include-header" => true, "hide-header" => true);
@@ -103,6 +104,7 @@ struct dirlist_data {
 	GString *css;
 	gboolean hide_dotfiles;
 	gboolean hide_tildefiles;
+	gboolean debug;
 };
 typedef struct dirlist_data dirlist_data;
 
@@ -223,6 +225,9 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		gchar sizebuf[sizeof("999.9K")+1];
 		gchar datebuf[sizeof("2005-Jan-01 22:23:24")+1];
 		struct tm tm;
+
+		if (dd->debug)
+			VR_DEBUG(vr, "dirlist for \"%s\", %u entries", sce->data.path->str, sce->dirlist->len);
 
 		/* temporary string for encoded names */
 		encoded = g_string_sized_new(64);
@@ -416,6 +421,13 @@ static action* dirlist_create(server *srv, plugin* p, value *val) {
 					return NULL;
 				}
 				data->hide_tildefiles = v->data.boolean;
+			} else if (g_str_equal(k->str, "debug")) {
+				if (v->type != VALUE_BOOLEAN) {
+					ERROR(srv, "%s", "dirlisting: debug parameter must be a boolean (true or false)");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				data->debug = v->data.boolean;
 			} else {
 				ERROR(srv, "dirlisting: unknown parameter \"%s\"", k->str);
 				dirlist_free(srv, data);
