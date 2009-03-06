@@ -309,9 +309,6 @@ static stat_cache_entry *stat_cache_get_internal(vrequest *vr, GString *path, gb
 		vr->stat_cache_entry = sce;
 		g_ptr_array_add(sce->vrequests, vr);
 		sce->refcount = 1;
-		waitqueue_push(&sc->delete_queue, &sce->queue_elem);
-		g_hash_table_insert(sc->entries, sce->data.path, sce);
-		g_async_queue_push(sc->job_queue_out, sce);
 		sc->misses++;
 
 		if (dir) {
@@ -320,6 +317,10 @@ static stat_cache_entry *stat_cache_get_internal(vrequest *vr, GString *path, gb
 		} else {
 			sce->type = STAT_CACHE_ENTRY_SINGLE;
 		}
+
+		waitqueue_push(&sc->delete_queue, &sce->queue_elem);
+		g_hash_table_insert(sc->entries, sce->data.path, sce);
+		g_async_queue_push(sc->job_queue_out, sce);
 
 		return NULL;
 	}
