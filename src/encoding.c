@@ -48,8 +48,30 @@ static const gchar encode_map_html[] = {
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* F0 - FF */
 };
 
-GString *string_encode(const gchar *str, encoding_t encoding) {
-	/* replace html chars with &#xHH; */
+/* relative URI, everything except: ! ( ) * - . / 0-9 A-Z _ a-z */
+static const gchar encode_map_uri[] = {
+	/*
+	0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
+	*/
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 00 - 0F control chars */
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 10 - 1F */
+	1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, /* 20 - 2F space " # $ % & ' + , */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, /* 30 - 3F : ; < = > ? */
+	1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 40 - 40 @ */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, /* 50 - 50 [ \ ] ^ */
+	1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 60 - 60 ` */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, /* 70 - 70 { | } ~ DEL */
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 80 - 8F */
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 90 - 9F */
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* A0 - AF */
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* B0 - BF */
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* C0 - CF */
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* D0 - DF */
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* E0 - EF */
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* F0 - FF */
+};
+
+GString *string_encode(const gchar *str, GString *dest, encoding_t encoding) {
 	GString *result;
 	guchar *c;
 	guchar *pos;
@@ -59,12 +81,18 @@ GString *string_encode(const gchar *str, encoding_t encoding) {
 
 	switch (encoding) {
 	case ENCODING_HTML:
+		/* replace html chars with &#xHH; */
 		map = encode_map_html;
 		encoded_len = 6;
 		break;
 	case ENCODING_HEX:
 		map = encode_map_hex;
 		encoded_len = 2;
+		break;
+	case ENCODING_URI:
+		/* ? => %HH */
+		map = encode_map_uri;
+		encoded_len = 3;
 		break;
 	}
 
@@ -76,7 +104,12 @@ GString *string_encode(const gchar *str, encoding_t encoding) {
 			new_len++;
 	}
 
-	result = g_string_sized_new(new_len);
+	if (dest) {
+		result = dest;
+		g_string_set_size(result, new_len);
+	} else {
+		result = g_string_sized_new(new_len);
+	}
 
 	for (c = (guchar*)str, pos = (guchar*)result->str; *c != '\0'; c++) {
 		if (map[*c]) {
@@ -94,6 +127,12 @@ GString *string_encode(const gchar *str, encoding_t encoding) {
 			case ENCODING_HEX:
 				*pos++ = hex_chars[((*c) >> 4) & 0x0F];
 				*pos++ = hex_chars[(*c) & 0x0F];
+				break;
+			case ENCODING_URI:
+				*pos++ = '%';
+				*pos++ = hex_chars[((*c) >> 4) & 0x0F];
+				*pos++ = hex_chars[(*c) & 0x0F];
+				break;
 			}
 		} else {
 			/* no encoding needed */

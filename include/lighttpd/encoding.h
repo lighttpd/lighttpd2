@@ -7,11 +7,12 @@
 
 typedef enum {
 	ENCODING_HEX,  /* a => 61 */
-	ENCODING_HTML  /* HTML special chars. & => &amp; e.g. */
+	ENCODING_HTML, /* HTML special chars. & => &amp; e.g. */
+	ENCODING_URI   /* relative URI */
 } encoding_t;
 
 
 /* encodes special characters in a string and returns the new string */
-GString *string_encode(const gchar *str, encoding_t encoding);
+GString *string_encode(const gchar *str, GString *dest, encoding_t encoding);
 
 #endif
