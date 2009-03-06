@@ -287,6 +287,11 @@ static action* core_static(server *srv, plugin* p, value *val) {
 	return action_new_function(core_handle_static, NULL, NULL, NULL);
 }
 
+static void core_log_write_free(server *srv, gpointer param) {
+	UNUSED(srv);
+	g_string_free(param, TRUE);
+}
+
 static handler_t core_handle_log_write(vrequest *vr, gpointer param, gpointer *context) {
 	GString *msg = param;
 
@@ -304,7 +309,7 @@ static action* core_log_write(server *srv, plugin* p, value *val) {
 		return NULL;
 	}
 
-	return action_new_function(core_handle_log_write, NULL, NULL, value_extract(val).string);
+	return action_new_function(core_handle_log_write, NULL, core_log_write_free, value_extract(val).string);
 }
 
 static handler_t core_handle_test(vrequest *vr, gpointer param, gpointer *context) {
