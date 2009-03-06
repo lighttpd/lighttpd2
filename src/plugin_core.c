@@ -542,6 +542,7 @@ static gboolean core_module_load(server *srv, plugin* p, value *val) {
 				return FALSE;
 			}
 		}
+		g_array_free(mods->data.list, TRUE);
 		mods->data.list = value_extract(val).list;
 	} else {
 		ERROR(srv, "module_load takes either a string or a list of strings as parameter, %s given", value_type_string(val->type));
