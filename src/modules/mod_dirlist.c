@@ -345,6 +345,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		g_string_append_printf(listing, html_footer, CORE_OPTION(CORE_OPTION_SERVER_TAG).string->str);
 
 		chunkqueue_append_string(vr->out, listing);
+		g_string_free(encoded, TRUE);
 		g_array_free(directories, TRUE);
 		g_array_free(files, TRUE);
 	}
