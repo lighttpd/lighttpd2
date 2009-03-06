@@ -41,10 +41,13 @@ void stat_cache_new(worker *wrk, gdouble ttl) {
 void stat_cache_free(stat_cache *sc) {
 	GHashTableIter iter;
 	gpointer k, v;
+	stat_cache_entry *dummy;
 
 	/* wake up thread */
-	g_async_queue_push(sc->job_queue_out, g_slice_new0(stat_cache_entry));
+	dummy = g_slice_new0(stat_cache_entry);
+	g_async_queue_push(sc->job_queue_out, dummy);
 	g_thread_join(sc->thread);
+	g_slice_free(stat_cache_entry, dummy);
 
 	ev_async_stop(sc->delete_queue.loop, &sc->job_watcher);
 
