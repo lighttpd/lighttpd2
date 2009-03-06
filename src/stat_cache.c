@@ -155,6 +155,7 @@ static gpointer stat_cache_thread(gpointer data) {
 			struct dirent *result;
 			gint error;
 			stat_cache_entry_data sced;
+			GString *str;
 
 			dirp = opendir(sce->data.path->str);
 			if (dirp == NULL) {
@@ -165,8 +166,10 @@ static gpointer stat_cache_thread(gpointer data) {
 				assert(size != (gsize)-1);
 				entry = g_slice_alloc(size);
 
+				str = g_string_sized_new(sce->data.path->len + 32);
+				g_string_append_len(str, GSTR_LEN(sce->data.path));
 
-				while ((error = readdir_r(dirp, entry, &result)) != 0 && result != NULL) {
+				while ((error = readdir_r(dirp, entry, &result)) == 0 && result != NULL) {
 					/* hide "." and ".." */
 					if (result->d_name[0] == '.' && (result->d_name[1] == '\0' ||
 						(result->d_name[1] == '.' && result->d_name[2] == '\0'))) {
@@ -175,12 +178,20 @@ static gpointer stat_cache_thread(gpointer data) {
 
 					sced.path = g_string_sized_new(32);
 					g_string_assign(sced.path, result->d_name);
-					if (stat(result->d_name, &sced.st) == -1) {
+
+					g_string_truncate(str, sce->data.path->len);
+					/* make sure the path ends with / (or whatever) */
+					if (sce->data.path->str[sce->data.path->len-1] != G_DIR_SEPARATOR)
+						g_string_append_c(str, G_DIR_SEPARATOR);
+					g_string_append_len(str, GSTR_LEN(sced.path));
+
+					if (stat(str->str, &sced.st) == -1) {
 						sced.failed = TRUE;
 						sced.err = errno;
 					} else {
 						sced.failed = FALSE;
 					}
+
 					g_array_append_val(sce->dirlist, sced);
 				}
 
@@ -189,6 +200,7 @@ static gpointer stat_cache_thread(gpointer data) {
 					sce->data.err = error;
 				}
 
+				g_string_free(str, TRUE);
 				g_slice_free1(size, entry);
 				closedir(dirp);
 			}
@@ -222,7 +234,7 @@ static stat_cache_entry *stat_cache_get_internal(vrequest *vr, GString *path, gb
 					vr->stat_cache_entry = sce;
 					sce->refcount++;
 				}
-				VR_DEBUG(vr, "stat_cache: %"G_GUINT64_FORMAT" hits, %"G_GUINT64_FORMAT" misses, %u items in cache", sc->hits, sc->misses, g_hash_table_size(sc->entries));
+
 				return sce;
 			} else {
 				/* entry old */
