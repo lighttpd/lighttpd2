@@ -205,7 +205,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 
 	if (sce->data.failed) {
 		/* stat failed */
-		VR_DEBUG(vr, "stat() failed: %s (%d)", g_strerror(sce->data.err), sce->data.err);
+		VR_DEBUG(vr, "stat(\"%s\") failed: %s (%d)", sce->data.path->str, g_strerror(sce->data.err), sce->data.err);
 
 		switch (errno) {
 		case ENOENT:
@@ -217,7 +217,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 			vr->response.http_status = 500;
 		}
 	} else if ((fd = open(vr->physical.path->str, O_RDONLY)) == -1) {
-		VR_DEBUG(vr, "open() failed: %s (%d)", g_strerror(errno), errno);
+		VR_DEBUG(vr, "open(\"%s\") failed: %s (%d)", vr->physical.path->str, g_strerror(errno), errno);
 
 		switch (errno) {
 		case ENOENT:
