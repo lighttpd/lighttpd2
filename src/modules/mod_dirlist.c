@@ -215,7 +215,6 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		}
 	} else {
 		/* everything ok, we have the directory listing */
-		vr->response.http_status = 200;
 		guint i;
 		stat_cache_entry_data *sced;
 		GString *mime_str;
@@ -225,6 +224,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		gchar sizebuf[sizeof("999.9K")+1];
 		gchar datebuf[sizeof("2005-Jan-01 22:23:24")+1];
 		struct tm tm;
+		vr->response.http_status = 200;
 
 		if (dd->debug)
 			VR_DEBUG(vr, "dirlist for \"%s\", %u entries", sce->data.path->str, sce->dirlist->len);
