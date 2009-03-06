@@ -2,14 +2,13 @@
  * mod_dirlist - directory listing
  *
  * Description:
- *     mod_vhost offers various ways to implement virtual webhosts.
- *     It can map hostnames to document roots or even actions and offers multiple ways to do so.
- *     These ways differ in the flexibility of mapping (what to map and what to map to) as well as performance.
+ *     mod_dirlist enables you to list files inside a directory.
+ *     The output can be customized in various ways from style via css to excluding certain entries.
  *
  * Setups:
  *     none
  * Options:
- *     vhost.debug = <true|false> - enable debug output
+ *     none
  * Actions:
  *     dirlist [options] - show directory listing
  *         options: optional (not required), array, can contain any of the following string => value pairs:
@@ -36,6 +35,7 @@
  *     - caching
  *     - javascript for sorting
  *     - sort parameter
+ *     - parameter to chose if dirs should be seperated from other files (listed first)
  *
  * Author:
  *     Copyright (c) 2009 Thomas Porzelt
@@ -307,7 +307,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 			*/
 		}
 
-		g_string_append_len(listing, CONST_STR_LEN("<tr><td colspan=\"4\">&nbsp;</td></tr>\n"));
+		/*g_string_append_len(listing, CONST_STR_LEN("<tr><td colspan=\"4\">&nbsp;</td></tr>\n"));*/
 
 		/* list files */
 		for (i = 0; i < files->len; i++) {
