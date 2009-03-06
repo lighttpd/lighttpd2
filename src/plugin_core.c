@@ -216,7 +216,6 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 		default:
 			vr->response.http_status = 500;
 		}
-		g_print("%d\n", vr->response.http_status);
 	} else if ((fd = open(vr->physical.path->str, O_RDONLY)) == -1) {
 		VR_DEBUG(vr, "open() failed: %s (%d)", g_strerror(errno), errno);
 
