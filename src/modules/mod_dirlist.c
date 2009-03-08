@@ -12,15 +12,18 @@
  * Actions:
  *     dirlist [options] - show directory listing
  *         options: optional (not required), array, can contain any of the following string => value pairs:
- *             "sort" => criterium       - string, one of "name", "size" or "type"
- *             "css" => url              - string, external css to use for styling, default: use internal css
- *             "hide-dotfiles" => bool   - hide entries beginning with a dot, default: true
- *             "hide-tildefiles" => bool - hide entries ending with a tilde (~), often used for backups, default: true
- *             "include-header" => bool  - include HEADER.txt above the directory listing, default: false
- *             "hide-header" => bool     - hide HEADER.txt from the directory listing, default: false
- *             "include-readme" => bool  - include README.txt below the directory listing, default: false
- *             "hide-header" => bool     - hide README.txt from the directory listing, default: false
- *             "debug" => bool           - outout debug information to log, default: false
+ *             "sort" => criterium             - string, one of "name", "size" or "type"
+ *             "css" => url                    - string, external css to use for styling, default: use internal css
+ *             "hide-dotfiles" => bool         - hide entries beginning with a dot, default: true
+ *             "hide-tildefiles" => bool       - hide entries ending with a tilde (~), often used for backups, default: true
+ *             "include-header" => bool        - include HEADER.txt above the directory listing, default: false
+ *             "hide-header" => bool           - hide HEADER.txt from the directory listing, default: false
+ *             "include-readme" => bool        - include README.txt below the directory listing, default: false
+ *             "hide-header" => bool           - hide README.txt from the directory listing, default: false
+ *             "hide-directories" => bool      - hide directories from the directory listing, default: false
+ *             "exclude-suffix" => suffixlist  - list of strings, filter entries that end with one of the strings supplied
+ *             "exclude-prefix" => prefixlist  - list of strings, filter entries that begin with one of the strings supplied
+ *             "debug" => bool                 - outout debug information to log, default: false
  *
  * Example config:
  *     dirlist ("include-header" => true, "hide-header" => true);
@@ -32,7 +35,6 @@
  * Todo:
  *     - filters for entries (pattern, regex)
  *     - include-* parameters
- *     - caching
  *     - javascript for sorting
  *     - sort parameter
  *     - parameter to chose if dirs should be seperated from other files (listed first)
@@ -104,13 +106,15 @@ struct dirlist_data {
 	GString *css;
 	gboolean hide_dotfiles;
 	gboolean hide_tildefiles;
+	gboolean hide_directories;
 	gboolean debug;
+	GPtrArray *exclude_suffix;
+	GPtrArray *exclude_prefix;
 };
 typedef struct dirlist_data dirlist_data;
 
 struct dirlist_plugin_data {
-	GHashTable *cache;
-	GMutex *mutex;
+	void *unused;
 };
 typedef struct dirlist_plugin_data dirlist_plugin_data;
 
@@ -216,6 +220,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 	} else {
 		/* everything ok, we have the directory listing */
 		guint i;
+		guint j;
 		stat_cache_entry_data *sced;
 		GString *mime_str;
 		GArray *directories;
@@ -224,6 +229,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		gchar sizebuf[sizeof("999.9K")+1];
 		gchar datebuf[sizeof("2005-Jan-01 22:23:24")+1];
 		struct tm tm;
+		gboolean hide;
 		vr->response.http_status = 200;
 
 		if (dd->debug)
@@ -239,6 +245,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		files = g_array_sized_new(FALSE, FALSE, sizeof(guint), sce->dirlist->len);
 		for (i = 0; i < sce->dirlist->len; i++) {
 			sced = &g_array_index(sce->dirlist, stat_cache_entry_data, i);
+			hide = FALSE;
 
 			/* ingore entries where the stat() failed */
 			if (sced->failed)
@@ -248,6 +255,26 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 				continue;
 
 			if (dd->hide_tildefiles && sced->path->str[sced->path->len-1] == '~')
+				continue;
+
+			for (j = 0; j < dd->exclude_suffix->len; j++) {
+				if (l_g_string_suffix(sced->path, GSTR_LEN((GString*)g_ptr_array_index(dd->exclude_suffix, j)))) {
+					hide = TRUE;
+					break;
+				}
+			}
+
+			if (hide)
+				continue;
+
+			for (j = 0; j < dd->exclude_prefix->len; j++) {
+				if (l_g_string_prefix(sced->path, GSTR_LEN((GString*)g_ptr_array_index(dd->exclude_prefix, j)))) {
+					hide = TRUE;
+					break;
+				}
+			}
+
+			if (hide)
 				continue;
 
 			if (S_ISDIR(sced->st.st_mode))
@@ -276,35 +303,37 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 			"Parent Directory", (gint64)0, "", (gint64)0, "-", "Directory");
 
 		/* list directories */
-		for (i = 0; i < directories->len; i++) {
-			sced = &g_array_index(sce->dirlist, stat_cache_entry_data, g_array_index(directories, guint, i));
+		if (!dd->hide_directories) {
+			for (i = 0; i < directories->len; i++) {
+				sced = &g_array_index(sce->dirlist, stat_cache_entry_data, g_array_index(directories, guint, i));
 
-			localtime_r(&(sced->st.st_mtime), &tm);
-			datebuf[strftime(datebuf, sizeof(datebuf), "%Y-%b-%d %H:%M:%S", &tm)] = '\0';
+				localtime_r(&(sced->st.st_mtime), &tm);
+				datebuf[strftime(datebuf, sizeof(datebuf), "%Y-%b-%d %H:%M:%S", &tm)] = '\0';
 
-			g_string_append_len(listing, CONST_STR_LEN("				<tr><td><a href=\""));
-			string_encode(sced->path->str, encoded, ENCODING_URI);
-			g_string_append_len(listing, GSTR_LEN(encoded));
-			g_string_append_len(listing, CONST_STR_LEN("/\">"));
-			string_encode(sced->path->str, encoded, ENCODING_HTML);
-			g_string_append_len(listing, GSTR_LEN(encoded));
-			g_string_append_printf(listing,
-				"</a></td>"
-				"<td class=\"modified\" val=\"%"G_GINT64_FORMAT"\">%s</td>"
-				"<td class=\"size\" val=\"%"G_GINT64_FORMAT"\">%s</td>"
-				"<td class=\"type\">%s</td></tr>\n",
-				(gint64)sced->st.st_mtime, datebuf,
-				(gint64)0, "-",
-				"Directory"
-			);
+				g_string_append_len(listing, CONST_STR_LEN("				<tr><td><a href=\""));
+				string_encode(sced->path->str, encoded, ENCODING_URI);
+				g_string_append_len(listing, GSTR_LEN(encoded));
+				g_string_append_len(listing, CONST_STR_LEN("/\">"));
+				string_encode(sced->path->str, encoded, ENCODING_HTML);
+				g_string_append_len(listing, GSTR_LEN(encoded));
+				g_string_append_printf(listing,
+					"</a></td>"
+					"<td class=\"modified\" val=\"%"G_GINT64_FORMAT"\">%s</td>"
+					"<td class=\"size\" val=\"%"G_GINT64_FORMAT"\">%s</td>"
+					"<td class=\"type\">%s</td></tr>\n",
+					(gint64)sced->st.st_mtime, datebuf,
+					(gint64)0, "-",
+					"Directory"
+				);
 
-			/*
-			g_string_append_printf(listing, html_table_row,
-				vr->request.uri.path->str, sced->path->str, sced->path->str,
-				(gint64)sced->st.st_mtime, datebuf,
-				(gint64)0, "-",
-				"Directory");
-			*/
+				/*
+				g_string_append_printf(listing, html_table_row,
+					vr->request.uri.path->str, sced->path->str, sced->path->str,
+					(gint64)sced->st.st_mtime, datebuf,
+					(gint64)0, "-",
+					"Directory");
+				*/
+			}
 		}
 
 		/*g_string_append_len(listing, CONST_STR_LEN("<tr><td colspan=\"4\">&nbsp;</td></tr>\n"));*/
@@ -361,6 +390,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 }
 
 static void dirlist_free(server *srv, gpointer param) {
+	guint i;
 	dirlist_data *data = param;
 
 	UNUSED(srv);
@@ -368,12 +398,21 @@ static void dirlist_free(server *srv, gpointer param) {
 	if (data->css)
 		g_string_free(data->css, TRUE);
 
+	for (i = 0; i < data->exclude_suffix->len; i++)
+		g_string_free(g_ptr_array_index(data->exclude_suffix, i), TRUE);
+	g_ptr_array_free(data->exclude_suffix, TRUE);
+
+	for (i = 0; i < data->exclude_prefix->len; i++)
+		g_string_free(g_ptr_array_index(data->exclude_prefix, i), TRUE);
+	g_ptr_array_free(data->exclude_prefix, TRUE);
+
 	g_slice_free(dirlist_data, data);
 }
 
 static action* dirlist_create(server *srv, plugin* p, value *val) {
 	dirlist_data *data;
 	guint i;
+	guint j;
 	value *v, *tmpval;
 	GString *k;
 
@@ -386,6 +425,8 @@ static action* dirlist_create(server *srv, plugin* p, value *val) {
 	data->plugin = p;
 	data->hide_dotfiles = TRUE;
 	data->hide_tildefiles = TRUE;
+	data->exclude_suffix = g_ptr_array_new();
+	data->exclude_prefix = g_ptr_array_new();
 
 	if (val) {
 		for (i = 0; i < val->data.list->len; i++) {
@@ -402,34 +443,71 @@ static action* dirlist_create(server *srv, plugin* p, value *val) {
 
 			if (g_str_equal(k->str, "css")) {
 				if (v->type != VALUE_STRING) {
-					ERROR(srv, "%s", "dirlisting: css parameter must be a string");
+					ERROR(srv, "%s", "dirlist: css parameter must be a string");
 					dirlist_free(srv, data);
 					return NULL;
 				}
 				data->css = g_string_new_len(GSTR_LEN(v->data.string));
 			} else if (g_str_equal(k->str, "hide-dotfiles")) {
 				if (v->type != VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlisting: hide-dotfiles parameter must be a boolean (true or false)");
+					ERROR(srv, "%s", "dirlist: hide-dotfiles parameter must be a boolean (true or false)");
 					dirlist_free(srv, data);
 					return NULL;
 				}
 				data->hide_dotfiles = v->data.boolean;
 			} else if (g_str_equal(k->str, "hide-tildefiles")) {
 				if (v->type != VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlisting: hide-tildefiles parameter must be a boolean (true or false)");
+					ERROR(srv, "%s", "dirlist: hide-tildefiles parameter must be a boolean (true or false)");
 					dirlist_free(srv, data);
 					return NULL;
 				}
 				data->hide_tildefiles = v->data.boolean;
+			} else if (g_str_equal(k->str, "hide-directories")) {
+				if (v->type != VALUE_BOOLEAN) {
+					ERROR(srv, "%s", "dirlist: hide-directories parameter must be a boolean (true or false)");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				data->hide_directories = v->data.boolean;
+			} else if (g_str_equal(k->str, "exclude-suffix")) {
+				if (v->type != VALUE_LIST) {
+					ERROR(srv, "%s", "dirlist: exclude-suffix parameter must be a list of strings");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				for (j = 0; j < v->data.list->len; j++) {
+					if (v->type != VALUE_LIST) {
+						ERROR(srv, "%s", "dirlist: exclude-suffix parameter must be a list of strings");
+						dirlist_free(srv, data);
+						return NULL;
+					} else {
+						g_ptr_array_add(data->exclude_suffix, g_string_new_len(GSTR_LEN(g_array_index(v->data.list, value*, j)->data.string)));
+					}
+				}
+			} else if (g_str_equal(k->str, "exclude-prefix")) {
+				if (v->type != VALUE_LIST) {
+					ERROR(srv, "%s", "dirlist: exclude-prefix parameter must be a list of strings");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				for (j = 0; j < v->data.list->len; j++) {
+					if (v->type != VALUE_LIST) {
+						ERROR(srv, "%s", "dirlist: exclude-prefix parameter must be a list of strings");
+						dirlist_free(srv, data);
+						return NULL;
+					} else {
+						g_ptr_array_add(data->exclude_prefix, g_string_new_len(GSTR_LEN(g_array_index(v->data.list, value*, j)->data.string)));
+					}
+				}
 			} else if (g_str_equal(k->str, "debug")) {
 				if (v->type != VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlisting: debug parameter must be a boolean (true or false)");
+					ERROR(srv, "%s", "dirlist: debug parameter must be a boolean (true or false)");
 					dirlist_free(srv, data);
 					return NULL;
 				}
 				data->debug = v->data.boolean;
 			} else {
-				ERROR(srv, "dirlisting: unknown parameter \"%s\"", k->str);
+				ERROR(srv, "dirlist: unknown parameter \"%s\"", k->str);
 				dirlist_free(srv, data);
 				return NULL;
 			}
@@ -462,8 +540,6 @@ static void plugin_dirlist_free(server *srv, plugin *p) {
 	UNUSED(srv);
 
 	pd = p->data;
-	g_hash_table_destroy(pd->cache);
-	g_mutex_free(pd->mutex);
 	g_slice_free(dirlist_plugin_data, pd);
 }
 
@@ -479,8 +555,6 @@ static void plugin_dirlist_init(server *srv, plugin *p) {
 	p->free = plugin_dirlist_free;
 
 	pd = g_slice_new0(dirlist_plugin_data);
-	pd->cache = g_hash_table_new_full((GHashFunc)g_string_hash, (GEqualFunc)g_string_equal, string_destroy_notify, string_destroy_notify);
-	pd->mutex = g_mutex_new();
 	p->data = pd;
 }
 
