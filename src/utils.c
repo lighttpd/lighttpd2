@@ -633,6 +633,20 @@ gboolean l_g_strncase_equal(GString *str, const gchar *s, guint len) {
 	return 0 == g_ascii_strncasecmp(str->str, s, len);
 }
 
+gboolean l_g_string_suffix(GString *str, const gchar *s, gsize len) {
+	if (str->len < len)
+		return FALSE;
+
+	return (strcmp(str->str + str->len - len, s) == 0);
+}
+
+gboolean l_g_string_prefix(GString *str, const gchar *s, gsize len) {
+	if (str->len < len)
+		return FALSE;
+
+	return (strncmp(str->str, s, len) == 0);
+}
+
 GString *l_g_string_assign_len(GString *string, const gchar *val, gssize len) {
 	g_string_truncate(string, 0);
 	g_string_append_len(string, val, len);
