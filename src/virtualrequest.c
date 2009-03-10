@@ -121,7 +121,7 @@ void vrequest_reset(vrequest *vr) {
 
 	if (vr->stat_cache_entry) {
 		g_ptr_array_remove_fast(vr->stat_cache_entry->vrequests, vr);
-		vr->stat_cache_entry = NULL;
+		stat_cache_entry_release(vr);
 	}
 
 	memcpy(vr->options, vr->con->srv->option_def_values->data, vr->con->srv->option_def_values->len * sizeof(option_value));
