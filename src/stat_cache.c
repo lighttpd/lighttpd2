@@ -244,12 +244,14 @@ static stat_cache_entry *stat_cache_get_internal(vrequest *vr, GString *path, gb
 				if (sce->refcount == 0) {
 					/* no vrequests working on the entry, reuse it */
 					if (sce->type == STAT_CACHE_ENTRY_DIR) {
-						if (!dir) {
-							guint i;
-							for (i = 0; i < sce->dirlist->len; i++) {
-								g_string_free(g_array_index(sce->dirlist, stat_cache_entry_data, i).path, TRUE);
-							}
+						guint i;
+	
+						/* free old entries */
+						for (i = 0; i < sce->dirlist->len; i++) {
+							g_string_free(g_array_index(sce->dirlist, stat_cache_entry_data, i).path, TRUE);
+						}
 
+						if (!dir) {
 							g_array_free(sce->dirlist, TRUE);
 							sce->type = STAT_CACHE_ENTRY_SINGLE;
 						} else {
