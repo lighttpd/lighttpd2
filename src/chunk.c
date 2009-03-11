@@ -454,6 +454,17 @@ void chunkqueue_set_limit(chunkqueue *cq, cqlimit* cql) {
 	if (upd_limit) cqlimit_update(cq, memusage);
 }
 
+/* return -1 for unlimited, 0 for full and n > 0 for n bytes free */
+goffset chunkqueue_limit_available(chunkqueue *cq) {
+	cqlimit *cql = cq->limit;
+	goffset avail;
+	if (!cql) return -1;
+	if (cql->limit <= 0) return -1;
+	avail = cql->limit - cql->current;
+	if (avail < 0) return 0;
+	return avail;
+}
+
  /* pass ownership of str to chunkqueue, do not free/modify it afterwards
   * you may modify the data (not the length) if you are sure it isn't sent before.
   */

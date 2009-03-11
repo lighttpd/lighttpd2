@@ -113,7 +113,6 @@ LI_API void cqlimit_acquire(cqlimit *cql);
 LI_API void cqlimit_release(cqlimit *cql);
 LI_API void cqlimit_set_limit(cqlimit *cql, goffset limit);
 
-
 /******************
  *   chunkqueue   *
  ******************/
@@ -124,6 +123,8 @@ LI_API void chunkqueue_free(chunkqueue *cq);
 
 LI_API void chunkqueue_use_limit(chunkqueue *cq, vrequest *vr);
 LI_API void chunkqueue_set_limit(chunkqueue *cq, cqlimit* cql);
+/* return -1 for unlimited, 0 for full and n > 0 for n bytes free */
+LI_API goffset chunkqueue_limit_available(chunkqueue *cq);
 
  /* pass ownership of str to chunkqueue, do not free/modify it afterwards
   * you may modify the data (not the length) if you are sure it isn't sent before.

@@ -653,7 +653,11 @@ static handler_t fastcgi_statemachine(vrequest *vr, fastcgi_connection *fcon) {
 
 	switch (fcon->state) {
 	case FS_WAIT_FOR_REQUEST:
-		if (-1 == vr->request.content_length || vr->request.content_length != vr->in->length) return HANDLER_GO_ON;
+		/* wait until we have either all data or the cqlimit is full */
+		if (-1 == vr->request.content_length || vr->request.content_length != vr->in->length) {
+			if (0 != chunkqueue_limit_available(vr->in))
+				return HANDLER_GO_ON;
+		}
 		fcon->state = FS_CONNECT;
 
 		/* fall through */
