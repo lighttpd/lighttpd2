@@ -61,7 +61,7 @@ static void connection_request_done(connection *con) {
 
 	plugins_handle_close(con);
 
-	if (con->keep_alive) {
+	if (con->keep_alive && g_atomic_int_get(&con->srv->state) == SERVER_RUNNING) {
 		connection_reset_keep_alive(con);
 	} else {
 		worker_con_put(con);
