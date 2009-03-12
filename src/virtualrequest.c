@@ -8,10 +8,11 @@ static void filters_init(filters *fs) {
 	fs->out = chunkqueue_new();
 }
 
-static void filters_clean(filters *fs) {
+static void filters_clean(vrequest *vr, filters *fs) {
 	guint i;
 	for (i = 0; i < fs->queue->len; i++) {
 		filter *f = (filter*) g_ptr_array_index(fs->queue, i);
+		if (f->handle_free && f->param) f->handle_free(vr, f);
 		if (i > 0) chunkqueue_free(fs->in);
 		g_slice_free(filter, f);
 	}
@@ -20,11 +21,12 @@ static void filters_clean(filters *fs) {
 	chunkqueue_free(fs->out);
 }
 
-static void filters_reset(filters *fs) {
+static void filters_reset(vrequest *vr, filters *fs) {
 	guint i;
 	fs->skip_ndx = 0;
 	for (i = 0; i < fs->queue->len; i++) {
 		filter *f = (filter*) g_ptr_array_index(fs->queue, i);
+		if (f->handle_free && f->param) f->handle_free(vr, f);
 		if (i > 0) chunkqueue_free(fs->in);
 		g_slice_free(filter, f);
 	}
@@ -42,7 +44,7 @@ static gboolean filters_run(vrequest *vr, filters *fs) {
 	}
 	for (i = 0; i < fs->queue->len; i++) {
 		filter *f = (filter*) g_ptr_array_index(fs->queue, i);
-		switch (f->handle(vr, f, f->p)) {
+		switch (f->handle_data(vr, f)) {
 		case HANDLER_GO_ON:
 			break;
 		case HANDLER_COMEBACK:
@@ -72,11 +74,12 @@ static gboolean filters_run(vrequest *vr, filters *fs) {
 	return TRUE;
 }
 
-static void filters_add(filters *fs, plugin *p, filter_handler handle) {
+static void filters_add(filters *fs, filter_handler handle_data, filter_free handle_free, gpointer param) {
 	filter *f = g_slice_new0(filter);
 	f->out = fs->out;
-	f->p = p;
-	f->handle = handle;
+	f->param = param;
+	f->handle_data = handle_data;
+	f->handle_free = handle_free;
 	if (0 == fs->queue->len) {
 		f->in = fs->in;
 	} else {
@@ -87,12 +90,12 @@ static void filters_add(filters *fs, plugin *p, filter_handler handle) {
 	g_ptr_array_add(fs->queue, f);
 }
 
-void vrequest_add_filter_in(vrequest *vr, plugin *p, filter_handler handle) {
-	filters_add(&vr->filters_in, p, handle);
+void vrequest_add_filter_in(vrequest *vr, filter_handler handle_data, filter_free handle_free, gpointer param) {
+	filters_add(&vr->filters_in, handle_data, handle_free, param);
 }
 
-void vrequest_add_filter_out(vrequest *vr, plugin *p, filter_handler handle) {
-	filters_add(&vr->filters_out, p, handle);
+void vrequest_add_filter_out(vrequest *vr, filter_handler handle_data, filter_free handle_free, gpointer param) {
+	filters_add(&vr->filters_out, handle_data, handle_free, param);
 }
 
 vrequest* vrequest_new(connection *con, vrequest_handler handle_response_headers, vrequest_handler handle_response_body, vrequest_handler handle_response_error, vrequest_handler handle_request_headers) {
@@ -138,8 +141,8 @@ void vrequest_free(vrequest* vr) {
 	response_clear(&vr->response);
 	environment_clear(&vr->env);
 
-	filters_clean(&vr->filters_in);
-	filters_clean(&vr->filters_out);
+	filters_clean(vr, &vr->filters_in);
+	filters_clean(vr, &vr->filters_out);
 
 	if (vr->job_queue_link) {
 		g_queue_delete_link(&vr->con->wrk->job_queue, vr->job_queue_link);
@@ -169,8 +172,8 @@ void vrequest_reset(vrequest *vr) {
 	response_reset(&vr->response);
 	environment_reset(&vr->env);
 
-	filters_reset(&vr->filters_in);
-	filters_reset(&vr->filters_out);
+	filters_reset(vr, &vr->filters_in);
+	filters_reset(vr, &vr->filters_out);
 
 	if (vr->job_queue_link) {
 		g_queue_delete_link(&vr->con->wrk->job_queue, vr->job_queue_link);

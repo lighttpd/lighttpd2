@@ -32,14 +32,16 @@ typedef enum {
 	VRS_ERROR
 } vrequest_state;
 
-typedef handler_t (*filter_handler)(vrequest *vr, filter *f, plugin *p);
+typedef handler_t (*filter_handler)(vrequest *vr, filter *f);
+typedef void (*filter_free)(vrequest *vr, filter *f);
 typedef handler_t (*vrequest_handler)(vrequest *vr);
 typedef handler_t (*vrequest_plugin_handler)(vrequest *vr, plugin *p);
 
 struct filter {
 	chunkqueue *in, *out;
-	plugin *p;
-	filter_handler handle;
+	filter_handler handle_data;
+	filter_free handle_free;
+	gpointer param;
 };
 
 struct filters {
@@ -99,8 +101,8 @@ LI_API vrequest* vrequest_new(struct connection *con, vrequest_handler handle_re
 LI_API void vrequest_free(vrequest *vr);
 LI_API void vrequest_reset(vrequest *vr);
 
-LI_API void vrequest_add_filter_in(vrequest *vr, plugin *p, filter_handler handle);
-LI_API void vrequest_add_filter_out(vrequest *vr, plugin *p, filter_handler handle);
+LI_API void vrequest_add_filter_in(vrequest *vr, filter_handler handle_data, filter_free handle_free, gpointer param);
+LI_API void vrequest_add_filter_out(vrequest *vr, filter_handler handle_data, filter_free handle_free, gpointer param);
 
 /* Signals an internal error; handles the error in the _next_ loop */
 LI_API void vrequest_error(vrequest *vr);

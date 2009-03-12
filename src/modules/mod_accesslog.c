@@ -449,8 +449,6 @@ static const plugin_option options[] = {
 };
 
 static const plugin_action actions[] = {
-	{ "al", NULL },
-
 	{ NULL, NULL }
 };
 
