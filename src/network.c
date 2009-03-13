@@ -84,15 +84,6 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 	}
 #endif
 
-	vr->con->throttle.magazine = write_bytes;
-	/* check if throttle magazine is empty */
-	if (CORE_OPTION(CORE_OPTION_THROTTLE).number && write_bytes == 0) {
-		/* remove EV_WRITE from sockwatcher for now */
-		ev_io_rem_events(vr->con->wrk->loop, &vr->con->sock_watcher, EV_WRITE);
-		waitqueue_push(&vr->con->wrk->throttle_queue, &vr->con->throttle.queue_elem);
-		return NETWORK_STATUS_WAIT_FOR_AIO_EVENT;
-	}
-
 	/* stats */
 	wrk = vr->con->wrk;
 	wrk->stats.bytes_out += wrote;
@@ -110,6 +101,15 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 	/* only update once a second, the cast is to round the timestamp */
 	if ((vr->con->io_timeout_elem.ts + 1.) < now)
 		waitqueue_push(&vr->con->wrk->io_timeout_queue, &vr->con->io_timeout_elem);
+
+	vr->con->throttle.magazine = write_bytes;
+	/* check if throttle magazine is empty */
+	if (CORE_OPTION(CORE_OPTION_THROTTLE).number && write_bytes == 0) {
+		/* remove EV_WRITE from sockwatcher for now */
+		ev_io_rem_events(vr->con->wrk->loop, &vr->con->sock_watcher, EV_WRITE);
+		waitqueue_push(&vr->con->wrk->throttle_queue, &vr->con->throttle.queue_elem);
+		return NETWORK_STATUS_WAIT_FOR_AIO_EVENT;
+	}
 
 	return res;
 }
@@ -131,6 +131,10 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 			}
 		}
 	}
+
+	/* only update once a second */
+	if ((vr->con->io_timeout_elem.ts + 1.) < now)
+		waitqueue_push(&vr->con->wrk->io_timeout_queue, &vr->con->io_timeout_elem);
 
 	do {
 		GString *buf = g_string_sized_new(blocksize);
@@ -170,10 +174,6 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 			vr->con->stats.last_avg = now;
 		}
 	} while (r == blocksize && len < max_read);
-
-	/* only update once a second, the cast is to round the timestamp */
-	if ((vr->con->io_timeout_elem.ts + 1.) < now)
-		waitqueue_push(&vr->con->wrk->io_timeout_queue, &vr->con->io_timeout_elem);
 
 	return NETWORK_STATUS_SUCCESS;
 }
