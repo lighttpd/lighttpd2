@@ -312,87 +312,6 @@ static action* core_log_write(server *srv, plugin* p, value *val) {
 	return action_new_function(core_handle_log_write, NULL, core_log_write_free, value_extract(val).string);
 }
 
-static handler_t core_handle_test(vrequest *vr, gpointer param, gpointer *context) {
-	connection *con = vr->con;
-	server *srv = con->srv;
-	worker *wrk = con->wrk;
-	/*GHashTableIter iter;
-	gpointer k, v;
-	GList *hv;*/
-	GString *str;
-	gchar *backend;
-	guint64 uptime;
-	guint64 avg1, avg2, avg3;
-	gchar suffix1[2] = {0,0}, suffix2[2] = {0,0}, suffix3[2] = {0,0};
-	UNUSED(param);
-	UNUSED(context);
-
-	if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
-
-	vr->response.http_status = 200;
-	chunkqueue_append_mem(vr->out, CONST_STR_LEN("host: "));
-	chunkqueue_append_mem(vr->out, GSTR_LEN(vr->request.uri.host));
-	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\npath: "));
-	chunkqueue_append_mem(vr->out, GSTR_LEN(vr->request.uri.path));
-	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\nquery: "));
-	chunkqueue_append_mem(vr->out, GSTR_LEN(vr->request.uri.query));
-
-	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\n\r\nactions executed: "));
-	uptime = (guint64)(ev_now(con->wrk->loop) - srv->started);
-	if (uptime == 0)
-		uptime = 1;
-	avg1 = wrk->stats.actions_executed;
-	suffix1[0] = counter_format(&avg1, 1000);
-	avg2 = wrk->stats.actions_executed / uptime;
-	suffix2[0] = counter_format(&avg2, 1000);
-	avg3 = wrk->stats.actions_executed / wrk->stats.requests;
-	suffix3[0] = counter_format(&avg3, 1000);
-	str = g_string_sized_new(0);
-	g_string_printf(str,
-		"%"G_GUINT64_FORMAT"%s (%"G_GUINT64_FORMAT"%s/s, %"G_GUINT64_FORMAT"%s/req)",
-		avg1, suffix1, avg2, suffix2, avg3, suffix3
-	);
-	chunkqueue_append_string(vr->out, str);
-	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\nrequests: "));
-	avg1 = wrk->stats.requests;
-	suffix1[0] = counter_format(&avg1, 1000);
-	avg2 = wrk->stats.requests / uptime;
-	suffix2[0] = counter_format(&avg2, 1000);
-	str = g_string_sized_new(0);
-	g_string_printf(str, "%"G_GUINT64_FORMAT"%s (%"G_GUINT64_FORMAT"%s/s)", avg1, suffix1, avg2, suffix2);
-	chunkqueue_append_string(vr->out, str);
-
-	backend = ev_backend_string(ev_backend(con->wrk->loop));
-	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\nevent handler: "));
-	chunkqueue_append_mem(vr->out, backend, strlen(backend));
-
-/*	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\n\r\n--- headers ---\r\n"));
-	g_hash_table_iter_init(&iter, con->request.headers->table);
-	while (g_hash_table_iter_next(&iter, &k, &v)) {
-		hv = g_queue_peek_head_link(&((http_header*)v)->values);
-		while (hv != NULL) {
-			chunkqueue_append_mem(vr->out, GSTR_LEN(((http_header*)v)->key));
-			chunkqueue_append_mem(vr->out, CONST_STR_LEN(": "));
-			chunkqueue_append_mem(vr->out, GSTR_LEN((GString*)hv->data));
-			chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\n"));
-			hv = hv->next;
-		}
-	}*/
-	chunkqueue_append_mem(vr->out, CONST_STR_LEN("\r\n"));
-
-	return HANDLER_GO_ON;
-}
-
-static action* core_test(server *srv, plugin* p, value *val) {
-	UNUSED(p);
-
-	if (val) {
-		ERROR(srv, "%s", "'static' action doesn't have parameters");
-		return NULL;
-	}
-
-	return action_new_function(core_handle_test, NULL, NULL, NULL);
-}
 
 static handler_t core_handle_blank(vrequest *vr, gpointer param, gpointer *context) {
 	UNUSED(param);
@@ -1074,7 +993,6 @@ static const plugin_action actions[] = {
 
 	{ "log.write", core_log_write },
 
-	{ "test", core_test },
 	{ "blank", core_blank },
 	{ "profile_mem", core_profile_mem },
 
