@@ -103,4 +103,18 @@ void waitqueue_remove(waitqueue *queue, waitqueue_elem *elem) {
 		elem->next->prev = elem->prev;
 
 	elem->queued = FALSE;
+	elem->ts = 0;
+}
+
+
+guint waitqueue_length(waitqueue *queue) {
+	guint i = 0;
+	waitqueue_elem *elem = queue->head;
+
+	while (elem) {
+		i++;
+		elem = elem->next;
+	}
+
+	return i;
 }

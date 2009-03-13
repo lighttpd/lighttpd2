@@ -45,4 +45,7 @@ LI_API waitqueue_elem *waitqueue_pop(waitqueue *queue);
 /* removes an element from the queue */
 LI_API void waitqueue_remove(waitqueue *queue, waitqueue_elem *elem);
 
+/* returns the length of the queue */
+LI_API guint waitqueue_length(waitqueue *queue);
+
 #endif
