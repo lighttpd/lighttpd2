@@ -211,8 +211,11 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 	g_slice_free(mod_status_job, job);
 
 	if (complete) {
+		GString *html;
 		GString *css;
 		GString *tmpstr;
+		GString *count_req, *count_bin, *count_bout;
+		guint uptime;
 		guint total_connections = 0;
 
 		/* we got everything */
@@ -222,7 +225,16 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0),
 			0, 0, G_GUINT64_CONSTANT(0), 0, 0
 		};
-		GString *html = g_string_sized_new(8 * 1024);
+
+		uptime = CUR_TS(vr->con->wrk) - vr->con->srv->started;
+		if (!uptime)
+			uptime = 1;
+		
+		html = g_string_sized_new(8 * 1024);
+		count_req = g_string_sized_new(10);
+		count_bin = g_string_sized_new(10);
+		count_bout = g_string_sized_new(10);
+		tmpstr = g_string_sized_new(10);
 
 		VR_DEBUG(vr, "finished collecting data: %s", complete ? "complete" : "not complete");
 		vr->response.http_status = 200;
@@ -260,7 +272,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			"	<body>\n"
 		));
 
-		tmpstr = counter_format2((guint64)(CUR_TS(vr->con->wrk) - vr->con->srv->started), COUNTER_TIME, -1);
+		counter_format((guint64)(CUR_TS(vr->con->wrk) - vr->con->srv->started), COUNTER_TIME, tmpstr);
 		g_string_append_printf(html, html_top,
 			vr->request.uri.host->str,
 			tmpstr->str,
@@ -270,51 +282,38 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 
 		/* worker information, absolute values */
 		{
-			GString *count_req, *count_bin, *count_bout;
-
-			g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Absolute stats</strong> (since start)</div>\n"));
+			g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Absolute stats</strong></div>\n"));
 
 			g_string_append_len(html, html_worker_th, sizeof(html_worker_th)-1);
 
 			#define PERCENTAGE(x, y) (y ? (x * 100 / y) : 0)
 			for (guint i = 0; i < result->len; i++) {
 				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
-				count_req = counter_format2(sd->stats.requests, COUNTER_UNITS, -1);
-				count_bin = counter_format2(sd->stats.bytes_in, COUNTER_BYTES, 2);
-				count_bout = counter_format2(sd->stats.bytes_out, COUNTER_BYTES, 2);
+				counter_format(sd->stats.requests, COUNTER_UNITS, count_req);
+				counter_format(sd->stats.bytes_in, COUNTER_BYTES, count_bin);
+				counter_format(sd->stats.bytes_out, COUNTER_BYTES, count_bout);
 				g_string_printf(tmpstr, "Worker #%u", i+1);
 				g_string_append_printf(html, html_worker_row, "", tmpstr->str,
-				count_req->str, PERCENTAGE(sd->stats.requests, totals.requests),
-				count_bin->str, PERCENTAGE(sd->stats.bytes_in, totals.bytes_in),
-				count_bout->str, PERCENTAGE(sd->stats.bytes_out, totals.bytes_out),
-				sd->connections->len, PERCENTAGE(sd->connections->len, total_connections));
-				g_string_free(count_req, TRUE);
-				g_string_free(count_bin, TRUE);
-				g_string_free(count_bout, TRUE);
+					count_req->str, PERCENTAGE(sd->stats.requests, totals.requests),
+					count_bin->str, PERCENTAGE(sd->stats.bytes_in, totals.bytes_in),
+					count_bout->str, PERCENTAGE(sd->stats.bytes_out, totals.bytes_out),
+					sd->connections->len, PERCENTAGE(sd->connections->len, total_connections));
 			}
 			#undef PERCENTAGE
 
-			count_req = counter_format2(totals.requests, COUNTER_UNITS, -1);
-			count_bin = counter_format2(totals.bytes_in, COUNTER_BYTES, 2);
-			count_bout = counter_format2(totals.bytes_out, COUNTER_BYTES, 2);
+			counter_format(totals.requests, COUNTER_UNITS, count_req);
+			counter_format(totals.bytes_in, COUNTER_BYTES, count_bin);
+			counter_format(totals.bytes_out, COUNTER_BYTES, count_bout);
 			g_string_append_printf(html, html_worker_row, "totals", "Total",
 				count_req->str, G_GUINT64_CONSTANT(100),
 				count_bin->str, G_GUINT64_CONSTANT(100),
 				count_bout->str, G_GUINT64_CONSTANT(100),
 				total_connections, 100);
 			g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
-			g_string_free(count_req, TRUE);
-			g_string_free(count_bin, TRUE);
-			g_string_free(count_bout, TRUE);
 		}
 
 		/* worker information, avg values */
 		{
-			GString *count_req, *count_bin, *count_bout;
-			guint uptime = CUR_TS(vr->con->wrk) - vr->con->srv->started;
-			if (!uptime)
-				uptime = 1;
-
 			g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (since start)</div>\n"));
 
 			g_string_append_len(html, html_worker_th_avg, sizeof(html_worker_th_avg)-1);
@@ -323,9 +322,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			for (guint i = 0; i < result->len; i++) {
 				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 
-				count_req = counter_format2(sd->stats.requests / uptime, COUNTER_UNITS, -1);
-				count_bin = counter_format2(sd->stats.bytes_in / uptime, COUNTER_BYTES, 2);
-				count_bout = counter_format2(sd->stats.bytes_out / uptime, COUNTER_BYTES, 2);
+				counter_format(sd->stats.requests / uptime, COUNTER_UNITS, count_req);
+				counter_format(sd->stats.bytes_in / uptime, COUNTER_BYTES, count_bin);
+				counter_format(sd->stats.bytes_out / uptime, COUNTER_BYTES, count_bout);
 				g_string_printf(tmpstr, "Worker #%u", i+1);
 				g_string_append_printf(html, html_worker_row_avg, "", tmpstr->str,
 					count_req->str,
@@ -333,15 +332,12 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 					count_bout->str,
 					(guint)(sd->stats.active_cons_cum / uptime)
 				);
-				g_string_free(count_req, TRUE);
-				g_string_free(count_bin, TRUE);
-				g_string_free(count_bout, TRUE);
 			}
 			#undef PERCENTAGE
 
-			count_req = counter_format2(totals.requests / uptime, COUNTER_UNITS, -1);
-			count_bin = counter_format2(totals.bytes_in / uptime, COUNTER_BYTES, 2);
-			count_bout = counter_format2(totals.bytes_out / uptime, COUNTER_BYTES, 2);
+			counter_format(totals.requests / uptime, COUNTER_UNITS, count_req);
+			counter_format(totals.bytes_in / uptime, COUNTER_BYTES, count_bin);
+			counter_format(totals.bytes_out / uptime, COUNTER_BYTES, count_bout);
 			g_string_append_printf(html, html_worker_row_avg, "totals", "Total",
 				count_req->str,
 				count_bin->str,
@@ -349,19 +345,11 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 				(guint)(totals.active_cons_cum / uptime)
 			);
 			g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
-			g_string_free(count_req, TRUE);
-			g_string_free(count_bin, TRUE);
-			g_string_free(count_bout, TRUE);
 		}
 
 
 		/* worker information, 5 seconds avg values */
 		{
-			GString *count_req, *count_bin, *count_bout;
-			time_t uptime = CUR_TS(vr->con->wrk) - vr->con->srv->started;
-			if (!uptime)
-				uptime = 1;
-
 			g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (5 seconds)</div>\n"));
 
 			g_string_append_len(html, html_worker_th_avg, sizeof(html_worker_th_avg)-1);
@@ -370,9 +358,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			for (guint i = 0; i < result->len; i++) {
 				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 
-				count_req = counter_format2(sd->stats.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, -1);
-				count_bin = counter_format2(sd->stats.bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, 2);
-				count_bout = counter_format2(sd->stats.bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, 2);
+				counter_format(sd->stats.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, count_req);
+				counter_format(sd->stats.bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bin);
+				counter_format(sd->stats.bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bout);
 				g_string_printf(tmpstr, "Worker #%u", i+1);
 				g_string_append_printf(html, html_worker_row_avg, "", tmpstr->str,
 					count_req->str,
@@ -380,15 +368,12 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 					count_bout->str,
 					sd->stats.active_cons_5s
 				);
-				g_string_free(count_req, TRUE);
-				g_string_free(count_bin, TRUE);
-				g_string_free(count_bout, TRUE);
 			}
 			#undef PERCENTAGE
 
-			count_req = counter_format2(totals.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, -1);
-			count_bin = counter_format2(totals.bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, 2);
-			count_bout = counter_format2(totals.bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, 2);
+			counter_format(totals.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, count_req);
+			counter_format(totals.bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bin);
+			counter_format(totals.bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bout);
 			g_string_append_printf(html, html_worker_row_avg, "totals", "Total",
 				count_req->str,
 				count_bin->str,
@@ -396,14 +381,18 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 				totals.active_cons_5s
 			);
 			g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
-			g_string_free(count_req, TRUE);
-			g_string_free(count_bin, TRUE);
-			g_string_free(count_bout, TRUE);
 		}
 
 		/* list connections */
 		{
 			GString *ts, *bytes_in, *bytes_out, *bytes_in_5s, *bytes_out_5s;
+
+			ts = g_string_sized_new(16);
+			bytes_in = g_string_sized_new(10);
+			bytes_out = g_string_sized_new(10);
+			bytes_in_5s = g_string_sized_new(10);
+			bytes_out_5s = g_string_sized_new(10);
+
 			g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong></div>\n"));
 			g_string_append_len(html, html_connections_th, sizeof(html_connections_th)-1);
 			for (guint i = 0; i < result->len; i++) {
@@ -411,11 +400,11 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 				for (guint j = 0; j < sd->connections->len; j++) {
 					mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
 
-					ts = counter_format2((guint64)(CUR_TS(vr->con->wrk) - cd->ts), COUNTER_TIME, -1);
-					bytes_in = counter_format2(cd->bytes_in, COUNTER_BYTES, 1);
-					bytes_in_5s = counter_format2(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, 1);
-					bytes_out = counter_format2(cd->bytes_out, COUNTER_BYTES, 1);
-					bytes_out_5s = counter_format2(cd->bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, 1);
+					counter_format((guint64)(CUR_TS(vr->con->wrk) - cd->ts), COUNTER_TIME, ts);
+					counter_format(cd->bytes_in, COUNTER_BYTES, bytes_in);
+					counter_format(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_in_5s);
+					counter_format(cd->bytes_out, COUNTER_BYTES, bytes_out);
+					counter_format(cd->bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_out_5s);
 
 					g_string_append_printf(html, html_connections_row,
 						cd->remote_addr_str->str,
@@ -433,15 +422,18 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 					g_string_free(cd->local_addr_str, TRUE);
 					g_string_free(cd->host, TRUE);
 					g_string_free(cd->path, TRUE);
-					g_string_free(ts, TRUE);
-					g_string_free(bytes_in, TRUE);
-					g_string_free(bytes_in_5s, TRUE);
-					g_string_free(bytes_out, TRUE);
-					g_string_free(bytes_out_5s, TRUE);
 				}
+
 				g_array_free(sd->connections, TRUE);
 			}
+
 			g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+
+			g_string_free(ts, TRUE);
+			g_string_free(bytes_in, TRUE);
+			g_string_free(bytes_in_5s, TRUE);
+			g_string_free(bytes_out, TRUE);
+			g_string_free(bytes_out_5s, TRUE);
 		}
 
 		/* free stats */
@@ -456,6 +448,10 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		));
 		chunkqueue_append_string(vr->con->out, html);
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
+
+		g_string_free(count_req, TRUE);
+		g_string_free(count_bin, TRUE);
+		g_string_free(count_bout, TRUE);
 		g_string_free(tmpstr, TRUE);
 
 		vrequest_handle_direct(vr);

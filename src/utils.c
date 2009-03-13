@@ -298,146 +298,66 @@ void http_status_to_str(gint status_code, gchar status_str[]) {
 }
 
 
-gchar counter_format(guint64 *count, guint factor) {
-	gchar suffix = 0;
+GString *counter_format(guint64 count, counter_type t, GString *dest) {
+	if (!dest)
+		dest = g_string_sized_new(10);
+	else
+		g_string_truncate(dest, 0);
 
-	if (*count >= factor) { *count /= factor; suffix = 'k';
-		if (*count >= factor) { *count /= factor; suffix = 'm';
-			if (*count >= factor) { *count /= factor; suffix = 'g';
-				if (*count >= factor) { *count /= factor; suffix = 't';
-					if (*count >= factor) { *count /= factor; suffix = 'p';
-						if (*count >= factor) { *count /= factor; suffix = 'e'; }
-					}
-				}
-			}
+	switch (t) {
+	case COUNTER_TIME:
+		/* 123 days 12 hours 32 min 5 s */
+		if (count > (3600*24)) {
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT" days", count / (3600*24));
+			count %= (3600*24);
 		}
+		if (count > 3600) {
+			g_string_append_printf(dest, "%s%"G_GUINT64_FORMAT" hours", dest->len ? " ":"", count / 3600);
+			count %= 3600;
+		}
+		if (count > 60) {
+			g_string_append_printf(dest, "%s%"G_GUINT64_FORMAT" min", dest->len ? " ":"", count / 60);
+			count %= 60;
+		}
+		if (count) {
+			g_string_append_printf(dest, "%s%"G_GUINT64_FORMAT" s", dest->len ? " ":"", count);
+		}
+		break;
+	case COUNTER_BYTES:
+		/* B KB MB GB TB PB */
+		if (count >> 50) {
+			/* PB */
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" PB", count >> 50, ((count >> 40) & 1023) / 10);
+		} else if (count >> 40) {
+			/* TB */
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" TB", count >> 40, ((count >> 30) & 1023) / 10);
+		} else if (count >> 30) {
+			/* GB */
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" GB", count >> 30, ((count >> 20) & 1023) / 10);
+		} else if (count >> 20) {
+			/* MB */
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" MB", count >> 20, ((count >> 10) & 1023) / 10);
+		} else if (count >> 10) {
+			/* KB */
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" KB", count >> 10, (count & 1023) / 10);
+		} else {
+			/* B */
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT" B", count);
+		}
+		break;
+	case COUNTER_UNITS:
+		/* m k */
+		if (count < 1000) {
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT, count);
+		} else if (count < 1000*1000) {
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" k", count / 1000, (count % 1000) / 10);
+		} else {
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" m", count / (1000*1000), (count % (1000*1000)) / 10);
+		}
+		break;
 	}
 
-	return suffix;
-}
-
-GString *counter_format2(guint64 count, counter_type t, gint accuracy) {
-	GString *str = g_string_sized_new(64);
-
-	if (t == COUNTER_TIME) {
-		if (accuracy && count > (3600*24)) {
-			g_string_append_printf(str, "%" G_GUINT64_FORMAT " day%s", count / (3600*24), (count / (3600*24)) > 1 ? "s":"");
-			count %= 3600*24;
-			accuracy--;
-		}
-		if (accuracy && count > 3600) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " hour%s", count / 3600, (count / 3600) > 1 ? "s":"");
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " hour%s", count / 3600, (count / 3600) > 1 ? "s":"");
-			count %= 3600;
-			accuracy--;
-		}
-		if (accuracy && count > 60) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " min", count / 60);
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " min", count / 60);
-			count %= 60;
-			accuracy--;
-		}
-		if (accuracy && (count || !str->len)) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " s", count);
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " s", count);
-		}
-	} else if (t == COUNTER_UNITS) {
-		if (accuracy && count > 1000000) {
-			g_string_append_printf(str, "%" G_GUINT64_FORMAT " m", count / 1000000);
-			count %= 1000000;
-			accuracy--;
-		}
-		if (accuracy && count > 1000) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " k", count / 1000);
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " k", count / 1000);
-			count %= 1000;
-			accuracy--;
-		}
-		if (accuracy && (count || !str->len)) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT, count);
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT, count);
-		}
-	} else if (t == COUNTER_BYTES) {
-		if (accuracy && count > (1024*1024*1024*G_GUINT64_CONSTANT(1024))) {
-			g_string_append_printf(str, "%" G_GUINT64_FORMAT " TiB", count / (1024*1024*1024*G_GUINT64_CONSTANT(1024)));
-			count %= (1024*1024*1024*G_GUINT64_CONSTANT(1024));
-			accuracy--;
-		}
-		if (accuracy && count > (1024*1024*1024)) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " GiB", count / (1024*1024*1024));
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " GiB", count / (1024*1024*1024));
-			count %= (1024*1024*1024);
-			accuracy--;
-		}
-		if (accuracy && count > (1024*1024)) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " MiB", count / (1024*1024));
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " MiB", count / (1024*1024));
-			count %= (1024*1024);
-			accuracy--;
-		}
-		if (accuracy && count > 1024) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " KiB", count / 1024);
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " KiB", count / 1024);
-			count %= 1024;
-			accuracy--;
-		}
-		if (accuracy && (count || !str->len)) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " B", count);
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " B", count);
-		}
-	} else if (t == COUNTER_BITS) {
-		if (accuracy && count > (1000*1000*1000)) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " gb", count / (1000*1000*1000));
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " gbit", count / (1000*1000*1000));
-			count %= (1024*1024*1024);
-			accuracy--;
-		}
-		if (accuracy && count > (1024*1024)) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " mbit", count / (1024*1024));
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " ", count / (1024*1024));
-			count %= (1024*1024);
-			accuracy--;
-		}
-		if (accuracy && count > 1024) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " KiB", count / 1024);
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " KiB", count / 1024);
-			count %= 1024;
-			accuracy--;
-		}
-		if (accuracy && (count || !str->len)) {
-			if (str->len)
-				g_string_append_printf(str, " %" G_GUINT64_FORMAT " B", count);
-			else
-				g_string_append_printf(str, "%" G_GUINT64_FORMAT " B", count);
-		}
-	} else
-		g_string_append_len(str, CONST_STR_LEN("unknown counter type"));
-
-	return str;
+	return dest;
 }
 
 

@@ -8,7 +8,6 @@
 typedef enum {
 	COUNTER_TIME,
 	COUNTER_BYTES,
-	COUNTER_BITS,
 	COUNTER_UNITS
 } counter_type;
 
@@ -37,10 +36,8 @@ LI_API gchar *http_version_string(http_version_t method, guint *len);
 /* converts a given 3 digit http status code to a gchar[3] string. e.g. 403 to {'4','0','3'} */
 LI_API void http_status_to_str(gint status_code, gchar status_str[]);
 
-/* */
-LI_API gchar counter_format(guint64 *count, guint factor);
-/* formats a given guint64 for output. accuracy can be a positiv integer or -1 for infinite */
-LI_API GString *counter_format2(guint64 count, counter_type t, gint accuracy);
+/* formats a given guint64 for output. if dest is NULL, a new string is allocated */
+LI_API GString *counter_format(guint64 count, counter_type t, GString *dest);
 
 LI_API gchar *ev_backend_string(guint backend);
 
