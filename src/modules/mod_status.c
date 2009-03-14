@@ -105,6 +105,7 @@ static const gchar html_connections_row[] =
 	"				<td>%s / %s</td>\n"
 	"				<td>%s / %s</td>\n"
 	"			</tr>\n";
+
 static const gchar css_default[] =
 	"		<style type=\"text/css\">\n"
 	"			body { margin: 0; padding: 0; font-family: \"lucida grande\",tahoma,verdana,arial,sans-serif; font-size: 12px; }\n"
@@ -112,6 +113,7 @@ static const gchar css_default[] =
 	"			.spacer { background-color: #F2F2F2; border-bottom: 1px solid #CCC; padding: 5px; }\n"
 	"			.spacer span { padding-right: 25px; }\n"
 	"			.title { margin-left: 6px; margin-top: 25px; margin-bottom: 5px; }\n"
+	"			.text { margin-left: 6px; margin-bottom: 5px; }\n"
 	"			table { margin-left: 5px; border: 1px solid #CCC; }\n"
 	"			th { font-weight: normal; padding: 3px; width: 175px; background-color: #E0E0E0;\n"
 	"			border-bottom: 1px solid #BABABA; border-right: 1px solid #BABABA; border-top: 1px solid #FEFEFE; }\n"
@@ -126,7 +128,8 @@ static const gchar css_blue[] =
 	"			.header { padding: 5px; background-color: #6D84B4; font-size: 16px; color: white; border: 1px solid #3B5998; font-weight: bold; }\n"
 	"			.spacer { background-color: #F2F2F2; border-bottom: 1px solid #CCC; padding: 5px; }\n"
 	"			.spacer span { padding-right: 25px; }\n"
-	"			.title { margin-left: 5px; margin-top: 25px; margin-bottom: 5px; }\n"
+	"			.title { margin-left: 6px; margin-top: 25px; margin-bottom: 5px; }\n"
+	"			.text { margin-left: 6px; margin-bottom: 5px; }\n"
 	"			table { margin-left: 5px; border: 1px solid #CCC; }\n"
 	"			th { font-weight: normal; padding: 3px; width: 175px; background-color: #E0E0E0;\n"
 	"			border-bottom: 1px solid #BABABA; border-right: 1px solid #BABABA; border-top: 1px solid #FEFEFE; }\n"
@@ -169,6 +172,11 @@ struct mod_status_job {
 	gpointer *context;
 };
 
+
+static gchar status_state_c(connection_state_t state) {
+	static const gchar states[] = "dksrhw";
+	return states[state];
+}
 
 /* the CollectFunc */
 static gpointer status_collect_func(worker *wrk, gpointer fdata) {
@@ -217,6 +225,8 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		GString *count_req, *count_bin, *count_bout;
 		guint uptime;
 		guint total_connections = 0;
+		guint i;
+		guint j;
 
 		/* we got everything */
 		statistics_t totals = {
@@ -237,10 +247,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		tmpstr = g_string_sized_new(10);
 
 		VR_DEBUG(vr, "finished collecting data: %s", complete ? "complete" : "not complete");
-		vr->response.http_status = 200;
 
 		/* calculate total stats over all workers */
-		for (guint i = 0; i < result->len; i++) {
+		for (i = 0; i < result->len; i++) {
 			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 
 			totals.bytes_out += sd->stats.bytes_out;
@@ -287,7 +296,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			g_string_append_len(html, html_worker_th, sizeof(html_worker_th)-1);
 
 			#define PERCENTAGE(x, y) (y ? (x * 100 / y) : 0)
-			for (guint i = 0; i < result->len; i++) {
+			for (i = 0; i < result->len; i++) {
 				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 				counter_format(sd->stats.requests, COUNTER_UNITS, count_req);
 				counter_format(sd->stats.bytes_in, COUNTER_BYTES, count_bin);
@@ -319,7 +328,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			g_string_append_len(html, html_worker_th_avg, sizeof(html_worker_th_avg)-1);
 
 			#define PERCENTAGE(x) (sd->stat ## x ? (sd->stat ## x * 100 / total ## x) : 0)
-			for (guint i = 0; i < result->len; i++) {
+			for (i = 0; i < result->len; i++) {
 				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 
 				counter_format(sd->stats.requests / uptime, COUNTER_UNITS, count_req);
@@ -355,7 +364,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			g_string_append_len(html, html_worker_th_avg, sizeof(html_worker_th_avg)-1);
 
 			#define PERCENTAGE(x) (sd->stat ## x ? (sd->stat ## x * 100 / total ## x) : 0)
-			for (guint i = 0; i < result->len; i++) {
+			for (i = 0; i < result->len; i++) {
 				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 
 				counter_format(sd->stats.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, count_req);
@@ -383,6 +392,33 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 		}
 
+		/* scoreboard */
+		{
+			guint k = 0;
+
+			g_string_append_printf(html, "<div class=\"title\"><strong>%u connections</strong></div>\n<div class=\"text\">", total_connections);
+
+			for (i = 0; i < result->len; i++) {
+				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
+				for (j = 0; j < sd->connections->len; j++) {
+					mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
+
+					k++;
+
+					if (k == 100) {
+						g_string_append_len(html, CONST_STR_LEN("<br />\n"));
+						k = 0;
+					}
+
+					g_string_append_c(html, status_state_c(cd->state));
+				}
+			}
+
+			g_string_append_len(html, CONST_STR_LEN("</div>\n<div class=\"title\" style=\"margin-top: 10px;\"><strong>legend</strong></div>\n<div class=\"text\">"
+				"d = dead, k = keep-alive, s = request start, r = read request header, h = handle main vrequest, w = write"
+				"</div>\n"));
+		}
+
 		/* list connections */
 		{
 			GString *ts, *bytes_in, *bytes_out, *bytes_in_5s, *bytes_out_5s;
@@ -395,9 +431,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 
 			g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong></div>\n"));
 			g_string_append_len(html, html_connections_th, sizeof(html_connections_th)-1);
-			for (guint i = 0; i < result->len; i++) {
+			for (i = 0; i < result->len; i++) {
 				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
-				for (guint j = 0; j < sd->connections->len; j++) {
+				for (j = 0; j < sd->connections->len; j++) {
 					mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
 
 					counter_format((guint64)(CUR_TS(vr->con->wrk) - cd->ts), COUNTER_TIME, ts);
@@ -437,7 +473,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		}
 
 		/* free stats */
-		for (guint i = 0; i < result->len; i++) {
+		for (i = 0; i < result->len; i++) {
 			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 			g_slice_free(mod_status_wrk_data, sd);
 		}
@@ -454,7 +490,8 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		g_string_free(count_bout, TRUE);
 		g_string_free(tmpstr, TRUE);
 
-		vrequest_handle_direct(vr);
+		vr->response.http_status = 200;
+
 		vrequest_joblist_append(vr);
 	} else {
 		/* something went wrong, client may have dropped the connection */
@@ -466,7 +503,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 static handler_t status_page_handle(vrequest *vr, gpointer param, gpointer *context) {
 	UNUSED(param);
 
-	if (vr->state == VRS_HANDLE_REQUEST_HEADERS) {
+	if (vrequest_handle_direct(vr)) {
 		collect_info *ci;
 		mod_status_job *j = g_slice_new(mod_status_job);
 		j->vr = vr;
