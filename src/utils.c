@@ -319,7 +319,7 @@ GString *counter_format(guint64 count, counter_type t, GString *dest) {
 			g_string_append_printf(dest, "%s%"G_GUINT64_FORMAT" min", dest->len ? " ":"", count / 60);
 			count %= 60;
 		}
-		if (count) {
+		if (count || !dest->len) {
 			g_string_append_printf(dest, "%s%"G_GUINT64_FORMAT" s", dest->len ? " ":"", count);
 		}
 		break;
