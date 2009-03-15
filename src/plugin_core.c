@@ -207,7 +207,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 		/* stat failed */
 		VR_DEBUG(vr, "stat(\"%s\") failed: %s (%d)", sce->data.path->str, g_strerror(sce->data.err), sce->data.err);
 
-		switch (errno) {
+		switch (sce->data.err) {
 		case ENOENT:
 			vr->response.http_status = 404; break;
 		case EACCES:
@@ -328,7 +328,7 @@ static action* core_blank(server *srv, plugin* p, value *val) {
 	UNUSED(p);
 
 	if (val) {
-		ERROR(srv, "%s", "'empty' action doesn't have parameters");
+		ERROR(srv, "%s", "'blank' action doesn't have parameters");
 		return NULL;
 	}
 
