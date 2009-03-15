@@ -299,6 +299,8 @@ void http_status_to_str(gint status_code, gchar status_str[]) {
 
 
 GString *counter_format(guint64 count, counter_type t, GString *dest) {
+	guint64 rest;
+
 	if (!dest)
 		dest = g_string_sized_new(10);
 	else
@@ -327,19 +329,24 @@ GString *counter_format(guint64 count, counter_type t, GString *dest) {
 		/* B KB MB GB TB PB */
 		if (count >> 50) {
 			/* PB */
-			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" PB", count >> 50, ((count >> 40) & 1023) / 10);
+			rest = (((count >> 40) & 1023) * 100) / 1024;
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" PB", count >> 50, rest);
 		} else if (count >> 40) {
 			/* TB */
-			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" TB", count >> 40, ((count >> 30) & 1023) / 10);
+			rest = (((count >> 30) & 1023) * 100) / 1024;
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" TB", count >> 40, rest);
 		} else if (count >> 30) {
 			/* GB */
-			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" GB", count >> 30, ((count >> 20) & 1023) / 10);
+			rest = (((count >> 20) & 1023) * 100) / 1024;
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" GB", count >> 30, rest);
 		} else if (count >> 20) {
 			/* MB */
-			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" MB", count >> 20, ((count >> 10) & 1023) / 10);
+			rest = (((count >> 10) & 1023) * 100) / 1024;
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" MB", count >> 20, rest);
 		} else if (count >> 10) {
 			/* KB */
-			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" KB", count >> 10, (count & 1023) / 10);
+			rest = ((count & 1023) * 100) / 1024;
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" KB", count >> 10, rest);
 		} else {
 			/* B */
 			g_string_append_printf(dest, "%"G_GUINT64_FORMAT" B", count);
@@ -350,9 +357,9 @@ GString *counter_format(guint64 count, counter_type t, GString *dest) {
 		if (count < 1000) {
 			g_string_append_printf(dest, "%"G_GUINT64_FORMAT, count);
 		} else if (count < 1000*1000) {
-			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" k", count / 1000, (count % 1000) / 10);
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" k", count / (guint64)1000, (count % (guint64)1000) / 100);
 		} else {
-			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" m", count / (1000*1000), (count % (1000*1000)) / 10);
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" m", count / (guint64)(1000*1000), (count % (guint64)(1000*1000)) / 100000);
 		}
 		break;
 	}
