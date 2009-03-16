@@ -170,6 +170,7 @@ struct mod_status_wrk_data {
 struct mod_status_job {
 	vrequest *vr;
 	gpointer *context;
+	plugin *p;
 };
 
 
@@ -210,12 +211,38 @@ static gpointer status_collect_func(worker *wrk, gpointer fdata) {
 /* the CollectCallback */
 static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
 	mod_status_job *job = cbdata;
-	vrequest *vr = job->vr;
+	vrequest *vr;
+	plugin *p;
 	UNUSED(fdata);
 
+	if (!complete) {
+		/* someone called collect_break, so we don't need any vrequest handling here. just free the result data */
+		guint i, j;
+
+		for (i = 0; i < result->len; i++) {
+			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
+			for (j = 0; j < sd->connections->len; j++) {
+				mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
+
+				g_string_free(cd->remote_addr_str, TRUE);
+				g_string_free(cd->local_addr_str, TRUE);
+				g_string_free(cd->host, TRUE);
+				g_string_free(cd->path, TRUE);
+			}
+
+			g_array_free(sd->connections, TRUE);
+			g_slice_free(mod_status_wrk_data, sd);
+		}
+
+		g_slice_free(mod_status_job, job);
+
+		return;
+	}
+
+	vr = job->vr;
+	p = job->p;
 	/* clear context so it doesn't get cleaned up anymore */
 	*(job->context) = NULL;
-
 	g_slice_free(mod_status_job, job);
 
 	if (complete) {
@@ -268,7 +295,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		g_string_append_len(html, header, sizeof(header)-1);
 
 		/* css */
-		css = _OPTION(vr, ((plugin*)fdata), 0).string;
+		css = _OPTION(vr, p, 0).string;
 		if (!css || !css->len) /* default css */
 			g_string_append_len(html, css_default, sizeof(css_default)-1);
 		else if (g_str_equal(css->str, "blue")) /* blue css */
@@ -501,28 +528,24 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 }
 
 static handler_t status_page_handle(vrequest *vr, gpointer param, gpointer *context) {
-	UNUSED(param);
-
 	if (vrequest_handle_direct(vr)) {
 		collect_info *ci;
 		mod_status_job *j = g_slice_new(mod_status_job);
 		j->vr = vr;
 		j->context = context;
+		j->p = (plugin*) param;
 
 		VR_DEBUG(vr, "%s", "collecting stats...");
 
-		/* abuse fdata as pointer to plugin */
-		ci = collect_start(vr->con->wrk, status_collect_func, param, NULL, status_collect_cb, j);
-		*context = ci;
-
-		return HANDLER_WAIT_FOR_EVENT;
+		ci = collect_start(vr->con->wrk, status_collect_func, NULL, status_collect_cb, j);
+		*context = ci; /* may be NULL */
 	}
 
-	return HANDLER_GO_ON;
+	return (*context) ? HANDLER_WAIT_FOR_EVENT : HANDLER_GO_ON;
 }
 
 static handler_t status_page_cleanup(vrequest *vr, gpointer param, gpointer context) {
-	collect_info *ci = context;
+	collect_info *ci = (collect_info*) context;
 
 	UNUSED(vr);
 	UNUSED(param);
@@ -533,7 +556,9 @@ static handler_t status_page_cleanup(vrequest *vr, gpointer param, gpointer cont
 }
 
 static action* status_page(server *srv, plugin* p, value *val) {
-	UNUSED(srv); UNUSED(p); UNUSED(val);
+	UNUSED(srv);
+	UNUSED(val);
+
 	return action_new_function(status_page_handle, status_page_cleanup, NULL, p);
 }
 
