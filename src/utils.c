@@ -580,6 +580,51 @@ GString *l_g_string_assign_len(GString *string, const gchar *val, gssize len) {
 	return string;
 }
 
+GString *l_g_string_from_int(GString *dest, gint64 v) {
+	gchar *buf, *end, swap;
+	guint len;
+	guint64 val;
+
+	if (!dest) {
+		dest = g_string_sized_new(21);
+	} else {
+		g_string_set_size(dest, 21);
+	}
+
+	len = 1;
+	buf = dest->str;
+
+	if (v < 0) {
+		len++;
+		*(buf++) = '-';
+		/* -v maybe < 0 for signed types, so just cast it to unsigned to get the correct value */
+		val = -v;
+	} else {
+		val = v;
+	}
+
+	end = buf;
+	while (val > 9) {
+		*(end++) = '0' + (val % 10);
+		val = val / 10;
+	}
+	*(end) = '0' + val;
+	*(end + 1) = '\0';
+	len += end - buf;
+
+	while (buf < end) {
+		swap = *end;
+		*end = *buf;
+		*buf = swap;
+
+		buf++;
+		end--;
+	}
+
+	dest->len = len;
+	return dest;
+}
+
 /* http://womble.decadentplace.org.uk/readdir_r-advisory.html */
 gsize dirent_buf_size(DIR * dirp) {
 	glong name_max;

@@ -66,6 +66,8 @@ LI_API GString *l_g_string_assign_len(GString *string, const gchar *val, gssize 
 LI_API gboolean l_g_string_prefix(GString *str, const gchar *s, gsize len);
 LI_API gboolean l_g_string_suffix(GString *str, const gchar *s, gsize len);
 
+LI_API GString *l_g_string_from_int(GString *dest, gint64 val);
+
 LI_API gsize dirent_buf_size(DIR * dirp);
 
 #endif
