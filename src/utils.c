@@ -357,9 +357,9 @@ GString *counter_format(guint64 count, counter_type t, GString *dest) {
 		if (count < 1000) {
 			g_string_append_printf(dest, "%"G_GUINT64_FORMAT, count);
 		} else if (count < 1000*1000) {
-			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" k", count / (guint64)1000, (count % (guint64)1000) / 100);
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" k", count / (guint64)1000, (count % (guint64)1000) / 10);
 		} else {
-			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" m", count / (guint64)(1000*1000), (count % (guint64)(1000*1000)) / 100000);
+			g_string_append_printf(dest, "%"G_GUINT64_FORMAT".%02"G_GUINT64_FORMAT" m", count / (guint64)(1000*1000), (count % (guint64)(1000*1000)) / 10000);
 		}
 		break;
 	}
