@@ -150,10 +150,12 @@ static void dirlist_format_size(gchar *buf, goffset size) {
 		*buf++ = size + '0';
 	}
 
-	buf[0] = '.';
-	buf[1] = remaining + '0';
-	buf[2] = *u;
-	buf[3] = '\0';
+	if (u != unit) {
+		*buf++ = '.';
+		*buf++ = remaining + '0';
+	}
+	*buf++ = *u;
+	*buf++ = '\0';
 }
 
 static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
@@ -222,12 +224,13 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		guint i;
 		guint j;
 		stat_cache_entry_data *sced;
-		GString *mime_str;
+		GString *mime_str, *tmp_str = vr->con->wrk->tmp_str;
 		GArray *directories;
 		GArray *files;
 		GString *encoded;
 		gchar sizebuf[sizeof("999.9K")+1];
 		gchar datebuf[sizeof("2005-Jan-01 22:23:24")+1];
+		guint datebuflen;
 		struct tm tm;
 		gboolean hide;
 		vr->response.http_status = 200;
@@ -308,7 +311,8 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 				sced = &g_array_index(sce->dirlist, stat_cache_entry_data, g_array_index(directories, guint, i));
 
 				localtime_r(&(sced->st.st_mtime), &tm);
-				datebuf[strftime(datebuf, sizeof(datebuf), "%Y-%b-%d %H:%M:%S", &tm)] = '\0';
+				datebuflen = strftime(datebuf, sizeof(datebuf), "%Y-%b-%d %H:%M:%S", &tm);
+				datebuf[datebuflen] = '\0';
 
 				g_string_append_len(listing, CONST_STR_LEN("				<tr><td><a href=\""));
 				string_encode(sced->path->str, encoded, ENCODING_URI);
@@ -316,23 +320,14 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 				g_string_append_len(listing, CONST_STR_LEN("/\">"));
 				string_encode(sced->path->str, encoded, ENCODING_HTML);
 				g_string_append_len(listing, GSTR_LEN(encoded));
-				g_string_append_printf(listing,
-					"</a></td>"
-					"<td class=\"modified\" val=\"%"G_GINT64_FORMAT"\">%s</td>"
-					"<td class=\"size\" val=\"%"G_GINT64_FORMAT"\">%s</td>"
-					"<td class=\"type\">%s</td></tr>\n",
-					(gint64)sced->st.st_mtime, datebuf,
-					(gint64)0, "-",
-					"Directory"
-				);
-
-				/*
-				g_string_append_printf(listing, html_table_row,
-					vr->request.uri.path->str, sced->path->str, sced->path->str,
-					(gint64)sced->st.st_mtime, datebuf,
-					(gint64)0, "-",
-					"Directory");
-				*/
+				g_string_append_len(listing, CONST_STR_LEN("</a></td><td class=\"modified\" val=\""));
+				l_g_string_from_int(tmp_str, sced->st.st_mtime);
+				g_string_append_len(listing, GSTR_LEN(tmp_str));
+				g_string_append_len(listing, CONST_STR_LEN("\">"));
+				g_string_append_len(listing, datebuf, datebuflen);
+				g_string_append_len(listing, CONST_STR_LEN("</td>"
+					"<td class=\"size\" val=\"0\">-</td>"
+					"<td class=\"type\">Directory</td></tr>\n"));
 			}
 		}
 
@@ -344,10 +339,10 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 			mime_str = mimetype_get(vr, sced->path);
 
 			localtime_r(&(sced->st.st_mtime), &tm);
-			datebuf[strftime(datebuf, sizeof(datebuf), "%Y-%b-%d %H:%M:%S", &tm)] = '\0';
+			datebuflen = strftime(datebuf, sizeof(datebuf), "%Y-%b-%d %H:%M:%S", &tm);
+			datebuf[datebuflen] = '\0';
 
 			dirlist_format_size(sizebuf, sced->st.st_size);
-
 
 			g_string_append_len(listing, CONST_STR_LEN("				<tr><td><a href=\""));
 			string_encode(sced->path->str, encoded, ENCODING_URI);
@@ -355,15 +350,25 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 			g_string_append_len(listing, CONST_STR_LEN("\">"));
 			string_encode(sced->path->str, encoded, ENCODING_HTML);
 			g_string_append_len(listing, GSTR_LEN(encoded));
-			g_string_append_printf(listing,
+			g_string_append_len(listing, CONST_STR_LEN(
 				"</a></td>"
-				"<td class=\"modified\" val=\"%"G_GINT64_FORMAT"\">%s</td>"
-				"<td class=\"size\" val=\"%"G_GINT64_FORMAT"\">%s</td>"
-				"<td class=\"type\">%s</td></tr>\n",
-				(gint64)sced->st.st_mtime, datebuf,
-				(gint64)0, sizebuf,
-				mime_str ? mime_str->str : "application/octet-stream"
-			);
+				"<td class=\"modified\" val=\""));
+			l_g_string_from_int(tmp_str, sced->st.st_mtime);
+			g_string_append_len(listing, GSTR_LEN(tmp_str));
+			g_string_append_len(listing, CONST_STR_LEN("\">"));
+			g_string_append_len(listing, datebuf, datebuflen);
+			g_string_append_len(listing, CONST_STR_LEN("</td><td class=\"size\" val=\""));
+			l_g_string_from_int(tmp_str, sced->st.st_size);
+			g_string_append_len(listing, GSTR_LEN(tmp_str));
+			g_string_append_len(listing, CONST_STR_LEN("\">"));
+			g_string_append(listing, sizebuf);
+			g_string_append_len(listing, CONST_STR_LEN("</td><td class=\"type\">"));
+			if (mime_str) {
+				g_string_append_len(listing, GSTR_LEN(mime_str));
+			} else {
+				g_string_append_len(listing, CONST_STR_LEN("application/octet-stream"));
+			}
+			g_string_append_len(listing, CONST_STR_LEN("</td></tr>\n"));
 
 			/*
 			g_string_append_printf(listing, html_table_row,
