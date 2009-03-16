@@ -245,6 +245,7 @@ static handler_t cache_etag_handle(vrequest *vr, gpointer param, gpointer *conte
 		if (vr->out->is_closed && 0 == vr->out->mem_usage) return HANDLER_GO_ON;
 
 		etag_entry = http_header_find_first(vr->response.headers, CONST_STR_LEN("etag"));
+		if (!etag_entry) return HANDLER_GO_ON; /* no etag -> no caching */
 		if (http_header_find_next(etag_entry, CONST_STR_LEN("etag"))) {
 			VR_ERROR(vr, "%s", "duplicate etag header in response, will not cache it");
 			return HANDLER_GO_ON;
