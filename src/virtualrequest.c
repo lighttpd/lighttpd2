@@ -278,7 +278,7 @@ static gboolean vrequest_do_handle_actions(vrequest *vr) {
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "%s", "actions didn't handle request");
 			}
-			return FALSE;
+			return TRUE;
 		}
 		/* otherwise state already changed */
 		break;

@@ -235,6 +235,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "not a regular file: '%s'", vr->physical.path->str);
 		}
+		if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
 		vr->response.http_status = 403;
 	} else if ((fd = open(vr->physical.path->str, O_RDONLY)) == -1) {
 		switch (errno) {
