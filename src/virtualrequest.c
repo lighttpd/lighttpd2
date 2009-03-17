@@ -263,6 +263,10 @@ gboolean vrequest_handle_indirect(vrequest *vr, plugin *p) {
 	}
 }
 
+gboolean vrequest_is_handled(vrequest *vr) {
+	return vr->state >= VRS_READ_CONTENT;
+}
+
 static gboolean vrequest_do_handle_actions(vrequest *vr) {
 	handler_t res = action_execute(vr);
 	switch (res) {

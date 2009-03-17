@@ -124,6 +124,7 @@ LI_API void vrequest_handle_response_body(vrequest *vr);
 LI_API gboolean vrequest_handle_direct(vrequest *vr);
 /* handle request over time */
 LI_API gboolean vrequest_handle_indirect(vrequest *vr, plugin *p);
+LI_API gboolean vrequest_is_handled(vrequest *vr);
 
 LI_API void vrequest_state_machine(vrequest *vr);
 LI_API void vrequest_joblist_append(vrequest *vr);
