@@ -272,9 +272,12 @@ static gboolean vrequest_do_handle_actions(vrequest *vr) {
 	switch (res) {
 	case HANDLER_GO_ON:
 		if (vr->state == VRS_HANDLE_REQUEST_HEADERS) {
-			VR_ERROR(vr, "%s", "actions didn't handle request");
 			/* request not handled */
-			vrequest_error(vr);
+			vrequest_handle_direct(vr);
+			vr->response.http_status = 404;
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "%s", "actions didn't handle request");
+			}
 			return FALSE;
 		}
 		/* otherwise state already changed */
