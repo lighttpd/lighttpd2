@@ -26,8 +26,11 @@
  *             "debug" => bool                 - outout debug information to log, default: false
  *
  * Example config:
- *     dirlist ("include-header" => true, "hide-header" => true);
+ *     if req.path =^ "/files/" {
+ *         dirlist ("include-header" => true, "hide-header" => true, "hide->suffix" => (".bak"));
+ *     }
  *         - shows a directory listing including the content of HEADER.txt above the list and hiding itself from it
+ *           also hides all files all files ending in ".bak"
  *
  * Tip:
  *     xyz
@@ -183,20 +186,27 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		switch (sce->data.err) {
 		case ENOENT:
 		case ENOTDIR:
+			stat_cache_entry_release(vr);
 			return HANDLER_GO_ON;
 		case EACCES:
 			if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
 			vr->response.http_status = 403;
+			stat_cache_entry_release(vr);
 			return HANDLER_GO_ON;
 		default:
 			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
+			stat_cache_entry_release(vr);
 			return HANDLER_ERROR;
 		}
 	} else if (!S_ISDIR(sce->data.st.st_mode)) {
+		stat_cache_entry_release(vr);
 		return HANDLER_GO_ON;
 	} else if (vr->request.uri.path->str[vr->request.uri.path->len-1] != G_DIR_SEPARATOR) {
 		GString *host, *uri;
-		if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
+		if (!vrequest_handle_direct(vr)) {
+			stat_cache_entry_release(vr);
+			return HANDLER_ERROR;
+		}
 		/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
 		/* TODO: local addr if HTTP 1.0 without host header, url encoding */
 		host = vr->request.uri.authority->len ? vr->request.uri.authority : vr->con->local_addr_str;
@@ -220,6 +230,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		vr->response.http_status = 301;
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
 		g_string_free(uri, TRUE);
+		stat_cache_entry_release(vr);
 		return HANDLER_GO_ON;
 	} else {
 		/* everything ok, we have the directory listing */
@@ -234,21 +245,25 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		struct tm tm;
 		gboolean hide;
 
-		if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
+		if (!vrequest_handle_direct(vr)) {
+			stat_cache_entry_release(vr);
+			return HANDLER_ERROR;
+		}
 		vr->response.http_status = 200;
 
 		if (dd->debug)
 			VR_DEBUG(vr, "dirlist for \"%s\", %u entries", sce->data.path->str, sce->dirlist->len);
 
-		/* temporary string for encoded names */
-		encoded = g_string_sized_new(64);
-
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
 		etag_set_header(vr, &sce->data.st, &cachable);
 		if (cachable) {
 			vr->response.http_status = 304;
+			stat_cache_entry_release(vr);
 			return HANDLER_GO_ON;
 		}
+
+		/* temporary string for encoded names */
+		encoded = g_string_sized_new(64);
 
 		/* seperate directories from other files */
 		directories = g_array_sized_new(FALSE, FALSE, sizeof(guint), 16);
