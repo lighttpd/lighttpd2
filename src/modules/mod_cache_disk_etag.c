@@ -233,6 +233,7 @@ static handler_t cache_etag_handle(vrequest *vr, gpointer param, gpointer *conte
 	GList *etag_entry;
 	http_header *etag;
 	struct stat st;
+	GString *tmp_str = vr->con->wrk->tmp_str;
 
 	if (!cfile) {
 		if (vr->request.http_method != HTTP_METHOD_GET) return HANDLER_GO_ON;
@@ -276,6 +277,9 @@ static handler_t cache_etag_handle(vrequest *vr, gpointer param, gpointer *conte
 			VR_DEBUG(vr, "cache hit for '%s'", vr->request.uri.path->str);
 		}
 		cfile->hit_length = st.st_size;
+		g_string_truncate(tmp_str, 0);
+		l_g_string_append_int(tmp_str, st.st_size);
+		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(tmp_str));
 		vrequest_add_filter_out(vr, cache_etag_filter_hit, cache_etag_filter_free, cfile);
 		*context = NULL;
 		return HANDLER_GO_ON;
