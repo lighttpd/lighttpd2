@@ -219,7 +219,6 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 		switch (sce->data.err) {
 		case ENOENT:
 		case ENOTDIR:
-			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
 			return HANDLER_GO_ON;
 		case EACCES:
 			if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
@@ -231,16 +230,13 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 			return HANDLER_ERROR;
 		}
 	} else if (S_ISDIR(sce->data.st.st_mode)) {
-	VR_ERROR(vr, "%s", "trace");
 		return HANDLER_GO_ON;
 	} else if (!S_ISREG(sce->data.st.st_mode)) {
-	VR_ERROR(vr, "%s", "trace");
 		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "not a regular file: '%s'", vr->physical.path->str);
 		}
 		vr->response.http_status = 403;
 	} else if ((fd = open(vr->physical.path->str, O_RDONLY)) == -1) {
-	VR_ERROR(vr, "%s", "trace");
 		switch (errno) {
 		case ENOENT:
 		case ENOTDIR:
