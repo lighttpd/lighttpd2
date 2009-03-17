@@ -163,24 +163,45 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 	stat_cache_entry *sce;
 	dirlist_data *dd;
 	dirlist_plugin_data *pd;
-
 	UNUSED(context);
+	
+	if (vrequest_is_handled(vr)) return HANDLER_GO_ON;
 
 	if (!vr->stat_cache_entry) {
 		if (vr->physical.path->len == 0) return HANDLER_GO_ON;
-
-		if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
 	}
 
 	dd = param;
 	pd = dd->plugin->data;
 
-	/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
-	/* TODO: local addr if HTTP 1.0 without host header, url encoding */
-	if (vr->request.uri.path->str[vr->request.uri.path->len-1] != G_DIR_SEPARATOR) {
-		GString *host = vr->request.uri.authority->len ? vr->request.uri.authority : vr->con->local_addr_str;
-		GString *uri = g_string_sized_new(
-			 8 /* https:// */ + host->len +
+	sce = stat_cache_get_dir(vr, vr->physical.path);
+	if (!sce)
+		return HANDLER_WAIT_FOR_EVENT;
+
+	if (sce->data.failed) {
+		/* stat failed */
+		switch (sce->data.err) {
+		case ENOENT:
+		case ENOTDIR:
+			return HANDLER_GO_ON;
+		case EACCES:
+			if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
+			vr->response.http_status = 403;
+			return HANDLER_GO_ON;
+		default:
+			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
+			return HANDLER_ERROR;
+		}
+	} else if (!S_ISDIR(sce->data.st.st_mode)) {
+		return HANDLER_GO_ON;
+	} else if (vr->request.uri.path->str[vr->request.uri.path->len-1] != G_DIR_SEPARATOR) {
+		GString *host, *uri;
+		if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
+		/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
+		/* TODO: local addr if HTTP 1.0 without host header, url encoding */
+		host = vr->request.uri.authority->len ? vr->request.uri.authority : vr->con->local_addr_str;
+		uri = g_string_sized_new(
+			8 /* https:// */ + host->len +
 			vr->request.uri.orig_path->len + 2 /* /? */ + vr->request.uri.query->len
 		);
 
@@ -200,39 +221,20 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
 		g_string_free(uri, TRUE);
 		return HANDLER_GO_ON;
-	}
-
-	sce = stat_cache_get_dir(vr, vr->physical.path);
-	if (!sce)
-		return HANDLER_WAIT_FOR_EVENT;
-
-	if (sce->data.failed) {
-		/* stat failed */
-		VR_DEBUG(vr, "stat(\"%s\") failed: %s (%d)", sce->data.path->str, g_strerror(sce->data.err), sce->data.err);
-
-		switch (errno) {
-		case ENOENT:
-			vr->response.http_status = 404; break;
-		case EACCES:
-		case EFAULT:
-			vr->response.http_status = 403; break;
-		default:
-			vr->response.http_status = 500;
-		}
 	} else {
 		/* everything ok, we have the directory listing */
-		guint i;
-		guint j;
+		gboolean cachable;
+		guint i, j;
 		stat_cache_entry_data *sced;
-		GString *mime_str, *tmp_str = vr->con->wrk->tmp_str;
-		GArray *directories;
-		GArray *files;
-		GString *encoded;
+		GString *mime_str, *encoded;
+		GArray *directories, *files;
 		gchar sizebuf[sizeof("999.9K")+1];
 		gchar datebuf[sizeof("2005-Jan-01 22:23:24")+1];
 		guint datebuflen;
 		struct tm tm;
 		gboolean hide;
+
+		if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
 		vr->response.http_status = 200;
 
 		if (dd->debug)
@@ -242,6 +244,11 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		encoded = g_string_sized_new(64);
 
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
+		etag_set_header(vr, &sce->data.st, &cachable);
+		if (cachable) {
+			vr->response.http_status = 304;
+			return HANDLER_GO_ON;
+		}
 
 		/* seperate directories from other files */
 		directories = g_array_sized_new(FALSE, FALSE, sizeof(guint), 16);
@@ -321,8 +328,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 				string_encode(sced->path->str, encoded, ENCODING_HTML);
 				g_string_append_len(listing, GSTR_LEN(encoded));
 				g_string_append_len(listing, CONST_STR_LEN("</a></td><td class=\"modified\" val=\""));
-				l_g_string_from_int(tmp_str, sced->st.st_mtime);
-				g_string_append_len(listing, GSTR_LEN(tmp_str));
+				l_g_string_append_int(listing, sced->st.st_mtime);
 				g_string_append_len(listing, CONST_STR_LEN("\">"));
 				g_string_append_len(listing, datebuf, datebuflen);
 				g_string_append_len(listing, CONST_STR_LEN("</td>"
@@ -353,13 +359,11 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 			g_string_append_len(listing, CONST_STR_LEN(
 				"</a></td>"
 				"<td class=\"modified\" val=\""));
-			l_g_string_from_int(tmp_str, sced->st.st_mtime);
-			g_string_append_len(listing, GSTR_LEN(tmp_str));
+			l_g_string_append_int(listing, sced->st.st_mtime);
 			g_string_append_len(listing, CONST_STR_LEN("\">"));
 			g_string_append_len(listing, datebuf, datebuflen);
 			g_string_append_len(listing, CONST_STR_LEN("</td><td class=\"size\" val=\""));
-			l_g_string_from_int(tmp_str, sced->st.st_size);
-			g_string_append_len(listing, GSTR_LEN(tmp_str));
+			l_g_string_append_int(listing, sced->st.st_size);
 			g_string_append_len(listing, CONST_STR_LEN("\">"));
 			g_string_append(listing, sizebuf);
 			g_string_append_len(listing, CONST_STR_LEN("</td><td class=\"type\">"));

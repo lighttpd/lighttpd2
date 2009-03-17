@@ -191,85 +191,93 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 	UNUSED(param);
 	UNUSED(context);
 
+	switch (vr->request.http_method) {
+	case HTTP_METHOD_GET:
+	case HTTP_METHOD_HEAD:
+		break;
+	default:
+		return HANDLER_GO_ON;
+	}
+
+	if (vrequest_is_handled(vr)) return HANDLER_GO_ON;
+
 	if (!vr->stat_cache_entry) {
 		if (vr->physical.path->len == 0) return HANDLER_GO_ON;
-
-		if (!vrequest_handle_direct(vr)) return HANDLER_GO_ON;
 	}
 
 	sce = stat_cache_get(vr, vr->physical.path);
 	if (!sce)
 		return HANDLER_WAIT_FOR_EVENT;
 
-	VR_DEBUG(vr, "serving static file: %s", vr->physical.path->str);
+	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		VR_DEBUG(vr, "try serving static file: '%s'", vr->physical.path->str);
+	}
 
 	if (sce->data.failed) {
 		/* stat failed */
-		VR_DEBUG(vr, "stat(\"%s\") failed: %s (%d)", sce->data.path->str, g_strerror(sce->data.err), sce->data.err);
 
 		switch (sce->data.err) {
 		case ENOENT:
-			vr->response.http_status = 404; break;
+		case ENOTDIR:
+			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
+			return HANDLER_GO_ON;
 		case EACCES:
-		case EFAULT:
-			vr->response.http_status = 403; break;
+			if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
+			vr->response.http_status = 403;
+			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
+			return HANDLER_GO_ON;
 		default:
-			vr->response.http_status = 500;
+			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
+			return HANDLER_ERROR;
 		}
+	} else if (S_ISDIR(sce->data.st.st_mode)) {
+	VR_ERROR(vr, "%s", "trace");
+		return HANDLER_GO_ON;
+	} else if (!S_ISREG(sce->data.st.st_mode)) {
+	VR_ERROR(vr, "%s", "trace");
+		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "not a regular file: '%s'", vr->physical.path->str);
+		}
+		vr->response.http_status = 403;
 	} else if ((fd = open(vr->physical.path->str, O_RDONLY)) == -1) {
-		VR_DEBUG(vr, "open(\"%s\") failed: %s (%d)", vr->physical.path->str, g_strerror(errno), errno);
-
+	VR_ERROR(vr, "%s", "trace");
 		switch (errno) {
 		case ENOENT:
-			vr->response.http_status = 404; break;
+		case ENOTDIR:
+			return HANDLER_GO_ON;
 		case EACCES:
-		case EFAULT:
-			vr->response.http_status = 403; break;
+			if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
+			vr->response.http_status = 403;
+			return HANDLER_GO_ON;
 		default:
-			vr->response.http_status = 500;
+			VR_ERROR(vr, "open('%s') failed: %s", vr->physical.path->str, g_strerror(errno));
+			return HANDLER_ERROR;
 		}
 	} else {
-
+		GString *mime_str;
+		gboolean cachable;
 #ifdef FD_CLOEXEC
 		fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
 
-		/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
-		/* TODO: local addr if HTTP 1.0 without host header */
-		if (S_ISDIR(sce->data.st.st_mode) && vr->request.uri.orig_path->str[vr->request.uri.orig_path->len-1] != '/') {
-			GString *host = vr->request.uri.authority->len ? vr->request.uri.authority : vr->con->local_addr_str;
-			GString *uri = g_string_sized_new(
-				 8 /* https:// */ + host->len +
-				vr->request.uri.orig_path->len + 2 /* /? */ + vr->request.uri.query->len
-			);
-			if (vr->con->is_ssl)
-				g_string_append_len(uri, CONST_STR_LEN("https://"));
-			else
-				g_string_append_len(uri, CONST_STR_LEN("http://"));
-			g_string_append_len(uri, GSTR_LEN(host));
-			g_string_append_len(uri, GSTR_LEN(vr->request.uri.orig_path));
-			g_string_append_c(uri, '/');
-			if (vr->request.uri.query->len) {
-				g_string_append_c(uri, '?');
-				g_string_append_len(uri, GSTR_LEN(vr->request.uri.query));
-			}
-
-			vr->response.http_status = 301;
-			http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
-			g_string_free(uri, TRUE);
+		if (!vrequest_handle_direct(vr)) {
 			close(fd);
-		} else if (!S_ISREG(sce->data.st.st_mode)) {
-			vr->response.http_status = 404;
-			close(fd);
-		} else {
-			GString *mime_str = mimetype_get(vr, vr->request.uri.path);
-			vr->response.http_status = 200;
-			if (mime_str)
-				http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
-			else
-				http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("application/octet-stream"));
-			chunkqueue_append_file_fd(vr->out, NULL, 0, sce->data.st.st_size, fd);
+			return HANDLER_ERROR;
 		}
+
+		etag_set_header(vr, &sce->data.st, &cachable);
+		if (cachable) {
+			vr->response.http_status = 304;
+			return HANDLER_GO_ON;
+		}
+
+		mime_str = mimetype_get(vr, vr->request.uri.path);
+		vr->response.http_status = 200;
+		if (mime_str)
+			http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
+		else
+			http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("application/octet-stream"));
+		chunkqueue_append_file_fd(vr->out, NULL, 0, sce->data.st.st_size, fd);
 	}
 
 	stat_cache_entry_release(vr);
@@ -662,6 +670,46 @@ static void core_option_mime_types_free(server *srv, plugin *p, size_t ndx, opti
 	g_array_free(oval.list, TRUE);
 }
 
+static gboolean core_option_etag_use_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
+	GArray *arr;
+	guint flags = 0;
+	UNUSED(p);
+	UNUSED(ndx);
+
+	/* default value */
+	if (!val) {
+		oval->number = ETAG_USE_INODE | ETAG_USE_MTIME | ETAG_USE_SIZE;
+		return TRUE;
+	}
+
+	if (val->type != VALUE_LIST) {
+		ERROR(srv, "etag.use option expects a list of strings, parameter is of type %s", value_type_string(val->type));
+	}
+
+	arr = val->data.list;
+	for (guint i = 0; i < arr->len; i++) {
+		value *v = g_array_index(arr, value*, i);
+		if (v->type != VALUE_STRING) {
+			ERROR(srv, "etag.use option expects a list of strings, entry #%u is of type %s", i, value_type_string(v->type));
+			return FALSE;
+		}
+
+		if (0 == strcmp(v->data.string->str, "inode")) {
+			flags |= ETAG_USE_INODE;
+		} else if (0 == strcmp(v->data.string->str, "mtime")) {
+			flags |= ETAG_USE_MTIME;
+		} else if (0 == strcmp(v->data.string->str, "size")) {
+			flags |= ETAG_USE_SIZE;
+		} else {
+			ERROR(srv, "unknown etag.use flag: %s", v->data.string->str);
+			return FALSE;
+		}
+	}
+
+	oval->number = (guint64) flags;
+	return TRUE;
+}
+
 static handler_t core_handle_header_add(vrequest *vr, gpointer param, gpointer *context) {
 	GArray *l = (GArray*)param;
 	GString *k = g_array_index(l, value*, 0)->data.string;
@@ -979,6 +1027,8 @@ static const plugin_option options[] = {
 	{ "mime_types", VALUE_LIST, NULL, core_option_mime_types_parse, core_option_mime_types_free },
 
 	{ "throttle", VALUE_NUMBER, GINT_TO_POINTER(0), NULL, NULL },
+
+	{ "etag.use", VALUE_NONE, NULL, core_option_etag_use_parse, NULL },
 
 	{ NULL, 0, NULL, NULL, NULL }
 };

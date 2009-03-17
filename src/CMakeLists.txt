@@ -286,6 +286,7 @@ SET(COMMON_SRC
 	connection.c
 	encoding.c
 	environment.c
+	etag.c
 	filter_chunked.c
 	http_headers.c
 	http_request_parser.c

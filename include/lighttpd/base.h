@@ -52,6 +52,7 @@
 #include <lighttpd/collect.h>
 #include <lighttpd/network.h>
 #include <lighttpd/encoding.h>
+#include <lighttpd/etag.h>
 #include <lighttpd/utils.h>
 
 #define SERVER_VERSION ((guint) 0x01FF0000)

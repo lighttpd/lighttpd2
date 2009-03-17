@@ -3,6 +3,8 @@
 
 #include <lighttpd/base.h>
 
+typedef enum { ETAG_USE_INODE = 1, ETAG_USE_MTIME = 2, ETAG_USE_SIZE = 4 } etag_flags_t;
+
 enum core_options_t {
 	CORE_OPTION_DEBUG_REQUEST_HANDLING = 0,
 
@@ -18,7 +20,9 @@ enum core_options_t {
 
 	CORE_OPTION_MIME_TYPES,
 
-	CORE_OPTION_THROTTLE
+	CORE_OPTION_THROTTLE,
+
+	CORE_OPTION_ETAG_FLAGS
 };
 
 /* the core plugin always has base index 0, as it is the first plugin loaded */
