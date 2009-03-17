@@ -143,14 +143,13 @@ static gpointer stat_cache_thread(gpointer data) {
 		if (!sce->data.path)
 			break;
 
-		if (sce->type == STAT_CACHE_ENTRY_SINGLE) {
-			if (stat(sce->data.path->str, &sce->data.st) == -1) {
-				sce->data.failed = TRUE;
-				sce->data.err = errno;
-			} else {
-				sce->data.failed = FALSE;
-			}
+		if (stat(sce->data.path->str, &sce->data.st) == -1) {
+			sce->data.failed = TRUE;
+			sce->data.err = errno;
 		} else {
+			sce->data.failed = FALSE;
+		}
+		if (!sce->data.failed && sce->type == STAT_CACHE_ENTRY_DIR) {
 			/* dirlisting */
 			DIR *dirp;
 			gsize size;
@@ -230,7 +229,7 @@ static stat_cache_entry *stat_cache_get_internal(vrequest *vr, GString *path, gb
 		/* cache hit, check state */
 		if (g_atomic_int_get(&sce->state) == STAT_CACHE_ENTRY_FINISHED) {
 			/* stat info available, check if it is fresh */
-			if (!(sce->type == STAT_CACHE_ENTRY_SINGLE && dir) && sce->ts >= (CUR_TS(vr->con->wrk) - (ev_tstamp)sc->ttl)) {
+			if (!((sce->type == STAT_CACHE_ENTRY_DIR) ^ dir) && sce->ts >= (CUR_TS(vr->con->wrk) - (ev_tstamp)sc->ttl)) {
 				/* entry fresh */
 				if (!vr->stat_cache_entry) {
 					sc->hits++;
