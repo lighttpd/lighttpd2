@@ -215,29 +215,37 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 
 	if (sce->data.failed) {
 		/* stat failed */
+		stat_cache_entry_release(vr);
 
 		switch (sce->data.err) {
 		case ENOENT:
 		case ENOTDIR:
 			return HANDLER_GO_ON;
 		case EACCES:
-			if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
+			if (!vrequest_handle_direct(vr)) {
+				return HANDLER_ERROR;
+			}
 			vr->response.http_status = 403;
-			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
+			VR_DEBUG(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
 			return HANDLER_GO_ON;
 		default:
 			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
 			return HANDLER_ERROR;
 		}
 	} else if (S_ISDIR(sce->data.st.st_mode)) {
+		stat_cache_entry_release(vr);
 		return HANDLER_GO_ON;
 	} else if (!S_ISREG(sce->data.st.st_mode)) {
 		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "not a regular file: '%s'", vr->physical.path->str);
 		}
-		if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
+		if (!vrequest_handle_direct(vr)) {
+			stat_cache_entry_release(vr);
+			return HANDLER_ERROR;
+		}
 		vr->response.http_status = 403;
 	} else if ((fd = open(vr->physical.path->str, O_RDONLY)) == -1) {
+		stat_cache_entry_release(vr);
 		switch (errno) {
 		case ENOENT:
 		case ENOTDIR:
@@ -247,7 +255,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 			vr->response.http_status = 403;
 			return HANDLER_GO_ON;
 		default:
-			VR_ERROR(vr, "open('%s') failed: %s", vr->physical.path->str, g_strerror(errno));
+			VR_DEBUG(vr, "open('%s') failed: %s", vr->physical.path->str, g_strerror(errno));
 			return HANDLER_ERROR;
 		}
 	} else {
@@ -259,6 +267,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 
 		if (!vrequest_handle_direct(vr)) {
 			close(fd);
+			stat_cache_entry_release(vr);
 			return HANDLER_ERROR;
 		}
 
@@ -266,6 +275,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 		if (cachable) {
 			vr->response.http_status = 304;
 			close(fd);
+			stat_cache_entry_release(vr);
 			return HANDLER_GO_ON;
 		}
 
