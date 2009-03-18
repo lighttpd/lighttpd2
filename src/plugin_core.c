@@ -265,6 +265,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 		etag_set_header(vr, &sce->data.st, &cachable);
 		if (cachable) {
 			vr->response.http_status = 304;
+			close(fd);
 			return HANDLER_GO_ON;
 		}
 
