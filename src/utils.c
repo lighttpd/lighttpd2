@@ -582,12 +582,12 @@ GString *l_g_string_assign_len(GString *string, const gchar *val, gssize len) {
 
 void l_g_string_append_int(GString *dest, gint64 v) {
 	gchar *buf, *end, swap;
-	guint len;
+	gsize len;
 	guint64 val;
 
-	buf = dest->str + dest->len;
 	len = dest->len + 1;
 	g_string_set_size(dest, dest->len + 21);
+	buf = dest->str + len - 1;
 
 	if (v < 0) {
 		len++;
