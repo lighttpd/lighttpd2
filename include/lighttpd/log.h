@@ -55,10 +55,6 @@ LI_API const char *remove_path(const char *path);
 #define BACKEND(srv, fmt, ...)    _BACKEND(srv, NULL, fmt, __VA_ARGS__)
 
 
-/* TODO: perhaps make portable (detect if cc supports) */
-#define	__ATTRIBUTE_PRINTF_FORMAT(fmt, arg) __attribute__ ((__format__ (__printf__, fmt, arg)))
-
-
 struct log_t;
 typedef struct log_t log_t;
 
@@ -151,14 +147,14 @@ void log_cleanup(server *srv);
 /* log_write is used to directly write a message to a log target */
 LI_API void log_write(server *srv, log_t *log, GString *msg);
 /* log_write_ is used to write to the errorlog */
-LI_API gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flags, const gchar *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(5, 6);
+LI_API gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flags, const gchar *fmt, ...) G_GNUC_PRINTF(5, 6);
 
 LI_API log_timestamp_t *log_timestamp_new(server *srv, GString *format);
 LI_API gboolean log_timestamp_free(server *srv, log_timestamp_t *ts);
 
 /* replaces '\r' and '\n' with '\0' */
 LI_API void log_split_lines(server *srv, vrequest *vr, log_level_t log_level, guint flags, gchar *txt, const gchar *prefix);
-LI_API void log_split_lines_(server *srv, vrequest *vr, log_level_t log_level, guint flags, gchar *txt, const gchar *fmt, ...) __ATTRIBUTE_PRINTF_FORMAT(6, 7);
+LI_API void log_split_lines_(server *srv, vrequest *vr, log_level_t log_level, guint flags, gchar *txt, const gchar *fmt, ...) G_GNUC_PRINTF(6, 7);
 
 
 #endif
