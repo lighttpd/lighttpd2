@@ -5,7 +5,7 @@
 tristate_t http_response_handle_cachable_etag(vrequest *vr, GString *etag) {
 	GList *l;
 	tristate_t res = TRI_MAYBE;
-	gchar *setag;
+	gchar *setag = NULL;
 
 	if (!etag) {
 		http_header *hetag = http_header_lookup(vr->response.headers, CONST_STR_LEN("etag"));
@@ -30,8 +30,7 @@ tristate_t http_response_handle_cachable_etag(vrequest *vr, GString *etag) {
 
 tristate_t http_response_handle_cachable_modified(vrequest *vr, GString *last_modified) {
 	GList *l;
-	tristate_t res = TRI_MAYBE;
-	gchar *slm, *hlm;
+	gchar *slm = NULL, *hlm;
 	http_header *h;
 	size_t used_len;
 	char *semicolon;
@@ -44,13 +43,13 @@ tristate_t http_response_handle_cachable_modified(vrequest *vr, GString *last_mo
 	}
 
 	l = http_header_find_first(vr->request.headers, CONST_STR_LEN("If-Modified-Since"));
-	if (!l) return TRI_MAYBE;
+	if (!l) return TRI_MAYBE; /* no if-modified-since header */
 	if (http_header_find_next(l, CONST_STR_LEN("If-Modified-Since"))) {
-		return TRI_FALSE;
+		return TRI_FALSE; /* we only check one if-modified-since header */
 	}
 	h = (http_header*) l->data;
 	hlm = h->data->str + h->keylen + 2;
-	if (!slm) return res;
+	if (!slm) return TRI_FALSE;
 
 	if (NULL == (semicolon = strchr(hlm, ';'))) {
 		used_len = strlen(hlm);
