@@ -84,7 +84,7 @@ struct vrequest {
 
 	GList *job_queue_link;
 
-	stat_cache_entry *stat_cache_entry;
+	GPtrArray *stat_cache_entries;
 };
 
 #define VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr) \

@@ -1,11 +1,12 @@
 #include <lighttpd/base.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 
 static void stat_cache_job_cb(struct ev_loop *loop, ev_async *w, int revents);
 static void stat_cache_delete_cb(struct ev_loop *loop, ev_timer *w, int revents);
 static gpointer stat_cache_thread(gpointer data);
 static void stat_cache_entry_free(stat_cache_entry *sce);
-static stat_cache_entry *stat_cache_get_internal(vrequest *vr, GString *path, gboolean dir);
 
 void stat_cache_new(worker *wrk, gdouble ttl) {
 	stat_cache *sc;
@@ -18,6 +19,7 @@ void stat_cache_new(worker *wrk, gdouble ttl) {
 	sc = g_slice_new0(stat_cache);
 	sc->ttl = ttl;
 	sc->entries = g_hash_table_new_full((GHashFunc)g_string_hash, (GEqualFunc)g_string_equal, NULL, NULL);
+	sc->dirlists = g_hash_table_new_full((GHashFunc)g_string_hash, (GEqualFunc)g_string_equal, NULL, NULL);
 	sc->job_queue_in = g_async_queue_new();
 	sc->job_queue_out = g_async_queue_new();
 
@@ -61,6 +63,7 @@ void stat_cache_free(stat_cache *sc) {
 	g_async_queue_unref(sc->job_queue_in);
 	g_async_queue_unref(sc->job_queue_out);
 	g_hash_table_destroy(sc->entries);
+	g_hash_table_destroy(sc->dirlists);
 	g_slice_free(stat_cache, sc);
 }
 
@@ -75,13 +78,21 @@ static void stat_cache_delete_cb(struct ev_loop *loop, ev_timer *w, int revents)
 	while ((wqe = waitqueue_pop(&sc->delete_queue)) != NULL) {
 		/* stat cache entry TTL over */
 		sce = wqe->data;
+
+		if (sce->cached) {
+			if (sce->type == STAT_CACHE_ENTRY_SINGLE)
+				g_hash_table_remove(sc->entries, sce->data.path);
+			else
+				g_hash_table_remove(sc->dirlists, sce->data.path);
+
+			sce->cached = FALSE;
+		}
+
 		if (sce->refcount) {
 			/* if there are still vrequests using this entry just requeue it */
 			waitqueue_push(&sc->delete_queue, wqe);
 		} else {
 			/* no more vrequests using this entry, finally free it */
-			if (sce->in_cache)
-				g_hash_table_remove(sc->entries, sce->data.path);
 			stat_cache_entry_free(sce);
 		}
 	}
@@ -89,6 +100,7 @@ static void stat_cache_delete_cb(struct ev_loop *loop, ev_timer *w, int revents)
 	waitqueue_update(&sc->delete_queue);
 }
 
+/* called whenever an async stat job has finished */
 static void stat_cache_job_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	guint i;
 	stat_cache_entry *sce;
@@ -102,12 +114,18 @@ static void stat_cache_job_cb(struct ev_loop *loop, ev_async *w, int revents) {
 		if (sce->data.failed)
 			sc->errors++;
 
+		/* queue pending vrequests */
 		for (i = 0; i < sce->vrequests->len; i++) {
 			vr = g_ptr_array_index(sce->vrequests, i);
 			vrequest_joblist_append(vr);
+			if (sce->type == STAT_CACHE_ENTRY_SINGLE) {
+				sce->refcount--;
+				g_ptr_array_remove_fast(vr->stat_cache_entries, sce);
+			}
 		}
 
 		g_ptr_array_set_size(sce->vrequests, 0);
+		sce->refcount--;
 	}
 }
 
@@ -183,7 +201,7 @@ static gpointer stat_cache_thread(gpointer data) {
 
 					g_string_truncate(str, sce->data.path->len);
 					/* make sure the path ends with / (or whatever) */
-					if (sce->data.path->str[sce->data.path->len-1] != G_DIR_SEPARATOR)
+					if (!sce->data.path->len || sce->data.path->str[sce->data.path->len-1] != G_DIR_SEPARATOR)
 						g_string_append_c(str, G_DIR_SEPARATOR);
 					g_string_append_len(str, GSTR_LEN(sced.path));
 
@@ -216,126 +234,121 @@ static gpointer stat_cache_thread(gpointer data) {
 	return NULL;
 }
 
-static stat_cache_entry *stat_cache_get_internal(vrequest *vr, GString *path, gboolean dir) {
-	stat_cache *sc;
+static stat_cache_entry *stat_cache_entry_new(GString *path) {
 	stat_cache_entry *sce;
 
-	sc = vr->con->wrk->stat_cache;
+	sce = g_slice_new0(stat_cache_entry);
+	sce->data.path = g_string_new_len(GSTR_LEN(path));
+	sce->vrequests = g_ptr_array_sized_new(8);
+	sce->state = STAT_CACHE_ENTRY_WAITING;
+	sce->queue_elem.data = sce;
+	sce->refcount = 1;
+	sce->cached = TRUE;
 
-	/* lookup entry in cache */
+	return sce;
+}
+
+handler_t stat_cache_get_dirlist(vrequest *vr, GString *path, stat_cache_entry **result) {
+	stat_cache *sc;
+	stat_cache_entry *sce;
+	guint i;
+
+	sc = vr->con->wrk->stat_cache;
+	sce = g_hash_table_lookup(sc->dirlists, path);
+
+	if (sce) {
+		/* cache hit, check state */
+		if (g_atomic_int_get(&sce->state) == STAT_CACHE_ENTRY_WAITING) {
+			/* already waiting for it? */
+			for (i = 0; i < vr->stat_cache_entries->len; i++) {
+				if (g_ptr_array_index(vr->stat_cache_entries, i) == sce)
+					return HANDLER_WAIT_FOR_EVENT;
+			}
+			stat_cache_entry_acquire(vr, sce);
+			return HANDLER_WAIT_FOR_EVENT;
+		}
+
+		sce->refcount++;
+		g_ptr_array_add(vr->stat_cache_entries, sce);
+		sc->hits++;
+		*result = sce;
+		return HANDLER_GO_ON;
+	} else {
+		/* cache miss, allocate new entry */
+		sce = stat_cache_entry_new(path);
+		sce->type = STAT_CACHE_ENTRY_DIR;
+		sce->dirlist = g_array_sized_new(FALSE, FALSE, sizeof(stat_cache_entry_data), 32);
+		stat_cache_entry_acquire(vr, sce);
+		waitqueue_push(&sc->delete_queue, &sce->queue_elem);
+		g_hash_table_insert(sc->dirlists, sce->data.path, sce);
+		g_async_queue_push(sc->job_queue_out, sce);
+		sc->misses++;
+		return HANDLER_WAIT_FOR_EVENT;
+	}
+}
+
+handler_t stat_cache_get(vrequest *vr, GString *path, struct stat *st, int *err, int *fd) {
+	stat_cache *sc;
+	stat_cache_entry *sce;
+	guint i;
+
+	sc = vr->con->wrk->stat_cache;
 	sce = g_hash_table_lookup(sc->entries, path);
 
 	if (sce) {
 		/* cache hit, check state */
-		if (g_atomic_int_get(&sce->state) == STAT_CACHE_ENTRY_FINISHED) {
-			/* stat info available, check if it is fresh */
-			if (!((sce->type == STAT_CACHE_ENTRY_DIR) ^ dir) && sce->ts >= (CUR_TS(vr->con->wrk) - (ev_tstamp)sc->ttl)) {
-				/* entry fresh */
-				if (!vr->stat_cache_entry) {
-					sc->hits++;
-					vr->stat_cache_entry = sce;
-					sce->refcount++;
-				}
-
-				return sce;
-			} else {
-				/* entry old */
-				if (sce->refcount == 0) {
-					/* no vrequests working on the entry, reuse it */
-					if (sce->type == STAT_CACHE_ENTRY_DIR) {
-						guint i;
-	
-						/* free old entries */
-						for (i = 0; i < sce->dirlist->len; i++) {
-							g_string_free(g_array_index(sce->dirlist, stat_cache_entry_data, i).path, TRUE);
-						}
-
-						if (!dir) {
-							g_array_free(sce->dirlist, TRUE);
-							sce->type = STAT_CACHE_ENTRY_SINGLE;
-						} else {
-							g_array_set_size(sce->dirlist, 0);
-						}
-					} else {
-						/* single file */
-						if (dir) {
-							sce->dirlist = g_array_sized_new(FALSE, FALSE, sizeof(stat_cache_entry_data), 32);
-							sce->type = STAT_CACHE_ENTRY_DIR;
-						}
-					}
-				} else {
-					/* there are still vrequests using this entry, replace with a new one */
-					sce->in_cache = FALSE;
-					sce = g_slice_new0(stat_cache_entry);
-					sce->data.path = g_string_new_len(GSTR_LEN(path));
-					sce->vrequests = g_ptr_array_sized_new(8);
-					sce->in_cache = TRUE;
-					sce->queue_elem.data = sce;
-					g_hash_table_replace(sc->entries, sce->data.path, sce);
-					if (dir) {
-						sce->type = STAT_CACHE_ENTRY_DIR;
-						sce->dirlist = g_array_sized_new(FALSE, FALSE, sizeof(stat_cache_entry_data), 32);
-					} else {
-						sce->type = STAT_CACHE_ENTRY_SINGLE;
-					}
-				}
-
-				sce->ts = CUR_TS(vr->con->wrk);
-				vr->stat_cache_entry = sce;
-				g_ptr_array_add(sce->vrequests, vr);
-				sce->refcount++;
-				waitqueue_push(&sc->delete_queue, &sce->queue_elem);
-				sce->state = STAT_CACHE_ENTRY_WAITING;
-				g_async_queue_push(sc->job_queue_out, sce);
-				sc->misses++;
-				return NULL;
+		if (g_atomic_int_get(&sce->state) == STAT_CACHE_ENTRY_WAITING) {
+			/* already waiting for it? */
+			for (i = 0; i < vr->stat_cache_entries->len; i++) {
+				if (g_ptr_array_index(vr->stat_cache_entries, i) == sce)
+					return HANDLER_WAIT_FOR_EVENT;
 			}
-		} else {
-			/* stat info not available (state is STAT_CACHE_ENTRY_WAITING) */
-			vr->stat_cache_entry = sce;
-			g_ptr_array_add(sce->vrequests, vr);
-			sce->refcount++;
-			sc->misses++;
-			return NULL;
+			stat_cache_entry_acquire(vr, sce);
+			return HANDLER_WAIT_FOR_EVENT;
 		}
+
+		sc->hits++;
 	} else {
 		/* cache miss, allocate new entry */
-		sce = g_slice_new0(stat_cache_entry);
-		sce->data.path = g_string_new_len(GSTR_LEN(path));
-		sce->vrequests = g_ptr_array_sized_new(8);
-		sce->ts = CUR_TS(vr->con->wrk);
-		sce->state = STAT_CACHE_ENTRY_WAITING;
-		sce->in_cache = TRUE;
-		sce->queue_elem.data = sce;
-		vr->stat_cache_entry = sce;
-		g_ptr_array_add(sce->vrequests, vr);
-		sce->refcount = 1;
-		sc->misses++;
-
-		if (dir) {
-			sce->type = STAT_CACHE_ENTRY_DIR;
-			sce->dirlist = g_array_sized_new(FALSE, FALSE, sizeof(stat_cache_entry_data), 32);
-		} else {
-			sce->type = STAT_CACHE_ENTRY_SINGLE;
-		}
-
+		sce = stat_cache_entry_new(path);
+		sce->type = STAT_CACHE_ENTRY_SINGLE;
+		stat_cache_entry_acquire(vr, sce);
 		waitqueue_push(&sc->delete_queue, &sce->queue_elem);
 		g_hash_table_insert(sc->entries, sce->data.path, sce);
 		g_async_queue_push(sc->job_queue_out, sce);
-
-		return NULL;
+		sc->misses++;
+		return HANDLER_WAIT_FOR_EVENT;
 	}
+
+	if (fd) {
+		/* open + fstat */
+		if (-1 == (*fd = open(path->str, O_RDONLY))) {
+			*err = errno;
+			return HANDLER_ERROR;
+		}
+		if (-1 == fstat(*fd, st)) {
+			*err = errno;
+			return HANDLER_ERROR;
+		}
+	} else {
+		/* stat */
+		if (-1 == stat(path->str, st)) {
+			*err = errno;
+			return HANDLER_ERROR;
+		}
+	}
+
+	return HANDLER_GO_ON;
 }
 
-stat_cache_entry *stat_cache_get(vrequest *vr, GString *path) {
-	return stat_cache_get_internal(vr, path, FALSE);
+void stat_cache_entry_acquire(vrequest *vr, stat_cache_entry *sce) {
+	sce->refcount++;
+	g_ptr_array_add(vr->stat_cache_entries, sce);
+	g_ptr_array_add(sce->vrequests, vr);
 }
 
-stat_cache_entry *stat_cache_get_dir(vrequest *vr, GString *path) {
-	return stat_cache_get_internal(vr, path, TRUE);
-}
-
-void stat_cache_entry_release(vrequest *vr) {
-	vr->stat_cache_entry->refcount--;
-	vr->stat_cache_entry = NULL;
+void stat_cache_entry_release(vrequest *vr, stat_cache_entry *sce) {
+	sce->refcount--;
+	g_ptr_array_remove_fast(sce->vrequests, vr);
+	g_ptr_array_remove_fast(vr->stat_cache_entries, sce);
 }

@@ -126,12 +126,16 @@ vrequest* vrequest_new(connection *con, vrequest_handler handle_response_headers
 	vr->out = vr->filters_out.in;
 	vr->vr_out = vr->filters_out.out;
 
+	vr->stat_cache_entries = g_ptr_array_sized_new(2);
+
 	action_stack_init(&vr->action_stack);
 
 	return vr;
 }
 
 void vrequest_free(vrequest* vr) {
+	guint i;
+
 	action_stack_clear(vr, &vr->action_stack);
 	plugins_handle_vrclose(vr);
 	g_ptr_array_free(vr->plugin_ctx, TRUE);
@@ -151,10 +155,19 @@ void vrequest_free(vrequest* vr) {
 
 	g_slice_free1(vr->con->srv->option_def_values->len * sizeof(option_value), vr->options);
 
+
+	for (i = 0; i < vr->stat_cache_entries->len; i++) {
+		stat_cache_entry *sce = g_ptr_array_index(vr->stat_cache_entries, i);
+		stat_cache_entry_release(vr, sce);
+	}
+	g_ptr_array_free(vr->stat_cache_entries, TRUE);
+
 	g_slice_free(vrequest, vr);
 }
 
 void vrequest_reset(vrequest *vr) {
+	guint i;
+
 	action_stack_reset(vr, &vr->action_stack);
 	plugins_handle_vrclose(vr);
 	{
@@ -180,9 +193,9 @@ void vrequest_reset(vrequest *vr) {
 		vr->job_queue_link = NULL;
 	}
 
-	if (vr->stat_cache_entry) {
-		g_ptr_array_remove_fast(vr->stat_cache_entry->vrequests, vr);
-		stat_cache_entry_release(vr);
+	for (i = 0; i < vr->stat_cache_entries->len; i++) {
+		stat_cache_entry *sce = g_ptr_array_index(vr->stat_cache_entries, i);
+		stat_cache_entry_release(vr, sce);
 	}
 
 	memcpy(vr->options, vr->con->srv->option_def_values->data, vr->con->srv->option_def_values->len * sizeof(option_value));

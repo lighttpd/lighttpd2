@@ -30,7 +30,7 @@
  *         dirlist ("include-header" => true, "hide-header" => true, "hide->suffix" => (".bak"));
  *     }
  *         - shows a directory listing including the content of HEADER.txt above the list and hiding itself from it
- *           also hides all files all files ending in ".bak"
+ *           also hides all files ending in ".bak"
  *
  * Tip:
  *     xyz
@@ -166,45 +166,44 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 	stat_cache_entry *sce;
 	dirlist_data *dd;
 	dirlist_plugin_data *pd;
+
 	UNUSED(context);
-	
+
 	if (vrequest_is_handled(vr)) return HANDLER_GO_ON;
 
-	if (!vr->stat_cache_entry) {
-		if (vr->physical.path->len == 0) return HANDLER_GO_ON;
+	if (vr->physical.path->len == 0) return HANDLER_GO_ON;
+
+	switch (stat_cache_get_dirlist(vr, vr->physical.path, &sce)) {
+	case HANDLER_GO_ON: break;
+	case HANDLER_WAIT_FOR_EVENT: return HANDLER_WAIT_FOR_EVENT;
+	default: return HANDLER_ERROR;
 	}
 
 	dd = param;
 	pd = dd->plugin->data;
 
-	sce = stat_cache_get_dir(vr, vr->physical.path);
-	if (!sce)
-		return HANDLER_WAIT_FOR_EVENT;
-
 	if (sce->data.failed) {
 		/* stat failed */
+		stat_cache_entry_release(vr, sce);VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
 		switch (sce->data.err) {
 		case ENOENT:
 		case ENOTDIR:
-			stat_cache_entry_release(vr);
 			return HANDLER_GO_ON;
 		case EACCES:
 			if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
 			vr->response.http_status = 403;
-			stat_cache_entry_release(vr);
 			return HANDLER_GO_ON;
 		default:
 			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
-			stat_cache_entry_release(vr);
 			return HANDLER_ERROR;
 		}
 	} else if (!S_ISDIR(sce->data.st.st_mode)) {
-		stat_cache_entry_release(vr);
+		stat_cache_entry_release(vr, sce);VR_DEBUG(vr, "%s", "no dir");
 		return HANDLER_GO_ON;
 	} else if (vr->request.uri.path->str[vr->request.uri.path->len-1] != G_DIR_SEPARATOR) {
 		GString *host, *uri;
 		if (!vrequest_handle_direct(vr)) {
-			stat_cache_entry_release(vr);
+			stat_cache_entry_release(vr, sce);
 			return HANDLER_ERROR;
 		}
 		/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
@@ -230,7 +229,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		vr->response.http_status = 301;
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
 		g_string_free(uri, TRUE);
-		stat_cache_entry_release(vr);
+		stat_cache_entry_release(vr, sce);
 		return HANDLER_GO_ON;
 	} else {
 		/* everything ok, we have the directory listing */
@@ -246,7 +245,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		gboolean hide;
 
 		if (!vrequest_handle_direct(vr)) {
-			stat_cache_entry_release(vr);
+			stat_cache_entry_release(vr, sce);
 			return HANDLER_ERROR;
 		}
 		vr->response.http_status = 200;
@@ -258,7 +257,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		etag_set_header(vr, &sce->data.st, &cachable);
 		if (cachable) {
 			vr->response.http_status = 304;
-			stat_cache_entry_release(vr);
+			stat_cache_entry_release(vr, sce);
 			return HANDLER_GO_ON;
 		}
 
@@ -408,7 +407,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		g_array_free(files, TRUE);
 	}
 
-	stat_cache_entry_release(vr);
+	stat_cache_entry_release(vr, sce);
 
 	return HANDLER_GO_ON;
 }

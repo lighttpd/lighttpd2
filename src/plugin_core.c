@@ -186,7 +186,9 @@ static action* core_docroot(server *srv, plugin* p, value *val) {
 
 static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *context) {
 	int fd;
-	stat_cache_entry *sce;
+	struct stat st;
+	int err;
+	handler_t res;
 
 	UNUSED(param);
 	UNUSED(context);
@@ -201,63 +203,45 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 
 	if (vrequest_is_handled(vr)) return HANDLER_GO_ON;
 
-	if (!vr->stat_cache_entry) {
-		if (vr->physical.path->len == 0) return HANDLER_GO_ON;
-	}
+	if (vr->physical.path->len == 0) return HANDLER_GO_ON;
 
-	sce = stat_cache_get(vr, vr->physical.path);
-	if (!sce)
-		return HANDLER_WAIT_FOR_EVENT;
+	res = stat_cache_get(vr, vr->physical.path, &st, &err, &fd);
+	if (res == HANDLER_WAIT_FOR_EVENT)
+		return res;
 
 	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "try serving static file: '%s'", vr->physical.path->str);
 	}
 
-	if (sce->data.failed) {
-		/* stat failed */
-		stat_cache_entry_release(vr);
+	if (res == HANDLER_ERROR) {
+		/* open or fstat failed */
 
-		switch (sce->data.err) {
-		case ENOENT:
-		case ENOTDIR:
-			return HANDLER_GO_ON;
-		case EACCES:
-			if (!vrequest_handle_direct(vr)) {
-				return HANDLER_ERROR;
-			}
-			vr->response.http_status = 403;
-			VR_DEBUG(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
-			return HANDLER_GO_ON;
-		default:
-			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
+		if (!vrequest_handle_direct(vr)) {
 			return HANDLER_ERROR;
 		}
-	} else if (S_ISDIR(sce->data.st.st_mode)) {
-		stat_cache_entry_release(vr);
+
+		switch (err) {
+		case ENOENT:
+		case ENOTDIR:
+			vr->response.http_status = 404;
+			return HANDLER_GO_ON;
+		case EACCES:
+			vr->response.http_status = 403;
+			return HANDLER_GO_ON;
+		default:
+			VR_ERROR(vr, "stat() or open() for '%s' failed: %s", vr->physical.path->str, g_strerror(err));
+			return HANDLER_ERROR;
+		}
+	} else if (S_ISDIR(st.st_mode)) {
 		return HANDLER_GO_ON;
-	} else if (!S_ISREG(sce->data.st.st_mode)) {
+	} else if (!S_ISREG(st.st_mode)) {
 		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "not a regular file: '%s'", vr->physical.path->str);
 		}
 		if (!vrequest_handle_direct(vr)) {
-			stat_cache_entry_release(vr);
 			return HANDLER_ERROR;
 		}
 		vr->response.http_status = 403;
-	} else if ((fd = open(vr->physical.path->str, O_RDONLY)) == -1) {
-		stat_cache_entry_release(vr);
-		switch (errno) {
-		case ENOENT:
-		case ENOTDIR:
-			return HANDLER_GO_ON;
-		case EACCES:
-			if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
-			vr->response.http_status = 403;
-			return HANDLER_GO_ON;
-		default:
-			VR_DEBUG(vr, "open('%s') failed: %s", vr->physical.path->str, g_strerror(errno));
-			return HANDLER_ERROR;
-		}
 	} else {
 		GString *mime_str;
 		gboolean cachable;
@@ -267,15 +251,13 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 
 		if (!vrequest_handle_direct(vr)) {
 			close(fd);
-			stat_cache_entry_release(vr);
 			return HANDLER_ERROR;
 		}
 
-		etag_set_header(vr, &sce->data.st, &cachable);
+		etag_set_header(vr, &st, &cachable);
 		if (cachable) {
 			vr->response.http_status = 304;
 			close(fd);
-			stat_cache_entry_release(vr);
 			return HANDLER_GO_ON;
 		}
 
@@ -285,10 +267,8 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 			http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
 		else
 			http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("application/octet-stream"));
-		chunkqueue_append_file_fd(vr->out, NULL, 0, sce->data.st.st_size, fd);
+		chunkqueue_append_file_fd(vr->out, NULL, 0, st.st_size, fd);
 	}
-
-	stat_cache_entry_release(vr);
 
 	return HANDLER_GO_ON;
 }
