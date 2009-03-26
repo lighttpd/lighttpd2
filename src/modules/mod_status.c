@@ -54,19 +54,19 @@ static const gchar html_worker_th[] =
 	"		<table cellspacing=\"0\">\n"
 	"			<tr>\n"
 	"				<th style=\"width: 100px;\"></th>\n"
-	"				<th>Requests</th>\n"
-	"				<th>Traffic in</th>\n"
-	"				<th>Traffic out</th>\n"
-	"				<th>Active connections</th>\n"
+	"				<th style=\"width: 175px;\">Requests</th>\n"
+	"				<th style=\"width: 175px;\">Traffic in</th>\n"
+	"				<th style=\"width: 175px;\">Traffic out</th>\n"
+	"				<th style=\"width: 175px;\">Active connections</th>\n"
 	"			</tr>\n";
 static const gchar html_worker_th_avg[] =
 	"		<table cellspacing=\"0\">\n"
 	"			<tr>\n"
 	"				<th style=\"width: 100px;\"></th>\n"
-	"				<th>Requests / s</th>\n"
-	"				<th>Traffic in / s</th>\n"
-	"				<th>Traffic out / s</th>\n"
-	"				<th>Active connections</th>\n"
+	"				<th style=\"width: 175px;\">Requests / s</th>\n"
+	"				<th style=\"width: 175px;\">Traffic in / s</th>\n"
+	"				<th style=\"width: 175px;\">Traffic out / s</th>\n"
+	"				<th style=\"width: 175px;\">Active connections</th>\n"
 	"			</tr>\n";
 static const gchar html_worker_row[] =
 	"			<tr class=\"%s\">\n"
@@ -88,22 +88,28 @@ static const gchar html_connections_th[] =
 	"		<table cellspacing=\"0\">\n"
 	"			<tr>\n"
 	"				<th class=\"left\" style=\"width: 200px;\">Client</th>\n"
-	"				<th>State</th>\n"
-	"				<th>Host</th>\n"
-	"				<th class=\"left\" style=\"width: 250px;\">Path</th>\n"
-	"				<th style=\"width: 100px;\">Duration</th>\n"
-	"				<th style=\"width: 150px;\">Traffic in/out</th>\n"
-	"				<th style=\"width: 150px;\">Traffic in/out / s</th>\n"
+	"				<th style=\"width: 140px;\">State</th>\n"
+	"				<th style=\"width: 170px;\">Host</th>\n"
+	"				<th>Path+Querystring</th>\n"
+	"				<th>Duration</th>\n"
+	"				<th>Traffic in/out</th>\n"
+	"				<th>Traffic in/out / s</th>\n"
+	"				<th>Method</th>\n"
+	"				<th>Request Size</th>\n"
+	"				<th>Response Size</th>\n"
 	"			</tr>\n";
 static const gchar html_connections_row[] =
 	"			<tr>\n"
 	"				<td  class=\"left\">%s</td>\n"
 	"				<td>%s</td>\n"
 	"				<td>%s</td>\n"
-	"				<td class=\"left\">%s</td>\n"
+	"				<td class=\"left\">%s%s%s</td>\n"
 	"				<td>%s</td>\n"
 	"				<td>%s / %s</td>\n"
 	"				<td>%s / %s</td>\n"
+	"				<td>%s</td>\n"
+	"				<td>%s</td>\n"
+	"				<td>%s</td>\n"
 	"			</tr>\n";
 
 static const gchar css_default[] =
@@ -115,7 +121,7 @@ static const gchar css_default[] =
 	"			.title { margin-left: 6px; margin-top: 25px; margin-bottom: 5px; }\n"
 	"			.text { margin-left: 6px; margin-bottom: 5px; }\n"
 	"			table { margin-left: 5px; border: 1px solid #CCC; }\n"
-	"			th { font-weight: normal; padding: 3px; width: 175px; background-color: #E0E0E0;\n"
+	"			th { font-weight: normal; padding: 3px; background-color: #E0E0E0;\n"
 	"			border-bottom: 1px solid #BABABA; border-right: 1px solid #BABABA; border-top: 1px solid #FEFEFE; }\n"
 	"			td { text-align: right; padding: 3px; border-bottom: 1px solid #F0F0F0; border-right: 1px solid #F8F8F8; }\n"
 	"			.left { text-align: left; }\n"
@@ -131,7 +137,7 @@ static const gchar css_blue[] =
 	"			.title { margin-left: 6px; margin-top: 25px; margin-bottom: 5px; }\n"
 	"			.text { margin-left: 6px; margin-bottom: 5px; }\n"
 	"			table { margin-left: 5px; border: 1px solid #CCC; }\n"
-	"			th { font-weight: normal; padding: 3px; width: 175px; background-color: #E0E0E0;\n"
+	"			th { font-weight: normal; padding: 3px; background-color: #E0E0E0;\n"
 	"			border-bottom: 1px solid #BABABA; border-right: 1px solid #BABABA; border-top: 1px solid #FEFEFE; }\n"
 	"			td { text-align: right; padding: 3px; border-bottom: 1px solid #F0F0F0; border-right: 1px solid #F8F8F8; }\n"
 	"			.left { text-align: left; }\n"
@@ -153,7 +159,10 @@ struct mod_status_con_data {
 	connection_state_t state;
 	GString *remote_addr_str, *local_addr_str;
 	gboolean is_ssl, keep_alive;
-	GString *host, *path;
+	GString *host, *path, *query;
+	http_method_t method;
+	goffset request_size;
+	goffset response_size;
 	ev_tstamp ts;
 	guint64 bytes_in;
 	guint64 bytes_out;
@@ -198,6 +207,10 @@ static gpointer status_collect_func(worker *wrk, gpointer fdata) {
 		cd->local_addr_str = g_string_new_len(GSTR_LEN(c->local_addr_str));
 		cd->host = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.host));
 		cd->path = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.path));
+		cd->query = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.query));
+		cd->method = c->mainvr->request.http_method;
+		cd->request_size = c->mainvr->request.content_length;
+		cd->response_size = c->mainvr->out->bytes_out;
 		cd->state = c->state;
 		cd->ts = c->ts;
 		cd->bytes_in = c->stats.bytes_in;
@@ -449,12 +462,16 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		/* list connections */
 		{
 			GString *ts, *bytes_in, *bytes_out, *bytes_in_5s, *bytes_out_5s;
+			GString *req_len, *resp_len;
+			guint len;
 
 			ts = g_string_sized_new(16);
 			bytes_in = g_string_sized_new(10);
 			bytes_out = g_string_sized_new(10);
 			bytes_in_5s = g_string_sized_new(10);
 			bytes_out_5s = g_string_sized_new(10);
+			req_len = g_string_sized_new(10);
+			resp_len = g_string_sized_new(10);
 
 			g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong></div>\n"));
 			g_string_append_len(html, html_connections_th, sizeof(html_connections_th)-1);
@@ -468,23 +485,31 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 					counter_format(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_in_5s);
 					counter_format(cd->bytes_out, COUNTER_BYTES, bytes_out);
 					counter_format(cd->bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_out_5s);
+					counter_format(cd->request_size, COUNTER_BYTES, req_len);
+					counter_format(cd->response_size, COUNTER_BYTES, resp_len);
 
 					g_string_append_printf(html, html_connections_row,
 						cd->remote_addr_str->str,
 						connection_state_str(cd->state),
 						cd->host->str,
 						cd->path->str,
+						cd->query->len ? "?":"",
+						cd->query->len ? cd->query->str : "",
 						ts->str,
 						bytes_in->str,
 						bytes_out->str,
 						bytes_in_5s->str,
-						bytes_out_5s->str
+						bytes_out_5s->str,
+						(cd->state >= CON_STATE_HANDLE_MAINVR) ? http_method_string(cd->method, &len) : "",
+						(cd->state >= CON_STATE_HANDLE_MAINVR) ? req_len->str : "",
+						(cd->state >= CON_STATE_HANDLE_MAINVR) ? resp_len->str : ""
 					);
 
 					g_string_free(cd->remote_addr_str, TRUE);
 					g_string_free(cd->local_addr_str, TRUE);
 					g_string_free(cd->host, TRUE);
 					g_string_free(cd->path, TRUE);
+					g_string_free(cd->query, TRUE);
 				}
 
 				g_array_free(sd->connections, TRUE);
@@ -497,6 +522,8 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			g_string_free(bytes_in_5s, TRUE);
 			g_string_free(bytes_out, TRUE);
 			g_string_free(bytes_out_5s, TRUE);
+			g_string_free(req_len, TRUE);
+			g_string_free(resp_len, TRUE);
 		}
 
 		/* free stats */
