@@ -216,6 +216,9 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 	if (res == HANDLER_ERROR) {
 		/* open or fstat failed */
 
+		if (fd)
+			close(fd);
+
 		if (!vrequest_handle_direct(vr)) {
 			return HANDLER_ERROR;
 		}
@@ -233,11 +236,17 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 			return HANDLER_ERROR;
 		}
 	} else if (S_ISDIR(st.st_mode)) {
+		if (fd)
+			close(fd);
 		return HANDLER_GO_ON;
 	} else if (!S_ISREG(st.st_mode)) {
 		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "not a regular file: '%s'", vr->physical.path->str);
 		}
+		
+		if (fd)
+			close(fd);
+
 		if (!vrequest_handle_direct(vr)) {
 			return HANDLER_ERROR;
 		}
