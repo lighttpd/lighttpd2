@@ -21,7 +21,7 @@ void response_clear(response *resp) {
 }
 
 void response_send_headers(connection *con) {
-	GString *head = g_string_sized_new(8*1024);
+	GString *head;
 	vrequest *vr = con->mainvr;
 
 	if (vr->response.http_status < 100 || vr->response.http_status > 999) {
@@ -30,6 +30,8 @@ void response_send_headers(connection *con) {
 		connection_internal_error(con);
 		return;
 	}
+
+	head = g_string_sized_new(8*1024);
 
 	if (0 == con->out->length && con->mainvr->handle_response_body == NULL
 		&& vr->response.http_status >= 400 && vr->response.http_status < 600) {
