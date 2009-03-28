@@ -62,6 +62,7 @@ struct worker {
 	                            * use with atomic, read direct from local worker context
 	                            */
 	GArray *connections;      /** array of (connection*), use only from local worker context */
+	ev_tstamp connections_gc_ts;
 
 	GQueue closing_sockets;   /** wait for EOF before shutdown(SHUT_RD) and close() */
 

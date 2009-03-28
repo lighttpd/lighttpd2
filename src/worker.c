@@ -470,15 +470,17 @@ static connection* worker_con_get(worker *wrk) {
 }
 
 void worker_con_put(connection *con) {
+	guint threshold;
 	worker *wrk = con->wrk;
+	ev_tstamp now = CUR_TS(wrk);
 	
 	if (con->state == CON_STATE_DEAD)
 		/* already disconnected */
 		return;
 
-	connection_reset(con);
 	g_atomic_int_add((gint*) &wrk->connection_load, -1);
 	g_atomic_int_add((gint*) &wrk->connections_active, -1);
+
 	if (con->idx != wrk->connections_active) {
 		/* Swap [con->idx] and [wrk->connections_active] */
 		connection *tmp;
@@ -488,5 +490,22 @@ void worker_con_put(connection *con) {
 		con->idx = wrk->connections_active;
 		g_array_index(wrk->connections, connection*, con->idx) = con;
 		g_array_index(wrk->connections, connection*, tmp->idx) = tmp;
+	}
+
+	/* realloc wrk->connections if it makes sense (too many allocated, only every 60sec) */
+	/* if (active < allocated*0.70) { allocated *= 0.85 } */
+	threshold = (wrk->connections->len * 7) / 10;
+	if (wrk->connections_active < threshold && (now - wrk->connections_gc_ts) < 60.0 && wrk->connections->len > 10) {
+		/* realloc */
+		guint i;
+		threshold = (wrk->connections->len * 85) / 100;
+		for (i = wrk->connections->len; i > threshold; i--) {
+			connection_free(g_array_index(wrk->connections, connection*, i-1));
+		}
+		wrk->connections->len = threshold;
+		wrk->connections_gc_ts = now;
+	} else {
+		/* no realloc */
+		connection_reset(con);
 	}
 }
