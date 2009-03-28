@@ -237,11 +237,11 @@ gboolean request_validate_header(connection *con) {
 }
 
 void physical_init(physical *phys) {
-	phys->path = g_string_sized_new(512);
-	phys->basedir = g_string_sized_new(256);
-	phys->doc_root = g_string_sized_new(256);
-	phys->rel_path = g_string_sized_new(256);
-	phys->pathinfo = g_string_sized_new(256);
+	phys->path = g_string_sized_new(127);
+	phys->basedir = g_string_sized_new(63);
+	phys->doc_root = g_string_sized_new(63);
+	phys->rel_path = g_string_sized_new(63);
+	phys->pathinfo = g_string_sized_new(63);
 	phys->have_stat = FALSE;
 	phys->have_errno = FALSE;
 }
