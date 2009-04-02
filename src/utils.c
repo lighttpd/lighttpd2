@@ -480,6 +480,7 @@ GString *sockaddr_to_string(sock_addr *saddr, GString *dest, gboolean showport) 
 
 		ipv6_tostring(dest, saddr->ipv6.sin6_addr.s6_addr);
 		if (showport) g_string_append_printf(dest, ":%u", (unsigned int) ntohs(saddr->ipv6.sin6_port));
+		break;
 #endif
 #ifdef HAVE_SYS_UN_H
 	case AF_UNIX:
