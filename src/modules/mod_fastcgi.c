@@ -340,10 +340,7 @@ static void fastcgi_env_create(vrequest *vr, environment_dup *envdup, GString* b
 			fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_PORT"), GSTR_LEN(tmp));
 		}
 	}
-	{
-		sockaddr_to_string(&con->local_addr, tmp, FALSE);
-		fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_ADDR"), GSTR_LEN(tmp));
-	}
+	fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_ADDR"), GSTR_LEN(con->local_addr_str));
 
 	{
 		guint port = 0;
@@ -358,10 +355,7 @@ static void fastcgi_env_create(vrequest *vr, environment_dup *envdup, GString* b
 			fastcgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_PORT"), GSTR_LEN(tmp));
 		}
 	}
-	{
-		sockaddr_to_string(&con->remote_addr, tmp, FALSE);
-		fastcgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_ADDR"), GSTR_LEN(tmp));
-	}
+	fastcgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_ADDR"), GSTR_LEN(con->remote_addr_str));
 
 	/* TODO? auth vars; i think it would be easier if the auth mod sets them:
 	 * REMOTE_USER, AUTH_TYPE
