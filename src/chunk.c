@@ -110,10 +110,10 @@ handler_t chunkiter_read(vrequest *vr, chunkiter iter, off_t start, off_t length
 
 		if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
 
-		if (!c->str) {
-			c->str = g_string_sized_new(length);
+		if (!c->mem) {
+			c->mem = g_byte_array_sized_new(length);
 		} else {
-			g_string_set_size(c->str, length);
+			g_byte_array_set_size(c->mem, length);
 		}
 
 		our_start = start + c->offset + c->file.start;
@@ -122,18 +122,18 @@ handler_t chunkiter_read(vrequest *vr, chunkiter iter, off_t start, off_t length
 			VR_ERROR(vr, "lseek failed for '%s' (fd = %i): %s",
 				GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
 				g_strerror(errno));
-			g_string_free(c->str, TRUE);
-			c->str = NULL;
+			g_byte_array_free(c->mem, TRUE);
+			c->mem = NULL;
 			return HANDLER_ERROR;
 		}
 read_chunk:
-		if (-1 == (we_have = read(c->file.file->fd, c->str->str, length))) {
+		if (-1 == (we_have = read(c->file.file->fd, c->mem->data, length))) {
 			if (EINTR == errno) goto read_chunk;
 			VR_ERROR(vr, "read failed for '%s' (fd = %i): %s",
 				GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
 				g_strerror(errno));
-			g_string_free(c->str, TRUE);
-			c->str = NULL;
+			g_byte_array_free(c->mem, TRUE);
+			c->mem = NULL;
 			return HANDLER_ERROR;
 		} else if (we_have != length) {
 			/* may return less than requested bytes due to signals */
@@ -141,14 +141,14 @@ read_chunk:
 			if (we_have == 0) {
 				VR_ERROR(vr, "read returned 0 bytes for '%s' (fd = %i): unexpected end of file?",
 					GSTR_SAFE_STR(c->file.file->name), c->file.file->fd);
-				g_string_free(c->str, TRUE);
-				c->str = NULL;
+				g_byte_array_free(c->mem, TRUE);
+				c->mem = NULL;
 				return HANDLER_ERROR;
 			}
 			length = we_have;
-			g_string_set_size(c->str, length);
+			g_byte_array_set_size(c->mem, length);
 		}
-		*data_start = c->str->str;
+		*data_start = c->mem->data;
 		*data_len = length;
 		break;
 	}
@@ -186,7 +186,7 @@ handler_t chunkiter_read_mmap(struct vrequest *vr, chunkiter iter, off_t start, 
 
 		if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
 
-		if ( !(c->file.mmap.data != MAP_FAILED || c->str) /* no data present */
+		if ( !(c->file.mmap.data != MAP_FAILED || c->mem) /* no data present */
 			|| !( /* or in the wrong range */
 				(start + c->offset + c->file.start >= c->file.mmap.offset)
 				&& (start + c->offset + c->file.start + length <= c->file.mmap.offset + (ssize_t) c->file.mmap.length)) ) {
@@ -205,16 +205,16 @@ handler_t chunkiter_read_mmap(struct vrequest *vr, chunkiter iter, off_t start, 
 			}
 			c->file.mmap.offset = our_start;
 			c->file.mmap.length = we_want;
-			if (!c->str) { /* mmap did not fail till now */
+			if (!c->mem) { /* mmap did not fail till now */
 				c->file.mmap.data = mmap(0, we_want, PROT_READ, MAP_SHARED, c->file.file->fd, our_start);
 				mmap_errno = errno;
 			}
 			if (MAP_FAILED == c->file.mmap.data) {
 				/* fallback to read(...) */
-				if (!c->str) {
-					c->str = g_string_sized_new(we_want);
+				if (!c->mem) {
+					c->mem = g_byte_array_sized_new(we_want);
 				} else {
-					g_string_set_size(c->str, we_want);
+					g_byte_array_set_size(c->mem, we_want);
 				}
 				if (-1 == lseek(c->file.file->fd, our_start, SEEK_SET)) {
 					/* prefer the error of the first syscall */
@@ -227,12 +227,12 @@ handler_t chunkiter_read_mmap(struct vrequest *vr, chunkiter iter, off_t start, 
 							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
 							g_strerror(errno));
 					}
-					g_string_free(c->str, TRUE);
-					c->str = NULL;
+					g_byte_array_free(c->mem, TRUE);
+					c->mem = NULL;
 					return HANDLER_ERROR;
 				}
 read_chunk:
-				if (-1 == (we_have = read(c->file.file->fd, c->str->str, we_want))) {
+				if (-1 == (we_have = read(c->file.file->fd, c->mem->data, we_want))) {
 					if (EINTR == errno) goto read_chunk;
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
@@ -244,8 +244,8 @@ read_chunk:
 							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
 							g_strerror(errno));
 					}
-					g_string_free(c->str, TRUE);
-					c->str = NULL;
+					g_byte_array_free(c->mem, TRUE);
+					c->mem = NULL;
 					return HANDLER_ERROR;
 				} else if (we_have != we_want) {
 					/* may return less than requested bytes due to signals */
@@ -253,7 +253,7 @@ read_chunk:
 					we_want = we_have;
 					if (length > we_have) length = we_have;
 					c->file.mmap.length = we_want;
-					g_string_set_size(c->str, we_want);
+					g_byte_array_set_size(c->mem, we_want);
 				}
 			} else {
 #ifdef HAVE_MADVISE
@@ -267,7 +267,7 @@ read_chunk:
 #endif
 			}
 		}
-		*data_start = (c->str ? c->str->str : c->file.mmap.data) + start + c->offset + c->file.start - c->file.mmap.offset;
+		*data_start = (c->mem ? (char*) c->mem->data : c->file.mmap.data) + start + c->offset + c->file.start - c->file.mmap.offset;
 		*data_len = length;
 		break;
 	}

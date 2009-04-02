@@ -4,24 +4,24 @@
 /* len != 0 */
 static void http_chunk_append_len(chunkqueue *cq, size_t len) {
 	size_t i, olen = len, j;
-	GString *s;
+	GByteArray *a;
 
-	s = g_string_sized_new(sizeof(len) * 2 + 2);
+	a = g_byte_array_sized_new(sizeof(len) * 2 + 2);
 
 	for (i = 0; i < 8 && len; i++) {
 		len >>= 4;
 	}
 
 	/* i is the number of hex digits we have */
-	g_string_set_size(s, i);
+	g_byte_array_set_size(a, i);
 
 	for (j = i-1, len = olen; j+1 > 0; j--) {
-		s->str[j] = (len & 0xf) + (((len & 0xf) <= 9) ? '0' : 'a' - 10);
+		a->data[j] = (len & 0xf) + (((len & 0xf) <= 9) ? '0' : 'a' - 10);
 		len >>= 4;
 	}
-	g_string_append_len(s, CONST_STR_LEN("\r\n"));
+	g_byte_array_append(a, CONST_STR_LEN("\r\n"));
 
-	chunkqueue_append_string(cq, s);
+	chunkqueue_append_bytearr(cq, a);
 }
 
 
