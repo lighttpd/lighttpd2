@@ -24,7 +24,7 @@
 # endif
 #endif
 
-/* first chunk must be a MEM_CHUNK ! */
+/* first chunk must be a STRING_CHUNK ! */
 network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
 	off_t we_have;
 	ssize_t r;
@@ -40,7 +40,7 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 	do {
 		ci = chunkqueue_iter(cq);
 
-		if (MEM_CHUNK != (c = chunkiter_chunk(ci))->type) {
+		if (STRING_CHUNK != (c = chunkiter_chunk(ci))->type && MEM_CHUNK != c->type) {
 			res = did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_FATAL_ERROR;
 			goto cleanup;
 		}
@@ -48,17 +48,20 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 		we_have = 0;
 		do {
 			guint i = chunks->len;
-			off_t len = c->mem->len - c->offset;
+			off_t len = chunk_length(c);
 			struct iovec *v;
 			g_array_set_size(chunks, i + 1);
 			v = &g_array_index(chunks, struct iovec, i);
-			v->iov_base = c->mem->str + c->offset;
+			if (c->type == STRING_CHUNK)
+				v->iov_base = c->str->str + c->offset;
+			else /* if c->type == MEM_CHUNK */
+				v->iov_base = c->mem->data + c->offset;
 			if (len > *write_max - we_have) len = *write_max - we_have;
 			v->iov_len = len;
 			we_have += len;
 		} while (we_have < *write_max &&
 		         chunkiter_next(&ci) &&
-		         MEM_CHUNK == (c = chunkiter_chunk(ci))->type &&
+		         (STRING_CHUNK == (c = chunkiter_chunk(ci))->type || MEM_CHUNK == c->type) &&
 		         chunks->len < UIO_MAXIOV);
 
 		while (-1 == (r = writev(fd, (struct iovec*) chunks->data, chunks->len))) {
@@ -112,7 +115,7 @@ network_status_t network_write_writev(vrequest *vr, int fd, chunkqueue *cq, goff
 	if (cq->length == 0) return NETWORK_STATUS_FATAL_ERROR;
 	do {
 		switch (chunkqueue_first_chunk(cq)->type) {
-		case MEM_CHUNK:
+		case STRING_CHUNK:
 			NETWORK_FALLBACK(network_backend_writev, write_max);
 			break;
 		case FILE_CHUNK:

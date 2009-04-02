@@ -137,10 +137,10 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 		waitqueue_push(&vr->con->wrk->io_timeout_queue, &vr->con->io_timeout_elem);
 
 	do {
-		GString *buf = g_string_sized_new(blocksize);
-		g_string_set_size(buf, blocksize);
-		if (-1 == (r = net_read(fd, buf->str, blocksize))) {
-			g_string_free(buf, TRUE);
+		GByteArray *buf = g_byte_array_sized_new(blocksize);
+		g_byte_array_set_size(buf, blocksize);
+		if (-1 == (r = net_read(fd, buf->data, blocksize))) {
+			g_byte_array_free(buf, TRUE);
 			switch (errno) {
 			case EAGAIN:
 #if EWOULDBLOCK != EAGAIN
@@ -154,11 +154,11 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 				return NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {
-			g_string_free(buf, TRUE);
+			g_byte_array_free(buf, TRUE);
 			return len ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_CONNECTION_CLOSE;
 		}
-		g_string_truncate(buf, r);
-		chunkqueue_append_string(cq, buf);
+		g_byte_array_set_size(buf, r);
+		chunkqueue_append_bytearr(cq, buf);
 		len += r;
 
 		/* stats */

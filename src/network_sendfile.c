@@ -224,6 +224,7 @@ network_status_t network_write_sendfile(vrequest *vr, int fd, chunkqueue *cq, go
 	do {
 		switch (chunkqueue_first_chunk(cq)->type) {
 		case MEM_CHUNK:
+		case STRING_CHUNK:
 			NETWORK_FALLBACK(network_backend_writev, write_max);
 			break;
 		case FILE_CHUNK:

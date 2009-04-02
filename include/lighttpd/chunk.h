@@ -18,14 +18,15 @@ struct chunkfile {
 };
 
 struct chunk {
-	enum { UNUSED_CHUNK, MEM_CHUNK, FILE_CHUNK } type;
+	enum { UNUSED_CHUNK, STRING_CHUNK, MEM_CHUNK, FILE_CHUNK } type;
 
 	goffset offset;
 	/* if type == FILE_CHUNK and mem != NULL,
 	 * mem contains the data [file.mmap.offset .. file.mmap.offset + file.mmap.length)
 	 * from the file, and file.mmap.start is NULL as mmap failed and read(...) was used.
 	 */
-	GString *mem;
+	GString *str;
+	GByteArray *mem;
 
 	struct {
 		chunkfile *file;
@@ -59,7 +60,7 @@ struct chunkqueue {
 	gboolean is_closed;
 /* read only */
 	goffset bytes_in, bytes_out, length, mem_usage;
-	cqlimit *limit; /* limit is the sum of all { c->mem->len | c->type == MEM_CHUNK } */
+	cqlimit *limit; /* limit is the sum of all { c->mem->len | c->type == STRING_CHUNK } */
 /* private */
 	GQueue *queue;
 };
@@ -86,7 +87,7 @@ INLINE chunk* chunkiter_chunk(chunkiter iter);
 INLINE gboolean chunkiter_next(chunkiter *iter);
 INLINE goffset chunkiter_length(chunkiter iter);
 
-/* get the data from a chunk; easy in case of a MEM_CHUNK,
+/* get the data from a chunk; easy in case of a STRING_CHUNK,
  * but needs to do io in case of FILE_CHUNK; the data is _not_ marked as "done"
  * may return HANDLER_GO_ON, HANDLER_ERROR
  */
@@ -128,8 +129,15 @@ LI_API goffset chunkqueue_limit_available(chunkqueue *cq);
 
  /* pass ownership of str to chunkqueue, do not free/modify it afterwards
   * you may modify the data (not the length) if you are sure it isn't sent before.
+  * if the length is NULL, str is destroyed immediately
   */
 LI_API void chunkqueue_append_string(chunkqueue *cq, GString *str);
+
+ /* pass ownership of mem to chunkqueue, do not free/modify it afterwards
+  * you may modify the data (not the length) if you are sure it isn't sent before.
+  * if the length is NULL, mem is destroyed immediately
+  */
+LI_API void chunkqueue_append_bytearr(chunkqueue *cq, GByteArray *mem);
 
 /* memory gets copied */
 LI_API void chunkqueue_append_mem(chunkqueue *cq, const void *mem, gssize len);
@@ -193,6 +201,8 @@ INLINE goffset chunk_length(chunk *c) {
 	switch (c->type) {
 	case UNUSED_CHUNK:
 		return 0;
+	case STRING_CHUNK:
+		return c->str->len - c->offset;
 	case MEM_CHUNK:
 		return c->mem->len - c->offset;
 	case FILE_CHUNK:
