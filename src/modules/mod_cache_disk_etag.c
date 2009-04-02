@@ -206,7 +206,7 @@ static handler_t cache_etag_filter_miss(vrequest *vr, filter *f) {
 }
 
 static GString* createFileName(vrequest *vr, GString *path, http_header *etagheader) {
-	GString *file = g_string_sized_new(256);
+	GString *file = g_string_sized_new(255);
 	gchar* etag_base64 = g_base64_encode(
 		etagheader->data->str + (etagheader->keylen + 2),
 		etagheader->data->len - (etagheader->keylen + 2));

@@ -31,7 +31,7 @@ void response_send_headers(connection *con) {
 		return;
 	}
 
-	head = g_string_sized_new(8*1024);
+	head = g_string_sized_new(8*1024-1);
 
 	if (0 == con->out->length && con->mainvr->handle_response_body == NULL
 		&& vr->response.http_status >= 400 && vr->response.http_status < 600) {

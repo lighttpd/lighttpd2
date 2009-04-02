@@ -219,13 +219,13 @@ static GArray *al_parse_format(server *srv, GString *formatstr) {
 }
 
 static GString *al_format_log(connection *con, al_data *ald, GArray *format) {
-	GString *str = g_string_sized_new(256);
+	GString *str = g_string_sized_new(255);
 	vrequest *vr = con->mainvr;
 	response *resp = &vr->response;
 	request *req = &vr->request;
 	physical *phys = &vr->physical;
 	gchar *tmp_str = NULL;
-	GString *tmp_gstr = g_string_sized_new(128);
+	GString *tmp_gstr = g_string_sized_new(127);
 	GString *tmp_gstr2;
 	guint len = 0;
 

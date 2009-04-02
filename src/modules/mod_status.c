@@ -280,7 +280,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		if (!uptime)
 			uptime = 1;
 		
-		html = g_string_sized_new(8 * 1024);
+		html = g_string_sized_new(8 * 1024 - 1);
 		count_req = g_string_sized_new(10);
 		count_bin = g_string_sized_new(10);
 		count_bout = g_string_sized_new(10);
@@ -465,7 +465,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			GString *req_len, *resp_len;
 			guint len;
 
-			ts = g_string_sized_new(16);
+			ts = g_string_sized_new(15);
 			bytes_in = g_string_sized_new(10);
 			bytes_out = g_string_sized_new(10);
 			bytes_in_5s = g_string_sized_new(10);

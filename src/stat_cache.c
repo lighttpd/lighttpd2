@@ -186,7 +186,7 @@ static gpointer stat_cache_thread(gpointer data) {
 				assert(size != (gsize)-1);
 				entry = g_slice_alloc(size);
 
-				str = g_string_sized_new(sce->data.path->len + 32);
+				str = g_string_sized_new(sce->data.path->len + 64);
 				g_string_append_len(str, GSTR_LEN(sce->data.path));
 
 				while ((error = readdir_r(dirp, entry, &result)) == 0 && result != NULL) {
@@ -196,7 +196,7 @@ static gpointer stat_cache_thread(gpointer data) {
 						continue;
 					}
 
-					sced.path = g_string_sized_new(32);
+					sced.path = g_string_sized_new(63);
 					g_string_assign(sced.path, result->d_name);
 
 					g_string_truncate(str, sce->data.path->len);

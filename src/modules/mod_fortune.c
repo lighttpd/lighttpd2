@@ -109,12 +109,12 @@ static gboolean fortune_load(server *srv, plugin* p, value *val) {
 
 	/* split lines */
 	{
-		GString *line = g_string_sized_new(128);
+		GString *line = g_string_sized_new(127);
 		gchar *cur;
 		for (cur = data; *cur; cur++) {
 			if (*cur == '\n' && line->len) {
 				g_array_append_val(fd->cookies, line);
-				line = g_string_sized_new(128);
+				line = g_string_sized_new(127);
 				count++;
 			}
 

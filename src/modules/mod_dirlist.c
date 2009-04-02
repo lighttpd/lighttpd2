@@ -262,7 +262,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		}
 
 		/* temporary string for encoded names */
-		encoded = g_string_sized_new(64);
+		encoded = g_string_sized_new(64-1);
 
 		/* seperate directories from other files */
 		directories = g_array_sized_new(FALSE, FALSE, sizeof(guint), 16);
@@ -308,7 +308,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 				
 		}
 
-		listing = g_string_sized_new(4*1024);
+		listing = g_string_sized_new(4*1024-1);
 		g_string_append_printf(listing, html_header, vr->request.uri.path->str);
 
 		if (dd->css) {
