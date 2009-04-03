@@ -2,6 +2,37 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
+static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents);
+
+static server_socket* server_socket_new(int fd) {
+	server_socket *sock = g_slice_new0(server_socket);
+
+	sock->refcount = 1;
+	sock->watcher.data = sock;
+	sock->local_addr = sockaddr_local_from_socket(fd);
+	sock->local_addr_str = g_string_sized_new(0);
+	sockaddr_to_string(sock->local_addr, sock->local_addr_str, FALSE);
+	fd_init(fd);
+	ev_init(&sock->watcher, server_listen_cb);
+	ev_io_set(&sock->watcher, fd, EV_READ);
+	return sock;
+}
+
+void server_socket_release(server_socket* sock) {
+	if (!sock) return;
+	assert(g_atomic_int_get(&sock->refcount) > 0);
+	if (g_atomic_int_dec_and_test(&sock->refcount)) {
+		sockaddr_clear(&sock->local_addr);
+		g_string_free(sock->local_addr_str, TRUE);
+		g_slice_free(server_socket, sock);
+	}
+}
+
+void server_socket_acquire(server_socket* sock) {
+	assert(g_atomic_int_get(&sock->refcount) > 0);
+	g_atomic_int_inc(&sock->refcount);
+}
+
 static void server_value_free(gpointer _so) {
 	g_slice_free(server_option, _so);
 }
@@ -57,7 +88,7 @@ server* server_new(const gchar *module_dir) {
 
 	srv->workers = g_array_new(FALSE, TRUE, sizeof(worker*));
 
-	srv->sockets = g_array_new(FALSE, TRUE, sizeof(server_socket*));
+	srv->sockets = g_ptr_array_new();
 
 	srv->modules = modules_init(srv, module_dir);
 
@@ -131,11 +162,11 @@ void server_free(server* srv) {
 
 	{
 		guint i; for (i = 0; i < srv->sockets->len; i++) {
-			server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
+			server_socket *sock = g_ptr_array_index(srv->sockets, i);
 			close(sock->watcher.fd);
-			g_slice_free(server_socket, sock);
+			server_socket_release(sock);
 		}
-		g_array_free(srv->sockets, TRUE);
+		g_ptr_array_free(srv->sockets, TRUE);
 	}
 
 	{
@@ -201,14 +232,24 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	server_socket *sock = (server_socket*) w->data;
 	server *srv = sock->srv;
 	int s;
-	sock_addr remote_addr;
-	socklen_t l = sizeof(remote_addr);
+	sockaddr_t remote_addr;
+	struct sockaddr sa;
+	socklen_t l = sizeof(sa);
 	UNUSED(loop);
 	UNUSED(revents);
 
-	while (-1 != (s = accept(w->fd, (struct sockaddr*) &remote_addr, &l))) {
+	while (-1 != (s = accept(w->fd, &sa, &l))) {
 		worker *wrk = srv->main_worker;
 		guint i, min_load = g_atomic_int_get(&wrk->connection_load), sel = 0;
+
+		if (l <= sizeof(sa)) {
+			remote_addr.addr = g_slice_alloc(l);
+			remote_addr.len = l;
+			memcpy(remote_addr.addr, &sa, l);
+		} else {
+			remote_addr = sockaddr_remote_from_socket(s);
+		}
+		l = sizeof(sa); /* reset l */
 
 		fd_init(s);
 
@@ -224,7 +265,8 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 		g_atomic_int_inc((gint*) &wrk->connection_load);
 		/* TRACE(srv, "selected worker %u with load %u", sel, min_load); */
-		worker_new_con(srv->main_worker, wrk, &remote_addr, s);
+		server_socket_acquire(sock);
+		worker_new_con(srv->main_worker, wrk, remote_addr, s, sock);
 	}
 
 #ifdef _WIN32
@@ -253,17 +295,12 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 }
 
 void server_listen(server *srv, int fd) {
-	server_socket *sock;
+	server_socket *sock = server_socket_new(fd);
 
-	sock = g_slice_new0(server_socket);
 	sock->srv = srv;
-	sock->watcher.data = sock;
-	fd_init(fd);
-	ev_init(&sock->watcher, server_listen_cb);
-	ev_io_set(&sock->watcher, fd, EV_READ);
 	if (g_atomic_int_get(&srv->state) == SERVER_RUNNING) ev_io_start(srv->main_worker->loop, &sock->watcher);
 
-	g_array_append_val(srv->sockets, sock);
+	g_ptr_array_add(srv->sockets, sock);
 }
 
 void server_start(server *srv) {
@@ -283,7 +320,7 @@ void server_start(server *srv) {
 	plugins_prepare_callbacks(srv);
 
 	for (i = 0; i < srv->sockets->len; i++) {
-		server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
+		server_socket *sock = g_ptr_array_index(srv->sockets, i);
 		ev_io_start(srv->main_worker->loop, &sock->watcher);
 	}
 
@@ -307,7 +344,7 @@ void server_stop(server *srv) {
 
 	if (srv->main_worker) {
 		for (i = 0; i < srv->sockets->len; i++) {
-			server_socket *sock = g_array_index(srv->sockets, server_socket*, i);
+			server_socket *sock = g_ptr_array_index(srv->sockets, i);
 			ev_io_stop(srv->main_worker->loop, &sock->watcher);
 		}
 

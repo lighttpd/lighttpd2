@@ -321,7 +321,6 @@ connection* connection_new(worker *wrk) {
 	ev_io_set(&con->sock_watcher, -1, 0);
 	con->sock_watcher.data = con;
 	con->remote_addr_str = g_string_sized_new(INET6_ADDRSTRLEN);
-	con->local_addr_str = g_string_sized_new(INET6_ADDRSTRLEN);
 	con->keep_alive = TRUE;
 
 	con->raw_in  = chunkqueue_new();
@@ -361,6 +360,9 @@ void connection_reset(connection *con) {
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
+	server_socket_release(con->srv_sock);
+	con->srv_sock = NULL;
+
 	ev_io_stop(con->wrk->loop, &con->sock_watcher);
 	if (con->sock_watcher.fd != -1) {
 		if (con->raw_in->is_closed) { /* read already shutdown */
@@ -376,7 +378,7 @@ void connection_reset(connection *con) {
 	http_request_parser_reset(&con->req_parser_ctx);
 
 	g_string_truncate(con->remote_addr_str, 0);
-	g_string_truncate(con->local_addr_str, 0);
+	sockaddr_clear(&con->remote_addr);
 	con->keep_alive = TRUE;
 
 	chunkqueue_reset(con->raw_in);
@@ -466,6 +468,9 @@ void connection_free(connection *con) {
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
+	server_socket_release(con->srv_sock);
+	con->srv_sock = NULL;
+
 	if (con->wrk)
 		ev_io_stop(con->wrk->loop, &con->sock_watcher);
 	if (con->sock_watcher.fd != -1) {
@@ -475,7 +480,7 @@ void connection_free(connection *con) {
 	}
 	ev_io_set(&con->sock_watcher, -1, 0);
 	g_string_free(con->remote_addr_str, TRUE);
-	g_string_free(con->local_addr_str, TRUE);
+	sockaddr_clear(&con->remote_addr);
 	con->keep_alive = TRUE;
 
 	chunkqueue_free(con->raw_in);

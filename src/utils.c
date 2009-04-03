@@ -432,12 +432,13 @@ GString *mimetype_get(vrequest *vr, GString *filename) {
 }
 
 
-GString *sockaddr_to_string(sock_addr *saddr, GString *dest, gboolean showport) {
+GString *sockaddr_to_string(sockaddr_t addr, GString *dest, gboolean showport) {
 	gchar *p;
 	guint8 len = 0;
 	guint8 tmp;
 	guint8 tmplen;
 	guint8 oct;
+	sock_addr *saddr = addr.addr;
 
 	switch (saddr->plain.sa_family) {
 	case AF_INET:
@@ -502,13 +503,13 @@ GString *sockaddr_to_string(sock_addr *saddr, GString *dest, gboolean showport) 
 	return dest;
 }
 
-sockaddr sockaddr_from_string(GString *str, guint tcp_default_port) {
+sockaddr_t sockaddr_from_string(GString *str, guint tcp_default_port) {
 	guint32 ipv4;
 #ifdef HAVE_IPV6
 	guint8 ipv6[16];
 #endif
 	guint16 port = tcp_default_port;
-	sockaddr saddr = { 0, NULL };
+	sockaddr_t saddr = { 0, NULL };
 
 #ifdef HAVE_SYS_UN_H
 	if (0 == strncmp(str->str, "unix:/", 6)) {
@@ -539,8 +540,42 @@ sockaddr sockaddr_from_string(GString *str, guint tcp_default_port) {
 	return saddr;
 }
 
-void sockaddr_clear(sockaddr *saddr) {
-	g_slice_free1(saddr->len, saddr->addr);
+sockaddr_t sockaddr_local_from_socket(gint fd) {
+	socklen_t l = 0;
+	static struct sockaddr sa;
+	struct sockaddr_t saddr = { 0, NULL };
+
+	if (-1 == getsockname(fd, &sa, &l)) {
+		return saddr;
+	}
+
+	saddr.addr = (sock_addr*) g_slice_alloc0(l);
+	saddr.len = l;
+	getsockname(fd, (struct sockaddr*) saddr.addr, &l);
+
+	return saddr;
+}
+
+sockaddr_t sockaddr_remote_from_socket(gint fd) {
+	socklen_t l = 0;
+	static struct sockaddr sa;
+	struct sockaddr_t saddr = { 0, NULL };
+
+	if (-1 == getpeername(fd, &sa, &l)) {
+		return saddr;
+	}
+
+	saddr.addr = (sock_addr*) g_slice_alloc0(l);
+	saddr.len = l;
+	getpeername(fd, (struct sockaddr*) saddr.addr, &l);
+
+	return saddr;
+}
+
+void sockaddr_clear(sockaddr_t *saddr) {
+	if (saddr->addr) g_slice_free1(saddr->len, saddr->addr);
+	saddr->addr = NULL;
+	saddr->len = 0;
 }
 
 /* unused */

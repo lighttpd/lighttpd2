@@ -196,17 +196,19 @@ static void worker_exit_cb(struct ev_loop *loop, ev_async *w, int revents) {
 struct worker_new_con_data;
 typedef struct worker_new_con_data worker_new_con_data;
 struct worker_new_con_data {
-	sock_addr remote_addr;
+	sockaddr_t remote_addr;
 	int s;
+	server_socket *srv_sock;
 };
 
 /* new con watcher */
-void worker_new_con(worker *ctx, worker *wrk, sock_addr *remote_addr, int s) {
+void worker_new_con(worker *ctx, worker *wrk, sockaddr_t remote_addr, int s, server_socket *srv_sock) {
 	if (ctx == wrk) {
 		connection *con = worker_con_get(wrk);
 
+		con->srv_sock = srv_sock;
 		con->state = CON_STATE_REQUEST_START;
-		con->remote_addr = *remote_addr;
+		con->remote_addr = remote_addr;
 		ev_io_set(&con->sock_watcher, s, EV_READ);
 		ev_io_start(wrk->loop, &con->sock_watcher);
 		con->ts = CUR_TS(con->wrk);
@@ -214,8 +216,9 @@ void worker_new_con(worker *ctx, worker *wrk, sock_addr *remote_addr, int s) {
 		waitqueue_push(&wrk->io_timeout_queue, &con->io_timeout_elem);
 	} else {
 		worker_new_con_data *d = g_slice_new(worker_new_con_data);
-		d->remote_addr = *remote_addr;
+		d->remote_addr = remote_addr;
 		d->s = s;
+		d->srv_sock = srv_sock;
 		g_async_queue_push(wrk->new_con_queue, d);
 		ev_async_send(wrk->loop, &wrk->new_con_watcher);
 	}
@@ -228,7 +231,7 @@ static void worker_new_con_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	UNUSED(revents);
 
 	while (NULL != (d = g_async_queue_try_pop(wrk->new_con_queue))) {
-		worker_new_con(wrk, wrk, &d->remote_addr, d->s);
+		worker_new_con(wrk, wrk, d->remote_addr, d->s, d->srv_sock);
 		g_slice_free(worker_new_con_data, d);
 	}
 }

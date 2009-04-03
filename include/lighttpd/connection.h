@@ -29,6 +29,7 @@ struct connection {
 	guint idx; /** index in connection table */
 	server *srv;
 	worker *wrk;
+	server_socket *srv_sock;
 
 	connection_state_t state;
 	gboolean response_headers_sent, expect_100_cont;
@@ -37,8 +38,8 @@ struct connection {
 	chunkqueue *in, *out;    /* link to mainvr->in/out */
 
 	ev_io sock_watcher;
-	sock_addr remote_addr, local_addr;
-	GString *remote_addr_str, *local_addr_str;
+	sockaddr_t remote_addr;
+	GString *remote_addr_str;
 	gboolean is_ssl, keep_alive;
 
 	vrequest *mainvr;

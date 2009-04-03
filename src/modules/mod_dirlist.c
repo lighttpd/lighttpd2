@@ -208,7 +208,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		}
 		/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
 		/* TODO: local addr if HTTP 1.0 without host header, url encoding */
-		host = vr->request.uri.authority->len ? vr->request.uri.authority : vr->con->local_addr_str;
+		host = vr->request.uri.authority->len ? vr->request.uri.authority : vr->con->srv_sock->local_addr_str;
 		uri = g_string_sized_new(
 			8 /* https:// */ + host->len +
 			vr->request.uri.orig_path->len + 2 /* /? */ + vr->request.uri.query->len

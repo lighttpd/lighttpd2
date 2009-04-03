@@ -11,12 +11,12 @@ typedef enum {
 	SERVER_STOPPING          /** stopping: flush logs, don't accept new connections */
 } server_state;
 
-struct server_socket;
-typedef struct server_socket server_socket;
-
 struct server_socket {
+	guint refcount;
 	server *srv;
 	ev_io watcher;
+	sockaddr_t local_addr;
+	GString *local_addr_str;
 };
 
 struct server {
@@ -36,7 +36,7 @@ struct server {
 	ev_prepare srv_prepare;
 	ev_check srv_check;
 
-	GArray *sockets;          /** array of (server_socket*) */
+	GPtrArray *sockets;          /** array of (server_socket*) */
 
 	struct modules *modules;
 
@@ -98,5 +98,8 @@ LI_API GString *server_current_timestamp();
 LI_API void server_out_of_fds(server *srv);
 
 LI_API guint server_ts_format_add(server *srv, GString* format);
+
+LI_API void server_socket_release(server_socket* sock);
+LI_API void server_socket_acquire(server_socket* sock);
 
 #endif

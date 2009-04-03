@@ -162,6 +162,9 @@ typedef struct response response;
 struct server;
 typedef struct server server;
 
+struct server_socket;
+typedef struct server_socket server_socket;
+
 /* utils.h */
 
 struct waitqueue_elem;

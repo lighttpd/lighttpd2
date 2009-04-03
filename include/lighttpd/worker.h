@@ -106,7 +106,7 @@ LI_API void worker_run(worker *wrk);
 LI_API void worker_stop(worker *context, worker *wrk);
 LI_API void worker_exit(worker *context, worker *wrk);
 
-LI_API void worker_new_con(worker *ctx, worker *wrk, sock_addr *remote_addr, int s);
+LI_API void worker_new_con(worker *ctx, worker *wrk, sockaddr_t remote_addr, int s, server_socket *srv_sock);
 
 LI_API void worker_check_keepalive(worker *wrk);
 

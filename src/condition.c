@@ -306,7 +306,7 @@ static handler_t condition_check_eval_string(vrequest *vr, condition *cond, gboo
 
 	switch (cond->lvalue->type) {
 	case COMP_REQUEST_LOCALIP:
-		val = con->local_addr_str->str;
+		val = con->srv_sock->local_addr_str->str;
 		break;
 	case COMP_REQUEST_REMOTEIP:
 		val = con->remote_addr_str->str;
@@ -506,11 +506,11 @@ static handler_t condition_check_eval_ip(vrequest *vr, condition *cond, gboolean
 
 	switch (cond->lvalue->type) {
 	case COMP_REQUEST_LOCALIP:
-		if (!condition_ip_from_socket(&ipval, &con->local_addr))
+		if (!condition_ip_from_socket(&ipval, con->srv_sock->local_addr.addr))
 			return HANDLER_GO_ON;
 		break;
 	case COMP_REQUEST_REMOTEIP:
-		if (!condition_ip_from_socket(&ipval, &con->remote_addr))
+		if (!condition_ip_from_socket(&ipval, con->remote_addr.addr))
 			return HANDLER_GO_ON;
 		break;
 	case COMP_REQUEST_PATH:

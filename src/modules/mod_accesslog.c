@@ -240,7 +240,7 @@ static GString *al_format_log(connection *con, al_data *ald, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(con->remote_addr_str));
 				break;
 			case AL_FORMAT_LOCAL_ADDR:
-				g_string_append_len(str, GSTR_LEN(con->local_addr_str));
+				g_string_append_len(str, GSTR_LEN(con->srv_sock->local_addr_str));
 				break;
 			case AL_FORMAT_BYTES_RESPONSE:
 				g_string_append_printf(str, "%jd", vr->out->bytes_out);

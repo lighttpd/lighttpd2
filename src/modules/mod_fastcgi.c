@@ -87,7 +87,7 @@ struct fastcgi_connection {
 
 struct fastcgi_context {
 	gint refcount;
-	sockaddr socket;
+	sockaddr_t socket;
 	guint timeout;
 	plugin *plugin;
 };
@@ -132,7 +132,7 @@ enum FCGI_ProtocolStatus {
 /**********************************************************************************/
 
 static fastcgi_context* fastcgi_context_new(server *srv, plugin *p, GString *dest_socket) {
-	sockaddr saddr;
+	sockaddr_t saddr;
 	fastcgi_context* ctx;
 	saddr = sockaddr_from_string(dest_socket, 0);
 	if (NULL == saddr.addr) {
@@ -329,29 +329,29 @@ static void fastcgi_env_create(vrequest *vr, environment_dup *envdup, GString* b
 	fastcgi_env_add(buf, envdup, CONST_STR_LEN("GATEWAY_INTERFACE"), CONST_STR_LEN("CGI/1.1"));
 	{
 		guint port = 0;
-		switch (con->local_addr.plain.sa_family) {
-		case AF_INET: port = con->local_addr.ipv4.sin_port; break;
+		switch (con->srv_sock->local_addr.addr->plain.sa_family) {
+		case AF_INET: port = con->srv_sock->local_addr.addr->ipv4.sin_port; break;
 #ifdef HAVE_IPV6
-		case AF_INET6: port = con->local_addr.ipv6.sin6_port; break;
+		case AF_INET6: port = con->srv_sock->local_addr.addr->ipv6.sin6_port; break;
 #endif
 		}
 		if (port) {
-			g_string_printf(tmp, "%u", port);
+			g_string_printf(tmp, "%u", htons(port));
 			fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_PORT"), GSTR_LEN(tmp));
 		}
 	}
-	fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_ADDR"), GSTR_LEN(con->local_addr_str));
+	fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_ADDR"), GSTR_LEN(con->srv_sock->local_addr_str));
 
 	{
 		guint port = 0;
-		switch (con->remote_addr.plain.sa_family) {
-		case AF_INET: port = con->remote_addr.ipv4.sin_port; break;
+		switch (con->remote_addr.addr->plain.sa_family) {
+		case AF_INET: port = con->remote_addr.addr->ipv4.sin_port; break;
 #ifdef HAVE_IPV6
-		case AF_INET6: port = con->remote_addr.ipv6.sin6_port; break;
+		case AF_INET6: port = con->remote_addr.addr->ipv6.sin6_port; break;
 #endif
 		}
 		if (port) {
-			g_string_printf(tmp, "%u", port);
+			g_string_printf(tmp, "%u", htons(port));
 			fastcgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_PORT"), GSTR_LEN(tmp));
 		}
 	}
@@ -685,7 +685,7 @@ static handler_t fastcgi_statemachine(vrequest *vr, fastcgi_connection *fcon) {
 				return HANDLER_GO_ON;
 			default:
 				VR_ERROR(vr, "Couldn't connect to '%s': %s",
-					sockaddr_to_string(fcon->ctx->socket.addr, vr->con->wrk->tmp_str, TRUE)->str,
+					sockaddr_to_string(fcon->ctx->socket, vr->con->wrk->tmp_str, TRUE)->str,
 					g_strerror(errno));
 				fastcgi_close(vr, p);
 				vrequest_backend_dead(vr);
