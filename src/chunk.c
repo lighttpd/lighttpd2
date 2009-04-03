@@ -781,3 +781,38 @@ error:
 	return FALSE;
 }
 
+gboolean chunkqueue_extract_to_bytearr(vrequest *vr, chunkqueue *cq, goffset len, GByteArray *dest) {
+	chunkiter ci;
+	goffset coff, clen;
+	g_byte_array_set_size(dest, 0);
+	if (len > cq->length) return FALSE;
+
+	g_byte_array_set_size(dest, len);
+	g_byte_array_set_size(dest, 0);
+
+	ci = chunkqueue_iter(cq);
+	coff = 0;
+	clen = chunkiter_length(ci);
+
+	while (len > 0) {
+		coff = 0;
+		clen = chunkiter_length(ci);
+		while (coff < clen) {
+			gchar *buf;
+			off_t we_have;
+			if (HANDLER_GO_ON != chunkiter_read(vr, ci, coff, len, &buf, &we_have)) goto error;
+			g_byte_array_append(dest, buf, we_have);
+			coff += we_have;
+			len -= we_have;
+			if (len <= 0) return TRUE;
+		}
+		chunkiter_next(&ci);
+	}
+
+	return TRUE;
+
+error:
+	g_byte_array_set_size(dest, 0);
+	return FALSE;
+}
+

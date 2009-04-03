@@ -177,6 +177,7 @@ INLINE chunkiter chunkqueue_iter(chunkqueue *cq);
 INLINE chunk* chunkqueue_first_chunk(chunkqueue *cq);
 
 LI_API gboolean chunkqueue_extract_to(vrequest *vr, chunkqueue *cq, goffset len, GString *dest);
+LI_API gboolean chunkqueue_extract_to_bytearr(vrequest *vr, chunkqueue *cq, goffset len, GByteArray *dest);
 
 /********************
  * Inline functions *
