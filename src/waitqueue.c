@@ -20,8 +20,11 @@ void waitqueue_update(waitqueue *queue) {
 
 	if (queue->head) {
 		repeat = queue->head->ts + queue->delay - ev_now(queue->loop);
-	} else
+		if (repeat < 0.01)
+			repeat = 0.01;
+	} else {
 		repeat = queue->delay;
+	}
 
 	if (queue->timer.repeat != repeat)
 	{
@@ -72,7 +75,7 @@ waitqueue_elem *waitqueue_pop(waitqueue *queue) {
 	waitqueue_elem *elem = queue->head;
 	ev_tstamp now = ev_now(queue->loop);
 
-	if (!elem || (elem->ts + queue->delay) >= now) {
+	if (!elem || (elem->ts + queue->delay) > now) {
 		return NULL;
 	}
 
