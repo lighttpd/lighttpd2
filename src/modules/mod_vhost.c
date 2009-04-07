@@ -377,6 +377,11 @@ static handler_t vhost_pattern(vrequest *vr, gpointer param, gpointer *context) 
 		}
 	}
 
+	/* build physical path: docroot + uri.path */
+	g_string_truncate(vr->physical.path, 0);
+	g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
+	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
+
 	if (debug)
 		VR_DEBUG(vr, "vhost.pattern: mapped host \"%s\" to docroot \"%s\"", vr->request.uri.host->str, vr->physical.doc_root->str);
 
@@ -493,6 +498,7 @@ static action* vhost_pattern_create(server *srv, plugin* p, value *val) {
 	if (c - c_last > 0) {
 		part.type = VHOST_PATTERN_STRING;
 		part.data.str = g_string_new_len(c_last, c - c_last);
+		g_array_append_val(pd->parts, part);
 	}
 
 	return action_new_function(vhost_pattern, NULL, vhost_pattern_free, pd);
