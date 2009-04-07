@@ -341,6 +341,13 @@ static handler_t vhost_pattern(vrequest *vr, gpointer param, gpointer *context) 
 		}
 	}
 
+	if (i < pattern->max_idx) {
+		/* the last part */
+		hp.str = vr->request.uri.host->str;
+		hp.len = c_last - hp.str;
+		g_array_append_val(parts, hp);
+	}
+
 	/* now construct the new docroot */
 	g_string_truncate(vr->physical.doc_root, 0);
 	for (i = 0; i < pattern->parts->len; i++) {
@@ -461,7 +468,7 @@ static action* vhost_pattern_create(server *srv, plugin* p, value *val) {
 					part.data.range.n = *c - '0';
 					part.data.range.m = 0;
 					c_last += 3;
-					pd->max_idx = MAX(pd->max_idx, part.data.range.n);
+					pd->max_idx = 99;
 				} else if (*(c+2) > '0' && *(c+2) <= '9' && *c < *(c+2)) {
 					/* ${n-m} */
 					part.data.range.n = *c - '0';
