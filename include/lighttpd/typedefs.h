@@ -196,6 +196,9 @@ typedef enum {
 struct vrequest;
 typedef struct vrequest vrequest;
 
+struct vrequest_ref;
+typedef struct vrequest_ref vrequest_ref;
+
 struct filter;
 typedef struct filter filter;
 

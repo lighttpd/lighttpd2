@@ -50,9 +50,14 @@ struct filters {
 	guint skip_ndx;
 };
 
-struct connection;
+struct vrequest_ref {
+	guint refcount;
+	vrequest *vr; /* This is only accesible by the worker thread the vrequest belongs to, and it may be NULL if the vrequest is already reset */
+};
+
 struct vrequest {
-	struct connection *con;
+	connection *con;
+	vrequest_ref *ref;
 
 	option_value *options;
 
@@ -82,7 +87,8 @@ struct vrequest {
 	action_stack action_stack;
 	gboolean actions_wait_for_response;
 
-	GList *job_queue_link;
+	gint queued;
+	GList job_queue_link;
 
 	GPtrArray *stat_cache_entries;
 };
@@ -100,6 +106,9 @@ struct vrequest {
 LI_API vrequest* vrequest_new(struct connection *con, vrequest_handler handle_response_headers, vrequest_handler handle_response_body, vrequest_handler handle_response_error, vrequest_handler handle_request_headers);
 LI_API void vrequest_free(vrequest *vr);
 LI_API void vrequest_reset(vrequest *vr);
+
+LI_API vrequest_ref* vrequest_acquire_ref(vrequest *vr);
+LI_API vrequest* vrequest_release_ref(vrequest_ref *vr_ref);
 
 LI_API void vrequest_add_filter_in(vrequest *vr, filter_handler handle_data, filter_free handle_free, gpointer param);
 LI_API void vrequest_add_filter_out(vrequest *vr, filter_handler handle_data, filter_free handle_free, gpointer param);
@@ -128,6 +137,7 @@ LI_API gboolean vrequest_is_handled(vrequest *vr);
 
 LI_API void vrequest_state_machine(vrequest *vr);
 LI_API void vrequest_joblist_append(vrequest *vr);
+LI_API void vrequest_joblist_append_async(vrequest *vr);
 
 LI_API gboolean vrequest_stat(vrequest *vr);
 

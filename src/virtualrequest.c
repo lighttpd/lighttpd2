@@ -103,6 +103,9 @@ vrequest* vrequest_new(connection *con, vrequest_handler handle_response_headers
 	vrequest *vr = g_slice_new0(vrequest);
 
 	vr->con = con;
+	vr->ref = g_slice_new0(vrequest_ref);
+	vr->ref->refcount = 1;
+	vr->ref->vr = vr;
 	vr->state = VRS_CLEAN;
 
 	vr->handle_response_headers = handle_response_headers;
@@ -128,6 +131,8 @@ vrequest* vrequest_new(connection *con, vrequest_handler handle_response_headers
 
 	vr->stat_cache_entries = g_ptr_array_sized_new(2);
 
+	vr->job_queue_link.data = vr;
+
 	action_stack_init(&vr->action_stack);
 
 	return vr;
@@ -148,9 +153,9 @@ void vrequest_free(vrequest* vr) {
 	filters_clean(vr, &vr->filters_in);
 	filters_clean(vr, &vr->filters_out);
 
-	if (vr->job_queue_link) {
-		g_queue_delete_link(&vr->con->wrk->job_queue, vr->job_queue_link);
-		vr->job_queue_link = NULL;
+	if (g_atomic_int_get(&vr->queued)) { /* atomic access shouldn't be needed here; no one else can access vr here... */
+		g_queue_unlink(&vr->con->wrk->job_queue, &vr->job_queue_link);
+		g_atomic_int_set(&vr->queued, 0);
 	}
 
 	g_slice_free1(vr->con->srv->option_def_values->len * sizeof(option_value), vr->options);
@@ -161,6 +166,11 @@ void vrequest_free(vrequest* vr) {
 		stat_cache_entry_release(vr, sce);
 	}
 	g_ptr_array_free(vr->stat_cache_entries, TRUE);
+
+	vr->ref->vr = NULL;
+	if (g_atomic_int_dec_and_test(&vr->ref->refcount)) {
+		g_slice_free(vrequest_ref, vr->ref);
+	}
 
 	g_slice_free(vrequest, vr);
 }
@@ -188,9 +198,9 @@ void vrequest_reset(vrequest *vr) {
 	filters_reset(vr, &vr->filters_in);
 	filters_reset(vr, &vr->filters_out);
 
-	if (vr->job_queue_link) {
-		g_queue_delete_link(&vr->con->wrk->job_queue, vr->job_queue_link);
-		vr->job_queue_link = NULL;
+	if (g_atomic_int_get(&vr->queued)) { /* atomic access shouldn't be needed here; no one else can access vr here... */
+		g_queue_unlink(&vr->con->wrk->job_queue, &vr->job_queue_link);
+		g_atomic_int_set(&vr->queued, 0);
 	}
 
 	for (i = 0; i < vr->stat_cache_entries->len; i++) {
@@ -199,6 +209,34 @@ void vrequest_reset(vrequest *vr) {
 	}
 
 	memcpy(vr->options, vr->con->srv->option_def_values->data, vr->con->srv->option_def_values->len * sizeof(option_value));
+
+	if (1 != g_atomic_int_get(&vr->ref->refcount)) {
+		/* If we are not the only user of vr->ref we have to get a new one and detach the old */
+		vr->ref->vr = NULL;
+		if (g_atomic_int_dec_and_test(&vr->ref->refcount)) {
+			g_slice_free(vrequest_ref, vr->ref);
+		}
+		vr->ref = g_slice_new0(vrequest_ref);
+		vr->ref->refcount = 1;
+		vr->ref->vr = vr;
+	}
+}
+
+vrequest_ref* vrequest_acquire_ref(vrequest *vr) {
+	vrequest_ref* vr_ref = vr->ref;
+	g_assert(vr_ref->refcount > 0);
+	g_atomic_int_inc(&vr_ref->refcount);
+	return vr_ref;
+}
+
+vrequest* vrequest_release_ref(vrequest_ref *vr_ref) {
+	vrequest *vr = vr_ref->vr;
+	g_assert(vr_ref->refcount > 0);
+	if (g_atomic_int_dec_and_test(&vr_ref->refcount)) {
+		g_assert(vr == NULL); /* we are the last user, and the ref holded by vr itself is handled extra, so the vr was already reset */
+		g_slice_free(vrequest_ref, vr_ref);
+	}
+	return vr;
 }
 
 void vrequest_error(vrequest *vr) {
@@ -432,10 +470,17 @@ void vrequest_state_machine(vrequest *vr) {
 void vrequest_joblist_append(vrequest *vr) {
 	GQueue *const q = &vr->con->wrk->job_queue;
 	worker *wrk = vr->con->wrk;
-	if (vr->job_queue_link) return; /* already in queue */
-	g_queue_push_tail(q, vr);
-	vr->job_queue_link = g_queue_peek_tail_link(q);
+	if (!g_atomic_int_compare_and_exchange(&vr->queued, 0, 1)) return; /* already in queue */
+	g_queue_push_tail_link(q, &vr->job_queue_link);
 	ev_timer_start(wrk->loop, &wrk->job_queue_watcher);
+}
+
+void vrequest_joblist_append_async(vrequest *vr) {
+	GAsyncQueue *const q = vr->con->wrk->job_async_queue;
+	worker *wrk = vr->con->wrk;
+	if (!g_atomic_int_compare_and_exchange(&vr->queued, 0, 1)) return; /* already in queue */
+	g_async_queue_push(q, vrequest_acquire_ref(vr));
+	ev_async_send(wrk->loop, &wrk->job_async_queue_watcher);
 }
 
 gboolean vrequest_stat(vrequest *vr) {

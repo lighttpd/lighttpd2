@@ -139,15 +139,34 @@ static void worker_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 static void worker_job_queue_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	worker *wrk = (worker*) w->data;
 	GQueue q = wrk->job_queue;
+	GList *l;
 	vrequest *vr;
 	UNUSED(loop);
 	UNUSED(revents);
 
 	g_queue_init(&wrk->job_queue); /* reset queue, elements are in q */
 
-	while (NULL != (vr = g_queue_pop_head(&q))) {
-		vr->job_queue_link = NULL;
+	while (NULL != (l = g_queue_pop_head_link(&q))) {
+		vr = l->data;
+		g_assert(g_atomic_int_compare_and_exchange(&vr->queued, 1, 0));
 		vrequest_state_machine(vr);
+	}
+}
+
+/* run vreqest state machine for async queued jobs */
+static void worker_job_async_queue_cb(struct ev_loop *loop, ev_async *w, int revents) {
+	worker *wrk = (worker*) w->data;
+	GAsyncQueue *q = wrk->job_async_queue;
+	vrequest_ref *vr_ref;
+	vrequest *vr;
+	UNUSED(loop);
+	UNUSED(revents);
+
+	while (NULL != (vr_ref = g_async_queue_try_pop(q))) {
+		if (NULL != (vr = vrequest_release_ref(vr_ref))) {
+			g_assert(g_atomic_int_compare_and_exchange(&vr->queued, 1, 0));
+			vrequest_state_machine(vr);
+		}
 	}
 }
 
@@ -338,6 +357,12 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	ev_timer_init(&wrk->job_queue_watcher, worker_job_queue_cb, 0, 0);
 	wrk->job_queue_watcher.data = wrk;
 
+	wrk->job_async_queue = g_async_queue_new();
+	ev_async_init(&wrk->job_async_queue_watcher, worker_job_async_queue_cb);
+	wrk->job_async_queue_watcher.data = wrk;
+	ev_async_start(wrk->loop, &wrk->job_async_queue_watcher);
+	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
+
 	stat_cache_new(wrk, srv->stat_cache_ttl);
 
 	return wrk;
@@ -370,7 +395,7 @@ void worker_free(worker *wrk) {
 	}
 
 	ev_ref(wrk->loop);
-	ev_async_stop(wrk->loop, &wrk->worker_exit_watcher);
+	ev_async_stop(wrk->loop, &wrk->job_async_queue_watcher);
 
 	{ /* free timestamps */
 		guint i;
@@ -378,6 +403,25 @@ void worker_free(worker *wrk) {
 			g_string_free(g_array_index(wrk->timestamps, worker_ts, i).str, TRUE);
 		g_array_free(wrk->timestamps, TRUE);
 	}
+
+	ev_ref(wrk->loop);
+	ev_async_stop(wrk->loop, &wrk->worker_exit_watcher);
+
+	{
+		GAsyncQueue *q = wrk->job_async_queue;
+		vrequest_ref *vr_ref;
+		vrequest *vr;
+
+		while (NULL != (vr_ref = g_async_queue_try_pop(q))) {
+			if (NULL != (vr = vrequest_release_ref(vr_ref))) {
+				g_assert(g_atomic_int_compare_and_exchange(&vr->queued, 1, 0));
+				vrequest_state_machine(vr);
+			}
+		}
+
+		g_async_queue_unref(q);
+	}
+
 
 	g_async_queue_unref(wrk->new_con_queue);
 

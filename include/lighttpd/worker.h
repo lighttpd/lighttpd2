@@ -96,6 +96,9 @@ struct worker {
 	GQueue job_queue;
 	ev_timer job_queue_watcher;
 
+	GAsyncQueue *job_async_queue;
+	ev_async job_async_queue_watcher;
+
 	stat_cache *stat_cache;
 };
 
