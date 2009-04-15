@@ -338,7 +338,7 @@ void plugins_handle_close(connection *con) {
 }
 
 void plugins_handle_vrclose(vrequest *vr) {
-	GArray *a = vr->con->srv->plugins_handle_vrclose;
+	GArray *a = vr->wrk->srv->plugins_handle_vrclose;
 	guint i, len = a->len;
 	for (i = 0; i < len; i++) {
 		plugin *p = g_array_index(a, plugin*, i);

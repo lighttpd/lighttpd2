@@ -57,6 +57,7 @@ struct vrequest_ref {
 
 struct vrequest {
 	connection *con;
+	worker *wrk;
 	vrequest_ref *ref;
 
 	option_value *options;

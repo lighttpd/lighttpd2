@@ -233,7 +233,7 @@ static handler_t cache_etag_handle(vrequest *vr, gpointer param, gpointer *conte
 	GList *etag_entry;
 	http_header *etag;
 	struct stat st;
-	GString *tmp_str = vr->con->wrk->tmp_str;
+	GString *tmp_str = vr->wrk->tmp_str;
 
 	if (!cfile) {
 		if (vr->request.http_method != HTTP_METHOD_GET) return HANDLER_GO_ON;
@@ -265,7 +265,7 @@ static handler_t cache_etag_handle(vrequest *vr, gpointer param, gpointer *conte
 		}
 		if (-1 == (cfile->hit_fd = open(cfile->filename->str, O_RDONLY))) {
 			if (EMFILE == errno) {
-				server_out_of_fds(vr->con->srv);
+				server_out_of_fds(vr->wrk->srv);
 			}
 			VR_ERROR(vr, "Couldn't open cache file '%s': %s", cfile->filename->str, g_strerror(errno));
 			return HANDLER_GO_ON; /* no caching */

@@ -189,7 +189,7 @@ static void fastcgi_connection_free(fastcgi_connection *fcon) {
 	if (!fcon) return;
 
 	vr = fcon->vr;
-	ev_io_stop(vr->con->wrk->loop, &fcon->fd_watcher);
+	ev_io_stop(vr->wrk->loop, &fcon->fd_watcher);
 	fastcgi_context_release(fcon->ctx);
 	if (fcon->fd != -1) close(fcon->fd);
 
@@ -427,7 +427,7 @@ static void fastcgi_send_env(vrequest *vr, fastcgi_connection *fcon) {
 
 	{
 		GList *i;
-		GString *tmp = vr->con->wrk->tmp_str;
+		GString *tmp = vr->wrk->tmp_str;
 
 		for (i = vr->request.headers->entries.head; NULL != i; i = i->next) {
 			http_header *h = (http_header*) i->data;
@@ -462,7 +462,7 @@ static void fastcgi_send_env(vrequest *vr, fastcgi_connection *fcon) {
 static void fastcgi_forward_request(vrequest *vr, fastcgi_connection *fcon) {
 	stream_send_chunks(fcon->fcgi_out, FCGI_STDIN, fcon->requestid, vr->in);
 	if (fcon->fcgi_out->length > 0)
-		ev_io_add_events(vr->con->wrk->loop, &fcon->fd_watcher, EV_WRITE);
+		ev_io_add_events(vr->wrk->loop, &fcon->fd_watcher, EV_WRITE);
 }
 
 static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
@@ -535,11 +535,11 @@ static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 			break;
 		case FCGI_STDERR:
 			len = fastcgi_available(fcon);
-			chunkqueue_extract_to(vr, fcon->fcgi_in, len, vr->con->wrk->tmp_str);
+			chunkqueue_extract_to(vr, fcon->fcgi_in, len, vr->wrk->tmp_str);
 			if (FASTCGI_OPTION(FASTCGI_OPTION_LOG_PLAIN_ERRORS).boolean) {
-				log_split_lines(vr->con->srv, vr, LOG_LEVEL_BACKEND, 0, vr->con->wrk->tmp_str->str, "");
+				log_split_lines(vr->wrk->srv, vr, LOG_LEVEL_BACKEND, 0, vr->wrk->tmp_str->str, "");
 			} else {
-				VR_BACKEND_LINES(vr, vr->con->wrk->tmp_str->str, "%s", "(fcgi-stderr) ");
+				VR_BACKEND_LINES(vr, vr->wrk->tmp_str->str, "%s", "(fcgi-stderr) ");
 			}
 			chunkqueue_skip(fcon->fcgi_in, len);
 			break;
@@ -665,14 +665,14 @@ static handler_t fastcgi_statemachine(vrequest *vr, fastcgi_connection *fcon) {
 		} while (-1 == fcon->fd && errno == EINTR);
 		if (-1 == fcon->fd) {
 			if (errno == EMFILE) {
-				server_out_of_fds(vr->con->srv);
+				server_out_of_fds(vr->wrk->srv);
 			}
 			VR_ERROR(vr, "Couldn't open socket: %s", g_strerror(errno));
 			return HANDLER_ERROR;
 		}
 		fd_init(fcon->fd);
 		ev_io_set(&fcon->fd_watcher, fcon->fd, EV_READ | EV_WRITE);
-		ev_io_start(vr->con->wrk->loop, &fcon->fd_watcher);
+		ev_io_start(vr->wrk->loop, &fcon->fd_watcher);
 
 		/* fall through */
 	case FS_CONNECTING:
@@ -689,7 +689,7 @@ static handler_t fastcgi_statemachine(vrequest *vr, fastcgi_connection *fcon) {
 				return HANDLER_GO_ON;
 			default:
 				VR_ERROR(vr, "Couldn't connect to '%s': %s",
-					sockaddr_to_string(fcon->ctx->socket, vr->con->wrk->tmp_str, TRUE)->str,
+					sockaddr_to_string(fcon->ctx->socket, vr->wrk->tmp_str, TRUE)->str,
 					g_strerror(errno));
 				fastcgi_close(vr, p);
 				vrequest_backend_dead(vr);

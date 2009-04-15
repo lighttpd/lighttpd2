@@ -253,7 +253,7 @@ handler_t stat_cache_get_dirlist(vrequest *vr, GString *path, stat_cache_entry *
 	stat_cache_entry *sce;
 	guint i;
 
-	sc = vr->con->wrk->stat_cache;
+	sc = vr->wrk->stat_cache;
 	sce = g_hash_table_lookup(sc->dirlists, path);
 
 	if (sce) {
@@ -292,7 +292,7 @@ handler_t stat_cache_get(vrequest *vr, GString *path, struct stat *st, int *err,
 	stat_cache_entry *sce;
 	guint i;
 
-	sc = vr->con->wrk->stat_cache;
+	sc = vr->wrk->stat_cache;
 	sce = g_hash_table_lookup(sc->entries, path);
 
 	if (sce) {

@@ -39,13 +39,13 @@ LI_API const char *remove_path(const char *path);
 	log_split_lines_(srv, vr, LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, txt, "(backend) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 
-#define VR_SEGFAULT(vr, fmt, ...) _SEGFAULT(vr->con->srv, vr, fmt, __VA_ARGS__)
-#define VR_ERROR(vr, fmt, ...)    _ERROR(vr->con->srv, vr, fmt, __VA_ARGS__)
-#define VR_WARNING(vr, fmt, ...)  _WARNING(vr->con->srv, vr, fmt, __VA_ARGS__)
-#define VR_INFO(vr, fmt, ...)     _INFO(vr->con->srv, vr, fmt, __VA_ARGS__)
-#define VR_DEBUG(vr, fmt, ...)    _DEBUG(vr->con->srv, vr, fmt, __VA_ARGS__)
-#define VR_BACKEND(vr, fmt, ...)  _BACKEND(vr->con->srv, vr, fmt, __VA_ARGS__)
-#define VR_BACKEND_LINES(vr, txt, fmt, ...) _BACKEND_LINES(vr->con->srv, vr, txt, fmt, __VA_ARGS__)
+#define VR_SEGFAULT(vr, fmt, ...) _SEGFAULT(vr->wrk->srv, vr, fmt, __VA_ARGS__)
+#define VR_ERROR(vr, fmt, ...)    _ERROR(vr->wrk->srv, vr, fmt, __VA_ARGS__)
+#define VR_WARNING(vr, fmt, ...)  _WARNING(vr->wrk->srv, vr, fmt, __VA_ARGS__)
+#define VR_INFO(vr, fmt, ...)     _INFO(vr->wrk->srv, vr, fmt, __VA_ARGS__)
+#define VR_DEBUG(vr, fmt, ...)    _DEBUG(vr->wrk->srv, vr, fmt, __VA_ARGS__)
+#define VR_BACKEND(vr, fmt, ...)  _BACKEND(vr->wrk->srv, vr, fmt, __VA_ARGS__)
+#define VR_BACKEND_LINES(vr, txt, fmt, ...) _BACKEND_LINES(vr->wrk->srv, vr, txt, fmt, __VA_ARGS__)
 
 #define SEGFAULT(srv, fmt, ...)   _SEGFAULT(srv, NULL, fmt, __VA_ARGS__)
 #define ERROR(srv, fmt, ...)      _ERROR(srv, NULL, fmt, __VA_ARGS__)

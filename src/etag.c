@@ -108,7 +108,7 @@ void etag_mutate(GString *mut, GString *etag) {
 
 void etag_set_header(vrequest *vr, struct stat *st, gboolean *cachable) {
 	guint flags = CORE_OPTION(CORE_OPTION_ETAG_FLAGS).number;
-	GString *tmp_str = vr->con->wrk->tmp_str;
+	GString *tmp_str = vr->wrk->tmp_str;
 	struct tm tm;
 	tristate_t c_able = cachable ? TRI_MAYBE : TRI_FALSE;
 

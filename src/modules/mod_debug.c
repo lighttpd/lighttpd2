@@ -204,8 +204,8 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 		GString *duration = g_string_sized_new(15);
 
 		g_string_append_printf(html, "<p>now: %f<br>io timeout watcher active/repeat: %s/%f<br></p>\n",
-			CUR_TS(vr->con->wrk), ev_is_active(&(vr->con->wrk->io_timeout_queue.timer)) ? "yes":"no",
-			vr->con->wrk->io_timeout_queue.timer.repeat
+			CUR_TS(vr->wrk), ev_is_active(&(vr->wrk->io_timeout_queue.timer)) ? "yes":"no",
+			vr->wrk->io_timeout_queue.timer.repeat
 		);
 
 		g_string_append_len(html, CONST_STR_LEN("<table><tr><th>Client</th><th>Duration</th><th></th></tr>\n"));
@@ -216,7 +216,7 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 			for (j = 0; j < cons->len; j++) {
 				mod_debug_data_t *d = &g_array_index(cons, mod_debug_data_t, j);
 
-				counter_format((guint64)(CUR_TS(vr->con->wrk) - d->ts), COUNTER_TIME, duration);
+				counter_format((guint64)(CUR_TS(vr->wrk) - d->ts), COUNTER_TIME, duration);
 				g_string_append_printf(html, "<tr><td>%s</td><td style=\"text-align:right;\">%s</td><td style=\"padding-left:10px;\"><a href=\"?%u_%u_%d_%s\">debug</a></td></tr>\n",
 					d->remote_addr_str->str,
 					duration->str,
@@ -244,7 +244,7 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 
 	g_string_append_len(html, CONST_STR_LEN("</body>\n</html>\n"));
 
-	chunkqueue_append_string(vr->con->out, html);
+	chunkqueue_append_string(vr->out, html);
 	http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
 	vr->response.http_status = 200;
 	vrequest_joblist_append(vr);
@@ -283,7 +283,7 @@ static handler_t debug_show_connections(vrequest *vr, gpointer param, gpointer *
 
 		VR_DEBUG(vr, "%s", "collecting debug info...");
 
-		ci = collect_start(vr->con->wrk, debug_collect_func, j, debug_collect_cb, j);
+		ci = collect_start(vr->wrk, debug_collect_func, j, debug_collect_cb, j);
 		*context = ci; /* may be NULL */
 	}
 

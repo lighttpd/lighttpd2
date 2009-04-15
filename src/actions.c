@@ -145,7 +145,7 @@ void action_stack_init(action_stack *as) {
 }
 
 void action_stack_reset(vrequest *vr, action_stack *as) {
-	server *srv = vr->con->srv;
+	server *srv = vr->wrk->srv;
 	guint i;
 	for (i = as->stack->len; i-- > 0; ) {
 		action_stack_element_release(srv, vr, &g_array_index(as->stack, action_stack_element, i));
@@ -155,7 +155,7 @@ void action_stack_reset(vrequest *vr, action_stack *as) {
 }
 
 void action_stack_clear(vrequest *vr, action_stack *as) {
-	server *srv = vr->con->srv;
+	server *srv = vr->wrk->srv;
 	guint i;
 	for (i = as->stack->len; i-- > 0; ) {
 		action_stack_element_release(srv, vr, &g_array_index(as->stack, action_stack_element, i));
@@ -189,7 +189,7 @@ handler_t action_execute(vrequest *vr) {
 	action_stack_element *ase;
 	handler_t res;
 	gboolean condres;
-	server *srv = vr->con->srv;
+	server *srv = vr->wrk->srv;
 
 	while (NULL != (ase = action_stack_top(as))) {
 		if (as->backend_failed) {
@@ -236,7 +236,7 @@ handler_t action_execute(vrequest *vr) {
 			continue;
 		}
 
-		vr->con->wrk->stats.actions_executed++;
+		vr->wrk->stats.actions_executed++;
 		a = ase->act;
 
 		switch (a->type) {

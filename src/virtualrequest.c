@@ -103,6 +103,7 @@ vrequest* vrequest_new(connection *con, vrequest_handler handle_response_headers
 	vrequest *vr = g_slice_new0(vrequest);
 
 	vr->con = con;
+	vr->wrk = con->wrk;
 	vr->ref = g_slice_new0(vrequest_ref);
 	vr->ref->refcount = 1;
 	vr->ref->vr = vr;
@@ -154,11 +155,11 @@ void vrequest_free(vrequest* vr) {
 	filters_clean(vr, &vr->filters_out);
 
 	if (g_atomic_int_get(&vr->queued)) { /* atomic access shouldn't be needed here; no one else can access vr here... */
-		g_queue_unlink(&vr->con->wrk->job_queue, &vr->job_queue_link);
+		g_queue_unlink(&vr->wrk->job_queue, &vr->job_queue_link);
 		g_atomic_int_set(&vr->queued, 0);
 	}
 
-	g_slice_free1(vr->con->srv->option_def_values->len * sizeof(option_value), vr->options);
+	g_slice_free1(vr->wrk->srv->option_def_values->len * sizeof(option_value), vr->options);
 
 
 	for (i = 0; i < vr->stat_cache_entries->len; i++) {
@@ -199,7 +200,7 @@ void vrequest_reset(vrequest *vr) {
 	filters_reset(vr, &vr->filters_out);
 
 	if (g_atomic_int_get(&vr->queued)) { /* atomic access shouldn't be needed here; no one else can access vr here... */
-		g_queue_unlink(&vr->con->wrk->job_queue, &vr->job_queue_link);
+		g_queue_unlink(&vr->wrk->job_queue, &vr->job_queue_link);
 		g_atomic_int_set(&vr->queued, 0);
 	}
 
@@ -208,7 +209,7 @@ void vrequest_reset(vrequest *vr) {
 		stat_cache_entry_release(vr, sce);
 	}
 
-	memcpy(vr->options, vr->con->srv->option_def_values->data, vr->con->srv->option_def_values->len * sizeof(option_value));
+	memcpy(vr->options, vr->wrk->srv->option_def_values->data, vr->wrk->srv->option_def_values->len * sizeof(option_value));
 
 	if (1 != g_atomic_int_get(&vr->ref->refcount)) {
 		/* If we are not the only user of vr->ref we have to get a new one and detach the old */
@@ -468,16 +469,16 @@ void vrequest_state_machine(vrequest *vr) {
 }
 
 void vrequest_joblist_append(vrequest *vr) {
-	GQueue *const q = &vr->con->wrk->job_queue;
-	worker *wrk = vr->con->wrk;
+	worker *wrk = vr->wrk;
+	GQueue *const q = &wrk->job_queue;
 	if (!g_atomic_int_compare_and_exchange(&vr->queued, 0, 1)) return; /* already in queue */
 	g_queue_push_tail_link(q, &vr->job_queue_link);
 	ev_timer_start(wrk->loop, &wrk->job_queue_watcher);
 }
 
 void vrequest_joblist_append_async(vrequest *vr) {
-	GAsyncQueue *const q = vr->con->wrk->job_async_queue;
-	worker *wrk = vr->con->wrk;
+	worker *wrk = vr->wrk;
+	GAsyncQueue *const q = wrk->job_async_queue;
 	if (!g_atomic_int_compare_and_exchange(&vr->queued, 0, 1)) return; /* already in queue */
 	g_async_queue_push(q, vrequest_acquire_ref(vr));
 	ev_async_send(wrk->loop, &wrk->job_async_queue_watcher);

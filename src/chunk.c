@@ -52,7 +52,7 @@ handler_t chunkfile_open(vrequest *vr, chunkfile *cf) {
 	}
 	if (-1 == (cf->fd = open(cf->name->str, O_RDONLY))) {
 		if (EMFILE == errno) {
-			server_out_of_fds(vr->con->srv);
+			server_out_of_fds(vr->wrk->srv);
 		}
 		VR_ERROR(vr, "Couldn't open file '%s': %s", GSTR_SAFE_STR(cf->name), g_strerror(errno));
 		return HANDLER_ERROR;
@@ -361,7 +361,7 @@ void cqlimit_release(cqlimit *cql) {
 static void cqlimit_lock(cqlimit *cql) {
 	cql->locked = TRUE;
 	if (cql->io_watcher && cql->io_watcher->fd != -1) {
-		ev_io_rem_events(cql->vr->con->wrk->loop, cql->io_watcher, EV_READ);
+		ev_io_rem_events(cql->vr->wrk->loop, cql->io_watcher, EV_READ);
 	}
 	if (cql->notify) {
 		cql->notify(cql->vr, cql->context, cql->locked);
@@ -371,7 +371,7 @@ static void cqlimit_lock(cqlimit *cql) {
 static void cqlimit_unlock(cqlimit *cql) {
 	cql->locked = FALSE;
 	if (cql->io_watcher && cql->io_watcher->fd != -1) {
-		ev_io_add_events(cql->vr->con->wrk->loop, cql->io_watcher, EV_READ);
+		ev_io_add_events(cql->vr->wrk->loop, cql->io_watcher, EV_READ);
 	}
 	if (cql->notify) {
 		cql->notify(cql->vr, cql->context, cql->locked);

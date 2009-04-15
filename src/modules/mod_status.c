@@ -276,7 +276,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			0, 0, G_GUINT64_CONSTANT(0), 0, 0
 		};
 
-		uptime = CUR_TS(vr->con->wrk) - vr->con->srv->started;
+		uptime = CUR_TS(vr->wrk) - vr->wrk->srv->started;
 		if (!uptime)
 			uptime = 1;
 		
@@ -321,11 +321,11 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			"	<body>\n"
 		));
 
-		counter_format((guint64)(CUR_TS(vr->con->wrk) - vr->con->srv->started), COUNTER_TIME, tmpstr);
+		counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, tmpstr);
 		g_string_append_printf(html, html_top,
 			vr->request.uri.host->str,
 			tmpstr->str,
-			vr->con->srv->started_str->str
+			vr->wrk->srv->started_str->str
 		);
 
 
@@ -480,7 +480,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 				for (j = 0; j < sd->connections->len; j++) {
 					mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
 
-					counter_format((guint64)(CUR_TS(vr->con->wrk) - cd->ts), COUNTER_TIME, ts);
+					counter_format((guint64)(CUR_TS(vr->wrk) - cd->ts), COUNTER_TIME, ts);
 					counter_format(cd->bytes_in, COUNTER_BYTES, bytes_in);
 					counter_format(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_in_5s);
 					counter_format(cd->bytes_out, COUNTER_BYTES, bytes_out);
@@ -536,7 +536,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			" </body>\n"
 			"</html>\n"
 		));
-		chunkqueue_append_string(vr->con->out, html);
+		chunkqueue_append_string(vr->out, html);
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
 
 		g_string_free(count_req, TRUE);
@@ -564,7 +564,7 @@ static handler_t status_page_handle(vrequest *vr, gpointer param, gpointer *cont
 
 		VR_DEBUG(vr, "%s", "collecting stats...");
 
-		ci = collect_start(vr->con->wrk, status_collect_func, NULL, status_collect_cb, j);
+		ci = collect_start(vr->wrk, status_collect_func, NULL, status_collect_cb, j);
 		*context = ci; /* may be NULL */
 	}
 

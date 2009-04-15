@@ -49,7 +49,7 @@ gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flag
 
 	if (vr != NULL) {
 
-		if (!srv) srv = vr->con->srv;
+		if (!srv) srv = vr->wrk->srv;
 		/* get log from connection */
 		log = g_array_index(CORE_OPTION(CORE_OPTION_LOG).list, log_t*, log_level);
 		if (log == NULL)
@@ -102,7 +102,7 @@ gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flag
 
 		/* if we have a worker context, we can use its timestamp to save us a call to time() */
 		if (vr != NULL)
-			cur_ts = (time_t)CUR_TS(vr->con->wrk);
+			cur_ts = (time_t)CUR_TS(vr->wrk);
 		else
 			cur_ts = time(NULL);
 
