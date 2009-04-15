@@ -202,6 +202,10 @@
 # define INLINE static
 #endif
 
+#ifndef PACKAGE_BUILD_DATE
+# define PACKAGE_BUILD_DATE (__DATE__ " " __TIME__)
+#endif
+
 #include <lighttpd/sys-files.h>
 #include <lighttpd/sys-mmap.h>
 #include <lighttpd/sys-process.h>
