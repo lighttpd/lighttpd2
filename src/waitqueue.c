@@ -18,7 +18,7 @@ void waitqueue_update(waitqueue *queue) {
 	ev_tstamp repeat;
 	ev_tstamp now = ev_now(queue->loop);
 
-	if (queue->head) {
+	if (G_LIKELY(queue->head)) {
 		repeat = queue->head->ts + queue->delay - now;
 
 		if (repeat < 0.05)
@@ -70,7 +70,7 @@ void waitqueue_push(waitqueue *queue, waitqueue_elem *elem) {
 		queue->tail = elem;
 	}
 
-	if (!ev_is_active(&queue->timer))
+	if (G_UNLIKELY(!ev_is_active(&queue->timer)))
 		ev_timer_start(queue->loop, &queue->timer);
 }
 
@@ -110,6 +110,9 @@ void waitqueue_remove(waitqueue *queue, waitqueue_elem *elem) {
 
 	elem->queued = FALSE;
 	elem->ts = 0;
+
+	if (G_UNLIKELY(!queue->head))
+		ev_timer_stop(queue->loop, &queue->timer);
 }
 
 
