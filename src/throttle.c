@@ -40,6 +40,7 @@ void throttle_pool_free(server *srv, throttle_pool_t *pool) {
 		g_queue_free(pool->queues[i]);
 		g_queue_free(pool->queues[i+1]);
 	}
+	g_free(pool->queues);
 
 	g_free(pool->current_queue);
 	g_free(pool->last_con_rearm);
