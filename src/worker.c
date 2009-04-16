@@ -454,7 +454,6 @@ void worker_stop(worker *context, worker *wrk) {
 		ev_async_stop(wrk->loop, &wrk->new_con_watcher);
 		waitqueue_stop(&wrk->io_timeout_queue);
 		waitqueue_stop(&wrk->throttle_queue);
-		ev_timer_stop(wrk->loop, &wrk->throttle_timer);
 		worker_new_con_cb(wrk->loop, &wrk->new_con_watcher, 0); /* handle remaining new connections */
 
 		/* close keep alive connections */

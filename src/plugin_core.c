@@ -1145,7 +1145,7 @@ static handler_t core_handle_throttle_connection(vrequest *vr, gpointer param, g
 	con->throttled = TRUE;
 
 	if (con->throttle.pool.magazine) {
-		suply = MAX(con->throttle.pool.magazine, rate * THROTTLE_GRANULARITY);
+		supply = MAX(con->throttle.pool.magazine, rate * THROTTLE_GRANULARITY);
 		con->throttle.con.magazine += supply;
 		con->throttle.pool.magazine -= supply;
 	}
