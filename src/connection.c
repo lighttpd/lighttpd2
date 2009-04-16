@@ -192,6 +192,7 @@ static gboolean connection_handle_read(connection *con) {
 				con->expect_100_cont = FALSE;
 				ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
 			}
+
 			con->state = CON_STATE_HANDLE_MAINVR;
 			action_enter(con->mainvr, con->srv->mainaction);
 			vrequest_handle_request_headers(con->mainvr);
@@ -204,6 +205,9 @@ static gboolean connection_handle_read(connection *con) {
 }
 
 static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
+	network_status_t res;
+	goffset write_max;
+	goffset transferred;
 	connection *con = (connection*) w->data;
 
 	if (revents & EV_READ) {
@@ -211,7 +215,15 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			/* don't read the next request before current one is done */
 			ev_io_rem_events(loop, w, EV_READ);
 		} else {
-			switch (network_read(con->mainvr, w->fd, con->raw_in)) {
+			transferred = con->raw_in->length;
+
+			res = network_read(con->mainvr, w->fd, con->raw_in);
+
+			transferred = con->raw_in->length - transferred;
+			con->wrk->stats.bytes_in += transferred;
+			con->stats.bytes_in += transferred;
+
+			switch (res) {
 			case NETWORK_STATUS_SUCCESS:
 				if (!connection_handle_read(con)) return;
 				break;
@@ -236,30 +248,76 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	if (revents & EV_WRITE) {
 		if (con->raw_out->length > 0) {
-			switch (network_write(con->mainvr, w->fd, con->raw_out)) {
-			case NETWORK_STATUS_SUCCESS:
-				vrequest_joblist_append(con->mainvr);
-				break;
-			case NETWORK_STATUS_FATAL_ERROR:
-				_ERROR(con->srv, con->mainvr, "%s", "network write fatal error");
-				connection_error(con);
-				return;
-			case NETWORK_STATUS_CONNECTION_CLOSE:
-				connection_close(con);
-				return;
-			case NETWORK_STATUS_WAIT_FOR_EVENT:
-				break;
-			case NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
-				ev_io_rem_events(loop, w, EV_WRITE);
-				_ERROR(con->srv, con->mainvr, "%s", "TODO: wait for aio");
-				/* TODO: aio */
-				break;
+			if (con->throttled) {
+				write_max = MIN(con->throttle.con.magazine, 256*1024);
+			} else {
+				write_max = 256*1024; /* 256kB */
+			}
+
+			if (write_max > 0) {
+				transferred = con->raw_out->length;
+
+				res = network_write(con->mainvr, w->fd, con->raw_out, write_max);
+
+				transferred = transferred - con->raw_out->length;
+				con->wrk->stats.bytes_out += transferred;
+				con->stats.bytes_out += transferred;
+
+				switch (res) {
+				case NETWORK_STATUS_SUCCESS:
+					vrequest_joblist_append(con->mainvr);
+					break;
+				case NETWORK_STATUS_FATAL_ERROR:
+					_ERROR(con->srv, con->mainvr, "%s", "network write fatal error");
+					connection_error(con);
+					return;
+				case NETWORK_STATUS_CONNECTION_CLOSE:
+					connection_close(con);
+					return;
+				case NETWORK_STATUS_WAIT_FOR_EVENT:
+					break;
+				case NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
+					ev_io_rem_events(loop, w, EV_WRITE);
+					_ERROR(con->srv, con->mainvr, "%s", "TODO: wait for aio");
+					/* TODO: aio */
+					break;
+				}
+			} else {
+				transferred = 0;
+			}
+
+			if ((ev_now(loop) - con->stats.last_avg) >= 5.0) {
+				con->stats.bytes_out_5s_diff = con->wrk->stats.bytes_out - con->wrk->stats.bytes_out_5s;
+				con->stats.bytes_out_5s = con->stats.bytes_out;
+				con->stats.bytes_in_5s_diff = con->stats.bytes_in - con->stats.bytes_in_5s;
+				con->stats.bytes_in_5s = con->stats.bytes_in;
+				con->stats.last_avg = ev_now(loop);
+			}
+
+			if (con->throttled) {
+				con->throttle.con.magazine -= transferred;
+				/*g_print("%p wrote %"G_GINT64_FORMAT"/%"G_GINT64_FORMAT" bytes, mags: %d/%d, queued: %s\n", (void*)con,
+				transferred, write_max, con->throttle.pool.magazine, con->throttle.con.magazine, con->throttle.pool.queued ? "yes":"no");*/
+				if (con->throttle.con.magazine <= 0) {
+					ev_io_rem_events(loop, w, EV_WRITE);
+					waitqueue_push(&con->wrk->throttle_queue, &con->throttle.wqueue_elem);
+				}
+
+				if (con->throttle.pool.ptr && con->throttle.pool.magazine <= MAX(write_max,0) && !con->throttle.pool.queued) {
+					throttle_pool_t *pool = con->throttle.pool.ptr;
+					g_atomic_int_inc(&pool->num_cons);
+					g_queue_push_tail_link(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.pool.lnk);
+					con->throttle.pool.queued = TRUE;
+				}
 			}
 		} else {
 			_DEBUG(con->srv, con->mainvr, "%s", "write event for empty queue");
 			ev_io_rem_events(loop, w, EV_WRITE);
 		}
 	}
+
+	if ((con->io_timeout_elem.ts + 1.0) < ev_now(loop))
+		waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
 
 	check_response_done(con);
 }
@@ -350,7 +408,10 @@ connection* connection_new(worker *wrk) {
 	con->keep_alive_data.watcher.data = con;
 
 	con->io_timeout_elem.data = con;
-	con->throttle.queue_elem.data = con;
+
+	con->throttle.wqueue_elem.data = con;
+	con->throttle.pool.lnk.data = con;
+	con->throttle.ip.lnk.data = con;
 
 	return con;
 }
@@ -406,8 +467,43 @@ void connection_reset(connection *con) {
 
 	/* remove from timeout queue */
 	waitqueue_remove(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
+
 	/* remove from throttle queue */
-	waitqueue_remove(&con->wrk->throttle_queue, &con->throttle.queue_elem);
+	waitqueue_remove(&con->wrk->throttle_queue, &con->throttle.wqueue_elem);
+
+	if (con->throttle.pool.ptr) {
+		if (con->throttle.pool.queued) {
+			throttle_pool_t *pool = con->throttle.pool.ptr;
+			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.pool.lnk);
+			g_atomic_int_add(&con->throttle.pool.ptr->num_cons, -1);
+			con->throttle.pool.queued = FALSE;
+		}
+		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.pool.magazine);
+		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.ip.magazine);
+		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.con.magazine);
+		con->throttle.pool.magazine = 0;
+		con->throttle.ip.magazine = 0;
+		con->throttle.con.magazine = 0;
+		con->throttle.pool.ptr = NULL;
+	}
+
+	if (con->throttle.ip.ptr) {
+		if (con->throttle.ip.queued) {
+			throttle_pool_t *pool = con->throttle.ip.ptr;
+			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.ip.lnk);
+			g_atomic_int_add(&con->throttle.ip.ptr->num_cons, -1);
+			con->throttle.ip.queued = FALSE;
+		}
+		g_atomic_int_add(&con->throttle.ip.ptr->magazine, con->throttle.ip.magazine);
+		g_atomic_int_add(&con->throttle.ip.ptr->magazine, con->throttle.con.magazine);
+		con->throttle.ip.ptr = NULL;
+	}
+
+	con->throttle.con.rate = 0;
+	con->throttle.pool.magazine = 0;
+	con->throttle.ip.magazine = 0;
+	con->throttle.con.magazine = 0;
+	con->throttled = FALSE;
 }
 
 void server_check_keepalive(server *srv);
@@ -460,7 +556,41 @@ void connection_reset_keep_alive(connection *con) {
 	/* remove from timeout queue */
 	waitqueue_remove(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
 	/* remove from throttle queue */
-	waitqueue_remove(&con->wrk->throttle_queue, &con->throttle.queue_elem);
+	waitqueue_remove(&con->wrk->throttle_queue, &con->throttle.wqueue_elem);
+
+	if (con->throttle.pool.ptr) {
+		if (con->throttle.pool.queued) {
+			throttle_pool_t *pool = con->throttle.pool.ptr;
+			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.pool.lnk);
+			g_atomic_int_add(&con->throttle.pool.ptr->num_cons, -1);
+			con->throttle.pool.queued = FALSE;
+		}
+		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.pool.magazine);
+		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.ip.magazine);
+		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.con.magazine);
+		con->throttle.pool.magazine = 0;
+		con->throttle.ip.magazine = 0;
+		con->throttle.con.magazine = 0;
+		con->throttle.pool.ptr = NULL;
+	}
+
+	if (con->throttle.ip.ptr) {
+		if (con->throttle.ip.queued) {
+			throttle_pool_t *pool = con->throttle.ip.ptr;
+			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.ip.lnk);
+			g_atomic_int_add(&con->throttle.ip.ptr->num_cons, -1);
+			con->throttle.ip.queued = FALSE;
+		}
+		g_atomic_int_add(&con->throttle.ip.ptr->magazine, con->throttle.ip.magazine);
+		g_atomic_int_add(&con->throttle.ip.ptr->magazine, con->throttle.con.magazine);
+		con->throttle.ip.ptr = NULL;
+	}
+
+	con->throttle.con.rate = 0;
+	con->throttle.pool.magazine = 0;
+	con->throttle.ip.magazine = 0;
+	con->throttle.con.magazine = 0;
+	con->throttled = FALSE;
 }
 
 void connection_free(connection *con) {

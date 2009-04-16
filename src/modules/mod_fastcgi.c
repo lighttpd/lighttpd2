@@ -596,7 +596,7 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	if (fcon->fd != -1 && (revents & EV_WRITE)) {
 		if (fcon->fcgi_out->length > 0) {
-			switch (network_write(fcon->vr, w->fd, fcon->fcgi_out)) {
+			switch (network_write(fcon->vr, w->fd, fcon->fcgi_out, 256*1024)) {
 			case NETWORK_STATUS_SUCCESS:
 				break;
 			case NETWORK_STATUS_FATAL_ERROR:

@@ -3,7 +3,6 @@
 
 void waitqueue_init(waitqueue *queue, struct ev_loop *loop, waitqueue_cb callback, gdouble delay, gpointer data) {
 	ev_timer_init(&queue->timer, callback, delay, delay);
-	ev_timer_start(loop, &queue->timer);
 
 	queue->timer.data = data;
 	queue->head = queue->tail = NULL;
@@ -17,19 +16,20 @@ void waitqueue_stop(waitqueue *queue) {
 
 void waitqueue_update(waitqueue *queue) {
 	ev_tstamp repeat;
+	ev_tstamp now = ev_now(queue->loop);
 
 	if (queue->head) {
-		repeat = queue->head->ts + queue->delay - ev_now(queue->loop);
-		if (repeat < 0.01)
-			repeat = 0.01;
-	} else {
-		repeat = queue->delay;
-	}
+		repeat = queue->head->ts + queue->delay - now;
 
-	if (queue->timer.repeat != repeat)
-	{
+		if (repeat < 0.05)
+			repeat = 0.05;
+
 		queue->timer.repeat = repeat;
 		ev_timer_again(queue->loop, &queue->timer);
+	} else {
+		/* stop timer if queue empty */
+		ev_timer_stop(queue->loop, &queue->timer);
+		return;
 	}
 }
 
@@ -69,6 +69,9 @@ void waitqueue_push(waitqueue *queue, waitqueue_elem *elem) {
 		queue->tail->next = elem;
 		queue->tail = elem;
 	}
+
+	if (!ev_is_active(&queue->timer))
+		ev_timer_start(queue->loop, &queue->timer);
 }
 
 waitqueue_elem *waitqueue_pop(waitqueue *queue) {
@@ -118,6 +121,35 @@ guint waitqueue_length(waitqueue *queue) {
 		i++;
 		elem = elem->next;
 	}
+
+	return i;
+}
+
+guint waitqueue_pop_ready(waitqueue *queue, waitqueue_elem **head) {
+	guint i = 0;
+	waitqueue_elem *elem = queue->head;
+	ev_tstamp now = ev_now(queue->loop);
+
+	*head = elem;
+
+	while (elem != NULL) {
+		if ((elem->ts + queue->delay) > now) {
+			queue->head = elem;
+
+			if (elem->prev) {
+				elem->prev->next = NULL;
+			}
+
+			return i;
+		}
+
+		elem->queued = FALSE;
+		elem = elem->next;
+		i++;
+	}
+
+	queue->head = NULL;
+	queue->tail = NULL;
 
 	return i;
 }

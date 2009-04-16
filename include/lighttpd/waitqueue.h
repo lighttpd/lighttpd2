@@ -42,6 +42,9 @@ LI_API void waitqueue_push(waitqueue *queue, waitqueue_elem *elem);
 /* pops the first ready! element from the queue or NULL if none ready yet. this should be called in your callback */
 LI_API waitqueue_elem *waitqueue_pop(waitqueue *queue);
 
+/* pops all elements from the queue that are ready or NULL of none ready yet. returns number of elements pop()ed and saves old head in '*head' */
+LI_API guint waitqueue_pop_ready(waitqueue *queue, waitqueue_elem **head);
+
 /* removes an element from the queue */
 LI_API void waitqueue_remove(waitqueue *queue, waitqueue_elem *elem);
 

@@ -58,22 +58,38 @@ struct connection {
 	waitqueue_elem io_timeout_elem;
 
 	/* I/O throttling */
+	gboolean throttled; /* TRUE if connection is throttled */
 	struct {
-		waitqueue_elem queue_elem;
-		guint magazine;
-		ev_tstamp ts;
+		struct {
+			throttle_pool_t *ptr; /* NULL if not in any throttling pool */
+			GList lnk;
+			gboolean queued;
+			gint magazine;
+		} pool;
+		struct {
+			throttle_pool_t *ptr; /* pool for per-ip throttling, NULL if not limited by ip */
+			GList lnk;
+			gboolean queued;
+			gint magazine;
+		} ip;
+		struct {
+			guint rate; /* maximum transfer rate in bytes per second, 0 if unlimited */
+			gint magazine;
+			ev_tstamp last_update;
+		} con;
+		waitqueue_elem wqueue_elem;
 	} throttle;
 
 	ev_tstamp ts;
 
 	struct {
-		guint64 bytes_in;
-		guint64 bytes_out;
+		guint64 bytes_in; /* total number of bytes received */
+		guint64 bytes_out; /* total number of bytes sent */
 		ev_tstamp last_avg;
-		guint64 bytes_in_5s;
-		guint64 bytes_out_5s;
-		guint64 bytes_in_5s_diff;
-		guint64 bytes_out_5s_diff;
+		guint64 bytes_in_5s; /* total number of bytes received at last 5s interval */
+		guint64 bytes_out_5s; /* total number of bytes sent at last 5s interval */
+		guint64 bytes_in_5s_diff; /* diff between bytes received at 5s interval n and interval n-1 */
+		guint64 bytes_out_5s_diff; /* diff between bytes sent at 5s interval n and interval n-1 */
 	} stats;
 };
 

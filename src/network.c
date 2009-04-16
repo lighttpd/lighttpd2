@@ -36,26 +36,12 @@ ssize_t net_read(int fd, void *buf, ssize_t nbyte) {
 	return r;
 }
 
-network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
+network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq, goffset write_max) {
 	network_status_t res;
-	ev_tstamp ts, now = CUR_TS(vr->wrk);
-	worker *wrk;
 #ifdef TCP_CORK
 	int corked = 0;
 #endif
-	goffset write_max = 256*1024, write_bytes, wrote; /* 256 kb */
-
-	if (CORE_OPTION(CORE_OPTION_THROTTLE).number) {
-		/* throttling is enabled */
-		if (G_UNLIKELY((now - vr->con->throttle.ts) > vr->wrk->throttle_queue.delay)) {
-			vr->con->throttle.magazine += CORE_OPTION(CORE_OPTION_THROTTLE).number * (now - vr->con->throttle.ts);
-			if (vr->con->throttle.magazine > CORE_OPTION(CORE_OPTION_THROTTLE).number)
-				vr->con->throttle.magazine = CORE_OPTION(CORE_OPTION_THROTTLE).number;
-			vr->con->throttle.ts = now;
-			/*g_print("throttle magazine: %u kbytes\n", vr->con->throttle.magazine / 1024);*/
-		}
-		write_max = vr->con->throttle.magazine;
-	}
+	goffset write_bytes, wrote;
 
 #ifdef TCP_CORK
 	/* Linux: put a cork into the socket as we want to combine the write() calls
@@ -84,33 +70,6 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq) {
 	}
 #endif
 
-	/* stats */
-	wrk = vr->wrk;
-	wrk->stats.bytes_out += wrote;
-	vr->con->stats.bytes_out += wrote;
-
-	/* update 5s stats */
-	ts = CUR_TS(wrk);
-
-	if ((ts - vr->con->stats.last_avg) >= 5.0) {
-		vr->con->stats.bytes_out_5s_diff = vr->wrk->stats.bytes_out - vr->wrk->stats.bytes_out_5s;
-		vr->con->stats.bytes_out_5s = vr->con->stats.bytes_out;
-		vr->con->stats.last_avg = ts;
-	}
-
-	/* only update once a second, the cast is to round the timestamp */
-	if ((vr->con->io_timeout_elem.ts + 1.) < now)
-		waitqueue_push(&vr->wrk->io_timeout_queue, &vr->con->io_timeout_elem);
-
-	vr->con->throttle.magazine = write_bytes;
-	/* check if throttle magazine is empty */
-	if (CORE_OPTION(CORE_OPTION_THROTTLE).number && write_bytes == 0) {
-		/* remove EV_WRITE from sockwatcher for now */
-		ev_io_rem_events(vr->wrk->loop, &vr->con->sock_watcher, EV_WRITE);
-		waitqueue_push(&vr->wrk->throttle_queue, &vr->con->throttle.queue_elem);
-		return NETWORK_STATUS_WAIT_FOR_AIO_EVENT;
-	}
-
 	return res;
 }
 
@@ -119,8 +78,6 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 	off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
 	off_t len = 0;
-	worker *wrk = vr->wrk;
-	ev_tstamp now = CUR_TS(wrk);
 
 	if (cq->limit && cq->limit->limit > 0) {
 		if (max_read > cq->limit->limit - cq->limit->current) {
@@ -131,10 +88,6 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 			}
 		}
 	}
-
-	/* only update once a second */
-	if ((vr->con->io_timeout_elem.ts + 1.) < now)
-		waitqueue_push(&vr->wrk->io_timeout_queue, &vr->con->io_timeout_elem);
 
 	do {
 		GByteArray *buf = g_byte_array_sized_new(blocksize);
@@ -160,19 +113,6 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 		g_byte_array_set_size(buf, r);
 		chunkqueue_append_bytearr(cq, buf);
 		len += r;
-
-		/* stats */
-		wrk = vr->wrk;
-		wrk->stats.bytes_in += r;
-		vr->con->stats.bytes_in += r;
-
-		/* update 5s stats */
-
-		if ((now - vr->con->stats.last_avg) >= 5.0) {
-			vr->con->stats.bytes_in_5s_diff = vr->con->stats.bytes_in - vr->con->stats.bytes_in_5s;
-			vr->con->stats.bytes_in_5s = vr->con->stats.bytes_in;
-			vr->con->stats.last_avg = now;
-		}
 	} while (r == blocksize && len < max_read);
 
 	return NETWORK_STATUS_SUCCESS;

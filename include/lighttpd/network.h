@@ -24,7 +24,7 @@ LI_API ssize_t net_write(int fd, void *buf, ssize_t nbyte);
 /** repeats read after EINTR */
 LI_API ssize_t net_read(int fd, void *buf, ssize_t nbyte);
 
-LI_API network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq);
+LI_API network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq, goffset write_max);
 LI_API network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq);
 
 /* use writev for mem chunks, buffered read/write for files */

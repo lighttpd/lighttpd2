@@ -76,6 +76,8 @@ struct server {
 
 	gdouble io_timeout;
 
+	GArray *throttle_pools;
+
 	gdouble stat_cache_ttl;
 };
 

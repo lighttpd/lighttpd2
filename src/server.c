@@ -87,6 +87,7 @@ server* server_new(const gchar *module_dir) {
 	srv->state = SERVER_STARTING;
 
 	srv->workers = g_array_new(FALSE, TRUE, sizeof(worker*));
+	srv->worker_count = 1;
 
 	srv->sockets = g_ptr_array_new();
 
@@ -108,6 +109,8 @@ server* server_new(const gchar *module_dir) {
 	srv->ts_formats = g_array_new(FALSE, TRUE, sizeof(GString*));
 	/* error log ts format */
 	server_ts_format_add(srv, g_string_new("%a, %d %b %Y %H:%M:%S GMT"));
+
+	srv->throttle_pools = g_array_new(FALSE, TRUE, sizeof(throttle_pool_t*));
 
 	log_init(srv);
 
@@ -134,6 +137,15 @@ void server_free(server* srv) {
 	}
 
 	action_release(srv, srv->mainaction);
+
+	/* free throttle pools */
+	{
+		guint i;
+		for (i = 0; i < srv->throttle_pools->len; i++) {
+			throttle_pool_free(srv, g_array_index(srv->throttle_pools, throttle_pool_t*, i));
+		}
+		g_array_free(srv->throttle_pools, TRUE);
+	}
 
 	/* free all workers */
 	{

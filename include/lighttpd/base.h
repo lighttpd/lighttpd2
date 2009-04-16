@@ -45,6 +45,7 @@
 #include <lighttpd/virtualrequest.h>
 #include <lighttpd/log.h>
 #include <lighttpd/stat_cache.h>
+#include <lighttpd/throttle.h>
 
 #include <lighttpd/connection.h>
 

@@ -24,7 +24,6 @@ void stat_cache_new(worker *wrk, gdouble ttl) {
 	sc->job_queue_out = g_async_queue_new();
 
 	waitqueue_init(&sc->delete_queue, wrk->loop, stat_cache_delete_cb, ttl, sc);
-	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
 	ev_init(&sc->job_watcher, stat_cache_job_cb);
 	sc->job_watcher.data = wrk;

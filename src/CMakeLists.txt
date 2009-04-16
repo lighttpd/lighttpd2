@@ -298,6 +298,7 @@ SET(COMMON_SRC
 	stat_cache.c
 	sys-files.c
 	sys-socket.c
+	throttle.c
 	url_parser.c
 	utils.c
 	value.c

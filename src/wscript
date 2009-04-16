@@ -48,6 +48,7 @@ common_src = '''
 	stat_cache.c
 	sys-files.c
 	sys-socket.c
+	throttle.c
 	url_parser.rl
 	utils.c
 	value.c

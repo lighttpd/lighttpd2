@@ -36,6 +36,7 @@
  *     xyz
  *
  * Todo:
+ *     - make output generating "async", give up control every N entries
  *     - filters for entries (pattern, regex)
  *     - include-* parameters
  *     - javascript for sorting

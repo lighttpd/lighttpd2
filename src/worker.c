@@ -118,23 +118,6 @@ static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents)
 	waitqueue_update(&wrk->io_timeout_queue);
 }
 
-/* check for throttled connections */
-static void worker_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	worker *wrk = (worker*) w->data;
-	connection *con;
-	waitqueue_elem *wqe;
-
-	UNUSED(revents);
-
-	while ((wqe = waitqueue_pop(&wrk->throttle_queue)) != NULL) {
-		/* connection waited long enough to reenable sending of data again */
-		con = wqe->data;
-		ev_io_add_events(loop, &con->sock_watcher, EV_WRITE);
-	}
-
-	waitqueue_update(&wrk->throttle_queue);
-}
-
 /* run vreqest state machine */
 static void worker_job_queue_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	worker *wrk = (worker*) w->data;
@@ -346,11 +329,9 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 
 	/* io timeout timer */
 	waitqueue_init(&wrk->io_timeout_queue, wrk->loop, worker_io_timeout_cb, srv->io_timeout, wrk);
-	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
 	/* throttling */
-	waitqueue_init(&wrk->throttle_queue, wrk->loop, worker_throttle_cb, 0.5, wrk);
-	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
+	waitqueue_init(&wrk->throttle_queue, wrk->loop, throttle_cb, THROTTLE_GRANULARITY, wrk);
 
 	/* job queue */
 	g_queue_init(&wrk->job_queue);
@@ -471,6 +452,9 @@ void worker_stop(worker *context, worker *wrk) {
 
 		ev_async_stop(wrk->loop, &wrk->worker_stop_watcher);
 		ev_async_stop(wrk->loop, &wrk->new_con_watcher);
+		waitqueue_stop(&wrk->io_timeout_queue);
+		waitqueue_stop(&wrk->throttle_queue);
+		ev_timer_stop(wrk->loop, &wrk->throttle_timer);
 		worker_new_con_cb(wrk->loop, &wrk->new_con_watcher, 0); /* handle remaining new connections */
 
 		/* close keep alive connections */

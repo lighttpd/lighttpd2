@@ -292,6 +292,32 @@ static action* core_static(server *srv, plugin* p, value *val) {
 	return action_new_function(core_handle_static, NULL, NULL, NULL);
 }
 
+
+static handler_t core_handle_status(vrequest *vr, gpointer param, gpointer *context) {
+	UNUSED(param);
+	UNUSED(context);
+
+	vr->response.http_status = GPOINTER_TO_INT(param);
+
+	return HANDLER_GO_ON;
+}
+
+static action* core_status(server *srv, plugin* p, value *val) {
+	gpointer ptr;
+
+	UNUSED(p);
+
+	if (val || val->type != VALUE_NUMBER) {
+		ERROR(srv, "%s", "status action expects a number as parameter");
+		return NULL;
+	}
+
+	ptr = GINT_TO_POINTER((gint) value_extract(val).number);
+
+	return action_new_function(core_handle_status, NULL, NULL, ptr);
+}
+
+
 static void core_log_write_free(server *srv, gpointer param) {
 	UNUSED(srv);
 	g_string_free(param, TRUE);
@@ -957,7 +983,7 @@ static action* core_buffer_out(server *srv, plugin* p, value *val) {
 	UNUSED(p);
 
 	if (val->type != VALUE_NUMBER) {
-		ERROR(srv, "'core_buffer_out' action expects an integer as parameter, %s given", value_type_string(val->type));
+		ERROR(srv, "'buffer.out' action expects an integer as parameter, %s given", value_type_string(val->type));
 		return NULL;
 	}
 
@@ -990,7 +1016,7 @@ static action* core_buffer_in(server *srv, plugin* p, value *val) {
 	UNUSED(p);
 
 	if (val->type != VALUE_NUMBER) {
-		ERROR(srv, "'core_buffer_in' action expects an integer as parameter, %s given", value_type_string(val->type));
+		ERROR(srv, "'buffer.in' action expects an integer as parameter, %s given", value_type_string(val->type));
 		return NULL;
 	}
 
@@ -1005,6 +1031,154 @@ static action* core_buffer_in(server *srv, plugin* p, value *val) {
 	}
 
 	return action_new_function(core_handle_buffer_in, NULL, NULL, GINT_TO_POINTER((gint) limit));
+}
+
+static handler_t core_handle_throttle_pool(vrequest *vr, gpointer param, gpointer *context) {
+	throttle_pool_t *pool = param;
+	gint magazine;
+
+	UNUSED(context);
+
+	if (vr->con->throttle.pool.ptr != pool) {
+		if (vr->con->throttle.pool.ptr) {
+			/* connection has been in a different pool, give back bandwidth */
+			g_atomic_int_add(&vr->con->throttle.pool.ptr->magazine, vr->con->throttle.pool.magazine);
+			vr->con->throttle.pool.magazine = 0;
+			if (vr->con->throttle.pool.queued) {
+				throttle_pool_t *p = vr->con->throttle.pool.ptr;
+				g_queue_unlink(p->queues[vr->con->wrk->ndx+p->current_queue[vr->con->wrk->ndx]], &vr->con->throttle.ip.lnk);
+				g_atomic_int_add(&p->num_cons, -1);
+			}
+		}
+
+		/* try to steal some initial 4kbytes from the pool */
+		while ((magazine = g_atomic_int_get(&pool->magazine)) > (4*1024)) {
+			if (g_atomic_int_compare_and_exchange(&pool->magazine, magazine, magazine - (4*1024))) {
+				vr->con->throttle.pool.magazine = 4*1024;
+				break;
+			}
+		}
+	}
+
+	vr->con->throttle.pool.ptr = pool;
+	vr->con->throttled = TRUE;
+
+	return HANDLER_GO_ON;
+}
+
+static action* core_throttle_pool(server *srv, plugin* p, value *val) {
+	GString *name;
+	guint i;
+	throttle_pool_t *pool = NULL;
+	gint64 rate;
+
+	UNUSED(p);
+
+	if (val->type != VALUE_STRING && val->type != VALUE_LIST) {
+		ERROR(srv, "'throttle_pool' action expects a string or a string-number tuple as parameter, %s given", value_type_string(val->type));
+		return NULL;
+	}
+
+	if (val->type == VALUE_LIST) {
+		if (val->data.list->len != 2
+			|| g_array_index(val->data.list, value*, 0)->type != VALUE_STRING
+			|| g_array_index(val->data.list, value*, 1)->type != VALUE_NUMBER) {
+
+			ERROR(srv, "%s", "'throttle_pool' action expects a string or a string-number tuple as parameter");
+			return NULL;
+		}
+
+		name = g_array_index(val->data.list, value*, 0)->data.string;
+		rate = g_array_index(val->data.list, value*, 1)->data.number;
+
+		if (rate && rate < (32*1024)) {
+			ERROR(srv, "throttle_pool: rate %"G_GINT64_FORMAT" is too low (32kbyte/s minimum or 0 for unlimited)", rate);
+			return NULL;
+		}
+
+		if (rate > (0xFFFFFFFF)) {
+			ERROR(srv, "throttle_pool: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", rate);
+			return NULL;
+		}
+	} else {
+		name = val->data.string;
+		rate = 0;
+	}
+
+	for (i = 0; i < srv->throttle_pools->len; i++) {
+		if (g_string_equal(g_array_index(srv->throttle_pools, throttle_pool_t*, i)->name, name)) {
+			/* pool already defined */
+			if (val->type == VALUE_LIST && g_array_index(srv->throttle_pools, throttle_pool_t*, i)->rate != (guint)rate) {
+				ERROR(srv, "throttle_pool: pool '%s' already defined but with different rate (%ukbyte/s)", name->str,
+					g_array_index(srv->throttle_pools, throttle_pool_t*, i)->rate);
+				return NULL;
+			}
+
+			pool = g_array_index(srv->throttle_pools, throttle_pool_t*, i);
+			break;
+		}
+	}
+
+	if (!pool) {
+		/* pool not yet defined */
+		if (val->type == VALUE_STRING) {
+			ERROR(srv, "throttle_pool: rate for pool '%s' hasn't been defined", name->str);
+			return NULL;
+		}
+
+		pool = throttle_pool_new(srv, value_extract(g_array_index(val->data.list, value*, 0)).string, (guint)rate);
+		g_array_append_val(srv->throttle_pools, pool);
+	}
+
+	return action_new_function(core_handle_throttle_pool, NULL, NULL, pool);
+}
+
+
+static handler_t core_handle_throttle_connection(vrequest *vr, gpointer param, gpointer *context) {
+	gint supply;
+	connection *con = vr->con;
+	guint rate = GPOINTER_TO_UINT(param);
+
+	UNUSED(context);
+
+	con->throttle.con.rate = rate;
+	con->throttled = TRUE;
+
+	if (con->throttle.pool.magazine) {
+		suply = MAX(con->throttle.pool.magazine, rate * THROTTLE_GRANULARITY);
+		con->throttle.con.magazine += supply;
+		con->throttle.pool.magazine -= supply;
+	}
+
+	return HANDLER_GO_ON;
+}
+
+static action* core_throttle_connection(server *srv, plugin* p, value *val) {
+	gint64 rate;
+	UNUSED(p);
+
+	if (val->type != VALUE_NUMBER) {
+		ERROR(srv, "'throttle_connection' action expects a positiv integer as parameter, %s given", value_type_string(val->type));
+		return NULL;
+	}
+
+	rate = val->data.number;
+
+	if (rate < 0) {
+		rate = 0; /* no limit */
+	}
+
+	if (rate && rate < (32*1024)) {
+		ERROR(srv, "throttle_connection: rate %"G_GUINT64_FORMAT" is too low (32kbyte/s minimum or 0 for unlimited)", rate);
+		return NULL;
+	}
+
+	if (rate > (0xFFFFFFFF)) {
+		ERROR(srv, "throttle_connection: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", rate);
+		return NULL;
+	}
+
+	return action_new_function(core_handle_throttle_connection, NULL, NULL, GUINT_TO_POINTER((guint) rate));
 }
 
 
@@ -1038,6 +1212,8 @@ static const plugin_action actions[] = {
 	{ "docroot", core_docroot },
 	{ "static", core_static },
 
+	{ "status", core_status },
+
 	{ "log.write", core_log_write },
 
 	{ "blank", core_blank },
@@ -1053,6 +1229,10 @@ static const plugin_action actions[] = {
 
 	{ "buffer.out", core_buffer_out },
 	{ "buffer.in", core_buffer_in },
+
+	{ "throttle_pool", core_throttle_pool },
+	/*{ "throttle.ip", core_throttle_ip },*/
+	{ "throttle_connection", core_throttle_connection },
 
 	{ NULL, NULL }
 };
