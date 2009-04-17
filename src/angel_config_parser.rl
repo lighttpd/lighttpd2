@@ -6,19 +6,29 @@ typedef struct {
 	int *stack;
 	int cs, top;
 
+	/* readingtoken signals that the parser is reading a token; in case
+	 * the data cames in chunks, the parse function has to append the
+	 * data to the token and handle tokenstart in the next chunk
+	 */
 	GString *token;
 	gboolean readingtoken;
+
 	char hexchar;
 	gint64 number, number2;
-	gboolean negate;
+	gboolean negate; /* sign for parsing numbers */
 
 	/* item */
 	GString *itemname;
 	value *itemvalue;
 
+	/* every time a collection gets parsed, the collection is pushed on the stack.
+	 * in some other cases a VALUE_STRING gets pushed (the key in hashes for example)
+	 * while a second value gets parsed.
+	 */
 	GPtrArray *valuestack;
 	value *curvalue;
 
+	/* temporary buffer to format a character for logging */
 	gchar buf[8];
 } pcontext;
 
@@ -404,25 +414,6 @@ static void angel_config_parser_free(pcontext *ctx) {
 }
 
 static gboolean angel_config_parser_finalize(pcontext *ctx, filecontext *fctx, GError **err) {
-/*
-	gchar c;
-	gchar *p = &c, *pe = p, *eof = p, *linestart = p, *tokenstart = NULL;
-	if (ctx->readingtoken) tokenstart = p;
-
-	%% write exec;
-
-	if (ctx->readingtoken) g_string_append_len(ctx->token, tokenstart, p - tokenstart);
-
-	UPDATE_COLUMN();
-
-	if (err && *err) return FALSE;
-
-	if (angel_config_parser_has_error(ctx)) {
-		PARSE_ERROR("unknown parser error");
-		return FALSE;
-	}
-*/
-
 	if (!angel_config_parser_is_finished(ctx)) {
 		PARSE_ERROR("unexpected end of file");
 		return FALSE;
