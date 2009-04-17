@@ -19,7 +19,7 @@ static void http_chunk_append_len(chunkqueue *cq, size_t len) {
 		a->data[j] = (len & 0xf) + (((len & 0xf) <= 9) ? '0' : 'a' - 10);
 		len >>= 4;
 	}
-	g_byte_array_append(a, (guint*) CONST_STR_LEN("\r\n"));
+	g_byte_array_append(a, (guint8*) CONST_STR_LEN("\r\n"));
 
 	chunkqueue_append_bytearr(cq, a);
 }
