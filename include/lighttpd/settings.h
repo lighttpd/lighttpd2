@@ -82,7 +82,8 @@
 
 #include <errno.h>
 #include <string.h>
-
+#include <stdlib.h>
+#include <stdio.h>
 
 /* on linux 2.4.x you get either sendfile or LFS */
 #if defined(LIGHTY_OS_LINUX) && defined(HAVE_SYS_SENDFILE_H) && defined(HAVE_SENDFILE) && (defined(_LARGEFILE_SOURCE) || defined(HAVE_SENDFILE64)) && defined(HAVE_WRITEV) && !defined(HAVE_SENDFILE_BROKEN)

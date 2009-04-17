@@ -4,7 +4,6 @@
 #include <lighttpd/plugin_core.h>
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <fcntl.h>
 
 void fatal(const gchar* msg) {
