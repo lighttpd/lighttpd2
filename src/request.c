@@ -143,10 +143,10 @@ gboolean request_validate_header(connection *con) {
 	hh = http_header_lookup(req->headers, CONST_STR_LEN("content-length"));
 	if (hh) {
 		const gchar *val = HEADER_VALUE(hh);
-		off_t r;
+		gint64 r;
 		char *err;
 
-		r = str_to_off_t(val, &err, 10);
+		r = g_ascii_strtoll(val, &err, 10);
 		if (*err != '\0') {
 			_DEBUG(con->srv, con->mainvr, "content-length is not a number: %s (Status: 400)", err);
 			bad_request(con, 400); /* bad request */
@@ -165,8 +165,7 @@ gboolean request_validate_header(connection *con) {
 		/**
 			* check if we had a over- or underrun in the string conversion
 			*/
-		if (r == STR_OFF_T_MIN ||
-			r == STR_OFF_T_MAX) {
+		if (r == G_MININT64 || r == G_MAXINT64) {
 			if (errno == ERANGE) {
 				bad_request(con, 413); /* Request Entity Too Large */
 				return FALSE;
@@ -183,7 +182,7 @@ gboolean request_validate_header(connection *con) {
 
 		for ( ; l ; l = http_header_find_next(l, CONST_STR_LEN("expect")) ) {
 			hh = (http_header*) l->data;
-			if (0 == strcasecmp( HEADER_VALUE(hh), "100-continue" )) {
+			if (0 == g_strcasecmp( HEADER_VALUE(hh), "100-continue" )) {
 				expect_100_cont = TRUE;
 			} else {
 				/* we only support 100-continue */

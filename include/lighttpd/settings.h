@@ -210,6 +210,5 @@
 #include <lighttpd/sys-mmap.h>
 #include <lighttpd/sys-process.h>
 #include <lighttpd/sys-socket.h>
-#include <lighttpd/sys-strings.h>
 
 #endif
