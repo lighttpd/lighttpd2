@@ -209,11 +209,11 @@ static void fastcgi_connection_free(fastcgi_connection *fcon) {
 static const gchar __padding[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
 static void append_padding(GByteArray *a, guint8 padlen) {
-	g_byte_array_append(a, __padding, padlen);
+	g_byte_array_append(a, (guint8*) __padding, padlen);
 }
 
 static void l_byte_array_append_c(GByteArray *a, char c) {
-	g_byte_array_append(a, &c, 1);
+	g_byte_array_append(a, (guint8*) &c, 1);
 }
 
 /* returns padding length */
@@ -227,9 +227,9 @@ static guint8 stream_build_fcgi_record(GByteArray *buf, guint8 type, guint16 req
 	l_byte_array_append_c(buf, FCGI_VERSION_1);
 	l_byte_array_append_c(buf, type);
 	w = htons(requestid);
-	g_byte_array_append(buf, (const gchar*) &w, sizeof(w));
+	g_byte_array_append(buf, (const guint8*) &w, sizeof(w));
 	w = htons(datalen);
-	g_byte_array_append(buf, (const gchar*) &w, sizeof(w));
+	g_byte_array_append(buf, (const guint8*) &w, sizeof(w));
 	l_byte_array_append_c(buf, padlen);
 	l_byte_array_append_c(buf, 0);
 	return padlen;
@@ -248,7 +248,7 @@ static void stream_send_data(chunkqueue *out, guint8 type, guint16 requestid, co
 		guint16 tosend = (datalen > G_MAXUINT16) ? G_MAXUINT16 : datalen;
 		guint8 padlen = stream_send_fcgi_record(out, type, requestid, tosend);
 		GByteArray *tmpa = g_byte_array_sized_new(tosend + padlen);
-		g_byte_array_append(tmpa, data, tosend);
+		g_byte_array_append(tmpa, (const guint8*) data, tosend);
 		append_padding(tmpa, padlen);
 		chunkqueue_append_bytearr(out, tmpa);
 		data += tosend;
@@ -259,7 +259,7 @@ static void stream_send_data(chunkqueue *out, guint8 type, guint16 requestid, co
 /* kills the data */
 static void stream_send_bytearr(chunkqueue *out, guint8 type, guint16 requestid, GByteArray *data) {
 	if (data->len > G_MAXUINT16) {
-		stream_send_data(out, type, requestid, data->data, data->len);
+		stream_send_data(out, type, requestid, (const gchar*) data->data, data->len);
 		g_byte_array_free(data, TRUE);
 	} else {
 		guint8 padlen = stream_send_fcgi_record(out, type, requestid, data->len);
@@ -286,17 +286,17 @@ static gboolean _append_ba_len(GByteArray *a, size_t len) {
 	if (len > G_MAXINT32) return FALSE;
 	if (len > 127) {
 		guint32 i = htonl(len | (1 << 31));
-		g_byte_array_append(a, (const gchar*) &i, sizeof(i));
+		g_byte_array_append(a, (const guint8*) &i, sizeof(i));
 	} else {
-		l_byte_array_append_c(a, (char) len);
+		l_byte_array_append_c(a, (guint8) len);
 	}
 	return TRUE;
 }
 
 static gboolean append_key_value_pair(GByteArray *a, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	if (!_append_ba_len(a, keylen) || !_append_ba_len(a, valuelen)) return FALSE;
-	g_byte_array_append(a, key, keylen);
-	g_byte_array_append(a, val, valuelen);
+	g_byte_array_append(a, (const guint8*) key, keylen);
+	g_byte_array_append(a, (const guint8*) val, valuelen);
 	return TRUE;
 }
 
@@ -308,7 +308,7 @@ static void fastcgi_send_begin(fastcgi_connection *fcon) {
 
 	stream_build_fcgi_record(buf, FCGI_BEGIN_REQUEST, fcon->requestid, 8);
 	w = htons(FCGI_RESPONDER);
-	g_byte_array_append(buf, (const char*) &w, sizeof(w));
+	g_byte_array_append(buf, (const guint8*) &w, sizeof(w));
 	l_byte_array_append_c(buf, 0); /* TODO: FCGI_KEEP_CONN */
 	append_padding(buf, 5);
 	chunkqueue_append_bytearr(fcon->fcgi_out, buf);

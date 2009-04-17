@@ -12,7 +12,7 @@ typedef enum {
 } server_state;
 
 struct server_socket {
-	guint refcount;
+	gint refcount;
 	server *srv;
 	ev_io watcher;
 	sockaddr_t local_addr;

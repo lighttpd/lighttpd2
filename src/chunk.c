@@ -148,7 +148,7 @@ read_chunk:
 			length = we_have;
 			g_byte_array_set_size(c->mem, length);
 		}
-		*data_start = c->mem->data;
+		*data_start = (char*) c->mem->data;
 		*data_len = length;
 		break;
 	}
@@ -178,7 +178,7 @@ handler_t chunkiter_read_mmap(struct vrequest *vr, chunkiter iter, off_t start, 
 		*data_len = length;
 		break;
 	case MEM_CHUNK:
-		*data_start = c->mem->data + c->offset + start;
+		*data_start = (char*) c->mem->data + c->offset + start;
 		*data_len = length;
 		break;
 	case FILE_CHUNK:
@@ -612,13 +612,13 @@ goffset chunkqueue_steal_len(chunkqueue *out, chunkqueue *in, goffset length) {
 			case STRING_CHUNK: /* change type to MEM_CHUNK, as we copy it anyway */
 				cnew->type = MEM_CHUNK;
 				cnew->mem = g_byte_array_sized_new(length);
-				g_byte_array_append(cnew->mem, c->str->str + c->offset, length);
+				g_byte_array_append(cnew->mem, (guint8*) c->str->str + c->offset, length);
 				memoutbytes += length;
 				break;
 			case MEM_CHUNK:
 				cnew->type = MEM_CHUNK;
 				cnew->mem = g_byte_array_sized_new(length);
-				g_byte_array_append(cnew->mem, c->mem->data + c->offset, length);
+				g_byte_array_append(cnew->mem, (guint8*) c->mem->data + c->offset, length);
 				memoutbytes += length;
 				break;
 			case FILE_CHUNK:
@@ -801,7 +801,7 @@ gboolean chunkqueue_extract_to_bytearr(vrequest *vr, chunkqueue *cq, goffset len
 			gchar *buf;
 			off_t we_have;
 			if (HANDLER_GO_ON != chunkiter_read(vr, ci, coff, len, &buf, &we_have)) goto error;
-			g_byte_array_append(dest, buf, we_have);
+			g_byte_array_append(dest, (guint8*) buf, we_have);
 			coff += we_have;
 			len -= we_have;
 			if (len <= 0) return TRUE;

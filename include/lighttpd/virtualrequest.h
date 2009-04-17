@@ -51,7 +51,7 @@ struct filters {
 };
 
 struct vrequest_ref {
-	guint refcount;
+	gint refcount;
 	vrequest *vr; /* This is only accesible by the worker thread the vrequest belongs to, and it may be NULL if the vrequest is already reset */
 };
 

@@ -207,9 +207,7 @@ static handler_t cache_etag_filter_miss(vrequest *vr, filter *f) {
 
 static GString* createFileName(vrequest *vr, GString *path, http_header *etagheader) {
 	GString *file = g_string_sized_new(255);
-	gchar* etag_base64 = g_base64_encode(
-		etagheader->data->str + (etagheader->keylen + 2),
-		etagheader->data->len - (etagheader->keylen + 2));
+	gchar* etag_base64 = g_base64_encode((guchar*) HEADER_VALUE_LEN(etagheader));
 	g_string_append_len(file, GSTR_LEN(path));
 	g_string_append_len(file, GSTR_LEN(vr->request.uri.path));
 	g_string_append_len(file, CONST_STR_LEN("-"));
