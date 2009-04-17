@@ -268,6 +268,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${CM
 SET(COMMON_SRC
 	angel.c
 	angel_fake.c
+	angel_data.c
 	actions.c
 	base.c
 	chunk.c
@@ -324,6 +325,7 @@ RAGEL_PARSER(config_parser.rl -T0)
 RAGEL_PARSER(http_request_parser.rl)
 RAGEL_PARSER(http_response_parser.rl)
 RAGEL_PARSER(url_parser.rl)
+RAGEL_PARSER(angel_config_parser.rl)
 
 SET(L_INSTALL_TARGETS)
 
@@ -355,6 +357,17 @@ ADD_AND_INSTALL_LIBRARY(mod_vhost "modules/mod_vhost.c")
 
 ADD_TARGET_PROPERTIES(lighttpd LINK_FLAGS ${COMMON_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd COMPILE_FLAGS ${COMMON_CFLAGS})
+
+ADD_EXECUTABLE(lighttpd-angel
+	angel_data.c
+	angel_main.c
+	angel_value.c
+	angel_plugin.c
+	angel_config_parser.c
+)
+
+ADD_TARGET_PROPERTIES(lighttpd-angel LINK_FLAGS "${LUA_LDFLAGS} ${EV_LDFLAGS} ${GMODULE_LDFLAGS} ${WARN_FLAGS}")
+ADD_TARGET_PROPERTIES(lighttpd-angel COMPILE_FLAGS "${LUA_CFLAGS} ${EV_CFLAGS} ${GMODULE_CFLAGS} ${WARN_FLAGS}")
 
 IF(HAVE_PCRE_H)
   TARGET_LINK_LIBRARIES(lighttpd ${PCRE_LIBRARY})

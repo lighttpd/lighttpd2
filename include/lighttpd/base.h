@@ -1,6 +1,10 @@
 #ifndef _LIGHTTPD_BASE_H_
 #define _LIGHTTPD_BASE_H_
 
+#ifdef _LIGHTTPD_ANGEL_BASE_H_
+#error Do not mix lighty with angel code
+#endif
+
 #include <lighttpd/settings.h>
 
 /* Next try to fix strict-alias warning */
