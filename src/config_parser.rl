@@ -965,7 +965,7 @@
 	# misc stuff
 	line_sane = ( '\n' ) >{ ctx->line++; };
 	line_weird = ( '\r' ) >{ ctx->line++; };
-	line_insane = ( '\r\n' ) >{ ctx->line--; };
+	line_insane = ( '\r' ( '\n' >{ ctx->line--; } ) );
 	line = ( line_sane | line_weird | line_insane );
 
 	ws = ( '\t' | ' ' );
