@@ -47,20 +47,20 @@ LI_API void angel_call_init(angel_call *call);
 
 LI_API gboolean angel_send_simple_call(
 	angel_connection *acon,
-	const gchar *module, gsize module_len, const gchar *action, gsize action_len,
+	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 	GString *data,
 	GError **err);
 
 LI_API gboolean angel_send_call(
 	angel_connection *acon,
-	const gchar *module, gsize module_len, const gchar *action, gsize action_len,
+	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 	angel_call *call, guint timeout,
 	GString *data,
 	GError **err);
 
 LI_API gboolean angel_send_result(
 	angel_connection *acon,
-	const gchar *module, gsize module_len, const gchar *action, gsize action_len,
+	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 	angel_call *call, guint timeout,
 	GString *error, GString *data, GArray *fds,
 	GError **err);
