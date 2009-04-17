@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
 	g_option_context_free(context);
 
 	if (!res) {
-		g_printerr("failed to parse command line arguments: %s\n", error->message);
+		g_printerr("lighttpd-angel: failed to parse command line arguments: %s\n", error->message);
 		g_error_free(error);
 		goto cleanup;
 	}
@@ -44,14 +44,20 @@ int main(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
+	if (!config_path) {
+		g_printerr("lighttpd-angel: missing config filename\n");
+		result = -1;
+		goto cleanup;
+	}
+
 	if (!angel_config_parse_file(config_path, &error)) {
-		g_printerr("failed to parse config file: %s\n", error->message);
+		g_printerr("lighttpd-angel: failed to parse config file: %s\n", error->message);
 		g_error_free(error);
 		result = -1;
 		goto cleanup;
 	}
 
-	g_printerr("Parsed config file\n");
+	g_printerr("lighttpd-angel: Parsed config file\n");
 
 cleanup:
 	if (config_path) g_free((gchar*) config_path);
