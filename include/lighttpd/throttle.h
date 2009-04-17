@@ -9,7 +9,7 @@ struct throttle_pool_t {
 	gint magazine;
 	GQueue** queues;  /** worker specific queues. each worker has 2 */
 	guint* current_queue;
-	guint num_cons;
+	gint num_cons;
 
 	gint rearming;
 	ev_tstamp last_pool_rearm;
