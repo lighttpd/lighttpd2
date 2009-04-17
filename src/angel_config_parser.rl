@@ -10,7 +10,7 @@ typedef struct {
 	gboolean readingtoken;
 	char hexchar;
 	gint64 number, number2;
-	gint sign;
+	gboolean negate;
 
 	/* item */
 	GString *itemname;
@@ -113,6 +113,12 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 		ctx->cs = angel_config_parser_error; fbreak;
 	}
 
+	action error_expected_id {
+		UPDATE_COLUMN();
+		PARSE_ERROR_FMT("unexpected character '%s', expected identifier", format_char(ctx, fc));
+		ctx->cs = angel_config_parser_error; fbreak;
+	}
+
 	action error_expected_block {
 		UPDATE_COLUMN();
 		PARSE_ERROR_FMT("unexpected character '%s', expected block ('{...}' or ';') for item '%s'", format_char(ctx, fc), ctx->itemname->str);
@@ -149,6 +155,12 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 		ctx->cs = angel_config_parser_error; fbreak;
 	}
 
+	action error_expected_number {
+		UPDATE_COLUMN();
+		PARSE_ERROR_FMT("unexpected character '%s', expected a number", format_char(ctx, fc));
+		ctx->cs = angel_config_parser_error; fbreak;
+	}
+
 	action error_expected_value {
 		UPDATE_COLUMN();
 		PARSE_ERROR_FMT("unexpected character '%s', expected a value", format_char(ctx, fc));
@@ -158,6 +170,12 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	action error_expected_hash_end {
 		UPDATE_COLUMN();
 		PARSE_ERROR_FMT("unexpected character '%s', expected ']'", format_char(ctx, fc));
+		ctx->cs = angel_config_parser_error; fbreak;
+	}
+
+	action error_expected_list_end {
+		UPDATE_COLUMN();
+		PARSE_ERROR_FMT("unexpected character '%s', expected ')'", format_char(ctx, fc));
 		ctx->cs = angel_config_parser_error; fbreak;
 	}
 
@@ -187,6 +205,13 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	action value_range {
 		value_range vr = { ctx->number2, ctx->number };
 		ctx->curvalue = value_new_range(vr);
+		if (ctx->number2 > ctx->number) {
+			GString *tmp = value_to_string(ctx->curvalue);
+			UPDATE_COLUMN();
+			PARSE_ERROR_FMT("range broken: %s (from > to)", tmp->str);
+			g_string_free(tmp, TRUE);
+			ctx->cs = angel_config_parser_error; fbreak;
+		}
 	}
 
 	action value_string {
@@ -225,6 +250,12 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 		value *vname = g_ptr_array_index(ctx->valuestack, ndx);
 		value *vhash = g_ptr_array_index(ctx->valuestack, ndx-1);
 		g_ptr_array_set_size(ctx->valuestack, ndx);
+		if (NULL != g_hash_table_lookup(vhash->data.hash, vname->data.string)) {
+			UPDATE_COLUMN();
+			PARSE_ERROR_FMT("duplicate key '%s' in item '%s'", vname->data.string->str, ctx->itemname->str);
+			value_free(vname);
+			ctx->cs = angel_config_parser_error; fbreak;
+		}
 		g_hash_table_insert(vhash->data.hash, vname->data.string, ctx->curvalue);
 		ctx->curvalue = NULL;
 		vname->type = VALUE_NONE;
@@ -247,6 +278,12 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 		value *vname = g_ptr_array_index(ctx->valuestack, ndx);
 		g_ptr_array_set_size(ctx->valuestack, ndx);
 		if (!ctx->curvalue) ctx->curvalue = value_new_none();
+		if (NULL != g_hash_table_lookup(ctx->itemvalue->data.hash, vname->data.string)) {
+			UPDATE_COLUMN();
+			PARSE_ERROR_FMT("duplicate key '%s' in item '%s'", vname->data.string->str, ctx->itemname->str);
+			value_free(vname);
+			ctx->cs = angel_config_parser_error; fbreak;
+		}
 		g_hash_table_insert(ctx->itemvalue->data.hash, vname->data.string, ctx->curvalue);
 		vname->type = VALUE_NONE;
 		value_free(vname);
@@ -264,7 +301,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 #   FIXME for viewing the statemachine
 #	noise = ( ws | [\r\n] )+;
 
-	id = (alpha (alnum | '.' | '-' | '_')** @err(error_unexpected_char) ) >starttoken %endtoken;
+	id = (alpha (alnum | '.' | '-' | '_')** ) >starttoken %endtoken;
 
 	special_chars = '\\' (
 		  'n' @{ g_string_append(ctx->token, "\n"); }
@@ -282,30 +319,44 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 #	string = '"' @string_start '"';
 
 	action number_digit {
-		ctx->number = ctx->number*10 + ctx->sign * (fc - '0');
+		if (ctx->negate) {
+			if ((G_MININT64 + (fc - '0')) / 10 > ctx->number) {
+				UPDATE_COLUMN();
+				PARSE_ERROR("Integer underflow");
+				ctx->cs = angel_config_parser_error; fbreak;
+			}
+			ctx->number = ctx->number*10 - (fc - '0');
+		} else {
+			if ((G_MAXINT64 - (fc - '0')) / 10 < ctx->number) {
+				UPDATE_COLUMN();
+				PARSE_ERROR("Integer overflow");
+				ctx->cs = angel_config_parser_error; fbreak;
+			}
+			ctx->number = ctx->number*10 + (fc - '0');
+		}
 	}
-	number = (('-'@{ctx->sign = -1;})? (digit digit**) $number_digit) >{ ctx->number = 0; ctx->sign = 1; };
+	number = (('-'@{ctx->negate = TRUE;})? (digit digit**) $number_digit) >{ ctx->number = 0; ctx->negate = FALSE; };
 
 	value_bool = ('true'i | 'enabled'i) %value_true | ('false'i | 'disabled'i) %value_false;
-	value_number = number noise** ('-'@{ ctx->number2 = ctx->number; } noise* number %value_range | '' %value_number);
+	value_number = number noise** ('-'@{ ctx->number2 = ctx->number; } (noise*) $err(error_expected_number) number %value_range | '' %value_number);
 	value_string = string @value_string;
 	value_list = '(' @value_list_start;
 	value_hash = '[' @value_hash_start;
-	value = (value_bool | value_number | value_string | value_list | value_hash) >err(error_expected_value);
+	value = (value_bool | value_number | value_string | value_list | value_hash) @err(error_expected_value);
 #   FIXME for viewing the statemachine
 #	value = "v";
 
 	value_list_sub_item = value %value_list_push;
-	value_list_sub := ((noise | value_list_sub_item noise* ',')* value_list_sub_item? (noise*) ')' @value_list_end) $err(error_unexpected_char);
+	value_list_sub := ((noise | value_list_sub_item noise* ',')* value_list_sub_item? (noise*) $err(error_expected_list_end) ')' @value_list_end) @err(error_unexpected_char);
 
 	value_hash_sub_item = (value_string %value_hash_push_name) $err(error_expected_string) (noise*) $err(error_expected_colon) ':' noise* value %value_hash_push_value;
-	value_hash_sub := (noise | value_hash_sub_item noise* ',')* value_hash_sub_item? (noise*) $err(error_expected_hash_end) ']' @value_hash_end;
+	value_hash_sub := ((noise | value_hash_sub_item noise* ',')* value_hash_sub_item? (noise*) $err(error_expected_hash_end) ']' @value_hash_end) @err(error_unexpected_char);
 
 	option = id %option_start <: noise* value? (noise*) $err(error_expected_semicolon) ';' @option_push ;
-	optionlist = (noise | option)*;
+	optionlist = ((noise | option) >err(error_expected_id) )*;
 	item = (id %startitem) noise* ( ('{' optionlist '}') | ';' ) >err(error_expected_block) @enditem ;
 
-	main := ((noise | item) >err(error_unexpected_char) )*;
+	main := ((noise | item) >err(error_expected_id) <>err(error_unexpected_char) )*;
 }%%
 
 %% write data;
