@@ -11,8 +11,6 @@
 #include <fcntl.h>
 #include <stdarg.h>
 
-/* from server.h */
-
 #if REMOVE_PATH_FROM_FILE
 const char *remove_path(const char *path) {
 	char *p = strrchr(path, DIR_SEPERATOR);

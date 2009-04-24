@@ -14,6 +14,7 @@ int main(int argc, char *argv[]) {
 
 	gboolean res;
 	int result = 0;
+	server* srv = NULL;
 
 	GOptionEntry entries[] = {
 		{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_path, "filename/path of the config", "PATH" },
@@ -50,9 +51,9 @@ int main(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	if (!angel_config_parse_file(config_path, &error)) {
-		g_printerr("lighttpd-angel: failed to parse config file: %s\n", error->message);
-		g_error_free(error);
+	srv = server_new(module_dir);
+
+	if (!plugins_config_load(srv, config_path)) {
 		result = -1;
 		goto cleanup;
 	}
@@ -60,6 +61,7 @@ int main(int argc, char *argv[]) {
 	g_printerr("lighttpd-angel: Parsed config file\n");
 
 cleanup:
+	if (srv) server_free(srv);
 	if (config_path) g_free((gchar*) config_path);
 	if (module_dir != def_module_dir) g_free((gchar*) module_dir);
 

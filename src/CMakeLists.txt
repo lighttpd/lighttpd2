@@ -359,11 +359,17 @@ ADD_TARGET_PROPERTIES(lighttpd LINK_FLAGS ${COMMON_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd COMPILE_FLAGS ${COMMON_CFLAGS})
 
 ADD_EXECUTABLE(lighttpd-angel
-	angel_data.c
-	angel_main.c
-	angel_value.c
-	angel_plugin.c
 	angel_config_parser.c
+	angel_data.c
+	angel_log.c
+	angel_main.c
+	angel_plugin.c
+	angel_plugin_core.c
+	angel_server.c
+	angel_value.c
+	condition_parsers.c
+	module.c
+	utils.c
 )
 
 ADD_TARGET_PROPERTIES(lighttpd-angel LINK_FLAGS "${LUA_LDFLAGS} ${EV_LDFLAGS} ${GMODULE_LDFLAGS} ${WARN_FLAGS}")

@@ -102,9 +102,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	}
 
 	action enditem {
-		GString *tmp = value_to_string(ctx->itemvalue);
-		g_printerr("Item '%s': %s\n", ctx->itemname->str, tmp->str);
-		g_string_free(tmp, TRUE);
+		plugins_handle_item(srv, ctx->itemname, ctx->itemvalue);
 		g_string_free(ctx->itemname, TRUE);
 		ctx->itemname = NULL;
 		value_free(ctx->itemvalue);
@@ -422,7 +420,7 @@ static gboolean angel_config_parser_finalize(pcontext *ctx, filecontext *fctx, G
 	return TRUE;
 }
 
-static gboolean angel_config_parse_data(pcontext *ctx, filecontext *fctx, gchar *data, gsize len, GError **err) {
+static gboolean angel_config_parse_data(server *srv, pcontext *ctx, filecontext *fctx, gchar *data, gsize len, GError **err) {
 	gchar *p = data, *pe = p+len, *eof = NULL, *linestart = p, *tokenstart = NULL;
 	if (ctx->readingtoken) tokenstart = p;
 
@@ -443,7 +441,7 @@ static gboolean angel_config_parse_data(pcontext *ctx, filecontext *fctx, gchar 
 	return TRUE;
 }
 
-gboolean angel_config_parse_file(const gchar *filename, GError **err) {
+gboolean angel_config_parse_file(server *srv, const gchar *filename, GError **err) {
 	char *data = NULL;
 	gsize len = 0;
 	filecontext sfctx, *fctx = &sfctx;
@@ -456,7 +454,7 @@ gboolean angel_config_parse_file(const gchar *filename, GError **err) {
 	sfctx.filename = filename;
 	sfctx.line = 1;
 	sfctx.column = 1;
-	if (!angel_config_parse_data(ctx, fctx, data, len, err)) goto error;
+	if (!angel_config_parse_data(srv, ctx, fctx, data, len, err)) goto error;
 	if (!angel_config_parser_finalize(ctx, fctx, err)) goto error;
 
 	if (data) g_free(data);

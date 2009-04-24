@@ -91,7 +91,7 @@ server* server_new(const gchar *module_dir) {
 
 	srv->sockets = g_ptr_array_new();
 
-	srv->modules = modules_init(srv, module_dir);
+	srv->modules = modules_new(srv, module_dir);
 
 	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
 	srv->options = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_value_free);
@@ -166,7 +166,7 @@ void server_free(server* srv) {
 	}
 
 	/* release modules */
-	modules_cleanup(srv->modules);
+	modules_free(srv->modules);
 
 	plugin_free(srv, srv->core_plugin);
 

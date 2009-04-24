@@ -1,7 +1,7 @@
 
 #include <lighttpd/module.h>
 
-modules *modules_init(gpointer main, const gchar *module_dir) {
+modules *modules_new(gpointer main, const gchar *module_dir) {
 	modules *m = g_slice_new(modules);
 
 	m->version = MODULE_VERSION;
@@ -26,7 +26,7 @@ module *module_lookup(modules *mods, const gchar *name) {
 	return NULL;
 }
 
-void modules_cleanup(modules* mods) {
+void modules_free(modules* mods) {
 	/* unload all modules */
 	GArray *a = mods->mods;
 	module *mod;

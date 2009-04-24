@@ -22,12 +22,9 @@ struct server {
 		sig_w_TERM,
 		sig_w_PIPE;
 
-	struct modules *modules;
+	Plugins plugins;
 
-	GHashTable *plugins;      /**< const gchar* => (plugin*) */
-	struct plugin *core_plugin;
-
-	ev_tstamp started;
+	log_t log;
 };
 
 LI_API server* server_new(const gchar *module_dir);

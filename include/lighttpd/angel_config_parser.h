@@ -9,6 +9,6 @@ typedef enum {
 	ANGEL_CONFIG_PARSER_ERROR_PARSE,         /* parse error */
 } AngelConfigParserError;
 
-LI_API gboolean angel_config_parse_file(const gchar *filename, GError **err);
+LI_API gboolean angel_config_parse_file(server *srv, const gchar *filename, GError **err);
 
 #endif

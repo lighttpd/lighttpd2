@@ -52,8 +52,8 @@ struct modules {
 	guint8 sizeof_off_t; /** holds the value of sizeof(off_t) to check if loaded module was compiled with the same flags */
 };
 
-LI_API modules* modules_init(gpointer main, const gchar *module_dir);
-LI_API void modules_cleanup(modules *mods);
+LI_API modules* modules_new(gpointer main, const gchar *module_dir);
+LI_API void modules_free(modules *mods);
 
 /** Loads a module if not loaded yet and returns the module struct for it (after increasing refcount)
   * returns NULL if it couldn't load the module.

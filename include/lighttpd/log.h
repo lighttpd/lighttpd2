@@ -32,7 +32,8 @@ LI_API const char *remove_path(const char *path);
 	log_write_(srv, vr, LOG_LEVEL_INFO, LOG_FLAG_TIMESTAMP, "(info) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _DEBUG(srv, vr, fmt, ...) \
-	log_write_(srv, vr, LOG_LEVEL_INFO, LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, vr, LOG_LEVEL_DEBUG, LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+
 #define _BACKEND(srv, vr, fmt, ...) \
 	log_write_(srv, vr, LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, "(backend) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 #define _BACKEND_LINES(srv, vr, txt, fmt, ...) \
