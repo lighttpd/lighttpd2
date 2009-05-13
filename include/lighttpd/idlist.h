@@ -29,10 +29,10 @@ LI_API idlist* idlist_new(gint max_ids);
 /* free idlist */
 LI_API void idlist_free(idlist *l);
 
-/* requst new id; return -1 if no id is available, valid ids are always > 0 */
+/* request new id; return -1 if no id is available, valid ids are always > 0 */
 LI_API gint idlist_get(idlist *l);
 
-/* release id. never release a id more than once! */
+/* release id. never release an id more than once! */
 LI_API void idlist_put(idlist *l, gint id);
 
 #endif
