@@ -34,6 +34,9 @@ def set_options(opt):
 def configure(conf):
 	opts = Options.options
 
+	conf.check_message_2('The waf build system has been disabled, please use cmake for the time being.', 'RED')
+	sys.exit(1)
+
 	conf.define('APPNAME', APPNAME)
 	conf.define('VERSION', VERSION)
 
