@@ -293,6 +293,7 @@ SET(COMMON_SRC
 	options.c
 	plugin.c
 	profiler.c
+	radix.c
 	request.c
 	response.c
 	server.c
