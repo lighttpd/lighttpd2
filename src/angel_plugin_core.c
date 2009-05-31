@@ -3,5 +3,6 @@
 
 gboolean plugin_core_init(server *srv) {
 	/* load core plugins */
+	UNUSED(srv);
 	return TRUE;
 }
