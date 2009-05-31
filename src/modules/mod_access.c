@@ -168,9 +168,9 @@ static action* access_check_create(server *srv, plugin* p, value *val) {
 			}
 
 			if (g_str_equal(ip->data.string->str, "all")) {
-				radixtree32_insert(acd->ipv4, 0, 0x00000000, (gpointer)deny);
+				radixtree32_insert(acd->ipv4, 0, 0x00000000, GINT_TO_POINTER(deny));
 			} else if (parse_ipv4(ip->data.string->str, &ipv4, &netmaskv4, NULL)) {
-				radixtree32_insert(acd->ipv4, htonl(ipv4), htonl(netmaskv4), (gpointer)deny);
+				radixtree32_insert(acd->ipv4, htonl(ipv4), htonl(netmaskv4), GINT_TO_POINTER(deny));
 			/*} else if (parse_ipv6(v->data.string->str, ..., NULL) {
 				radixtree128_insert(acd->ipv6, ipv6, netmaskv6, (gpointer)allow;*/
 			} else {
@@ -183,7 +183,7 @@ static action* access_check_create(server *srv, plugin* p, value *val) {
 	}
 
 	if (!got_deny)
-		radixtree32_insert(acd->ipv4, 0, 0x00000000, (gpointer)TRUE);
+		radixtree32_insert(acd->ipv4, 0, 0x00000000, GINT_TO_POINTER(TRUE));
 
 	return action_new_function(access_check, NULL, access_check_free, acd);
 }
