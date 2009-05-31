@@ -18,7 +18,7 @@
 # define LIGHTY_OS_AIX
 #elif defined(__LINUX__) || defined(__linux__) || defined(__linux)
 # define LIGHTY_OS_LINUX
-#elif defined(__SUN__) || defined(__sun) || defined(sun)
+#elif defined(__SUN__) || defined(__sun) || defined(sun)
 # define LIGHTY_OS_SOLARIS
 #elif defined(__hpux__) || defined(__hpux)
 # define LIGHTY_OS_HPUX
