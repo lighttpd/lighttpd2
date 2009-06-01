@@ -106,14 +106,14 @@ GString *string_encode(const gchar *str, GString *dest, encoding_t encoding) {
 
 	if (dest) {
 		result = dest;
-		g_string_set_size(result, new_len);
+		g_string_set_size(result, dest->len + new_len);
 	} else {
 		result = g_string_sized_new(new_len);
 	}
 
 	switch (encoding) {
 	case ENCODING_HTML:
-		for (c = (guchar*)str, pos = (guchar*)result->str; *c != '\0'; c++) {
+		for (c = (guchar*)str, pos = (guchar*)(result->str+dest->len); *c != '\0'; c++) {
 			if (map[*c]) {
 				/* char needs to be encoded */
 				/* &#xHH */
@@ -130,7 +130,7 @@ GString *string_encode(const gchar *str, GString *dest, encoding_t encoding) {
 		}
 		break;
 	case ENCODING_HEX:
-		for (c = (guchar*)str, pos = (guchar*)result->str; *c != '\0'; c++) {
+		for (c = (guchar*)str, pos = (guchar*)(result->str+dest->len); *c != '\0'; c++) {
 			if (map[*c]) {
 				/* char needs to be encoded */
 				*pos++ = hex_chars[((*c) >> 4) & 0x0F];
@@ -142,7 +142,7 @@ GString *string_encode(const gchar *str, GString *dest, encoding_t encoding) {
 		}
 		break;
 	case ENCODING_URI:
-		for (c = (guchar*)str, pos = (guchar*)result->str; *c != '\0'; c++) {
+		for (c = (guchar*)str, pos = (guchar*)(result->str+dest->len); *c != '\0'; c++) {
 			if (map[*c]) {
 				/* char needs to be encoded */
 				*pos++ = '%';
