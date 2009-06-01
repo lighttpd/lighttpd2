@@ -685,68 +685,67 @@ gsize dirent_buf_size(DIR * dirp) {
 }
 
 
-#define STRNCMP_TEST(_x) strncmp(c, CONST_STR_LEN(_x)) == 0
 guint cond_lvalue_from_str(gchar *c, cond_lvalue_t *lval) {
-	gchar *c_orig = c;
+	const gchar *c_orig = c;
 
-	if (STRNCMP_TEST("req")) {
+	if (g_str_has_prefix(c, "req")) {
 		c += sizeof("req")-1;
 
 		if (*c == '.')
 			c++;
-		else if (strncmp(c, CONST_STR_LEN("uest.")) == 0)
+		else if (g_str_has_prefix(c, "uest."))
 			c += sizeof("uest.")-1;
 		else
 			return 0;
 
-		if (STRNCMP_TEST("localip")) {
+		if (g_str_has_prefix(c, "localip")) {
 			*lval = COMP_REQUEST_LOCALIP;
 			return c - c_orig + sizeof("localip")-1;
-		} else if (STRNCMP_TEST("remoteip")) {
+		} else if (g_str_has_prefix(c, "remoteip")) {
 			*lval = COMP_REQUEST_REMOTEIP;
 			return c - c_orig + sizeof("remoteip")-1;
-		} else if (STRNCMP_TEST("path")) {
+		} else if (g_str_has_prefix(c, "path")) {
 			*lval = COMP_REQUEST_PATH;
 			return c - c_orig + sizeof("path")-1;
-		} else if (STRNCMP_TEST("host")) {
+		} else if (g_str_has_prefix(c, "host")) {
 			*lval = COMP_REQUEST_HOST;
 			return c - c_orig + sizeof("host")-1;
-		} else if (STRNCMP_TEST("scheme")) {
+		} else if (g_str_has_prefix(c, "scheme")) {
 			*lval = COMP_REQUEST_SCHEME;
 			return c - c_orig + sizeof("scheme")-1;
-		} else if (STRNCMP_TEST("query")) {
+		} else if (g_str_has_prefix(c, "query")) {
 			*lval = COMP_REQUEST_QUERY_STRING;
 			return c - c_orig + sizeof("query")-1;
-		} else if (STRNCMP_TEST("method")) {
+		} else if (g_str_has_prefix(c, "method")) {
 			*lval = COMP_REQUEST_METHOD;
 			return c - c_orig + sizeof("method")-1;
-		} else if (STRNCMP_TEST("content_length")) {
+		} else if (g_str_has_prefix(c, "content_length")) {
 			*lval = COMP_REQUEST_CONTENT_LENGTH;
 			return c - c_orig + sizeof("content_length")-1;
 		}
-	} else if (STRNCMP_TEST("phys")) {
+	} else if (g_str_has_prefix(c, "phys")) {
 		c += sizeof("phys")-1;
 
 		if (*c == '.')
 			c++;
-		else if (STRNCMP_TEST("ical."))
+		else if (g_str_has_prefix(c, "ical."))
 			c += sizeof("ical.")-1;
 		else
 			return 0;
 
-		if (STRNCMP_TEST("path")) {
+		if (g_str_has_prefix(c, "path")) {
 			*lval = COMP_PHYSICAL_PATH;
 			return c - c_orig + sizeof("path")-1;
-		} else if (STRNCMP_TEST("exists")) {
+		} else if (g_str_has_prefix(c, "exists")) {
 			*lval = COMP_PHYSICAL_PATH_EXISTS;
 			return c - c_orig + sizeof("exists")-1;
-		} else if (STRNCMP_TEST("size")) {
+		} else if (g_str_has_prefix(c, "size")) {
 			*lval = COMP_PHYSICAL_SIZE;
 			return c - c_orig + sizeof("size")-1;
-		} else if (STRNCMP_TEST("sidir")) {
+		} else if (g_str_has_prefix(c, "sidir")) {
 			*lval = COMP_PHYSICAL_ISDIR;
 			return c - c_orig + sizeof("sidir")-1;
-		} else if (STRNCMP_TEST("isfile")) {
+		} else if (g_str_has_prefix(c, "isfile")) {
 			*lval = COMP_PHYSICAL_ISFILE;
 			return sizeof("isfile")-1;
 		}
@@ -754,4 +753,3 @@ guint cond_lvalue_from_str(gchar *c, cond_lvalue_t *lval) {
 
 	return 0;
 }
-#undef STRNCMP_TEST
