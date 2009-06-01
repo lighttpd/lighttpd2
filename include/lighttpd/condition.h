@@ -52,7 +52,9 @@ typedef enum {
 	COMP_PHYSICAL_ISFILE,
 
 /* needs a key */
-	COMP_REQUEST_HEADER          /**< needs lowercase key, enforced by condition_lvalue_new */
+	COMP_REQUEST_HEADER,         /**< needs lowercase key, enforced by condition_lvalue_new */
+
+	COMP_UNKNOWN
 } cond_lvalue_t;
 
 #define COND_LVALUE_FIRST_WITH_KEY COMP_REQUEST_HEADER
@@ -122,6 +124,7 @@ LI_API void condition_release(server *srv, condition* c);
 
 LI_API const char* comp_op_to_string(comp_operator_t op);
 LI_API const char* cond_lvalue_to_string(cond_lvalue_t t);
+LI_API cond_lvalue_t cond_lvalue_from_string(const gchar *str, guint len);
 
 struct vrequest;
 LI_API handler_t condition_check(struct vrequest *vr, condition *cond, gboolean *result);

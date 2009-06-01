@@ -245,18 +245,61 @@ const char* cond_lvalue_to_string(cond_lvalue_t t) {
 	case COMP_REQUEST_PATH: return "request.path";
 	case COMP_REQUEST_HOST: return "request.host";
 	case COMP_REQUEST_SCHEME: return "request.scheme";
-	case COMP_REQUEST_QUERY_STRING: return "request.querystring";
+	case COMP_REQUEST_QUERY_STRING: return "request.query";
 	case COMP_REQUEST_METHOD: return "request.method";
 	case COMP_REQUEST_CONTENT_LENGTH: return "request.length";
 	case COMP_PHYSICAL_PATH: return "physical.path";
-	case COMP_PHYSICAL_PATH_EXISTS: return "physical.pathexist";
+	case COMP_PHYSICAL_PATH_EXISTS: return "physical.exist";
 	case COMP_PHYSICAL_SIZE: return "physical.size";
 	case COMP_PHYSICAL_ISDIR: return "physical.is_dir";
 	case COMP_PHYSICAL_ISFILE: return "physical.is_file";
 	case COMP_REQUEST_HEADER: return "request.header";
+	case COMP_UNKNOWN: return "<unknown>";
 	}
 
-	return "<unknown>";
+	return "<unkown>";
+}
+
+cond_lvalue_t cond_lvalue_from_string(const gchar *str, guint len) {
+	gchar *c = (gchar*)str;
+
+	if (g_str_has_prefix(c, "request.")) {
+		c += sizeof("request.")-1;
+
+		if (strncmp(c, "localip", len) == 0)
+			return COMP_REQUEST_LOCALIP;
+		else if (strncmp(c, "remoteip", len) == 0)
+			return COMP_REQUEST_REMOTEIP;
+		else if (strncmp(c, "path", len) == 0)
+			return COMP_REQUEST_PATH;
+		else if (strncmp(c, "host", len) == 0)
+			return COMP_REQUEST_HOST;
+		else if (strncmp(c, "scheme", len) == 0)
+			return COMP_REQUEST_SCHEME;
+		else if (strncmp(c, "query", len) == 0)
+			return COMP_REQUEST_QUERY_STRING;
+		else if (strncmp(c, "method", len) == 0)
+			return COMP_REQUEST_METHOD;
+		else if (strncmp(c, "length", len) == 0)
+			return COMP_REQUEST_CONTENT_LENGTH;
+		else if (strncmp(c, "header", len) == 0)
+			return COMP_REQUEST_HEADER;
+	} else if (strncmp(c, "physical.", sizeof("physical.")-1) == 0) {
+		c += sizeof("physical.")-1;
+
+		if (strncmp(c, "path", len) == 0)
+			return COMP_PHYSICAL_PATH;
+		else if (strncmp(c, "exists", len) == 0)
+			return COMP_PHYSICAL_PATH_EXISTS;
+		else if (strncmp(c, "size", len) == 0)
+			return COMP_PHYSICAL_SIZE;
+		else if (strncmp(c, "is_file", len) == 0)
+			return COMP_PHYSICAL_ISFILE;
+		else if (strncmp(c, "is_dir", len) == 0)
+			return COMP_PHYSICAL_ISDIR;
+	}
+
+	return COMP_UNKNOWN;
 }
 
 static handler_t condition_check_eval_bool(vrequest *vr, condition *cond, gboolean *res) {
@@ -545,6 +588,9 @@ static handler_t condition_check_eval_ip(vrequest *vr, condition *cond, gboolean
 	case COMP_PHYSICAL_ISDIR:
 	case COMP_PHYSICAL_ISFILE:
 		VR_ERROR(vr, "%s", "phys.is_dir and phys.is_file are boolean conditionals");
+		return HANDLER_ERROR;
+	case COMP_UNKNOWN:
+		VR_ERROR(vr, "%s", "Cannot parse unknown condition value");
 		return HANDLER_ERROR;
 	}
 
