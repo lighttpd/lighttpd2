@@ -72,4 +72,6 @@ LI_API void l_g_string_append_int(GString *dest, gint64 val);
 
 LI_API gsize dirent_buf_size(DIR * dirp);
 
+LI_API guint cond_lvalue_from_str(gchar *c, cond_lvalue_t *lval);
+
 #endif

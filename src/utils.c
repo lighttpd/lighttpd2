@@ -683,3 +683,75 @@ gsize dirent_buf_size(DIR * dirp) {
 
     return (name_end > sizeof(struct dirent) ? name_end : sizeof(struct dirent));
 }
+
+
+#define STRNCMP_TEST(_x) strncmp(c, CONST_STR_LEN(_x)) == 0
+guint cond_lvalue_from_str(gchar *c, cond_lvalue_t *lval) {
+	gchar *c_orig = c;
+
+	if (STRNCMP_TEST("req")) {
+		c += sizeof("req")-1;
+
+		if (*c == '.')
+			c++;
+		else if (strncmp(c, CONST_STR_LEN("uest.")) == 0)
+			c += sizeof("uest.")-1;
+		else
+			return 0;
+
+		if (STRNCMP_TEST("localip")) {
+			*lval = COMP_REQUEST_LOCALIP;
+			return c - c_orig + sizeof("localip")-1;
+		} else if (STRNCMP_TEST("remoteip")) {
+			*lval = COMP_REQUEST_REMOTEIP;
+			return c - c_orig + sizeof("remoteip")-1;
+		} else if (STRNCMP_TEST("path")) {
+			*lval = COMP_REQUEST_PATH;
+			return c - c_orig + sizeof("path")-1;
+		} else if (STRNCMP_TEST("host")) {
+			*lval = COMP_REQUEST_HOST;
+			return c - c_orig + sizeof("host")-1;
+		} else if (STRNCMP_TEST("scheme")) {
+			*lval = COMP_REQUEST_SCHEME;
+			return c - c_orig + sizeof("scheme")-1;
+		} else if (STRNCMP_TEST("query")) {
+			*lval = COMP_REQUEST_QUERY_STRING;
+			return c - c_orig + sizeof("query")-1;
+		} else if (STRNCMP_TEST("method")) {
+			*lval = COMP_REQUEST_METHOD;
+			return c - c_orig + sizeof("method")-1;
+		} else if (STRNCMP_TEST("content_length")) {
+			*lval = COMP_REQUEST_CONTENT_LENGTH;
+			return c - c_orig + sizeof("content_length")-1;
+		}
+	} else if (STRNCMP_TEST("phys")) {
+		c += sizeof("phys")-1;
+
+		if (*c == '.')
+			c++;
+		else if (STRNCMP_TEST("ical."))
+			c += sizeof("ical.")-1;
+		else
+			return 0;
+
+		if (STRNCMP_TEST("path")) {
+			*lval = COMP_PHYSICAL_PATH;
+			return c - c_orig + sizeof("path")-1;
+		} else if (STRNCMP_TEST("exists")) {
+			*lval = COMP_PHYSICAL_PATH_EXISTS;
+			return c - c_orig + sizeof("exists")-1;
+		} else if (STRNCMP_TEST("size")) {
+			*lval = COMP_PHYSICAL_SIZE;
+			return c - c_orig + sizeof("size")-1;
+		} else if (STRNCMP_TEST("sidir")) {
+			*lval = COMP_PHYSICAL_ISDIR;
+			return c - c_orig + sizeof("sidir")-1;
+		} else if (STRNCMP_TEST("isfile")) {
+			*lval = COMP_PHYSICAL_ISFILE;
+			return sizeof("isfile")-1;
+		}
+	}
+
+	return 0;
+}
+#undef STRNCMP_TEST
