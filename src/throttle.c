@@ -10,23 +10,26 @@
 throttle_pool_t *throttle_pool_new(server *srv, GString *name, guint rate) {
 	throttle_pool_t *pool;
 	guint i;
+	guint worker_count;
+
+	worker_count = srv->worker_count ? srv->worker_count : 1;
 
 	pool = g_slice_new0(throttle_pool_t);
 	pool->rate = rate;
 	pool->magazine = rate * THROTTLE_GRANULARITY;
 	pool->name = name;
 
-	pool->queues = g_new0(GQueue*, srv->worker_count * 2);;
-	for (i = 0; i < (srv->worker_count*2); i+=2) {
+	pool->queues = g_new0(GQueue*, worker_count * 2);;
+	for (i = 0; i < (worker_count*2); i+=2) {
 		pool->queues[i] = g_queue_new();
 		pool->queues[i+1] = g_queue_new();
 	}
 
-	pool->current_queue = g_new0(guint, srv->worker_count);
+	pool->current_queue = g_new0(guint, worker_count);
 
 	pool->last_pool_rearm = ev_time();
-	pool->last_con_rearm = g_new0(ev_tstamp, srv->worker_count);
-	for (i = 0; i < srv->worker_count; i++) {
+	pool->last_con_rearm = g_new0(ev_tstamp, worker_count);
+	for (i = 0; i < worker_count; i++) {
 		pool->last_con_rearm[i] = pool->last_pool_rearm;
 	}
 
@@ -35,8 +38,11 @@ throttle_pool_t *throttle_pool_new(server *srv, GString *name, guint rate) {
 
 void throttle_pool_free(server *srv, throttle_pool_t *pool) {
 	guint i;
+	guint worker_count;
 
-	for (i = 0; i < (srv->workers->len*2); i+=2) {
+	worker_count = srv->worker_count ? srv->worker_count : 1;
+
+	for (i = 0; i < (worker_count*2); i+=2) {
 		g_queue_free(pool->queues[i]);
 		g_queue_free(pool->queues[i+1]);
 	}

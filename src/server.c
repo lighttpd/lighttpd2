@@ -87,7 +87,7 @@ server* server_new(const gchar *module_dir) {
 	srv->state = SERVER_STARTING;
 
 	srv->workers = g_array_new(FALSE, TRUE, sizeof(worker*));
-	srv->worker_count = 1;
+	srv->worker_count = 0;
 
 	srv->sockets = g_ptr_array_new();
 
