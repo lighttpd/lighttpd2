@@ -350,6 +350,7 @@ ADD_AND_INSTALL_LIBRARY(mod_debug "modules/mod_debug.c")
 ADD_AND_INSTALL_LIBRARY(mod_dirlist "modules/mod_dirlist.c")
 ADD_AND_INSTALL_LIBRARY(mod_fastcgi "modules/mod_fastcgi.c")
 ADD_AND_INSTALL_LIBRARY(mod_fortune "modules/mod_fortune.c")
+ADD_AND_INSTALL_LIBRARY(mod_rewrite "modules/mod_rewrite.c")
 ADD_AND_INSTALL_LIBRARY(mod_status "modules/mod_status.c")
 ADD_AND_INSTALL_LIBRARY(mod_vhost "modules/mod_vhost.c")
 
