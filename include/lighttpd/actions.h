@@ -19,8 +19,15 @@ typedef enum {
 	BACKEND_DEAD
 } backend_error;
 
+struct action_regex_stack_element {
+	GString *string;
+	GMatchInfo *match_info;
+};
+typedef struct action_regex_stack_element action_regex_stack_element;
+
 struct action_stack {
 	GArray* stack;
+	GArray* regex_stack;
 	gboolean backend_failed;
 	backend_error backend_error;
 };

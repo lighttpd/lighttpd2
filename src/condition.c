@@ -87,10 +87,24 @@ static condition* cond_new_string(comp_operator_t op, condition_lvalue *lvalue, 
 #ifdef HAVE_PCRE_H
 /* only MATCH and NOMATCH */
 static condition* cond_new_match(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str) {
-	UNUSED(op); UNUSED(lvalue); UNUSED(str);
-	ERROR(srv, "%s", "pcre not supported for now");
-	/* TODO: pcre */
-	return NULL;
+	condition *c;
+	GRegex *regex;
+	GError *err = NULL;
+
+	regex = g_regex_new(str->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
+
+	if (!regex || err) {
+		ERROR(srv, "failed to compile regex \"%s\": %s", str->str, err->message);
+		g_error_free(err);
+		return NULL;
+	}
+
+	c = condition_new(op, lvalue);
+	c->rvalue.type = COND_VALUE_REGEXP;
+	c->rvalue.regex = regex;
+
+
+	return c;
 }
 #endif
 
@@ -126,12 +140,7 @@ condition* condition_new_string(server *srv, comp_operator_t op, condition_lvalu
 		return cond_new_string(op, lvalue, str);
 	case CONFIG_COND_MATCH:
 	case CONFIG_COND_NOMATCH:
-#ifdef HAVE_PCRE_H
 		return cond_new_match(srv, op, lvalue, str);
-#else
-		ERROR(srv, "compiled without pcre, cannot use '%s'", comp_op_to_string(op));
-		return NULL;
-#endif
 	case CONFIG_COND_IP:
 	case CONFIG_COND_NOTIP:
 		return cond_new_ip(srv, op, lvalue, str);
@@ -189,11 +198,8 @@ static void condition_free(condition *c) {
 	case COND_VALUE_STRING:
 		g_string_free(c->rvalue.string, TRUE);
 		break;
-#ifdef HAVE_PCRE_H
 	case COND_VALUE_REGEXP:
-		if (c->rvalue.pcre.regex) pcre_free(c->rvalue.pcre.regex);
-		if (c->rvalue.pcre.regex_study) pcre_free(c->rvalue.pcre.regex_study);
-#endif
+		g_regex_unref(c->rvalue.regex);
 		break;
 	case COND_VALUE_SOCKET_IPV4:
 	case COND_VALUE_SOCKET_IPV6:
@@ -265,6 +271,7 @@ cond_lvalue_t cond_lvalue_from_string(const gchar *str, guint len) {
 
 	if (g_str_has_prefix(c, "request.")) {
 		c += sizeof("request.")-1;
+		len -= sizeof("request.")-1;
 
 		if (strncmp(c, "localip", len) == 0)
 			return COMP_REQUEST_LOCALIP;
@@ -286,6 +293,7 @@ cond_lvalue_t cond_lvalue_from_string(const gchar *str, guint len) {
 			return COMP_REQUEST_HEADER;
 	} else if (strncmp(c, "physical.", sizeof("physical.")-1) == 0) {
 		c += sizeof("physical.")-1;
+		len -= sizeof("physical.")-1;
 
 		if (strncmp(c, "path", len) == 0)
 			return COMP_PHYSICAL_PATH;
@@ -343,6 +351,7 @@ static handler_t condition_check_eval_bool(vrequest *vr, condition *cond, gboole
 
 /* COND_VALUE_STRING and COND_VALUE_REGEXP only */
 static handler_t condition_check_eval_string(vrequest *vr, condition *cond, gboolean *res) {
+	action_regex_stack_element arse;
 	connection *con = vr->con;
 	const char *val = "";
 	*res = FALSE;
@@ -407,15 +416,14 @@ static handler_t condition_check_eval_string(vrequest *vr, condition *cond, gboo
 		*res = !g_str_has_suffix(val, cond->rvalue.string->str);
 		break;
 	case CONFIG_COND_MATCH:
+		*res = g_regex_match(cond->rvalue.regex, val, 0, &arse.match_info);
+		arse.string = (*res) ? g_string_new(val) : NULL;
+		g_array_append_val(vr->action_stack.regex_stack, arse);
+		break;
 	case CONFIG_COND_NOMATCH:
-#ifdef HAVE_PCRE_H
-		/* TODO: pcre */
-		VR_ERROR(vr, "%s", "regexp match not supported yet");
-		return HANDLER_ERROR;
-#else
-		VR_ERROR(vr, "compiled without pcre, cannot use '%s'", comp_op_to_string(cond->op));
-		return HANDLER_ERROR;
-#endif
+		*res = !g_regex_match(cond->rvalue.regex, val, 0, &arse.match_info);
+		arse.string = NULL;
+		g_array_append_val(vr->action_stack.regex_stack, arse);
 		break;
 	case CONFIG_COND_IP:
 	case CONFIG_COND_NOTIP:

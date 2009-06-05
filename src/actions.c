@@ -119,7 +119,9 @@ action *action_new_balancer(BackendSelect bselect, BackendFallback bfallback, Ba
 
 static void action_stack_element_release(server *srv, vrequest *vr, action_stack_element *ase) {
 	action *a = ase->act;
+
 	if (!ase || !a) return;
+
 	switch (a->type) {
 	case ACTION_TSETTING:
 		break;
@@ -129,12 +131,23 @@ static void action_stack_element_release(server *srv, vrequest *vr, action_stack
 		}
 		break;
 	case ACTION_TCONDITION:
+		if (a->data.condition.cond->rvalue.type == COND_VALUE_REGEXP) {
+			/* pop regex stack */
+			GArray *rs = vr->action_stack.regex_stack;
+			action_regex_stack_element *arse = &g_array_index(rs, action_regex_stack_element, rs->len - 1);
+			if (arse->string)
+				g_string_free(arse->string, TRUE);
+			g_match_info_free(arse->match_info);
+			g_array_set_size(rs, rs->len - 1);
+		}
+		break;
 	case ACTION_TLIST:
 		break;
 	case ACTION_TBALANCER:
 		a->data.balancer.finished(vr, a->data.balancer.param, ase->data.context);
 		break;
 	}
+
 	action_release(srv, ase->act);
 	ase->act = NULL;
 	ase->data.context = NULL;
@@ -142,6 +155,8 @@ static void action_stack_element_release(server *srv, vrequest *vr, action_stack
 
 void action_stack_init(action_stack *as) {
 	as->stack = g_array_sized_new(FALSE, TRUE, sizeof(action_stack_element), 15);
+	as->regex_stack = g_array_sized_new(FALSE, FALSE, sizeof(action_regex_stack_element), 15);
+	g_array_set_size(as->regex_stack, 0);
 }
 
 void action_stack_reset(vrequest *vr, action_stack *as) {
@@ -161,6 +176,7 @@ void action_stack_clear(vrequest *vr, action_stack *as) {
 		action_stack_element_release(srv, vr, &g_array_index(as->stack, action_stack_element, i));
 	}
 	g_array_free(as->stack, TRUE);
+	g_array_free(as->regex_stack, TRUE);
 	as->stack = NULL;
 }
 
@@ -262,7 +278,7 @@ handler_t action_execute(vrequest *vr) {
 			res = condition_check(vr, a->data.condition.cond, &condres);
 			switch (res) {
 			case HANDLER_GO_ON:
-				action_stack_pop(srv, vr, as);
+				ase->finished = TRUE;
 				if (condres) {
 					if (a->data.condition.target) action_enter(vr, a->data.condition.target);
 				}

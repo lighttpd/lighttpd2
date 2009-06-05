@@ -83,12 +83,7 @@ struct condition_rvalue {
 
 	gboolean b;
 	GString *string;
-#ifdef HAVE_PCRE_H
-	struct {
-		pcre   *regex;
-		pcre_extra *regex_study;
-	} pcre;
-#endif
+	GRegex *regex;
 	gint64 i;
 	struct {
 		guint32 addr;
