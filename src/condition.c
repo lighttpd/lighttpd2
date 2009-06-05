@@ -84,7 +84,6 @@ static condition* cond_new_string(comp_operator_t op, condition_lvalue *lvalue, 
 	return c;
 }
 
-#ifdef HAVE_PCRE_H
 /* only MATCH and NOMATCH */
 static condition* cond_new_match(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str) {
 	condition *c;
@@ -103,10 +102,10 @@ static condition* cond_new_match(server *srv, comp_operator_t op, condition_lval
 	c->rvalue.type = COND_VALUE_REGEXP;
 	c->rvalue.regex = regex;
 
+	g_string_free(str, TRUE);
 
 	return c;
 }
-#endif
 
 /* only IP and NOTIP */
 static condition* cond_new_ip(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str) {
