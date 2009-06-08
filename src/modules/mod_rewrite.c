@@ -294,7 +294,7 @@ static gboolean rewrite_internal(vrequest *vr, GString *dest_path, GString *dest
 					g_string_append_len(dest, CONST_STR_LEN("http"));
 			} else {
 				if (encoded)
-					string_encode(str->str, dest, ENCODING_URI);
+					string_encode_append(str->str, dest, ENCODING_URI);
 				else
 					g_string_append_len(dest, GSTR_LEN(str));
 			}

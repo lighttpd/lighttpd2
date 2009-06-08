@@ -38,14 +38,14 @@ static const gchar encode_map_html[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 50 - 50 */
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 60 - 60 */
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, /* 70 - 70 DEL */
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 80 - 8F */
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 90 - 9F */
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* A0 - AF */
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* B0 - BF */
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* C0 - CF */
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* D0 - DF */
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* E0 - EF */
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* F0 - FF */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 80 - 8F */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 90 - 9F */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* A0 - AF */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* B0 - BF */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* C0 - CF */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* D0 - DF */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* E0 - EF */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* F0 - FF */
 };
 
 /* relative URI, everything except: ! ( ) * - . / 0-9 A-Z _ a-z */
@@ -71,7 +71,7 @@ static const gchar encode_map_uri[] = {
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* F0 - FF */
 };
 
-GString *string_encode(const gchar *str, GString *dest, encoding_t encoding) {
+GString *string_encode_append(const gchar *str, GString *dest, encoding_t encoding) {
 	GString *result;
 	guchar *c;
 	guchar *pos = NULL;
@@ -105,15 +105,18 @@ GString *string_encode(const gchar *str, GString *dest, encoding_t encoding) {
 	}
 
 	if (dest) {
+		gsize oldlen = dest->len;
 		result = dest;
 		g_string_set_size(result, dest->len + new_len);
+		pos = (guchar*) result->str + oldlen;
 	} else {
 		result = g_string_sized_new(new_len);
+		pos = (guchar*) result->str;
 	}
 
 	switch (encoding) {
 	case ENCODING_HTML:
-		for (c = (guchar*)str, pos = (guchar*)(result->str+dest->len); *c != '\0'; c++) {
+		for (c = (guchar*)str; *c != '\0'; c++) {
 			if (map[*c]) {
 				/* char needs to be encoded */
 				/* &#xHH */
@@ -130,7 +133,7 @@ GString *string_encode(const gchar *str, GString *dest, encoding_t encoding) {
 		}
 		break;
 	case ENCODING_HEX:
-		for (c = (guchar*)str, pos = (guchar*)(result->str+dest->len); *c != '\0'; c++) {
+		for (c = (guchar*)str; *c != '\0'; c++) {
 			if (map[*c]) {
 				/* char needs to be encoded */
 				*pos++ = hex_chars[((*c) >> 4) & 0x0F];
@@ -142,7 +145,7 @@ GString *string_encode(const gchar *str, GString *dest, encoding_t encoding) {
 		}
 		break;
 	case ENCODING_URI:
-		for (c = (guchar*)str, pos = (guchar*)(result->str+dest->len); *c != '\0'; c++) {
+		for (c = (guchar*)str; *c != '\0'; c++) {
 			if (map[*c]) {
 				/* char needs to be encoded */
 				*pos++ = '%';
@@ -159,4 +162,9 @@ GString *string_encode(const gchar *str, GString *dest, encoding_t encoding) {
 	*pos = '\0';
 
 	return result;
+}
+
+GString *string_encode(const gchar *str, GString *dest, encoding_t encoding) {
+	if (dest) g_string_truncate(dest, 0);
+	return string_encode_append(str, dest, encoding);
 }

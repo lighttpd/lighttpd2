@@ -13,6 +13,7 @@ typedef enum {
 
 
 /* encodes special characters in a string and returns the new string */
+GString *string_encode_append(const gchar *str, GString *dest, encoding_t encoding);
 GString *string_encode(const gchar *str, GString *dest, encoding_t encoding);
 
 #endif

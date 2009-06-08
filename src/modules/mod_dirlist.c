@@ -114,6 +114,7 @@ struct dirlist_data {
 	gboolean debug;
 	GPtrArray *exclude_suffix;
 	GPtrArray *exclude_prefix;
+	GString *content_type;
 };
 typedef struct dirlist_data dirlist_data;
 
@@ -254,7 +255,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		if (dd->debug)
 			VR_DEBUG(vr, "dirlist for \"%s\", %u entries", sce->data.path->str, sce->dirlist->len);
 
-		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
+		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(dd->content_type));
 		etag_set_header(vr, &sce->data.st, &cachable);
 		if (cachable) {
 			vr->response.http_status = 304;
@@ -430,6 +431,8 @@ static void dirlist_free(server *srv, gpointer param) {
 		g_string_free(g_ptr_array_index(data->exclude_prefix, i), TRUE);
 	g_ptr_array_free(data->exclude_prefix, TRUE);
 
+	g_string_free(data->content_type, TRUE);
+
 	g_slice_free(dirlist_data, data);
 }
 
@@ -451,6 +454,7 @@ static action* dirlist_create(server *srv, plugin* p, value *val) {
 	data->hide_tildefiles = TRUE;
 	data->exclude_suffix = g_ptr_array_new();
 	data->exclude_prefix = g_ptr_array_new();
+	data->content_type = g_string_new("text/html; charset=utf-8");
 
 	if (val) {
 		for (i = 0; i < val->data.list->len; i++) {
@@ -530,6 +534,13 @@ static action* dirlist_create(server *srv, plugin* p, value *val) {
 					return NULL;
 				}
 				data->debug = v->data.boolean;
+			} else if (g_str_equal(k->str, "content-type")) {
+				if (v->type != VALUE_STRING) {
+					ERROR(srv, "%s", "dirlist: content-type parameter must be a string");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				g_string_assign(data->content_type, v->data.string->str);
 			} else {
 				ERROR(srv, "dirlist: unknown parameter \"%s\"", k->str);
 				dirlist_free(srv, data);
