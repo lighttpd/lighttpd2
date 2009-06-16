@@ -1,9 +1,7 @@
 #ifndef _LIGHTTPD_UTILS_H_
 #define _LIGHTTPD_UTILS_H_
 
-#ifndef _LIGHTTPD_BASE_H_
-#error Please include <lighttpd/base.h> instead of this file
-#endif
+#include <lighttpd/settings.h>
 
 typedef enum {
 	COUNTER_TIME,
@@ -27,15 +25,6 @@ LI_API void url_decode(GString *path);
 
 LI_API void path_simplify(GString *path);
 
-/* returns the description for a given http status code and sets the len to the length of the returned string */
-LI_API gchar *http_status_string(guint status_code, guint *len);
-/* returns the http method as a string and sets len to the length of the returned string */
-LI_API gchar *http_method_string(http_method_t method, guint *len);
-/* returns the http version as a string and sets len to the length of the returned string */
-LI_API gchar *http_version_string(http_version_t method, guint *len);
-/* converts a given 3 digit http status code to a gchar[3] string. e.g. 403 to {'4','0','3'} */
-LI_API void http_status_to_str(gint status_code, gchar status_str[]);
-
 /* formats a given guint64 for output. if dest is NULL, a new string is allocated */
 LI_API GString *counter_format(guint64 count, counter_type t, GString *dest);
 
@@ -47,9 +36,6 @@ LI_API void string_destroy_notify(gpointer str);
 LI_API guint hash_ipv4(gconstpointer key);
 /* expects a pointer to a 128bit value */
 LI_API guint hash_ipv6(gconstpointer key);
-
-/* looks up the mimetype for a filename by comparing suffixes. first match is returned. do not free the result */
-LI_API GString *mimetype_get(vrequest *vr, GString *filename);
 
 /* converts a sock_addr to a human readable string. ipv4 and ipv6 supported. if dest is NULL, a new string will be allocated */
 LI_API GString *sockaddr_to_string(sockaddr_t addr, GString *dest, gboolean showport);
