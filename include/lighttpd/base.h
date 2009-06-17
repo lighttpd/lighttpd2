@@ -38,6 +38,7 @@
 #include <lighttpd/worker.h>
 #include <lighttpd/angel.h>
 #include <lighttpd/condition.h>
+#include <lighttpd/ip_parsers.h>
 #include <lighttpd/options.h>
 #include <lighttpd/value.h>
 #include <lighttpd/actions.h>
@@ -61,6 +62,7 @@
 #include <lighttpd/encoding.h>
 #include <lighttpd/etag.h>
 #include <lighttpd/utils.h>
+#include <lighttpd/lighttpd-glue.h>
 
 #define SERVER_VERSION ((guint) 0x01FF0000)
 

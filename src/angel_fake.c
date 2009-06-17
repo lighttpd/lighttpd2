@@ -1,6 +1,7 @@
 
 #include <lighttpd/base.h>
 #include <lighttpd/angel.h>
+#include <lighttpd/ip_parsers.h>
 
 /* listen to a socket */
 int angel_fake_listen(server *srv, GString *str) {

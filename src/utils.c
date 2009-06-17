@@ -1,6 +1,7 @@
 
 
 #include <lighttpd/utils.h>
+#include <lighttpd/ip_parsers.h>
 
 #include <stdio.h>
 #include <fcntl.h>

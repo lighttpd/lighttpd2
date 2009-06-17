@@ -271,7 +271,6 @@ SET(COMMON_SRC
 	chunk_parser.c
 	collect.c
 	condition.c
-	condition_parsers.c
 	config_parser.c
 	connection.c
 	encoding.c
@@ -281,6 +280,8 @@ SET(COMMON_SRC
 	http_headers.c
 	http_request_parser.c
 	http_response_parser.c
+	ip_parsers.c
+	lighttpd-glue.c
 	log.c
 	module.c
 	network.c
@@ -317,10 +318,10 @@ SET(COMMON_SRC ${COMMON_SRC}
 ENDIF(WITH_LUA)
 
 ## Build parsers by using ragel...
-RAGEL_PARSER(condition_parsers.rl)
 RAGEL_PARSER(config_parser.rl -T0)
 RAGEL_PARSER(http_request_parser.rl)
 RAGEL_PARSER(http_response_parser.rl)
+RAGEL_PARSER(ip_parsers.rl)
 RAGEL_PARSER(url_parser.rl)
 RAGEL_PARSER(angel_config_parser.rl)
 
@@ -366,7 +367,7 @@ ADD_EXECUTABLE(lighttpd-angel
 	angel_plugin_core.c
 	angel_server.c
 	angel_value.c
-	condition_parsers.c
+	ip_parsers.c
 	module.c
 	utils.c
 )
