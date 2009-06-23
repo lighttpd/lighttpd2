@@ -15,6 +15,15 @@ LI_API void fatal(const gchar* msg);
 
 /* set O_NONBLOCK and FD_CLOEXEC */
 LI_API void fd_init(int fd);
+LI_API void fd_no_block(int fd);
+LI_API void fd_block(int fd);
+
+#ifndef _WIN32
+/* return -2 for EAGAIN, -1 for some other error, 0 for success */
+LI_API int send_fd(int s, int fd); /* write fd to unix socket s */
+LI_API int receive_fd(int s, int *fd); /* read fd from unix socket s */
+#endif
+
 LI_API void ev_io_add_events(struct ev_loop *loop, ev_io *watcher, int events);
 LI_API void ev_io_rem_events(struct ev_loop *loop, ev_io *watcher, int events);
 LI_API void ev_io_set_events(struct ev_loop *loop, ev_io *watcher, int events);

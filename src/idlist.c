@@ -97,6 +97,15 @@ gint idlist_get(idlist *l) {
 	return newid;
 }
 
+gboolean idlist_is_used(idlist *l, gint id) {
+	GArray *a = l->bitvector;
+	guint ndx = id / UL_BITS, bndx = id % UL_BITS;
+	gulong bmask = 1 << bndx;
+	if (id < 0 || ndx > a->len) return FALSE;
+
+	return (0 != (g_array_index(a, gulong, ndx) & (bmask)));
+}
+
 void idlist_put(idlist *l, gint id) {
 	clear_bit(l->bitvector, id);
 

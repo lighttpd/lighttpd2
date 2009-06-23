@@ -32,6 +32,9 @@ LI_API void idlist_free(idlist *l);
 /* request new id; return -1 if no id is available, valid ids are always > 0 */
 LI_API gint idlist_get(idlist *l);
 
+/* check whether an id is in use and can be "_put" */
+LI_API gboolean idlist_is_used(idlist *l, gint id);
+
 /* release id. never release an id more than once! */
 LI_API void idlist_put(idlist *l, gint id);
 

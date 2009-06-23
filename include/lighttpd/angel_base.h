@@ -25,4 +25,6 @@ typedef struct instance instance;
 #include <lighttpd/angel_plugin.h>
 #include <lighttpd/angel_server.h>
 
+#include <lighttpd/utils.h>
+
 #endif

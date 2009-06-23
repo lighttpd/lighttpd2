@@ -1,19 +1,56 @@
 #ifndef _LIGHTTPD_ANGEL_CONNECTION_H_
 #define _LIGHTTPD_ANGEL_CONNECTION_H_
 
+#include <lighttpd/idlist.h>
+
+#define ANGEL_CALL_MAX_STR_LEN (64*1024) /* must fit into a gint32 */
+
 struct angel_connection;
 typedef struct angel_connection angel_connection;
 
 struct angel_call;
 typedef struct angel_call angel_call;
 
-typedef void (*AngelCallback)(angel_call *acall, gboolean timeout, GString *error, GString *data, GArray *fds);
+typedef void (*AngelCallback)(gpointer ctx, gboolean timeout, GString *error, GString *data, GArray *fds);
 
+typedef void (*AngelReceiveCall)(angel_connection *acon,
+	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
+	gint32 id,
+	GString *data);
+
+typedef void (*AngelReceiveResult)(angel_connection *acon,
+	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
+	gint32 id,
+	GString *error, GString *data, GArray *fds);
+
+/* gets called after read/write errors */
+typedef void (*AngelCloseCallback)(angel_connection *acon, GError *err);
 
 struct angel_connection {
+	gpointer data;
 	GStaticMutex mutex; /* angel itself has no threads */
 	struct ev_loop *loop;
 	int fd;
+	idlist *call_id_list;
+	GPtrArray *call_table;
+	ev_io fd_watcher;
+	ev_async out_notify_watcher;
+	GQueue *out;
+	angel_buffer in;
+
+	AngelReceiveCall recv_call;
+	AngelReceiveResult recv_result;
+	AngelCloseCallback close_cb;
+
+	/* parse input */
+	struct {
+		gboolean have_header;
+		gint32 type, id;
+		gint32 mod_len, action_len, error_len, data_len, missing_fds;
+		guint body_size;
+		GString *mod, *action, *error, *data;
+		GArray *fds;
+	} parse;
 };
 
 /* with multi-threading you should protect the structure
@@ -24,27 +61,39 @@ struct angel_call {
 	AngelCallback callback;
 	/* internal data */
 	gint32 id; /* id is -1 if there is no call pending (the callback may still be running) */
-	guint timeout;
+	angel_connection *acon;
 	ev_timer timeout_watcher;
-	ev_io fd_watcher;
 };
 
 /* error handling */
 #define ANGEL_CALL_ERROR angel_call_error_quark()
 LI_API GQuark angel_call_error_quark();
 
+#define ANGEL_CONNECTION_ERROR angel_connection_error_quark()
+LI_API GQuark angel_connection_error_quark();
+
 typedef enum {
-	ANGEL_CALL_ALREADY_RUNNING               /* the angel_call struct is already in use for a call */
+	ANGEL_CALL_ALREADY_RUNNING,              /* the angel_call struct is already in use for a call */
+	ANGEL_CALL_OUT_OF_CALL_IDS,              /* too many calls already pending */
+	ANGEL_CALL_INVALID                       /* invalid params */
 } AngelCallError;
 
-/* create connection */
-LI_API angel_connection* angel_connection_create(int fd);
+typedef enum {
+	ANGEL_CONNECTION_CLOSED,                 /* error on socket */
+	ANGEL_CONNECTION_INVALID_DATA            /* invalid data from stream */
+} AngelConnectionError;
 
+/* create connection */
+LI_API angel_connection* angel_connection_create(
+	struct ev_loop *loop, int fd, gpointer data,
+	AngelReceiveCall recv_call, AngelReceiveResult recv_result, AngelCloseCallback close_cb);
+
+LI_API angel_call *angel_call_create(AngelCallback callback, ev_tstamp timeout);
+/* returns TRUE if a call was cancelled; make sure you don't call free while you're calling send_call */
+LI_API gboolean angel_call_free(angel_call *call);
 
 /* calls */
 /* the GString* parameters get stolen by the angel call (moved to chunkqueue) */
-LI_API void angel_call_init(angel_call *call);
-
 LI_API gboolean angel_send_simple_call(
 	angel_connection *acon,
 	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
@@ -54,18 +103,19 @@ LI_API gboolean angel_send_simple_call(
 LI_API gboolean angel_send_call(
 	angel_connection *acon,
 	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
-	angel_call *call, guint timeout,
+	angel_call *call,
 	GString *data,
 	GError **err);
 
 LI_API gboolean angel_send_result(
 	angel_connection *acon,
 	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
-	angel_call *call, guint timeout,
+	gint32 id,
 	GString *error, GString *data, GArray *fds,
 	GError **err);
 
-LI_API gboolean angel_cancel_call(angel_connection *acon, angel_call *call);
+/* free temporary needed memroy; call this once in while after some activity */
+LI_API void angel_cleanup_tables(angel_connection *acon);
 
 /* Usage */
 #if 0

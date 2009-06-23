@@ -1,5 +1,5 @@
 
-#include <lighttpd/base.h>
+#include <lighttpd/settings.h>
 #include <lighttpd/angel_data.h>
 
 /* error handling */
@@ -92,25 +92,10 @@ gboolean angel_data_read_char (angel_buffer *buf, gchar *val, GError **err) {
 	return TRUE;
 }
 
-gboolean angel_data_read_str  (angel_buffer *buf, GString **val, GError **err) {
-	gint32 ilen;
-	gsize len;
+gboolean angel_data_read_mem  (angel_buffer *buf, GString **val, gsize len, GError **err) {
 	GString *s;
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 
-	if (buf->data->len - buf->pos < sizeof(gint32)) {
-		return error_eof(err, "string-length");
-	}
-	memcpy(&ilen, buf->data->str + buf->pos, sizeof(len));
-	buf->pos += sizeof(gint32);
-	if (ilen < 0 || ilen > ANGEL_DATA_MAX_STR_LEN) {
-		g_set_error(err,
-			ANGEL_DATA_ERROR,
-			ANGEL_DATA_ERROR_INVALID_STRING_LENGTH,
-			"String length in buffer invalid: %i", (gint) ilen);
-		return FALSE;
-	}
-	len = (gsize) ilen;
 	if (buf->data->len - buf->pos < len) {
 		return error_eof(err, "string-data");
 	}
@@ -122,5 +107,29 @@ gboolean angel_data_read_str  (angel_buffer *buf, GString **val, GError **err) {
 	}
 	g_string_append_len(s, buf->data->str + buf->pos, len);
 	buf->pos += len;
+	return TRUE;
+}
+
+gboolean angel_data_read_str  (angel_buffer *buf, GString **val, GError **err) {
+	gint32 ilen;
+	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
+
+	if (buf->data->len - buf->pos < sizeof(gint32)) {
+		return error_eof(err, "string-length");
+	}
+	memcpy(&ilen, buf->data->str + buf->pos, sizeof(ilen));
+	buf->pos += sizeof(gint32);
+	if (ilen < 0 || ilen > ANGEL_DATA_MAX_STR_LEN) {
+		buf->pos -= sizeof(gint32);
+		g_set_error(err,
+			ANGEL_DATA_ERROR,
+			ANGEL_DATA_ERROR_INVALID_STRING_LENGTH,
+			"String length in buffer invalid: %i", (gint) ilen);
+		return FALSE;
+	}
+	if (!angel_data_read_mem(buf, val, (gsize) ilen, err)) {
+		buf->pos -= sizeof(gint32);
+		return FALSE;
+	}
 	return TRUE;
 }

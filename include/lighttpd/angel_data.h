@@ -54,5 +54,6 @@ LI_API gboolean angel_data_read_int32(angel_buffer *buf, gint32 *val, GError **e
 LI_API gboolean angel_data_read_int64(angel_buffer *buf, gint64 *val, GError **err);
 LI_API gboolean angel_data_read_char (angel_buffer *buf, gchar *val, GError **err);
 LI_API gboolean angel_data_read_str  (angel_buffer *buf, GString **val, GError **err);
+LI_API gboolean angel_data_read_mem  (angel_buffer *buf, GString **val, gsize len, GError **err);
 
 #endif

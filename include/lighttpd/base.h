@@ -61,6 +61,7 @@
 #include <lighttpd/network.h>
 #include <lighttpd/encoding.h>
 #include <lighttpd/etag.h>
+#include <lighttpd/lighttpd-glue.h>
 #include <lighttpd/utils.h>
 #include <lighttpd/lighttpd-glue.h>
 

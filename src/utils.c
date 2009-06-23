@@ -6,25 +6,75 @@
 #include <stdio.h>
 #include <fcntl.h>
 
+#include <stropts.h>
+
 void fatal(const gchar* msg) {
 	fprintf(stderr, "%s\n", msg);
 	abort();
 }
 
-void fd_init(int fd) {
-#ifdef _WIN32
+void fd_no_block(int fd) {
+#ifdef O_NONBLOCK
+	fcntl(fd, F_SETFL, O_NONBLOCK | O_RDWR);
+#elif defined _WIN32
 	int i = 1;
+	ioctlsocket(fd, FIONBIO, &i);
+#else
+#error No way found to set non-blocking mode for fds.
 #endif
+}
+
+void fd_block(int fd) {
+#ifdef O_NONBLOCK
+	fcntl(fd, F_SETFL, O_RDWR);
+#elif defined _WIN32
+	int i = 0;
+	ioctlsocket(fd, FIONBIO, &i);
+#else
+#error No way found to set blocking mode for fds.
+#endif
+}
+
+void fd_init(int fd) {
 #ifdef FD_CLOEXEC
 	/* close fd on exec (cgi) */
 	fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
-#ifdef O_NONBLOCK
-	fcntl(fd, F_SETFL, O_NONBLOCK | O_RDWR);
-#elif defined _WIN32
-	ioctlsocket(fd, FIONBIO, &i);
-#endif
+	fd_no_block(fd);
 }
+
+#ifndef _WIN32
+int send_fd(int s, int fd) { /* write fd to unix socket s */
+	for ( ;; ) {
+		if (-1 == ioctl(s, I_SENDFD, fd)) {
+			switch (errno) {
+			case EINTR: break;
+			case EAGAIN: return -2;
+			default: return -1;
+			}
+		} else {
+			return 0;
+		}
+	}
+}
+
+int receive_fd(int s, int *fd) { /* read fd from unix socket s */
+	struct strrecvfd res;
+	memset(&res, 0, sizeof(res));
+	for ( ;; ) {
+		if (-1 == ioctl(s, I_RECVFD, &res)) {
+			switch (errno) {
+			case EINTR: break;
+			case EAGAIN: return -2;
+			default: return -1;
+			}
+		} else {
+			*fd = res.fd;
+		}
+	}
+}
+#endif
+
 
 void ev_io_add_events(struct ev_loop *loop, ev_io *watcher, int events) {
 	if ((watcher->events & events) == events) return;

@@ -11,6 +11,8 @@
 
 struct instance {
 	pid_t pid;
+
+	angel_connection *con;
 };
 
 struct server {

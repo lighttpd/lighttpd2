@@ -263,8 +263,9 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${CM
 
 SET(COMMON_SRC
 	angel.c
-	angel_fake.c
+	angel_connection.c
 	angel_data.c
+	angel_fake.c
 	actions.c
 	base.c
 	chunk.c
@@ -280,6 +281,7 @@ SET(COMMON_SRC
 	http_headers.c
 	http_request_parser.c
 	http_response_parser.c
+	idlist.c
 	ip_parsers.c
 	lighttpd-glue.c
 	log.c
@@ -360,6 +362,7 @@ ADD_TARGET_PROPERTIES(lighttpd COMPILE_FLAGS ${COMMON_CFLAGS})
 
 ADD_EXECUTABLE(lighttpd-angel
 	angel_config_parser.c
+	angel_connection.c
 	angel_data.c
 	angel_log.c
 	angel_main.c
@@ -367,6 +370,7 @@ ADD_EXECUTABLE(lighttpd-angel
 	angel_plugin_core.c
 	angel_server.c
 	angel_value.c
+	idlist.c
 	ip_parsers.c
 	module.c
 	utils.c
