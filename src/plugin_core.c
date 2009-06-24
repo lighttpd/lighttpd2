@@ -121,7 +121,7 @@ static action* core_set(server *srv, plugin* p, value *val) {
 	}
 	a = option_action(srv, val_name->data.string->str, val_val);
 	return a;
-}
+} 
 
 static gboolean core_setup_set(server *srv, plugin* p, value *val) {
 	value *val_val, *val_name;
@@ -183,6 +183,104 @@ static action* core_docroot(server *srv, plugin* p, value *val) {
 
 	return action_new_function(core_handle_docroot, NULL, core_docroot_free, value_extract(val).string);
 }
+
+
+static handler_t core_handle_index(vrequest *vr, gpointer param, gpointer *context) {
+	handler_t res;
+	guint i;
+	struct stat st;
+	gint err;
+	GString *file;
+	GArray *files = param;
+
+	UNUSED(context);
+
+	if (!vr->physical.doc_root->len) {
+		VR_ERROR(vr, "%s", "no docroot specified yet but index action called");
+		return HANDLER_ERROR;
+	}
+
+
+	res = stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
+	if (res == HANDLER_WAIT_FOR_EVENT)
+		return HANDLER_WAIT_FOR_EVENT;
+
+	if (res == HANDLER_ERROR) {
+		/* we ignore errors here so a later action can deal with it (e.g. 'static') */
+		return HANDLER_GO_ON;
+	}
+
+	if (!S_ISDIR(st.st_mode))
+		return HANDLER_GO_ON;
+
+	g_string_truncate(vr->wrk->tmp_str, 0);
+	g_string_append_len(vr->wrk->tmp_str, GSTR_LEN(vr->physical.path));
+
+	/* loop through the list to find a possible index file */
+	for (i = 0; i < files->len; i++) {
+		file = g_array_index(files, value*, i)->data.string;
+
+		if (file->str[0] == '/')
+			g_string_truncate(vr->wrk->tmp_str, vr->physical.doc_root->len);
+		else
+			g_string_truncate(vr->wrk->tmp_str, vr->physical.path->len);
+
+		g_string_append_len(vr->wrk->tmp_str, GSTR_LEN(file));
+		res = stat_cache_get(vr, vr->wrk->tmp_str, &st, &err, NULL);
+
+		if (res == HANDLER_WAIT_FOR_EVENT)
+			return HANDLER_WAIT_FOR_EVENT;
+
+		if (res == HANDLER_GO_ON) {
+			/* file exists. change physical path */
+			g_string_append_len(vr->physical.path, GSTR_LEN(file));
+
+			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "using index file: '%s'", file->str);
+			}
+
+			return HANDLER_GO_ON;
+		}
+	}
+
+	return HANDLER_GO_ON;
+}
+
+static void core_index_free(server *srv, gpointer param) {
+	guint i;
+	GArray *files = param;
+
+	UNUSED(srv);
+
+	for (i = 0; i < files->len; i++) 
+		value_free(g_array_index(files, value*, i));
+
+	g_array_free(files, TRUE);
+}
+
+static action* core_index(server *srv, plugin* p, value *val) {
+	GArray *files;
+	guint i;
+
+	UNUSED(p);
+
+	if (!val || val->type != VALUE_LIST) {
+		ERROR(srv, "%s", "index action expects a list of strings as parameter");
+		return NULL;
+	}
+
+	files = val->data.list;
+
+	for (i = 0; i < files->len; i++) {
+		if (g_array_index(files, value*, i)->type != VALUE_STRING) {
+			ERROR(srv, "%s", "index action expects a list of strings as parameter");
+			return NULL;
+		}
+	}
+
+	return action_new_function(core_handle_index, NULL, core_index_free, value_extract(val).list);
+}
+
 
 static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *context) {
 	int fd;
@@ -1210,6 +1308,7 @@ static const plugin_action actions[] = {
 	{ "set", core_set },
 
 	{ "docroot", core_docroot },
+	{ "index", core_index },
 	{ "static", core_static },
 
 	{ "status", core_status },
