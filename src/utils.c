@@ -1,4 +1,14 @@
 
+#ifdef LIGHTY_OS_NETBSD
+	#define _NETBSD_SOURCE
+#endif
+
+#ifdef LIGHTY_OS_OPENBSD
+	#warning OpenBSD does net allow sending of file descriptors when _XOPEN_SOURCE is defined (needed for Solaris)
+#else
+	#define _XOPEN_SOURCE
+	#define _XOPEN_SOURCE_EXTENDED 1
+#endif
 
 #include <lighttpd/utils.h>
 #include <lighttpd/ip_parsers.h>
@@ -6,7 +16,16 @@
 #include <stdio.h>
 #include <fcntl.h>
 
+#if 0
 #include <stropts.h>
+#endif
+
+/* for send/receive_fd */
+union fdmsg {
+  struct cmsghdr h;
+  gchar buf[1000];
+};
+
 
 void fatal(const gchar* msg) {
 	fprintf(stderr, "%s\n", msg);
@@ -43,6 +62,7 @@ void fd_init(int fd) {
 	fd_no_block(fd);
 }
 
+#if 0
 #ifndef _WIN32
 int send_fd(int s, int fd) { /* write fd to unix socket s */
 	for ( ;; ) {
@@ -74,6 +94,136 @@ int receive_fd(int s, int *fd) { /* read fd from unix socket s */
 	}
 }
 #endif
+#endif
+
+gint send_fd(gint s, gint fd) { /* write fd to unix socket s */
+	struct msghdr msg;
+	struct iovec  iov;
+#ifdef CMSG_FIRSTHDR
+	struct cmsghdr *cmsg;
+#ifndef CMSG_SPACE
+#define CMSG_SPACE(x) x+100
+#endif
+	gchar buf[CMSG_SPACE(sizeof(gint))];
+#endif
+
+	iov.iov_len = 1;
+	iov.iov_base = "x";
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_name = 0;
+	msg.msg_namelen = 0;
+#ifdef CMSG_FIRSTHDR
+	msg.msg_control = buf;
+	msg.msg_controllen = sizeof(buf);
+	cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+#ifndef CMSG_LEN
+#define CMSG_LEN(x) x
+#endif
+	cmsg->cmsg_len = CMSG_LEN(sizeof(gint));
+	msg.msg_controllen = cmsg->cmsg_len;
+	*((gint*)CMSG_DATA(cmsg)) = fd;
+#else
+	msg.msg_accrights = (gchar*)&fd;
+	msg.msg_accrightslen = sizeof(fd);
+#endif
+
+	for (;;) {
+		if (sendmsg(s, &msg, 0) < 0) {
+			switch (errno) {
+			case EINTR: break;
+			#if EAGAIN != EWOULDBLOCK
+			case EWOULDBLOCK:
+			#endif
+			case EAGAIN: return -2;
+			default: return -1;
+			}
+		}
+
+		break;
+	}
+
+	return 0;
+}
+
+
+gint receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
+	struct iovec iov;
+	struct msghdr msg;
+#ifdef CMSG_FIRSTHDR
+	union fdmsg cmsg;
+	struct cmsghdr* h;
+#else
+	gint _fd;
+#endif
+	gchar x[100];
+	gchar name[100];
+
+	iov.iov_base = x;
+	iov.iov_len = 100;
+	msg.msg_name = name;
+	msg.msg_namelen = 100;
+#ifdef CMSG_FIRSTHDR
+	msg.msg_control = cmsg.buf;
+	msg.msg_controllen = sizeof(union fdmsg);
+#else
+	msg.msg_accrights = (gchar*)&_fd;
+	msg.msg_accrightslen = sizeof(_fd);
+#endif
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+#ifdef CMSG_FIRSTHDR
+	msg.msg_flags = 0;
+	h = CMSG_FIRSTHDR(&msg);
+#ifndef CMSG_LEN
+	#define CMSG_LEN(x) x
+#endif
+	h->cmsg_len = CMSG_LEN(sizeof(gint));
+	h->cmsg_level = SOL_SOCKET;
+	h->cmsg_type = SCM_RIGHTS;
+	*((gint*)CMSG_DATA(h)) = -1;
+#endif
+
+	for (;;) {
+		if (recvmsg(s, &msg, 0) == -1) {
+			switch (errno) {
+			case EINTR: break;
+			#if EAGAIN != EWOULDBLOCK
+			case EWOULDBLOCK:
+			#endif
+			case EAGAIN: return -2;
+			default: return -1;
+			}
+		}
+	}
+
+#ifdef CMSG_FIRSTHDR
+	h = CMSG_FIRSTHDR(&msg);
+
+	if (!h || h->cmsg_len != CMSG_LEN(sizeof(gint)) || h->cmsg_level != SOL_SOCKET || h->cmsg_type != SCM_RIGHTS) {
+	#ifdef EPROTO
+		errno = EPROTO;
+	#else
+		errno = EINVAL;
+	#endif
+		return -1;
+	}
+
+	*fd = *((gint*)CMSG_DATA(h));
+
+	return 0;
+#else
+	if (msg.msg_accrightslen != sizeof(fd))
+		return -1;
+
+	*fd = _fd;
+
+	return 0;
+#endif
+}
+
 
 
 void ev_io_add_events(struct ev_loop *loop, ev_io *watcher, int events) {
