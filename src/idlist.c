@@ -1,7 +1,7 @@
 
 #include <lighttpd/idlist.h>
 
-#define UL_BITS (sizeof(ulong) * 8)
+#define UL_BITS (sizeof(gulong) * 8)
 
 /* There are often no explicit bit shifts used in this code. This is on purpose, the
  * code looks much cleaner without them, the correct constant for *, / and % is easier to calculate
