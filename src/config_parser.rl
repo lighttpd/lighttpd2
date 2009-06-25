@@ -102,14 +102,14 @@
 				}
 
 				switch (*(c+1)) {
+				case '\\': g_string_append_c(str, '\\'); c++; break;
 				case 'n': g_string_append_c(str, '\n'); c++; break;
 				case 'r': g_string_append_c(str, '\r'); c++; break;
 				case 't': g_string_append_c(str, '\t'); c++; break;
 				case 'x':
 					if (avail < 3 || !(
-						((*(c+2) >= '0' && *(c+2) <= '9') && (*(c+3) >= '0' && *(c+3) <= '9')) ||
-						((*(c+2) >= 'A' && *(c+2) <= 'F') && (*(c+3) >= 'A' && *(c+3) <= 'F')) ||
-						((*(c+2) >= 'a' && *(c+2) <= 'f') && (*(c+3) >= 'a' && *(c+3) <= 'f')))) {
+						((*(c+2) >= '0' && *(c+2) <= '9') || (*(c+2) >= 'A' && *(c+2) <= 'F') || (*(c+2) >= 'a' && *(c+2) <= 'f')) &&
+						((*(c+3) >= '0' && *(c+3) <= '9') || (*(c+3) >= 'A' && *(c+3) <= 'F') || (*(c+3) >= 'a' && *(c+3) <= 'f')))) {
 						ERROR(srv, "%s", "invalid \\xHH in string");
 						g_string_free(str, TRUE);
 						return FALSE;
@@ -131,6 +131,9 @@
 						ch += 10 + *(c+3) - 'a';
 					c += 3;
 					g_string_append_c(str, ch);
+					break;
+				default:
+					g_string_append_c(str, '\\');
 				}
 			}
 		}
