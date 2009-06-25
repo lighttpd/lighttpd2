@@ -383,7 +383,7 @@ static handler_t core_handle_static(vrequest *vr, gpointer param, gpointer *cont
 			return HANDLER_GO_ON;
 		}
 
-		mime_str = mimetype_get(vr, vr->request.uri.path);
+		mime_str = mimetype_get(vr, vr->physical.path);
 		vr->response.http_status = 200;
 		if (mime_str)
 			http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
