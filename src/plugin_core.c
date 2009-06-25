@@ -121,7 +121,7 @@ static action* core_set(server *srv, plugin* p, value *val) {
 	}
 	a = option_action(srv, val_name->data.string->str, val_val);
 	return a;
-} 
+}
 
 static gboolean core_setup_set(server *srv, plugin* p, value *val) {
 	value *val_val, *val_name;
