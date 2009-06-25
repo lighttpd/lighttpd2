@@ -190,7 +190,7 @@ static handler_t core_handle_index(vrequest *vr, gpointer param, gpointer *conte
 	guint i;
 	struct stat st;
 	gint err;
-	GString *file;
+	GString *file, *tmp_docroot, *tmp_path;
 	GArray *files = param;
 
 	UNUSED(context);
@@ -213,35 +213,50 @@ static handler_t core_handle_index(vrequest *vr, gpointer param, gpointer *conte
 	if (!S_ISDIR(st.st_mode))
 		return HANDLER_GO_ON;
 
-	g_string_truncate(vr->wrk->tmp_str, 0);
-	g_string_append_len(vr->wrk->tmp_str, GSTR_LEN(vr->physical.path));
+	/* we use two temporary strings here, one to append to docroot and one to append to physical path */
+	tmp_docroot = vr->wrk->tmp_str;
+	g_string_truncate(tmp_docroot, 0);
+	g_string_append_len(vr->wrk->tmp_str, GSTR_LEN(vr->physical.doc_root));
+	tmp_path = g_string_new_len(GSTR_LEN(vr->physical.path));
 
 	/* loop through the list to find a possible index file */
 	for (i = 0; i < files->len; i++) {
 		file = g_array_index(files, value*, i)->data.string;
 
-		if (file->str[0] == '/')
-			g_string_truncate(vr->wrk->tmp_str, vr->physical.doc_root->len);
-		else
-			g_string_truncate(vr->wrk->tmp_str, vr->physical.path->len);
+		if (file->str[0] == '/') {
+			/* entries beginning with a slash shall be looked up directly at the docroot */
+			g_string_truncate(tmp_docroot, vr->physical.doc_root->len);
+			g_string_append_len(tmp_docroot, GSTR_LEN(file));
+			res = stat_cache_get(vr, tmp_docroot, &st, &err, NULL);
+		} else {
+			g_string_truncate(tmp_path, vr->physical.path->len);
+			g_string_append_len(tmp_path, GSTR_LEN(file));
+			res = stat_cache_get(vr, tmp_path, &st, &err, NULL);
+		}
 
-		g_string_append_len(vr->wrk->tmp_str, GSTR_LEN(file));
-		res = stat_cache_get(vr, vr->wrk->tmp_str, &st, &err, NULL);
-
-		if (res == HANDLER_WAIT_FOR_EVENT)
+		if (res == HANDLER_WAIT_FOR_EVENT) {
+			g_string_free(tmp_path, TRUE);
 			return HANDLER_WAIT_FOR_EVENT;
+		}
 
 		if (res == HANDLER_GO_ON) {
 			/* file exists. change physical path */
+			if (file->str[0] == '/')
+				g_string_truncate(vr->physical.path, vr->physical.doc_root->len);
+
 			g_string_append_len(vr->physical.path, GSTR_LEN(file));
 
 			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "using index file: '%s'", file->str);
 			}
 
+			g_string_free(tmp_path, TRUE);
+
 			return HANDLER_GO_ON;
 		}
 	}
+
+	g_string_free(tmp_path, TRUE);
 
 	return HANDLER_GO_ON;
 }
