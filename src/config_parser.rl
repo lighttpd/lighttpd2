@@ -103,6 +103,7 @@
 
 				switch (*(c+1)) {
 				case '\\': g_string_append_c(str, '\\'); c++; break;
+				case '"': g_string_append_c(str, '"'); c++; break;
 				case 'n': g_string_append_c(str, '\n'); c++; break;
 				case 'r': g_string_append_c(str, '\r'); c++; break;
 				case 't': g_string_append_c(str, '\t'); c++; break;
@@ -985,9 +986,10 @@
 	integer_suffix = ( integer_suffix_bytes | integer_suffix_bits | integer_suffix_seconds ) >mark %integer_suffix;
 	integer = ( ('0' | ( [1-9] [0-9]* )) %integer (ws? integer_suffix)? );
 	escaped_hex = ( '\\x' xdigit{2} );
-	special_chars = ( '\\' [nrt] );
-	string = ( '"' ( ( any - ["\\] ) | special_chars | escaped_hex | '\\"' )* '"' ) %string;
+	special_chars = ( '\\' [nrt\\] );
+	#string = ( '"' ( ( any - ["\\] ) | special_chars | escaped_hex | '\\"' )* '"' ) %string;
 	#string = ( '"' ( ( any - ["\\] ) | '\\"' )* '"' ) %string;
+	string = ( '"' ( ( any - ["\\] ) | escaped_hex | ( '\\' ( any - [x]) ) )* '"' ) %string;
 
 	# casts
 	cast = ( 'cast(' ( 'int' %{ctx->cast = CFG_PARSER_CAST_INT;} | 'str' %{ctx->cast = CFG_PARSER_CAST_STR;} ) ')' ws* );
