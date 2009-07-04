@@ -77,9 +77,11 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 	struct tm tm;
 	time_t date;
 	guint len;
+	gint max_age;
 	GString *date_str = vr->wrk->tmp_str;
 	expire_rule *rule = param;
 	guint num = ((expire_rule*)param)->num;
+	time_t now = (time_t)CUR_TS(vr->wrk);
 
 	UNUSED(context);
 
@@ -98,7 +100,8 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 
 
 	if (rule->base == EXPIRE_ACCESS) {
-		date = (time_t) (CUR_TS(vr->wrk) + num);
+		date = now + num;
+		max_age = num;
 	} else {
 		/* modification */
 		struct stat st;
@@ -111,6 +114,7 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 		}
 
 		date = st.st_mtime + num;
+		max_age = num - (now - st.st_mtime);
 	}
 
 	/* format date */
@@ -129,7 +133,7 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 	http_header_overwrite(vr->response.headers, CONST_STR_LEN("Expires"), GSTR_LEN(date_str));
 	g_string_truncate(date_str, 0);
 	g_string_append_len(date_str, CONST_STR_LEN("max-age="));
-	l_g_string_append_int(date_str, num);
+	l_g_string_append_int(date_str, max_age);
 	http_header_overwrite(vr->response.headers, CONST_STR_LEN("Cache-Control"), GSTR_LEN(date_str));
 
 	return HANDLER_GO_ON;
