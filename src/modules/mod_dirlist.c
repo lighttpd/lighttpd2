@@ -186,7 +186,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 
 	if (sce->data.failed) {
 		/* stat failed */
-		stat_cache_entry_release(vr, sce);VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
+		stat_cache_entry_release(vr, sce);
 		switch (sce->data.err) {
 		case ENOENT:
 		case ENOTDIR:
@@ -200,7 +200,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 			return HANDLER_ERROR;
 		}
 	} else if (!S_ISDIR(sce->data.st.st_mode)) {
-		stat_cache_entry_release(vr, sce);VR_DEBUG(vr, "%s", "no dir");
+		stat_cache_entry_release(vr, sce);
 		return HANDLER_GO_ON;
 	} else if (vr->request.uri.path->str[vr->request.uri.path->len-1] != G_DIR_SEPARATOR) {
 		GString *host, *uri;
