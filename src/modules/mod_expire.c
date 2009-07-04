@@ -60,15 +60,6 @@ struct expire_rule {
 		EXPIRE_MODIFICATION
 	} base;
 	guint num;
-	enum {
-		EXPIRE_SECONDS,
-		EXPIRE_MINUTES,
-		EXPIRE_HOURS,
-		EXPIRE_DAYS,
-		EXPIRE_WEEKS,
-		EXPIRE_MONTHS,
-		EXPIRE_YEARS
-	} type;
 };
 typedef struct expire_rule expire_rule;
 
@@ -84,17 +75,6 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 	time_t now = (time_t)CUR_TS(vr->wrk);
 
 	UNUSED(context);
-
-	switch (rule->type) {
-	case EXPIRE_SECONDS: num *= 1; break;
-	case EXPIRE_MINUTES: num *= 60; break;
-	case EXPIRE_HOURS: num *= 3600; break;
-	case EXPIRE_DAYS: num *= 3600*24; break;
-	case EXPIRE_WEEKS: num *= 3600*24*7; break;
-	case EXPIRE_MONTHS: num *= 3600*24*30; break;
-	case EXPIRE_YEARS: num *= 3600*24*365; break;
-	}
-
 
 	if (rule->base == EXPIRE_ACCESS) {
 		expire_date = now + num;
@@ -205,19 +185,19 @@ static action* expire_create(server *srv, plugin* p, value *val) {
 
 	/* parse <type> */
 	if (g_str_equal(str, " second") || g_str_equal(str, " seconds"))
-		rule->type = EXPIRE_SECONDS;
+		rule->num *= 1;
 	else if (g_str_equal(str, " minute") || g_str_equal(str, " minutes"))
-		rule->type = EXPIRE_MINUTES;
+		rule->num *= 60;
 	else if (g_str_equal(str, " hour") || g_str_equal(str, " hours"))
-		rule->type = EXPIRE_HOURS;
+		rule->num *= 3600;
 	else if (g_str_equal(str, " day") || g_str_equal(str, " days"))
-		rule->type = EXPIRE_DAYS;
+		rule->num *= 3600*24;
 	else if (g_str_equal(str, " week") || g_str_equal(str, " weeks"))
-		rule->type = EXPIRE_WEEKS;
+		rule->num *= 3600*24*7;
 	else if (g_str_equal(str, " month") || g_str_equal(str, " months"))
-		rule->type = EXPIRE_MONTHS;
+		rule->num *= 3600*24*30;
 	else if (g_str_equal(str, " year") || g_str_equal(str, " years"))
-		rule->type = EXPIRE_YEARS;
+		rule->num *= 3600*24*365;
 	else {
 		g_slice_free(expire_rule, rule);
 		ERROR(srv, "expire: error parsing rule \"%s\", <type> must be one of 'seconds', 'minutes', 'hours', 'days', 'weeks', 'months' or 'years'", val->data.string->str);
