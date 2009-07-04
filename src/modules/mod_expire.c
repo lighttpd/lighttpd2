@@ -17,7 +17,8 @@
  *     If you use "modification" as <base> and the file does not exist or cannot be accessed,
  *     mod_expire will do nothing and request processing will go on.
  *
- *     The expire action will overwrite any existing "Expires" or "Cache-Control" headers.
+ *     The expire action will overwrite any existing "Expires" header.
+ *     It will append the max-age value to any existing "Cache-Control" header.
  *
  * Setups:
  *     none
@@ -47,7 +48,6 @@
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
 
-#include <stdio.h>
 #include <lighttpd/base.h>
 
 LI_API gboolean mod_expire_init(modules *mods, module *mod);
@@ -75,18 +75,15 @@ typedef struct expire_rule expire_rule;
 
 static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 	struct tm tm;
-	time_t date;
+	time_t expire_date;
 	guint len;
 	gint max_age;
 	GString *date_str = vr->wrk->tmp_str;
 	expire_rule *rule = param;
-	guint num = ((expire_rule*)param)->num;
+	guint num = rule->num;
 	time_t now = (time_t)CUR_TS(vr->wrk);
 
 	UNUSED(context);
-
-	if (!vr->physical.path->len)
-		return HANDLER_GO_ON;
 
 	switch (rule->type) {
 	case EXPIRE_SECONDS: num *= 1; break;
@@ -100,12 +97,15 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 
 
 	if (rule->base == EXPIRE_ACCESS) {
-		date = now + num;
+		expire_date = now + num;
 		max_age = num;
 	} else {
 		/* modification */
 		struct stat st;
 		gint err;
+
+		if (!vr->physical.path->len)
+			return HANDLER_GO_ON;
 
 		switch (stat_cache_get(vr, vr->physical.path, &st, &err, NULL)) {
 		case HANDLER_GO_ON: break;
@@ -113,14 +113,18 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 		default: return HANDLER_GO_ON;
 		}
 
-		date = st.st_mtime + num;
-		max_age = num - (now - st.st_mtime);
+		expire_date = st.st_mtime + num;
+
+		if (expire_date < now)
+			expire_date = now;
+
+		max_age = expire_date - now;
 	}
 
 	/* format date */
 	g_string_set_size(date_str, 255);
 
-	if (!gmtime_r(&date, &tm))
+	if (!gmtime_r(&expire_date, &tm))
 		return HANDLER_GO_ON;
 
 	len = strftime(date_str->str, date_str->allocated_len, "%a, %d %b %Y %H:%M:%S GMT", &tm);
@@ -134,7 +138,7 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 	g_string_truncate(date_str, 0);
 	g_string_append_len(date_str, CONST_STR_LEN("max-age="));
 	l_g_string_append_int(date_str, max_age);
-	http_header_overwrite(vr->response.headers, CONST_STR_LEN("Cache-Control"), GSTR_LEN(date_str));
+	http_header_append(vr->response.headers, CONST_STR_LEN("Cache-Control"), GSTR_LEN(date_str));
 
 	return HANDLER_GO_ON;
 }
