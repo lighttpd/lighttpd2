@@ -124,8 +124,10 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 	/* format date */
 	g_string_set_size(date_str, 255);
 
-	if (!gmtime_r(&expire_date, &tm))
+	if (!gmtime_r(&expire_date, &tm)) {
+		VR_ERROR(vr, "gmtime_r(%"G_GUINT64_FORMAT") failed: %s", (guint64)expire_date, g_strerror(errno));
 		return HANDLER_GO_ON;
+	}
 
 	len = strftime(date_str->str, date_str->allocated_len, "%a, %d %b %Y %H:%M:%S GMT", &tm);
 	if (len == 0)
