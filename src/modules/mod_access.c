@@ -44,7 +44,6 @@
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
 
-#include <stdio.h>
 #include <lighttpd/base.h>
 
 LI_API gboolean mod_access_init(modules *mods, module *mod);
