@@ -266,17 +266,26 @@ static GString *al_format_log(connection *con, al_data *ald, GArray *format) {
 				break;
 			case AL_FORMAT_REQUEST_HEADER:
 				http_header_get_fast(tmp_gstr, req->headers, GSTR_LEN(e->key));
-				al_append_escaped(str, tmp_gstr);
+				if (tmp_gstr->len)
+					al_append_escaped(str, tmp_gstr);
+				else
+					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_METHOD:
 				g_string_append_len(str, GSTR_LEN(req->http_method_str));
 				break;
 			case AL_FORMAT_RESPONSE_HEADER:
 				http_header_get_fast(tmp_gstr, resp->headers, GSTR_LEN(e->key));
-				al_append_escaped(str, tmp_gstr);
+				if (tmp_gstr->len)
+					al_append_escaped(str, tmp_gstr);
+				else
+					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_QUERY_STRING:
-				al_append_escaped(str, req->uri.query);
+				if (req->uri.query->len)
+					al_append_escaped(str, req->uri.query);
+				else
+					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_FIRST_LINE:
 				g_string_append_len(str, GSTR_LEN(req->http_method_str));
@@ -312,7 +321,10 @@ static GString *al_format_log(connection *con, al_data *ald, GArray *format) {
 					g_string_append_len(str, GSTR_LEN(CORE_OPTION(CORE_OPTION_SERVER_NAME).string));
 				break;
 			case AL_FORMAT_HOSTNAME:
-				g_string_append_len(str, GSTR_LEN(req->uri.host));
+				if (req->uri.host->len)
+					g_string_append_len(str, GSTR_LEN(req->uri.host));
+				else
+					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_CONNECTION_STATUS:
 				/* was request completed? */
