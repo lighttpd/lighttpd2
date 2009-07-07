@@ -22,6 +22,7 @@ int main(int argc, char *argv[]) {
 	gboolean luaconfig = FALSE;
 	gboolean test_config = FALSE;
 	gboolean show_version = FALSE;
+	gboolean use_angel = FALSE;
 
 	GList *ctx_stack = NULL;
 
@@ -31,6 +32,7 @@ int main(int argc, char *argv[]) {
 		{ "test", 't', 0, G_OPTION_ARG_NONE, &test_config, "test config and exit", NULL },
 		{ "module-dir", 'm', 0, G_OPTION_ARG_STRING, &module_dir, "module directory", "PATH" },
 		{ "version", 'v', 0, G_OPTION_ARG_NONE, &show_version, "show version and exit", NULL },
+		{ "angel", 0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_NONE, &use_angel, "spawned by angel", NULL },
 		{ NULL, 0, 0, 0, NULL, NULL, NULL }
 	};
 
@@ -72,9 +74,13 @@ int main(int argc, char *argv[]) {
 	g_thread_init(NULL);
 
 	srv = server_new(module_dir);
+	server_loop_init(srv);
 
 	/* load core plugin */
 	srv->core_plugin = plugin_register(srv, "core", plugin_core_init);
+	if (use_angel) {
+		angel_setup(srv);
+	}
 
 	/* if no path is specified for the config, read lighttpd.conf from current directory */
 	if (config_path == NULL) {
@@ -139,11 +145,13 @@ int main(int argc, char *argv[]) {
 
 	/* TRACE(srv, "%s", "Test!"); */
 
-	server_loop_init(srv);
+	server_worker_init(srv);
 	server_start(srv);
 
 	if (!luaconfig)
 		config_parser_finish(srv, ctx_stack, TRUE);
+
+	INFO(srv, "%s", "going down");
 
 	server_free(srv);
 

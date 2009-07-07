@@ -11,24 +11,20 @@ typedef struct angel_connection angel_connection;
 struct angel_call;
 typedef struct angel_call angel_call;
 
-typedef void (*AngelCallback)(gpointer ctx, gboolean timeout, GString *error, GString *data, GArray *fds);
+/* error, data and fds-array will be freed/closed by the angel api itself; if you want to use the fds set the array size to 0 */
+typedef void (*AngelCallback)(angel_call *acall, gpointer ctx, gboolean timeout, GString *error, GString *data, GArray *fds);
 
 typedef void (*AngelReceiveCall)(angel_connection *acon,
 	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 	gint32 id,
 	GString *data);
 
-typedef void (*AngelReceiveResult)(angel_connection *acon,
-	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
-	gint32 id,
-	GString *error, GString *data, GArray *fds);
-
 /* gets called after read/write errors */
 typedef void (*AngelCloseCallback)(angel_connection *acon, GError *err);
 
 struct angel_connection {
 	gpointer data;
-	GStaticMutex mutex; /* angel itself has no threads */
+	GMutex *mutex;
 	struct ev_loop *loop;
 	int fd;
 	idlist *call_id_list;
@@ -39,7 +35,6 @@ struct angel_connection {
 	angel_buffer in;
 
 	AngelReceiveCall recv_call;
-	AngelReceiveResult recv_result;
 	AngelCloseCallback close_cb;
 
 	/* parse input */
@@ -84,11 +79,13 @@ typedef enum {
 } AngelConnectionError;
 
 /* create connection */
-LI_API angel_connection* angel_connection_create(
+LI_API angel_connection* angel_connection_new(
 	struct ev_loop *loop, int fd, gpointer data,
-	AngelReceiveCall recv_call, AngelReceiveResult recv_result, AngelCloseCallback close_cb);
+	AngelReceiveCall recv_call, AngelCloseCallback close_cb);
+LI_API void angel_connection_free(angel_connection *acon);
 
-LI_API angel_call *angel_call_create(AngelCallback callback, ev_tstamp timeout);
+
+LI_API angel_call *angel_call_new(AngelCallback callback, ev_tstamp timeout);
 /* returns TRUE if a call was cancelled; make sure you don't call free while you're calling send_call */
 LI_API gboolean angel_call_free(angel_call *call);
 
@@ -109,7 +106,6 @@ LI_API gboolean angel_send_call(
 
 LI_API gboolean angel_send_result(
 	angel_connection *acon,
-	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 	gint32 id,
 	GString *error, GString *data, GArray *fds,
 	GError **err);

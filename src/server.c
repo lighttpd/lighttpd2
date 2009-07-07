@@ -206,13 +206,19 @@ static gpointer server_worker_cb(gpointer data) {
 }
 
 gboolean server_loop_init(server *srv) {
-	guint i;
-	struct ev_loop *loop = ev_default_loop(srv->loop_flags);
+	srv->loop = ev_default_loop(srv->loop_flags);
 
-	if (!loop) {
+	if (!srv->loop) {
 		fatal ("could not initialise libev, bad $LIBEV_FLAGS in environment?");
 		return FALSE;
 	}
+
+	return TRUE;
+}
+
+gboolean server_worker_init(server *srv) {
+	struct ev_loop *loop = srv->loop;
+	guint i;
 
 	CATCH_SIGNAL(loop, sigint_cb, INT);
 	CATCH_SIGNAL(loop, sigint_cb, TERM);
@@ -310,9 +316,9 @@ void server_listen(server *srv, int fd) {
 	server_socket *sock = server_socket_new(fd);
 
 	sock->srv = srv;
-	if (g_atomic_int_get(&srv->state) == SERVER_RUNNING) ev_io_start(srv->main_worker->loop, &sock->watcher);
-
 	g_ptr_array_add(srv->sockets, sock);
+
+	if (g_atomic_int_get(&srv->state) == SERVER_RUNNING) ev_io_start(srv->main_worker->loop, &sock->watcher);
 }
 
 void server_start(server *srv) {

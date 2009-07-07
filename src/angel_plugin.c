@@ -38,12 +38,14 @@ static server_item* server_item_new(plugin *p, const plugin_item *p_item) {
 
 static void plugin_free(server *srv, plugin *p) {
 	if (p->handle_free) p->handle_free(srv, p);
+	g_hash_table_destroy(p->angel_callbacks);
 	g_slice_free(plugin, p);
 }
 
 static plugin* plugin_new(const char *name) {
 	plugin *p = g_slice_new0(plugin);
 	p->name = name;
+	p->angel_callbacks = g_hash_table_new(g_str_hash, g_str_equal);
 	return p;
 }
 
@@ -89,6 +91,9 @@ void plugins_init(server *srv, const gchar *module_dir) {
 	ps->module_refs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, _server_module_release);
 	ps->load_module_refs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, _server_module_release);
 
+	ps->ht_plugins = g_hash_table_new(g_str_hash, g_str_equal);
+	ps->load_ht_plugins = g_hash_table_new(g_str_hash, g_str_equal);
+
 	ps->plugins = g_ptr_array_new();
 	ps->load_plugins = g_ptr_array_new();
 }
@@ -103,6 +108,9 @@ void plugins_clear(server *srv) {
 
 	g_hash_table_destroy(ps->module_refs);
 	g_hash_table_destroy(ps->load_module_refs);
+
+	g_hash_table_remove_all(ps->ht_plugins);
+	g_hash_table_remove_all(ps->load_ht_plugins);
 
 	g_ptr_array_free(ps->plugins, TRUE);
 	g_ptr_array_free(ps->load_plugins, TRUE);
@@ -123,6 +131,7 @@ void plugins_config_clean(server *srv) {
 
 	g_hash_table_remove_all(ps->load_items);
 	g_hash_table_remove_all(ps->load_module_refs);
+	g_hash_table_remove_all(ps->load_ht_plugins);
 	g_ptr_array_set_size(ps->load_plugins, 0);
 }
 
@@ -131,31 +140,43 @@ gboolean plugins_config_load(server *srv, const gchar *filename) {
 	GError *error = NULL;
 	guint i;
 
+	if (!plugins_load_module(srv, NULL)) {
+		ERROR(srv, "%s", "failed loading core plugins");
+		plugins_config_clean(srv);
+		return FALSE;
+	}
+
 	if (!angel_config_parse_file(srv, filename, &error)) {
-		ERROR(srv, "failed to parse config file: %s\n", error->message);
+		ERROR(srv, "failed to parse config file: %s", error->message);
 		g_error_free(error);
 		plugins_config_clean(srv);
 		return FALSE;
 	}
 
 	/* check new config */
-	for (i = ps->plugins->len; i-- > 0; ) {
+	for (i = ps->load_plugins->len; i-- > 0; ) {
 		plugin *p = g_ptr_array_index(ps->load_plugins, i);
 		if (p->handle_check_config) {
 			if (!p->handle_check_config(srv, p)) {
+				ERROR(srv, "%s", "config check failed");
 				plugins_config_clean(srv);
 				return FALSE;
 			}
 		}
 	}
 
+	ERROR(srv, "%s", "activate");
+
 	/* activate new config */
-	for (i = ps->plugins->len; i-- > 0; ) {
+	for (i = ps->load_plugins->len; i-- > 0; ) {
 		plugin *p = g_ptr_array_index(ps->load_plugins, i);
+		ERROR(srv, "activate: %s", p->name);
 		if (p->handle_activate_config) {
 			p->handle_activate_config(srv, p);
 		}
 	}
+
+	ERROR(srv, "%s", "done");
 
 	{ /* swap the arrays */
 		GPtrArray *tmp = ps->load_plugins; ps->load_plugins = ps->plugins; ps->plugins = tmp;
@@ -164,9 +185,11 @@ gboolean plugins_config_load(server *srv, const gchar *filename) {
 		GHashTable *tmp;
 		tmp = ps->load_items; ps->load_items = ps->items; ps->items = tmp;
 		tmp = ps->load_module_refs; ps->load_module_refs = ps->module_refs; ps->module_refs = tmp;
+		tmp = ps->load_ht_plugins; ps->load_ht_plugins = ps->ht_plugins; ps->ht_plugins = tmp;
 	}
 	g_hash_table_remove_all(ps->load_items);
 	g_hash_table_remove_all(ps->load_module_refs);
+	g_hash_table_remove_all(ps->load_ht_plugins);
 	g_ptr_array_set_size(ps->load_plugins, 0);
 
 	if (!ps->config_filename) {
@@ -178,7 +201,7 @@ gboolean plugins_config_load(server *srv, const gchar *filename) {
 	return TRUE;
 }
 
-gboolean plugins_handle_item(server *srv, GString *itemname, value *hash) {
+void plugins_handle_item(server *srv, GString *itemname, value *hash) {
 	Plugins *ps = &srv->plugins;
 	server_item *si;
 
@@ -186,7 +209,7 @@ gboolean plugins_handle_item(server *srv, GString *itemname, value *hash) {
 	/* debug items */
 	{
 		GString *tmp = value_to_string(hash);
-		ERROR(srv, "Item '%s': %s\n", itemname->str, tmp->str);
+		ERROR(srv, "Item '%s': %s", itemname->str, tmp->str);
 		g_string_free(tmp, TRUE);
 	}
 #endif
@@ -239,7 +262,6 @@ gboolean plugins_handle_item(server *srv, GString *itemname, value *hash) {
 
 		g_slice_free1(sizeof(value*) * si->option_count, optlist);
 	}
-	return TRUE;
 }
 
 static gboolean plugins_activate_module(server *srv, server_module *sm) {
@@ -265,6 +287,8 @@ static gboolean plugins_activate_module(server *srv, server_module *sm) {
 			}
 		}
 	}
+
+	g_hash_table_insert(ps->load_ht_plugins, (gpointer) p->name, p);
 
 	return TRUE;
 
@@ -341,6 +365,7 @@ plugin *angel_plugin_register(server *srv, module *mod, const gchar *name, Plugi
 
 	p = plugin_new(name);
 	if (!init(srv, p)) {
+		ERROR(srv, "Couldn't load plugin '%s' for module '%s': init failed", name, mod->name->str);
 		plugin_free(srv, p);
 		return NULL;
 	}

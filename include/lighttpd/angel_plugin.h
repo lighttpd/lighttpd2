@@ -18,6 +18,8 @@ typedef gboolean (*PluginCheckConfig)   (server *srv, plugin *p);
 typedef void     (*PluginActivateConfig)(server *srv, plugin *p);
 typedef void     (*PluginParseItem)     (server *srv, plugin *p, value **options);
 
+typedef void     (*PluginHandleCall)    (server *srv, instance *i, plugin *p, gint32 id, GString *data);
+
 typedef enum {
 	PLUGIN_ITEM_OPTION_MANDATORY = 1
 } plugin_item_option_flags;
@@ -32,7 +34,7 @@ struct plugin_item {
 	const gchar *name;
 	PluginParseItem handle_parse_item;
 
-	const plugin_item_option options[];
+	const plugin_item_option *options;
 };
 
 struct plugin {
@@ -42,8 +44,8 @@ struct plugin {
 	gpointer data;     /**< private plugin data */
 
 	const plugin_item *items;
+	GHashTable *angel_callbacks; /**< map (const gchar*) -> PluginHandleCall */
 
-	PluginInit plugin_init_marker; /**< identify plugin; PluginInit must be unique per plugin */
 	PluginFree handle_free;   /**< called before plugin is unloaded */
 
 	PluginCleanConfig handle_clean_config;        /**< called before the reloading of the config is started or after the reloading failed */
@@ -59,6 +61,7 @@ struct Plugins {
 	struct modules *modules;
 
 	GHashTable *module_refs, *load_module_refs; /** gchar* -> server_module */
+	GHashTable *ht_plugins, *load_ht_plugins;
 
 	GPtrArray *plugins, *load_plugins; /* plugin* */
 };
@@ -69,7 +72,7 @@ void plugins_clear(server *srv);
 void plugins_config_clean(server *srv);
 gboolean plugins_config_load(server *srv, const gchar *filename);
 
-gboolean plugins_handle_item(server *srv, GString *itemname, value *hash);
+void plugins_handle_item(server *srv, GString *itemname, value *hash);
 
 /* "core" is a reserved module name for interal use */
 gboolean plugins_load_module(server *srv, const gchar *name);

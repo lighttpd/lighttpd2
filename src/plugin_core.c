@@ -503,7 +503,6 @@ static action* core_profile_mem(server *srv, plugin* p, value *val) {
 
 static gboolean core_listen(server *srv, plugin* p, value *val) {
 	GString *ipstr;
-	int s;
 	UNUSED(p);
 
 	if (val->type != VALUE_STRING) {
@@ -512,12 +511,7 @@ static gboolean core_listen(server *srv, plugin* p, value *val) {
 	}
 
 	ipstr = val->data.string;
-	if (-1 == (s = angel_listen(srv, ipstr))) {
-		ERROR(srv, "%s", "angel_listen failed");
-		return FALSE;
-	}
-
-	server_listen(srv, s);
+	angel_listen(srv, ipstr);
 
 	return TRUE;
 }

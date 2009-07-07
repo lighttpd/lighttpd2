@@ -5,6 +5,8 @@
 
 #define ANGEL_MAGIC ((gint32) 0x8a930a9f)
 
+static void close_fd_array(GArray *fds);
+
 typedef enum {
 	ANGEL_CALL_SEND_SIMPLE = 1,
 	ANGEL_CALL_SEND_CALL = 2,
@@ -56,6 +58,7 @@ static void send_queue_item_free(angel_connection_send_item_t *i) {
 		g_string_free(i->value.string.buf, TRUE);
 		break;
 	case ANGEL_CONNECTION_ITEM_FDS:
+		close_fd_array(i->value.fds.fds);
 		g_array_free(i->value.fds.fds, TRUE);
 		break;
 	}
@@ -72,6 +75,7 @@ static void send_queue_clean(GQueue *queue) {
 			break;
 		case ANGEL_CONNECTION_ITEM_FDS:
 			if (i->value.fds.pos < i->value.fds.fds->len) return;
+			close_fd_array(i->value.fds.fds);
 			g_array_free(i->value.fds.fds, TRUE);
 			break;
 		}
@@ -100,7 +104,7 @@ static gboolean angel_fill_buffer(angel_connection *acon, guint need, GError **e
 	old_len = acon->in.data->len;
 	g_string_set_size(acon->in.data, need);
 	for ( ; want > 0; ) {
-		r = read(acon->fd, acon->in.data + old_len, want);
+		r = read(acon->fd, acon->in.data->str + old_len, want);
 		if (r < 0) {
 			switch (errno) {
 			case EINTR:
@@ -131,16 +135,63 @@ static gboolean angel_fill_buffer(angel_connection *acon, guint need, GError **e
 	return TRUE;
 }
 
+static void close_fd_array(GArray *fds) {
+	guint i;
+	for (i = 0; i < fds->len; i++) {
+		close(g_array_index(fds, int, i));
+	}
+	g_array_set_size(fds, 0);
+}
+
 static gboolean angel_dispatch(angel_connection *acon, GError **err) {
 	gint32 id = acon->parse.id, type = acon->parse.type;
 	angel_call *call = NULL;
+	AngelCallback cb = NULL;
+	gpointer ctx;
 
-	if (type != ANGEL_CALL_SEND_SIMPLE) {
-		g_static_mutex_lock(&acon->mutex);
+	switch (type) {
+	case ANGEL_CALL_SEND_SIMPLE:
+		if (-1 != id) {
+			g_set_error(err, ANGEL_CONNECTION_ERROR, ANGEL_CONNECTION_INVALID_DATA,
+				"Invalid id: %i, should be -1 for simple call", (gint) id);
+			close_fd_array(acon->parse.fds);
+			return FALSE;
+		}
+
+		if (acon->parse.error->len > 0 || acon->parse.fds->len > 0) {
+			g_set_error(err, ANGEL_CONNECTION_ERROR, ANGEL_CONNECTION_INVALID_DATA,
+				"Wrong data in call");
+			close_fd_array(acon->parse.fds);
+			return FALSE;
+		}
+		acon->recv_call(acon, GSTR_LEN(acon->parse.mod), GSTR_LEN(acon->parse.action),
+			id, acon->parse.data);
+		break;
+	case ANGEL_CALL_SEND_CALL:
+		if (-1 == id) {
+			g_set_error(err, ANGEL_CONNECTION_ERROR, ANGEL_CONNECTION_INVALID_DATA,
+				"Invalid id: -1, should be >= 0 for call");
+			close_fd_array(acon->parse.fds);
+			return FALSE;
+		}
+
+		if (acon->parse.error->len > 0 || acon->parse.fds->len > 0) {
+			g_set_error(err, ANGEL_CONNECTION_ERROR, ANGEL_CONNECTION_INVALID_DATA,
+				"Wrong data in call");
+			close_fd_array(acon->parse.fds);
+			return FALSE;
+		}
+		acon->recv_call(acon, GSTR_LEN(acon->parse.mod), GSTR_LEN(acon->parse.action),
+			id, acon->parse.data);
+		break;
+	case ANGEL_CALL_SEND_RESULT:
+		g_printerr("received result: %i\n", id);
+		g_mutex_lock(acon->mutex);
 			if (!idlist_is_used(acon->call_id_list, id)) {
-				g_static_mutex_unlock(&acon->mutex);
+				g_mutex_unlock(acon->mutex);
 				g_set_error(err, ANGEL_CONNECTION_ERROR, ANGEL_CONNECTION_INVALID_DATA,
 					"Invalid id: %i", (gint) id);
+				close_fd_array(acon->parse.fds);
 				return FALSE;
 			}
 			idlist_put(acon->call_id_list, id);
@@ -149,39 +200,23 @@ static gboolean angel_dispatch(angel_connection *acon, GError **err) {
 				g_ptr_array_index(acon->call_table, id) = NULL;
 				if (call) {
 					ev_timer_stop(acon->loop, &call->timeout_watcher);
-					if (!call->callback) {
+					ctx = call->context;
+					if (NULL == (cb = call->callback)) {
 						g_slice_free(angel_call, call);
-						call = NULL;
 					}
 				}
 			}
-			
-		g_static_mutex_unlock(&acon->mutex);
-	} else if (-1 != id) {
-		g_set_error(err, ANGEL_CONNECTION_ERROR, ANGEL_CONNECTION_INVALID_DATA,
-			"Invalid id: %i, should be -1 for simple call", (gint) id);
-		return FALSE;
-	}
+		g_mutex_unlock(acon->mutex);
 
-	switch (type) {
-	case ANGEL_CALL_SEND_SIMPLE:
-		if (acon->parse.error->len > 0 || acon->parse.fds->len > 0) {
-			g_set_error(err, ANGEL_CONNECTION_ERROR, ANGEL_CONNECTION_INVALID_DATA,
-				"Wrong data in call");
-			return FALSE;
+		if (cb) {
+			cb(call, ctx, FALSE, acon->parse.error, acon->parse.data, acon->parse.fds);
 		}
-		acon->recv_call(acon, GSTR_LEN(acon->parse.mod), GSTR_LEN(acon->parse.action),
-			id, acon->parse.data);
-		break;
-	case ANGEL_CALL_SEND_RESULT:
-		if (call) {
-			acon->recv_result(acon, GSTR_LEN(acon->parse.mod), GSTR_LEN(acon->parse.action),
-				id, acon->parse.error, acon->parse.data, acon->parse.fds);
-		}
+		close_fd_array(acon->parse.fds);
 		break;
 	default:
 		g_set_error(err, ANGEL_CONNECTION_ERROR, ANGEL_CONNECTION_INVALID_DATA,
 			"Invalid type: %i", (gint) type);
+		close_fd_array(acon->parse.fds);
 		return FALSE;
 	}
 
@@ -228,10 +263,12 @@ static gboolean angel_connection_read(angel_connection *acon, GError **err) {
 					"receive fd error: %s", g_strerror(errno));
 				return FALSE;
 			case -2:
+				g_printerr("waiting for fds: %i\n", acon->parse.missing_fds);
 				return TRUE; /* need more data */
 			}
 		}
 
+		acon->parse.have_header = FALSE;
 		if (!angel_data_read_mem(&acon->in, &acon->parse.mod, acon->parse.mod_len, err)) return FALSE;
 		if (!angel_data_read_mem(&acon->in, &acon->parse.action, acon->parse.action_len, err)) return FALSE;
 		if (!angel_data_read_mem(&acon->in, &acon->parse.error, acon->parse.error_len, err)) return FALSE;
@@ -256,9 +293,9 @@ static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) 
 		gboolean out_queue_empty;
 		angel_connection_send_item_t *send_item;
 
-		g_static_mutex_lock(&acon->mutex);
+		g_mutex_lock(acon->mutex);
 			send_item = g_queue_peek_head(acon->out);
-		g_static_mutex_unlock(&acon->mutex);
+		g_mutex_unlock(acon->mutex);
 
 		for (i = 0; send_item && (i < 10); i++) { /* don't send more than 10 chunks */
 			switch (send_item->type) {
@@ -295,7 +332,9 @@ static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) 
 			case ANGEL_CONNECTION_ITEM_FDS:
 				while (send_item->value.fds.pos < send_item->value.fds.fds->len) {
 					switch (send_fd(w->fd, g_array_index(send_item->value.fds.fds, int, send_item->value.fds.pos))) {
-					case  0: continue;
+					case  0:
+						send_item->value.fds.pos++;
+						continue;
 					case -1: /* Fatal error, connection has to be closed */
 							ev_async_stop(loop, &acon->out_notify_watcher);
 							ev_io_stop(loop, &acon->fd_watcher);
@@ -303,24 +342,23 @@ static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) 
 							return;
 					case -2: goto write_eagain;
 					}
-					send_item->value.fds.pos++;
 				}
 				break;
 			}
 
 			send_queue_item_free(send_item);
 
-			g_static_mutex_lock(&acon->mutex);
+			g_mutex_lock(acon->mutex);
 				g_queue_pop_head(acon->out);
 				send_item = g_queue_peek_head(acon->out);
-			g_static_mutex_unlock(&acon->mutex);
+			g_mutex_unlock(acon->mutex);
 		}
 
 write_eagain:
-		g_static_mutex_lock(&acon->mutex);
+		g_mutex_lock(acon->mutex);
 		send_queue_clean(acon->out);
 		out_queue_empty = (0 == acon->out->length);
-		g_static_mutex_unlock(&acon->mutex);
+		g_mutex_unlock(acon->mutex);
 
 		if (out_queue_empty) ev_io_rem_events(loop, w, EV_WRITE);
 	}
@@ -342,28 +380,80 @@ static void angel_connection_out_notify_cb(struct ev_loop *loop, ev_async *w, in
 }
 
 /* create connection */
-angel_connection* angel_connection_create(struct ev_loop *loop, int fd, gpointer data,
-                                          AngelReceiveCall recv_call, AngelReceiveResult recv_result, AngelCloseCallback close_cb) {
+angel_connection* angel_connection_new(struct ev_loop *loop, int fd, gpointer data,
+                                          AngelReceiveCall recv_call, AngelCloseCallback close_cb) {
 	angel_connection *acon = g_slice_new0(angel_connection);
 
 	acon->data = data;
-	g_static_mutex_init(&acon->mutex);
+	acon->mutex = g_mutex_new();
 	acon->loop = loop;
 	acon->fd = fd;
 	acon->call_id_list = idlist_new(65535);
+	acon->call_table = g_ptr_array_new();
 	ev_io_init(&acon->fd_watcher, angel_connection_io_cb, fd, EV_READ);
+	ev_io_start(acon->loop, &acon->fd_watcher);
 	acon->fd_watcher.data = acon;
 	ev_async_init(&acon->out_notify_watcher, angel_connection_out_notify_cb);
+	ev_async_start(acon->loop, &acon->out_notify_watcher);
 	acon->out_notify_watcher.data = acon;
 	acon->out = g_queue_new();
-	acon->in.data = g_string_sized_new(0);
+	acon->in.data = g_string_sized_new(1024);
 	acon->in.pos = 0;
 
+	acon->parse.mod = g_string_sized_new(0);
+	acon->parse.action = g_string_sized_new(0);
+	acon->parse.error = g_string_sized_new(0);
+	acon->parse.data = g_string_sized_new(0);
+	acon->parse.fds = g_array_new(FALSE, FALSE, sizeof(int));
+
 	acon->recv_call = recv_call;
-	acon->recv_result = recv_result;
 	acon->close_cb = close_cb;
 
 	return acon;
+}
+
+void angel_connection_free(angel_connection *acon) {
+	angel_connection_send_item_t *send_item;
+	guint i;
+
+	g_printerr("angel_connection_free\n");
+
+	if (!acon) return;
+
+	close(acon->fd);
+	acon->fd = -1;
+
+	for (i = 0; i < acon->call_table->len; i++) {
+		angel_call *acall = g_ptr_array_index(acon->call_table, i);
+		AngelCallback cb;
+		if (!acall) continue;
+		g_ptr_array_index(acon->call_table, i) = NULL;
+
+		cb = acall->callback;
+		ev_timer_stop(acon->loop, &acall->timeout_watcher);
+		if (cb) {
+			cb(acall, acall->context, TRUE, NULL, NULL, NULL);
+		} else {
+			g_slice_free(angel_call, acall);
+		}
+	}
+	g_ptr_array_free(acon->call_table, TRUE);
+
+	g_mutex_free(acon->mutex);
+	acon->mutex = NULL;
+
+	ev_io_stop(acon->loop, &acon->fd_watcher);
+	ev_async_stop(acon->loop, &acon->out_notify_watcher);
+
+	idlist_free(acon->call_id_list);
+	while (NULL != (send_item = g_queue_pop_head(acon->out))) {
+		send_queue_item_free(send_item);
+	}
+	g_queue_free(acon->out);
+	g_string_free(acon->in.data, TRUE);
+	/* TODO */
+
+	g_slice_free(angel_connection, acon);
 }
 
 static void angel_call_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents) {
@@ -373,23 +463,23 @@ static void angel_call_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents
 	gpointer ctx;
 	UNUSED(loop); UNUSED(revents);
 
-	g_static_mutex_lock(&acon->mutex);
+	g_mutex_lock(acon->mutex);
 		g_ptr_array_index(acon->call_table, call->id) = NULL;
 		if (NULL == (cb = call->callback)) {
 			g_slice_free(angel_call, call);
 		}
 		ctx = call->context;
-	g_static_mutex_unlock(&acon->mutex);
+	g_mutex_unlock(acon->mutex);
 
-	if (cb) cb(ctx, TRUE, NULL, NULL, NULL);
+	if (cb) cb(call, ctx, TRUE, NULL, NULL, NULL);
 }
 
-angel_call *angel_call_create(AngelCallback callback, ev_tstamp timeout) {
+angel_call *angel_call_new(AngelCallback callback, ev_tstamp timeout) {
 	angel_call* call = g_slice_new0(angel_call);
 
 	g_assert(NULL != callback);
 	call->callback = callback;
-	ev_timer_init(&call->timeout_watcher, angel_call_timeout_cb, 0, timeout);
+	ev_timer_init(&call->timeout_watcher, angel_call_timeout_cb, timeout, 0);
 	call->timeout_watcher.data = call;
 	call->id = -1;
 
@@ -402,14 +492,14 @@ gboolean angel_call_free(angel_call *call) {
 
 	if (call->acon) {
 		angel_connection *acon = call->acon;
-		g_static_mutex_lock(&acon->mutex);
+		g_mutex_lock(acon->mutex);
 			if (-1 != call->id) {
 				r = TRUE;
 				call->callback = NULL;
 			} else {
 				g_slice_free(angel_call, call);
 			}
-		g_static_mutex_unlock(&acon->mutex);
+		g_mutex_unlock(acon->mutex);
 	} else {
 		g_slice_free(angel_call, call);
 	}
@@ -425,17 +515,26 @@ static gboolean prepare_call_header(GString **pbuf,
 	buf = g_string_sized_new(8*4 + mod_len + action_len);
 	*pbuf = buf;
 
+	g_printerr("Prepare call with id: %i\n", id);
+
 	if (!angel_data_write_int32(buf, ANGEL_MAGIC, err)) return FALSE;
 	if (!angel_data_write_int32(buf, type, err)) return FALSE;
 	if (!angel_data_write_int32(buf, id, err)) return FALSE;
-	if (!angel_data_write_int32(buf, mod_len, err)) return FALSE;
-	if (!angel_data_write_int32(buf, action_len, err)) return FALSE;
+	if (type != ANGEL_CALL_SEND_RESULT) {
+		if (!angel_data_write_int32(buf, mod_len, err)) return FALSE;
+		if (!angel_data_write_int32(buf, action_len, err)) return FALSE;
+	} else {
+		if (!angel_data_write_int32(buf, 0, err)) return FALSE;
+		if (!angel_data_write_int32(buf, 0, err)) return FALSE;
+	}
 	if (!angel_data_write_int32(buf, error_len, err)) return FALSE;
 	if (!angel_data_write_int32(buf, data_len, err)) return FALSE;
 	if (!angel_data_write_int32(buf, fd_count, err)) return FALSE;
 
-	g_string_append_len(buf, mod, mod_len);
-	g_string_append_len(buf, action, action_len);
+	if (type != ANGEL_CALL_SEND_RESULT) {
+		g_string_append_len(buf, mod, mod_len);
+		g_string_append_len(buf, action, action_len);
+	}
 
 	return TRUE;
 }
@@ -450,6 +549,11 @@ gboolean angel_send_simple_call(
 
 	if (err && *err) goto error;
 
+	if (-1 == acon->fd) {
+		g_set_error(err, ANGEL_CONNECTION_ERROR, ANGEL_CONNECTION_CLOSED, "connection already closed");
+		goto error;
+	}
+
 	if (data->len > ANGEL_CALL_MAX_STR_LEN) {
 		g_set_error(err, ANGEL_CALL_ERROR, ANGEL_CALL_INVALID, "data too lang for angel call: %" G_GSIZE_FORMAT " > %i", data->len, ANGEL_CALL_MAX_STR_LEN);
 		goto error;
@@ -457,11 +561,11 @@ gboolean angel_send_simple_call(
 
 	if (!prepare_call_header(&buf, ANGEL_CALL_SEND_SIMPLE, -1, mod, mod_len, action, action_len, 0, data->len, 0, err)) goto error;
 
-	g_static_mutex_lock(&acon->mutex);
+	g_mutex_lock(acon->mutex);
 		queue_was_empty = (0 == acon->out->length);
 		send_queue_push_string(acon->out, buf);
 		send_queue_push_string(acon->out, data);
-	g_static_mutex_unlock(&acon->mutex);
+	g_mutex_unlock(acon->mutex);
 
 	if (queue_was_empty)
 		ev_async_send(acon->loop, &acon->out_notify_watcher);
@@ -485,38 +589,45 @@ gboolean angel_send_call(
 
 	if (err && *err) goto error;
 
-	g_static_mutex_lock(&acon->mutex);
+	if (-1 == acon->fd) {
+		g_set_error(err, ANGEL_CONNECTION_ERROR, ANGEL_CONNECTION_CLOSED, "connection already closed");
+		goto error;
+	}
+
+	g_mutex_lock(acon->mutex);
 		if (-1 != call->id) {
-			g_static_mutex_unlock(&acon->mutex);
+			g_mutex_unlock(acon->mutex);
 			g_set_error(err, ANGEL_CALL_ERROR, ANGEL_CALL_ALREADY_RUNNING, "call already running");
 			goto error_before_new_id;
 		}
 
 		if (-1 == (call->id = idlist_get(acon->call_id_list))) {
-			g_static_mutex_unlock(&acon->mutex);
+			g_mutex_unlock(acon->mutex);
 			g_set_error(err, ANGEL_CALL_ERROR, ANGEL_CALL_OUT_OF_CALL_IDS, "out of call ids");
 			goto error;
 		}
+		call->acon = acon;
 
 		if ((guint) call->id >= acon->call_table->len) {
 			g_ptr_array_set_size(acon->call_table, call->id + 1);
 		}
 		g_ptr_array_index(acon->call_table, call->id) = call;
-	g_static_mutex_unlock(&acon->mutex);
+	g_mutex_unlock(acon->mutex);
 
-
-	if (data->len > ANGEL_CALL_MAX_STR_LEN) {
+	if (data && data->len > ANGEL_CALL_MAX_STR_LEN) {
 		g_set_error(err, ANGEL_CALL_ERROR, ANGEL_CALL_INVALID, "data too lang for angel call: %" G_GSIZE_FORMAT " > %i", data->len, ANGEL_CALL_MAX_STR_LEN);
 		goto error;
 	}
 
-	if (!prepare_call_header(&buf, ANGEL_CALL_SEND_CALL, call->id, mod, mod_len, action, action_len, 0, data->len, 0, err)) goto error;
+	if (!prepare_call_header(&buf, ANGEL_CALL_SEND_CALL, call->id, mod, mod_len, action, action_len, 0, data ? data->len : 0, 0, err)) goto error;
 
-	g_static_mutex_lock(&acon->mutex);
+	ev_timer_start(acon->loop, &call->timeout_watcher);
+
+	g_mutex_lock(acon->mutex);
 		queue_was_empty = (0 == acon->out->length);
 		send_queue_push_string(acon->out, buf);
 		send_queue_push_string(acon->out, data);
-	g_static_mutex_unlock(&acon->mutex);
+	g_mutex_unlock(acon->mutex);
 
 	if (queue_was_empty)
 		ev_async_send(acon->loop, &acon->out_notify_watcher);
@@ -527,6 +638,7 @@ error:
 	if (-1 != call->id) {
 		idlist_put(acon->call_id_list, call->id);
 		call->id = -1;
+		call->acon = NULL;
 	}
 error_before_new_id:
 	if (data) g_string_free(data, TRUE);
@@ -536,7 +648,6 @@ error_before_new_id:
 
 gboolean angel_send_result(
 		angel_connection *acon,
-		const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 		gint32 id,
 		GString *error, GString *data, GArray *fds,
 		GError **err) {
@@ -545,20 +656,25 @@ gboolean angel_send_result(
 
 	if (err && *err) goto error;
 
-	if (data->len > ANGEL_CALL_MAX_STR_LEN) {
+	if (-1 == acon->fd) {
+		g_set_error(err, ANGEL_CONNECTION_ERROR, ANGEL_CONNECTION_CLOSED, "connection already closed");
+		goto error;
+	}
+
+	if (data && data->len > ANGEL_CALL_MAX_STR_LEN) {
 		g_set_error(err, ANGEL_CALL_ERROR, ANGEL_CALL_INVALID, "data too lang for angel call: %" G_GSIZE_FORMAT " > %i", data->len, ANGEL_CALL_MAX_STR_LEN);
 		goto error;
 	}
 
-	if (!prepare_call_header(&buf, ANGEL_CALL_SEND_RESULT, id, mod, mod_len, action, action_len, error->len, data->len, fds->len, err)) goto error;
+	if (!prepare_call_header(&buf, ANGEL_CALL_SEND_RESULT, id, NULL, 0, NULL, 0, error ? error->len : 0, data ? data->len : 0, fds ? fds->len : 0, err)) goto error;
 
-	g_static_mutex_lock(&acon->mutex);
+	g_mutex_lock(acon->mutex);
 		queue_was_empty = (0 == acon->out->length);
 		send_queue_push_string(acon->out, buf);
 		send_queue_push_string(acon->out, error);
 		send_queue_push_string(acon->out, data);
 		send_queue_push_fds(acon->out, fds);
-	g_static_mutex_unlock(&acon->mutex);
+	g_mutex_unlock(acon->mutex);
 
 	if (queue_was_empty)
 		ev_async_send(acon->loop, &acon->out_notify_watcher);
@@ -568,6 +684,8 @@ gboolean angel_send_result(
 error:
 	if (data) g_string_free(data, TRUE);
 	if (buf) g_string_free(buf, TRUE);
+	if (error) g_string_free(error, TRUE);
+	if (fds) close_fd_array(fds);
 	return FALSE;
 
 	return FALSE;

@@ -17,6 +17,9 @@ typedef struct server server;
 struct instance;
 typedef struct instance instance;
 
+struct instance_conf;
+typedef struct instance_conf instance_conf;
+
 
 #include <lighttpd/angel_value.h>
 #include <lighttpd/angel_data.h>

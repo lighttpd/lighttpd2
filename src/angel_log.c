@@ -18,6 +18,9 @@ void log_init(server *srv) {
 	srv->log.levels[LOG_LEVEL_ERROR] = TRUE;
 	srv->log.levels[LOG_LEVEL_WARNING] = TRUE;
 
+	srv->log.levels[LOG_LEVEL_INFO] = TRUE; /* TODO: remove debug levels */
+	srv->log.levels[LOG_LEVEL_DEBUG] = TRUE;
+
 	srv->log.fd = -1;
 	srv->log.ts_cache = g_string_sized_new(0);
 	srv->log.log_line = g_string_sized_new(0);

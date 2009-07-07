@@ -27,6 +27,9 @@
 #include <lighttpd/typedefs.h>
 #include <lighttpd/module.h>
 
+#include <lighttpd/angel_data.h>
+#include <lighttpd/angel_connection.h>
+
 #include <lighttpd/chunk.h>
 #include <lighttpd/chunk_parser.h>
 

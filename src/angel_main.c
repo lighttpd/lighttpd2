@@ -1,6 +1,16 @@
 
 #include <lighttpd/angel_base.h>
 #include <lighttpd/angel_config_parser.h>
+#include <lighttpd/angel_plugin_core.h>
+
+# ifndef HAVE_ISSETUGID
+
+static int l_issetugid() {
+	return (geteuid() != getuid() || getegid() != getgid());
+}
+
+#  define issetugid l_issetugid
+# endif
 
 int main(int argc, char *argv[]) {
 	GError *error = NULL;
@@ -51,6 +61,15 @@ int main(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
+	if (!(getuid() == 0) && issetugid()) {
+		g_printerr("Are you nuts ? Don't apply a SUID bit to this binary\n");
+		result = -1;
+		goto cleanup;
+	}
+
+	/* initialize threading */
+	g_thread_init(NULL);
+
 	srv = server_new(module_dir);
 
 	if (!plugins_config_load(srv, config_path)) {
@@ -58,7 +77,11 @@ int main(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	g_printerr("lighttpd-angel: Parsed config file\n");
+	INFO(srv, "%s", "parsed config file");
+
+	ev_loop(srv->loop, 0);
+
+	INFO(srv, "%s", "going down");
 
 cleanup:
 	if (srv) server_free(srv);

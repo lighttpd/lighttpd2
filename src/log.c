@@ -128,7 +128,8 @@ gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flag
 
 	if (g_atomic_int_get(&srv->state) == SERVER_STARTING) {
 		log_unref(srv, log);
-		return angel_log(srv, log_line);
+		angel_log(srv, log_line);
+		return TRUE;
 	}
 	log_entry = g_slice_new(log_entry_t);
 	log_entry->log = log;

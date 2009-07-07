@@ -22,12 +22,14 @@ struct server_socket {
 struct server {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
 	server_state state;       /** atomic access */
+	angel_connection *acon;
 
 	struct worker *main_worker;
 	guint worker_count;
 	GArray *workers;
 	GArray *ts_formats;      /** array of (GString*), add with server_ts_format_add() */
 
+	struct ev_loop *loop;
 	guint loop_flags;
 	ev_signal
 		sig_w_INT,
@@ -85,6 +87,7 @@ struct server {
 LI_API server* server_new(const gchar *module_dir);
 LI_API void server_free(server* srv);
 LI_API gboolean server_loop_init(server *srv);
+LI_API gboolean server_worker_init(server *srv);
 
 LI_API void server_listen(server *srv, int fd);
 
