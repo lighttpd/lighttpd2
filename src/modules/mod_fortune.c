@@ -36,12 +36,12 @@ typedef struct fortune_data fortune_data;
 
 struct fortune_data {
 	GRand *rand;
-	GArray *cookies;
+	GPtrArray *cookies;
 };
 
 static GString *fortune_rand(fortune_data *fd) {
 	guint r = g_rand_int_range(fd->rand, 0, fd->cookies->len);
-	return g_array_index(fd->cookies, GString*, r);
+	return g_ptr_array_index(fd->cookies, r);
 }
 
 static handler_t fortune_header_handle(vrequest *vr, gpointer param, gpointer *context) {
@@ -113,7 +113,7 @@ static gboolean fortune_load(server *srv, plugin* p, value *val) {
 		gchar *cur;
 		for (cur = data; *cur; cur++) {
 			if (*cur == '\n' && line->len) {
-				g_array_append_val(fd->cookies, line);
+				g_ptr_array_add(fd->cookies, line);
 				line = g_string_sized_new(127);
 				count++;
 			}
@@ -161,8 +161,8 @@ static void plugin_fortune_free(server *srv, plugin *p) {
 
 	/* free the cookies! */
 	for (guint i = 0; i < fd->cookies->len; i++)
-		g_string_free(g_array_index(fd->cookies, GString*, i), TRUE);
-	g_array_free(fd->cookies, TRUE);
+		g_string_free(g_ptr_array_index(fd->cookies, i), TRUE);
+	g_ptr_array_free(fd->cookies, TRUE);
 
 	g_rand_free(fd->rand);
 
@@ -181,7 +181,7 @@ static void plugin_fortune_init(server *srv, plugin *p) {
 	p->data = fd = g_slice_new(fortune_data);
 
 	fd->rand = g_rand_new();
-	fd->cookies = g_array_new(FALSE, TRUE, sizeof(GString*));
+	fd->cookies = g_ptr_array_new();
 }
 
 
