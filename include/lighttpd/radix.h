@@ -1,6 +1,8 @@
 #ifndef _LIGHTTPD_RADIX_H_
 #define _LIGHTTPD_RADIX_H_
 
+#include <lighttpd/settings.h>
+
 /*
  * Radix tree with 32bit key, lookup, insert and remove in O(32).
  * This is where the bit magic happens.

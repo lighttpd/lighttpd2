@@ -27,8 +27,6 @@
 #include <lighttpd/typedefs.h>
 #include <lighttpd/module.h>
 
-#include <lighttpd/radix.h>
-
 #include <lighttpd/chunk.h>
 #include <lighttpd/chunk_parser.h>
 

@@ -45,6 +45,7 @@
  */
 
 #include <lighttpd/base.h>
+#include <lighttpd/radix.h>
 
 LI_API gboolean mod_access_init(modules *mods, module *mod);
 LI_API gboolean mod_access_free(modules *mods, module *mod);

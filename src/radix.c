@@ -1,4 +1,5 @@
-#include <lighttpd/base.h>
+
+#include <lighttpd/radix.h>
 
 RadixTree32 *radixtree32_new(guint32 root_width) {
 	guint32 i;
