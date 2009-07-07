@@ -133,10 +133,10 @@ gint send_fd(gint s, gint fd) { /* write fd to unix socket s */
 	for (;;) {
 		if (sendmsg(s, &msg, 0) < 0) {
 			switch (errno) {
-			case EINTR: break;
-			#if EAGAIN != EWOULDBLOCK
+			case EINTR: continue;
+#if EAGAIN != EWOULDBLOCK
 			case EWOULDBLOCK:
-			#endif
+#endif
 			case EAGAIN: return -2;
 			default: return -1;
 			}
@@ -189,14 +189,16 @@ gint receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
 	for (;;) {
 		if (recvmsg(s, &msg, 0) == -1) {
 			switch (errno) {
-			case EINTR: break;
-			#if EAGAIN != EWOULDBLOCK
+			case EINTR: continue;
+#if EAGAIN != EWOULDBLOCK
 			case EWOULDBLOCK:
-			#endif
+#endif
 			case EAGAIN: return -2;
 			default: return -1;
 			}
 		}
+
+		break;
 	}
 
 #ifdef CMSG_FIRSTHDR
