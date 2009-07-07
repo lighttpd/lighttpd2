@@ -293,6 +293,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 			ctx->cs = angel_config_parser_error; fbreak;
 		}
 		g_hash_table_insert(ctx->itemvalue->data.hash, vname->data.string, ctx->curvalue);
+		ctx->curvalue = NULL;
 		vname->type = VALUE_NONE;
 		value_free(vname);
 	}
