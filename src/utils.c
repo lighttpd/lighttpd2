@@ -374,7 +374,7 @@ void path_simplify(GString *path) {
 }
 
 
-GString *counter_format(guint64 count, counter_type t, GString *dest) {
+GString *counter_format(guint64 count, liCounterType t, GString *dest) {
 	guint64 rest;
 
 	if (!dest)
@@ -472,13 +472,13 @@ guint hash_ipv6(gconstpointer key) {
 }
 
 
-GString *sockaddr_to_string(sockaddr_t addr, GString *dest, gboolean showport) {
+GString *sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean showport) {
 	gchar *p;
 	guint8 len = 0;
 	guint8 tmp;
 	guint8 tmplen;
 	guint8 oct;
-	sock_addr *saddr = addr.addr;
+	liSockAddr *saddr = addr.addr;
 
 	switch (saddr->plain.sa_family) {
 	case AF_INET:
@@ -543,18 +543,18 @@ GString *sockaddr_to_string(sockaddr_t addr, GString *dest, gboolean showport) {
 	return dest;
 }
 
-sockaddr_t sockaddr_from_string(GString *str, guint tcp_default_port) {
+liSocketAddress sockaddr_from_string(GString *str, guint tcp_default_port) {
 	guint32 ipv4;
 #ifdef HAVE_IPV6
 	guint8 ipv6[16];
 #endif
 	guint16 port = tcp_default_port;
-	sockaddr_t saddr = { 0, NULL };
+	liSocketAddress saddr = { 0, NULL };
 
 #ifdef HAVE_SYS_UN_H
 	if (0 == strncmp(str->str, "unix:/", 6)) {
 		saddr.len = str->len + 1 - 5 + sizeof(saddr.addr->un.sun_family);
-		saddr.addr = (sock_addr*) g_slice_alloc0(saddr.len);
+		saddr.addr = (liSockAddr*) g_slice_alloc0(saddr.len);
 		saddr.addr->un.sun_family = AF_UNIX;
 		strcpy(saddr.addr->un.sun_path, str->str + 5);
 	} else
@@ -562,7 +562,7 @@ sockaddr_t sockaddr_from_string(GString *str, guint tcp_default_port) {
 	if (parse_ipv4(str->str, &ipv4, NULL, &port)) {
 		if (!port) return saddr;
 		saddr.len = sizeof(struct sockaddr_in);
-		saddr.addr = (sock_addr*) g_slice_alloc0(saddr.len);
+		saddr.addr = (liSockAddr*) g_slice_alloc0(saddr.len);
 		saddr.addr->ipv4.sin_family = AF_INET;
 		saddr.addr->ipv4.sin_addr.s_addr = ipv4;
 		saddr.addr->ipv4.sin_port = htons(port);
@@ -571,7 +571,7 @@ sockaddr_t sockaddr_from_string(GString *str, guint tcp_default_port) {
 	if (parse_ipv6(str->str, ipv6, NULL, &port)) {
 		if (!port) return saddr;
 		saddr.len = sizeof(struct sockaddr_in6);
-		saddr.addr = (sock_addr*) g_slice_alloc0(saddr.len);
+		saddr.addr = (liSockAddr*) g_slice_alloc0(saddr.len);
 		saddr.addr->ipv6.sin6_family = AF_INET6;
 		memcpy(&saddr.addr->ipv6.sin6_addr, ipv6, 16);
 		saddr.addr->ipv6.sin6_port = htons(port);
@@ -580,39 +580,39 @@ sockaddr_t sockaddr_from_string(GString *str, guint tcp_default_port) {
 	return saddr;
 }
 
-sockaddr_t sockaddr_local_from_socket(gint fd) {
+liSocketAddress sockaddr_local_from_socket(gint fd) {
 	socklen_t l = 0;
 	static struct sockaddr sa;
-	struct sockaddr_t saddr = { 0, NULL };
+	liSocketAddress saddr = { 0, NULL };
 
 	if (-1 == getsockname(fd, &sa, &l)) {
 		return saddr;
 	}
 
-	saddr.addr = (sock_addr*) g_slice_alloc0(l);
+	saddr.addr = (liSockAddr*) g_slice_alloc0(l);
 	saddr.len = l;
 	getsockname(fd, (struct sockaddr*) saddr.addr, &l);
 
 	return saddr;
 }
 
-sockaddr_t sockaddr_remote_from_socket(gint fd) {
+liSocketAddress sockaddr_remote_from_socket(gint fd) {
 	socklen_t l = 0;
 	static struct sockaddr sa;
-	struct sockaddr_t saddr = { 0, NULL };
+	liSocketAddress saddr = { 0, NULL };
 
 	if (-1 == getpeername(fd, &sa, &l)) {
 		return saddr;
 	}
 
-	saddr.addr = (sock_addr*) g_slice_alloc0(l);
+	saddr.addr = (liSockAddr*) g_slice_alloc0(l);
 	saddr.len = l;
 	getpeername(fd, (struct sockaddr*) saddr.addr, &l);
 
 	return saddr;
 }
 
-void sockaddr_clear(sockaddr_t *saddr) {
+void sockaddr_clear(liSocketAddress *saddr) {
 	if (saddr->addr) g_slice_free1(saddr->len, saddr->addr);
 	saddr->addr = NULL;
 	saddr->len = 0;

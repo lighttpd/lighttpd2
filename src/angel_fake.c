@@ -4,7 +4,7 @@
 #include <lighttpd/ip_parsers.h>
 
 /* listen to a socket */
-int angel_fake_listen(server *srv, GString *str) {
+int angel_fake_listen(liServer *srv, GString *str) {
 	guint32 ipv4;
 #ifdef HAVE_IPV6
 	guint8 ipv6[16];
@@ -92,7 +92,7 @@ int angel_fake_listen(server *srv, GString *str) {
 }
 
 /* print log messages during startup to stderr */
-gboolean angel_fake_log(server *srv, GString *str) {
+gboolean angel_fake_log(liServer *srv, GString *str) {
 	const char *buf;
 	guint len;
 	ssize_t written;

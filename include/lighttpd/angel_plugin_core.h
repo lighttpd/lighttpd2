@@ -3,16 +3,17 @@
 
 #include <lighttpd/angel_base.h>
 
-typedef struct {
+typedef struct liPluginCoreConfig liPluginCoreConfig;
+struct liPluginCoreConfig {
 	/* Load */
-	instance_conf *load_instconf;
+	liInstanceConf *load_instconf;
 	gboolean load_failed;
 
 	/* Running */
-	instance_conf *instconf;
-	instance *inst;
-} plugin_core_config_t;
+	liInstanceConf *instconf;
+	liInstance *inst;
+};
 
-gboolean plugin_core_init(server *srv);
+gboolean plugin_core_init(liServer *srv);
 
 #endif

@@ -5,17 +5,17 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-struct response {
-	http_headers *headers;
+struct liResponse {
+	liHttpHeaders *headers;
 	gint http_status;
-	transfer_encoding_t transfer_encoding;
+	liTransferEncoding transfer_encoding;
 };
 
-LI_API void response_init(response *resp);
-LI_API void response_reset(response *resp);
-LI_API void response_clear(response *resp);
+LI_API void response_init(liResponse *resp);
+LI_API void response_reset(liResponse *resp);
+LI_API void response_clear(liResponse *resp);
 
-LI_API void response_send_headers(connection *con);
-LI_API void response_send_error_page(connection *con);
+LI_API void response_send_headers(liConnection *con);
+LI_API void response_send_error_page(liConnection *con);
 
 #endif

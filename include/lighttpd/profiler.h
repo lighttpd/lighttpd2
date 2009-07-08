@@ -1,10 +1,9 @@
 #ifndef _LIGHTTPD_PROFILER_H_
 #define _LIGHTTPD_PROFILER_H_
 
-struct profiler_mem;
-typedef struct profiler_mem profiler_mem;
+typedef struct liProfilerMem liProfilerMem;
 
-struct profiler_mem {
+struct liProfilerMem {
 	guint64 inuse_bytes;
 	guint64 alloc_times;
 	guint64 alloc_bytes;

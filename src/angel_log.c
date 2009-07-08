@@ -1,7 +1,7 @@
 
 #include <lighttpd/angel_base.h>
 
-#if REMOVE_PATH_FROM_FILE
+#if LI_REMOVE_PATH_FROM_FILE
 const char *remove_path(const char *path) {
 	char *p = strrchr(path, DIR_SEPERATOR);
 	if (NULL != p && *(p) != '\0') {
@@ -11,27 +11,27 @@ const char *remove_path(const char *path) {
 }
 #endif
 
-void log_init(server *srv) {
-	srv->log.type = LOG_TYPE_STDERR;
+void log_init(liServer *srv) {
+	srv->log.type = LI_LOG_TYPE_STDERR;
 
-	srv->log.levels[LOG_LEVEL_ABORT] = TRUE;
-	srv->log.levels[LOG_LEVEL_ERROR] = TRUE;
-	srv->log.levels[LOG_LEVEL_WARNING] = TRUE;
+	srv->log.levels[LI_LOG_LEVEL_ABORT] = TRUE;
+	srv->log.levels[LI_LOG_LEVEL_ERROR] = TRUE;
+	srv->log.levels[LI_LOG_LEVEL_WARNING] = TRUE;
 
-	srv->log.levels[LOG_LEVEL_INFO] = TRUE; /* TODO: remove debug levels */
-	srv->log.levels[LOG_LEVEL_DEBUG] = TRUE;
+	srv->log.levels[LI_LOG_LEVEL_INFO] = TRUE; /* TODO: remove debug levels */
+	srv->log.levels[LI_LOG_LEVEL_DEBUG] = TRUE;
 
 	srv->log.fd = -1;
 	srv->log.ts_cache = g_string_sized_new(0);
 	srv->log.log_line = g_string_sized_new(0);
 }
 
-void log_clean(server *srv) {
+void log_clean(liServer *srv) {
 	g_string_free(srv->log.ts_cache, TRUE);
 	g_string_free(srv->log.log_line, TRUE);
 }
 
-void log_write(server *srv, log_level_t log_level, guint flags, const gchar *fmt, ...) {
+void log_write(liServer *srv, liLogLevel log_level, guint flags, const gchar *fmt, ...) {
 	va_list ap;
 	GString *log_line = srv->log.log_line;
 
@@ -40,7 +40,7 @@ void log_write(server *srv, log_level_t log_level, guint flags, const gchar *fmt
 	g_string_truncate(log_line, 0);
 
 	/* for normal error messages, we prepend a timestamp */
-	if (flags & LOG_FLAG_TIMESTAMP) {
+	if (flags & LI_LOG_FLAG_TIMESTAMP) {
 		GString *log_ts = srv->log.ts_cache;
 		time_t cur_ts;
 

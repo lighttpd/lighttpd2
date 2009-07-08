@@ -51,9 +51,10 @@
 
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
+#include <lighttpd/encoding.h>
 
-LI_API gboolean mod_dirlist_init(modules *mods, module *mod);
-LI_API gboolean mod_dirlist_free(modules *mods, module *mod);
+LI_API gboolean mod_dirlist_init(liModules *mods, liModule *mod);
+LI_API gboolean mod_dirlist_free(liModules *mods, liModule *mod);
 
 /* html snippet constants */
 static const gchar html_header[] =
@@ -106,7 +107,7 @@ static const gchar html_css[] =
 	"</style>\n";
 
 struct dirlist_data {
-	plugin *plugin;
+	liPlugin *plugin;
 	GString *css;
 	gboolean hide_dotfiles;
 	gboolean hide_tildefiles;
@@ -163,22 +164,22 @@ static void dirlist_format_size(gchar *buf, goffset size) {
 	*buf++ = '\0';
 }
 
-static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context) {
 	GString *listing;
-	stat_cache_entry *sce;
+	liStatCacheEntry *sce;
 	dirlist_data *dd;
 	dirlist_plugin_data *pd;
 
 	UNUSED(context);
 
-	if (vrequest_is_handled(vr)) return HANDLER_GO_ON;
+	if (vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
 
-	if (vr->physical.path->len == 0) return HANDLER_GO_ON;
+	if (vr->physical.path->len == 0) return LI_HANDLER_GO_ON;
 
 	switch (stat_cache_get_dirlist(vr, vr->physical.path, &sce)) {
-	case HANDLER_GO_ON: break;
-	case HANDLER_WAIT_FOR_EVENT: return HANDLER_WAIT_FOR_EVENT;
-	default: return HANDLER_ERROR;
+	case LI_HANDLER_GO_ON: break;
+	case LI_HANDLER_WAIT_FOR_EVENT: return LI_HANDLER_WAIT_FOR_EVENT;
+	default: return LI_HANDLER_ERROR;
 	}
 
 	dd = param;
@@ -190,23 +191,23 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		switch (sce->data.err) {
 		case ENOENT:
 		case ENOTDIR:
-			return HANDLER_GO_ON;
+			return LI_HANDLER_GO_ON;
 		case EACCES:
-			if (!vrequest_handle_direct(vr)) return HANDLER_ERROR;
+			if (!vrequest_handle_direct(vr)) return LI_HANDLER_ERROR;
 			vr->response.http_status = 403;
-			return HANDLER_GO_ON;
+			return LI_HANDLER_GO_ON;
 		default:
 			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
-			return HANDLER_ERROR;
+			return LI_HANDLER_ERROR;
 		}
 	} else if (!S_ISDIR(sce->data.st.st_mode)) {
 		stat_cache_entry_release(vr, sce);
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 	} else if (vr->request.uri.path->str[vr->request.uri.path->len-1] != G_DIR_SEPARATOR) {
 		GString *host, *uri;
 		if (!vrequest_handle_direct(vr)) {
 			stat_cache_entry_release(vr, sce);
-			return HANDLER_ERROR;
+			return LI_HANDLER_ERROR;
 		}
 		/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
 		/* TODO: local addr if HTTP 1.0 without host header, url encoding */
@@ -232,12 +233,12 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
 		g_string_free(uri, TRUE);
 		stat_cache_entry_release(vr, sce);
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 	} else {
 		/* everything ok, we have the directory listing */
 		gboolean cachable;
 		guint i, j;
-		stat_cache_entry_data *sced;
+		liStatCacheEntryData *sced;
 		GString *mime_str, *encoded;
 		GArray *directories, *files;
 		gchar sizebuf[sizeof("999.9K")+1];
@@ -248,7 +249,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 
 		if (!vrequest_handle_direct(vr)) {
 			stat_cache_entry_release(vr, sce);
-			return HANDLER_ERROR;
+			return LI_HANDLER_ERROR;
 		}
 		vr->response.http_status = 200;
 
@@ -260,7 +261,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		if (cachable) {
 			vr->response.http_status = 304;
 			stat_cache_entry_release(vr, sce);
-			return HANDLER_GO_ON;
+			return LI_HANDLER_GO_ON;
 		}
 
 		/* temporary string for encoded names */
@@ -270,7 +271,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		directories = g_array_sized_new(FALSE, FALSE, sizeof(guint), 16);
 		files = g_array_sized_new(FALSE, FALSE, sizeof(guint), sce->dirlist->len);
 		for (i = 0; i < sce->dirlist->len; i++) {
-			sced = &g_array_index(sce->dirlist, stat_cache_entry_data, i);
+			sced = &g_array_index(sce->dirlist, liStatCacheEntryData, i);
 			hide = FALSE;
 
 			/* ingore entries where the stat() failed */
@@ -331,7 +332,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 		/* list directories */
 		if (!dd->hide_directories) {
 			for (i = 0; i < directories->len; i++) {
-				sced = &g_array_index(sce->dirlist, stat_cache_entry_data, g_array_index(directories, guint, i));
+				sced = &g_array_index(sce->dirlist, liStatCacheEntryData, g_array_index(directories, guint, i));
 
 				localtime_r(&(sced->st.st_mtime), &tm);
 				datebuflen = strftime(datebuf, sizeof(datebuf), "%Y-%b-%d %H:%M:%S", &tm);
@@ -357,7 +358,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 
 		/* list files */
 		for (i = 0; i < files->len; i++) {
-			sced = &g_array_index(sce->dirlist, stat_cache_entry_data, g_array_index(files, guint, i));
+			sced = &g_array_index(sce->dirlist, liStatCacheEntryData, g_array_index(files, guint, i));
 			mime_str = mimetype_get(vr, sced->path);
 
 			localtime_r(&(sced->st.st_mtime), &tm);
@@ -401,7 +402,7 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 
 		g_string_append_len(listing, CONST_STR_LEN(html_table_end));
 
-		g_string_append_printf(listing, html_footer, CORE_OPTION(CORE_OPTION_SERVER_TAG).string->str);
+		g_string_append_printf(listing, html_footer, CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string->str);
 
 		chunkqueue_append_string(vr->out, listing);
 		g_string_free(encoded, TRUE);
@@ -411,10 +412,10 @@ static handler_t dirlist(vrequest *vr, gpointer param, gpointer *context) {
 
 	stat_cache_entry_release(vr, sce);
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static void dirlist_free(server *srv, gpointer param) {
+static void dirlist_free(liServer *srv, gpointer param) {
 	guint i;
 	dirlist_data *data = param;
 
@@ -436,14 +437,14 @@ static void dirlist_free(server *srv, gpointer param) {
 	g_slice_free(dirlist_data, data);
 }
 
-static action* dirlist_create(server *srv, plugin* p, value *val) {
+static liAction* dirlist_create(liServer *srv, liPlugin* p, liValue *val) {
 	dirlist_data *data;
 	guint i;
 	guint j;
-	value *v, *tmpval;
+	liValue *v, *tmpval;
 	GString *k;
 
-	if (val && val->type != VALUE_LIST) {
+	if (val && val->type != LI_VALUE_LIST) {
 		ERROR(srv, "%s", "dirlist expects an optional list of string-value pairs");
 		return NULL;
 	}
@@ -458,84 +459,84 @@ static action* dirlist_create(server *srv, plugin* p, value *val) {
 
 	if (val) {
 		for (i = 0; i < val->data.list->len; i++) {
-			tmpval = g_array_index(val->data.list, value*, i);
-			if (tmpval->type != VALUE_LIST || tmpval->data.list->len != 2 ||
-				g_array_index(tmpval->data.list, value*, 0)->type != VALUE_STRING) {
+			tmpval = g_array_index(val->data.list, liValue*, i);
+			if (tmpval->type != LI_VALUE_LIST || tmpval->data.list->len != 2 ||
+				g_array_index(tmpval->data.list, liValue*, 0)->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "dirlist expects an optional list of string-value pairs");
 				dirlist_free(srv, data);
 				return NULL;
 			}
 
-			k = g_array_index(tmpval->data.list, value*, 0)->data.string;
-			v = g_array_index(tmpval->data.list, value*, 1);
+			k = g_array_index(tmpval->data.list, liValue*, 0)->data.string;
+			v = g_array_index(tmpval->data.list, liValue*, 1);
 
 			if (g_str_equal(k->str, "css")) {
-				if (v->type != VALUE_STRING) {
+				if (v->type != LI_VALUE_STRING) {
 					ERROR(srv, "%s", "dirlist: css parameter must be a string");
 					dirlist_free(srv, data);
 					return NULL;
 				}
 				data->css = g_string_new_len(GSTR_LEN(v->data.string));
 			} else if (g_str_equal(k->str, "hide-dotfiles")) {
-				if (v->type != VALUE_BOOLEAN) {
+				if (v->type != LI_VALUE_BOOLEAN) {
 					ERROR(srv, "%s", "dirlist: hide-dotfiles parameter must be a boolean (true or false)");
 					dirlist_free(srv, data);
 					return NULL;
 				}
 				data->hide_dotfiles = v->data.boolean;
 			} else if (g_str_equal(k->str, "hide-tildefiles")) {
-				if (v->type != VALUE_BOOLEAN) {
+				if (v->type != LI_VALUE_BOOLEAN) {
 					ERROR(srv, "%s", "dirlist: hide-tildefiles parameter must be a boolean (true or false)");
 					dirlist_free(srv, data);
 					return NULL;
 				}
 				data->hide_tildefiles = v->data.boolean;
 			} else if (g_str_equal(k->str, "hide-directories")) {
-				if (v->type != VALUE_BOOLEAN) {
+				if (v->type != LI_VALUE_BOOLEAN) {
 					ERROR(srv, "%s", "dirlist: hide-directories parameter must be a boolean (true or false)");
 					dirlist_free(srv, data);
 					return NULL;
 				}
 				data->hide_directories = v->data.boolean;
 			} else if (g_str_equal(k->str, "exclude-suffix")) {
-				if (v->type != VALUE_LIST) {
+				if (v->type != LI_VALUE_LIST) {
 					ERROR(srv, "%s", "dirlist: exclude-suffix parameter must be a list of strings");
 					dirlist_free(srv, data);
 					return NULL;
 				}
 				for (j = 0; j < v->data.list->len; j++) {
-					if (v->type != VALUE_LIST) {
+					if (v->type != LI_VALUE_LIST) {
 						ERROR(srv, "%s", "dirlist: exclude-suffix parameter must be a list of strings");
 						dirlist_free(srv, data);
 						return NULL;
 					} else {
-						g_ptr_array_add(data->exclude_suffix, g_string_new_len(GSTR_LEN(g_array_index(v->data.list, value*, j)->data.string)));
+						g_ptr_array_add(data->exclude_suffix, g_string_new_len(GSTR_LEN(g_array_index(v->data.list, liValue*, j)->data.string)));
 					}
 				}
 			} else if (g_str_equal(k->str, "exclude-prefix")) {
-				if (v->type != VALUE_LIST) {
+				if (v->type != LI_VALUE_LIST) {
 					ERROR(srv, "%s", "dirlist: exclude-prefix parameter must be a list of strings");
 					dirlist_free(srv, data);
 					return NULL;
 				}
 				for (j = 0; j < v->data.list->len; j++) {
-					if (v->type != VALUE_LIST) {
+					if (v->type != LI_VALUE_LIST) {
 						ERROR(srv, "%s", "dirlist: exclude-prefix parameter must be a list of strings");
 						dirlist_free(srv, data);
 						return NULL;
 					} else {
-						g_ptr_array_add(data->exclude_prefix, g_string_new_len(GSTR_LEN(g_array_index(v->data.list, value*, j)->data.string)));
+						g_ptr_array_add(data->exclude_prefix, g_string_new_len(GSTR_LEN(g_array_index(v->data.list, liValue*, j)->data.string)));
 					}
 				}
 			} else if (g_str_equal(k->str, "debug")) {
-				if (v->type != VALUE_BOOLEAN) {
+				if (v->type != LI_VALUE_BOOLEAN) {
 					ERROR(srv, "%s", "dirlist: debug parameter must be a boolean (true or false)");
 					dirlist_free(srv, data);
 					return NULL;
 				}
 				data->debug = v->data.boolean;
 			} else if (g_str_equal(k->str, "content-type")) {
-				if (v->type != VALUE_STRING) {
+				if (v->type != LI_VALUE_STRING) {
 					ERROR(srv, "%s", "dirlist: content-type parameter must be a string");
 					dirlist_free(srv, data);
 					return NULL;
@@ -552,24 +553,24 @@ static action* dirlist_create(server *srv, plugin* p, value *val) {
 	return action_new_function(dirlist, NULL, dirlist_free, data);
 }
 
-static const plugin_option options[] = {
-	{ "dirlist.debug", VALUE_BOOLEAN, NULL, NULL, NULL },
+static const liPluginOption options[] = {
+	{ "dirlist.debug", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
 
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
-static const plugin_action actions[] = {
+static const liPluginAction actions[] = {
 	{ "dirlist", dirlist_create },
 
 	{ NULL, NULL }
 };
 
-static const plugin_setup setups[] = {
+static const liliPluginSetupCB setups[] = {
 	{ NULL, NULL }
 };
 
 
-static void plugin_dirlist_free(server *srv, plugin *p) {
+static void plugin_dirlist_free(liServer *srv, liPlugin *p) {
 	dirlist_plugin_data *pd;
 
 	UNUSED(srv);
@@ -579,7 +580,7 @@ static void plugin_dirlist_free(server *srv, plugin *p) {
 }
 
 
-static void plugin_dirlist_init(server *srv, plugin *p) {
+static void plugin_dirlist_init(liServer *srv, liPlugin *p) {
 	dirlist_plugin_data *pd;
 
 	UNUSED(srv);
@@ -594,7 +595,7 @@ static void plugin_dirlist_init(server *srv, plugin *p) {
 }
 
 
-gboolean mod_dirlist_init(modules *mods, module *mod) {
+gboolean mod_dirlist_init(liModules *mods, liModule *mod) {
 	UNUSED(mod);
 
 	MODULE_VERSION_CHECK(mods);
@@ -604,7 +605,7 @@ gboolean mod_dirlist_init(modules *mods, module *mod) {
 	return mod->config != NULL;
 }
 
-gboolean mod_dirlist_free(modules *mods, module *mod) {
+gboolean mod_dirlist_free(liModules *mods, liModule *mod) {
 	if (mod->config)
 		plugin_free(mods->main, mod->config);
 

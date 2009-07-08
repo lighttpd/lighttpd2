@@ -1,26 +1,26 @@
 
 #include <lighttpd/base.h>
 
-network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
+liNetworkStatus network_backend_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	char *block_data;
 	off_t block_len;
 	ssize_t r;
 	gboolean did_write_something = FALSE;
-	chunkiter ci;
+	liChunkIter ci;
 
 	do {
 		if (0 == cq->length)
-			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_FATAL_ERROR;
+			return did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_FATAL_ERROR;
 
 		ci = chunkqueue_iter(cq);
 		/* TODO: handle SIGBUS */
 		switch (chunkiter_read_mmap(vr, ci, 0, blocksize, &block_data, &block_len)) {
-		case HANDLER_GO_ON:
+		case LI_HANDLER_GO_ON:
 			break;
-		case HANDLER_ERROR:
+		case LI_HANDLER_ERROR:
 		default:
-			return NETWORK_STATUS_FATAL_ERROR;
+			return LI_NETWORK_STATUS_FATAL_ERROR;
 		}
 
 		if (-1 == (r = net_write(fd, block_data, block_len))) {
@@ -29,16 +29,16 @@ network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, gof
 #if EWOULDBLOCK != EAGAIN
 			case EWOULDBLOCK:
 #endif
-				return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+				return did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 			case ECONNRESET:
 			case EPIPE:
-				return NETWORK_STATUS_CONNECTION_CLOSE;
+				return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
 				VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
-				return NETWORK_STATUS_FATAL_ERROR;
+				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {
-			return did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+			return did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 		}
 
 		chunkqueue_skip(cq, r);
@@ -46,5 +46,5 @@ network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, gof
 		*write_max -= r;
 	} while (r == block_len && *write_max > 0);
 
-	return NETWORK_STATUS_SUCCESS;
+	return LI_NETWORK_STATUS_SUCCESS;
 }

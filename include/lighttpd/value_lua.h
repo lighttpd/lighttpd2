@@ -8,7 +8,7 @@
  * and pops the value
  * returns NULL if it couldn't convert the value (still pops it)
  */
-LI_API value* value_from_lua(server *srv, lua_State *L);
+LI_API liValue* value_from_lua(liServer *srv, lua_State *L);
 
 LI_API GString* lua_togstring(lua_State *L, int ndx);
 

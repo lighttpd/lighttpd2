@@ -2,27 +2,27 @@
 #include <lighttpd/base.h>
 #include <lighttpd/angel.h>
 
-static void angel_call_cb(angel_connection *acon,
+static void angel_call_cb(liAngelConnection *acon,
 		const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 		gint32 id, GString *data) {
-	server *srv = acon->data;
+	liServer *srv = acon->data;
 	ERROR(srv, "received message for %s:%s, not implemented yet", mod, action);
 	if (-1 != id) angel_send_result(acon, id, g_string_new_len(CONST_STR_LEN("not implemented yet")), NULL, NULL, NULL);
 }
 
-static void angel_close_cb(angel_connection *acon, GError *err) {
-	server *srv = acon->data;
+static void angel_close_cb(liAngelConnection *acon, GError *err) {
+	liServer *srv = acon->data;
 	ERROR(srv, "fatal: angel connection close: %s", err ? err->message : g_strerror(errno));
 	if (err) g_error_free(err);
 	exit(1);
 }
 
-void angel_setup(server *srv) {
+void angel_setup(liServer *srv) {
 	srv->acon = angel_connection_new(srv->loop, 0, srv, angel_call_cb, angel_close_cb);
 }
 
-static void angel_listen_cb(angel_call *acall, gpointer ctx, gboolean timeout, GString *error, GString *data, GArray *fds) {
-	server *srv = ctx;
+static void angel_listen_cb(liAngelCall *acall, gpointer ctx, gboolean timeout, GString *error, GString *data, GArray *fds) {
+	liServer *srv = ctx;
 	guint i;
 	UNUSED(data);
 
@@ -53,9 +53,9 @@ static void angel_listen_cb(angel_call *acall, gpointer ctx, gboolean timeout, G
 }
 
 /* listen to a socket */
-void angel_listen(server *srv, GString *str) {
+void angel_listen(liServer *srv, GString *str) {
 	if (srv->acon) {
-		angel_call *acall = angel_call_new(angel_listen_cb, 3.0);
+		liAngelCall *acall = angel_call_new(angel_listen_cb, 3.0);
 		GError *err = NULL;
 
 		acall->context = srv;
@@ -75,6 +75,6 @@ void angel_listen(server *srv, GString *str) {
 }
 
 /* send log messages while startup to angel */
-void angel_log(server *srv, GString *str) {
+void angel_log(liServer *srv, GString *str) {
 	angel_fake_log(srv, str);
 }

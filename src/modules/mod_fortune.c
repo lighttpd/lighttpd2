@@ -27,11 +27,10 @@
 
 #include <lighttpd/base.h>
 
-LI_API gboolean mod_fortune_init(modules *mods, module *mod);
-LI_API gboolean mod_fortune_free(modules *mods, module *mod);
+LI_API gboolean mod_fortune_init(liModules *mods, liModule *mod);
+LI_API gboolean mod_fortune_free(liModules *mods, liModule *mod);
 
 /* globals */
-struct fortune_data;
 typedef struct fortune_data fortune_data;
 
 struct fortune_data {
@@ -44,7 +43,7 @@ static GString *fortune_rand(fortune_data *fd) {
 	return g_ptr_array_index(fd->cookies, r);
 }
 
-static handler_t fortune_header_handle(vrequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult fortune_header_handle(liVRequest *vr, gpointer param, gpointer *context) {
 	fortune_data *fd = param;
 
 	UNUSED(context);
@@ -53,21 +52,21 @@ static handler_t fortune_header_handle(vrequest *vr, gpointer param, gpointer *c
 		GString *cookie = fortune_rand(fd);
 		http_header_insert(vr->response.headers, CONST_STR_LEN("X-fortune"), GSTR_LEN(cookie));
 	}
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static action* fortune_header(server *srv, plugin* p, value *val) {
+static liAction* fortune_header(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(srv); UNUSED(val);
 	return action_new_function(fortune_header_handle, NULL, NULL, p->data);
 }
 
-static handler_t fortune_page_handle(vrequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult fortune_page_handle(liVRequest *vr, gpointer param, gpointer *context) {
 	fortune_data *fd = param;
 
 	UNUSED(context);
 
 	if (!vrequest_handle_direct(vr))
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 
 	vr->response.http_status = 200;
 
@@ -78,15 +77,15 @@ static handler_t fortune_page_handle(vrequest *vr, gpointer param, gpointer *con
 		chunkqueue_append_mem(vr->out, CONST_STR_LEN("no cookies in the cookie box"));
 	}
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static action* fortune_page(server *srv, plugin* p, value *val) {
+static liAction* fortune_page(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(srv); UNUSED(val);
 	return action_new_function(fortune_page_handle, NULL, NULL, p->data);
 }
 
-static gboolean fortune_load(server *srv, plugin* p, value *val) {
+static gboolean fortune_load(liServer *srv, liPlugin* p, liValue *val) {
 	gchar *file;
 	GError *err = NULL;
 	gchar *data;
@@ -94,7 +93,7 @@ static gboolean fortune_load(server *srv, plugin* p, value *val) {
 	guint count = 0;
 	fortune_data *fd = p->data;
 
-	if (!val || val->type != VALUE_STRING) {
+	if (!val || val->type != LI_VALUE_STRING) {
 		ERROR(srv, "fortune.load takes a string as parameter, %s given", val ? value_type_string(val->type) : "none");
 		return FALSE;
 	}
@@ -137,25 +136,25 @@ static gboolean fortune_load(server *srv, plugin* p, value *val) {
 
 
 
-static const plugin_option options[] = {
+static const liPluginOption options[] = {
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
-static const plugin_action actions[] = {
+static const liPluginAction actions[] = {
 	{ "fortune.header", fortune_header },
 	{ "fortune.page", fortune_page },
 
 	{ NULL, NULL }
 };
 
-static const plugin_setup setups[] = {
+static const liliPluginSetupCB setups[] = {
 	{ "fortune.load", fortune_load },
 	{ NULL, NULL }
 };
 
 
 
-static void plugin_fortune_free(server *srv, plugin *p) {
+static void plugin_fortune_free(liServer *srv, liPlugin *p) {
 	fortune_data *fd = p->data;
 	UNUSED(srv);
 
@@ -169,7 +168,7 @@ static void plugin_fortune_free(server *srv, plugin *p) {
 	g_slice_free(fortune_data, fd);
 }
 
-static void plugin_fortune_init(server *srv, plugin *p) {
+static void plugin_fortune_init(liServer *srv, liPlugin *p) {
 	fortune_data *fd;
 	UNUSED(srv);
 
@@ -185,8 +184,8 @@ static void plugin_fortune_init(server *srv, plugin *p) {
 }
 
 
-gboolean mod_fortune_init(modules *mods, module *mod) {
-	server *srv = mods->main;
+gboolean mod_fortune_init(liModules *mods, liModule *mod) {
+	liServer *srv = mods->main;
 
 	MODULE_VERSION_CHECK(mods);
 
@@ -198,7 +197,7 @@ gboolean mod_fortune_init(modules *mods, module *mod) {
 	return TRUE;
 }
 
-gboolean mod_fortune_free(modules *mods, module *mod) {
+gboolean mod_fortune_free(liModules *mods, liModule *mod) {
 	if (mod->config)
 		plugin_free(mods->main, mod->config);
 

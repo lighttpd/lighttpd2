@@ -33,25 +33,25 @@
 
 #include <lighttpd/base.h>
 
-LI_API gboolean mod_debug_init(modules *mods, module *mod);
-LI_API gboolean mod_debug_free(modules *mods, module *mod);
+LI_API gboolean mod_debug_init(liModules *mods, liModule *mod);
+LI_API gboolean mod_debug_free(liModules *mods, liModule *mod);
 
 struct mod_debug_detailed_t {
-	connection con;
+	liConnection con;
 };
 typedef struct mod_debug_detailed_t mod_debug_detailed_t;
 
 struct mod_debug_data_t {
 	guint wrk_ndx;
 	guint con_ndx;
-	connection *con;
-	waitqueue_elem io_timeout_elem;
+	liConnection *con;
+	liWaitQueueElem io_timeout_elem;
 	gint fd;
-	connection_state_t state;
+	liConnectionState state;
 	GString *remote_addr_str, *local_addr_str;
 	gboolean is_ssl, keep_alive;
 	GString *host, *path, *query;
-	http_method_t method;
+	liHttpMethod method;
 	goffset request_size;
 	goffset response_size;
 	ev_tstamp ts;
@@ -64,9 +64,9 @@ struct mod_debug_data_t {
 typedef struct mod_debug_data_t mod_debug_data_t;
 
 struct mod_debug_job_t {
-	vrequest *vr;
+	liVRequest *vr;
 	gpointer *context;
-	plugin *p;
+	liPlugin *p;
 	struct {
 		guint wrk_ndx;
 		guint con_ndx;
@@ -77,7 +77,7 @@ struct mod_debug_job_t {
 typedef struct mod_debug_job_t mod_debug_job_t;
 
 /* the CollectFunc */
-static gpointer debug_collect_func(worker *wrk, gpointer fdata) {
+static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 	GArray *cons;
 	mod_debug_job_t *job = fdata;
 
@@ -86,7 +86,7 @@ static gpointer debug_collect_func(worker *wrk, gpointer fdata) {
 	g_array_set_size(cons, wrk->connections_active);
 
 	for (guint i = 0; i < wrk->connections_active; i++) {
-		connection *c = g_array_index(wrk->connections, connection*, i);
+		liConnection *c = g_array_index(wrk->connections, liConnection*, i);
 		mod_debug_data_t *cd = &g_array_index(cons, mod_debug_data_t, i);
 		cd->wrk_ndx = wrk->ndx;
 		cd->con_ndx = i;
@@ -152,8 +152,8 @@ static gpointer debug_collect_func(worker *wrk, gpointer fdata) {
 /* the CollectCallback */
 static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
 	mod_debug_job_t *job = cbdata;
-	vrequest *vr;
-	plugin *p;
+	liVRequest *vr;
+	liPlugin *p;
 	GString *html;
 
 	UNUSED(fdata);
@@ -253,24 +253,24 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 	g_slice_free(mod_debug_job_t, job);
 }
 
-static handler_t debug_show_connections_cleanup(vrequest *vr, gpointer param, gpointer context) {
-	collect_info *ci = (collect_info*) context;
+static liHandlerResult debug_show_connections_cleanup(liVRequest *vr, gpointer param, gpointer context) {
+	liCollectInfo *ci = (liCollectInfo*) context;
 
 	UNUSED(vr);
 	UNUSED(param);
 
 	collect_break(ci);
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static handler_t debug_show_connections(vrequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult debug_show_connections(liVRequest *vr, gpointer param, gpointer *context) {
 	if (vrequest_handle_direct(vr)) {
-		collect_info *ci;
+		liCollectInfo *ci;
 		mod_debug_job_t *j = g_slice_new0(mod_debug_job_t);
 		j->vr = vr;
 		j->context = context;
-		j->p = (plugin*) param;
+		j->p = (liPlugin*) param;
 
 		if (vr->request.uri.query->len) {
 			/* querystring = <wrk_ndx>_<con_ndx>_<con_fd>_<remote_addr_str> */
@@ -286,10 +286,10 @@ static handler_t debug_show_connections(vrequest *vr, gpointer param, gpointer *
 		*context = ci; /* may be NULL */
 	}
 
-	return (*context) ? HANDLER_WAIT_FOR_EVENT : HANDLER_GO_ON;
+	return (*context) ? LI_HANDLER_WAIT_FOR_EVENT : LI_HANDLER_GO_ON;
 }
 
-static action* debug_show_connections_create(server *srv, plugin* p, value *val) {
+static liAction* debug_show_connections_create(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(srv); UNUSED(p);
 
 	if (val) {
@@ -301,22 +301,22 @@ static action* debug_show_connections_create(server *srv, plugin* p, value *val)
 }
 
 
-static const plugin_option options[] = {
+static const liPluginOption options[] = {
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
-static const plugin_action actions[] = {
+static const liPluginAction actions[] = {
 	{ "debug.show_connections", debug_show_connections_create },
 
 	{ NULL, NULL }
 };
 
-static const plugin_setup setups[] = {
+static const liliPluginSetupCB setups[] = {
 	{ NULL, NULL }
 };
 
 
-static void plugin_debug_init(server *srv, plugin *p) {
+static void plugin_debug_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
 
 	p->options = options;
@@ -325,7 +325,7 @@ static void plugin_debug_init(server *srv, plugin *p) {
 }
 
 
-gboolean mod_debug_init(modules *mods, module *mod) {
+gboolean mod_debug_init(liModules *mods, liModule *mod) {
 	UNUSED(mod);
 
 	MODULE_VERSION_CHECK(mods);
@@ -335,7 +335,7 @@ gboolean mod_debug_init(modules *mods, module *mod) {
 	return mod->config != NULL;
 }
 
-gboolean mod_debug_free(modules *mods, module *mod) {
+gboolean mod_debug_free(liModules *mods, liModule *mod) {
 	if (mod->config)
 		plugin_free(mods->main, mod->config);
 

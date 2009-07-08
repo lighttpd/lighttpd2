@@ -12,18 +12,18 @@
 	size_t id; \
 	ssize_t option_base_ndx
 
-typedef void     (*PluginInit)          (server *srv, plugin *p);
-typedef void     (*PluginFree)          (server *srv, plugin *p);
-typedef gboolean (*PluginParseOption)   (server *srv, plugin *p, size_t ndx, value *val, option_value *oval);
-typedef void     (*PluginFreeOption)    (server *srv, plugin *p, size_t ndx, option_value oval);
-typedef action*  (*PluginCreateAction)  (server *srv, plugin *p, value *val);
-typedef gboolean (*PluginSetup)         (server *srv, plugin *p, value *val);
+typedef void     (*liPluginInitCB)          (liServer *srv, liPlugin *p);
+typedef void     (*liPluginFreeCB)          (liServer *srv, liPlugin *p);
+typedef gboolean (*liPluginParseOptionCB)   (liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval);
+typedef void     (*liPluginFreeOptionCB)    (liServer *srv, liPlugin *p, size_t ndx, liOptionValue oval);
+typedef liAction*(*liPluginCreateActionCB)  (liServer *srv, liPlugin *p, liValue *val);
+typedef gboolean (*liPluginSetupCB)         (liServer *srv, liPlugin *p, liValue *val);
 
-typedef void     (*PluginHandleClose)   (connection *con, plugin *p);
-typedef handler_t(*PluginHandleVRequest)(vrequest *vr, plugin *p);
-typedef void     (*PluginHandleVRClose) (vrequest *vr, plugin *p);
+typedef void     (*liPluginHandleCloseCB)   (liConnection *con, liPlugin *p);
+typedef liHandlerResult(*liPluginHandleVRequestCB)(liVRequest *vr, liPlugin *p);
+typedef void     (*liPluginHandleVRCloseCB) (liVRequest *vr, liPlugin *p);
 
-struct plugin {
+struct liPlugin {
 	size_t version;
 	const gchar *name; /**< name of the plugin */
 	guint id;          /**< index in some plugin arrays */
@@ -32,45 +32,45 @@ struct plugin {
 
 	size_t opt_base_index;
 
-	PluginFree free;   /**< called before plugin is unloaded */
+	liPluginFreeCB free;   /**< called before plugin is unloaded */
 
-	PluginHandleVRequest handle_request_body;
+	liPluginHandleVRequestCB handle_request_body;
 
 	/** called for every plugin after connection got closed (response end, reset by peer, error)
 	  * the plugins code must not depend on any order of plugins loaded
 	  */
-	PluginHandleClose handle_close;
+	liPluginHandleCloseCB handle_close;
 
 	/** called for every plugin after vrequest got reset */
-	PluginHandleVRClose handle_vrclose;
+	liPluginHandleVRCloseCB handle_vrclose;
 
-	const plugin_option *options;
-	const plugin_action *actions;
-	const plugin_setup *setups;
+	const liPluginOption *options;
+	const liPluginAction *actions;
+	const liliPluginSetupCB *setups;
 };
 
-struct plugin_option {
+struct liPluginOption {
 	const gchar *name;
-	value_type type;
+	liValueType type;
 
 	gpointer default_value;
-	PluginParseOption parse_option;
-	PluginFreeOption free_option;
+	liPluginParseOptionCB parse_option;
+	liPluginFreeOptionCB free_option;
 };
 
-struct plugin_action {
+struct liPluginAction {
 	const gchar *name;
-	PluginCreateAction create_action;
+	liPluginCreateActionCB create_action;
 };
 
-struct plugin_setup {
+struct liliPluginSetupCB {
 	const gchar *name;
-	PluginSetup setup;
+	liPluginSetupCB setup;
 };
 
 /* Internal structures */
-struct server_option {
-	plugin *p;
+struct liServerOption {
+	liPlugin *p;
 
 	/** the value is freed with value_free after the parse call, so you
 	  *   probably want to extract the content via value_extract*
@@ -79,13 +79,13 @@ struct server_option {
 	  *
 	  * Default behaviour (NULL) is to extract the inner value from val
 	  */
-	PluginParseOption parse_option;
+	liPluginParseOptionCB parse_option;
 
 	/** the free_option handler has to free all allocated resources;
 	  * it may get called with 0 initialized options, so you have to
 	  * check the value.
 	  */
-	PluginFreeOption free_option;
+	liPluginFreeOptionCB free_option;
 
 	/** if parse_option is NULL, the default_value is used; it is only used
 	  * for the following value types:
@@ -96,46 +96,46 @@ struct server_option {
 	gpointer default_value;
 
 	size_t index, module_index;
-	value_type type;
+	liValueType type;
 };
 
-struct server_action {
-	plugin *p;
-	PluginCreateAction create_action;
+struct liServerAction {
+	liPlugin *p;
+	liPluginCreateActionCB create_action;
 };
 
-struct server_setup {
-	plugin *p;
-	PluginSetup setup;
+struct liServerSetup {
+	liPlugin *p;
+	liPluginSetupCB setup;
 };
 
 /* Needed by modules to register their plugin(s) */
-LI_API plugin *plugin_register(server *srv, const gchar *name, PluginInit init);
+LI_API liPlugin *plugin_register(liServer *srv, const gchar *name, liPluginInitCB init);
 
 /* Internal needed functions */
-LI_API void plugin_free(server *srv, plugin *p);
-LI_API void server_plugins_free(server *srv);
+LI_API void plugin_free(liServer *srv, liPlugin *p);
+LI_API void server_plugins_free(liServer *srv);
 
 /** free val after call (val may be modified by parser) */
-LI_API gboolean parse_option(server *srv, const char *name, value *val, option_set *mark);
-LI_API void release_option(server *srv, option_set *mark); /**< Does not free the option_set memory */
+LI_API gboolean parse_option(liServer *srv, const char *name, liValue *val, liOptionSet *mark);
+LI_API void release_option(liServer *srv, liOptionSet *mark); /**< Does not free the option_set memory */
 
-LI_API void plugins_prepare_callbacks(server *srv);
-LI_API void plugins_handle_close(connection *con);
-LI_API void plugins_handle_vrclose(vrequest *vr);
+LI_API void plugins_prepare_callbacks(liServer *srv);
+LI_API void plugins_handle_close(liConnection *con);
+LI_API void plugins_handle_vrclose(liVRequest *vr);
 
 /* Needed for config frontends */
 /** For parsing 'somemod.option = "somevalue"', free value after call */
-LI_API action* option_action(server *srv, const gchar *name, value *val);
+LI_API liAction* option_action(liServer *srv, const gchar *name, liValue *val);
 /** For parsing 'somemod.action value', e.g. 'rewrite "/url" => "/destination"'
   * free value after call
   */
-LI_API action* create_action(server *srv, const gchar *name, value *val);
+LI_API liAction* create_action(liServer *srv, const gchar *name, liValue *val);
 /** For setup function, e.g. 'listen "127.0.0.1:8080"'; free value after call */
-LI_API gboolean call_setup(server *srv, const char *name, value *val);
+LI_API gboolean call_setup(liServer *srv, const char *name, liValue *val);
 
 /** free val after call */
-LI_API gboolean plugin_set_default_option(server *srv, const gchar* name, value *val);
+LI_API gboolean plugin_set_default_option(liServer *srv, const gchar* name, liValue *val);
 
 /* needs vrequest *vr and plugin *p */
 #define OPTION(idx) _OPTION(vr, p, idx)

@@ -6,9 +6,9 @@
 #include <lighttpd/config_parser.h>
 
 int request_test() {
-	chunkqueue *cq;
-	request req;
-	handler_t res;
+	liChunkQueue *cq;
+	liRequest req;
+	liHandlerResult res;
 
 	cq = chunkqueue_new();
 	request_init(&req, cq);
@@ -21,21 +21,21 @@ int request_test() {
 	));
 
 	res = http_request_parse(NULL, NULL, &req.parser_ctx);
-	if (res != HANDLER_GO_ON) {
+	if (res != LI_HANDLER_GO_ON) {
 		fprintf(stderr, "Parser return %i", res);
 	}
 
-	assert(req.http_method == HTTP_METHOD_GET);
+	assert(req.http_method == LI_HTTP_METHOD_GET);
 	assert(cq->length == 3);
 
 	request_clear(&req);
 	chunkqueue_free(cq);
 
-	return res == HANDLER_GO_ON ? 0 : 1;
+	return res == LI_HANDLER_GO_ON ? 0 : 1;
 }
 
 int main() {
-	server *srv;
+	liServer *srv;
 
 	guint32 ip, netmask;
 	assert(parse_ipv4("10.0.3.8/24", &ip, &netmask, NULL));

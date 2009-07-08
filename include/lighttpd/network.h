@@ -10,13 +10,13 @@
 #endif
 
 typedef enum {
-	NETWORK_STATUS_SUCCESS,             /**< some IO was actually done (read/write) or cq was empty for write */
-	NETWORK_STATUS_FATAL_ERROR,
-	NETWORK_STATUS_CONNECTION_CLOSE,
-	NETWORK_STATUS_WAIT_FOR_EVENT,      /**< read/write returned -1 with errno=EAGAIN/EWOULDBLOCK; no real IO was done
-	                                         internal: some io may be done */
-	NETWORK_STATUS_WAIT_FOR_AIO_EVENT   /**< nothing done yet, read/write will be done somewhere else */
-} network_status_t;
+	LI_NETWORK_STATUS_SUCCESS,             /**< some IO was actually done (read/write) or cq was empty for write */
+	LI_NETWORK_STATUS_FATAL_ERROR,
+	LI_NETWORK_STATUS_CONNECTION_CLOSE,
+	LI_NETWORK_STATUS_WAIT_FOR_EVENT,      /**< read/write returned -1 with errno=EAGAIN/EWOULDBLOCK; no real IO was done
+	                                            internal: some io may be done */
+	LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT   /**< nothing done yet, read/write will be done somewhere else */
+} liNetworkStatus;
 
 /** repeats write after EINTR */
 LI_API ssize_t net_write(int fd, void *buf, ssize_t nbyte);
@@ -24,25 +24,25 @@ LI_API ssize_t net_write(int fd, void *buf, ssize_t nbyte);
 /** repeats read after EINTR */
 LI_API ssize_t net_read(int fd, void *buf, ssize_t nbyte);
 
-LI_API network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq, goffset write_max);
-LI_API network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq);
+LI_API liNetworkStatus network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset write_max);
+LI_API liNetworkStatus network_read(liVRequest *vr, int fd, liChunkQueue *cq);
 
 /* use writev for mem chunks, buffered read/write for files */
-LI_API network_status_t network_write_writev(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
+LI_API liNetworkStatus network_write_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
 
 #ifdef USE_SENDFILE
 /* use sendfile for files, writev for mem chunks */
-LI_API network_status_t network_write_sendfile(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
+LI_API liNetworkStatus network_write_sendfile(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
 #endif
 
 /* write backends */
-LI_API network_status_t network_backend_write(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
-LI_API network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max);
+LI_API liNetworkStatus network_backend_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
+LI_API liNetworkStatus network_backend_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
 
-#define NETWORK_FALLBACK(f, write_max) do { \
-	network_status_t res; \
+#define LI_NETWORK_FALLBACK(f, write_max) do { \
+	liNetworkStatus res; \
 	switch(res = f(vr, fd, cq, write_max)) { \
-		case NETWORK_STATUS_SUCCESS: \
+		case LI_NETWORK_STATUS_SUCCESS: \
 			break; \
 		default: \
 			return res; \

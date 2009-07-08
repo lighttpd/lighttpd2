@@ -65,9 +65,9 @@
 	Quoted_String   = DQUOTE ( QDText | Quoted_Pair )* DQUOTE;
 
 	HTTP_Version = (
-		  "HTTP/1.0"  %{ ctx->request->http_version = HTTP_VERSION_1_0; }
-		| "HTTP/1.1"  %{ ctx->request->http_version = HTTP_VERSION_1_1; }
-		| "HTTP" "/" DIGIT+ "." DIGIT+ ) >{ ctx->request->http_version = HTTP_VERSION_UNSET; };
+		  "HTTP/1.0"  %{ ctx->request->http_version = LI_HTTP_VERSION_1_0; }
+		| "HTTP/1.1"  %{ ctx->request->http_version = LI_HTTP_VERSION_1_1; }
+		| "HTTP" "/" DIGIT+ "." DIGIT+ ) >{ ctx->request->http_version = LI_HTTP_VERSION_UNSET; };
 	#HTTP_URL = "http:" "//" Host ( ":" Port )? ( abs_path ( "?" query )? )?;
 
 # RFC 2396
@@ -82,29 +82,29 @@
 	Abs_Path = "/" Path_Segments;
 
 	Method = (
-		  "GET"       %{ ctx->request->http_method = HTTP_METHOD_GET; }
-		| "POST"      %{ ctx->request->http_method = HTTP_METHOD_POST; }
-		| "HEAD"      %{ ctx->request->http_method = HTTP_METHOD_HEAD; }
-		| "OPTIONS"   %{ ctx->request->http_method = HTTP_METHOD_OPTIONS; }
-		| "PROPFIND"  %{ ctx->request->http_method = HTTP_METHOD_PROPFIND; }
-		| "MKCOL"     %{ ctx->request->http_method = HTTP_METHOD_MKCOL; }
-		| "PUT"       %{ ctx->request->http_method = HTTP_METHOD_PUT; }
-		| "DELETE"    %{ ctx->request->http_method = HTTP_METHOD_DELETE; }
-		| "COPY"      %{ ctx->request->http_method = HTTP_METHOD_COPY; }
-		| "MOVE"      %{ ctx->request->http_method = HTTP_METHOD_MOVE; }
-		| "PROPPATCH" %{ ctx->request->http_method = HTTP_METHOD_PROPPATCH; }
-		| "REPORT"    %{ ctx->request->http_method = HTTP_METHOD_REPORT; }
-		| "CHKECOUT"  %{ ctx->request->http_method = HTTP_METHOD_CHECKOUT; }
-		| "CHECKIN"   %{ ctx->request->http_method = HTTP_METHOD_CHECKIN; }
-		| "VERSION-CONTROL" %{ ctx->request->http_method = HTTP_METHOD_VERSION_CONTROL; }
-		| "UNCHECKOUT"      %{ ctx->request->http_method = HTTP_METHOD_UNCHECKOUT; }
-		| "MKACTIVITY"      %{ ctx->request->http_method = HTTP_METHOD_MKACTIVITY; }
-		| "MERGE"     %{ ctx->request->http_method = HTTP_METHOD_MERGE; }
-		| "LOCK"      %{ ctx->request->http_method = HTTP_METHOD_LOCK; }
-		| "UNLOCK"    %{ ctx->request->http_method = HTTP_METHOD_UNLOCK; }
-		| "LABEL"     %{ ctx->request->http_method = HTTP_METHOD_LABEL; }
-		| "CONNECT"   %{ ctx->request->http_method = HTTP_METHOD_CONNECT; }
-		| Token ) >mark >{ ctx->request->http_method = HTTP_METHOD_UNSET; } %method;
+		  "GET"       %{ ctx->request->http_method = LI_HTTP_METHOD_GET; }
+		| "POST"      %{ ctx->request->http_method = LI_HTTP_METHOD_POST; }
+		| "HEAD"      %{ ctx->request->http_method = LI_HTTP_METHOD_HEAD; }
+		| "OPTIONS"   %{ ctx->request->http_method = LI_HTTP_METHOD_OPTIONS; }
+		| "PROPFIND"  %{ ctx->request->http_method = LI_HTTP_METHOD_PROPFIND; }
+		| "MKCOL"     %{ ctx->request->http_method = LI_HTTP_METHOD_MKCOL; }
+		| "PUT"       %{ ctx->request->http_method = LI_HTTP_METHOD_PUT; }
+		| "DELETE"    %{ ctx->request->http_method = LI_HTTP_METHOD_DELETE; }
+		| "COPY"      %{ ctx->request->http_method = LI_HTTP_METHOD_COPY; }
+		| "MOVE"      %{ ctx->request->http_method = LI_HTTP_METHOD_MOVE; }
+		| "PROPPATCH" %{ ctx->request->http_method = LI_HTTP_METHOD_PROPPATCH; }
+		| "REPORT"    %{ ctx->request->http_method = LI_HTTP_METHOD_REPORT; }
+		| "CHKECOUT"  %{ ctx->request->http_method = LI_HTTP_METHOD_CHECKOUT; }
+		| "CHECKIN"   %{ ctx->request->http_method = LI_HTTP_METHOD_CHECKIN; }
+		| "VERSION-CONTROL" %{ ctx->request->http_method = LI_HTTP_METHOD_VERSION_CONTROL; }
+		| "UNCHECKOUT"      %{ ctx->request->http_method = LI_HTTP_METHOD_UNCHECKOUT; }
+		| "MKACTIVITY"      %{ ctx->request->http_method = LI_HTTP_METHOD_MKACTIVITY; }
+		| "MERGE"     %{ ctx->request->http_method = LI_HTTP_METHOD_MERGE; }
+		| "LOCK"      %{ ctx->request->http_method = LI_HTTP_METHOD_LOCK; }
+		| "UNLOCK"    %{ ctx->request->http_method = LI_HTTP_METHOD_UNLOCK; }
+		| "LABEL"     %{ ctx->request->http_method = LI_HTTP_METHOD_LABEL; }
+		| "CONNECT"   %{ ctx->request->http_method = LI_HTTP_METHOD_CONNECT; }
+		| Token ) >mark >{ ctx->request->http_method = LI_HTTP_METHOD_UNSET; } %method;
 
 	Request_URI = ("*" | ( any - CTL - SP )+) >mark %uri;
 	Request_Line = Method " " Request_URI " " HTTP_Version CRLF;
@@ -118,15 +118,15 @@
 
 %% write data;
 
-static int http_request_parser_has_error(http_request_ctx *ctx) {
+static int http_request_parser_has_error(liHttpRequestCtx *ctx) {
 	return ctx->chunk_ctx.cs == http_request_parser_error;
 }
 
-static int http_request_parser_is_finished(http_request_ctx *ctx) {
+static int http_request_parser_is_finished(liHttpRequestCtx *ctx) {
 	return ctx->chunk_ctx.cs >= http_request_parser_first_final;
 }
 
-void http_request_parser_init(http_request_ctx* ctx, request *req, chunkqueue *cq) {
+void http_request_parser_init(liHttpRequestCtx* ctx, liRequest *req, liChunkQueue *cq) {
 	chunk_parser_init(&ctx->chunk_ctx, cq);
 	ctx->request = req;
 	ctx->h_key = g_string_sized_new(0);
@@ -135,7 +135,7 @@ void http_request_parser_init(http_request_ctx* ctx, request *req, chunkqueue *c
 	%% write init;
 }
 
-void http_request_parser_reset(http_request_ctx* ctx) {
+void http_request_parser_reset(liHttpRequestCtx* ctx) {
 	chunk_parser_reset(&ctx->chunk_ctx);
 	g_string_truncate(ctx->h_key, 0);
 	g_string_truncate(ctx->h_value, 0);
@@ -143,32 +143,32 @@ void http_request_parser_reset(http_request_ctx* ctx) {
 	%% write init;
 }
 
-void http_request_parser_clear(http_request_ctx *ctx) {
+void http_request_parser_clear(liHttpRequestCtx *ctx) {
 	g_string_free(ctx->h_key, TRUE);
 	g_string_free(ctx->h_value, TRUE);
 }
 
-handler_t http_request_parse(vrequest *vr, http_request_ctx *ctx) {
-	handler_t res;
+liHandlerResult http_request_parse(liVRequest *vr, liHttpRequestCtx *ctx) {
+	liHandlerResult res;
 
-	if (http_request_parser_is_finished(ctx)) return HANDLER_GO_ON;
+	if (http_request_parser_is_finished(ctx)) return LI_HANDLER_GO_ON;
 
-	if (HANDLER_GO_ON != (res = chunk_parser_prepare(&ctx->chunk_ctx))) return res;
+	if (LI_HANDLER_GO_ON != (res = chunk_parser_prepare(&ctx->chunk_ctx))) return res;
 
 	while (!http_request_parser_has_error(ctx) && !http_request_parser_is_finished(ctx)) {
 		char *p, *pe;
 
-		if (HANDLER_GO_ON != (res = chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
+		if (LI_HANDLER_GO_ON != (res = chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
 
 		%% write exec;
 
 		chunk_parser_done(&ctx->chunk_ctx, p - ctx->chunk_ctx.buf);
 	}
 
-	if (http_request_parser_has_error(ctx)) return HANDLER_ERROR;
+	if (http_request_parser_has_error(ctx)) return LI_HANDLER_ERROR;
 	if (http_request_parser_is_finished(ctx)) {
 		chunkqueue_skip(ctx->chunk_ctx.cq, ctx->chunk_ctx.bytes_in);
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 	}
-	return HANDLER_ERROR;
+	return LI_HANDLER_ERROR;
 }

@@ -2,10 +2,10 @@
 #include <lighttpd/base.h>
 #include <lighttpd/url_parser.h>
 
-void request_init(request *req) {
-	req->http_method = HTTP_METHOD_UNSET;
+void request_init(liRequest *req) {
+	req->http_method = LI_HTTP_METHOD_UNSET;
 	req->http_method_str = g_string_sized_new(0);
-	req->http_version = HTTP_VERSION_UNSET;
+	req->http_version = LI_HTTP_VERSION_UNSET;
 
 	req->uri.raw = g_string_sized_new(0);
 	req->uri.scheme = g_string_sized_new(0);
@@ -20,10 +20,10 @@ void request_init(request *req) {
 	req->content_length = -1;
 }
 
-void request_reset(request *req) {
-	req->http_method = HTTP_METHOD_UNSET;
+void request_reset(liRequest *req) {
+	req->http_method = LI_HTTP_METHOD_UNSET;
 	g_string_truncate(req->http_method_str, 0);
-	req->http_version = HTTP_VERSION_UNSET;
+	req->http_version = LI_HTTP_VERSION_UNSET;
 
 	g_string_truncate(req->uri.raw, 0);
 	g_string_truncate(req->uri.scheme, 0);
@@ -38,10 +38,10 @@ void request_reset(request *req) {
 	req->content_length = -1;
 }
 
-void request_clear(request *req) {
-	req->http_method = HTTP_METHOD_UNSET;
+void request_clear(liRequest *req) {
+	req->http_method = LI_HTTP_METHOD_UNSET;
 	g_string_free(req->http_method_str, TRUE);
-	req->http_version = HTTP_VERSION_UNSET;
+	req->http_version = LI_HTTP_VERSION_UNSET;
 
 	g_string_free(req->uri.raw, TRUE);
 	g_string_free(req->uri.scheme, TRUE);
@@ -57,14 +57,14 @@ void request_clear(request *req) {
 }
 
 /* closes connection after response */
-static void bad_request(connection *con, int status) {
+static void bad_request(liConnection *con, int status) {
 	con->keep_alive = FALSE;
 	con->mainvr->response.http_status = status;
 	vrequest_handle_direct(con->mainvr);
 }
 
-static gboolean request_parse_url(vrequest *vr) {
-	request *req = &vr->request;
+static gboolean request_parse_url(liVRequest *vr) {
+	liRequest *req = &vr->request;
 
 	g_string_truncate(req->uri.query, 0);
 	g_string_truncate(req->uri.path, 0);
@@ -73,7 +73,7 @@ static gboolean request_parse_url(vrequest *vr) {
 		return FALSE;
 
 	/* "*" only allowed for method OPTIONS */
-	if (0 == strcmp(req->uri.path->str, "*") && req->http_method != HTTP_METHOD_OPTIONS)
+	if (0 == strcmp(req->uri.path->str, "*") && req->http_method != LI_HTTP_METHOD_OPTIONS)
 		return FALSE;
 
 	url_decode(req->uri.path);
@@ -86,21 +86,21 @@ static gboolean request_parse_url(vrequest *vr) {
 	return TRUE;
 }
 
-gboolean request_validate_header(connection *con) {
-	request *req = &con->mainvr->request;
-	http_header *hh;
+gboolean request_validate_header(liConnection *con) {
+	liRequest *req = &con->mainvr->request;
+	liHttpHeader *hh;
 	GList *l;
 
 	switch (req->http_version) {
-	case HTTP_VERSION_1_0:
+	case LI_HTTP_VERSION_1_0:
 		if (!http_header_is(req->headers, CONST_STR_LEN("connection"), CONST_STR_LEN("keep-alive")))
 			con->keep_alive = FALSE;
 		break;
-	case HTTP_VERSION_1_1:
+	case LI_HTTP_VERSION_1_1:
 		if (http_header_is(req->headers, CONST_STR_LEN("connection"), CONST_STR_LEN("close")))
 			con->keep_alive = FALSE;
 		break;
-	case HTTP_VERSION_UNSET:
+	case LI_HTTP_VERSION_UNSET:
 		bad_request(con, 505); /* Version not Supported */
 		return FALSE;
 	}
@@ -119,7 +119,7 @@ gboolean request_validate_header(connection *con) {
 			return FALSE;
 		}
 
-		hh = (http_header*) l->data;
+		hh = (liHttpHeader*) l->data;
 		g_string_append_len(req->uri.authority, HEADER_VALUE_LEN(hh));
 		if (!parse_hostname(&req->uri)) {
 			bad_request(con, 400); /* bad request */
@@ -128,7 +128,7 @@ gboolean request_validate_header(connection *con) {
 	}
 
 	/* Need hostname in HTTP/1.1 */
-	if (req->uri.host->len == 0 && req->http_version == HTTP_VERSION_1_1) {
+	if (req->uri.host->len == 0 && req->http_version == LI_HTTP_VERSION_1_1) {
 		bad_request(con, 400); /* bad request */
 		return FALSE;
 	}
@@ -181,7 +181,7 @@ gboolean request_validate_header(connection *con) {
 		gboolean expect_100_cont = FALSE;
 
 		for ( ; l ; l = http_header_find_next(l, CONST_STR_LEN("expect")) ) {
-			hh = (http_header*) l->data;
+			hh = (liHttpHeader*) l->data;
 			if (0 == g_strcasecmp( HEADER_VALUE(hh), "100-continue" )) {
 				expect_100_cont = TRUE;
 			} else {
@@ -191,7 +191,7 @@ gboolean request_validate_header(connection *con) {
 			}
 		}
 
-		if (expect_100_cont && req->http_version == HTTP_VERSION_1_0) {
+		if (expect_100_cont && req->http_version == LI_HTTP_VERSION_1_0) {
 			/* only HTTP/1.1 clients can send us this header */
 			bad_request(con, 417); /* Expectation Failed */
 			return FALSE;
@@ -206,8 +206,8 @@ gboolean request_validate_header(connection *con) {
 	 */
 
 	switch(con->mainvr->request.http_method) {
-	case HTTP_METHOD_GET:
-	case HTTP_METHOD_HEAD:
+	case LI_HTTP_METHOD_GET:
+	case LI_HTTP_METHOD_HEAD:
 		/* content-length is forbidden for those */
 		if (con->mainvr->request.content_length > 0) {
 			VR_ERROR(con->mainvr, "%s", "GET/HEAD with content-length -> 400");
@@ -217,7 +217,7 @@ gboolean request_validate_header(connection *con) {
 		}
 		con->mainvr->request.content_length = 0;
 		break;
-	case HTTP_METHOD_POST:
+	case LI_HTTP_METHOD_POST:
 		/* content-length is required for them */
 		if (con->mainvr->request.content_length == -1) {
 			/* content-length is missing */
@@ -235,7 +235,7 @@ gboolean request_validate_header(connection *con) {
 	return TRUE;
 }
 
-void physical_init(physical *phys) {
+void physical_init(liPhysical *phys) {
 	phys->path = g_string_sized_new(127);
 	phys->basedir = g_string_sized_new(63);
 	phys->doc_root = g_string_sized_new(63);
@@ -245,7 +245,7 @@ void physical_init(physical *phys) {
 	phys->have_errno = FALSE;
 }
 
-void physical_reset(physical *phys) {
+void physical_reset(liPhysical *phys) {
 	g_string_truncate(phys->path, 0);
 	g_string_truncate(phys->basedir, 0);
 	g_string_truncate(phys->doc_root, 0);
@@ -255,7 +255,7 @@ void physical_reset(physical *phys) {
 	phys->have_errno = FALSE;
 }
 
-void physical_clear(physical *phys) {
+void physical_clear(liPhysical *phys) {
 	g_string_free(phys->path, TRUE);
 	g_string_free(phys->basedir, TRUE);
 	g_string_free(phys->doc_root, TRUE);

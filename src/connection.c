@@ -3,10 +3,10 @@
 #include <lighttpd/plugin_core.h>
 
 /* only call it from the worker context the con belongs to */
-void worker_con_put(connection *con); /* worker.c */
+void worker_con_put(liConnection *con); /* worker.c */
 
-static void parse_request_body(connection *con) {
-	if ((con->state > CON_STATE_HANDLE_MAINVR || con->mainvr->state >= VRS_READ_CONTENT) && !con->in->is_closed) {
+static void parse_request_body(liConnection *con) {
+	if ((con->state > LI_CON_STATE_HANDLE_MAINVR || con->mainvr->state >= LI_VRS_READ_CONTENT) && !con->in->is_closed) {
 		ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_READ);
 		if (con->mainvr->request.content_length == -1) {
 			/* TODO: parse chunked encoded request body, filters */
@@ -26,18 +26,18 @@ static void parse_request_body(connection *con) {
 	}
 }
 
-static void forward_response_body(connection *con) {
-	vrequest *vr = con->mainvr;
-	if (con->state >= CON_STATE_HANDLE_MAINVR) {
+static void forward_response_body(liConnection *con) {
+	liVRequest *vr = con->mainvr;
+	if (con->state >= LI_CON_STATE_HANDLE_MAINVR) {
 		if (!con->response_headers_sent) {
 			con->response_headers_sent = TRUE;
-			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "%s", "write response headers");
 			}
 			response_send_headers(con);
 		}
 
-		if (vr->response.transfer_encoding & HTTP_TRANSFER_ENCODING_CHUNKED) {
+		if (vr->response.transfer_encoding & LI_HTTP_TRANSFER_ENCODING_CHUNKED) {
 			filter_chunked_encode(con, con->raw_out, con->out);
 		} else {
 			chunkqueue_steal_all(con->raw_out, con->out);
@@ -53,22 +53,22 @@ static void forward_response_body(connection *con) {
 	}
 }
 
-static void connection_request_done(connection *con) {
-	vrequest *vr = con->mainvr;
-	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+static void connection_request_done(liConnection *con) {
+	liVRequest *vr = con->mainvr;
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(con->mainvr, "response end (keep_alive = %i)", con->keep_alive);
 	}
 
 	plugins_handle_close(con);
 
-	if (con->keep_alive && g_atomic_int_get(&con->srv->state) == SERVER_RUNNING) {
+	if (con->keep_alive && g_atomic_int_get(&con->srv->state) == LI_SERVER_RUNNING) {
 		connection_reset_keep_alive(con);
 	} else {
 		worker_con_put(con);
 	}
 }
 
-static gboolean check_response_done(connection *con) {
+static gboolean check_response_done(liConnection *con) {
 	if (con->in->is_closed && con->raw_out->is_closed && 0 == con->raw_out->length) {
 		connection_request_done(con);
 		return TRUE;
@@ -76,9 +76,9 @@ static gboolean check_response_done(connection *con) {
 	return FALSE;
 }
 
-static void connection_close(connection *con) {
-	vrequest *vr = con->mainvr;
-	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+static void connection_close(liConnection *con) {
+	liVRequest *vr = con->mainvr;
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "%s", "connection closed");
 	}
 
@@ -87,9 +87,9 @@ static void connection_close(connection *con) {
 	worker_con_put(con);
 }
 
-void connection_error(connection *con) {
-	vrequest *vr = con->mainvr;
-	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+void connection_error(liConnection *con) {
+	liVRequest *vr = con->mainvr;
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "%s", "connection closed (error)");
 	}
 
@@ -98,13 +98,13 @@ void connection_error(connection *con) {
 	worker_con_put(con);
 }
 
-void connection_internal_error(connection *con) {
-	vrequest *vr = con->mainvr;
+void connection_internal_error(liConnection *con) {
+	liVRequest *vr = con->mainvr;
 	if (con->response_headers_sent) {
 		VR_ERROR(vr, "%s", "Couldn't send '500 Internal Error': headers already sent");
 		connection_error(con);
 	} else {
-		http_version_t v;
+		liHttpVersion v;
 		VR_ERROR(vr, "%s", "internal error");
 
 		/* We only need the http version from the http request */
@@ -114,7 +114,7 @@ void connection_internal_error(connection *con) {
 
 		con->keep_alive = FALSE;
 		con->mainvr->response.http_status = 500;
-		con->state = CON_STATE_WRITE; /* skips further vrequest handling */
+		con->state = LI_CON_STATE_WRITE; /* skips further vrequest handling */
 
 		chunkqueue_reset(con->out);
 		con->out->is_closed = TRUE;
@@ -123,12 +123,12 @@ void connection_internal_error(connection *con) {
 	}
 }
 
-static gboolean connection_handle_read(connection *con) {
-	vrequest *vr = con->mainvr;
+static gboolean connection_handle_read(liConnection *con) {
+	liVRequest *vr = con->mainvr;
 
 	if (con->raw_in->length == 0) return TRUE;
 
-	if (con->state == CON_STATE_KEEP_ALIVE) {
+	if (con->state == LI_CON_STATE_KEEP_ALIVE) {
 		/* stop keep alive timeout watchers */
 		if (con->keep_alive_data.link) {
 			g_queue_delete_link(&con->wrk->keep_alive_queue, con->keep_alive_data.link);
@@ -139,28 +139,28 @@ static gboolean connection_handle_read(connection *con) {
 
 		con->keep_alive_requests++;
 		/* disable keep alive if limit is reached */
-		if (con->keep_alive_requests == CORE_OPTION(CORE_OPTION_MAX_KEEP_ALIVE_REQUESTS).number)
+		if (con->keep_alive_requests == CORE_OPTION(LI_CORE_OPTION_MAX_KEEP_ALIVE_REQUESTS).number)
 			con->keep_alive = FALSE;
 
-		con->state = CON_STATE_READ_REQUEST_HEADER;
+		con->state = LI_CON_STATE_READ_REQUEST_HEADER;
 		con->ts = CUR_TS(con->wrk);
 
 	} else {
-		if (con->state == CON_STATE_REQUEST_START)
-			con->state = CON_STATE_READ_REQUEST_HEADER;
+		if (con->state == LI_CON_STATE_REQUEST_START)
+			con->state = LI_CON_STATE_READ_REQUEST_HEADER;
 	}
 
-	if (con->state == CON_STATE_READ_REQUEST_HEADER && con->mainvr->state == VRS_CLEAN) {
-		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+	if (con->state == LI_CON_STATE_READ_REQUEST_HEADER && con->mainvr->state == LI_VRS_CLEAN) {
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "%s", "reading request header");
 		}
 		switch(http_request_parse(con->mainvr, &con->req_parser_ctx)) {
-		case HANDLER_GO_ON:
+		case LI_HANDLER_GO_ON:
 			break; /* go on */
-		case HANDLER_WAIT_FOR_EVENT:
+		case LI_HANDLER_WAIT_FOR_EVENT:
 			return TRUE;
-		case HANDLER_ERROR:
-		case HANDLER_COMEBACK: /* unexpected */
+		case LI_HANDLER_ERROR:
+		case LI_HANDLER_COMEBACK: /* unexpected */
 			/* unparsable header */
 			connection_error(con);
 			return FALSE;
@@ -169,12 +169,12 @@ static gboolean connection_handle_read(connection *con) {
 		con->wrk->stats.requests++;
 
 		/* headers ready */
-		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "%s", "validating request header");
 		}
 		if (!request_validate_header(con)) {
 			/* skip mainvr handling */
-			con->state = CON_STATE_WRITE;
+			con->state = LI_CON_STATE_WRITE;
 			con->keep_alive = FALSE;
 			con->in->is_closed = TRUE;
 			forward_response_body(con);
@@ -185,7 +185,7 @@ static gboolean connection_handle_read(connection *con) {
 			 * before sending it to a backend - so just send the stupid header
 			 */
 			if (con->expect_100_cont) {
-				if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 					VR_DEBUG(vr, "%s", "send 100 Continue");
 				}
 				chunkqueue_append_mem(con->raw_out, CONST_STR_LEN("HTTP/1.1 100 Continue\r\n\r\n"));
@@ -193,7 +193,7 @@ static gboolean connection_handle_read(connection *con) {
 				ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
 			}
 
-			con->state = CON_STATE_HANDLE_MAINVR;
+			con->state = LI_CON_STATE_HANDLE_MAINVR;
 			action_enter(con->mainvr, con->srv->mainaction);
 			vrequest_handle_request_headers(con->mainvr);
 		}
@@ -205,10 +205,10 @@ static gboolean connection_handle_read(connection *con) {
 }
 
 static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	network_status_t res;
+	liNetworkStatus res;
 	goffset write_max;
 	goffset transferred;
-	connection *con = (connection*) w->data;
+	liConnection *con = (liConnection*) w->data;
 
 	if (revents & EV_READ) {
 		if (con->in->is_closed) {
@@ -224,21 +224,21 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			con->stats.bytes_in += transferred;
 
 			switch (res) {
-			case NETWORK_STATUS_SUCCESS:
+			case LI_NETWORK_STATUS_SUCCESS:
 				if (!connection_handle_read(con)) return;
 				break;
-			case NETWORK_STATUS_FATAL_ERROR:
+			case LI_NETWORK_STATUS_FATAL_ERROR:
 				_ERROR(con->srv, con->mainvr, "%s", "network read fatal error");
 				connection_error(con);
 				return;
-			case NETWORK_STATUS_CONNECTION_CLOSE:
+			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
 				con->raw_in->is_closed = TRUE;
 				shutdown(w->fd, SHUT_RD);
 				connection_close(con);
 				return;
-			case NETWORK_STATUS_WAIT_FOR_EVENT:
+			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;
-			case NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
+			case LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
 				/* TODO: aio */
 				ev_io_rem_events(loop, w, EV_READ);
 				break;
@@ -264,19 +264,19 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				con->stats.bytes_out += transferred;
 
 				switch (res) {
-				case NETWORK_STATUS_SUCCESS:
+				case LI_NETWORK_STATUS_SUCCESS:
 					vrequest_joblist_append(con->mainvr);
 					break;
-				case NETWORK_STATUS_FATAL_ERROR:
+				case LI_NETWORK_STATUS_FATAL_ERROR:
 					_ERROR(con->srv, con->mainvr, "%s", "network write fatal error");
 					connection_error(con);
 					return;
-				case NETWORK_STATUS_CONNECTION_CLOSE:
+				case LI_NETWORK_STATUS_CONNECTION_CLOSE:
 					connection_close(con);
 					return;
-				case NETWORK_STATUS_WAIT_FOR_EVENT:
+				case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 					break;
-				case NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
+				case LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
 					ev_io_rem_events(loop, w, EV_WRITE);
 					_ERROR(con->srv, con->mainvr, "%s", "TODO: wait for aio");
 					/* TODO: aio */
@@ -304,7 +304,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				}
 
 				if (con->throttle.pool.ptr && con->throttle.pool.magazine <= MAX(write_max,0) && !con->throttle.pool.queued) {
-					throttle_pool_t *pool = con->throttle.pool.ptr;
+					liThrottlePool *pool = con->throttle.pool.ptr;
 					g_atomic_int_inc(&pool->num_cons);
 					g_queue_push_tail_link(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.pool.lnk);
 					con->throttle.pool.queued = TRUE;
@@ -323,55 +323,55 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 }
 
 static void connection_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	connection *con = (connection*) w->data;
+	liConnection *con = (liConnection*) w->data;
 	UNUSED(loop); UNUSED(revents);
 	worker_con_put(con);
 }
 
-static handler_t mainvr_handle_response_headers(vrequest *vr) {
-	connection *con = vr->con;
-	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+static liHandlerResult mainvr_handle_response_headers(liVRequest *vr) {
+	liConnection *con = vr->con;
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "%s", "read request/handle response header");
 	}
 	parse_request_body(con);
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static handler_t mainvr_handle_response_body(vrequest *vr) {
-	connection *con = vr->con;
-	if (check_response_done(con)) return HANDLER_GO_ON;
+static liHandlerResult mainvr_handle_response_body(liVRequest *vr) {
+	liConnection *con = vr->con;
+	if (check_response_done(con)) return LI_HANDLER_GO_ON;
 
-	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "%s", "write response");
 	}
 
 	parse_request_body(con);
 	forward_response_body(con);
 
-	if (check_response_done(con)) return HANDLER_GO_ON;
+	if (check_response_done(con)) return LI_HANDLER_GO_ON;
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static handler_t mainvr_handle_response_error(vrequest *vr) {
+static liHandlerResult mainvr_handle_response_error(liVRequest *vr) {
 	connection_internal_error(vr->con);
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static handler_t mainvr_handle_request_headers(vrequest *vr) {
+static liHandlerResult mainvr_handle_request_headers(liVRequest *vr) {
 	/* start reading input */
 	parse_request_body(vr->con);
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-connection* connection_new(worker *wrk) {
-	server *srv = wrk->srv;
-	connection *con = g_slice_new0(connection);
+liConnection* connection_new(liWorker *wrk) {
+	liServer *srv = wrk->srv;
+	liConnection *con = g_slice_new0(liConnection);
 	con->wrk = wrk;
 	con->srv = srv;
 
-	con->state = CON_STATE_DEAD;
+	con->state = LI_CON_STATE_DEAD;
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
@@ -416,8 +416,8 @@ connection* connection_new(worker *wrk) {
 	return con;
 }
 
-void connection_reset(connection *con) {
-	con->state = CON_STATE_DEAD;
+void connection_reset(liConnection *con) {
+	con->state = LI_CON_STATE_DEAD;
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
@@ -473,7 +473,7 @@ void connection_reset(connection *con) {
 
 	if (con->throttle.pool.ptr) {
 		if (con->throttle.pool.queued) {
-			throttle_pool_t *pool = con->throttle.pool.ptr;
+			liThrottlePool *pool = con->throttle.pool.ptr;
 			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.pool.lnk);
 			g_atomic_int_add(&con->throttle.pool.ptr->num_cons, -1);
 			con->throttle.pool.queued = FALSE;
@@ -489,7 +489,7 @@ void connection_reset(connection *con) {
 
 	if (con->throttle.ip.ptr) {
 		if (con->throttle.ip.queued) {
-			throttle_pool_t *pool = con->throttle.ip.ptr;
+			liThrottlePool *pool = con->throttle.ip.ptr;
 			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.ip.lnk);
 			g_atomic_int_add(&con->throttle.ip.ptr->num_cons, -1);
 			con->throttle.ip.queued = FALSE;
@@ -506,12 +506,12 @@ void connection_reset(connection *con) {
 	con->throttled = FALSE;
 }
 
-void server_check_keepalive(server *srv);
-void connection_reset_keep_alive(connection *con) {
-	vrequest *vr = con->mainvr;
+void server_check_keepalive(liServer *srv);
+void connection_reset_keep_alive(liConnection *con) {
+	liVRequest *vr = con->mainvr;
 	ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 	{
-		con->keep_alive_data.max_idle = CORE_OPTION(CORE_OPTION_MAX_KEEP_ALIVE_IDLE).number;
+		con->keep_alive_data.max_idle = CORE_OPTION(LI_CORE_OPTION_MAX_KEEP_ALIVE_IDLE).number;
 		if (con->keep_alive_data.max_idle == 0) {
 			worker_con_put(con);
 			return;
@@ -530,7 +530,7 @@ void connection_reset_keep_alive(connection *con) {
 		}
 	}
 
-	con->state = CON_STATE_KEEP_ALIVE;
+	con->state = LI_CON_STATE_KEEP_ALIVE;
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
@@ -560,7 +560,7 @@ void connection_reset_keep_alive(connection *con) {
 
 	if (con->throttle.pool.ptr) {
 		if (con->throttle.pool.queued) {
-			throttle_pool_t *pool = con->throttle.pool.ptr;
+			liThrottlePool *pool = con->throttle.pool.ptr;
 			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.pool.lnk);
 			g_atomic_int_add(&con->throttle.pool.ptr->num_cons, -1);
 			con->throttle.pool.queued = FALSE;
@@ -576,7 +576,7 @@ void connection_reset_keep_alive(connection *con) {
 
 	if (con->throttle.ip.ptr) {
 		if (con->throttle.ip.queued) {
-			throttle_pool_t *pool = con->throttle.ip.ptr;
+			liThrottlePool *pool = con->throttle.ip.ptr;
 			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.ip.lnk);
 			g_atomic_int_add(&con->throttle.ip.ptr->num_cons, -1);
 			con->throttle.ip.queued = FALSE;
@@ -593,8 +593,8 @@ void connection_reset_keep_alive(connection *con) {
 	con->throttled = FALSE;
 }
 
-void connection_free(connection *con) {
-	con->state = CON_STATE_DEAD;
+void connection_free(liConnection *con) {
+	con->state = LI_CON_STATE_DEAD;
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
@@ -628,10 +628,10 @@ void connection_free(connection *con) {
 	if (con->wrk)
 		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 
-	g_slice_free(connection, con);
+	g_slice_free(liConnection, con);
 }
 
-gchar *connection_state_str(connection_state_t state) {
+gchar *connection_state_str(liConnectionState state) {
 	static const gchar *states[] = {
 		"dead",
 		"keep-alive",

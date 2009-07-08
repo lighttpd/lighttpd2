@@ -31,8 +31,8 @@
 #include <lighttpd/base.h>
 #include <lighttpd/collect.h>
 
-LI_API gboolean mod_status_init(modules *mods, module *mod);
-LI_API gboolean mod_status_free(modules *mods, module *mod);
+LI_API gboolean mod_status_init(liModules *mods, liModule *mod);
+LI_API gboolean mod_status_free(liModules *mods, liModule *mod);
 
 /* html snippet constants */
 static const gchar header[] =
@@ -156,11 +156,11 @@ typedef struct mod_status_job mod_status_job;
 
 struct mod_status_con_data {
 	guint worker_ndx;
-	connection_state_t state;
+	liConnectionState state;
 	GString *remote_addr_str, *local_addr_str;
 	gboolean is_ssl, keep_alive;
 	GString *host, *path, *query;
-	http_method_t method;
+	liHttpMethod method;
 	goffset request_size;
 	goffset response_size;
 	ev_tstamp ts;
@@ -172,24 +172,24 @@ struct mod_status_con_data {
 
 struct mod_status_wrk_data {
 	guint worker_ndx;
-	statistics_t stats;
+	liStatistics stats;
 	GArray *connections;
 };
 
 struct mod_status_job {
-	vrequest *vr;
+	liVRequest *vr;
 	gpointer *context;
-	plugin *p;
+	liPlugin *p;
 };
 
 
-static gchar status_state_c(connection_state_t state) {
+static gchar status_state_c(liConnectionState state) {
 	static const gchar states[] = "dksrhw";
 	return states[state];
 }
 
 /* the CollectFunc */
-static gpointer status_collect_func(worker *wrk, gpointer fdata) {
+static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 	mod_status_wrk_data *sd = g_slice_new(mod_status_wrk_data);
 	UNUSED(fdata);
 
@@ -199,7 +199,7 @@ static gpointer status_collect_func(worker *wrk, gpointer fdata) {
 	sd->connections = g_array_sized_new(FALSE, TRUE, sizeof(mod_status_con_data), wrk->connections_active);
 	g_array_set_size(sd->connections, wrk->connections_active);
 	for (guint i = 0; i < wrk->connections_active; i++) {
-		connection *c = g_array_index(wrk->connections, connection*, i);
+		liConnection *c = g_array_index(wrk->connections, liConnection*, i);
 		mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, i);
 		cd->is_ssl = c->is_ssl;
 		cd->keep_alive = c->keep_alive;
@@ -224,8 +224,8 @@ static gpointer status_collect_func(worker *wrk, gpointer fdata) {
 /* the CollectCallback */
 static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
 	mod_status_job *job = cbdata;
-	vrequest *vr;
-	plugin *p;
+	liVRequest *vr;
+	liPlugin *p;
 	UNUSED(fdata);
 
 	if (!complete) {
@@ -269,7 +269,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		guint j;
 
 		/* we got everything */
-		statistics_t totals = {
+		liStatistics totals = {
 			G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0),
 			G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0),
 			G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0),
@@ -500,9 +500,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 						bytes_out->str,
 						bytes_in_5s->str,
 						bytes_out_5s->str,
-						(cd->state >= CON_STATE_HANDLE_MAINVR) ? http_method_string(cd->method, &len) : "",
-						(cd->state >= CON_STATE_HANDLE_MAINVR) ? req_len->str : "",
-						(cd->state >= CON_STATE_HANDLE_MAINVR) ? resp_len->str : ""
+						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? http_method_string(cd->method, &len) : "",
+						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? req_len->str : "",
+						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? resp_len->str : ""
 					);
 
 					g_string_free(cd->remote_addr_str, TRUE);
@@ -554,13 +554,13 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 	}
 }
 
-static handler_t status_page_handle(vrequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult status_page_handle(liVRequest *vr, gpointer param, gpointer *context) {
 	if (vrequest_handle_direct(vr)) {
-		collect_info *ci;
+		liCollectInfo *ci;
 		mod_status_job *j = g_slice_new(mod_status_job);
 		j->vr = vr;
 		j->context = context;
-		j->p = (plugin*) param;
+		j->p = (liPlugin*) param;
 
 		VR_DEBUG(vr, "%s", "collecting stats...");
 
@@ -568,21 +568,21 @@ static handler_t status_page_handle(vrequest *vr, gpointer param, gpointer *cont
 		*context = ci; /* may be NULL */
 	}
 
-	return (*context) ? HANDLER_WAIT_FOR_EVENT : HANDLER_GO_ON;
+	return (*context) ? LI_HANDLER_WAIT_FOR_EVENT : LI_HANDLER_GO_ON;
 }
 
-static handler_t status_page_cleanup(vrequest *vr, gpointer param, gpointer context) {
-	collect_info *ci = (collect_info*) context;
+static liHandlerResult status_page_cleanup(liVRequest *vr, gpointer param, gpointer context) {
+	liCollectInfo *ci = (liCollectInfo*) context;
 
 	UNUSED(vr);
 	UNUSED(param);
 
 	collect_break(ci);
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static action* status_page(server *srv, plugin* p, value *val) {
+static liAction* status_page(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(srv);
 	UNUSED(val);
 
@@ -591,24 +591,24 @@ static action* status_page(server *srv, plugin* p, value *val) {
 
 
 
-static const plugin_option options[] = {
-	{ "status.css", VALUE_STRING, NULL, NULL, NULL },
+static const liPluginOption options[] = {
+	{ "status.css", LI_VALUE_STRING, NULL, NULL, NULL },
 
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
-static const plugin_action actions[] = {
+static const liPluginAction actions[] = {
 	{ "status.page", status_page },
 
 	{ NULL, NULL }
 };
 
-static const plugin_setup setups[] = {
+static const liliPluginSetupCB setups[] = {
 	{ NULL, NULL }
 };
 
 
-static void plugin_status_init(server *srv, plugin *p) {
+static void plugin_status_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
 
 	p->options = options;
@@ -617,7 +617,7 @@ static void plugin_status_init(server *srv, plugin *p) {
 }
 
 
-gboolean mod_status_init(modules *mods, module *mod) {
+gboolean mod_status_init(liModules *mods, liModule *mod) {
 	UNUSED(mod);
 
 	MODULE_VERSION_CHECK(mods);
@@ -627,7 +627,7 @@ gboolean mod_status_init(modules *mods, module *mod) {
 	return mod->config != NULL;
 }
 
-gboolean mod_status_free(modules *mods, module *mod) {
+gboolean mod_status_free(liModules *mods, liModule *mod) {
 	UNUSED(mods); UNUSED(mod);
 
 	if (mod->config)

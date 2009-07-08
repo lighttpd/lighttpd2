@@ -7,43 +7,43 @@
 
 typedef enum {
 	/** unused */
-	CON_STATE_DEAD,
+	LI_CON_STATE_DEAD,
 
 	/** waiting for new input after first request */
-	CON_STATE_KEEP_ALIVE,
+	LI_CON_STATE_KEEP_ALIVE,
 
 	/** after the connect, the request is initialized */
-	CON_STATE_REQUEST_START,
+	LI_CON_STATE_REQUEST_START,
 
 	/** loop in the read-request-header until the full header is received */
-	CON_STATE_READ_REQUEST_HEADER,
+	LI_CON_STATE_READ_REQUEST_HEADER,
 
 	/** handle in main virtual request */
-	CON_STATE_HANDLE_MAINVR,
+	LI_CON_STATE_HANDLE_MAINVR,
 
 	/** write remaining bytes from raw_out, mainvr finished (or not started) */
-	CON_STATE_WRITE,
-} connection_state_t;
+	LI_CON_STATE_WRITE,
+} liConnectionState;
 
-struct connection {
+struct liConnection {
 	guint idx; /** index in connection table */
-	server *srv;
-	worker *wrk;
-	server_socket *srv_sock;
+	liServer *srv;
+	liWorker *wrk;
+	liServerSocket *srv_sock;
 
-	connection_state_t state;
+	liConnectionState state;
 	gboolean response_headers_sent, expect_100_cont;
 
-	chunkqueue *raw_in, *raw_out;
-	chunkqueue *in, *out;    /* link to mainvr->in/out */
+	liChunkQueue *raw_in, *raw_out;
+	liChunkQueue *in, *out;    /* link to mainvr->in/out */
 
 	ev_io sock_watcher;
-	sockaddr_t remote_addr;
+	liSocketAddress remote_addr;
 	GString *remote_addr_str;
 	gboolean is_ssl, keep_alive;
 
-	vrequest *mainvr;
-	http_request_ctx req_parser_ctx;
+	liVRequest *mainvr;
+	liHttpRequestCtx req_parser_ctx;
 
 	/* Keep alive timeout data */
 	struct {
@@ -55,19 +55,19 @@ struct connection {
 	guint keep_alive_requests;
 
 	/* I/O timeout data */
-	waitqueue_elem io_timeout_elem;
+	liWaitQueueElem io_timeout_elem;
 
 	/* I/O throttling */
 	gboolean throttled; /* TRUE if connection is throttled */
 	struct {
 		struct {
-			throttle_pool_t *ptr; /* NULL if not in any throttling pool */
+			liThrottlePool *ptr; /* NULL if not in any throttling pool */
 			GList lnk;
 			gboolean queued;
 			gint magazine;
 		} pool;
 		struct {
-			throttle_pool_t *ptr; /* pool for per-ip throttling, NULL if not limited by ip */
+			liThrottlePool *ptr; /* pool for per-ip throttling, NULL if not limited by ip */
 			GList lnk;
 			gboolean queued;
 			gint magazine;
@@ -77,7 +77,7 @@ struct connection {
 			gint magazine;
 			ev_tstamp last_update;
 		} con;
-		waitqueue_elem wqueue_elem;
+		liWaitQueueElem wqueue_elem;
 	} throttle;
 
 	ev_tstamp ts;
@@ -93,17 +93,17 @@ struct connection {
 	} stats;
 };
 
-LI_API connection* connection_new(worker *wrk);
-LI_API void connection_reset(connection *con);
-LI_API void connection_reset_keep_alive(connection *con);
-LI_API void connection_free(connection *con);
+LI_API liConnection* connection_new(liWorker *wrk);
+LI_API void connection_reset(liConnection *con);
+LI_API void connection_reset_keep_alive(liConnection *con);
+LI_API void connection_free(liConnection *con);
 
-LI_API void connection_error(connection *con);
-LI_API void connection_internal_error(connection *con);
+LI_API void connection_error(liConnection *con);
+LI_API void connection_internal_error(liConnection *con);
 
-LI_API void connection_handle_direct(connection *con);
-LI_API void connection_handle_indirect(connection *con, plugin *p);
+LI_API void connection_handle_direct(liConnection *con);
+LI_API void connection_handle_indirect(liConnection *con, liPlugin *p);
 
-LI_API gchar *connection_state_str(connection_state_t state);
+LI_API gchar *connection_state_str(liConnectionState state);
 
 #endif

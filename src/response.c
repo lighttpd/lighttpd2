@@ -2,27 +2,27 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
-void response_init(response *resp) {
+void response_init(liResponse *resp) {
 	resp->headers = http_headers_new();
 	resp->http_status = 0;
-	resp->transfer_encoding = HTTP_TRANSFER_ENCODING_IDENTITY;
+	resp->transfer_encoding = LI_HTTP_TRANSFER_ENCODING_IDENTITY;
 }
 
-void response_reset(response *resp) {
+void response_reset(liResponse *resp) {
 	http_headers_reset(resp->headers);
 	resp->http_status = 0;
-	resp->transfer_encoding = HTTP_TRANSFER_ENCODING_IDENTITY;
+	resp->transfer_encoding = LI_HTTP_TRANSFER_ENCODING_IDENTITY;
 }
 
-void response_clear(response *resp) {
+void response_clear(liResponse *resp) {
 	http_headers_free(resp->headers);
 	resp->http_status = 0;
-	resp->transfer_encoding = HTTP_TRANSFER_ENCODING_IDENTITY;
+	resp->transfer_encoding = LI_HTTP_TRANSFER_ENCODING_IDENTITY;
 }
 
-void response_send_headers(connection *con) {
+void response_send_headers(liConnection *con) {
 	GString *head;
-	vrequest *vr = con->mainvr;
+	liVRequest *vr = con->mainvr;
 
 	if (vr->response.http_status < 100 || vr->response.http_status > 999) {
 		VR_ERROR(vr, "wrong status: %i", vr->response.http_status);
@@ -54,10 +54,10 @@ void response_send_headers(connection *con) {
 	} else if (con->out->is_closed) {
 		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, con->out->length);
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(con->wrk->tmp_str));
-	} else if (con->keep_alive && vr->request.http_version == HTTP_VERSION_1_1) {
+	} else if (con->keep_alive && vr->request.http_version == LI_HTTP_VERSION_1_1) {
 		/* TODO: maybe someone set a content length header? */
-		if (!(vr->response.transfer_encoding & HTTP_TRANSFER_ENCODING_CHUNKED)) {
-			vr->response.transfer_encoding |= HTTP_TRANSFER_ENCODING_CHUNKED;
+		if (!(vr->response.transfer_encoding & LI_HTTP_TRANSFER_ENCODING_CHUNKED)) {
+			vr->response.transfer_encoding |= LI_HTTP_TRANSFER_ENCODING_CHUNKED;
 			http_header_append(vr->response.headers, CONST_STR_LEN("Transfer-Encoding"), CONST_STR_LEN("chunked"));
 		}
 	} else {
@@ -65,14 +65,14 @@ void response_send_headers(connection *con) {
 		con->keep_alive = FALSE;
 	}
 
-	if (vr->request.http_method == HTTP_METHOD_HEAD) {
+	if (vr->request.http_method == LI_HTTP_METHOD_HEAD) {
 		/* content-length is set, but no body */
 		chunkqueue_reset(con->out);
 		con->out->is_closed = TRUE;
 	}
 
 	/* Status line */
-	if (vr->request.http_version == HTTP_VERSION_1_1) {
+	if (vr->request.http_version == LI_HTTP_VERSION_1_1) {
 		g_string_append_len(head, CONST_STR_LEN("HTTP/1.1 "));
 		if (!con->keep_alive)
 			http_header_overwrite(vr->response.headers, CONST_STR_LEN("Connection"), CONST_STR_LEN("close"));
@@ -95,12 +95,12 @@ void response_send_headers(connection *con) {
 
 	/* Append headers */
 	{
-		http_header *header;
+		liHttpHeader *header;
 		GList *iter;
 		gboolean have_date = FALSE, have_server = FALSE;
 
 		for (iter = g_queue_peek_head_link(&vr->response.headers->entries); iter; iter = g_list_next(iter)) {
-			header = (http_header*) iter->data;
+			header = (liHttpHeader*) iter->data;
 			g_string_append_len(head, GSTR_LEN(header->data));
 			g_string_append_len(head, CONST_STR_LEN("\r\n"));
 			if (!have_date && http_header_key_is(header, CONST_STR_LEN("date"))) have_date = TRUE;
@@ -116,7 +116,7 @@ void response_send_headers(connection *con) {
 		}
 
 		if (!have_server) {
-			GString *tag = CORE_OPTION(CORE_OPTION_SERVER_TAG).string;
+			GString *tag = CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string;
 
 			if (tag->len) {
 				g_string_append_len(head, CONST_STR_LEN("Server: "));
@@ -131,7 +131,7 @@ void response_send_headers(connection *con) {
 }
 
 
-void response_send_error_page(connection *con) {
+void response_send_error_page(liConnection *con) {
 	gchar status_str[3];
 	guint len;
 	gchar *str;

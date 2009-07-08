@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
 
 	gboolean res;
 	int result = 0;
-	server* srv = NULL;
+	liServer* srv = NULL;
 
 	GOptionEntry entries[] = {
 		{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_path, "filename/path of the config", "PATH" },

@@ -17,27 +17,27 @@ LI_API const char *remove_path(const char *path);
 
 #define _SEGFAULT(srv, vr, fmt, ...) \
 	do { \
-		log_write_(srv, NULL, LOG_LEVEL_ABORT, LOG_FLAG_TIMESTAMP, "(crashing) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
+		log_write_(srv, NULL, LI_LOG_LEVEL_ABORT, LOG_FLAG_TIMESTAMP, "(crashing) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
 		/* VALGRIND_PRINTF_BACKTRACE(fmt, __VA_ARGS__); */\
 		abort();\
 	} while(0)
 
 #define _ERROR(srv, vr, fmt, ...) \
-	log_write_(srv, vr, LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "(error) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, vr, LI_LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "(error) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _WARNING(srv, vr, fmt, ...) \
-	log_write_(srv, vr, LOG_LEVEL_WARNING, LOG_FLAG_TIMESTAMP, "(warning) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, vr, LI_LOG_LEVEL_WARNING, LOG_FLAG_TIMESTAMP, "(warning) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _INFO(srv, vr, fmt, ...) \
-	log_write_(srv, vr, LOG_LEVEL_INFO, LOG_FLAG_TIMESTAMP, "(info) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, vr, LI_LOG_LEVEL_INFO, LOG_FLAG_TIMESTAMP, "(info) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _DEBUG(srv, vr, fmt, ...) \
-	log_write_(srv, vr, LOG_LEVEL_DEBUG, LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, vr, LI_LOG_LEVEL_DEBUG, LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _BACKEND(srv, vr, fmt, ...) \
-	log_write_(srv, vr, LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, "(backend) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write_(srv, vr, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, "(backend) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 #define _BACKEND_LINES(srv, vr, txt, fmt, ...) \
-	log_split_lines_(srv, vr, LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, txt, "(backend) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_split_lines_(srv, vr, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, txt, "(backend) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 
 #define VR_SEGFAULT(vr, fmt, ...) _SEGFAULT(vr->wrk->srv, vr, fmt, __VA_ARGS__)
@@ -55,41 +55,14 @@ LI_API const char *remove_path(const char *path);
 #define DEBUG(srv, fmt, ...)      _DEBUG(srv, NULL, fmt, __VA_ARGS__)
 #define BACKEND(srv, fmt, ...)    _BACKEND(srv, NULL, fmt, __VA_ARGS__)
 
-
-struct log_t;
-typedef struct log_t log_t;
-
-struct log_entry_t;
-typedef struct log_entry_t log_entry_t;
-
-struct log_timestamp_t;
-typedef struct log_timestamp_t log_timestamp_t;
-
-typedef enum {
-	LOG_LEVEL_DEBUG,
-	LOG_LEVEL_INFO,
-	LOG_LEVEL_WARNING,
-	LOG_LEVEL_ERROR,
-	LOG_LEVEL_ABORT,
-	LOG_LEVEL_BACKEND
-} log_level_t;
-
-typedef enum {
-	LOG_TYPE_STDERR,
-	LOG_TYPE_FILE,
-	LOG_TYPE_PIPE,
-	LOG_TYPE_SYSLOG,
-	LOG_TYPE_NONE
-} log_type_t;
-
 /* flags for log_write */
 #define LOG_FLAG_NONE         (0x0)      /* default flag */
 #define LOG_FLAG_TIMESTAMP    (0x1)      /* prepend a timestamp to the log message */
 #define LOG_FLAG_NOLOCK       (0x1 << 1) /* for internal use only */
 #define LOG_FLAG_ALLOW_REPEAT (0x1 << 2) /* allow writing of multiple equal entries after each other */
 
-struct log_t {
-	log_type_t type;
+struct liLog {
+	liLogType type;
 	GString *path;
 	gint refcount;
 	gint fd;
@@ -100,62 +73,62 @@ struct log_t {
 	GMutex *mutex;
 };
 
-struct log_timestamp_t {
+struct liLogTimestamp {
 	gint refcount;
 	ev_tstamp last_ts;
 	GString *format;
 	GString *cached;
 };
 
-struct log_entry_t {
-	log_t *log;
-	log_level_t level;
+struct liLogEntry {
+	liLog *log;
+	liLogLevel level;
 	GString *msg;
 };
 
 /* determines the type of a log target by the path given. /absolute/path = file; |app = pipe; stderr = stderr; syslog = syslog */
-log_type_t log_type_from_path(GString *path);
+liLogType log_type_from_path(GString *path);
 
-log_level_t log_level_from_string(GString *str);
-gchar* log_level_str(log_level_t log_level);
+liLogLevel log_level_from_string(GString *str);
+gchar* log_level_str(liLogLevel log_level);
 
 /* log_new is used to create a new log target, if a log with the same path already exists, it is referenced instead */
-log_t *log_new(server *srv, log_type_t type, GString *path);
+liLog *log_new(liServer *srv, liLogType type, GString *path);
 /* avoid calling log_free directly. instead use log_unref which calls log_free if refcount has reached zero */
-void log_free(server *srv, log_t *log);
-void log_free_unlocked(server *srv, log_t *log);
+void log_free(liServer *srv, liLog *log);
+void log_free_unlocked(liServer *srv, liLog *log);
 
-void log_ref(server *srv, log_t *log);
-void log_unref(server *srv, log_t *log);
+void log_ref(liServer *srv, liLog *log);
+void log_unref(liServer *srv, liLog *log);
 
-void log_lock(log_t *log);
-void log_unlock(log_t *log);
+void log_lock(liLog *log);
+void log_unlock(liLog *log);
 
 /* do not call directly, use log_rotate_logs instead */
-void log_rotate(gchar *path, log_t *log, server *srv);
+void log_rotate(gchar *path, liLog *log, liServer *srv);
 
-void log_rotate_logs(server *srv);
+void log_rotate_logs(liServer *srv);
 
-gpointer log_thread(server *srv);
-void log_thread_start(server *srv);
-void log_thread_stop(server *srv);
-void log_thread_finish(server *srv);
-void log_thread_wakeup(server *srv);
+gpointer log_thread(liServer *srv);
+void log_thread_start(liServer *srv);
+void log_thread_stop(liServer *srv);
+void log_thread_finish(liServer *srv);
+void log_thread_wakeup(liServer *srv);
 
-void log_init(server *srv);
-void log_cleanup(server *srv);
+void log_init(liServer *srv);
+void log_cleanup(liServer *srv);
 
 /* log_write is used to directly write a message to a log target */
-LI_API void log_write(server *srv, log_t *log, GString *msg);
+LI_API void log_write(liServer *srv, liLog *log, GString *msg);
 /* log_write_ is used to write to the errorlog */
-LI_API gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flags, const gchar *fmt, ...) G_GNUC_PRINTF(5, 6);
+LI_API gboolean log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, const gchar *fmt, ...) G_GNUC_PRINTF(5, 6);
 
-LI_API log_timestamp_t *log_timestamp_new(server *srv, GString *format);
-LI_API gboolean log_timestamp_free(server *srv, log_timestamp_t *ts);
+LI_API liLogTimestamp *log_timestamp_new(liServer *srv, GString *format);
+LI_API gboolean log_timestamp_free(liServer *srv, liLogTimestamp *ts);
 
 /* replaces '\r' and '\n' with '\0' */
-LI_API void log_split_lines(server *srv, vrequest *vr, log_level_t log_level, guint flags, gchar *txt, const gchar *prefix);
-LI_API void log_split_lines_(server *srv, vrequest *vr, log_level_t log_level, guint flags, gchar *txt, const gchar *fmt, ...) G_GNUC_PRINTF(6, 7);
+LI_API void log_split_lines(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix);
+LI_API void log_split_lines_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) G_GNUC_PRINTF(6, 7);
 
 
 #endif

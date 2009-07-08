@@ -2,13 +2,13 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
-tristate_t http_response_handle_cachable_etag(vrequest *vr, GString *etag) {
+tristate_t http_response_handle_cachable_etag(liVRequest *vr, GString *etag) {
 	GList *l;
 	tristate_t res = TRI_MAYBE;
 	gchar *setag = NULL;
 
 	if (!etag) {
-		http_header *hetag = http_header_lookup(vr->response.headers, CONST_STR_LEN("etag"));
+		liHttpHeader *hetag = http_header_lookup(vr->response.headers, CONST_STR_LEN("etag"));
 		if (hetag) setag = hetag->data->str + hetag->keylen + 2;
 	} else {
 		setag = etag->str;
@@ -18,7 +18,7 @@ tristate_t http_response_handle_cachable_etag(vrequest *vr, GString *etag) {
 			l = http_header_find_first(vr->request.headers, CONST_STR_LEN("If-None-Match"));
 			l;
 			l = http_header_find_next(l, CONST_STR_LEN("If-None-Match"))) {
-		http_header *h = (http_header*) l->data;
+		liHttpHeader *h = (liHttpHeader*) l->data;
 		res = TRI_FALSE; /* if the header was given at least once, we need a match */
 		if (!setag) return res;
 		if (strstr(h->data->str + h->keylen + 2, setag)) {
@@ -28,10 +28,10 @@ tristate_t http_response_handle_cachable_etag(vrequest *vr, GString *etag) {
 	return res;
 }
 
-tristate_t http_response_handle_cachable_modified(vrequest *vr, GString *last_modified) {
+tristate_t http_response_handle_cachable_modified(liVRequest *vr, GString *last_modified) {
 	GList *l;
 	gchar *slm = NULL, *hlm;
-	http_header *h;
+	liHttpHeader *h;
 	size_t used_len;
 	char *semicolon;
 
@@ -47,7 +47,7 @@ tristate_t http_response_handle_cachable_modified(vrequest *vr, GString *last_mo
 	if (http_header_find_next(l, CONST_STR_LEN("If-Modified-Since"))) {
 		return TRI_FALSE; /* we only check one if-modified-since header */
 	}
-	h = (http_header*) l->data;
+	h = (liHttpHeader*) l->data;
 	hlm = h->data->str + h->keylen + 2;
 	if (!slm) return TRI_FALSE;
 
@@ -66,7 +66,7 @@ tristate_t http_response_handle_cachable_modified(vrequest *vr, GString *last_mo
 	
 		/* check if we can safely copy the string */
 		if (used_len >= sizeof(buf)) {
-			if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "Last-Modified check failed as the received timestamp '%s' was too long (%u > %u)",
 					hlm, (int) used_len, (int) sizeof(buf) - 1);
 			}
@@ -106,8 +106,8 @@ void etag_mutate(GString *mut, GString *etag) {
 	g_string_append_len(mut, CONST_STR_LEN("\""));
 }
 
-void etag_set_header(vrequest *vr, struct stat *st, gboolean *cachable) {
-	guint flags = CORE_OPTION(CORE_OPTION_ETAG_FLAGS).number;
+void etag_set_header(liVRequest *vr, struct stat *st, gboolean *cachable) {
+	guint flags = CORE_OPTION(LI_CORE_OPTION_ETAG_FLAGS).number;
 	GString *tmp_str = vr->wrk->tmp_str;
 	struct tm tm;
 	tristate_t c_able = cachable ? TRI_MAYBE : TRI_FALSE;
@@ -117,16 +117,16 @@ void etag_set_header(vrequest *vr, struct stat *st, gboolean *cachable) {
 	} else {
 		g_string_truncate(tmp_str, 0);
 	
-		if (flags & ETAG_USE_INODE) {
+		if (flags & LI_ETAG_USE_INODE) {
 			l_g_string_append_int(tmp_str, st->st_ino);
 		}
 		
-		if (flags & ETAG_USE_SIZE) {
+		if (flags & LI_ETAG_USE_SIZE) {
 			if (tmp_str->len != 0) g_string_append_len(tmp_str, CONST_STR_LEN("-"));
 			l_g_string_append_int(tmp_str, st->st_size);
 		}
 		
-		if (flags & ETAG_USE_MTIME) {
+		if (flags & LI_ETAG_USE_MTIME) {
 			if (tmp_str->len != 0) g_string_append_len(tmp_str, CONST_STR_LEN("-"));
 			l_g_string_append_int(tmp_str, st->st_mtime);
 		}

@@ -7,14 +7,14 @@
 #include <lighttpd/base.h>
 
 
-throttle_pool_t *throttle_pool_new(server *srv, GString *name, guint rate) {
-	throttle_pool_t *pool;
+liThrottlePool *throttle_pool_new(liServer *srv, GString *name, guint rate) {
+	liThrottlePool *pool;
 	guint i;
 	guint worker_count;
 
 	worker_count = srv->worker_count ? srv->worker_count : 1;
 
-	pool = g_slice_new0(throttle_pool_t);
+	pool = g_slice_new0(liThrottlePool);
 	pool->rate = rate;
 	pool->magazine = rate * THROTTLE_GRANULARITY;
 	pool->name = name;
@@ -36,7 +36,7 @@ throttle_pool_t *throttle_pool_new(server *srv, GString *name, guint rate) {
 	return pool;
 }
 
-void throttle_pool_free(server *srv, throttle_pool_t *pool) {
+void throttle_pool_free(liServer *srv, liThrottlePool *pool) {
 	guint i;
 	guint worker_count;
 
@@ -53,15 +53,15 @@ void throttle_pool_free(server *srv, throttle_pool_t *pool) {
 
 	g_string_free(pool->name, TRUE);
 
-	g_slice_free(throttle_pool_t, pool);
+	g_slice_free(liThrottlePool, pool);
 }
 
 
 void throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	waitqueue_elem *wqe;
-	throttle_pool_t *pool;
-	connection *con;
-	worker *wrk;
+	liWaitQueueElem *wqe;
+	liThrottlePool *pool;
+	liConnection *con;
+	liWorker *wrk;
 	ev_tstamp now;
 	guint magazine, supply;
 	GQueue *queue;
@@ -108,8 +108,8 @@ void throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 
 					/* rearm connections */
 					for (lnk = g_queue_peek_head_link(queue); lnk != NULL; lnk = lnk_next) {
-						((connection*)lnk->data)->throttle.pool.magazine += supply;
-						((connection*)lnk->data)->throttle.pool.queued = FALSE;
+						((liConnection*)lnk->data)->throttle.pool.magazine += supply;
+						((liConnection*)lnk->data)->throttle.pool.queued = FALSE;
 						lnk_next = lnk->next;
 						lnk->next = NULL;
 						lnk->prev = NULL;

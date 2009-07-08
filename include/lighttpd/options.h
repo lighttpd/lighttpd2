@@ -5,7 +5,7 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-union option_value {
+union liOptionValue {
 	gpointer ptr;
 	gint64 number;
 	gboolean boolean;
@@ -14,21 +14,21 @@ union option_value {
 	GString *string;
 	GArray *list;
 	GHashTable *hash;
-	action *action;
-	condition *cond;
+	liAction *action;
+	liCondition *cond;
 };
 
-struct option_set {
+struct liOptionSet {
 	size_t ndx;
-	option_value value;
-	server_option *sopt;
+	liOptionValue value;
+	liServerOption *sopt;
 };
 
 /* Extract content from value, value set to none */
-LI_API option_value value_extract(value *val);
+LI_API liOptionValue value_extract(liValue *val);
 
-LI_API gpointer value_extract_ptr(value *val);
-LI_API gint64 value_extract_number(value *val);
-LI_API gboolean value_extract_bool(value *val);
+LI_API gpointer value_extract_ptr(liValue *val);
+LI_API gint64 value_extract_number(liValue *val);
+LI_API gboolean value_extract_bool(liValue *val);
 
 #endif

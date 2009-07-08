@@ -6,25 +6,25 @@
 #endif
 
 typedef enum {
-	SERVER_STARTING,         /** start up: don't write log files, don't accept connections */
-	SERVER_RUNNING,          /** running: write logs, accept connections */
-	SERVER_STOPPING          /** stopping: flush logs, don't accept new connections */
-} server_state;
+	LI_SERVER_STARTING,         /** start up: don't write log files, don't accept connections */
+	LI_SERVER_RUNNING,          /** running: write logs, accept connections */
+	LI_SERVER_STOPPING          /** stopping: flush logs, don't accept new connections */
+} liServerState;
 
-struct server_socket {
+struct liServerSocket {
 	gint refcount;
-	server *srv;
+	liServer *srv;
 	ev_io watcher;
-	sockaddr_t local_addr;
+	liSocketAddress local_addr;
 	GString *local_addr_str;
 };
 
-struct server {
+struct liServer {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
-	server_state state;       /** atomic access */
-	angel_connection *acon;
+	liServerState state;       /** atomic access */
+	liAngelConnection *acon;
 
-	struct worker *main_worker;
+	liWorker *main_worker;
 	guint worker_count;
 	GArray *workers;
 	GArray *ts_formats;      /** array of (GString*), add with server_ts_format_add() */
@@ -40,10 +40,10 @@ struct server {
 
 	GPtrArray *sockets;          /** array of (server_socket*) */
 
-	struct modules *modules;
+	liModules *modules;
 
 	GHashTable *plugins;      /**< const gchar* => (plugin*) */
-	struct plugin *core_plugin;
+	liPlugin *core_plugin;
 
 	/* registered by plugins */
 	GHashTable *options;      /**< const gchar* => (server_option*) */
@@ -54,7 +54,7 @@ struct server {
 	GArray *plugins_handle_vrclose; /** list of handle_vrclose callbacks */
 
 	GArray *option_def_values;/** array of option_value */
-	struct action *mainaction;
+	liAction *mainaction;
 
 	gboolean exiting;         /** atomic access */
 
@@ -67,7 +67,7 @@ struct server {
 		gboolean thread_stop;   /** stop thread immediately; access with atomic functions */
 		gboolean thread_alive;  /** access with atomic functions */
 		GArray *timestamps;     /** array of log_timestamp_t */
-		struct log_t *stderr;
+		liLog *stderr;
 	} logs;
 
 	ev_tstamp started;
@@ -84,27 +84,27 @@ struct server {
 };
 
 
-LI_API server* server_new(const gchar *module_dir);
-LI_API void server_free(server* srv);
-LI_API gboolean server_loop_init(server *srv);
-LI_API gboolean server_worker_init(server *srv);
+LI_API liServer* server_new(const gchar *module_dir);
+LI_API void server_free(liServer* srv);
+LI_API gboolean server_loop_init(liServer *srv);
+LI_API gboolean server_worker_init(liServer *srv);
 
-LI_API void server_listen(server *srv, int fd);
+LI_API void server_listen(liServer *srv, int fd);
 
 /* Start accepting connection, use log files, no new plugins after that */
-LI_API void server_start(server *srv);
+LI_API void server_start(liServer *srv);
 /* stop accepting connections, turn keep-alive off, close all shutdown sockets, set exiting = TRUE */
-LI_API void server_stop(server *srv);
+LI_API void server_stop(liServer *srv);
 /* exit asap with cleanup */
-LI_API void server_exit(server *srv);
+LI_API void server_exit(liServer *srv);
 
 LI_API GString *server_current_timestamp();
 
-LI_API void server_out_of_fds(server *srv);
+LI_API void server_out_of_fds(liServer *srv);
 
-LI_API guint server_ts_format_add(server *srv, GString* format);
+LI_API guint server_ts_format_add(liServer *srv, GString* format);
 
-LI_API void server_socket_release(server_socket* sock);
-LI_API void server_socket_acquire(server_socket* sock);
+LI_API void server_socket_release(liServerSocket* sock);
+LI_API void server_socket_acquire(liServerSocket* sock);
 
 #endif

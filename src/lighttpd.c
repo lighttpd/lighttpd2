@@ -7,12 +7,12 @@
 #include <lighttpd/config_lua.h>
 #endif
 
-void plugin_core_init(server *srv, plugin *p);
+void plugin_core_init(liServer *srv, liPlugin *p);
 
 int main(int argc, char *argv[]) {
 	GError *error = NULL;
 	GOptionContext *context;
-	server *srv;
+	liServer *srv;
 	gboolean res;
 	gboolean free_config_path = TRUE;
 
@@ -94,14 +94,14 @@ int main(int argc, char *argv[]) {
 		GTimeVal start, end;
 		gulong s, millis, micros;
 		guint64 d;
-		action *a;
-		config_parser_context_t *ctx;
+		liAction *a;
+		liConfigParserContext *ctx;
 
 		g_get_current_time(&start);
 
 		/* standard config frontend */
 		ctx_stack = config_parser_init(srv);
-		ctx = (config_parser_context_t*) ctx_stack->data;
+		ctx = (liConfigParserContext*) ctx_stack->data;
 		if (!config_parser_file(srv, ctx_stack, config_path)) {
 			config_parser_finish(srv, ctx_stack, TRUE);
 			log_thread_start(srv);

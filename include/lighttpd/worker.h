@@ -5,10 +5,8 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-struct statistics_t;
-typedef struct statistics_t statistics_t;
-
-struct statistics_t {
+typedef struct liStatistics liStatistics;
+struct liStatistics {
 	guint64 bytes_out;        /** bytes transfered, outgoing */
 	guint64 bytes_in;         /** bytes transfered, incoming */
 
@@ -41,14 +39,14 @@ struct statistics_t {
 #define WORKER_UNLOCK(srv, lock) \
 	if ((srv)->worker_count > 1) g_static_rec_mutex_unlock(lock)
 
-struct worker_ts {
+typedef struct liWorkerTS liWorkerTS;
+struct liWorkerTS {
 	time_t last_generated;
 	GString *str;
 };
-typedef struct worker_ts worker_ts;
 
-struct worker {
-	struct server *srv;
+struct liWorker {
+	liServer *srv;
 
 	GThread *thread; /* managed by server.c */
 	guint ndx;       /* worker index */
@@ -72,9 +70,9 @@ struct worker {
 	ev_timer keep_alive_timer;
 	GQueue keep_alive_queue;
 
-	waitqueue io_timeout_queue;
+	liWaitQueue io_timeout_queue;
 
-	waitqueue throttle_queue;
+	liWaitQueue throttle_queue;
 
 	guint connection_load;    /** incremented by server_accept_cb, decremented by worker_con_put. use atomic access */
 
@@ -87,7 +85,7 @@ struct worker {
 	GAsyncQueue *new_con_queue;
 
 	ev_timer stats_watcher;
-	statistics_t stats;
+	liStatistics stats;
 
 	/* collect framework */
 	ev_async collect_watcher;
@@ -99,23 +97,23 @@ struct worker {
 	GAsyncQueue *job_async_queue;
 	ev_async job_async_queue_watcher;
 
-	stat_cache *stat_cache;
+	liStatCache *stat_cache;
 };
 
-LI_API worker* worker_new(struct server *srv, struct ev_loop *loop);
-LI_API void worker_free(worker *wrk);
+LI_API liWorker* worker_new(liServer *srv, struct ev_loop *loop);
+LI_API void worker_free(liWorker *wrk);
 
-LI_API void worker_run(worker *wrk);
-LI_API void worker_stop(worker *context, worker *wrk);
-LI_API void worker_exit(worker *context, worker *wrk);
+LI_API void worker_run(liWorker *wrk);
+LI_API void worker_stop(liWorker *context, liWorker *wrk);
+LI_API void worker_exit(liWorker *context, liWorker *wrk);
 
-LI_API void worker_new_con(worker *ctx, worker *wrk, sockaddr_t remote_addr, int s, server_socket *srv_sock);
+LI_API void worker_new_con(liWorker *ctx, liWorker *wrk, liSocketAddress remote_addr, int s, liServerSocket *srv_sock);
 
-LI_API void worker_check_keepalive(worker *wrk);
+LI_API void worker_check_keepalive(liWorker *wrk);
 
-LI_API GString* worker_current_timestamp(worker *wrk, guint format_ndx);
+LI_API GString* worker_current_timestamp(liWorker *wrk, guint format_ndx);
 
 /* shutdown write and wait for eof before shutdown read and close */
-LI_API void worker_add_closing_socket(worker *wrk, int fd);
+LI_API void worker_add_closing_socket(liWorker *wrk, int fd);
 
 #endif

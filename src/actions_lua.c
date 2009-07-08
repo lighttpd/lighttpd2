@@ -6,7 +6,7 @@
 
 #define LUA_ACTION "action*"
 
-action* lua_get_action(lua_State *L, int ndx) {
+liAction* lua_get_action(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_ACTION);
@@ -15,23 +15,23 @@ action* lua_get_action(lua_State *L, int ndx) {
 		return NULL;
 	}
 	lua_pop(L, 2);
-	return *(action**) lua_touserdata(L, ndx);
+	return *(liAction**) lua_touserdata(L, ndx);
 }
 
 static int lua_action_gc(lua_State *L) {
-	server *srv;
-	action **a = (action**) luaL_checkudata(L, 1, LUA_ACTION);
+	liServer *srv;
+	liAction **a = (liAction**) luaL_checkudata(L, 1, LUA_ACTION);
 	if (!a || !*a) return 0;
 
-	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
+	srv = (liServer*) lua_touserdata(L, lua_upvalueindex(1));
 	action_release(srv, *a);
 	return 0;
 }
 
-int lua_push_action(server *srv, lua_State *L, action *a) {
-	action **pa;
+int lua_push_action(liServer *srv, lua_State *L, liAction *a) {
+	liAction **pa;
 
-	pa = (action**) lua_newuserdata(L, sizeof(action*));
+	pa = (liAction**) lua_newuserdata(L, sizeof(liAction*));
 	*pa = a;
 
 	if (luaL_newmetatable(L, LUA_ACTION)) {

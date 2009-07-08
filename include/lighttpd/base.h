@@ -60,7 +60,6 @@
 #include <lighttpd/filter_chunked.h>
 #include <lighttpd/collect.h>
 #include <lighttpd/network.h>
-#include <lighttpd/encoding.h>
 #include <lighttpd/etag.h>
 #include <lighttpd/lighttpd-glue.h>
 #include <lighttpd/utils.h>

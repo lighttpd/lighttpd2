@@ -3,31 +3,30 @@
 
 #include <lighttpd/base.h>
 
-struct config_parser_context_t;
-typedef struct config_parser_context_t config_parser_context_t;
+typedef struct liConfigParserContext liConfigParserContext;
 
 
 /* returns a new config parser stack with the first context in it */
-GList *config_parser_init(server *srv);
-void config_parser_finish(server *srv, GList *ctx_stack, gboolean free_all);
+GList *config_parser_init(liServer *srv);
+void config_parser_finish(liServer *srv, GList *ctx_stack, gboolean free_all);
 
 /* loads a file into memory and parses it */
-gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path);
+gboolean config_parser_file(liServer *srv, GList *ctx_stack, const gchar *path);
 /* launched a command through the shell and parses the stdout it returns */
-gboolean config_parser_shell(server *srv,GList *ctx_stack, const gchar *command);
+gboolean config_parser_shell(liServer *srv,GList *ctx_stack, const gchar *command);
 /* parses a buffer pointed to by the previously allocated config_parser_data struct */
-gboolean config_parser_buffer(server *srv, GList *ctx_stack);
+gboolean config_parser_buffer(liServer *srv, GList *ctx_stack);
 
-config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack);
-void config_parser_context_free(server *srv, config_parser_context_t *ctx, gboolean free_queues);
+liConfigParserContext *config_parser_context_new(liServer *srv, GList *ctx_stack);
+void config_parser_context_free(liServer *srv, liConfigParserContext *ctx, gboolean free_queues);
 
 typedef enum {
-	CFG_PARSER_CAST_NONE,
-	CFG_PARSER_CAST_INT,
-	CFG_PARSER_CAST_STR
-} cast_type;
+	LI_CFG_PARSER_CAST_NONE,
+	LI_CFG_PARSER_CAST_INT,
+	LI_CFG_PARSER_CAST_STR
+} liCastType;
 
-struct config_parser_context_t {
+struct liConfigParserContext {
 	/* ragel vars */
 	int cs;
 	int *stack;
@@ -43,16 +42,16 @@ struct config_parser_context_t {
 	gboolean condition_nonbool;
 	gboolean condition_negated;
 
-	comp_operator_t op;
+	liCompOperator op;
 	gchar value_op;
 
-	cast_type cast;
+	liCastType cast;
 
 	GHashTable *action_blocks; /* foo { } */
 	GHashTable *uservars; /* var.foo */
 
 	GQueue *action_list_stack; /* first entry is current action list */
-	GQueue *option_stack; /* stack of value* */
+	GQueue *option_stack; /* stack of liValue* */
 	GQueue *condition_stack; /* stack of condition* */
 
 	/* information about currenty parsed file */

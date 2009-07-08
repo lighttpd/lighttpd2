@@ -50,8 +50,8 @@
 
 #include <lighttpd/base.h>
 
-LI_API gboolean mod_expire_init(modules *mods, module *mod);
-LI_API gboolean mod_expire_free(modules *mods, module *mod);
+LI_API gboolean mod_expire_init(liModules *mods, liModule *mod);
+LI_API gboolean mod_expire_free(liModules *mods, liModule *mod);
 
 
 struct expire_rule {
@@ -64,7 +64,7 @@ struct expire_rule {
 typedef struct expire_rule expire_rule;
 
 
-static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult expire(liVRequest *vr, gpointer param, gpointer *context) {
 	struct tm tm;
 	time_t expire_date;
 	guint len;
@@ -85,12 +85,12 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 		gint err;
 
 		if (!vr->physical.path->len)
-			return HANDLER_GO_ON;
+			return LI_HANDLER_GO_ON;
 
 		switch (stat_cache_get(vr, vr->physical.path, &st, &err, NULL)) {
-		case HANDLER_GO_ON: break;
-		case HANDLER_WAIT_FOR_EVENT: return HANDLER_WAIT_FOR_EVENT;
-		default: return HANDLER_GO_ON;
+		case LI_HANDLER_GO_ON: break;
+		case LI_HANDLER_WAIT_FOR_EVENT: return LI_HANDLER_WAIT_FOR_EVENT;
+		default: return LI_HANDLER_GO_ON;
 		}
 
 		expire_date = st.st_mtime + num;
@@ -106,12 +106,12 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 
 	if (!gmtime_r(&expire_date, &tm)) {
 		VR_ERROR(vr, "gmtime_r(%"G_GUINT64_FORMAT") failed: %s", (guint64)expire_date, g_strerror(errno));
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 	}
 
 	len = strftime(date_str->str, date_str->allocated_len, "%a, %d %b %Y %H:%M:%S GMT", &tm);
 	if (len == 0)
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 
 	g_string_set_size(date_str, len);
 
@@ -122,23 +122,23 @@ static handler_t expire(vrequest *vr, gpointer param, gpointer *context) {
 	l_g_string_append_int(date_str, max_age);
 	http_header_append(vr->response.headers, CONST_STR_LEN("Cache-Control"), GSTR_LEN(date_str));
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static void expire_free(server *srv, gpointer param) {
+static void expire_free(liServer *srv, gpointer param) {
 	UNUSED(srv);
 
 	g_slice_free(expire_rule, param);
 }
 
-static action* expire_create(server *srv, plugin* p, value *val) {
+static liAction* expire_create(liServer *srv, liPlugin* p, liValue *val) {
 	expire_rule *rule;
 	gchar *str;
 
 	UNUSED(srv);
 	UNUSED(p);
 
-	if (!val || val->type != VALUE_STRING) {
+	if (!val || val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "expire expects a string as parameter");
 		return NULL;
 	}
@@ -209,22 +209,22 @@ static action* expire_create(server *srv, plugin* p, value *val) {
 
 
 
-static const plugin_option options[] = {
+static const liPluginOption options[] = {
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
-static const plugin_action actions[] = {
+static const liPluginAction actions[] = {
 	{ "expire", expire_create },
 
 	{ NULL, NULL }
 };
 
-static const plugin_setup setups[] = {
+static const liliPluginSetupCB setups[] = {
 	{ NULL, NULL }
 };
 
 
-static void plugin_expire_init(server *srv, plugin *p) {
+static void plugin_expire_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
 
 	p->options = options;
@@ -233,7 +233,7 @@ static void plugin_expire_init(server *srv, plugin *p) {
 }
 
 
-gboolean mod_expire_init(modules *mods, module *mod) {
+gboolean mod_expire_init(liModules *mods, liModule *mod) {
 	UNUSED(mod);
 
 	MODULE_VERSION_CHECK(mods);
@@ -243,7 +243,7 @@ gboolean mod_expire_init(modules *mods, module *mod) {
 	return mod->config != NULL;
 }
 
-gboolean mod_expire_free(modules *mods, module *mod) {
+gboolean mod_expire_free(liModules *mods, liModule *mod) {
 	if (mod->config)
 		plugin_free(mods->main, mod->config);
 

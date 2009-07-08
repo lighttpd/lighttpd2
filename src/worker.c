@@ -3,16 +3,15 @@
 
 #include <lighttpd/base.h>
 
-static connection* worker_con_get(worker *wrk);
-void worker_con_put(connection *con);
+static liConnection* worker_con_get(liWorker *wrk);
+void worker_con_put(liConnection *con);
 
 /* closing sockets - wait for proper shutdown */
 
-struct worker_closing_socket;
 typedef struct worker_closing_socket worker_closing_socket;
 
 struct worker_closing_socket {
-	worker *wrk;
+	liWorker *wrk;
 	GList *link;
 	int fd;
 };
@@ -28,11 +27,11 @@ static void worker_closing_socket_cb(int revents, void* arg) {
 	g_slice_free(worker_closing_socket, scs);
 }
 
-void worker_add_closing_socket(worker *wrk, int fd) {
+void worker_add_closing_socket(liWorker *wrk, int fd) {
 	worker_closing_socket *scs;
 
 	shutdown(fd, SHUT_WR);
-	if (g_atomic_int_get(&wrk->srv->state) == SERVER_STOPPING) {
+	if (g_atomic_int_get(&wrk->srv->state) == LI_SERVER_STOPPING) {
 		shutdown(fd, SHUT_RD);
 		close(fd);
 		return;
@@ -48,35 +47,35 @@ void worker_add_closing_socket(worker *wrk, int fd) {
 }
 
 /* Kill it - frees fd */
-static void worker_rem_closing_socket(worker *wrk, worker_closing_socket *scs) {
+static void worker_rem_closing_socket(liWorker *wrk, worker_closing_socket *scs) {
 	ev_feed_fd_event(wrk->loop, scs->fd, EV_READ);
 }
 
 /* Keep alive */
 
-void worker_check_keepalive(worker *wrk) {
+void worker_check_keepalive(liWorker *wrk) {
 	ev_tstamp now = ev_now(wrk->loop);
 
 	if (0 == wrk->keep_alive_queue.length) {
 		ev_timer_stop(wrk->loop, &wrk->keep_alive_timer);
 	} else {
-		wrk->keep_alive_timer.repeat = ((connection*)g_queue_peek_head(&wrk->keep_alive_queue))->keep_alive_data.timeout - now + 1;
+		wrk->keep_alive_timer.repeat = ((liConnection*)g_queue_peek_head(&wrk->keep_alive_queue))->keep_alive_data.timeout - now + 1;
 		ev_timer_again(wrk->loop, &wrk->keep_alive_timer);
 	}
 }
 
 static void worker_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	worker *wrk = (worker*) w->data;
+	liWorker *wrk = (liWorker*) w->data;
 	ev_tstamp now = ev_now(wrk->loop);
 	GQueue *q = &wrk->keep_alive_queue;
 	GList *l;
-	connection *con;
+	liConnection *con;
 
 	UNUSED(loop);
 	UNUSED(revents);
 
 	while ( NULL != (l = g_queue_peek_head_link(q)) &&
-	        (con = (connection*) l->data)->keep_alive_data.timeout <= now ) {
+	        (con = (liConnection*) l->data)->keep_alive_data.timeout <= now ) {
 		ev_tstamp remaining = con->keep_alive_data.max_idle - wrk->srv->keep_alive_queue_timeout - (now - con->keep_alive_data.timeout);
 		if (remaining > 0) {
 			g_queue_delete_link(q, l);
@@ -99,9 +98,9 @@ static void worker_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 
 /* check for timeouted connections */
 static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	worker *wrk = (worker*) w->data;
-	connection *con;
-	waitqueue_elem *wqe;
+	liWorker *wrk = (liWorker*) w->data;
+	liConnection *con;
+	liWaitQueueElem *wqe;
 	ev_tstamp now = CUR_TS(wrk);
 
 	UNUSED(loop);
@@ -120,10 +119,10 @@ static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents)
 
 /* run vreqest state machine */
 static void worker_job_queue_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	worker *wrk = (worker*) w->data;
+	liWorker *wrk = (liWorker*) w->data;
 	GQueue q = wrk->job_queue;
 	GList *l;
-	vrequest *vr;
+	liVRequest *vr;
 	UNUSED(loop);
 	UNUSED(revents);
 
@@ -138,10 +137,10 @@ static void worker_job_queue_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 
 /* run vreqest state machine for async queued jobs */
 static void worker_job_async_queue_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	worker *wrk = (worker*) w->data;
+	liWorker *wrk = (liWorker*) w->data;
 	GAsyncQueue *q = wrk->job_async_queue;
-	vrequest_ref *vr_ref;
-	vrequest *vr;
+	liVRequestRef *vr_ref;
+	liVRequest *vr;
 	UNUSED(loop);
 	UNUSED(revents);
 
@@ -155,10 +154,10 @@ static void worker_job_async_queue_cb(struct ev_loop *loop, ev_async *w, int rev
 
 
 /* cache timestamp */
-GString *worker_current_timestamp(worker *wrk, guint format_ndx) {
+GString *worker_current_timestamp(liWorker *wrk, guint format_ndx) {
 	gsize len;
 	struct tm tm;
-	worker_ts *wts = &g_array_index(wrk->timestamps, worker_ts, format_ndx);
+	liWorkerTS *wts = &g_array_index(wrk->timestamps, liWorkerTS, format_ndx);
 	time_t now = (time_t)CUR_TS(wrk);
 
 	/* cache hit */
@@ -179,7 +178,7 @@ GString *worker_current_timestamp(worker *wrk, guint format_ndx) {
 
 /* stop worker watcher */
 static void worker_stop_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	worker *wrk = (worker*) w->data;
+	liWorker *wrk = (liWorker*) w->data;
 	UNUSED(loop);
 	UNUSED(revents);
 
@@ -188,28 +187,27 @@ static void worker_stop_cb(struct ev_loop *loop, ev_async *w, int revents) {
 
 /* exit worker watcher */
 static void worker_exit_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	worker *wrk = (worker*) w->data;
+	liWorker *wrk = (liWorker*) w->data;
 	UNUSED(loop);
 	UNUSED(revents);
 
 	worker_exit(wrk, wrk);
 }
 
-struct worker_new_con_data;
 typedef struct worker_new_con_data worker_new_con_data;
 struct worker_new_con_data {
-	sockaddr_t remote_addr;
+	liSocketAddress remote_addr;
 	int s;
-	server_socket *srv_sock;
+	liServerSocket *srv_sock;
 };
 
 /* new con watcher */
-void worker_new_con(worker *ctx, worker *wrk, sockaddr_t remote_addr, int s, server_socket *srv_sock) {
+void worker_new_con(liWorker *ctx, liWorker *wrk, liSocketAddress remote_addr, int s, liServerSocket *srv_sock) {
 	if (ctx == wrk) {
-		connection *con = worker_con_get(wrk);
+		liConnection *con = worker_con_get(wrk);
 
 		con->srv_sock = srv_sock;
-		con->state = CON_STATE_REQUEST_START;
+		con->state = LI_CON_STATE_REQUEST_START;
 		con->remote_addr = remote_addr;
 		ev_io_set(&con->sock_watcher, s, EV_READ);
 		ev_io_start(wrk->loop, &con->sock_watcher);
@@ -227,7 +225,7 @@ void worker_new_con(worker *ctx, worker *wrk, sockaddr_t remote_addr, int s, ser
 }
 
 static void worker_new_con_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	worker *wrk = (worker*) w->data;
+	liWorker *wrk = (liWorker*) w->data;
 	worker_new_con_data *d;
 	UNUSED(loop);
 	UNUSED(revents);
@@ -240,7 +238,7 @@ static void worker_new_con_cb(struct ev_loop *loop, ev_async *w, int revents) {
 
 /* stats watcher */
 static void worker_stats_watcher_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	worker *wrk = (worker*) w->data;
+	liWorker *wrk = (liWorker*) w->data;
 	ev_tstamp now = ev_now(wrk->loop);
 	UNUSED(loop);
 	UNUSED(revents);
@@ -280,8 +278,8 @@ static void worker_stats_watcher_cb(struct ev_loop *loop, ev_timer *w, int reven
 
 /* init */
 
-worker* worker_new(struct server *srv, struct ev_loop *loop) {
-	worker *wrk = g_slice_new0(worker);
+liWorker* worker_new(liServer *srv, struct ev_loop *loop) {
+	liWorker *wrk = g_slice_new0(liWorker);
 	wrk->srv = srv;
 	wrk->loop = loop;
 
@@ -290,16 +288,16 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	wrk->keep_alive_timer.data = wrk;
 
 	wrk->connections_active = 0;
-	wrk->connections = g_array_new(FALSE, TRUE, sizeof(connection*));
+	wrk->connections = g_array_new(FALSE, TRUE, sizeof(liConnection*));
 
 	wrk->tmp_str = g_string_sized_new(255);
 
-	wrk->timestamps = g_array_sized_new(FALSE, TRUE, sizeof(worker_ts), srv->ts_formats->len);
+	wrk->timestamps = g_array_sized_new(FALSE, TRUE, sizeof(liWorkerTS), srv->ts_formats->len);
 	g_array_set_size(wrk->timestamps, srv->ts_formats->len);
 	{
 		guint i;
 		for (i = 0; i < srv->ts_formats->len; i++)
-			g_array_index(wrk->timestamps, worker_ts, i).str = g_string_sized_new(255);
+			g_array_index(wrk->timestamps, liWorkerTS, i).str = g_string_sized_new(255);
 	}
 
 	ev_init(&wrk->worker_exit_watcher, worker_exit_cb);
@@ -349,7 +347,7 @@ worker* worker_new(struct server *srv, struct ev_loop *loop) {
 	return wrk;
 }
 
-void worker_free(worker *wrk) {
+void worker_free(liWorker *wrk) {
 	if (!wrk) return;
 
 	{ /* close connections */
@@ -357,12 +355,12 @@ void worker_free(worker *wrk) {
 		if (wrk->connections_active > 0) {
 			ERROR(wrk->srv, "Server shutdown with unclosed connections: %u", wrk->connections_active);
 			for (i = wrk->connections_active; i-- > 0;) {
-				connection *con = g_array_index(wrk->connections, connection*, i);
+				liConnection *con = g_array_index(wrk->connections, liConnection*, i);
 				connection_error(con);
 			}
 		}
 		for (i = 0; i < wrk->connections->len; i++) {
-			connection_free(g_array_index(wrk->connections, connection*, i));
+			connection_free(g_array_index(wrk->connections, liConnection*, i));
 		}
 		g_array_free(wrk->connections, TRUE);
 	}
@@ -381,7 +379,7 @@ void worker_free(worker *wrk) {
 	{ /* free timestamps */
 		guint i;
 		for (i = 0; i < wrk->timestamps->len; i++)
-			g_string_free(g_array_index(wrk->timestamps, worker_ts, i).str, TRUE);
+			g_string_free(g_array_index(wrk->timestamps, liWorkerTS, i).str, TRUE);
 		g_array_free(wrk->timestamps, TRUE);
 	}
 
@@ -390,8 +388,8 @@ void worker_free(worker *wrk) {
 
 	{
 		GAsyncQueue *q = wrk->job_async_queue;
-		vrequest_ref *vr_ref;
-		vrequest *vr;
+		liVRequestRef *vr_ref;
+		liVRequest *vr;
 
 		while (NULL != (vr_ref = g_async_queue_try_pop(q))) {
 			if (NULL != (vr = vrequest_release_ref(vr_ref))) {
@@ -418,10 +416,10 @@ void worker_free(worker *wrk) {
 
 	stat_cache_free(wrk->stat_cache);
 
-	g_slice_free(worker, wrk);
+	g_slice_free(liWorker, wrk);
 }
 
-void worker_run(worker *wrk) {
+void worker_run(liWorker *wrk) {
 	#ifdef LIGHTY_OS_LINUX
 	/* sched_setaffinity is only available on linux */
 	cpu_set_t mask;
@@ -446,7 +444,7 @@ void worker_run(worker *wrk) {
 	ev_loop(wrk->loop, 0);
 }
 
-void worker_stop(worker *context, worker *wrk) {
+void worker_stop(liWorker *context, liWorker *wrk) {
 	if (context == wrk) {
 		guint i;
 
@@ -458,8 +456,8 @@ void worker_stop(worker *context, worker *wrk) {
 
 		/* close keep alive connections */
 		for (i = wrk->connections_active; i-- > 0;) {
-			connection *con = g_array_index(wrk->connections, connection*, i);
-			if (con->state == CON_STATE_KEEP_ALIVE)
+			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
+			if (con->state == LI_CON_STATE_KEEP_ALIVE)
 				worker_con_put(con);
 		}
 
@@ -476,7 +474,7 @@ void worker_stop(worker *context, worker *wrk) {
 	}
 }
 
-void worker_exit(worker *context, worker *wrk) {
+void worker_exit(liWorker *context, liWorker *wrk) {
 	if (context == wrk) {
 		ev_unloop (wrk->loop, EVUNLOOP_ALL);
 	} else {
@@ -485,26 +483,26 @@ void worker_exit(worker *context, worker *wrk) {
 }
 
 
-static connection* worker_con_get(worker *wrk) {
-	connection *con;
+static liConnection* worker_con_get(liWorker *wrk) {
+	liConnection *con;
 
 	if (wrk->connections_active >= wrk->connections->len) {
 		con = connection_new(wrk);
 		con->idx = wrk->connections_active;
 		g_array_append_val(wrk->connections, con);
 	} else {
-		con = g_array_index(wrk->connections, connection*, wrk->connections_active);
+		con = g_array_index(wrk->connections, liConnection*, wrk->connections_active);
 	}
 	g_atomic_int_inc((gint*) &wrk->connections_active);
 	return con;
 }
 
-void worker_con_put(connection *con) {
+void worker_con_put(liConnection *con) {
 	guint threshold;
-	worker *wrk = con->wrk;
+	liWorker *wrk = con->wrk;
 	ev_tstamp now = CUR_TS(wrk);
 	
-	if (con->state == CON_STATE_DEAD)
+	if (con->state == LI_CON_STATE_DEAD)
 		/* already disconnected */
 		return;
 
@@ -513,13 +511,13 @@ void worker_con_put(connection *con) {
 
 	if (con->idx != wrk->connections_active) {
 		/* Swap [con->idx] and [wrk->connections_active] */
-		connection *tmp;
+		liConnection *tmp;
 		assert(con->idx < wrk->connections_active); /* con must be an active connection */
-		tmp = g_array_index(wrk->connections, connection*, wrk->connections_active);
+		tmp = g_array_index(wrk->connections, liConnection*, wrk->connections_active);
 		tmp->idx = con->idx;
 		con->idx = wrk->connections_active;
-		g_array_index(wrk->connections, connection*, con->idx) = con;
-		g_array_index(wrk->connections, connection*, tmp->idx) = tmp;
+		g_array_index(wrk->connections, liConnection*, con->idx) = con;
+		g_array_index(wrk->connections, liConnection*, tmp->idx) = tmp;
 	}
 
 	/* realloc wrk->connections if it makes sense (too many allocated, only every 60sec) */
@@ -530,7 +528,7 @@ void worker_con_put(connection *con) {
 		guint i;
 		threshold = (wrk->connections->len * 85) / 100;
 		for (i = wrk->connections->len; i > threshold; i--) {
-			connection_free(g_array_index(wrk->connections, connection*, i-1));
+			connection_free(g_array_index(wrk->connections, liConnection*, i-1));
 		}
 		wrk->connections->len = threshold;
 		wrk->connections_gc_ts = now;

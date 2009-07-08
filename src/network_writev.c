@@ -25,13 +25,13 @@
 #endif
 
 /* first chunk must be a STRING_CHUNK ! */
-network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
+liNetworkStatus network_backend_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
 	off_t we_have;
 	ssize_t r;
 	gboolean did_write_something = FALSE;
-	chunkiter ci;
-	chunk *c;
-	network_status_t res = NETWORK_STATUS_FATAL_ERROR;
+	liChunkIter ci;
+	liChunk *c;
+	liNetworkStatus res = LI_NETWORK_STATUS_FATAL_ERROR;
 
 	GArray *chunks = g_array_sized_new(FALSE, TRUE, sizeof(struct iovec), UIO_MAXIOV);
 
@@ -41,7 +41,7 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 		ci = chunkqueue_iter(cq);
 
 		if (STRING_CHUNK != (c = chunkiter_chunk(ci))->type && MEM_CHUNK != c->type) {
-			res = did_write_something ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_FATAL_ERROR;
+			res = did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_FATAL_ERROR;
 			goto cleanup;
 		}
 
@@ -70,11 +70,11 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 #if EWOULDBLOCK != EAGAIN
 			case EWOULDBLOCK:
 #endif
-				res = NETWORK_STATUS_WAIT_FOR_EVENT;
+				res = LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 				goto cleanup;
 			case ECONNRESET:
 			case EPIPE:
-				res = NETWORK_STATUS_CONNECTION_CLOSE;
+				res = LI_NETWORK_STATUS_CONNECTION_CLOSE;
 				goto cleanup;
 			case EINTR:
 				break; /* try again */
@@ -84,19 +84,19 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 			}
 		}
 		if (0 == r) {
-			res = NETWORK_STATUS_WAIT_FOR_EVENT;
+			res = LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 			goto cleanup;
 		}
 		chunkqueue_skip(cq, r);
 		*write_max -= r;
 
 		if (r != we_have) {
-			res = NETWORK_STATUS_WAIT_FOR_EVENT;
+			res = LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 			goto cleanup;
 		}
 
 		if (0 == cq->length) {
-			res = NETWORK_STATUS_SUCCESS;
+			res = LI_NETWORK_STATUS_SUCCESS;
 			goto cleanup;
 		}
 
@@ -104,27 +104,27 @@ network_status_t network_backend_writev(vrequest *vr, int fd, chunkqueue *cq, go
 		g_array_set_size(chunks, 0);
 	} while (*write_max > 0);
 
-	res = NETWORK_STATUS_SUCCESS;
+	res = LI_NETWORK_STATUS_SUCCESS;
 
 cleanup:
 	g_array_free(chunks, TRUE);
 	return res;
 }
 
-network_status_t network_write_writev(vrequest *vr, int fd, chunkqueue *cq, goffset *write_max) {
-	if (cq->length == 0) return NETWORK_STATUS_FATAL_ERROR;
+liNetworkStatus network_write_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
+	if (cq->length == 0) return LI_NETWORK_STATUS_FATAL_ERROR;
 	do {
 		switch (chunkqueue_first_chunk(cq)->type) {
 		case STRING_CHUNK:
-			NETWORK_FALLBACK(network_backend_writev, write_max);
+			LI_NETWORK_FALLBACK(network_backend_writev, write_max);
 			break;
 		case FILE_CHUNK:
-			NETWORK_FALLBACK(network_backend_write, write_max);
+			LI_NETWORK_FALLBACK(network_backend_write, write_max);
 			break;
 		default:
-			return NETWORK_STATUS_FATAL_ERROR;
+			return LI_NETWORK_STATUS_FATAL_ERROR;
 		}
-		if (cq->length == 0) return NETWORK_STATUS_SUCCESS;
+		if (cq->length == 0) return LI_NETWORK_STATUS_SUCCESS;
 	} while (*write_max > 0);
-	return NETWORK_STATUS_SUCCESS;
+	return LI_NETWORK_STATUS_SUCCESS;
 }

@@ -1,4 +1,5 @@
-#include <lighttpd/base.h>
+
+#include <lighttpd/encoding.h>
 
 static const gchar hex_chars[] = "0123456789abcdef";
 

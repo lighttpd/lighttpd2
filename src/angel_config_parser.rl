@@ -19,14 +19,14 @@ typedef struct {
 
 	/* item */
 	GString *itemname;
-	value *itemvalue;
+	liValue *itemvalue;
 
 	/* every time a collection gets parsed, the collection is pushed on the stack.
-	 * in some other cases a VALUE_STRING gets pushed (the key in hashes for example)
+	 * in some other cases a LI_VALUE_STRING gets pushed (the key in hashes for example)
 	 * while a second value gets parsed.
 	 */
 	GPtrArray *valuestack;
-	value *curvalue;
+	liValue *curvalue;
 
 	/* temporary buffer to format a character for logging */
 	gchar buf[8];
@@ -56,8 +56,8 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 
 #define PARSE_ERROR_FMT(fmt, ...) do { \
 	g_set_error(err, \
-		ANGEL_CONFIG_PARSER_ERROR, \
-		ANGEL_CONFIG_PARSER_ERROR_PARSE, \
+		LI_ANGEL_CONFIG_PARSER_ERROR, \
+		LI_ANGEL_CONFIG_PARSER_ERROR_PARSE, \
 		"Parsing failed in '%s:%i,%i': " fmt, \
 		fctx->filename, fctx->line, fctx->column, \
 		__VA_ARGS__); \
@@ -211,7 +211,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	}
 
 	action value_range {
-		value_range vr = { ctx->number2, ctx->number };
+		liValueRange vr = { ctx->number2, ctx->number };
 		ctx->curvalue = value_new_range(vr);
 		if (ctx->number2 > ctx->number) {
 			GString *tmp = value_to_string(ctx->curvalue);
@@ -233,7 +233,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 		fcall value_list_sub;
 	}
 	action value_list_push {
-		value *vlist = g_ptr_array_index(ctx->valuestack, ctx->valuestack->len-1);
+		liValue *vlist = g_ptr_array_index(ctx->valuestack, ctx->valuestack->len-1);
 		g_ptr_array_add(vlist->data.list, ctx->curvalue);
 		ctx->curvalue = NULL;
 	}
@@ -255,8 +255,8 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	}
 	action value_hash_push_value {
 		guint ndx = ctx->valuestack->len-1;
-		value *vname = g_ptr_array_index(ctx->valuestack, ndx);
-		value *vhash = g_ptr_array_index(ctx->valuestack, ndx-1);
+		liValue *vname = g_ptr_array_index(ctx->valuestack, ndx);
+		liValue *vhash = g_ptr_array_index(ctx->valuestack, ndx-1);
 		g_ptr_array_set_size(ctx->valuestack, ndx);
 		if (NULL != g_hash_table_lookup(vhash->data.hash, vname->data.string)) {
 			UPDATE_COLUMN();
@@ -266,7 +266,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 		}
 		g_hash_table_insert(vhash->data.hash, vname->data.string, ctx->curvalue);
 		ctx->curvalue = NULL;
-		vname->type = VALUE_NONE;
+		vname->type = LI_VALUE_NONE;
 		value_free(vname);
 	}
 	action value_hash_end {
@@ -283,7 +283,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	}
 	action option_push {
 		guint ndx = ctx->valuestack->len-1;
-		value *vname = g_ptr_array_index(ctx->valuestack, ndx);
+		liValue *vname = g_ptr_array_index(ctx->valuestack, ndx);
 		g_ptr_array_set_size(ctx->valuestack, ndx);
 		if (!ctx->curvalue) ctx->curvalue = value_new_none();
 		if (NULL != g_hash_table_lookup(ctx->itemvalue->data.hash, vname->data.string)) {
@@ -294,7 +294,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 		}
 		g_hash_table_insert(ctx->itemvalue->data.hash, vname->data.string, ctx->curvalue);
 		ctx->curvalue = NULL;
-		vname->type = VALUE_NONE;
+		vname->type = LI_VALUE_NONE;
 		value_free(vname);
 	}
 
@@ -421,7 +421,7 @@ static gboolean angel_config_parser_finalize(pcontext *ctx, filecontext *fctx, G
 	return TRUE;
 }
 
-static gboolean angel_config_parse_data(server *srv, pcontext *ctx, filecontext *fctx, gchar *data, gsize len, GError **err) {
+static gboolean angel_config_parse_data(liServer *srv, pcontext *ctx, filecontext *fctx, gchar *data, gsize len, GError **err) {
 	gchar *p = data, *pe = p+len, *eof = NULL, *linestart = p, *tokenstart = NULL;
 	if (ctx->readingtoken) tokenstart = p;
 
@@ -442,7 +442,7 @@ static gboolean angel_config_parse_data(server *srv, pcontext *ctx, filecontext 
 	return TRUE;
 }
 
-gboolean angel_config_parse_file(server *srv, const gchar *filename, GError **err) {
+gboolean angel_config_parse_file(liServer *srv, const gchar *filename, GError **err) {
 	char *data = NULL;
 	gsize len = 0;
 	filecontext sfctx, *fctx = &sfctx;

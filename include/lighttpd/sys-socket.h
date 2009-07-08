@@ -66,7 +66,8 @@ int inet_aton(const char *cp, struct in_addr *inp);
 #endif /* HAVE_IPV6 */
 #endif /* HAVE_INET_NTOP */
 
-typedef union {
+typedef union liSockAddr liSockAddr;
+union liSockAddr {
 #ifdef HAVE_IPV6
 	struct sockaddr_in6 ipv6;
 #endif
@@ -75,11 +76,12 @@ typedef union {
 	struct sockaddr_un un;
 #endif
 	struct sockaddr plain;
-} sock_addr;
+};
 
-typedef struct sockaddr_t {
+typedef struct liSocketAddress liSocketAddress;
+struct liSocketAddress {
 	socklen_t len;
-	sock_addr *addr;
-} sockaddr_t;
+	liSockAddr *addr;
+};
 
 #endif

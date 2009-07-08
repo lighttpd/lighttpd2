@@ -7,17 +7,17 @@
 
 typedef struct server_item server_item;
 struct server_item {
-	plugin *p;
+	liPlugin *p;
 	guint option_count;
-	const plugin_item *p_item;
+	const liPluginItem *p_item;
 };
 
 typedef struct server_module server_module;
 struct server_module {
 	guint refcount;
 	gchar *name;
-	server *srv;
-	module *mod;
+	liServer *srv;
+	liModule *mod;
 	GPtrArray *plugins; /* plugin* */
 };
 
@@ -25,9 +25,9 @@ static void _server_item_free(gpointer p) {
 	g_slice_free(server_item, p);
 }
 
-static server_item* server_item_new(plugin *p, const plugin_item *p_item) {
+static server_item* server_item_new(liPlugin *p, const liPluginItem *p_item) {
 	server_item *si = g_slice_new(server_item);
-	const plugin_item_option *pio;
+	const liPluginItemOption *pio;
 	guint cnt;
 	for (pio = p_item->options, cnt = 0; pio->name; pio++, cnt++) ;
 	si->p = p;
@@ -36,14 +36,14 @@ static server_item* server_item_new(plugin *p, const plugin_item *p_item) {
 	return si;
 }
 
-static void plugin_free(server *srv, plugin *p) {
+static void plugin_free(liServer *srv, liPlugin *p) {
 	if (p->handle_free) p->handle_free(srv, p);
 	g_hash_table_destroy(p->angel_callbacks);
-	g_slice_free(plugin, p);
+	g_slice_free(liPlugin, p);
 }
 
-static plugin* plugin_new(const char *name) {
-	plugin *p = g_slice_new0(plugin);
+static liPlugin* plugin_new(const char *name) {
+	liPlugin *p = g_slice_new0(liPlugin);
 	p->name = name;
 	p->angel_callbacks = g_hash_table_new(g_str_hash, g_str_equal);
 	return p;
@@ -57,7 +57,7 @@ static void _server_module_release(gpointer d) {
 	if (0 != --sm->refcount) return;
 
 	for (i = sm->plugins->len; i-- > 0; ) {
-		plugin *p = g_ptr_array_index(sm->plugins, i);
+		liPlugin *p = g_ptr_array_index(sm->plugins, i);
 		plugin_free(sm->srv, p);
 	}
 	g_ptr_array_free(sm->plugins, TRUE);
@@ -71,7 +71,7 @@ static void server_module_acquire(server_module *sm) {
 	sm->refcount++;
 }
 
-static server_module* server_module_new(server *srv, const gchar *name) { /* module is set later */
+static server_module* server_module_new(liServer *srv, const gchar *name) { /* module is set later */
 	server_module *sm = g_slice_new0(server_module);
 	sm->refcount = 1;
 	sm->srv = srv;
@@ -80,8 +80,8 @@ static server_module* server_module_new(server *srv, const gchar *name) { /* mod
 	return sm;
 }
 
-void plugins_init(server *srv, const gchar *module_dir) {
-	Plugins *ps = &srv->plugins;
+void plugins_init(liServer *srv, const gchar *module_dir) {
+	liPlugins *ps = &srv->plugins;
 
 	ps->modules = modules_new(srv, module_dir);
 
@@ -98,8 +98,8 @@ void plugins_init(server *srv, const gchar *module_dir) {
 	ps->load_plugins = g_ptr_array_new();
 }
 
-void plugins_clear(server *srv) {
-	Plugins *ps = &srv->plugins;
+void plugins_clear(liServer *srv) {
+	liPlugins *ps = &srv->plugins;
 
 	plugins_config_clean(srv);
 
@@ -120,12 +120,12 @@ void plugins_clear(server *srv) {
 	modules_free(ps->modules);
 }
 
-void plugins_config_clean(server *srv) {
-	Plugins *ps = &srv->plugins;
+void plugins_config_clean(liServer *srv) {
+	liPlugins *ps = &srv->plugins;
 	guint i;
 
 	for (i = ps->load_plugins->len; i-- > 0; ) {
-		plugin *p = g_ptr_array_index(ps->load_plugins, i);
+		liPlugin *p = g_ptr_array_index(ps->load_plugins, i);
 		if (p->handle_clean_config) p->handle_clean_config(srv, p);
 	}
 
@@ -135,8 +135,8 @@ void plugins_config_clean(server *srv) {
 	g_ptr_array_set_size(ps->load_plugins, 0);
 }
 
-gboolean plugins_config_load(server *srv, const gchar *filename) {
-	Plugins *ps = &srv->plugins;
+gboolean plugins_config_load(liServer *srv, const gchar *filename) {
+	liPlugins *ps = &srv->plugins;
 	GError *error = NULL;
 	guint i;
 
@@ -155,7 +155,7 @@ gboolean plugins_config_load(server *srv, const gchar *filename) {
 
 	/* check new config */
 	for (i = ps->load_plugins->len; i-- > 0; ) {
-		plugin *p = g_ptr_array_index(ps->load_plugins, i);
+		liPlugin *p = g_ptr_array_index(ps->load_plugins, i);
 		if (p->handle_check_config) {
 			if (!p->handle_check_config(srv, p)) {
 				ERROR(srv, "%s", "config check failed");
@@ -169,7 +169,7 @@ gboolean plugins_config_load(server *srv, const gchar *filename) {
 
 	/* activate new config */
 	for (i = ps->load_plugins->len; i-- > 0; ) {
-		plugin *p = g_ptr_array_index(ps->load_plugins, i);
+		liPlugin *p = g_ptr_array_index(ps->load_plugins, i);
 		ERROR(srv, "activate: %s", p->name);
 		if (p->handle_activate_config) {
 			p->handle_activate_config(srv, p);
@@ -201,8 +201,8 @@ gboolean plugins_config_load(server *srv, const gchar *filename) {
 	return TRUE;
 }
 
-void plugins_handle_item(server *srv, GString *itemname, value *hash) {
-	Plugins *ps = &srv->plugins;
+void plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
+	liPlugins *ps = &srv->plugins;
 	server_item *si;
 
 #if 1
@@ -218,7 +218,7 @@ void plugins_handle_item(server *srv, GString *itemname, value *hash) {
 	if (!si) {
 		WARNING(srv, "Unknown item '%s' - perhaps you forgot to load the module? (ignored)", itemname->str);
 	} else {
-		value **optlist = g_slice_alloc0(sizeof(value*) * si->option_count);
+		liValue **optlist = g_slice_alloc0(sizeof(liValue*) * si->option_count);
 		GHashTableIter opti;
 		gpointer k, v;
 		guint i;
@@ -240,14 +240,14 @@ void plugins_handle_item(server *srv, GString *itemname, value *hash) {
 
 		/* validate options */
 		for (i = 0; i < si->option_count; i++) {
-			const plugin_item_option *pi = &si->p_item->options[i];
-			if (0 != (pi->flags & PLUGIN_ITEM_OPTION_MANDATORY)) {
+			const liPluginItemOption *pi = &si->p_item->options[i];
+			if (0 != (pi->flags & LI_PLUGIN_ITEM_OPTION_MANDATORY)) {
 				if (!optlist[i]) {
 					ERROR(srv, "Missing mandatory option '%s' in item '%s'", pi->name, itemname->str);
 					valid = FALSE;
 				}
 			}
-			if (pi->type != VALUE_NONE && optlist[i] && optlist[i]->type != pi->type) {
+			if (pi->type != LI_VALUE_NONE && optlist[i] && optlist[i]->type != pi->type) {
 				/* TODO: convert from string if possible */
 				ERROR(srv, "Invalid value type of option '%s' in item '%s', got '%s' but expected '%s'",
 					pi->name, itemname->str, value_type_string(optlist[i]->type), value_type_string(pi->type));
@@ -260,14 +260,14 @@ void plugins_handle_item(server *srv, GString *itemname, value *hash) {
 			si->p_item->handle_parse_item(srv, si->p, optlist);
 		}
 
-		g_slice_free1(sizeof(value*) * si->option_count, optlist);
+		g_slice_free1(sizeof(liValue*) * si->option_count, optlist);
 	}
 }
 
-static gboolean plugins_activate_module(server *srv, server_module *sm) {
-	Plugins *ps = &srv->plugins;
-	plugin *p;
-	const plugin_item *pi;
+static gboolean plugins_activate_module(liServer *srv, server_module *sm) {
+	liPlugins *ps = &srv->plugins;
+	liPlugin *p;
+	const liPluginItem *pi;
 	guint i;
 
 	for (i = 0; i < sm->plugins->len; i++) {
@@ -312,8 +312,8 @@ item_collission:
 	return FALSE;
 }
 
-gboolean plugins_load_module(server *srv, const gchar *name) {
-	Plugins *ps = &srv->plugins;
+gboolean plugins_load_module(liServer *srv, const gchar *name) {
+	liPlugins *ps = &srv->plugins;
 	server_module *sm;
 	const gchar* modname = name ? name : "core";
 
@@ -324,7 +324,7 @@ gboolean plugins_load_module(server *srv, const gchar *name) {
 		server_module_acquire(sm);
 		g_hash_table_insert(ps->load_module_refs, sm->name, sm);
 	} else { /* not loaded yet */
-		module *mod;
+		liModule *mod;
 		sm = server_module_new(srv, modname);
 		g_hash_table_insert(ps->load_module_refs, sm->name, sm);
 		if (name) {
@@ -351,10 +351,10 @@ gboolean plugins_load_module(server *srv, const gchar *name) {
 	return TRUE;
 }
 
-plugin *angel_plugin_register(server *srv, module *mod, const gchar *name, PluginInit init) {
-	Plugins *ps = &srv->plugins;
+liPlugin *angel_plugin_register(liServer *srv, liModule *mod, const gchar *name, liPluginInitCB init) {
+	liPlugins *ps = &srv->plugins;
 	server_module *sm;
-	plugin *p;
+	liPlugin *p;
 	const gchar* modname = mod ? mod->name->str : "core";
 
 	sm = g_hash_table_lookup(ps->load_module_refs, modname);

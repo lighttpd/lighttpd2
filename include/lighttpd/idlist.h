@@ -3,9 +3,9 @@
 
 #include <lighttpd/settings.h>
 
-typedef struct idlist idlist;
+typedef struct liIDList liIDList;
 
-struct idlist {
+struct liIDList {
 	/* used ids are marked with a "1" in the bitvector (represented as array of gulong) */
 	GArray *bitvector;
 
@@ -24,18 +24,18 @@ struct idlist {
 };
 
 /* create new idlist; the parameter max_ids is "signed" on purpose */
-LI_API idlist* idlist_new(gint max_ids);
+LI_API liIDList* idlist_new(gint max_ids);
 
 /* free idlist */
-LI_API void idlist_free(idlist *l);
+LI_API void idlist_free(liIDList *l);
 
 /* request new id; return -1 if no id is available, valid ids are always > 0 */
-LI_API gint idlist_get(idlist *l);
+LI_API gint idlist_get(liIDList *l);
 
 /* check whether an id is in use and can be "_put" */
-LI_API gboolean idlist_is_used(idlist *l, gint id);
+LI_API gboolean idlist_is_used(liIDList *l, gint id);
 
 /* release id. never release an id more than once! */
-LI_API void idlist_put(idlist *l, gint id);
+LI_API void idlist_put(liIDList *l, gint id);
 
 #endif

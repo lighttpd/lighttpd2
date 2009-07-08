@@ -1,7 +1,7 @@
 
-#include <lighttpd/base.h>
+#include <lighttpd/waitqueue.h>
 
-void waitqueue_init(waitqueue *queue, struct ev_loop *loop, waitqueue_cb callback, gdouble delay, gpointer data) {
+void waitqueue_init(liWaitQueue *queue, struct ev_loop *loop, liWaitQueueCB callback, gdouble delay, gpointer data) {
 	ev_timer_init(&queue->timer, callback, delay, delay);
 
 	queue->timer.data = data;
@@ -10,11 +10,11 @@ void waitqueue_init(waitqueue *queue, struct ev_loop *loop, waitqueue_cb callbac
 	queue->delay = delay;
 }
 
-void waitqueue_stop(waitqueue *queue) {
+void waitqueue_stop(liWaitQueue *queue) {
 	ev_timer_stop(queue->loop, &queue->timer);
 }
 
-void waitqueue_update(waitqueue *queue) {
+void waitqueue_update(liWaitQueue *queue) {
 	ev_tstamp repeat;
 	ev_tstamp now = ev_now(queue->loop);
 
@@ -33,7 +33,7 @@ void waitqueue_update(waitqueue *queue) {
 	}
 }
 
-void waitqueue_push(waitqueue *queue, waitqueue_elem *elem) {
+void waitqueue_push(liWaitQueue *queue, liWaitQueueElem *elem) {
 	elem->ts = ev_now(queue->loop);
 
 	if (!elem->queued) {
@@ -74,8 +74,8 @@ void waitqueue_push(waitqueue *queue, waitqueue_elem *elem) {
 		ev_timer_start(queue->loop, &queue->timer);
 }
 
-waitqueue_elem *waitqueue_pop(waitqueue *queue) {
-	waitqueue_elem *elem = queue->head;
+liWaitQueueElem *waitqueue_pop(liWaitQueue *queue) {
+	liWaitQueueElem *elem = queue->head;
 	ev_tstamp now = ev_now(queue->loop);
 
 	if (!elem || (elem->ts + queue->delay) > now) {
@@ -94,7 +94,7 @@ waitqueue_elem *waitqueue_pop(waitqueue *queue) {
 	return elem;
 }
 
-void waitqueue_remove(waitqueue *queue, waitqueue_elem *elem) {
+void waitqueue_remove(liWaitQueue *queue, liWaitQueueElem *elem) {
 	if (!elem->queued)
 		return;
 
@@ -116,9 +116,9 @@ void waitqueue_remove(waitqueue *queue, waitqueue_elem *elem) {
 }
 
 
-guint waitqueue_length(waitqueue *queue) {
+guint waitqueue_length(liWaitQueue *queue) {
 	guint i = 0;
-	waitqueue_elem *elem = queue->head;
+	liWaitQueueElem *elem = queue->head;
 
 	while (elem) {
 		i++;
@@ -128,9 +128,9 @@ guint waitqueue_length(waitqueue *queue) {
 	return i;
 }
 
-guint waitqueue_pop_ready(waitqueue *queue, waitqueue_elem **head) {
+guint waitqueue_pop_ready(liWaitQueue *queue, liWaitQueueElem **head) {
 	guint i = 0;
-	waitqueue_elem *elem = queue->head;
+	liWaitQueueElem *elem = queue->head;
 	ev_tstamp now = ev_now(queue->loop);
 
 	*head = elem;

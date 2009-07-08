@@ -2,48 +2,48 @@
 #include <lighttpd/base.h>
 
 /* Extract ovalue from ovalue, ovalue set to none */
-option_value value_extract(value *val) {
-	option_value oval = {0};
+liOptionValue value_extract(liValue *val) {
+	liOptionValue oval = {0};
 	if (!val) return oval;
 
 	switch (val->type) {
-		case VALUE_NONE:
+		case LI_VALUE_NONE:
 			break;
-		case VALUE_BOOLEAN:
+		case LI_VALUE_BOOLEAN:
 			oval.boolean = val->data.boolean;
 			break;
-		case VALUE_NUMBER:
+		case LI_VALUE_NUMBER:
 			oval.number =  val->data.number;
 			break;
-		case VALUE_STRING:
+		case LI_VALUE_STRING:
 			oval.string = val->data.string;
 			break;
-		case VALUE_LIST:
+		case LI_VALUE_LIST:
 			oval.list =  val->data.list;
 			break;
-		case VALUE_HASH:
+		case LI_VALUE_HASH:
 			oval.hash =  val->data.hash;
 			break;
-		case VALUE_ACTION:
+		case LI_VALUE_ACTION:
 			oval.ptr = val->data.val_action.action;
 			break;
-		case VALUE_CONDITION:
+		case LI_VALUE_CONDITION:
 			oval.ptr = val->data.val_action.action;
 			break;
 	}
-	val->type = VALUE_NONE;
+	val->type = LI_VALUE_NONE;
 	return oval;
 }
 
-gpointer value_extract_ptr(value *val) {
-	option_value oval = value_extract(val);
+gpointer value_extract_ptr(liValue *val) {
+	liOptionValue oval = value_extract(val);
 	return oval.ptr;
 }
-gint64 value_extract_number(value *val) {
-	option_value oval = value_extract(val);
+gint64 value_extract_number(liValue *val) {
+	liOptionValue oval = value_extract(val);
 	return oval.number;
 }
-gboolean value_extract_bool(value *val) {
-	option_value oval = value_extract(val);
+gboolean value_extract_bool(liValue *val) {
+	liOptionValue oval = value_extract(val);
 	return oval.boolean;
 }

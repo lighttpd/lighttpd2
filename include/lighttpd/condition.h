@@ -10,76 +10,76 @@
  */
 typedef enum {
 /* everything */
-	CONFIG_COND_EQ,      /** == */
-	CONFIG_COND_NE,      /** != */
+	LI_CONFIG_COND_EQ,      /** == */
+	LI_CONFIG_COND_NE,      /** != */
 
 /* only with string */
-	CONFIG_COND_PREFIX,  /** =^ */
-	CONFIG_COND_NOPREFIX,/** !^ */
-	CONFIG_COND_SUFFIX,  /** =$ */
-	CONFIG_COND_NOSUFFIX,/** !$ */
+	LI_CONFIG_COND_PREFIX,  /** =^ */
+	LI_CONFIG_COND_NOPREFIX,/** !^ */
+	LI_CONFIG_COND_SUFFIX,  /** =$ */
+	LI_CONFIG_COND_NOSUFFIX,/** !$ */
 
 /* only usable with pcre */
-	CONFIG_COND_MATCH,   /** =~ */
-	CONFIG_COND_NOMATCH, /** !~ */
+	LI_CONFIG_COND_MATCH,   /** =~ */
+	LI_CONFIG_COND_NOMATCH, /** !~ */
 
-	CONFIG_COND_IP,
-	CONFIG_COND_NOTIP,
+	LI_CONFIG_COND_IP,
+	LI_CONFIG_COND_NOTIP,
 
 /* only with int */
-	CONFIG_COND_GT,      /** > */
-	CONFIG_COND_GE,      /** >= */
-	CONFIG_COND_LT,      /** < */
-	CONFIG_COND_LE       /** <= */
-} comp_operator_t;
+	LI_CONFIG_COND_GT,      /** > */
+	LI_CONFIG_COND_GE,      /** >= */
+	LI_CONFIG_COND_LT,      /** < */
+	LI_CONFIG_COND_LE       /** <= */
+} liCompOperator;
 
 /**
  * possible fields to match against
  */
 typedef enum {
-	COMP_REQUEST_LOCALIP,
-	COMP_REQUEST_REMOTEIP,
-	COMP_REQUEST_PATH,
-	COMP_REQUEST_HOST,
-	COMP_REQUEST_SCHEME,
-	COMP_REQUEST_QUERY_STRING,
-	COMP_REQUEST_METHOD,
-	COMP_REQUEST_CONTENT_LENGTH,
-	COMP_PHYSICAL_PATH,
-	COMP_PHYSICAL_PATH_EXISTS,
-	COMP_PHYSICAL_SIZE,
-	COMP_PHYSICAL_ISDIR,
-	COMP_PHYSICAL_ISFILE,
+	LI_COMP_REQUEST_LOCALIP,
+	LI_COMP_REQUEST_REMOTEIP,
+	LI_COMP_REQUEST_PATH,
+	LI_COMP_REQUEST_HOST,
+	LI_COMP_REQUEST_SCHEME,
+	LI_COMP_REQUEST_QUERY_STRING,
+	LI_COMP_REQUEST_METHOD,
+	LI_COMP_REQUEST_CONTENT_LENGTH,
+	LI_COMP_PHYSICAL_PATH,
+	LI_COMP_PHYSICAL_PATH_EXISTS,
+	LI_COMP_PHYSICAL_SIZE,
+	LI_COMP_PHYSICAL_ISDIR,
+	LI_COMP_PHYSICAL_ISFILE,
 
 /* needs a key */
-	COMP_REQUEST_HEADER,         /**< needs lowercase key, enforced by condition_lvalue_new */
+	LI_COMP_REQUEST_HEADER,         /**< needs lowercase key, enforced by condition_lvalue_new */
 
-	COMP_UNKNOWN
-} cond_lvalue_t;
+	LI_COMP_UNKNOWN
+} liCondLValue;
 
-#define COND_LVALUE_FIRST_WITH_KEY COMP_REQUEST_HEADER
-#define COND_LVALUE_END            (1+COMP_REQUEST_HEADER)
+#define LI_COND_LVALUE_FIRST_WITH_KEY LI_COMP_REQUEST_HEADER
+#define LI_COND_LVALUE_END            (1+LI_COMP_REQUEST_HEADER)
 
-struct condition_lvalue {
+struct liConditionLValue {
 	int refcount;
-	cond_lvalue_t type;
+	liCondLValue type;
 
 	GString *key;
 };
 
 typedef enum {
-	COND_VALUE_BOOL,
-	COND_VALUE_NUMBER,
-	COND_VALUE_STRING,
+	LI_COND_VALUE_BOOL,
+	LI_COND_VALUE_NUMBER,
+	LI_COND_VALUE_STRING,
 #ifdef HAVE_PCRE_H
-	COND_VALUE_REGEXP,
+	LI_COND_VALUE_REGEXP,
 #endif
-	COND_VALUE_SOCKET_IPV4,  /** only match ip/netmask */
-	COND_VALUE_SOCKET_IPV6   /** only match ip/netmask */
-} cond_rvalue_t;
+	LI_COND_VALUE_SOCKET_IPV4,  /** only match ip/netmask */
+	LI_COND_VALUE_SOCKET_IPV6   /** only match ip/netmask */
+} liCondRValue;
 
-struct condition_rvalue {
-	cond_rvalue_t type;
+struct liConditionRValue {
+	liCondRValue type;
 
 	gboolean b;
 	GString *string;
@@ -97,31 +97,30 @@ struct condition_rvalue {
 
 #include <lighttpd/base.h>
 
-struct condition {
+struct liCondition {
 	int refcount;
 
-	comp_operator_t op;
-	condition_lvalue *lvalue;
-	condition_rvalue rvalue;
+	liCompOperator op;
+	liConditionLValue *lvalue;
+	liConditionRValue rvalue;
 };
 
 /* lvalue */
-LI_API condition_lvalue* condition_lvalue_new(cond_lvalue_t type, GString *key);
-LI_API void condition_lvalue_acquire(condition_lvalue *lvalue);
-LI_API void condition_lvalue_release(condition_lvalue *lvalue);
+LI_API liConditionLValue* condition_lvalue_new(liCondLValue type, GString *key);
+LI_API void condition_lvalue_acquire(liConditionLValue *lvalue);
+LI_API void condition_lvalue_release(liConditionLValue *lvalue);
 
-LI_API condition* condition_new_bool(server *srv, condition_lvalue *lvalue, gboolean b);
-LI_API condition* condition_new_string(server *srv, comp_operator_t op, condition_lvalue *lvalue, GString *str);
-LI_API condition* condition_new_int(server *srv, comp_operator_t op, condition_lvalue *lvalue, gint64 i);
+LI_API liCondition* condition_new_bool(liServer *srv, liConditionLValue *lvalue, gboolean b);
+LI_API liCondition* condition_new_string(liServer *srv, liCompOperator op, liConditionLValue *lvalue, GString *str);
+LI_API liCondition* condition_new_int(liServer *srv, liCompOperator op, liConditionLValue *lvalue, gint64 i);
 
-LI_API void condition_acquire(condition *c);
-LI_API void condition_release(server *srv, condition* c);
+LI_API void condition_acquire(liCondition *c);
+LI_API void condition_release(liServer *srv, liCondition* c);
 
-LI_API const char* comp_op_to_string(comp_operator_t op);
-LI_API const char* cond_lvalue_to_string(cond_lvalue_t t);
-LI_API cond_lvalue_t cond_lvalue_from_string(const gchar *str, guint len);
+LI_API const char* comp_op_to_string(liCompOperator op);
+LI_API const char* cond_lvalue_to_string(liCondLValue t);
+LI_API liCondLValue cond_lvalue_from_string(const gchar *str, guint len);
 
-struct vrequest;
-LI_API handler_t condition_check(struct vrequest *vr, condition *cond, gboolean *result);
+LI_API liHandlerResult condition_check(liVRequest *vr, liCondition *cond, gboolean *result);
 
 #endif

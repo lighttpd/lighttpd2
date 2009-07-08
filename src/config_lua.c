@@ -7,10 +7,10 @@
 #include <lualib.h>
 #include <lauxlib.h>
 
-typedef int (*LuaWrapper)(server *srv, lua_State *L, gpointer data);
+typedef int (*LuaWrapper)(liServer *srv, lua_State *L, gpointer data);
 
-static value* lua_params_to_value(server *srv, lua_State *L) {
-	value *val, *subval;
+static liValue* lua_params_to_value(liServer *srv, lua_State *L) {
+	liValue *val, *subval;
 	switch (lua_gettop(L)) {
 	case 0:
 	case 1:
@@ -26,7 +26,7 @@ static value* lua_params_to_value(server *srv, lua_State *L) {
 				value_free(val);
 				return NULL;
 			}
-			g_array_index(val->data.list, value*, lua_gettop(L) - 1) = subval;
+			g_array_index(val->data.list, liValue*, lua_gettop(L) - 1) = subval;
 		}
 		return val;
 	}
@@ -34,14 +34,14 @@ static value* lua_params_to_value(server *srv, lua_State *L) {
 }
 
 /* Creates a table on the lua stack */
-static void lua_push_publish_hash_metatable(server *srv, lua_State *L);
+static void lua_push_publish_hash_metatable(liServer *srv, lua_State *L);
 
 static int lua_str_hash_index(lua_State *L) {
-	server *srv;
+	liServer *srv;
 	GHashTable *ht;
 	LuaWrapper wrapper;
 
-	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
+	srv = (liServer*) lua_touserdata(L, lua_upvalueindex(1));
 	lua_pushstring(L, "__ht"); lua_rawget(L, 1);
 	ht = (GHashTable*) lua_touserdata(L, -1); lua_pop(L, 1);
 	lua_pushstring(L, "__wrapper"); lua_rawget(L, 1);
@@ -78,13 +78,13 @@ static int lua_str_hash_index(lua_State *L) {
 }
 
 static int lua_str_hash_call(lua_State *L) {
-	server *srv;
+	liServer *srv;
 	GHashTable *ht;
 	LuaWrapper wrapper;
 	const char *key;
 	gpointer d;
 
-	srv = (server*) lua_touserdata(L, lua_upvalueindex(1));
+	srv = (liServer*) lua_touserdata(L, lua_upvalueindex(1));
 	lua_pushstring(L, "__ht"); lua_rawget(L, 1);
 	ht = (GHashTable*) lua_touserdata(L, -1); lua_pop(L, 1);
 	lua_pushstring(L, "__wrapper"); lua_rawget(L, 1);
@@ -106,7 +106,7 @@ static int lua_str_hash_call(lua_State *L) {
 }
 
 #define LUA_PUBLISH_HASH "GHashTable*"
-static void lua_push_publish_hash_metatable(server *srv, lua_State *L) {
+static void lua_push_publish_hash_metatable(liServer *srv, lua_State *L) {
 	if (luaL_newmetatable(L, LUA_PUBLISH_HASH)) {
 		lua_pushlightuserdata(L, srv);
 		lua_pushcclosure(L, lua_str_hash_index, 1);
@@ -118,7 +118,7 @@ static void lua_push_publish_hash_metatable(server *srv, lua_State *L) {
 	}
 }
 
-static gboolean publish_str_hash(server *srv, lua_State *L, GHashTable *ht, LuaWrapper wrapper) {
+static gboolean publish_str_hash(liServer *srv, lua_State *L, GHashTable *ht, LuaWrapper wrapper) {
 	lua_newtable(L);                   /* { } */
 	lua_pushlightuserdata(L, ht);
 	lua_setfield(L, -2, "__ht");
@@ -131,10 +131,10 @@ static gboolean publish_str_hash(server *srv, lua_State *L, GHashTable *ht, LuaW
 }
 
 
-static int handle_server_action(server *srv, lua_State *L, gpointer _sa) {
-	server_action *sa = (server_action*) _sa;
-	value *val;
-	action *a;
+static int handle_server_action(liServer *srv, lua_State *L, gpointer _sa) {
+	liServerAction *sa = (liServerAction*) _sa;
+	liValue *val;
+	liAction *a;
 
 	lua_checkstack(L, 16);
 	val = lua_params_to_value(srv, L);
@@ -151,9 +151,9 @@ static int handle_server_action(server *srv, lua_State *L, gpointer _sa) {
 	return lua_push_action(srv, L, a);
 }
 
-static int handle_server_setup(server *srv, lua_State *L, gpointer _ss) {
-	server_setup *ss = (server_setup*) _ss;
-	value *val;
+static int handle_server_setup(liServer *srv, lua_State *L, gpointer _ss) {
+	liServerSetup *ss = (liServerSetup*) _ss;
+	liValue *val;
 
 	lua_checkstack(L, 16);
 	val = lua_params_to_value(srv, L);
@@ -170,7 +170,7 @@ static int handle_server_setup(server *srv, lua_State *L, gpointer _ss) {
 	return 0;
 }
 
-gboolean config_lua_load(server *srv, const gchar *filename) {
+gboolean config_lua_load(liServer *srv, const gchar *filename) {
 	lua_State *L;
 
 	L = luaL_newstate();

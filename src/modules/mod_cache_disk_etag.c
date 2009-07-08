@@ -31,17 +31,14 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-LI_API gboolean mod_cache_disk_etag_init(modules *mods, module *mod);
-LI_API gboolean mod_cache_disk_etag_free(modules *mods, module *mod);
+LI_API gboolean mod_cache_disk_etag_init(liModules *mods, liModule *mod);
+LI_API gboolean mod_cache_disk_etag_free(liModules *mods, liModule *mod);
 
-struct cache_etag_context;
 typedef struct cache_etag_context cache_etag_context;
-
 struct cache_etag_context {
 	GString *path;
 };
 
-struct cache_etag_file;
 typedef struct cache_etag_file cache_etag_file;
 struct cache_etag_file {
 	GString *filename, *tmpfilename;
@@ -59,7 +56,7 @@ static cache_etag_file* cache_etag_file_create(GString *filename) {
 	return cfile;
 }
 
-static gboolean mkdir_for_file(vrequest *vr, char *filename) {
+static gboolean mkdir_for_file(liVRequest *vr, char *filename) {
 	char *p = filename;
 
 	if (!filename || !filename[0])
@@ -83,7 +80,7 @@ static gboolean mkdir_for_file(vrequest *vr, char *filename) {
 	return TRUE;
 }
 
-static gboolean cache_etag_file_start(vrequest *vr, cache_etag_file *cfile) {
+static gboolean cache_etag_file_start(liVRequest *vr, cache_etag_file *cfile) {
 	cfile->tmpfilename = g_string_sized_new(cfile->filename->len + 7);
 	g_string_append_len(cfile->tmpfilename, GSTR_LEN(cfile->filename));
 	g_string_append_len(cfile->tmpfilename, CONST_STR_LEN("-XXXXXX"));
@@ -115,7 +112,7 @@ static void cache_etag_file_free(cache_etag_file *cfile) {
 	g_slice_free(cache_etag_file, cfile);
 }
 
-static void cache_etag_file_finish(vrequest *vr, cache_etag_file *cfile) {
+static void cache_etag_file_finish(liVRequest *vr, cache_etag_file *cfile) {
 	close(cfile->fd);
 	cfile->fd = -1;
 	if (-1 == rename(cfile->tmpfilename->str, cfile->filename->str)) {
@@ -127,18 +124,18 @@ static void cache_etag_file_finish(vrequest *vr, cache_etag_file *cfile) {
 
 /**********************************************************************************/
 
-static void cache_etag_filter_free(vrequest *vr, filter *f) {
+static void cache_etag_filter_free(liVRequest *vr, liFilter *f) {
 	cache_etag_file *cfile = (cache_etag_file*) f->param;
 	UNUSED(vr);
 
 	cache_etag_file_free(cfile);
 }
 
-static handler_t cache_etag_filter_hit(vrequest *vr, filter *f) {
+static liHandlerResult cache_etag_filter_hit(liVRequest *vr, liFilter *f) {
 	cache_etag_file *cfile = (cache_etag_file*) f->param;
 	UNUSED(vr);
 
-	if (!cfile) return HANDLER_GO_ON;
+	if (!cfile) return LI_HANDLER_GO_ON;
 
 	f->in->is_closed = TRUE;
 
@@ -149,32 +146,32 @@ static handler_t cache_etag_filter_hit(vrequest *vr, filter *f) {
 
 	f->out->is_closed = TRUE;
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static handler_t cache_etag_filter_miss(vrequest *vr, filter *f) {
+static liHandlerResult cache_etag_filter_miss(liVRequest *vr, liFilter *f) {
 	cache_etag_file *cfile = (cache_etag_file*) f->param;
 	ssize_t res;
 	gchar *buf;
 	goffset buflen;
-	chunkiter citer = chunkqueue_iter(f->in);
+	liChunkIter citer = chunkqueue_iter(f->in);
 	UNUSED(vr);
 
-	if (0 == f->in->length) return HANDLER_GO_ON;
+	if (0 == f->in->length) return LI_HANDLER_GO_ON;
 
 	if (!cfile) { /* somehow we lost the file */
 		chunkqueue_steal_all(f->out, f->in);
 		if (f->in->is_closed) f->out->is_closed = TRUE;
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 	}
 
-	if (HANDLER_GO_ON != chunkiter_read(vr, citer, 0, 64*1024, &buf, &buflen)) {
+	if (LI_HANDLER_GO_ON != chunkiter_read(vr, citer, 0, 64*1024, &buf, &buflen)) {
 		VR_ERROR(vr, "%s", "Couldn't read data from chunkqueue");
 		cache_etag_file_free(cfile);
 		f->param = NULL;
 		chunkqueue_steal_all(f->out, f->in);
 		if (f->in->is_closed) f->out->is_closed = TRUE;
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 	}
 
 	res = write(cfile->fd, buf, buflen);
@@ -190,7 +187,7 @@ static handler_t cache_etag_filter_miss(vrequest *vr, filter *f) {
 			f->param = NULL;
 			chunkqueue_steal_all(f->out, f->in);
 			if (f->in->is_closed) f->out->is_closed = TRUE;
-			return HANDLER_GO_ON;
+			return LI_HANDLER_GO_ON;
 		}
 	} else {
 		chunkqueue_steal_len(f->out, f->in, res);
@@ -198,14 +195,14 @@ static handler_t cache_etag_filter_miss(vrequest *vr, filter *f) {
 			cache_etag_file_finish(vr, cfile);
 			f->param = NULL;
 			f->out->is_closed = TRUE;
-			return HANDLER_GO_ON;
+			return LI_HANDLER_GO_ON;
 		}
 	}
 
-	return f->in->length ? HANDLER_COMEBACK : HANDLER_GO_ON;
+	return f->in->length ? LI_HANDLER_COMEBACK : LI_HANDLER_GO_ON;
 }
 
-static GString* createFileName(vrequest *vr, GString *path, http_header *etagheader) {
+static GString* createFileName(liVRequest *vr, GString *path, liHttpHeader *etagheader) {
 	GString *file = g_string_sized_new(255);
 	gchar* etag_base64 = g_base64_encode((guchar*) HEADER_VALUE_LEN(etagheader));
 	g_string_append_len(file, GSTR_LEN(path));
@@ -216,40 +213,40 @@ static GString* createFileName(vrequest *vr, GString *path, http_header *etaghea
 	return file;
 }
 
-static handler_t cache_etag_cleanup(vrequest *vr, gpointer param, gpointer context) {
+static liHandlerResult cache_etag_cleanup(liVRequest *vr, gpointer param, gpointer context) {
 	cache_etag_file *cfile = (cache_etag_file*) context;
 	UNUSED(vr);
 	UNUSED(param);
 
 	cache_etag_file_free(cfile);
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static handler_t cache_etag_handle(vrequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointer *context) {
 	cache_etag_context *ctx = (cache_etag_context*) param;
 	cache_etag_file *cfile = (cache_etag_file*) *context;
 	GList *etag_entry;
-	http_header *etag;
+	liHttpHeader *etag;
 	struct stat st;
 	GString *tmp_str = vr->wrk->tmp_str;
 
 	if (!cfile) {
-		if (vr->request.http_method != HTTP_METHOD_GET) return HANDLER_GO_ON;
+		if (vr->request.http_method != LI_HTTP_METHOD_GET) return LI_HANDLER_GO_ON;
 
 		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 
-		if (vr->response.http_status != 200) return HANDLER_GO_ON;
+		if (vr->response.http_status != 200) return LI_HANDLER_GO_ON;
 
 		/* Don't cache static files */
-		if (vr->out->is_closed && 0 == vr->out->mem_usage) return HANDLER_GO_ON;
+		if (vr->out->is_closed && 0 == vr->out->mem_usage) return LI_HANDLER_GO_ON;
 
 		etag_entry = http_header_find_first(vr->response.headers, CONST_STR_LEN("etag"));
-		if (!etag_entry) return HANDLER_GO_ON; /* no etag -> no caching */
+		if (!etag_entry) return LI_HANDLER_GO_ON; /* no etag -> no caching */
 		if (http_header_find_next(etag_entry, CONST_STR_LEN("etag"))) {
 			VR_ERROR(vr, "%s", "duplicate etag header in response, will not cache it");
-			return HANDLER_GO_ON;
+			return LI_HANDLER_GO_ON;
 		}
-		etag = (http_header*) etag_entry->data;
+		etag = (liHttpHeader*) etag_entry->data;
 
 		cfile = cache_etag_file_create(createFileName(vr, ctx->path, etag));
 		*context = cfile;
@@ -259,19 +256,19 @@ static handler_t cache_etag_handle(vrequest *vr, gpointer param, gpointer *conte
 	if (0 == stat(cfile->filename->str, &st)) {
 		if (!S_ISREG(st.st_mode)) {
 			VR_ERROR(vr, "Unexpected file type for cache file '%s' (mode %o)", cfile->filename->str, (unsigned int) st.st_mode);
-			return HANDLER_GO_ON; /* no caching */
+			return LI_HANDLER_GO_ON; /* no caching */
 		}
 		if (-1 == (cfile->hit_fd = open(cfile->filename->str, O_RDONLY))) {
 			if (EMFILE == errno) {
 				server_out_of_fds(vr->wrk->srv);
 			}
 			VR_ERROR(vr, "Couldn't open cache file '%s': %s", cfile->filename->str, g_strerror(errno));
-			return HANDLER_GO_ON; /* no caching */
+			return LI_HANDLER_GO_ON; /* no caching */
 		}
 #ifdef FD_CLOEXEC
 		fcntl(cfile->hit_fd, F_SETFD, FD_CLOEXEC);
 #endif
-		if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "cache hit for '%s'", vr->request.uri.path->str);
 		}
 		cfile->hit_length = st.st_size;
@@ -280,25 +277,25 @@ static handler_t cache_etag_handle(vrequest *vr, gpointer param, gpointer *conte
 		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(tmp_str));
 		vrequest_add_filter_out(vr, cache_etag_filter_hit, cache_etag_filter_free, cfile);
 		*context = NULL;
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 	}
 
-	if (CORE_OPTION(CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "cache miss for '%s'", vr->request.uri.path->str);
 	}
 
 	if (!cache_etag_file_start(vr, cfile)) {
 		cache_etag_file_free(cfile);
-		return HANDLER_GO_ON; /* no caching */
+		return LI_HANDLER_GO_ON; /* no caching */
 	}
 
 	vrequest_add_filter_out(vr, cache_etag_filter_miss, cache_etag_filter_free, cfile);
 	*context = NULL;
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static void cache_etag_free(server *srv, gpointer param) {
+static void cache_etag_free(liServer *srv, gpointer param) {
 	cache_etag_context *ctx = (cache_etag_context*) param;
 	UNUSED(srv);
 
@@ -306,11 +303,11 @@ static void cache_etag_free(server *srv, gpointer param) {
 	g_slice_free(cache_etag_context, ctx);
 }
 
-static action* cache_etag_create(server *srv, plugin* p, value *val) {
+static liAction* cache_etag_create(liServer *srv, liPlugin* p, liValue *val) {
 	cache_etag_context *ctx;
 	UNUSED(p);
 
-	if (val->type != VALUE_STRING) {
+	if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "cache.disk.etag expects a string as parameter");
 		return FALSE;
 	}
@@ -321,21 +318,21 @@ static action* cache_etag_create(server *srv, plugin* p, value *val) {
 	return action_new_function(cache_etag_handle, cache_etag_cleanup, cache_etag_free, ctx);
 }
 
-static const plugin_option options[] = {
+static const liPluginOption options[] = {
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
-static const plugin_action actions[] = {
+static const liPluginAction actions[] = {
 	{ "cache.disk.etag", cache_etag_create },
 	{ NULL, NULL }
 };
 
-static const plugin_setup setups[] = {
+static const liliPluginSetupCB setups[] = {
 	{ NULL, NULL }
 };
 
 
-static void plugin_init(server *srv, plugin *p) {
+static void plugin_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
 
 	p->options = options;
@@ -343,7 +340,7 @@ static void plugin_init(server *srv, plugin *p) {
 	p->setups = setups;
 }
 
-gboolean mod_cache_disk_etag_init(modules *mods, module *mod) {
+gboolean mod_cache_disk_etag_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
 
 	mod->config = plugin_register(mods->main, "mod_cache_disk_etag", plugin_init);
@@ -351,7 +348,7 @@ gboolean mod_cache_disk_etag_init(modules *mods, module *mod) {
 	return mod->config != NULL;
 }
 
-gboolean mod_cache_disk_etag_free(modules *mods, module *mod) {
+gboolean mod_cache_disk_etag_free(liModules *mods, liModule *mod) {
 	if (mod->config)
 		plugin_free(mods->main, mod->config);
 

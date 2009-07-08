@@ -9,8 +9,8 @@
  * of the form 2^n this should result in bit shifts in the executable code.
  */
 
-idlist* idlist_new(gint max_ids) {
-	idlist *l = g_slice_new0(idlist);
+liIDList* idlist_new(gint max_ids) {
+	liIDList *l = g_slice_new0(liIDList);
 	g_assert(max_ids > 0);
 	l->bitvector = g_array_new(FALSE, TRUE, sizeof(gulong));
 	l->max_ids = max_ids;
@@ -19,10 +19,10 @@ idlist* idlist_new(gint max_ids) {
 	return l;
 }
 
-void idlist_free(idlist *l) {
+void idlist_free(liIDList *l) {
 	if (!l) return;
 	g_array_free(l->bitvector, TRUE);
-	g_slice_free(idlist, l);
+	g_slice_free(liIDList, l);
 }
 
 static void mark_bit(GArray *a, gint id) {
@@ -48,7 +48,7 @@ static void idlist_reserve(GArray *a, guint id) {
 	if (ndx >= a->len) g_array_set_size(a, ndx+1);
 }
 
-gint idlist_get(idlist *l) {
+gint idlist_get(liIDList *l) {
 	guint fndx, ndx;
 	gint newid, bndx;
 	gulong u = -1;
@@ -97,7 +97,7 @@ gint idlist_get(idlist *l) {
 	return newid;
 }
 
-gboolean idlist_is_used(idlist *l, gint id) {
+gboolean idlist_is_used(liIDList *l, gint id) {
 	GArray *a = l->bitvector;
 	guint ndx = id / UL_BITS, bndx = id % UL_BITS;
 	gulong bmask = 1 << bndx;
@@ -106,7 +106,7 @@ gboolean idlist_is_used(idlist *l, gint id) {
 	return (0 != (g_array_index(a, gulong, ndx) & (bmask)));
 }
 
-void idlist_put(idlist *l, gint id) {
+void idlist_put(liIDList *l, gint id) {
 	clear_bit(l->bitvector, id);
 
 	l->used_ids--;

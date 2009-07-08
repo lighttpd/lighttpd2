@@ -75,42 +75,42 @@ gchar *http_status_string(guint status_code, guint *len) {
 	}
 }
 
-gchar *http_method_string(http_method_t method, guint *len) {
+gchar *http_method_string(liHttpMethod method, guint *len) {
 	switch (method) {
-	case HTTP_METHOD_UNSET:           SET_LEN_AND_RETURN_STR("UNKNOWN");
-	case HTTP_METHOD_GET:             SET_LEN_AND_RETURN_STR("GET");
-	case HTTP_METHOD_POST:            SET_LEN_AND_RETURN_STR("POST");
-	case HTTP_METHOD_HEAD:            SET_LEN_AND_RETURN_STR("HEAD");
-	case HTTP_METHOD_OPTIONS:         SET_LEN_AND_RETURN_STR("OPTIONS");
-	case HTTP_METHOD_PROPFIND:        SET_LEN_AND_RETURN_STR("PROPFIND");
-	case HTTP_METHOD_MKCOL:           SET_LEN_AND_RETURN_STR("MKCOL");
-	case HTTP_METHOD_PUT:             SET_LEN_AND_RETURN_STR("PUT");
-	case HTTP_METHOD_DELETE:          SET_LEN_AND_RETURN_STR("DELETE");
-	case HTTP_METHOD_COPY:            SET_LEN_AND_RETURN_STR("COPY");
-	case HTTP_METHOD_MOVE:            SET_LEN_AND_RETURN_STR("MOVE");
-	case HTTP_METHOD_PROPPATCH:       SET_LEN_AND_RETURN_STR("PROPPATCH");
-	case HTTP_METHOD_REPORT:          SET_LEN_AND_RETURN_STR("REPORT");
-	case HTTP_METHOD_CHECKOUT:        SET_LEN_AND_RETURN_STR("CHECKOUT");
-	case HTTP_METHOD_CHECKIN:         SET_LEN_AND_RETURN_STR("CHECKIN");
-	case HTTP_METHOD_VERSION_CONTROL: SET_LEN_AND_RETURN_STR("VERSION_CONTROL");
-	case HTTP_METHOD_UNCHECKOUT:      SET_LEN_AND_RETURN_STR("UNCHECKOUT");
-	case HTTP_METHOD_MKACTIVITY:      SET_LEN_AND_RETURN_STR("MKACTIVITY");
-	case HTTP_METHOD_MERGE:           SET_LEN_AND_RETURN_STR("MERGE");
-	case HTTP_METHOD_LOCK:            SET_LEN_AND_RETURN_STR("LOCK");
-	case HTTP_METHOD_UNLOCK:          SET_LEN_AND_RETURN_STR("UNLOCK");
-	case HTTP_METHOD_LABEL:           SET_LEN_AND_RETURN_STR("LABEL");
-	case HTTP_METHOD_CONNECT:         SET_LEN_AND_RETURN_STR("CONNECT");
+	case LI_HTTP_METHOD_UNSET:           SET_LEN_AND_RETURN_STR("UNKNOWN");
+	case LI_HTTP_METHOD_GET:             SET_LEN_AND_RETURN_STR("GET");
+	case LI_HTTP_METHOD_POST:            SET_LEN_AND_RETURN_STR("POST");
+	case LI_HTTP_METHOD_HEAD:            SET_LEN_AND_RETURN_STR("HEAD");
+	case LI_HTTP_METHOD_OPTIONS:         SET_LEN_AND_RETURN_STR("OPTIONS");
+	case LI_HTTP_METHOD_PROPFIND:        SET_LEN_AND_RETURN_STR("PROPFIND");
+	case LI_HTTP_METHOD_MKCOL:           SET_LEN_AND_RETURN_STR("MKCOL");
+	case LI_HTTP_METHOD_PUT:             SET_LEN_AND_RETURN_STR("PUT");
+	case LI_HTTP_METHOD_DELETE:          SET_LEN_AND_RETURN_STR("DELETE");
+	case LI_HTTP_METHOD_COPY:            SET_LEN_AND_RETURN_STR("COPY");
+	case LI_HTTP_METHOD_MOVE:            SET_LEN_AND_RETURN_STR("MOVE");
+	case LI_HTTP_METHOD_PROPPATCH:       SET_LEN_AND_RETURN_STR("PROPPATCH");
+	case LI_HTTP_METHOD_REPORT:          SET_LEN_AND_RETURN_STR("REPORT");
+	case LI_HTTP_METHOD_CHECKOUT:        SET_LEN_AND_RETURN_STR("CHECKOUT");
+	case LI_HTTP_METHOD_CHECKIN:         SET_LEN_AND_RETURN_STR("CHECKIN");
+	case LI_HTTP_METHOD_VERSION_CONTROL: SET_LEN_AND_RETURN_STR("VERSION_CONTROL");
+	case LI_HTTP_METHOD_UNCHECKOUT:      SET_LEN_AND_RETURN_STR("UNCHECKOUT");
+	case LI_HTTP_METHOD_MKACTIVITY:      SET_LEN_AND_RETURN_STR("MKACTIVITY");
+	case LI_HTTP_METHOD_MERGE:           SET_LEN_AND_RETURN_STR("MERGE");
+	case LI_HTTP_METHOD_LOCK:            SET_LEN_AND_RETURN_STR("LOCK");
+	case LI_HTTP_METHOD_UNLOCK:          SET_LEN_AND_RETURN_STR("UNLOCK");
+	case LI_HTTP_METHOD_LABEL:           SET_LEN_AND_RETURN_STR("LABEL");
+	case LI_HTTP_METHOD_CONNECT:         SET_LEN_AND_RETURN_STR("CONNECT");
 	}
 
 	*len = 0;
 	return NULL;
 }
 
-gchar *http_version_string(http_version_t method, guint *len) {
+gchar *http_version_string(liHttpVersion method, guint *len) {
 	switch (method) {
-	case HTTP_VERSION_1_1: SET_LEN_AND_RETURN_STR("HTTP/1.1");
-	case HTTP_VERSION_1_0: SET_LEN_AND_RETURN_STR("HTTP/1.0");
-	case HTTP_VERSION_UNSET: SET_LEN_AND_RETURN_STR("HTTP/??");
+	case LI_HTTP_VERSION_1_1: SET_LEN_AND_RETURN_STR("HTTP/1.1");
+	case LI_HTTP_VERSION_1_0: SET_LEN_AND_RETURN_STR("HTTP/1.0");
+	case LI_HTTP_VERSION_UNSET: SET_LEN_AND_RETURN_STR("HTTP/??");
 	}
 
 	*len = 0;
@@ -128,25 +128,25 @@ void http_status_to_str(gint status_code, gchar status_str[]) {
 }
 
 
-GString *mimetype_get(vrequest *vr, GString *filename) {
+GString *mimetype_get(liVRequest *vr, GString *filename) {
 	/* search in mime_types option for the first match */
 	GArray *arr;
 
 	if (!vr || !filename || !filename->len)
 		return NULL;
 
-	arr = CORE_OPTION(CORE_OPTION_MIME_TYPES).list;
+	arr = CORE_OPTION(LI_CORE_OPTION_MIME_TYPES).list;
 
 	for (guint i = 0; i < arr->len; i++) {
 		gint k, j;
-		value *tuple = g_array_index(arr, value*, i);
-		GString *ext = g_array_index(tuple->data.list, value*, 0)->data.string;
+		liValue *tuple = g_array_index(arr, liValue*, i);
+		GString *ext = g_array_index(tuple->data.list, liValue*, 0)->data.string;
 		if (ext->len > filename->len)
 			continue;
 
 		/* "" extension matches everything, used for default mimetype */
 		if (!ext->len)
-			return g_array_index(tuple->data.list, value*, 1)->data.string;
+			return g_array_index(tuple->data.list, liValue*, 1)->data.string;
 
 		k = filename->len - 1;
 		j = ext->len - 1;
@@ -157,7 +157,7 @@ GString *mimetype_get(vrequest *vr, GString *filename) {
 		}
 
 		if (j == -1)
-			return g_array_index(tuple->data.list, value*, 1)->data.string;
+			return g_array_index(tuple->data.list, liValue*, 1)->data.string;
 	}
 
 	return NULL;

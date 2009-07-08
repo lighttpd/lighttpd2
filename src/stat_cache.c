@@ -6,17 +6,17 @@
 static void stat_cache_job_cb(struct ev_loop *loop, ev_async *w, int revents);
 static void stat_cache_delete_cb(struct ev_loop *loop, ev_timer *w, int revents);
 static gpointer stat_cache_thread(gpointer data);
-static void stat_cache_entry_free(stat_cache_entry *sce);
+static void stat_cache_entry_free(liStatCacheEntry *sce);
 
-void stat_cache_new(worker *wrk, gdouble ttl) {
-	stat_cache *sc;
+void stat_cache_new(liWorker *wrk, gdouble ttl) {
+	liStatCache *sc;
 	GError *err;
 
 	/* ttl default 10s */
 	if (ttl < 1)
 		ttl = 10.0;
 
-	sc = g_slice_new0(stat_cache);
+	sc = g_slice_new0(liStatCache);
 	sc->ttl = ttl;
 	sc->entries = g_hash_table_new_full((GHashFunc)g_string_hash, (GEqualFunc)g_string_equal, NULL, NULL);
 	sc->dirlists = g_hash_table_new_full((GHashFunc)g_string_hash, (GEqualFunc)g_string_equal, NULL, NULL);
@@ -39,16 +39,16 @@ void stat_cache_new(worker *wrk, gdouble ttl) {
 	}
 }
 
-void stat_cache_free(stat_cache *sc) {
+void stat_cache_free(liStatCache *sc) {
 	GHashTableIter iter;
 	gpointer k, v;
-	stat_cache_entry *dummy;
+	liStatCacheEntry *dummy;
 
 	/* wake up thread */
-	dummy = g_slice_new0(stat_cache_entry);
+	dummy = g_slice_new0(liStatCacheEntry);
 	g_async_queue_push(sc->job_queue_out, dummy);
 	g_thread_join(sc->thread);
-	g_slice_free(stat_cache_entry, dummy);
+	g_slice_free(liStatCacheEntry, dummy);
 
 	ev_async_stop(sc->delete_queue.loop, &sc->job_watcher);
 
@@ -63,13 +63,13 @@ void stat_cache_free(stat_cache *sc) {
 	g_async_queue_unref(sc->job_queue_out);
 	g_hash_table_destroy(sc->entries);
 	g_hash_table_destroy(sc->dirlists);
-	g_slice_free(stat_cache, sc);
+	g_slice_free(liStatCache, sc);
 }
 
 static void stat_cache_delete_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	stat_cache *sc = (stat_cache*) w->data;
-	stat_cache_entry *sce;
-	waitqueue_elem *wqe;
+	liStatCache *sc = (liStatCache*) w->data;
+	liStatCacheEntry *sce;
+	liWaitQueueElem *wqe;
 
 	UNUSED(loop);
 	UNUSED(revents);
@@ -102,9 +102,9 @@ static void stat_cache_delete_cb(struct ev_loop *loop, ev_timer *w, int revents)
 /* called whenever an async stat job has finished */
 static void stat_cache_job_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	guint i;
-	stat_cache_entry *sce;
-	stat_cache *sc = ((worker*)w->data)->stat_cache;
-	vrequest *vr;
+	liStatCacheEntry *sce;
+	liStatCache *sc = ((liWorker*)w->data)->stat_cache;
+	liVRequest *vr;
 
 	UNUSED(loop);
 	UNUSED(revents);
@@ -128,7 +128,7 @@ static void stat_cache_job_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	}
 }
 
-static void stat_cache_entry_free(stat_cache_entry *sce) {
+static void stat_cache_entry_free(liStatCacheEntry *sce) {
 	guint i;
 
 	assert(sce->vrequests->len == 0);
@@ -139,19 +139,19 @@ static void stat_cache_entry_free(stat_cache_entry *sce) {
 
 	if (sce->type == STAT_CACHE_ENTRY_DIR) {
 		for (i = 0; i < sce->dirlist->len; i++) {
-			g_string_free(g_array_index(sce->dirlist, stat_cache_entry_data, i).path, TRUE);
+			g_string_free(g_array_index(sce->dirlist, liStatCacheEntryData, i).path, TRUE);
 		}
 
 		g_array_free(sce->dirlist, TRUE);
 	}
 
-	g_slice_free(stat_cache_entry, sce);
+	g_slice_free(liStatCacheEntry, sce);
 }
 
 
 static gpointer stat_cache_thread(gpointer data) {
-	stat_cache *sc = data;
-	stat_cache_entry *sce;
+	liStatCache *sc = data;
+	liStatCacheEntry *sce;
 
 	while (TRUE) {
 		sce = g_async_queue_pop(sc->job_queue_out);
@@ -173,7 +173,7 @@ static gpointer stat_cache_thread(gpointer data) {
 			struct dirent *entry;
 			struct dirent *result;
 			gint error;
-			stat_cache_entry_data sced;
+			liStatCacheEntryData sced;
 			GString *str;
 
 			dirp = opendir(sce->data.path->str);
@@ -233,10 +233,10 @@ static gpointer stat_cache_thread(gpointer data) {
 	return NULL;
 }
 
-static stat_cache_entry *stat_cache_entry_new(GString *path) {
-	stat_cache_entry *sce;
+static liStatCacheEntry *stat_cache_entry_new(GString *path) {
+	liStatCacheEntry *sce;
 
-	sce = g_slice_new0(stat_cache_entry);
+	sce = g_slice_new0(liStatCacheEntry);
 	sce->data.path = g_string_new_len(GSTR_LEN(path));
 	sce->vrequests = g_ptr_array_sized_new(8);
 	sce->state = STAT_CACHE_ENTRY_WAITING;
@@ -247,9 +247,9 @@ static stat_cache_entry *stat_cache_entry_new(GString *path) {
 	return sce;
 }
 
-handler_t stat_cache_get_dirlist(vrequest *vr, GString *path, stat_cache_entry **result) {
-	stat_cache *sc;
-	stat_cache_entry *sce;
+liHandlerResult stat_cache_get_dirlist(liVRequest *vr, GString *path, liStatCacheEntry **result) {
+	liStatCache *sc;
+	liStatCacheEntry *sce;
 	guint i;
 
 	sc = vr->wrk->stat_cache;
@@ -261,34 +261,34 @@ handler_t stat_cache_get_dirlist(vrequest *vr, GString *path, stat_cache_entry *
 			/* already waiting for it? */
 			for (i = 0; i < vr->stat_cache_entries->len; i++) {
 				if (g_ptr_array_index(vr->stat_cache_entries, i) == sce)
-					return HANDLER_WAIT_FOR_EVENT;
+					return LI_HANDLER_WAIT_FOR_EVENT;
 			}
 			stat_cache_entry_acquire(vr, sce);
-			return HANDLER_WAIT_FOR_EVENT;
+			return LI_HANDLER_WAIT_FOR_EVENT;
 		}
 
 		sce->refcount++;
 		g_ptr_array_add(vr->stat_cache_entries, sce);
 		sc->hits++;
 		*result = sce;
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 	} else {
 		/* cache miss, allocate new entry */
 		sce = stat_cache_entry_new(path);
 		sce->type = STAT_CACHE_ENTRY_DIR;
-		sce->dirlist = g_array_sized_new(FALSE, FALSE, sizeof(stat_cache_entry_data), 32);
+		sce->dirlist = g_array_sized_new(FALSE, FALSE, sizeof(liStatCacheEntryData), 32);
 		stat_cache_entry_acquire(vr, sce);
 		waitqueue_push(&sc->delete_queue, &sce->queue_elem);
 		g_hash_table_insert(sc->dirlists, sce->data.path, sce);
 		g_async_queue_push(sc->job_queue_out, sce);
 		sc->misses++;
-		return HANDLER_WAIT_FOR_EVENT;
+		return LI_HANDLER_WAIT_FOR_EVENT;
 	}
 }
 
-handler_t stat_cache_get(vrequest *vr, GString *path, struct stat *st, int *err, int *fd) {
-	stat_cache *sc;
-	stat_cache_entry *sce;
+liHandlerResult stat_cache_get(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd) {
+	liStatCache *sc;
+	liStatCacheEntry *sce;
 	guint i;
 
 	sc = vr->wrk->stat_cache;
@@ -300,10 +300,10 @@ handler_t stat_cache_get(vrequest *vr, GString *path, struct stat *st, int *err,
 			/* already waiting for it? */
 			for (i = 0; i < vr->stat_cache_entries->len; i++) {
 				if (g_ptr_array_index(vr->stat_cache_entries, i) == sce)
-					return HANDLER_WAIT_FOR_EVENT;
+					return LI_HANDLER_WAIT_FOR_EVENT;
 			}
 			stat_cache_entry_acquire(vr, sce);
-			return HANDLER_WAIT_FOR_EVENT;
+			return LI_HANDLER_WAIT_FOR_EVENT;
 		}
 
 		sc->hits++;
@@ -316,37 +316,37 @@ handler_t stat_cache_get(vrequest *vr, GString *path, struct stat *st, int *err,
 		g_hash_table_insert(sc->entries, sce->data.path, sce);
 		g_async_queue_push(sc->job_queue_out, sce);
 		sc->misses++;
-		return HANDLER_WAIT_FOR_EVENT;
+		return LI_HANDLER_WAIT_FOR_EVENT;
 	}
 
 	if (fd) {
 		/* open + fstat */
 		if (-1 == (*fd = open(path->str, O_RDONLY))) {
 			*err = errno;
-			return HANDLER_ERROR;
+			return LI_HANDLER_ERROR;
 		}
 		if (-1 == fstat(*fd, st)) {
 			*err = errno;
-			return HANDLER_ERROR;
+			return LI_HANDLER_ERROR;
 		}
 	} else {
 		/* stat */
 		if (-1 == stat(path->str, st)) {
 			*err = errno;
-			return HANDLER_ERROR;
+			return LI_HANDLER_ERROR;
 		}
 	}
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-void stat_cache_entry_acquire(vrequest *vr, stat_cache_entry *sce) {
+void stat_cache_entry_acquire(liVRequest *vr, liStatCacheEntry *sce) {
 	sce->refcount++;
 	g_ptr_array_add(vr->stat_cache_entries, sce);
 	g_ptr_array_add(sce->vrequests, vr);
 }
 
-void stat_cache_entry_release(vrequest *vr, stat_cache_entry *sce) {
+void stat_cache_entry_release(liVRequest *vr, liStatCacheEntry *sce) {
 	sce->refcount--;
 	g_ptr_array_remove_fast(sce->vrequests, vr);
 	g_ptr_array_remove_fast(vr->stat_cache_entries, sce);

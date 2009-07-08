@@ -21,44 +21,44 @@ const char *remove_path(const char *path) {
 }
 #endif
 
-void log_write(server *srv, log_t *log, GString *msg) {
-	log_entry_t *log_entry;
+void log_write(liServer *srv, liLog *log, GString *msg) {
+	liLogEntry *log_entry;
 
-	if (g_atomic_int_get(&srv->state) == SERVER_STARTING) {
+	if (g_atomic_int_get(&srv->state) == LI_SERVER_STARTING) {
 		angel_log(srv, msg);
 		return;
 	}
 
 	log_ref(srv, log);
 
-	log_entry = g_slice_new(log_entry_t);
+	log_entry = g_slice_new(liLogEntry);
 	log_entry->log = log;
 	log_entry->msg = msg;
 
 	g_async_queue_push(srv->logs.queue, log_entry);
 }
 
-gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flags, const gchar *fmt, ...) {
+gboolean log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, const gchar *fmt, ...) {
 	va_list ap;
 	GString *log_line;
-	log_t *log = NULL;
-	log_entry_t *log_entry;
-	log_timestamp_t *ts = NULL;
+	liLog *log = NULL;
+	liLogEntry *log_entry;
+	liLogTimestamp *ts = NULL;
 
 	if (vr != NULL) {
 
 		if (!srv) srv = vr->wrk->srv;
 		/* get log from connection */
-		log = g_array_index(CORE_OPTION(CORE_OPTION_LOG).list, log_t*, log_level);
+		log = g_array_index(CORE_OPTION(LI_CORE_OPTION_LOG).list, liLog*, log_level);
 		if (log == NULL)
 			return TRUE;
-		ts = CORE_OPTION(CORE_OPTION_LOG_TS_FORMAT).ptr;
+		ts = CORE_OPTION(LI_CORE_OPTION_LOG_TS_FORMAT).ptr;
 		if (!ts)
-			ts = g_array_index(srv->logs.timestamps, log_timestamp_t*, 0);
+			ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, 0);
 	}
 	else {
 		log = srv->logs.stderr;
-		ts = g_array_index(srv->logs.timestamps, log_timestamp_t*, 0);
+		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, 0);
 	}
 
 	log_ref(srv, log);
@@ -126,12 +126,12 @@ gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flag
 
 	g_string_append_len(log_line, CONST_STR_LEN("\r\n"));
 
-	if (g_atomic_int_get(&srv->state) == SERVER_STARTING) {
+	if (g_atomic_int_get(&srv->state) == LI_SERVER_STARTING) {
 		log_unref(srv, log);
 		angel_log(srv, log_line);
 		return TRUE;
 	}
-	log_entry = g_slice_new(log_entry_t);
+	log_entry = g_slice_new(liLogEntry);
 	log_entry->log = log;
 	log_entry->msg = log_line;
 	log_entry->level = log_level;
@@ -139,7 +139,7 @@ gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flag
 	g_async_queue_push(srv->logs.queue, log_entry);
 
 	/* on critical error, exit */
-	if (log_level == LOG_LEVEL_ABORT) {
+	if (log_level == LI_LOG_LEVEL_ABORT) {
 		log_thread_stop(srv);
 		g_atomic_int_set(&srv->exiting, TRUE);
 	}
@@ -148,10 +148,10 @@ gboolean log_write_(server *srv, vrequest *vr, log_level_t log_level, guint flag
 }
 
 
-gpointer log_thread(server *srv) {
+gpointer log_thread(liServer *srv) {
 	GAsyncQueue *queue;
-	log_t *log;
-	log_entry_t *log_entry;
+	liLog *log;
+	liLogEntry *log_entry;
 	GString *msg;
 	gssize bytes_written;
 	gssize write_res;
@@ -179,7 +179,7 @@ gpointer log_thread(server *srv) {
 
 		/* if log_entry->log is NULL, it means that the logger thread has been woken up probably because it should exit */
 		if (log_entry->log == NULL) {
-			g_slice_free(log_entry_t, log_entry);
+			g_slice_free(liLogEntry, log_entry);
 			continue;
 		}
 
@@ -209,17 +209,17 @@ gpointer log_thread(server *srv) {
 		}
 
 		g_string_free(msg, TRUE);
-		g_slice_free(log_entry_t, log_entry);
+		g_slice_free(liLogEntry, log_entry);
 		log_unref(srv, log);
 	}
 
 	return NULL;
 }
 
-void log_rotate(gchar * path, log_t *log, server * UNUSED_PARAM(srv)) {
+void log_rotate(gchar * path, liLog *log, liServer * UNUSED_PARAM(srv)) {
 
 	switch (log->type) {
-		case LOG_TYPE_FILE:
+		case LI_LOG_TYPE_FILE:
 			close(log->fd);
 			log->fd = open(log->path->str, O_RDWR | O_CREAT | O_APPEND, 0660);
 			if (log->fd == -1) {
@@ -227,11 +227,11 @@ void log_rotate(gchar * path, log_t *log, server * UNUSED_PARAM(srv)) {
 				assert(NULL); /* TODO */
 			}
 			break;
-		case LOG_TYPE_STDERR:
+		case LI_LOG_TYPE_STDERR:
 			break;
-		case LOG_TYPE_PIPE:
-		case LOG_TYPE_SYSLOG:
-		case LOG_TYPE_NONE:
+		case LI_LOG_TYPE_PIPE:
+		case LI_LOG_TYPE_SYSLOG:
+		case LI_LOG_TYPE_NONE:
 			/* TODO */
 			assert(NULL);
 	}
@@ -240,19 +240,19 @@ void log_rotate(gchar * path, log_t *log, server * UNUSED_PARAM(srv)) {
 	log->lastmsg_count = 0;
 }
 
-void log_rotate_logs(server *srv) {
+void log_rotate_logs(liServer *srv) {
 	UNUSED(srv);
 
 	/*g_atomic_int_set(&srv->rotate_logs, TRUE);*/
 }
 
 
-void log_ref(server *srv, log_t *log) {
+void log_ref(liServer *srv, liLog *log) {
 	UNUSED(srv);
 	g_atomic_int_inc(&log->refcount);
 }
 
-void log_unref(server *srv, log_t *log) {
+void log_unref(liServer *srv, liLog *log) {
 	g_mutex_lock(srv->logs.mutex);
 
 	if (g_atomic_int_dec_and_test(&log->refcount))
@@ -261,71 +261,71 @@ void log_unref(server *srv, log_t *log) {
 	g_mutex_unlock(srv->logs.mutex);
 }
 
-log_type_t log_type_from_path(GString *path) {
+liLogType log_type_from_path(GString *path) {
 	if (path->len == 0)
-		return LOG_TYPE_NONE;
+		return LI_LOG_TYPE_NONE;
 
 	/* look for scheme:// paths */
 	if (g_str_has_prefix(path->str, "file://"))
-		return LOG_TYPE_FILE;
+		return LI_LOG_TYPE_FILE;
 	if (g_str_has_prefix(path->str, "pipe://"))
-		return LOG_TYPE_PIPE;
+		return LI_LOG_TYPE_PIPE;
 	if (g_str_has_prefix(path->str, "stderr://"))
-		return LOG_TYPE_STDERR;
+		return LI_LOG_TYPE_STDERR;
 	if (g_str_has_prefix(path->str, "syslog://"))
-		return LOG_TYPE_SYSLOG;
+		return LI_LOG_TYPE_SYSLOG;
 
 	/* targets starting with a slash are absolute paths and therefor file targets */
 	if (*path->str == '/')
-		return LOG_TYPE_FILE;
+		return LI_LOG_TYPE_FILE;
 
 	/* targets starting with a pipe are ... pipes! */
 	if (*path->str == '|')
-		return LOG_TYPE_PIPE;
+		return LI_LOG_TYPE_PIPE;
 
 	if (g_str_equal(path->str, "stderr"))
-		return LOG_TYPE_STDERR;
+		return LI_LOG_TYPE_STDERR;
 
 	if (g_str_equal(path->str, "syslog"))
-		return LOG_TYPE_SYSLOG;
+		return LI_LOG_TYPE_SYSLOG;
 
 	/* fall back to stderr */
-	return LOG_TYPE_STDERR;
+	return LI_LOG_TYPE_STDERR;
 }
 
-log_level_t log_level_from_string(GString *str) {
+liLogLevel log_level_from_string(GString *str) {
 	if (g_str_equal(str->str, "debug"))
-		return LOG_LEVEL_DEBUG;
+		return LI_LOG_LEVEL_DEBUG;
 	if (g_str_equal(str->str, "info"))
-		return LOG_LEVEL_INFO;
+		return LI_LOG_LEVEL_INFO;
 	if (g_str_equal(str->str, "warning"))
-		return LOG_LEVEL_WARNING;
+		return LI_LOG_LEVEL_WARNING;
 	if (g_str_equal(str->str, "error"))
-		return LOG_LEVEL_ERROR;
+		return LI_LOG_LEVEL_ERROR;
 	if (g_str_equal(str->str, "backend"))
-		return LOG_LEVEL_BACKEND;
+		return LI_LOG_LEVEL_BACKEND;
 
 	/* fall back to debug level */
-	return LOG_LEVEL_DEBUG;
+	return LI_LOG_LEVEL_DEBUG;
 }
 
-gchar* log_level_str(log_level_t log_level) {
+gchar* log_level_str(liLogLevel log_level) {
 	switch (log_level) {
-		case LOG_LEVEL_DEBUG:	return "debug";
-		case LOG_LEVEL_INFO:	return "info";
-		case LOG_LEVEL_WARNING:	return "warning";
-		case LOG_LEVEL_ERROR:	return "error";
-		case LOG_LEVEL_BACKEND:	return "backend";
+		case LI_LOG_LEVEL_DEBUG:	return "debug";
+		case LI_LOG_LEVEL_INFO:	return "info";
+		case LI_LOG_LEVEL_WARNING:	return "warning";
+		case LI_LOG_LEVEL_ERROR:	return "error";
+		case LI_LOG_LEVEL_BACKEND:	return "backend";
 		default:				return "unknown";
 	}
 }
 
 
-log_t *log_new(server *srv, log_type_t type, GString *path) {
-	log_t *log;
+liLog *log_new(liServer *srv, liLogType type, GString *path) {
+	liLog *log;
 	gint fd = -1;
 
-	if (type == LOG_TYPE_NONE)
+	if (type == LI_LOG_TYPE_NONE)
 		return NULL;
 
 	g_mutex_lock(srv->logs.mutex);
@@ -340,15 +340,15 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 	}
 
 	switch (type) {
-		case LOG_TYPE_STDERR:
+		case LI_LOG_TYPE_STDERR:
 			fd = STDERR_FILENO;
 			break;
-		case LOG_TYPE_FILE:
+		case LI_LOG_TYPE_FILE:
 			fd = open(path->str, O_RDWR | O_CREAT | O_APPEND, 0660);
 			break;
-		case LOG_TYPE_PIPE:
-		case LOG_TYPE_SYSLOG:
-		case LOG_TYPE_NONE:
+		case LI_LOG_TYPE_PIPE:
+		case LI_LOG_TYPE_SYSLOG:
+		case LI_LOG_TYPE_NONE:
 			/* TODO */
 			fd = -1;
 			assert(NULL);
@@ -359,7 +359,7 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 		return NULL;
 	}
 
-	log = g_slice_new0(log_t);
+	log = g_slice_new0(liLog);
 	log->lastmsg = g_string_sized_new(0);
 	log->fd = fd;
 	log->path = g_string_new_len(GSTR_LEN(path));
@@ -374,15 +374,15 @@ log_t *log_new(server *srv, log_type_t type, GString *path) {
 }
 
 /* only call this if srv->logs.mutex is NOT locked */
-void log_free(server *srv, log_t *log) {
+void log_free(liServer *srv, liLog *log) {
 	g_mutex_lock(srv->logs.mutex);
 	log_free_unlocked(srv, log);
 	g_mutex_unlock(srv->logs.mutex);
 }
 
 /* only call this if srv->log_mutex IS locked */
-void log_free_unlocked(server *srv, log_t *log) {
-	if (log->type == LOG_TYPE_FILE || log->type == LOG_TYPE_PIPE)
+void log_free_unlocked(liServer *srv, liLog *log) {
+	if (log->type == LI_LOG_TYPE_FILE || log->type == LI_LOG_TYPE_PIPE)
 		close(log->fd);
 
 	g_hash_table_remove(srv->logs.targets, log->path);
@@ -391,16 +391,16 @@ void log_free_unlocked(server *srv, log_t *log) {
 
 	g_mutex_free(log->mutex);
 
-	g_slice_free(log_t, log);
+	g_slice_free(liLog, log);
 }
 
-void log_init(server *srv) {
+void log_init(liServer *srv) {
 	GString *str;
 
 	srv->logs.targets = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
 	srv->logs.queue = g_async_queue_new();
 	srv->logs.mutex = g_mutex_new();
-	srv->logs.timestamps = g_array_new(FALSE, FALSE, sizeof(log_timestamp_t*));
+	srv->logs.timestamps = g_array_new(FALSE, FALSE, sizeof(liLogTimestamp*));
 	srv->logs.thread_alive = FALSE;
 
 	/* first entry in srv->logs.timestamps is the default timestamp */
@@ -408,13 +408,13 @@ void log_init(server *srv) {
 
 	/* first entry in srv->logs.targets is the plain good old stderr */
 	str = g_string_new_len(CONST_STR_LEN("stderr"));
-	srv->logs.stderr = log_new(srv, LOG_TYPE_STDERR, str);
+	srv->logs.stderr = log_new(srv, LI_LOG_TYPE_STDERR, str);
 	g_string_free(str, TRUE);
 }
 
-void log_cleanup(server *srv) {
+void log_cleanup(liServer *srv) {
 	guint i;
-	log_timestamp_t *ts;
+	liLogTimestamp *ts;
 
 	/* wait for logging thread to exit */
 	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE)
@@ -430,7 +430,7 @@ void log_cleanup(server *srv) {
 	g_async_queue_unref(srv->logs.queue);
 
 	for (i = 0; i < srv->logs.timestamps->len; i++) {
-		ts = g_array_index(srv->logs.timestamps, log_timestamp_t*, i);
+		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, i);
 		g_print("ts #%d refcount: %d\n", i, ts->refcount);
 		/*if (g_atomic_int_dec_and_test(&ts->refcount)) {
 			g_string_free(ts->cached, TRUE);
@@ -441,12 +441,12 @@ void log_cleanup(server *srv) {
 		}*/
 	}
 
-	log_timestamp_free(srv, g_array_index(srv->logs.timestamps, log_timestamp_t*, 0));
+	log_timestamp_free(srv, g_array_index(srv->logs.timestamps, liLogTimestamp*, 0));
 
 	g_array_free(srv->logs.timestamps, TRUE);
 }
 
-void log_thread_start(server *srv) {
+void log_thread_start(liServer *srv) {
 	GError *err = NULL;
 
 	srv->logs.thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
@@ -459,46 +459,46 @@ void log_thread_start(server *srv) {
 	}
 }
 
-void log_thread_stop(server *srv) {
+void log_thread_stop(liServer *srv) {
 	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE) {
 		g_atomic_int_set(&srv->logs.thread_stop, TRUE);
 		log_thread_wakeup(srv);
 	}
 }
 
-void log_thread_finish(server *srv) {
+void log_thread_finish(liServer *srv) {
 	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE) {
 		g_atomic_int_set(&srv->logs.thread_finish, TRUE);
 		log_thread_wakeup(srv);
 	}
 }
 
-void log_thread_wakeup(server *srv) {
-	log_entry_t *e;
+void log_thread_wakeup(liServer *srv) {
+	liLogEntry *e;
 
 	if (!g_atomic_int_get(&srv->logs.thread_alive))
 		log_thread_start(srv);
 
-	e = g_slice_new0(log_entry_t);
+	e = g_slice_new0(liLogEntry);
 
 	g_async_queue_push(srv->logs.queue, e);
 }
 
 
-void log_lock(log_t *log) {
+void log_lock(liLog *log) {
 	g_mutex_lock(log->mutex);
 }
 
-void log_unlock(log_t *log) {
+void log_unlock(liLog *log) {
 	g_mutex_unlock(log->mutex);
 }
 
-log_timestamp_t *log_timestamp_new(server *srv, GString *format) {
-	log_timestamp_t *ts;
+liLogTimestamp *log_timestamp_new(liServer *srv, GString *format) {
+	liLogTimestamp *ts;
 
 	/* check if there already exists a timestamp entry with the same format */
 	for (guint i = 0; i < srv->logs.timestamps->len; i++) {
-		ts = g_array_index(srv->logs.timestamps, log_timestamp_t*, i);
+		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, i);
 		if (g_string_equal(ts->format, format)) {
 			g_atomic_int_inc(&(ts->refcount));
 			g_string_free(format, TRUE);
@@ -506,7 +506,7 @@ log_timestamp_t *log_timestamp_new(server *srv, GString *format) {
 		}
 	}
 
-	ts = g_slice_new(log_timestamp_t);
+	ts = g_slice_new(liLogTimestamp);
 
 	ts->cached = g_string_sized_new(0);
 	ts->last_ts = 0;
@@ -518,24 +518,24 @@ log_timestamp_t *log_timestamp_new(server *srv, GString *format) {
 	return ts;
 }
 
-gboolean log_timestamp_free(server *srv, log_timestamp_t *ts) {
+gboolean log_timestamp_free(liServer *srv, liLogTimestamp *ts) {
 	if (g_atomic_int_dec_and_test(&(ts->refcount))) {
 		for (guint i = 0; i < srv->logs.timestamps->len; i++) {
-			if (g_string_equal(g_array_index(srv->logs.timestamps, log_timestamp_t*, i)->format, ts->format)) {
+			if (g_string_equal(g_array_index(srv->logs.timestamps, liLogTimestamp*, i)->format, ts->format)) {
 				g_array_remove_index_fast(srv->logs.timestamps, i);
 				break;
 			}
 		}
 		g_string_free(ts->cached, TRUE);
 		g_string_free(ts->format, TRUE);
-		g_slice_free(log_timestamp_t, ts);
+		g_slice_free(liLogTimestamp, ts);
 		return TRUE;
 	}
 
 	return FALSE;
 }
 
-void log_split_lines(server *srv, vrequest *vr, log_level_t log_level, guint flags, gchar *txt, const gchar *prefix) {
+void log_split_lines(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix) {
 	gchar *start;
 
 	start = txt;
@@ -557,7 +557,7 @@ void log_split_lines(server *srv, vrequest *vr, log_level_t log_level, guint fla
 	}
 }
 
-void log_split_lines_(server *srv, vrequest *vr, log_level_t log_level, guint flags, gchar *txt, const gchar *fmt, ...) {
+void log_split_lines_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) {
 	va_list ap;
 	GString *prefix;
 

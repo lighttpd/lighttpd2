@@ -11,14 +11,9 @@
 
 /* angel_server.h */
 
-struct server;
-typedef struct server server;
-
-struct instance;
-typedef struct instance instance;
-
-struct instance_conf;
-typedef struct instance_conf instance_conf;
+typedef struct liServer liServer;
+typedef struct liInstance liInstance;
+typedef struct liInstanceConf liInstanceConf;
 
 
 #include <lighttpd/angel_value.h>

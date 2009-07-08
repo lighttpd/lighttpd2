@@ -1,19 +1,19 @@
 
 #include <lighttpd/base.h>
 
-static gboolean plugin_load_default_option(server *srv, server_option *sopt);
-static void plugin_free_default_options(server *srv, plugin *p);
+static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt);
+static void plugin_free_default_options(liServer *srv, liPlugin *p);
 
-static plugin* plugin_new(const gchar *name) {
-	plugin *p = g_slice_new0(plugin);
+static liPlugin* plugin_new(const gchar *name) {
+	liPlugin *p = g_slice_new0(liPlugin);
 	p->name = name;
 	return p;
 }
 
-static void plugin_free_options(server *srv, plugin *p) {
+static void plugin_free_options(liServer *srv, liPlugin *p) {
 	size_t i;
-	const plugin_option *po;
-	server_option *so;
+	const liPluginOption *po;
+	liServerOption *so;
 
 	if (!p->options) return;
 	for (i = 0; (po = &p->options[i])->name; i++) {
@@ -23,10 +23,10 @@ static void plugin_free_options(server *srv, plugin *p) {
 	}
 }
 
-static void plugin_free_actions(server *srv, plugin *p) {
+static void plugin_free_actions(liServer *srv, liPlugin *p) {
 	size_t i;
-	const plugin_action *pa;
-	server_action *sa;
+	const liPluginAction *pa;
+	liServerAction *sa;
 
 	if (!p->actions) return;
 	for (i = 0; (pa = &p->actions[i])->name; i++) {
@@ -36,10 +36,10 @@ static void plugin_free_actions(server *srv, plugin *p) {
 	}
 }
 
-static void plugin_free_setups(server *srv, plugin *p) {
+static void plugin_free_setups(liServer *srv, liPlugin *p) {
 	size_t i;
-	const plugin_setup *ps;
-	server_setup *ss;
+	const liliPluginSetupCB *ps;
+	liServerSetup *ss;
 
 	if (!p->setups) return;
 	for (i = 0; (ps = &p->setups[i])->name; i++) {
@@ -49,10 +49,10 @@ static void plugin_free_setups(server *srv, plugin *p) {
 	}
 }
 
-void plugin_free(server *srv, plugin *p) {
+void plugin_free(liServer *srv, liPlugin *p) {
 	if (!p) return;
 
-	if (g_atomic_int_get(&srv->state) == SERVER_RUNNING) {
+	if (g_atomic_int_get(&srv->state) == LI_SERVER_RUNNING) {
 		ERROR(srv, "Cannot free plugin '%s' while server is running", p->name);
 		return;
 	}
@@ -65,27 +65,27 @@ void plugin_free(server *srv, plugin *p) {
 	if (p->free)
 		p->free(srv, p);
 
-	g_slice_free(plugin, p);
+	g_slice_free(liPlugin, p);
 }
 
-void server_plugins_free(server *srv) {
+void server_plugins_free(liServer *srv) {
 	gpointer key, val;
 	GHashTableIter i;
 
-	if (g_atomic_int_get(&srv->state) == SERVER_RUNNING) {
+	if (g_atomic_int_get(&srv->state) == LI_SERVER_RUNNING) {
 		ERROR(srv, "%s", "Cannot free plugins while server is running");
 		return;
 	}
 
 	g_hash_table_iter_init(&i, srv->plugins);
 	while (g_hash_table_iter_next(&i, &key, &val)) {
-		plugin *p = (plugin*) val;
+		liPlugin *p = (liPlugin*) val;
 
 		plugin_free_options(srv, p);
 		plugin_free_actions(srv, p);
 		plugin_free_setups(srv, p);
 
-		g_slice_free(plugin, p);
+		g_slice_free(liPlugin, p);
 	}
 	g_hash_table_destroy(srv->plugins);
 	g_hash_table_destroy(srv->options);
@@ -93,15 +93,15 @@ void server_plugins_free(server *srv) {
 	g_hash_table_destroy(srv->setups);
 }
 
-plugin *plugin_register(server *srv, const gchar *name, PluginInit init) {
-	plugin *p;
+liPlugin *plugin_register(liServer *srv, const gchar *name, liPluginInitCB init) {
+	liPlugin *p;
 
 	if (!init) {
 		ERROR(srv, "Module '%s' needs an init function", name);
 		return NULL;
 	}
 
-	if (g_atomic_int_get(&srv->state) != SERVER_STARTING) {
+	if (g_atomic_int_get(&srv->state) != LI_SERVER_STARTING) {
 		ERROR(srv, "Cannot register plugin '%s' after server was started", name);
 		return NULL;
 	}
@@ -120,11 +120,11 @@ plugin *plugin_register(server *srv, const gchar *name, PluginInit init) {
 
 	if (p->options) {
 		size_t i;
-		server_option *so;
-		const plugin_option *po;
+		liServerOption *so;
+		const liPluginOption *po;
 
 		for (i = 0; (po = &p->options[i])->name; i++) {
-			if (NULL != (so = (server_option*)g_hash_table_lookup(srv->options, po->name))) {
+			if (NULL != (so = (liServerOption*)g_hash_table_lookup(srv->options, po->name))) {
 				ERROR(srv, "Option '%s' already registered by plugin '%s', unloading '%s'",
 					po->name,
 					so->p ? so->p->name : "<none>",
@@ -132,7 +132,7 @@ plugin *plugin_register(server *srv, const gchar *name, PluginInit init) {
 				plugin_free(srv, p);
 				return NULL;
 			}
-			so = g_slice_new0(server_option);
+			so = g_slice_new0(liServerOption);
 			so->type = po->type;
 			so->parse_option = po->parse_option;
 			so->free_option = po->free_option;
@@ -147,11 +147,11 @@ plugin *plugin_register(server *srv, const gchar *name, PluginInit init) {
 
 	if (p->actions) {
 		size_t i;
-		server_action *sa;
-		const plugin_action *pa;
+		liServerAction *sa;
+		const liPluginAction *pa;
 
 		for (i = 0; (pa = &p->actions[i])->name; i++) {
-			if (NULL != (sa = (server_action*)g_hash_table_lookup(srv->actions, pa->name))) {
+			if (NULL != (sa = (liServerAction*)g_hash_table_lookup(srv->actions, pa->name))) {
 				ERROR(srv, "Action '%s' already registered by plugin '%s', unloading '%s'",
 					pa->name,
 					sa->p ? sa->p->name : "<none>",
@@ -159,7 +159,7 @@ plugin *plugin_register(server *srv, const gchar *name, PluginInit init) {
 				plugin_free(srv, p);
 				return NULL;
 			}
-			sa = g_slice_new0(server_action);
+			sa = g_slice_new0(liServerAction);
 			sa->create_action = pa->create_action;
 			sa->p = p;
 			g_hash_table_insert(srv->actions, (gchar*) pa->name, sa);
@@ -168,11 +168,11 @@ plugin *plugin_register(server *srv, const gchar *name, PluginInit init) {
 
 	if (p->setups) {
 		size_t i;
-		server_setup *ss;
-		const plugin_setup *ps;
+		liServerSetup *ss;
+		const liliPluginSetupCB *ps;
 
 		for (i = 0; (ps = &p->setups[i])->name; i++) {
-			if (NULL != (ss = (server_setup*)g_hash_table_lookup(srv->setups, ps->name))) {
+			if (NULL != (ss = (liServerSetup*)g_hash_table_lookup(srv->setups, ps->name))) {
 				ERROR(srv, "Setup '%s' already registered by plugin '%s', unloading '%s'",
 					ps->name,
 					ss->p ? ss->p->name : "<none>",
@@ -180,7 +180,7 @@ plugin *plugin_register(server *srv, const gchar *name, PluginInit init) {
 				plugin_free(srv, p);
 				return NULL;
 			}
-			ss = g_slice_new0(server_setup);
+			ss = g_slice_new0(liServerSetup);
 			ss->setup = ps->setup;
 			ss->p = p;
 			g_hash_table_insert(srv->setups, (gchar*) ps->name, ss);
@@ -191,12 +191,12 @@ plugin *plugin_register(server *srv, const gchar *name, PluginInit init) {
 }
 
 
-static server_option* find_option(server *srv, const char *name) {
-	return (server_option*) g_hash_table_lookup(srv->options, name);
+static liServerOption* find_option(liServer *srv, const char *name) {
+	return (liServerOption*) g_hash_table_lookup(srv->options, name);
 }
 
-gboolean parse_option(server *srv, const char *name, value *val, option_set *mark) {
-	server_option *sopt;
+gboolean parse_option(liServer *srv, const char *name, liValue *val, liOptionSet *mark) {
+	liServerOption *sopt;
 
 	if (!srv || !name || !mark) return FALSE;
 
@@ -206,7 +206,7 @@ gboolean parse_option(server *srv, const char *name, value *val, option_set *mar
 		return FALSE;
 	}
 
-	if (sopt->type != val->type && sopt->type != VALUE_NONE) {
+	if (sopt->type != val->type && sopt->type != LI_VALUE_NONE) {
 		ERROR(srv, "Unexpected value type '%s', expected '%s' for option %s",
 			value_type_string(val->type), value_type_string(sopt->type), name);
 		return FALSE;
@@ -227,36 +227,36 @@ gboolean parse_option(server *srv, const char *name, value *val, option_set *mar
 	return TRUE;
 }
 
-void release_option(server *srv, option_set *mark) { /** Does not free the option_set memory */
-	server_option *sopt;
+void release_option(liServer *srv, liOptionSet *mark) { /** Does not free the option_set memory */
+	liServerOption *sopt;
 	if (!srv || !mark || !mark->sopt) return;
 	sopt = mark->sopt;
 
 	mark->sopt = NULL;
 	if (!sopt->free_option) {
 		switch (sopt->type) {
-		case VALUE_NONE:
-		case VALUE_BOOLEAN:
-		case VALUE_NUMBER:
+		case LI_VALUE_NONE:
+		case LI_VALUE_BOOLEAN:
+		case LI_VALUE_NUMBER:
 			/* Nothing to free */
 			break;
-		case VALUE_STRING:
+		case LI_VALUE_STRING:
 			if (mark->value.string)
 				g_string_free(mark->value.string, TRUE);
 			break;
-		case VALUE_LIST:
+		case LI_VALUE_LIST:
 			if (mark->value.list)
 				value_list_free(mark->value.list);
 			break;
-		case VALUE_HASH:
+		case LI_VALUE_HASH:
 			if (mark->value.hash)
 				g_hash_table_destroy(mark->value.hash);
 			break;
-		case VALUE_ACTION:
+		case LI_VALUE_ACTION:
 			if (mark->value.action)
 				action_release(srv, mark->value.action);
 			break;
-		case VALUE_CONDITION:
+		case LI_VALUE_CONDITION:
 			if (mark->value.cond)
 				condition_release(srv, mark->value.cond);
 			break;
@@ -265,13 +265,13 @@ void release_option(server *srv, option_set *mark) { /** Does not free the optio
 		sopt->free_option(srv, sopt->p, sopt->module_index, mark->value);
 	}
 	{
-		option_value empty = {0};
+		liOptionValue empty = {0};
 		mark->value = empty;
 	}
 }
 
-action* option_action(server *srv, const gchar *name, value *val) {
-	option_set setting;
+liAction* option_action(liServer *srv, const gchar *name, liValue *val) {
+	liOptionSet setting;
 
 	if (!parse_option(srv, name, val, &setting)) {
 		return NULL;
@@ -280,11 +280,11 @@ action* option_action(server *srv, const gchar *name, value *val) {
 	return action_new_setting(setting);
 }
 
-action* create_action(server *srv, const gchar *name, value *val) {
-	action *a;
-	server_action *sa;
+liAction* create_action(liServer *srv, const gchar *name, liValue *val) {
+	liAction *a;
+	liServerAction *sa;
 
-	if (NULL == (sa = (server_action*) g_hash_table_lookup(srv->actions, name))) {
+	if (NULL == (sa = (liServerAction*) g_hash_table_lookup(srv->actions, name))) {
 		ERROR(srv, "Action '%s' doesn't exist", name);
 		return NULL;
 	}
@@ -297,10 +297,10 @@ action* create_action(server *srv, const gchar *name, value *val) {
 	return a;
 }
 
-gboolean call_setup(server *srv, const char *name, value *val) {
-	server_setup *ss;
+gboolean call_setup(liServer *srv, const char *name, liValue *val) {
+	liServerSetup *ss;
 
-	if (NULL == (ss = (server_setup*) g_hash_table_lookup(srv->setups, name))) {
+	if (NULL == (ss = (liServerSetup*) g_hash_table_lookup(srv->setups, name))) {
 		ERROR(srv, "Setup function '%s' doesn't exist", name);
 		return FALSE;
 	}
@@ -313,14 +313,14 @@ gboolean call_setup(server *srv, const char *name, value *val) {
 	return TRUE;
 }
 
-void plugins_prepare_callbacks(server *srv) {
+void plugins_prepare_callbacks(liServer *srv) {
 	GHashTableIter iter;
-	plugin *p;
+	liPlugin *p;
 	gpointer v;
 
 	g_hash_table_iter_init(&iter, srv->plugins);
 	while (g_hash_table_iter_next(&iter, NULL, &v)) {
-		p = (plugin*) v;
+		p = (liPlugin*) v;
 		if (p->handle_close)
 			g_array_append_val(srv->plugins_handle_close, p);
 		if (p->handle_vrclose)
@@ -328,28 +328,28 @@ void plugins_prepare_callbacks(server *srv) {
 	}
 }
 
-void plugins_handle_close(connection *con) {
+void plugins_handle_close(liConnection *con) {
 	GArray *a = con->srv->plugins_handle_close;
 	guint i, len = a->len;
 	for (i = 0; i < len; i++) {
-		plugin *p = g_array_index(a, plugin*, i);
+		liPlugin *p = g_array_index(a, liPlugin*, i);
 		p->handle_close(con, p);
 	}
 }
 
-void plugins_handle_vrclose(vrequest *vr) {
+void plugins_handle_vrclose(liVRequest *vr) {
 	GArray *a = vr->wrk->srv->plugins_handle_vrclose;
 	guint i, len = a->len;
 	for (i = 0; i < len; i++) {
-		plugin *p = g_array_index(a, plugin*, i);
+		liPlugin *p = g_array_index(a, liPlugin*, i);
 		p->handle_vrclose(vr, p);
 	}
 }
 
-gboolean plugin_set_default_option(server *srv, const gchar* name, value *val) {
-	server_option *sopt;
-	option_set setting;
-	option_value v;
+gboolean plugin_set_default_option(liServer *srv, const gchar* name, liValue *val) {
+	liServerOption *sopt;
+	liOptionSet setting;
+	liOptionValue v;
 
 	sopt = find_option(srv, name);
 
@@ -363,8 +363,8 @@ gboolean plugin_set_default_option(server *srv, const gchar* name, value *val) {
 		return FALSE;
 	}
 
-	v = g_array_index(srv->option_def_values, option_value, sopt->index);
-	g_array_index(srv->option_def_values, option_value, sopt->index) = setting.value;
+	v = g_array_index(srv->option_def_values, liOptionValue, sopt->index);
+	g_array_index(srv->option_def_values, liOptionValue, sopt->index) = setting.value;
 
 	/* free old value */
 	setting.sopt = sopt;
@@ -376,22 +376,22 @@ gboolean plugin_set_default_option(server *srv, const gchar* name, value *val) {
 	return TRUE;
 }
 
-static gboolean plugin_load_default_option(server *srv, server_option *sopt) {
-	option_value oval = {0};
+static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt) {
+	liOptionValue oval = {0};
 
 	if (!sopt)
 		return FALSE;
 
 	if (!sopt->parse_option) {
 		switch (sopt->type) {
-		case VALUE_NONE:
+		case LI_VALUE_NONE:
 			break;
-		case VALUE_BOOLEAN:
+		case LI_VALUE_BOOLEAN:
 			oval.boolean = GPOINTER_TO_INT(sopt->default_value);
-		case VALUE_NUMBER:
+		case LI_VALUE_NUMBER:
 			oval.number = GPOINTER_TO_INT(sopt->default_value);
 			break;
-		case VALUE_STRING:
+		case LI_VALUE_STRING:
 			oval.string = g_string_new((const char*) sopt->default_value);
 			break;
 		default:
@@ -407,29 +407,29 @@ static gboolean plugin_load_default_option(server *srv, server_option *sopt) {
 	if (srv->option_def_values->len <= sopt->index)
 		g_array_set_size(srv->option_def_values, sopt->index + 1);
 
-	g_array_index(srv->option_def_values, option_value, sopt->index) = oval;
+	g_array_index(srv->option_def_values, liOptionValue, sopt->index) = oval;
 
 	return TRUE;
 }
 
-static void plugin_free_default_options(server *srv, plugin *p) {
-	static const option_value oempty = {0};
+static void plugin_free_default_options(liServer *srv, liPlugin *p) {
+	static const liOptionValue oempty = {0};
 	GHashTableIter iter;
 	gpointer k, v;
 
 	g_hash_table_iter_init(&iter, srv->options);
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
-		server_option *sopt = v;
-		option_set mark;
+		liServerOption *sopt = v;
+		liOptionSet mark;
 		mark.sopt = sopt;
 		mark.ndx = sopt->index;
 
 		if (sopt->p != p)
 			continue;
 
-		mark.value = g_array_index(srv->option_def_values, option_value, sopt->index);
+		mark.value = g_array_index(srv->option_def_values, liOptionValue, sopt->index);
 
 		release_option(srv, &mark);
-		g_array_index(srv->option_def_values, option_value, sopt->index) = oempty;
+		g_array_index(srv->option_def_values, liOptionValue, sopt->index) = oempty;
 	}
 }

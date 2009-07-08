@@ -5,56 +5,54 @@
 #error Please include <lighttpd/angel_base.h> instead of this file
 #endif
 
-struct value;
-typedef struct value value;
+typedef struct liValue liValue;
 
-struct value_range;
-typedef struct value_range value_range;
+typedef struct liValueRange liValueRange;
 
 typedef enum {
-	VALUE_NONE,
+	LI_VALUE_NONE,
 /* primitive types */
-	VALUE_BOOLEAN,
-	VALUE_NUMBER,
-	VALUE_STRING,
-	VALUE_RANGE,
+	LI_VALUE_BOOLEAN,
+	LI_VALUE_NUMBER,
+	LI_VALUE_STRING,
+	LI_VALUE_RANGE,
 
 /* container */
-	VALUE_LIST,
-	VALUE_HASH
-} value_type;
+	LI_VALUE_LIST,
+	LI_VALUE_HASH
+} liValueType;
 
-struct value_range {
+struct liValueRange {
 	guint64 from, to;
 };
 
-struct value {
-	value_type type;
+struct liValue {
+	liValueType type;
 	union {
 		gboolean boolean;
 		gint64 number;
 		GString *string;
-		value_range range;
-		/* array of (value*) */
+		liValueRange range;
+		/* array of (liValue*) */
 		GPtrArray *list;
 		/* hash GString => value */
 		GHashTable *hash;
 	} data;
 };
 
-LI_API value* value_new_none();
-LI_API value* value_new_bool(gboolean val);
-LI_API value* value_new_number(gint64 val);
-LI_API value* value_new_string(GString *val);
-LI_API value* value_new_range(value_range val);
-LI_API value* value_new_list();
-LI_API value* value_new_hash();
+LI_API liValue* value_new_none();
+LI_API liValue* value_new_bool(gboolean val);
+LI_API liValue* value_new_number(gint64 val);
+LI_API liValue* value_new_string(GString *val);
+LI_API liValue* value_new_range(liValueRange val);
+LI_API liValue* value_new_list();
+LI_API liValue* value_new_hash();
 
-LI_API value* value_copy(value* val);
-LI_API void value_free(value* val);
+LI_API liValue* value_copy(liValue* val);
+LI_API void value_free(liValue* val);
 
-LI_API const char* value_type_string(value_type type);
+LI_API const char* value_type_string(liValueType type);
 
-LI_API GString *value_to_string(value *val);
+LI_API GString *value_to_string(liValue *val);
 
 #endif

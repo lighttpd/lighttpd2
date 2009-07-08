@@ -3,7 +3,8 @@
 
 #define THROTTLE_GRANULARITY 0.2 /* defines how frequently a magazine is refilled. should be 0.1 <= x <= 1.0 */
 
-struct throttle_pool_t {
+typedef struct liThrottlePool liThrottlePool;
+struct liThrottlePool {
 	GString *name;
 	guint rate; /** bytes/s */
 	gint magazine;
@@ -16,11 +17,9 @@ struct throttle_pool_t {
 	ev_tstamp *last_con_rearm;
 };
 
-typedef struct throttle_pool_t throttle_pool_t;
-
 void throttle_cb(struct ev_loop *loop, ev_timer *w, int revents);
 
-throttle_pool_t *throttle_pool_new(server *srv, GString *name, guint rate);
-void throttle_pool_free(server *srv, throttle_pool_t *pool);
+liThrottlePool *throttle_pool_new(liServer *srv, GString *name, guint rate);
+void throttle_pool_free(liServer *srv, liThrottlePool *pool);
 
 #endif

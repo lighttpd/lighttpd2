@@ -36,8 +36,8 @@ ssize_t net_read(int fd, void *buf, ssize_t nbyte) {
 	return r;
 }
 
-network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq, goffset write_max) {
-	network_status_t res;
+liNetworkStatus network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset write_max) {
+	liNetworkStatus res;
 #ifdef TCP_CORK
 	int corked = 0;
 #endif
@@ -61,7 +61,7 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq, goffset wri
 	res = network_write_writev(vr, fd, cq, &write_bytes);
 #endif
 	wrote = write_max - write_bytes;
-	if (wrote > 0 && res == NETWORK_STATUS_WAIT_FOR_EVENT) res = NETWORK_STATUS_SUCCESS;
+	if (wrote > 0 && res == LI_NETWORK_STATUS_WAIT_FOR_EVENT) res = LI_NETWORK_STATUS_SUCCESS;
 
 #ifdef TCP_CORK
 	if (corked) {
@@ -73,7 +73,7 @@ network_status_t network_write(vrequest *vr, int fd, chunkqueue *cq, goffset wri
 	return res;
 }
 
-network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
+liNetworkStatus network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
@@ -99,21 +99,21 @@ network_status_t network_read(vrequest *vr, int fd, chunkqueue *cq) {
 #if EWOULDBLOCK != EAGAIN
 			case EWOULDBLOCK:
 #endif
-				return len ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_WAIT_FOR_EVENT;
+				return len ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 			case ECONNRESET:
-				return NETWORK_STATUS_CONNECTION_CLOSE;
+				return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
 				VR_ERROR(vr, "oops, read from fd=%d failed: %s", fd, g_strerror(errno) );
-				return NETWORK_STATUS_FATAL_ERROR;
+				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {
 			g_byte_array_free(buf, TRUE);
-			return len ? NETWORK_STATUS_SUCCESS : NETWORK_STATUS_CONNECTION_CLOSE;
+			return len ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_CONNECTION_CLOSE;
 		}
 		g_byte_array_set_size(buf, r);
 		chunkqueue_append_bytearr(cq, buf);
 		len += r;
 	} while (r == blocksize && len < max_read);
 
-	return NETWORK_STATUS_SUCCESS;
+	return LI_NETWORK_STATUS_SUCCESS;
 }

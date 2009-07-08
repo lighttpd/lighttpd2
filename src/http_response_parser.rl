@@ -71,9 +71,9 @@
 	Quoted_String   = DQUOTE ( QDText | Quoted_Pair )* DQUOTE;
 
 	HTTP_Version = (
-		  "HTTP/1.0"  %{ ctx->response->http_version = HTTP_VERSION_1_0; }
-		| "HTTP/1.1"  %{ ctx->response->http_version = HTTP_VERSION_1_1; }
-		| "HTTP" "/" DIGIT+ "." DIGIT+ ) >{ ctx->response->http_version = HTTP_VERSION_UNSET; };
+		  "HTTP/1.0"  %{ ctx->response->http_version = LI_HTTP_VERSION_1_0; }
+		| "HTTP/1.1"  %{ ctx->response->http_version = LI_HTTP_VERSION_1_1; }
+		| "HTTP" "/" DIGIT+ "." DIGIT+ ) >{ ctx->response->http_version = LI_HTTP_VERSION_UNSET; };
 	#HTTP_URL = "http:" "//" Host ( ":" Port )? ( abs_path ( "?" query )? )?;
 
 	Status = (digit digit digit) >mark %status;
@@ -88,15 +88,15 @@
 
 %% write data;
 
-static int http_response_parser_has_error(http_response_ctx *ctx) {
+static int http_response_parser_has_error(liHttpResponseCtx *ctx) {
 	return ctx->chunk_ctx.cs == http_response_parser_error;
 }
 
-static int http_response_parser_is_finished(http_response_ctx *ctx) {
+static int http_response_parser_is_finished(liHttpResponseCtx *ctx) {
 	return ctx->chunk_ctx.cs >= http_response_parser_first_final;
 }
 
-void http_response_parser_init(http_response_ctx* ctx, response *req, chunkqueue *cq, gboolean accept_cgi, gboolean accept_nph) {
+void http_response_parser_init(liHttpResponseCtx* ctx, liResponse *req, liChunkQueue *cq, gboolean accept_cgi, gboolean accept_nph) {
 	chunk_parser_init(&ctx->chunk_ctx, cq);
 	ctx->response = req;
 	ctx->accept_cgi = accept_cgi;
@@ -107,7 +107,7 @@ void http_response_parser_init(http_response_ctx* ctx, response *req, chunkqueue
 	%% write init;
 }
 
-void http_response_parser_reset(http_response_ctx* ctx) {
+void http_response_parser_reset(liHttpResponseCtx* ctx) {
 	chunk_parser_reset(&ctx->chunk_ctx);
 	g_string_truncate(ctx->h_key, 0);
 	g_string_truncate(ctx->h_value, 0);
@@ -115,33 +115,33 @@ void http_response_parser_reset(http_response_ctx* ctx) {
 	%% write init;
 }
 
-void http_response_parser_clear(http_response_ctx *ctx) {
+void http_response_parser_clear(liHttpResponseCtx *ctx) {
 	g_string_free(ctx->h_key, TRUE);
 	g_string_free(ctx->h_value, TRUE);
 }
 
-handler_t http_response_parse(vrequest *vr, http_response_ctx *ctx) {
-	handler_t res;
+liHandlerResult http_response_parse(liVRequest *vr, liHttpResponseCtx *ctx) {
+	liHandlerResult res;
 
-	if (http_response_parser_is_finished(ctx)) return HANDLER_GO_ON;
+	if (http_response_parser_is_finished(ctx)) return LI_HANDLER_GO_ON;
 
-	if (HANDLER_GO_ON != (res = chunk_parser_prepare(&ctx->chunk_ctx))) return res;
+	if (LI_HANDLER_GO_ON != (res = chunk_parser_prepare(&ctx->chunk_ctx))) return res;
 
 	while (!http_response_parser_has_error(ctx) && !http_response_parser_is_finished(ctx)) {
 		char *p, *pe;
 
-		if (HANDLER_GO_ON != (res = chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
+		if (LI_HANDLER_GO_ON != (res = chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
 
 		%% write exec;
 
 		chunk_parser_done(&ctx->chunk_ctx, p - ctx->chunk_ctx.buf);
 	}
 
-	if (http_response_parser_has_error(ctx)) return HANDLER_ERROR;
+	if (http_response_parser_has_error(ctx)) return LI_HANDLER_ERROR;
 	if (http_response_parser_is_finished(ctx)) {
 		chunkqueue_skip(ctx->chunk_ctx.cq, ctx->chunk_ctx.bytes_in);
 		if (ctx->response->http_status == 0) ctx->response->http_status = 200;
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 	}
-	return HANDLER_ERROR;
+	return LI_HANDLER_ERROR;
 }

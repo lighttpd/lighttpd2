@@ -5,7 +5,7 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-struct request_uri {
+struct liRequestUri {
 	GString *raw;
 
 	GString *scheme;
@@ -16,7 +16,7 @@ struct request_uri {
 	GString *host; /* without userinfo and port */
 };
 
-struct physical {
+struct liPhysical {
 	GString *path;
 	GString *basedir;
 
@@ -31,26 +31,26 @@ struct physical {
 	struct stat stat; /* contains valid data only if have_stat is true */
 };
 
-struct request {
-	http_method_t http_method;
+struct liRequest {
+	liHttpMethod http_method;
 	GString *http_method_str;
-	http_version_t http_version;
+	liHttpVersion http_version;
 
-	request_uri uri;
+	liRequestUri uri;
 
-	http_headers *headers;
+	liHttpHeaders *headers;
 	/* Parsed headers: */
 	goffset content_length;
 };
 
-LI_API void request_init(request *req);
-LI_API void request_reset(request *req);
-LI_API void request_clear(request *req);
+LI_API void request_init(liRequest *req);
+LI_API void request_reset(liRequest *req);
+LI_API void request_clear(liRequest *req);
 
-LI_API gboolean request_validate_header(connection *con);
+LI_API gboolean request_validate_header(liConnection *con);
 
-LI_API void physical_init(physical *phys);
-LI_API void physical_reset(physical *phys);
-LI_API void physical_clear(physical *phys);
+LI_API void physical_init(liPhysical *phys);
+LI_API void physical_reset(liPhysical *phys);
+LI_API void physical_clear(liPhysical *phys);
 
 #endif

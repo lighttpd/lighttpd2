@@ -5,31 +5,16 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-/* action type */
-typedef enum {
-	ACTION_TSETTING,
-	ACTION_TFUNCTION,
-	ACTION_TCONDITION,
-	ACTION_TLIST,
-	ACTION_TBALANCER
-} action_type;
-
-typedef enum {
-	BACKEND_OVERLOAD,
-	BACKEND_DEAD
-} backend_error;
-
-struct action_regex_stack_element {
+struct liActionRegexStackElement {
 	GString *string;
 	GMatchInfo *match_info;
 };
-typedef struct action_regex_stack_element action_regex_stack_element;
 
-struct action_stack {
+struct liActionStack {
 	GArray* stack;
 	GArray* regex_stack;
 	gboolean backend_failed;
-	backend_error backend_error;
+	liBackendError backend_error;
 };
 
 /* param is the param registered with the callbacks;
@@ -38,72 +23,71 @@ struct action_stack {
  * the cleanup callback gets called.
  * you should not use *context without a cleanup callback!!!
  */
-typedef handler_t (*ActionFunc)(vrequest *vr, gpointer param, gpointer *context);
-typedef handler_t (*ActionCleanup)(vrequest *vr, gpointer param, gpointer context);
-typedef void (*ActionFree)(server *srv, gpointer param);
+typedef liHandlerResult (*liActionFuncCB)(liVRequest *vr, gpointer param, gpointer *context);
+typedef liHandlerResult (*liActionCleanupCB)(liVRequest *vr, gpointer param, gpointer context);
+typedef void (*liActionFreeCB)(liServer *srv, gpointer param);
 
-struct action_func {
-	ActionFunc func;
-	ActionCleanup cleanup;
-	ActionFree free;
+struct liActionFunc {
+	liActionFuncCB func;
+	liActionCleanupCB cleanup;
+	liActionFreeCB free;
 	gpointer param;
 };
-typedef struct action_func action_func;
 
 
-typedef handler_t (*BackendSelect)(vrequest *vr, gboolean backlog_provided, gpointer param, gpointer *context);
-typedef handler_t (*BackendFallback)(vrequest *vr, gboolean backlog_provided, gpointer param, gpointer *context, backend_error error);
-typedef handler_t (*BackendFinished)(vrequest *vr, gpointer param, gpointer context);
-typedef void (*BalancerFree)(server *srv, gpointer param);
-struct balancer_func {
-	BackendSelect select;
-	BackendFallback fallback;
-	BackendFinished finished;
-	BalancerFree free;
+typedef liHandlerResult (*liBackendSelectCB)(liVRequest *vr, gboolean backlog_provided, gpointer param, gpointer *context);
+typedef liHandlerResult (*liBackendFallbackCB)(liVRequest *vr, gboolean backlog_provided, gpointer param, gpointer *context, liBackendError error);
+typedef liHandlerResult (*liBackendFinishedCB)(liVRequest *vr, gpointer param, gpointer context);
+typedef void (*liBalancerFreeCB)(liServer *srv, gpointer param);
+
+struct liBalancerFunc {
+	liBackendSelectCB select;
+	liBackendFallbackCB fallback;
+	liBackendFinishedCB finished;
+	liBalancerFreeCB free;
 	gpointer param;
 	gboolean provide_backlog;
 };
-typedef struct balancer_func balancer_func;
 
 
-struct action {
+struct liAction {
 	gint refcount;
-	action_type type;
+	liActionType type;
 
 	union {
-		option_set setting;
+		liOptionSet setting;
 
 		struct {
-			condition *cond;
-			action *target; /** action target to jump to if condition is fulfilled */
-			action *target_else; /** like above but if condition is not fulfilled */
+			liCondition *cond;
+			liAction *target; /** action target to jump to if condition is fulfilled */
+			liAction *target_else; /** like above but if condition is not fulfilled */
 		} condition;
 
-		action_func function;
+		liActionFunc function;
 
 		GArray* list; /** array of (action*) */
 
-		balancer_func balancer;
+		liBalancerFunc balancer;
 	} data;
 };
 
 /* no new/free function, so just use the struct direct (i.e. not a pointer) */
-LI_API void action_stack_init(action_stack *as);
-LI_API void action_stack_reset(vrequest *vr, action_stack *as);
-LI_API void action_stack_clear(vrequest *vr, action_stack *as);
+LI_API void action_stack_init(liActionStack *as);
+LI_API void action_stack_reset(liVRequest *vr, liActionStack *as);
+LI_API void action_stack_clear(liVRequest *vr, liActionStack *as);
 
 /** handle sublist now, remember current position (stack) */
-LI_API void action_enter(struct vrequest *vr, action *a);
-LI_API handler_t action_execute(struct vrequest *vr);
+LI_API void action_enter(liVRequest *vr, liAction *a);
+LI_API liHandlerResult action_execute(liVRequest *vr);
 
 
-LI_API void action_release(server *srv, action *a);
-LI_API void action_acquire(action *a);
+LI_API void action_release(liServer *srv, liAction *a);
+LI_API void action_acquire(liAction *a);
 /* create new action */
-LI_API action *action_new_setting(option_set setting);
-LI_API action *action_new_function(ActionFunc func, ActionCleanup fcleanup, ActionFree ffree, gpointer param);
-LI_API action *action_new_list();
-LI_API action *action_new_condition(condition *cond, action *target, action *target_else);
-LI_API action *action_new_balancer(BackendSelect bselect, BackendFallback bfallback, BackendFinished bfinished, BalancerFree bfree, gpointer param, gboolean provide_backlog);
+LI_API liAction *action_new_setting(liOptionSet setting);
+LI_API liAction *action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup, liActionFreeCB ffree, gpointer param);
+LI_API liAction *action_new_list();
+LI_API liAction *action_new_condition(liCondition *cond, liAction *target, liAction *target_else);
+LI_API liAction *action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB bfallback, liBackendFinishedCB bfinished, liBalancerFreeCB bfree, gpointer param, gboolean provide_backlog);
 
 #endif

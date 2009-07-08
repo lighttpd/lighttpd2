@@ -7,7 +7,7 @@ typedef enum {
 	COUNTER_TIME,
 	COUNTER_BYTES,
 	COUNTER_UNITS
-} counter_type;
+} liCounterType;
 
 
 
@@ -35,7 +35,7 @@ LI_API void url_decode(GString *path);
 LI_API void path_simplify(GString *path);
 
 /* formats a given guint64 for output. if dest is NULL, a new string is allocated */
-LI_API GString *counter_format(guint64 count, counter_type t, GString *dest);
+LI_API GString *counter_format(guint64 count, liCounterType t, GString *dest);
 
 LI_API gchar *ev_backend_string(guint backend);
 
@@ -47,12 +47,12 @@ LI_API guint hash_ipv4(gconstpointer key);
 LI_API guint hash_ipv6(gconstpointer key);
 
 /* converts a sock_addr to a human readable string. ipv4 and ipv6 supported. if dest is NULL, a new string will be allocated */
-LI_API GString *sockaddr_to_string(sockaddr_t addr, GString *dest, gboolean showport);
+LI_API GString *sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean showport);
 
-LI_API sockaddr_t sockaddr_from_string(GString *str, guint tcp_default_port);
-LI_API sockaddr_t sockaddr_local_from_socket(gint fd);
-LI_API sockaddr_t sockaddr_remote_from_socket(gint fd);
-LI_API void sockaddr_clear(sockaddr_t *saddr);
+LI_API liSocketAddress sockaddr_from_string(GString *str, guint tcp_default_port);
+LI_API liSocketAddress sockaddr_local_from_socket(gint fd);
+LI_API liSocketAddress sockaddr_remote_from_socket(gint fd);
+LI_API void sockaddr_clear(liSocketAddress *saddr);
 
 LI_API void gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, guint len);
 

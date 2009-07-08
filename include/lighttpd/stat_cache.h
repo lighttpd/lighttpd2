@@ -39,7 +39,7 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-struct stat_cache_entry_data {
+struct liStatCacheEntryData {
 	GString *path;
 	GString *etag;
 	GString *content_type;
@@ -48,7 +48,7 @@ struct stat_cache_entry_data {
 	gint err;
 };
 
-struct stat_cache_entry {
+struct liStatCacheEntry {
 	enum {
 		STAT_CACHE_ENTRY_SINGLE,      /* single file, this is the default or "normal" */
 		STAT_CACHE_ENTRY_DIR          /* get a directory listing (with stat info) */
@@ -59,21 +59,21 @@ struct stat_cache_entry {
 		STAT_CACHE_ENTRY_FINISHED,    /* stat() done, info available */
 	} state;
 
-	stat_cache_entry_data data;
+	liStatCacheEntryData data;
 	GArray *dirlist;                  /* array of stat_cache_entry_data, used together with STAT_CACHE_ENTRY_DIR */
 
 	GPtrArray *vrequests;             /* vrequests waiting for this info */
 	guint refcount;
-	waitqueue_elem queue_elem;        /* queue element for the delete_queue */
+	liWaitQueueElem queue_elem;        /* queue element for the delete_queue */
 	gboolean cached;
 };
 
-struct stat_cache {
+struct liStatCache {
 	GHashTable *dirlists;
 	GHashTable *entries;
 	GAsyncQueue *job_queue_out;       /* elements waiting for stat */
 	GAsyncQueue *job_queue_in;        /* elements with finished stat */
-	waitqueue delete_queue;
+	liWaitQueue delete_queue;
 	GThread *thread;
 	ev_async job_watcher;
 	gdouble ttl;
@@ -83,24 +83,24 @@ struct stat_cache {
 	guint64 errors;
 };
 
-void stat_cache_new(worker *wrk, gdouble ttl);
-void stat_cache_free(stat_cache *sc);
+void stat_cache_new(liWorker *wrk, gdouble ttl);
+void stat_cache_free(liStatCache *sc);
 
 /*
  gets a stat_cache_entry for a specified path
  if fd is set, a new fd is acquired via open() and stat info via fstat(), otherwise only a stat() is performed
  returns HANDLER_WAIT_FOR_EVENT in case of a cache MISS, HANDLER_GO_ON in case of a hit and HANDLER_ERROR in case of an error
 */
-LI_API handler_t stat_cache_get(vrequest *vr, GString *path, struct stat *st, int *err, int *fd);
+LI_API liHandlerResult stat_cache_get(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd);
 
 /*
  sce->dirlist will contain a list of stat_cache_entry_data upon success
  returns HANDLER_WAIT_FOR_EVENT in case of a cache MISS, HANDLER_GO_ON in case of a hit and HANDLER_ERROR in case of an error
 */
-LI_API handler_t stat_cache_get_dirlist(vrequest *vr, GString *path, stat_cache_entry **result);
+LI_API liHandlerResult stat_cache_get_dirlist(liVRequest *vr, GString *path, liStatCacheEntry **result);
 
-LI_API void stat_cache_entry_acquire(vrequest *vr, stat_cache_entry *sce);
+LI_API void stat_cache_entry_acquire(liVRequest *vr, liStatCacheEntry *sce);
 /* release a stat_cache_entry so it can be cleaned up */
-LI_API void stat_cache_entry_release(vrequest *vr, stat_cache_entry *sce);
+LI_API void stat_cache_entry_release(liVRequest *vr, liStatCacheEntry *sce);
 
 #endif

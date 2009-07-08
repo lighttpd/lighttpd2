@@ -47,19 +47,19 @@
 #include <lighttpd/base.h>
 #include <lighttpd/radix.h>
 
-LI_API gboolean mod_access_init(modules *mods, module *mod);
-LI_API gboolean mod_access_free(modules *mods, module *mod);
+LI_API gboolean mod_access_init(liModules *mods, liModule *mod);
+LI_API gboolean mod_access_free(liModules *mods, liModule *mod);
 
 struct access_check_data {
-	plugin *p;
-	RadixTree32 *ipv4;
+	liPlugin *p;
+	liRadixTree32 *ipv4;
 };
 typedef struct access_check_data access_check_data;
 
 
-static handler_t access_check(vrequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *context) {
 	access_check_data *acd = param;
-	sock_addr *addr = vr->con->remote_addr.addr;
+	liSockAddr *addr = vr->con->remote_addr.addr;
 	gboolean log_blocked = _OPTION(vr, acd->p, 0).boolean;
 	GString *redirect_url = _OPTION(vr, acd->p, 1).string;
 
@@ -77,16 +77,16 @@ static handler_t access_check(vrequest *vr, gpointer param, gpointer *context) {
 		}
 	} else if (addr->plain.sa_family == AF_INET6) {
 		VR_ERROR(vr, "%s", "access.check doesn't support ipv6 clients yet");
-		return HANDLER_ERROR;
+		return LI_HANDLER_ERROR;
 	} else {
 		VR_ERROR(vr, "%s", "access.check only supports ipv4 or ipv6 clients");
-		return HANDLER_ERROR;
+		return LI_HANDLER_ERROR;
 	}
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static void access_check_free(server *srv, gpointer param) {
+static void access_check_free(liServer *srv, gpointer param) {
 	access_check_data *acd = param;
 
 	UNUSED(srv);
@@ -95,9 +95,9 @@ static void access_check_free(server *srv, gpointer param) {
 	g_slice_free(access_check_data, acd);
 }
 
-static action* access_check_create(server *srv, plugin* p, value *val) {
+static liAction* access_check_create(liServer *srv, liPlugin* p, liValue *val) {
 	GArray *arr;
-	value *v, *ip;
+	liValue *v, *ip;
 	guint i, j;
 	guint32 ipv4, netmaskv4;
 	gboolean deny = FALSE;
@@ -106,7 +106,7 @@ static action* access_check_create(server *srv, plugin* p, value *val) {
 
 	UNUSED(srv);
 
-	if (!val || val->type != VALUE_LIST || (val->data.list->len != 1 && val->data.list->len != 2)) {
+	if (!val || val->type != LI_VALUE_LIST || (val->data.list->len != 1 && val->data.list->len != 2)) {
 		ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
 		return NULL;
 	}
@@ -118,18 +118,18 @@ static action* access_check_create(server *srv, plugin* p, value *val) {
 	acd->ipv4 = radixtree32_new(2);
 
 	for (i = 0; i < arr->len; i++) {
-		v = g_array_index(arr, value*, i);
+		v = g_array_index(arr, liValue*, i);
 
-		if (v->type != VALUE_LIST || v->data.list->len != 2) {
+		if (v->type != LI_VALUE_LIST || v->data.list->len != 2) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
 			radixtree32_free(acd->ipv4);
 			g_slice_free(access_check_data, acd);
 			return NULL;
 		}
 
-		v = g_array_index(v->data.list, value*, 0);
+		v = g_array_index(v->data.list, liValue*, 0);
 
-		if (v->type != VALUE_STRING) {
+		if (v->type != LI_VALUE_STRING) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
 			radixtree32_free(acd->ipv4);
 			g_slice_free(access_check_data, acd);
@@ -148,9 +148,9 @@ static action* access_check_create(server *srv, plugin* p, value *val) {
 			return NULL;
 		}
 
-		v = g_array_index(g_array_index(arr, value*, i)->data.list, value*, 1);
+		v = g_array_index(g_array_index(arr, liValue*, i)->data.list, liValue*, 1);
 
-		if (v->type != VALUE_LIST) {
+		if (v->type != LI_VALUE_LIST) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
 			radixtree32_free(acd->ipv4);
 			g_slice_free(access_check_data, acd);
@@ -158,9 +158,9 @@ static action* access_check_create(server *srv, plugin* p, value *val) {
 		}
 
 		for (j = 0; j < v->data.list->len; j++) {
-			ip = g_array_index(v->data.list, value*, j);
+			ip = g_array_index(v->data.list, liValue*, j);
 
-			if (ip->type != VALUE_STRING) {
+			if (ip->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
 				radixtree32_free(acd->ipv4);
 				g_slice_free(access_check_data, acd);
@@ -189,9 +189,9 @@ static action* access_check_create(server *srv, plugin* p, value *val) {
 }
 
 
-static handler_t access_deny(vrequest *vr, gpointer param, gpointer *context) {
-	gboolean log_blocked = _OPTION(vr, ((plugin*)param), 0).boolean;
-	GString *redirect_url = _OPTION(vr, ((plugin*)param), 1).string;
+static liHandlerResult access_deny(liVRequest *vr, gpointer param, gpointer *context) {
+	gboolean log_blocked = _OPTION(vr, ((liPlugin*)param), 0).boolean;
+	GString *redirect_url = _OPTION(vr, ((liPlugin*)param), 1).string;
 
 	UNUSED(context);
 	UNUSED(redirect_url);
@@ -203,10 +203,10 @@ static handler_t access_deny(vrequest *vr, gpointer param, gpointer *context) {
 		VR_INFO(vr, "access.deny: blocked %s", vr->con->remote_addr_str->str);
 	}
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static action* access_deny_create(server *srv, plugin* p, value *val) {
+static liAction* access_deny_create(liServer *srv, liPlugin* p, liValue *val) {
 
 	UNUSED(srv);
 
@@ -219,26 +219,26 @@ static action* access_deny_create(server *srv, plugin* p, value *val) {
 }
 
 
-static const plugin_option options[] = {
-	{ "access.log_blocked", VALUE_BOOLEAN, NULL, NULL, NULL },
-	{ "access.redirect_url", VALUE_STRING, NULL, NULL, NULL },
+static const liPluginOption options[] = {
+	{ "access.log_blocked", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
+	{ "access.redirect_url", LI_VALUE_STRING, NULL, NULL, NULL },
 
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
-static const plugin_action actions[] = {
+static const liPluginAction actions[] = {
 	{ "access.check", access_check_create },
 	{ "access.deny", access_deny_create },
 
 	{ NULL, NULL }
 };
 
-static const plugin_setup setups[] = {
+static const liliPluginSetupCB setups[] = {
 	{ NULL, NULL }
 };
 
 
-static void plugin_access_init(server *srv, plugin *p) {
+static void plugin_access_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
 
 	p->options = options;
@@ -247,7 +247,7 @@ static void plugin_access_init(server *srv, plugin *p) {
 }
 
 
-gboolean mod_access_init(modules *mods, module *mod) {
+gboolean mod_access_init(liModules *mods, liModule *mod) {
 	UNUSED(mod);
 
 	MODULE_VERSION_CHECK(mods);
@@ -257,7 +257,7 @@ gboolean mod_access_init(modules *mods, module *mod) {
 	return mod->config != NULL;
 }
 
-gboolean mod_access_free(modules *mods, module *mod) {
+gboolean mod_access_free(liModules *mods, liModule *mod) {
 	if (mod->config)
 		plugin_free(mods->main, mod->config);
 

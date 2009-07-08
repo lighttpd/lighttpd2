@@ -10,14 +10,14 @@
 #endif
 
 typedef enum {
-	INSTANCE_DOWN,    /* not running */
-	INSTANCE_LOADING, /* startup */
-	INSTANCE_WARMUP,  /* running, but logging to files disabled */
-	INSTANCE_ACTIVE,  /* everything running */
-	INSTANCE_SUSPEND  /* handle remaining connections, suspend logs+accept() */
-} instance_state_t;
+	LI_INSTANCE_DOWN,    /* not running */
+	LI_INSTANCE_LOADING, /* startup */
+	LI_INSTANCE_WARMUP,  /* running, but logging to files disabled */
+	LI_INSTANCE_ACTIVE,  /* everything running */
+	LI_INSTANCE_SUSPEND  /* handle remaining connections, suspend logs+accept() */
+} liInstanceState;
 
-struct instance_conf {
+struct liInstanceConf {
 	gint refcount;
 
 	gchar **cmd;
@@ -26,24 +26,24 @@ struct instance_conf {
 	gid_t gid;
 };
 
-struct instance {
+struct liInstance {
 	gint refcount;
 
-	server *srv;
-	instance_conf *ic;
+	liServer *srv;
+	liInstanceConf *ic;
 
 	pid_t pid;
 	ev_child child_watcher;
 
-	instance_state_t s_cur, s_dest;
+	liInstanceState s_cur, s_dest;
 
-	instance *replace, *replace_by;
+	liInstance *replace, *replace_by;
 
-	angel_connection *acon;
+	liAngelConnection *acon;
 	gboolean in_jobqueue;
 };
 
-struct server {
+struct liServer {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_ANGEL_MAGIC in plugins */
 
 	struct ev_loop *loop;
@@ -55,25 +55,25 @@ struct server {
 	GQueue job_queue;
 	ev_async job_watcher;
 
-	Plugins plugins;
+	liPlugins plugins;
 
-	log_t log;
+	liLog log;
 };
 
-LI_API server* server_new(const gchar *module_dir);
-LI_API void server_free(server* srv);
+LI_API liServer* server_new(const gchar *module_dir);
+LI_API void server_free(liServer* srv);
 
-LI_API instance* server_new_instance(server *srv, instance_conf *ic);
-LI_API void instance_replace(instance *oldi, instance *newi);
-LI_API void instance_set_state(instance *i, instance_state_t s);
+LI_API liInstance* server_new_instance(liServer *srv, liInstanceConf *ic);
+LI_API void instance_replace(liInstance *oldi, liInstance *newi);
+LI_API void instance_set_state(liInstance *i, liInstanceState s);
 
-LI_API instance_conf* instance_conf_new(gchar **cmd, GString *username, uid_t uid, gid_t gid);
-LI_API void instance_conf_release(instance_conf *ic);
-LI_API void instance_conf_acquire(instance_conf *ic);
+LI_API liInstanceConf* instance_conf_new(gchar **cmd, GString *username, uid_t uid, gid_t gid);
+LI_API void instance_conf_release(liInstanceConf *ic);
+LI_API void instance_conf_acquire(liInstanceConf *ic);
 
-LI_API void instance_release(instance *i);
-LI_API void instance_acquire(instance *i);
+LI_API void instance_release(liInstance *i);
+LI_API void instance_acquire(liInstance *i);
 
-LI_API void instance_job_append(instance *i);
+LI_API void instance_job_append(liInstance *i);
 
 #endif

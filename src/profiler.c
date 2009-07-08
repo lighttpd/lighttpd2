@@ -12,14 +12,14 @@
 #define PROFILER_HASHTABLE_SIZE 1024
 
 
+typedef struct profiler_entry profiler_entry;
 struct profiler_entry {
 	gpointer addr;
 	gsize len;
-	struct profiler_entry *next;
+	profiler_entry *next;
 };
-typedef struct  profiler_entry profiler_entry;
 
-static profiler_mem stats_mem = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static liProfilerMem stats_mem = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static GMutex *profiler_mutex = NULL;
 static gboolean profiler_enabled = FALSE;
 static profiler_entry *free_list = NULL;
@@ -249,7 +249,7 @@ void profiler_finish() {
 }
 
 void profiler_dump() {
-	profiler_mem s;
+	liProfilerMem s;
 
 	if (!profiler_enabled)
 		return;

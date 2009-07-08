@@ -1,31 +1,31 @@
 
-#include <lighttpd/base.h>
+#include <lighttpd/environment.h>
 
 static void _hash_free_gstring(gpointer data) {
 	g_string_free((GString*) data, TRUE);
 }
 
-void environment_init(environment *env) {
+void environment_init(liEnvironment *env) {
 	env->table = g_hash_table_new_full(
 		(GHashFunc) g_string_hash, (GEqualFunc) g_string_equal,
 		_hash_free_gstring, _hash_free_gstring);
 }
 
-void environment_reset(environment *env) {
+void environment_reset(liEnvironment *env) {
 	g_hash_table_remove_all(env->table);
 }
 
-void environment_clear(environment *env) {
+void environment_clear(liEnvironment *env) {
 	g_hash_table_destroy(env->table);
 }
 
-void environment_set(environment *env, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
+void environment_set(liEnvironment *env, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	GString *skey = g_string_new_len(key, keylen);
 	GString *sval = g_string_new_len(val, valuelen);
 	g_hash_table_insert(env->table, skey, sval);
 }
 
-void environment_insert(environment *env, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
+void environment_insert(liEnvironment *env, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	GString *sval = environment_get(env, key, keylen), *skey;
 	if (!sval) {
 		skey = g_string_new_len(key, keylen);
@@ -34,21 +34,21 @@ void environment_insert(environment *env, const gchar *key, size_t keylen, const
 	}
 }
 
-void environment_remove(environment *env, const gchar *key, size_t keylen) {
+void environment_remove(liEnvironment *env, const gchar *key, size_t keylen) {
 	const GString skey = { (gchar*) key, keylen, 0 }; /* fake a constant GString */
 	g_hash_table_remove(env->table, &skey);
 }
 
-GString* environment_get(environment *env, const gchar *key, size_t keylen) {
+GString* environment_get(liEnvironment *env, const gchar *key, size_t keylen) {
 	const GString skey = { (gchar*) key, keylen, 0 }; /* fake a constant GString */
 	return (GString*) g_hash_table_lookup(env->table, &skey);
 }
 
-environment_dup* environment_make_dup(environment *env) {
+liEnvironmentDup* environment_make_dup(liEnvironment *env) {
 	GHashTableIter i;
 	GHashTable *tdst;
 	gpointer key, val;
-	environment_dup *envdup = g_slice_new0(environment_dup);
+	liEnvironmentDup *envdup = g_slice_new0(liEnvironmentDup);
 	envdup->table = tdst = g_hash_table_new((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal);
 
 	g_hash_table_iter_init(&i, env->table);
@@ -58,12 +58,12 @@ environment_dup* environment_make_dup(environment *env) {
 	return envdup;
 }
 
-void environment_dup_free(environment_dup *envdup) {
+void environment_dup_free(liEnvironmentDup *envdup) {
 	g_hash_table_destroy(envdup->table);
-	g_slice_free(environment_dup, envdup);
+	g_slice_free(liEnvironmentDup, envdup);
 }
 
-GString* environment_dup_pop(environment_dup *envdup, const gchar *key, size_t keylen) {
+GString* environment_dup_pop(liEnvironmentDup *envdup, const gchar *key, size_t keylen) {
 	const GString skey = { (gchar*) key, keylen, 0 }; /* fake a constant GString */
 	GString *sval = (GString*) g_hash_table_lookup(envdup->table, &skey);
 	if (sval) g_hash_table_remove(envdup->table, &skey);

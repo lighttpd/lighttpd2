@@ -2,7 +2,7 @@
 #include <lighttpd/filter_chunked.h>
 
 /* len != 0 */
-static void http_chunk_append_len(chunkqueue *cq, size_t len) {
+static void http_chunk_append_len(liChunkQueue *cq, size_t len) {
 	size_t i, olen = len, j;
 	GByteArray *a;
 
@@ -25,7 +25,7 @@ static void http_chunk_append_len(chunkqueue *cq, size_t len) {
 }
 
 
-handler_t filter_chunked_encode(connection *con, chunkqueue *out, chunkqueue *in) {
+liHandlerResult filter_chunked_encode(liConnection *con, liChunkQueue *out, liChunkQueue *in) {
 	UNUSED(con);
 
 	if (in->length > 0) {
@@ -38,14 +38,14 @@ handler_t filter_chunked_encode(connection *con, chunkqueue *out, chunkqueue *in
 			chunkqueue_append_mem(out, CONST_STR_LEN("0\r\n\r\n"));
 			out->is_closed = TRUE;
 		}
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 	}
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-handler_t filter_chunked_decode(connection *con, chunkqueue *out, chunkqueue *in) {
+liHandlerResult filter_chunked_decode(liConnection *con, liChunkQueue *out, liChunkQueue *in) {
 	UNUSED(con);
 	UNUSED(out);
 	UNUSED(in);
-	return HANDLER_ERROR;
+	return LI_HANDLER_ERROR;
 }

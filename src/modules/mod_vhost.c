@@ -70,11 +70,11 @@
 
 #include <lighttpd/base.h>
 
-LI_API gboolean mod_vhost_init(modules *mods, module *mod);
-LI_API gboolean mod_vhost_free(modules *mods, module *mod);
+LI_API gboolean mod_vhost_init(liModules *mods, liModule *mod);
+LI_API gboolean mod_vhost_free(liModules *mods, liModule *mod);
 
 struct vhost_simple_data {
-	plugin *plugin;
+	liPlugin *plugin;
 	GString *default_vhost;
 	GString *docroot;
 	GString *server_root;
@@ -82,9 +82,9 @@ struct vhost_simple_data {
 typedef struct vhost_simple_data vhost_simple_data;
 
 struct vhost_map_data {
-	plugin *plugin;
+	liPlugin *plugin;
 	GHashTable *hash;
-	value *default_action;
+	liValue *default_action;
 };
 typedef struct vhost_map_data vhost_map_data;
 
@@ -114,12 +114,12 @@ typedef struct vhost_pattern_hostpart vhost_pattern_hostpart;
 struct vhost_pattern_data {
 	GArray *parts;
 	guint max_idx;
-	plugin *plugin;
+	liPlugin *plugin;
 };
 typedef struct vhost_pattern_data vhost_pattern_data;
 
 
-static handler_t vhost_simple(vrequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult vhost_simple(liVRequest *vr, gpointer param, gpointer *context) {
 	struct stat st;
 	gboolean debug;
 	vhost_simple_data *sd = param;
@@ -152,10 +152,10 @@ static handler_t vhost_simple(vrequest *vr, gpointer param, gpointer *context) {
 	g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
 	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static void vhost_simple_free(server *srv, gpointer param) {
+static void vhost_simple_free(liServer *srv, gpointer param) {
 	vhost_simple_data *sd = param;
 
 	UNUSED(srv);
@@ -170,16 +170,16 @@ static void vhost_simple_free(server *srv, gpointer param) {
 	g_slice_free(vhost_simple_data, sd);
 }
 
-static action* vhost_simple_create(server *srv, plugin* p, value *val) {
+static liAction* vhost_simple_create(liServer *srv, liPlugin* p, liValue *val) {
 	guint i;
 	GArray *arr;
-	value *k, *v;
+	liValue *k, *v;
 	vhost_simple_data *sd;
 	GString **setting;
 
 	UNUSED(srv); UNUSED(p);
 
-	if (!val || val->type != VALUE_LIST) {
+	if (!val || val->type != LI_VALUE_LIST) {
 		ERROR(srv, "%s", "vhost.simple expects a list if string tuples as parameter");
 		return NULL;
 	}
@@ -189,16 +189,16 @@ static action* vhost_simple_create(server *srv, plugin* p, value *val) {
 
 	arr = val->data.list;
 	for (i = 0; i < arr->len; i++) {
-		val = g_array_index(arr, value*, i);
-		if (val->type != VALUE_LIST || val->data.list->len != 2) {
+		val = g_array_index(arr, liValue*, i);
+		if (val->type != LI_VALUE_LIST || val->data.list->len != 2) {
 			vhost_simple_free(srv, sd);
 			ERROR(srv, "%s", "vhost.simple expects a list if string tuples as parameter");
 			return NULL;
 		}
 
-		k = g_array_index(val->data.list, value*, 0);
-		v = g_array_index(val->data.list, value*, 1);
-		if (k->type != VALUE_STRING || v->type != VALUE_STRING) {
+		k = g_array_index(val->data.list, liValue*, 0);
+		v = g_array_index(val->data.list, liValue*, 1);
+		if (k->type != LI_VALUE_STRING || v->type != LI_VALUE_STRING) {
 			vhost_simple_free(srv, sd);
 			ERROR(srv, "%s", "vhost.simple expects a list if string tuples as parameter");
 			return NULL;
@@ -241,8 +241,8 @@ static action* vhost_simple_create(server *srv, plugin* p, value *val) {
 	return action_new_function(vhost_simple, NULL, vhost_simple_free, sd);
 }
 
-static handler_t vhost_map(vrequest *vr, gpointer param, gpointer *context) {
-	value *v;
+static liHandlerResult vhost_map(liVRequest *vr, gpointer param, gpointer *context) {
+	liValue *v;
 	vhost_map_data *md = param;
 	gboolean debug = _OPTION(vr, md->plugin, 0).boolean;
 
@@ -263,10 +263,10 @@ static handler_t vhost_map(vrequest *vr, gpointer param, gpointer *context) {
 			VR_DEBUG(vr, "vhost_map: neither host %s found in hashtable nor default action specified, doing nothing", vr->request.uri.host->str);
 	}
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static void vhost_map_free(server *srv, gpointer param) {
+static void vhost_map_free(liServer *srv, gpointer param) {
 	vhost_map_data *md = param;
 
 	UNUSED(srv);
@@ -276,13 +276,13 @@ static void vhost_map_free(server *srv, gpointer param) {
 	g_slice_free(vhost_map_data, md);
 }
 
-static action* vhost_map_create(server *srv, plugin* p, value *val) {
+static liAction* vhost_map_create(liServer *srv, liPlugin* p, liValue *val) {
 	GHashTableIter iter;
 	gpointer k, v;
 	vhost_map_data *md;
 	GString *str;
 
-	if (!val || val->type != VALUE_HASH) {
+	if (!val || val->type != LI_VALUE_HASH) {
 		ERROR(srv, "%s", "vhost.map expects a hashtable as parameter");
 		return NULL;
 	}
@@ -299,7 +299,7 @@ static action* vhost_map_create(server *srv, plugin* p, value *val) {
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
 		val = v;
 
-		if (val->type != VALUE_ACTION) {
+		if (val->type != LI_VALUE_ACTION) {
 			ERROR(srv, "vhost.map expects a hashtable with action values as parameter, %s value given", value_type_string(val->type));
 			vhost_map_free(srv, md);
 			return NULL;
@@ -311,7 +311,7 @@ static action* vhost_map_create(server *srv, plugin* p, value *val) {
 	return action_new_function(vhost_map, NULL, vhost_map_free, md);
 }
 
-static handler_t vhost_pattern(vrequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult vhost_pattern(liVRequest *vr, gpointer param, gpointer *context) {
 	GArray *parts = g_array_sized_new(FALSE, TRUE, sizeof(vhost_pattern_hostpart), 6);
 	vhost_pattern_data *pattern = param;
 	gboolean debug = _OPTION(vr, pattern->plugin, 0).boolean;
@@ -324,7 +324,7 @@ static handler_t vhost_pattern(vrequest *vr, gpointer param, gpointer *context) 
 	if (!vr->request.uri.host->len) {
 		if (debug)
 			VR_DEBUG(vr, "%s", "vhost_pattern: no host given");
-		return HANDLER_GO_ON;
+		return LI_HANDLER_GO_ON;
 	}
 
 	/* parse host. we traverse the host in reverse order */
@@ -387,10 +387,10 @@ static handler_t vhost_pattern(vrequest *vr, gpointer param, gpointer *context) 
 
 	g_array_free(parts, TRUE);
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static void vhost_pattern_free(server *srv, gpointer param) {
+static void vhost_pattern_free(liServer *srv, gpointer param) {
 	vhost_pattern_data *pd = param;
 	guint i;
 
@@ -407,13 +407,13 @@ static void vhost_pattern_free(server *srv, gpointer param) {
 	g_slice_free(vhost_pattern_data, pd);
 }
 
-static action* vhost_pattern_create(server *srv, plugin* p, value *val) {
+static liAction* vhost_pattern_create(liServer *srv, liPlugin* p, liValue *val) {
 	vhost_pattern_data *pd;
 	GString *str;
 	gchar *c, *c_last;
 	vhost_pattern_part part;
 
-	if (!val || val->type != VALUE_STRING) {
+	if (!val || val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "vhost.map expects a hashtable as parameter");
 		return NULL;
 	}
@@ -505,13 +505,13 @@ static action* vhost_pattern_create(server *srv, plugin* p, value *val) {
 }
 
 
-static const plugin_option options[] = {
-	{ "vhost.debug", VALUE_BOOLEAN, NULL, NULL, NULL },
+static const liPluginOption options[] = {
+	{ "vhost.debug", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
 
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
-static const plugin_action actions[] = {
+static const liPluginAction actions[] = {
 	{ "vhost.simple", vhost_simple_create },
 	{ "vhost.map", vhost_map_create },
 	{ "vhost.pattern", vhost_pattern_create },
@@ -519,12 +519,12 @@ static const plugin_action actions[] = {
 	{ NULL, NULL }
 };
 
-static const plugin_setup setups[] = {
+static const liliPluginSetupCB setups[] = {
 	{ NULL, NULL }
 };
 
 
-static void plugin_vhost_init(server *srv, plugin *p) {
+static void plugin_vhost_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
 
 	p->options = options;
@@ -533,7 +533,7 @@ static void plugin_vhost_init(server *srv, plugin *p) {
 }
 
 
-gboolean mod_vhost_init(modules *mods, module *mod) {
+gboolean mod_vhost_init(liModules *mods, liModule *mod) {
 	UNUSED(mod);
 
 	MODULE_VERSION_CHECK(mods);
@@ -543,7 +543,7 @@ gboolean mod_vhost_init(modules *mods, module *mod) {
 	return mod->config != NULL;
 }
 
-gboolean mod_vhost_free(modules *mods, module *mod) {
+gboolean mod_vhost_free(liModules *mods, liModule *mod) {
 	if (mod->config)
 		plugin_free(mods->main, mod->config);
 

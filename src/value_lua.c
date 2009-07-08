@@ -13,8 +13,8 @@ static int lua_fixindex(lua_State *L, int ndx) {
 	return ndx;
 }
 
-static value* value_from_lua_table(server *srv, lua_State *L, int ndx) {
-	value *val = NULL, *sub_option;
+static liValue* value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
+	liValue *val = NULL, *sub_option;
 	GArray *list = NULL;
 	GHashTable *hash = NULL;
 	int ikey;
@@ -41,7 +41,7 @@ static value* value_from_lua_table(server *srv, lua_State *L, int ndx) {
 			if ((size_t) ikey >= list->len) {
 				g_array_set_size(list, ikey + 1);
 			}
-			g_array_index(list, value*, ikey) = sub_option;
+			g_array_index(list, liValue*, ikey) = sub_option;
 			break;
 
 		case LUA_TSTRING:
@@ -80,8 +80,8 @@ mixerror:
 }
 
 
-value* value_from_lua(server *srv, lua_State *L) {
-	value *val;
+liValue* value_from_lua(liServer *srv, lua_State *L) {
+	liValue *val;
 
 	switch (lua_type(L, -1)) {
 	case LUA_TNIL:
@@ -110,7 +110,7 @@ value* value_from_lua(server *srv, lua_State *L) {
 
 	case LUA_TUSERDATA:
 		{ /* check for action */
-			action *a = lua_get_action(L, -1);
+			liAction *a = lua_get_action(L, -1);
 			if (a) {
 				action_acquire(a);
 				lua_pop(L, 1);
@@ -118,7 +118,7 @@ value* value_from_lua(server *srv, lua_State *L) {
 			}
 		}
 		{ /* check for condition */
-			condition *c = lua_get_condition(L, -1);
+			liCondition *c = lua_get_condition(L, -1);
 			if (c) {
 				condition_acquire(c);
 				lua_pop(L, 1);

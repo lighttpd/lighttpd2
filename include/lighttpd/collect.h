@@ -12,7 +12,7 @@
   *   - fdata: optional user data
   * the return value will be placed in the GArray
   */
-typedef gpointer (*CollectFunc)(worker *wrk, gpointer fdata);
+typedef gpointer (*liCollectFuncCB)(liWorker *wrk, gpointer fdata);
 
 /** CollectCallback: the type of functions to call after a function was called in each workers context
   *   - cbdata: optional callback data
@@ -22,29 +22,13 @@ typedef gpointer (*CollectFunc)(worker *wrk, gpointer fdata);
   *   - complete: determines if cbdata is still valid
   *     if this is FALSE, it may be called from another context than collect_start was called
   */
-typedef void (*CollectCallback)(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete);
+typedef void (*liCollectCB)(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete);
 
-struct collect_info;
-typedef struct collect_info collect_info;
-
-/* internal structure */
-struct collect_info {
-	worker *wrk;
-	gint counter;
-	gboolean stopped;
-
-	CollectFunc func;
-	gpointer fdata;
-
-	CollectCallback cb;
-	gpointer cbdata;
-
-	GPtrArray *results;
-};
+typedef struct liCollectInfo liCollectInfo;
 
 /** collect_start returns NULL if the callback was called directly (e.g. for only one worker and ctx = wrk) */
-LI_API collect_info* collect_start(worker *ctx, CollectFunc func, gpointer fdata, CollectCallback cb, gpointer cbdata);
-LI_API void collect_break(collect_info* ci); /** this will result in complete == FALSE in the callback; call it if cbdata gets invalid */
+LI_API liCollectInfo* collect_start(liWorker *ctx, liCollectFuncCB func, gpointer fdata, liCollectCB cb, gpointer cbdata);
+LI_API void collect_break(liCollectInfo* ci); /** this will result in complete == FALSE in the callback; call it if cbdata gets invalid */
 
 /* internal functions */
 LI_API void collect_watcher_cb(struct ev_loop *loop, ev_async *w, int revents);

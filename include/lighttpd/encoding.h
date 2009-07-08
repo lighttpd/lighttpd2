@@ -1,9 +1,7 @@
 #ifndef _LIGHTTPD_ENCODING_H_
 #define _LIGHTTPD_ENCODING_H_
 
-#ifndef _LIGHTTPD_BASE_H_
-#error Please include <lighttpd/base.h> instead of this file
-#endif
+#include <lighttpd/settings.h>
 
 typedef enum {
 	ENCODING_HEX,  /* a => 61 */

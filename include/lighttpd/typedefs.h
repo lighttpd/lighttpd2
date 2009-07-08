@@ -2,219 +2,216 @@
 #define _LIGHTTPD_TYPEDEFS_H_
 
 typedef enum {
-	HTTP_TRANSFER_ENCODING_IDENTITY,
-	HTTP_TRANSFER_ENCODING_CHUNKED
-} transfer_encoding_t;
+	LI_HTTP_TRANSFER_ENCODING_IDENTITY,
+	LI_HTTP_TRANSFER_ENCODING_CHUNKED
+} liTransferEncoding;
 
 typedef enum {
-	HANDLER_GO_ON,
-	HANDLER_COMEBACK,
-	HANDLER_WAIT_FOR_EVENT,
-	HANDLER_ERROR
-} handler_t;
+	LI_HANDLER_GO_ON,
+	LI_HANDLER_COMEBACK,
+	LI_HANDLER_WAIT_FOR_EVENT,
+	LI_HANDLER_ERROR
+} liHandlerResult;
+
+typedef enum { TRI_FALSE, TRI_MAYBE, TRI_TRUE } tristate_t;
 
 /* structs from headers, in alphabetic order */
 
 /* actions.h */
 
-struct action;
-typedef struct action action;
+typedef struct liAction liAction;
 
-struct action_stack;
-typedef struct action_stack action_stack;
+typedef struct liActionStack liActionStack;
+
+typedef struct liActionRegexStackElement liActionRegexStackElement;
+
+typedef struct liActionFunc liActionFunc;
+
+typedef struct liBalancerFunc liBalancerFunc;
+
+typedef enum {
+	ACTION_TSETTING,
+	ACTION_TFUNCTION,
+	ACTION_TCONDITION,
+	ACTION_TLIST,
+	ACTION_TBALANCER
+} liActionType;
+
+typedef enum {
+	BACKEND_OVERLOAD,
+	BACKEND_DEAD
+} liBackendError;
+
 
 /* chunk.h */
 
-struct chunkfile;
-typedef struct chunkfile chunkfile;
+typedef struct liChunkFile liChunkFile;
 
-struct chunk;
-typedef struct chunk chunk;
+typedef struct liChunk liChunk;
 
-struct cqlimit;
-typedef struct cqlimit cqlimit;
+typedef struct liCQLimit liCQLimit;
 
-struct chunkqueue;
-typedef struct chunkqueue chunkqueue;
+typedef struct liChunkQueue liChunkQueue;
 
-struct chunkiter;
-typedef struct chunkiter chunkiter;
+typedef struct liChunkIter liChunkIter;
 
 /* chunk_parser.h */
 
-struct chunk_parser_ctx;
-typedef struct chunk_parser_ctx chunk_parser_ctx;
+typedef struct liChunkParserCtx liChunkParserCtx;
 
-struct chunk_parser_mark;
-typedef struct chunk_parser_mark chunk_parser_mark;
+typedef struct liChunkParserMark liChunkParserMark;
 
 /* condition.h */
 
-struct condition_rvalue;
-typedef struct condition_rvalue condition_rvalue;
+typedef struct liConditionRValue liConditionRValue;
 
-struct condition_lvalue;
-typedef struct condition_lvalue condition_lvalue;
+typedef struct liConditionLValue liConditionLValue;
 
-struct condition;
-typedef struct condition condition;
+typedef struct liCondition liCondition;
 
 /* connection.h */
 
-struct connection;
-typedef struct connection connection;
+typedef struct liConnection liConnection;
 
-/* environment.h */
-struct environment;
-typedef struct environment environment;
+/* http_headers.h */
 
-struct environment_dup;
-typedef struct environment_dup environment_dup;
+typedef struct liHttpHeader liHttpHeader;
 
-/* hhtp_headers.h */
+typedef struct liHttpHeaders liHttpHeaders;
 
-struct http_header;
-typedef struct http_header http_header;
+/* http_request_parser.h */
 
-struct http_headers;
-typedef struct http_headers http_headers;
+typedef struct liHttpRequestCtx liHttpRequestCtx;
+
+/* http_response_parser.h */
+
+typedef struct liHttpResponseCtx liHttpResponseCtx;
+
+/* log.h */
+
+typedef struct liLog liLog;
+typedef struct liLogEntry liLogEntry;
+typedef struct liLogTimestamp liLogTimestamp;
+
+typedef enum {
+	LI_LOG_LEVEL_DEBUG,
+	LI_LOG_LEVEL_INFO,
+	LI_LOG_LEVEL_WARNING,
+	LI_LOG_LEVEL_ERROR,
+	LI_LOG_LEVEL_ABORT,
+	LI_LOG_LEVEL_BACKEND
+} liLogLevel;
+
+typedef enum {
+	LI_LOG_TYPE_STDERR,
+	LI_LOG_TYPE_FILE,
+	LI_LOG_TYPE_PIPE,
+	LI_LOG_TYPE_SYSLOG,
+	LI_LOG_TYPE_NONE
+} liLogType;
 
 /* options.h */
 
-struct option_set;
-typedef struct option_set option_set;
+typedef struct liOptionSet liOptionSet;
 
-union option_value;
-typedef union option_value option_value;
+typedef union liOptionValue liOptionValue;
 
 /* plugin.h */
-struct plugin;
-typedef struct plugin plugin;
+typedef struct liPlugin liPlugin;
 
-struct plugin_option;
-typedef struct plugin_option plugin_option;
+typedef struct liPluginOption liPluginOption;
 
-struct server_option;
-typedef struct server_option server_option;
+typedef struct liServerOption liServerOption;
 
-struct plugin_action;
-typedef struct plugin_action plugin_action;
+typedef struct liPluginAction liPluginAction;
 
-struct server_action;
-typedef struct server_action server_action;
+typedef struct liServerAction liServerAction;
 
-struct plugin_setup;
-typedef struct plugin_setup plugin_setup;
+typedef struct liliPluginSetupCB liliPluginSetupCB;
 
-struct server_setup;
-typedef struct server_setup server_setup;
+typedef struct liServerSetup liServerSetup;
 
 /* request.h */
 
 typedef enum {
-	HTTP_METHOD_UNSET = -1,
-	HTTP_METHOD_GET,
-	HTTP_METHOD_POST,
-	HTTP_METHOD_HEAD,
-	HTTP_METHOD_OPTIONS,
-	HTTP_METHOD_PROPFIND,  /* WebDAV */
-	HTTP_METHOD_MKCOL,
-	HTTP_METHOD_PUT,
-	HTTP_METHOD_DELETE,
-	HTTP_METHOD_COPY,
-	HTTP_METHOD_MOVE,
-	HTTP_METHOD_PROPPATCH,
-	HTTP_METHOD_REPORT, /* DeltaV */
-	HTTP_METHOD_CHECKOUT,
-	HTTP_METHOD_CHECKIN,
-	HTTP_METHOD_VERSION_CONTROL,
-	HTTP_METHOD_UNCHECKOUT,
-	HTTP_METHOD_MKACTIVITY,
-	HTTP_METHOD_MERGE,
-	HTTP_METHOD_LOCK,
-	HTTP_METHOD_UNLOCK,
-	HTTP_METHOD_LABEL,
-	HTTP_METHOD_CONNECT
-} http_method_t;
+	LI_HTTP_METHOD_UNSET = -1,
+	LI_HTTP_METHOD_GET,
+	LI_HTTP_METHOD_POST,
+	LI_HTTP_METHOD_HEAD,
+	LI_HTTP_METHOD_OPTIONS,
+	LI_HTTP_METHOD_PROPFIND,  /* WebDAV */
+	LI_HTTP_METHOD_MKCOL,
+	LI_HTTP_METHOD_PUT,
+	LI_HTTP_METHOD_DELETE,
+	LI_HTTP_METHOD_COPY,
+	LI_HTTP_METHOD_MOVE,
+	LI_HTTP_METHOD_PROPPATCH,
+	LI_HTTP_METHOD_REPORT, /* DeltaV */
+	LI_HTTP_METHOD_CHECKOUT,
+	LI_HTTP_METHOD_CHECKIN,
+	LI_HTTP_METHOD_VERSION_CONTROL,
+	LI_HTTP_METHOD_UNCHECKOUT,
+	LI_HTTP_METHOD_MKACTIVITY,
+	LI_HTTP_METHOD_MERGE,
+	LI_HTTP_METHOD_LOCK,
+	LI_HTTP_METHOD_UNLOCK,
+	LI_HTTP_METHOD_LABEL,
+	LI_HTTP_METHOD_CONNECT
+} liHttpMethod;
 
 typedef enum {
-	HTTP_VERSION_UNSET = -1,
-	HTTP_VERSION_1_0,
-	HTTP_VERSION_1_1
-} http_version_t;
+	LI_HTTP_VERSION_UNSET = -1,
+	LI_HTTP_VERSION_1_0,
+	LI_HTTP_VERSION_1_1
+} liHttpVersion;
 
-struct request;
-typedef struct request request;
+typedef struct liRequest liRequest;
 
-struct request_uri;
-typedef struct request_uri request_uri;
+typedef struct liRequestUri liRequestUri;
 
-struct physical;
-typedef struct physical physical;
+typedef struct liPhysical liPhysical;
 
 /* respone.h */
 
-struct response;
-typedef struct response response;
+typedef struct liResponse liResponse;
 
 /* server.h */
 
-struct server;
-typedef struct server server;
+typedef struct liServer liServer;
 
-struct server_socket;
-typedef struct server_socket server_socket;
-
-/* utils.h */
-
-struct waitqueue_elem;
-typedef struct waitqueue_elem waitqueue_elem;
-
-struct waitqueue;
-typedef struct waitqueue waitqueue;
-
-typedef void (*waitqueue_cb) (struct ev_loop *loop, struct ev_timer *w, int revents);
+typedef struct liServerSocket liServerSocket;
 
 /* value.h */
 
-struct value;
-typedef struct value value;
+typedef struct liValue liValue;
 
 typedef enum {
-	VALUE_NONE,
-	VALUE_BOOLEAN,
-	VALUE_NUMBER,
-	VALUE_STRING,
-	VALUE_LIST,
-	VALUE_HASH,
-	VALUE_ACTION,     /**< shouldn't be used for options, but may be needed for constructing actions */
-	VALUE_CONDITION   /**< shouldn't be used for options, but may be needed for constructing actions */
-} value_type;
+	LI_VALUE_NONE,
+	LI_VALUE_BOOLEAN,
+	LI_VALUE_NUMBER,
+	LI_VALUE_STRING,
+	LI_VALUE_LIST,
+	LI_VALUE_HASH,
+	LI_VALUE_ACTION,     /**< shouldn't be used for options, but may be needed for constructing actions */
+	LI_VALUE_CONDITION   /**< shouldn't be used for options, but may be needed for constructing actions */
+} liValueType;
 
 /* virtualrequest.h */
 
-struct vrequest;
-typedef struct vrequest vrequest;
+typedef struct liVRequest liVRequest;
 
-struct vrequest_ref;
-typedef struct vrequest_ref vrequest_ref;
+typedef struct liVRequestRef liVRequestRef;
 
-struct filter;
-typedef struct filter filter;
+typedef struct liFilter liFilter;
 
-struct filters;
-typedef struct filters filters;
+typedef struct liFilters liFilters;
 
 /* worker.h */
 
-struct worker;
-typedef struct worker worker;
+typedef struct liWorker liWorker;
 
-struct stat_cache_entry_data;
-typedef struct stat_cache_entry_data stat_cache_entry_data;
-struct stat_cache_entry;
-typedef struct stat_cache_entry stat_cache_entry;
-struct stat_cache;
-typedef struct stat_cache stat_cache;
+typedef struct liStatCacheEntryData liStatCacheEntryData;
+typedef struct liStatCacheEntry liStatCacheEntry;
+typedef struct liStatCache liStatCache;
 
 #endif

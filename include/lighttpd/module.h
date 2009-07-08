@@ -22,27 +22,25 @@
 		return FALSE; \
 	} } while(0)
 
-struct module;
-typedef struct module module;
+typedef struct liModule liModule;
 
-struct modules;
-typedef struct modules modules;
+typedef struct liModules liModules;
 
 /** Type of plugin_init function in modules */
-typedef gboolean (*ModuleInit)(modules *mods, module *mod);
-typedef gboolean (*ModuleFree)(modules *mods, module *mod);
+typedef gboolean (*liModuleInitCB)(liModules *mods, liModule *mod);
+typedef gboolean (*liModuleFreeCB)(liModules *mods, liModule *mod);
 
-struct module {
+struct liModule {
 	gint refcount;    /**< count how often module is used. module gets unloaded if refcount reaches zero. */
 	GString *name;      /**< name of module, can be set my plugin_init */
 	GModule *module;  /**< glib handle */
 	gchar *path;      /**< path to the module file */
 
 	gpointer config;  /**< private module data */
-	ModuleFree free;  /**< if set by plugin_init it gets called before module is unloaded */
+	liModuleFreeCB free;  /**< if set by plugin_init it gets called before module is unloaded */
 };
 
-struct modules {
+struct liModules {
 	guint version;    /**< api version */
 
 	gpointer main;    /**< pointer to a application specific main structure, e.g. server */
@@ -52,20 +50,20 @@ struct modules {
 	guint8 sizeof_off_t; /** holds the value of sizeof(off_t) to check if loaded module was compiled with the same flags */
 };
 
-LI_API modules* modules_new(gpointer main, const gchar *module_dir);
-LI_API void modules_free(modules *mods);
+LI_API liModules* modules_new(gpointer main, const gchar *module_dir);
+LI_API void modules_free(liModules *mods);
 
 /** Loads a module if not loaded yet and returns the module struct for it (after increasing refcount)
   * returns NULL if it couldn't load the module.
   *
   * You should release modules after you used them with module_release or module_release_name */
-LI_API module* module_load(modules *mods, const gchar* name);
+LI_API liModule* module_load(liModules *mods, const gchar* name);
 
 /* find module by name */
-LI_API module *module_lookup(modules *mods, const gchar *name);
+LI_API liModule *module_lookup(liModules *mods, const gchar *name);
 
-LI_API void module_acquire(module *mod);
-LI_API void module_release(modules *mods, module *mod);
-LI_API void module_release_name(modules *mods, const gchar* name);
+LI_API void module_acquire(liModule *mod);
+LI_API void module_release(liModules *mods, liModule *mod);
+LI_API void module_release_name(liModules *mods, const gchar* name);
 
 #endif

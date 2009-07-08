@@ -5,10 +5,10 @@
 #include <pwd.h>
 #include <grp.h>
 
-static void core_instance_parse(server *srv, plugin *p, value **options) {
+static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 	GPtrArray *cmd;
 	gchar **cmdarr;
-	plugin_core_config_t *config = (plugin_core_config_t*) p->data;
+	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 	uid_t uid = -1;
 	gid_t gid = -1;
 	GString *user = NULL;
@@ -89,22 +89,22 @@ static void core_instance_parse(server *srv, plugin *p, value **options) {
 	config->load_instconf = instance_conf_new(cmdarr, user, uid, gid);
 }
 
-static const plugin_item_option core_instance_options[] = {
-	{ "user", VALUE_STRING, 0 },
-	{ "group", VALUE_STRING, 0 },
-	{ "binary", VALUE_STRING, 0 },
-	{ "config", VALUE_STRING, 0 },
-	{ "luaconfig", VALUE_STRING, 0 },
-	{ "modules", VALUE_STRING, 0 },
+static const liPluginItemOption core_instance_options[] = {
+	{ "user", LI_VALUE_STRING, 0 },
+	{ "group", LI_VALUE_STRING, 0 },
+	{ "binary", LI_VALUE_STRING, 0 },
+	{ "config", LI_VALUE_STRING, 0 },
+	{ "luaconfig", LI_VALUE_STRING, 0 },
+	{ "modules", LI_VALUE_STRING, 0 },
 	{ NULL, 0, 0 }
 };
 
-static const plugin_item core_items[] = {
+static const liPluginItem core_items[] = {
 	{ "instance", core_instance_parse, core_instance_options },
 	{ NULL, NULL, NULL }
 };
 
-static int do_listen(server *srv, GString *str) {
+static int do_listen(liServer *srv, GString *str) {
 	guint32 ipv4;
 #ifdef HAVE_IPV6
 	guint8 ipv6[16];
@@ -191,7 +191,7 @@ static int do_listen(server *srv, GString *str) {
 	}
 }
 
-static void core_listen(server *srv, instance *i, plugin *p, gint32 id, GString *data) {
+static void core_listen(liServer *srv, liInstance *i, liPlugin *p, gint32 id, GString *data) {
 	GError *err = NULL;
 	gint fd;
 	GArray *fds;
@@ -221,9 +221,9 @@ static void core_listen(server *srv, instance *i, plugin *p, gint32 id, GString 
 	}
 }
 
-static void core_clean(server *srv, plugin *p);
-static void core_free(server *srv, plugin *p) {
-	plugin_core_config_t *config = (plugin_core_config_t*) p->data;
+static void core_clean(liServer *srv, liPlugin *p);
+static void core_free(liServer *srv, liPlugin *p) {
+	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 
 	core_clean(srv, p);
 
@@ -233,14 +233,14 @@ static void core_free(server *srv, plugin *p) {
 	}
 
 	if (config->inst) {
-		instance_set_state(config->inst, INSTANCE_DOWN);
+		instance_set_state(config->inst, LI_INSTANCE_DOWN);
 		instance_release(config->inst);
 		config->inst = NULL;
 	}
 }
 
-static void core_clean(server *srv, plugin *p) {
-	plugin_core_config_t *config = (plugin_core_config_t*) p->data;
+static void core_clean(liServer *srv, liPlugin *p) {
+	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 	UNUSED(srv);
 
 	if (config->load_instconf) {
@@ -251,14 +251,14 @@ static void core_clean(server *srv, plugin *p) {
 	config->load_failed = FALSE;
 }
 
-static gboolean core_check(server *srv, plugin *p) {
-	plugin_core_config_t *config = (plugin_core_config_t*) p->data;
+static gboolean core_check(liServer *srv, liPlugin *p) {
+	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 	UNUSED(srv);
 	return !config->load_failed;
 }
 
-static void core_activate(server *srv, plugin *p) {
-	plugin_core_config_t *config = (plugin_core_config_t*) p->data;
+static void core_activate(liServer *srv, liPlugin *p) {
+	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 
 	if (config->instconf) {
 		instance_conf_release(config->instconf);
@@ -266,7 +266,7 @@ static void core_activate(server *srv, plugin *p) {
 	}
 
 	if (config->inst) {
-		instance_set_state(config->inst, INSTANCE_DOWN);
+		instance_set_state(config->inst, LI_INSTANCE_DOWN);
 		instance_release(config->inst);
 		config->inst = NULL;
 	}
@@ -276,14 +276,14 @@ static void core_activate(server *srv, plugin *p) {
 
 	if (config->instconf) {
 		config->inst = server_new_instance(srv, config->instconf);
-		instance_set_state(config->inst, INSTANCE_ACTIVE);
+		instance_set_state(config->inst, LI_INSTANCE_ACTIVE);
 		ERROR(srv, "%s", "Starting instance");
 	}
 }
 
-static gboolean core_init(server *srv, plugin *p) {
+static gboolean core_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
-	p->data = g_slice_new0(plugin_core_config_t);
+	p->data = g_slice_new0(liPluginCoreConfig);
 	p->items = core_items;
 
 	p->handle_free = core_free;
@@ -296,7 +296,7 @@ static gboolean core_init(server *srv, plugin *p) {
 	return TRUE;
 }
 
-gboolean plugin_core_init(server *srv) {
+gboolean plugin_core_init(liServer *srv) {
 	/* load core plugins */
 	return NULL != angel_plugin_register(srv, NULL, "core", core_init);
 }

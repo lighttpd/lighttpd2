@@ -35,7 +35,7 @@
 
 	# basic types
 	action boolean {
-		value *o;
+		liValue *o;
 
 		o = value_new_bool(*ctx->mark == 't' ? TRUE : FALSE);
 		g_queue_push_head(ctx->option_stack, o);
@@ -44,7 +44,7 @@
 	}
 
 	action integer {
-		value *o;
+		liValue *o;
 		gint64 i = 0;
 
 		for (gchar *c = ctx->mark; c < fpc; c++)
@@ -58,7 +58,7 @@
 	}
 
 	action integer_suffix {
-		value *o;
+		liValue *o;
 		GString *str;
 
 		o = g_queue_peek_head(ctx->option_stack);
@@ -85,7 +85,7 @@
 	}
 
 	action string {
-		value *o;
+		liValue *o;
 		GString *str;
 		gchar ch;
 
@@ -149,7 +149,7 @@
 
 	# advanced types
 	action list_start {
-		value *o;
+		liValue *o;
 
 		/* create new list value and put it on stack, list entries are put in it by getting the previous value from the stack */
 		o = value_new_list();
@@ -159,13 +159,13 @@
 	}
 
 	action list_push {
-		value *o, *l;
+		liValue *o, *l;
 
 		/* pop current value from stack and append it to the new top of the stack value (the list) */
 		o = g_queue_pop_head(ctx->option_stack);
 
 		l = g_queue_peek_head(ctx->option_stack);
-		assert(l->type == VALUE_LIST);
+		assert(l->type == LI_VALUE_LIST);
 
 		g_array_append_val(l->data.list, o);
 
@@ -177,7 +177,7 @@
 	}
 
 	action hash_start {
-		value *o;
+		liValue *o;
 
 		/* create new hash value and put it on stack, if a key-value pair is encountered, get it by walking 2 steps back the stack */
 		o = value_new_hash();
@@ -187,7 +187,7 @@
 	}
 
 	action hash_push {
-		value *k, *v, *h; /* key value hashtable */
+		liValue *k, *v, *h; /* key value hashtable */
 		GString *str;
 
 		v = g_queue_pop_head(ctx->option_stack);
@@ -223,7 +223,7 @@
 	}
 
 	action keyvalue_end {
-		value *k, *v, *l;
+		liValue *k, *v, *l;
 		/* we have a key and a value on the stack; convert them to a list with 2 elements */
 
 		v = g_queue_pop_head(ctx->option_stack);
@@ -244,20 +244,20 @@
 		fret;
 	}
 
-	action value {
-		value *o;
+	action liValue {
+		liValue *o;
 
 		o = g_queue_peek_head(ctx->option_stack);
 
 		/* check if we need to cast the value */
-		if (ctx->cast != CFG_PARSER_CAST_NONE) {
-			if (ctx->cast == CFG_PARSER_CAST_INT) {
+		if (ctx->cast != LI_CFG_PARSER_CAST_NONE) {
+			if (ctx->cast == LI_CFG_PARSER_CAST_INT) {
 				/* cast string to integer */
 				gint x = 0;
 				guint i = 0;
 				gboolean negative = FALSE;
 
-				if (o->type != VALUE_STRING) {
+				if (o->type != LI_VALUE_STRING) {
 					ERROR(srv, "can only cast strings to integers, %s given", value_type_string(o->type));
 					return FALSE;
 				}
@@ -281,13 +281,13 @@
 
 				g_string_free(o->data.string, TRUE);
 				o->data.number = x;
-				o->type = VALUE_NUMBER;
+				o->type = LI_VALUE_NUMBER;
 			}
-			else if (ctx->cast == CFG_PARSER_CAST_STR) {
+			else if (ctx->cast == LI_CFG_PARSER_CAST_STR) {
 				/* cast integer to string */
 				GString *str;
 
-				if (o->type != VALUE_NUMBER) {
+				if (o->type != LI_VALUE_NUMBER) {
 					ERROR(srv, "can only cast integers to strings, %s given", value_type_string(o->type));
 					return FALSE;
 				}
@@ -295,10 +295,10 @@
 				str = g_string_sized_new(0);
 				g_string_printf(str, "%" G_GINT64_FORMAT, o->data.number);
 				o->data.string = str;
-				o->type = VALUE_STRING;
+				o->type = LI_VALUE_STRING;
 			}
 
-			ctx->cast = CFG_PARSER_CAST_NONE;
+			ctx->cast = LI_CFG_PARSER_CAST_NONE;
 		}
 
 		_printf("value (%s) in line %zd\n", value_type_string(o->type), ctx->line);
@@ -319,7 +319,7 @@
 	action value_statement {
 		/* value (+|-|*|/) value */
 		/* compute new value out of the two */
-		value *l, *r, *o;
+		liValue *l, *r, *o;
 		gboolean free_l, free_r;
 
 		free_l = free_r = TRUE;
@@ -337,7 +337,7 @@
 			g_array_append_val(o->data.list, l);
 			g_array_append_val(o->data.list, r);
 		}
-		else if (l->type == VALUE_NUMBER && r->type == VALUE_NUMBER) {
+		else if (l->type == LI_VALUE_NUMBER && r->type == LI_VALUE_NUMBER) {
 			switch (ctx->value_op) {
 				case '+': o = value_new_number(l->data.number + r->data.number); break;
 				case '-': o = value_new_number(l->data.number - r->data.number); break;
@@ -345,19 +345,19 @@
 				case '/': o = value_new_number(l->data.number / r->data.number); break;
 			}
 		}
-		else if (l->type == VALUE_STRING) {
+		else if (l->type == LI_VALUE_STRING) {
 			o = l;
 			free_l = FALSE;
 
-			if (r->type == VALUE_STRING && ctx->value_op == '+') {
+			if (r->type == LI_VALUE_STRING && ctx->value_op == '+') {
 				/* str + str */
 				o->data.string = g_string_append_len(o->data.string, GSTR_LEN(r->data.string));
 			}
-			else if (r->type == VALUE_NUMBER && ctx->value_op == '+') {
+			else if (r->type == LI_VALUE_NUMBER && ctx->value_op == '+') {
 				/* str + int */
 				g_string_append_printf(o->data.string, "%" G_GINT64_FORMAT, r->data.number);
 			}
-			else if (r->type == VALUE_NUMBER && ctx->value_op == '*') {
+			else if (r->type == LI_VALUE_NUMBER && ctx->value_op == '*') {
 				/* str * int */
 				if (r->data.number < 0) {
 					ERROR(srv, "string multiplication with negative number (%" G_GINT64_FORMAT ")?", r->data.number);
@@ -377,7 +377,7 @@
 			else
 				o = NULL;
 		}
-		else if (l->type == VALUE_LIST) {
+		else if (l->type == LI_VALUE_LIST) {
 			if (ctx->value_op == '+') {
 				/* append r to the end of l */
 				free_l = FALSE; /* use l as the new o */
@@ -388,7 +388,7 @@
 			}
 			else if (ctx->value_op == '*') {
 				/* merge l and r */
-				if (r->type == VALUE_LIST) {
+				if (r->type == LI_VALUE_LIST) {
 					/* merge lists */
 					free_l = FALSE;
 					g_array_append_vals(l->data.list, r->data.list->data, r->data.list->len);
@@ -397,7 +397,7 @@
 				}
 			}
 		}
-		else if (l->type == VALUE_HASH && r->type == VALUE_HASH && ctx->value_op == '+') {
+		else if (l->type == LI_VALUE_HASH && r->type == LI_VALUE_HASH && ctx->value_op == '+') {
 			/* merge hashtables */
 			GHashTableIter iter;
 			gpointer key, val;
@@ -436,7 +436,7 @@
 
 	action varname {
 		/* varname, push it as string value onto the stack */
-		value *o;
+		liValue *o;
 		GString *str;
 
 		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
@@ -446,7 +446,7 @@
 
 	action actionref {
 		/* varname is on the stack */
-		value *o, *r, *t;
+		liValue *o, *r, *t;
 
 		o = g_queue_pop_head(ctx->option_stack);
 
@@ -478,7 +478,7 @@
 		}
 		else {
 			/* real action, lookup hashtable and create new action value */
-			action *a;
+			liAction *a;
 			a = g_hash_table_lookup(ctx->action_blocks, o->data.string);
 
 			if (a == NULL) {
@@ -497,34 +497,34 @@
 	action operator {
 		if ((fpc - ctx->mark) == 1) {
 			switch (*ctx->mark) {
-				case '<': ctx->op = CONFIG_COND_LT; break;
-				case '>': ctx->op = CONFIG_COND_GT; break;
+				case '<': ctx->op = LI_CONFIG_COND_LT; break;
+				case '>': ctx->op = LI_CONFIG_COND_GT; break;
 			}
 		}
 		else {
-			     if (*ctx->mark == '>' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_GE;
-			else if (*ctx->mark == '<' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_LE;
-			else if (*ctx->mark == '=' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_EQ;
-			else if (*ctx->mark == '!' && *(ctx->mark+1) == '=') ctx->op = CONFIG_COND_NE;
-			else if (*ctx->mark == '=' && *(ctx->mark+1) == '^') ctx->op = CONFIG_COND_PREFIX;
-			else if (*ctx->mark == '!' && *(ctx->mark+1) == '^') ctx->op = CONFIG_COND_NOPREFIX;
-			else if (*ctx->mark == '=' && *(ctx->mark+1) == '$') ctx->op = CONFIG_COND_SUFFIX;
-			else if (*ctx->mark == '!' && *(ctx->mark+1) == '$') ctx->op = CONFIG_COND_NOSUFFIX;
-			else if (*ctx->mark == '=' && *(ctx->mark+1) == '~') ctx->op = CONFIG_COND_MATCH;
-			else if (*ctx->mark == '!' && *(ctx->mark+1) == '~') ctx->op = CONFIG_COND_NOMATCH;
+			     if (*ctx->mark == '>' && *(ctx->mark+1) == '=') ctx->op = LI_CONFIG_COND_GE;
+			else if (*ctx->mark == '<' && *(ctx->mark+1) == '=') ctx->op = LI_CONFIG_COND_LE;
+			else if (*ctx->mark == '=' && *(ctx->mark+1) == '=') ctx->op = LI_CONFIG_COND_EQ;
+			else if (*ctx->mark == '!' && *(ctx->mark+1) == '=') ctx->op = LI_CONFIG_COND_NE;
+			else if (*ctx->mark == '=' && *(ctx->mark+1) == '^') ctx->op = LI_CONFIG_COND_PREFIX;
+			else if (*ctx->mark == '!' && *(ctx->mark+1) == '^') ctx->op = LI_CONFIG_COND_NOPREFIX;
+			else if (*ctx->mark == '=' && *(ctx->mark+1) == '$') ctx->op = LI_CONFIG_COND_SUFFIX;
+			else if (*ctx->mark == '!' && *(ctx->mark+1) == '$') ctx->op = LI_CONFIG_COND_NOSUFFIX;
+			else if (*ctx->mark == '=' && *(ctx->mark+1) == '~') ctx->op = LI_CONFIG_COND_MATCH;
+			else if (*ctx->mark == '!' && *(ctx->mark+1) == '~') ctx->op = LI_CONFIG_COND_NOMATCH;
 		}
 	}
 
 	# statements
 	action assignment {
-		value *val, *name;
-		action *a, *al;
+		liValue *val, *name;
+		liAction *a, *al;
 
 		/* top of the stack is the value, then the varname as string value */
 		val = g_queue_pop_head(ctx->option_stack);
 		name = g_queue_pop_head(ctx->option_stack);
 
-		assert(name->type == VALUE_STRING);
+		assert(name->type == LI_VALUE_STRING);
 
 		_printf("got assignment: %s = %s; in line %zd\n", name->data.string->str, value_type_string(val->type), ctx->line);
 
@@ -573,12 +573,12 @@
 	}
 
 	action function_noparam {
-		value *name;
-		action *a, *al;
+		liValue *name;
+		liAction *a, *al;
 
 		name = g_queue_pop_head(ctx->option_stack);
 
-		assert(name->type == VALUE_STRING);
+		assert(name->type == LI_VALUE_STRING);
 
 		_printf("got function: %s; in line %zd\n", name->data.string->str, ctx->line);
 
@@ -612,19 +612,19 @@
 
 	action function_param {
 		/* similar to assignment */
-		value *val, *name;
-		action *a, *al;
+		liValue *val, *name;
+		liAction *a, *al;
 
 		/* top of the stack is the value, then the varname as string value */
 		val = g_queue_pop_head(ctx->option_stack);
 		name = g_queue_pop_head(ctx->option_stack);
 
-		assert(name->type == VALUE_STRING);
+		assert(name->type == LI_VALUE_STRING);
 
 		_printf("got function: %s %s; in line %zd\n", name->data.string->str, value_type_string(val->type), ctx->line);
 
 		if (g_str_equal(name->data.string->str, "include")) {
-			if (val->type != VALUE_STRING) {
+			if (val->type != LI_VALUE_STRING) {
 				WARNING(srv,  "include directive takes a string as parameter, %s given", value_type_string(val->type));
 				value_free(name);
 				value_free(val);
@@ -640,7 +640,7 @@
 			value_free(val);
 		}
 		else if (g_str_equal(name->data.string->str, "include_shell")) {
-			if (val->type != VALUE_STRING) {
+			if (val->type != LI_VALUE_STRING) {
 				WARNING(srv,  "include_shell directive takes a string as parameter, %s given", value_type_string(val->type));
 				value_free(name);
 				value_free(val);
@@ -695,10 +695,10 @@
 
 	action condition_start {
 		/* stack: value, varname OR value, key, varname */
-		value *v, *n, *k;
+		liValue *v, *n, *k;
 		gchar *str;
-		condition *cond;
-		condition_lvalue *lvalue;
+		liCondition *cond;
+		liConditionLValue *lvalue;
 
 		/* if condition is nonbool, then it has a value and maybe a key too on the stack */
 		if (ctx->condition_nonbool) {
@@ -714,7 +714,7 @@
 
 		n = g_queue_pop_head(ctx->option_stack);
 
-		assert(n->type == VALUE_STRING);
+		assert(n->type == LI_VALUE_STRING);
 
 		/*_printf("got condition: %s:%s %s %s in line %zd\n", n->data.string->str, ctx->condition_with_key ? k->data.string->str : "", comp_op_to_string(ctx->op), value_type_string(v->type), ctx->line);*/
 
@@ -733,21 +733,21 @@
 			}
 
 			if (g_str_equal(str, "host"))
-				lvalue = condition_lvalue_new(COMP_REQUEST_HOST, NULL);
+				lvalue = condition_lvalue_new(LI_COMP_REQUEST_HOST, NULL);
 			else if (g_str_equal(str, "path"))
-				lvalue = condition_lvalue_new(COMP_REQUEST_PATH, NULL);
+				lvalue = condition_lvalue_new(LI_COMP_REQUEST_PATH, NULL);
 			else if (g_str_equal(str, "query"))
-				lvalue = condition_lvalue_new(COMP_REQUEST_QUERY_STRING, NULL);
+				lvalue = condition_lvalue_new(LI_COMP_REQUEST_QUERY_STRING, NULL);
 			else if (g_str_equal(str, "method"))
-				lvalue = condition_lvalue_new(COMP_REQUEST_METHOD, NULL);
+				lvalue = condition_lvalue_new(LI_COMP_REQUEST_METHOD, NULL);
 			else if (g_str_equal(str, "scheme"))
-				lvalue = condition_lvalue_new(COMP_REQUEST_SCHEME, NULL);
+				lvalue = condition_lvalue_new(LI_COMP_REQUEST_SCHEME, NULL);
 			else if (g_str_equal(str, "header")) {
 				if (k == NULL) {
 					WARNING(srv, "%s", "header conditional needs a key");
 					return FALSE;
 				}
-				lvalue = condition_lvalue_new(COMP_REQUEST_HEADER, value_extract(k).string);
+				lvalue = condition_lvalue_new(LI_COMP_REQUEST_HEADER, value_extract(k).string);
 			}
 			else {
 				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
@@ -766,15 +766,15 @@
 			}
 
 			if (g_str_equal(str, "path"))
-				lvalue = condition_lvalue_new(COMP_PHYSICAL_PATH, NULL);
+				lvalue = condition_lvalue_new(LI_COMP_PHYSICAL_PATH, NULL);
 			else if (g_str_equal(str, "exists"))
-				lvalue = condition_lvalue_new(COMP_PHYSICAL_PATH_EXISTS, NULL);
+				lvalue = condition_lvalue_new(LI_COMP_PHYSICAL_PATH_EXISTS, NULL);
 			else if (g_str_equal(str, "size"))
-				lvalue = condition_lvalue_new(COMP_PHYSICAL_SIZE, NULL);
+				lvalue = condition_lvalue_new(LI_COMP_PHYSICAL_SIZE, NULL);
 			else if (g_str_equal(str, "is_dir"))
-				lvalue = condition_lvalue_new(COMP_PHYSICAL_ISDIR, NULL);
+				lvalue = condition_lvalue_new(LI_COMP_PHYSICAL_ISDIR, NULL);
 			else if (g_str_equal(str, "is_file"))
-				lvalue = condition_lvalue_new(COMP_PHYSICAL_ISFILE, NULL);
+				lvalue = condition_lvalue_new(LI_COMP_PHYSICAL_ISFILE, NULL);
 			else {
 				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
 				return FALSE;
@@ -786,10 +786,10 @@
 		}
 
 		if (ctx->condition_nonbool) {
-			if (v->type == VALUE_STRING) {
+			if (v->type == LI_VALUE_STRING) {
 				cond = condition_new_string(srv, ctx->op, lvalue, value_extract(v).string);
 			}
-			else if (v->type == VALUE_NUMBER)
+			else if (v->type == LI_VALUE_NUMBER)
 				cond = condition_new_int(srv, ctx->op, lvalue, value_extract_number(v));
 			else {
 				cond = NULL;
@@ -820,8 +820,8 @@
 	}
 
 	action condition_end {
-		condition *cond;
-		action *a, *al;
+		liCondition *cond;
+		liAction *a, *al;
 
 		cond = g_queue_pop_head(ctx->condition_stack);
 		al = g_queue_pop_head(ctx->action_list_stack);
@@ -849,11 +849,11 @@
 			- get last action from action list
 			- put current action list as target_else of the last action
 		*/
-		action *al, *target, *cond;
+		liAction *al, *target, *cond;
 
 		target = g_queue_pop_head(ctx->action_list_stack);
 		al = g_queue_peek_head(ctx->action_list_stack);
-		cond = g_array_index(al->data.list, action*, al->data.list->len - 1); /* last action in the list is our condition */
+		cond = g_array_index(al->data.list, liAction*, al->data.list->len - 1); /* last action in the list is our condition */
 
 		while (cond->data.condition.target_else) {
 			/* condition has already an else statement, try the target */
@@ -874,11 +874,11 @@
 			- remove current condition action from action list
 		*/
 
-		action *prev, *cur, *al;
+		liAction *prev, *cur, *al;
 
 		al = g_queue_peek_head(ctx->action_list_stack);
-		cur = g_array_index(al->data.list, action*, al->data.list->len - 1); /* last element of the action list */
-		prev = g_array_index(al->data.list, action*, al->data.list->len - 2);
+		cur = g_array_index(al->data.list, liAction*, al->data.list->len - 1); /* last element of the action list */
+		prev = g_array_index(al->data.list, liAction*, al->data.list->len - 2);
 
 		assert(cur->type == ACTION_TCONDITION);
 		assert(prev->type == ACTION_TCONDITION);
@@ -895,11 +895,11 @@
 	}
 
 	action action_block_start {
-		value *o;
-		action *al;
+		liValue *o;
+		liAction *al;
 
 		o = g_queue_pop_head(ctx->option_stack);
-		assert(o->type == VALUE_STRING);
+		assert(o->type == LI_VALUE_STRING);
 
 		if (ctx->in_setup_block) {
 			ERROR(srv, "%s", "no block inside the setup block allowed");
@@ -931,7 +931,7 @@
 			ctx->in_setup_block = FALSE;
 		}
 		else {
-			action *al;
+			liAction *al;
 			/* pop action list stack */
 			al = g_queue_pop_head(ctx->action_list_stack);
 
@@ -939,7 +939,7 @@
 	}
 
 	action action_block_noname_start {
-		action *al;
+		liAction *al;
 
 		if (ctx->in_setup_block) {
 			ERROR(srv, "%s", "no block inside the setup block allowed");
@@ -954,8 +954,8 @@
 	}
 
 	action action_block_noname_end {
-		value *v;
-		action *a;
+		liValue *v;
+		liAction *a;
 
 		/* pop action list stack */
 		a = g_queue_pop_head(ctx->action_list_stack);
@@ -992,7 +992,7 @@
 	string = ( '"' ( ( any - ["\\] ) | escaped_hex | ( '\\' ( any - [x]) ) )* '"' ) %string;
 
 	# casts
-	cast = ( 'cast(' ( 'int' %{ctx->cast = CFG_PARSER_CAST_INT;} | 'str' %{ctx->cast = CFG_PARSER_CAST_STR;} ) ')' ws* );
+	cast = ( 'cast(' ( 'int' %{ctx->cast = LI_CFG_PARSER_CAST_INT;} | 'str' %{ctx->cast = LI_CFG_PARSER_CAST_STR;} ) ')' ws* );
 
 	keywords = ( 'true' | 'false' | 'if' | 'else' );
 
@@ -1005,7 +1005,7 @@
 	action_block = ( varname noise* block >action_block_start ) %action_block_end;
 	action_block_noname = ( '$' block > action_block_noname_start ) %action_block_noname_end;
 
-	value = ( ( boolean | integer | string | list | hash | actionref | action_block_noname ) >mark ) %value;
+	value = ( ( boolean | integer | string | list | hash | actionref | action_block_noname ) >mark ) %liValue;
 	value_statement_op = ( '+' | '-' | '*' | '/' | '=>' ) >mark >value_statement_op;
 	value_statement = ( noise* cast? value (ws* value_statement_op ws* cast? value %value_statement)* noise* );
 	hash_elem = ( noise* string >mark noise* ':' value_statement );
@@ -1036,8 +1036,8 @@
 %% write data;
 
 
-GList *config_parser_init(server* srv) {
-	config_parser_context_t *ctx = config_parser_context_new(srv, NULL);
+GList *config_parser_init(liServer* srv) {
+	liConfigParserContext *ctx = config_parser_context_new(srv, NULL);
 
 	srv->mainaction = action_new_list();
 	g_queue_push_head(ctx->action_list_stack, srv->mainaction);
@@ -1045,8 +1045,8 @@ GList *config_parser_init(server* srv) {
 	return g_list_append(NULL, ctx);
 }
 
-void config_parser_finish(server *srv, GList *ctx_stack, gboolean free_all) {
-	config_parser_context_t *ctx;
+void config_parser_finish(liServer *srv, GList *ctx_stack, gboolean free_all) {
+	liConfigParserContext *ctx;
 	GHashTableIter iter;
 	gpointer key, val;
 	GList *l;
@@ -1062,7 +1062,7 @@ void config_parser_finish(server *srv, GList *ctx_stack, gboolean free_all) {
 	}
 
 	if (free_all) {
-		ctx = (config_parser_context_t*) ctx_stack->data;
+		ctx = (liConfigParserContext*) ctx_stack->data;
 
 		g_hash_table_iter_init(&iter, ctx->action_blocks);
 
@@ -1090,12 +1090,12 @@ void config_parser_finish(server *srv, GList *ctx_stack, gboolean free_all) {
 	}
 }
 
-config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack) {
-	config_parser_context_t *ctx;
+liConfigParserContext *config_parser_context_new(liServer *srv, GList *ctx_stack) {
+	liConfigParserContext *ctx;
 
 	UNUSED(srv);
 
-	ctx = g_slice_new0(config_parser_context_t);
+	ctx = g_slice_new0(liConfigParserContext);
 
 	ctx->line = 1;
 
@@ -1105,16 +1105,16 @@ config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack
 
 	if (ctx_stack != NULL) {
 		/* inherit old stacks */
-		ctx->action_list_stack = ((config_parser_context_t*) ctx_stack->data)->action_list_stack;
-		ctx->option_stack = ((config_parser_context_t*) ctx_stack->data)->option_stack;
-		ctx->condition_stack = ((config_parser_context_t*) ctx_stack->data)->condition_stack;
+		ctx->action_list_stack = ((liConfigParserContext*) ctx_stack->data)->action_list_stack;
+		ctx->option_stack = ((liConfigParserContext*) ctx_stack->data)->option_stack;
+		ctx->condition_stack = ((liConfigParserContext*) ctx_stack->data)->condition_stack;
 
-		ctx->action_blocks = ((config_parser_context_t*) ctx_stack->data)->action_blocks;
-		ctx->uservars = ((config_parser_context_t*) ctx_stack->data)->uservars;
+		ctx->action_blocks = ((liConfigParserContext*) ctx_stack->data)->action_blocks;
+		ctx->uservars = ((liConfigParserContext*) ctx_stack->data)->uservars;
 	}
 	else {
 		GString *str;
-		value *o;
+		liValue *o;
 		ctx->action_blocks = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
 		ctx->uservars = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
 
@@ -1143,19 +1143,19 @@ config_parser_context_t *config_parser_context_new(server *srv, GList *ctx_stack
 	return ctx;
 }
 
-void config_parser_context_free(server *srv, config_parser_context_t *ctx, gboolean free_queues)
+void config_parser_context_free(liServer *srv, liConfigParserContext *ctx, gboolean free_queues)
 {
 	g_free(ctx->stack);
 
 	if (free_queues) {
 		if (g_queue_get_length(ctx->option_stack) > 0) {
-			value *o;
+			liValue *o;
 			while ((o = g_queue_pop_head(ctx->option_stack)))
 				value_free(o);
 		}
 
 		if (g_queue_get_length(ctx->condition_stack) > 0) {
-			condition *c;
+			liCondition *c;
 			while ((c = g_queue_pop_head(ctx->condition_stack)))
 				condition_release(srv, c);
 		}
@@ -1165,11 +1165,11 @@ void config_parser_context_free(server *srv, config_parser_context_t *ctx, gbool
 		g_queue_free(ctx->condition_stack);
 	}
 
-	g_slice_free(config_parser_context_t, ctx);
+	g_slice_free(liConfigParserContext, ctx);
 }
 
-gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path) {
-	config_parser_context_t *ctx;
+gboolean config_parser_file(liServer *srv, GList *ctx_stack, const gchar *path) {
+	liConfigParserContext *ctx;
 	gboolean res;
 	GError *err = NULL;
 
@@ -1203,13 +1203,13 @@ gboolean config_parser_file(server *srv, GList *ctx_stack, const gchar *path) {
 	return res;
 }
 
-gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command)
+gboolean config_parser_shell(liServer *srv, GList *ctx_stack, const gchar *command)
 {
 	gboolean res;
 	gchar* _stdout;
 	gchar* _stderr;
 	gint status;
-	config_parser_context_t *ctx;
+	liConfigParserContext *ctx;
 	GError *err = NULL;
 
 	ctx = config_parser_context_new(srv, ctx_stack);
@@ -1252,12 +1252,12 @@ gboolean config_parser_shell(server *srv, GList *ctx_stack, const gchar *command
 	return res;
 }
 
-gboolean config_parser_buffer(server *srv, GList *ctx_stack)
+gboolean config_parser_buffer(liServer *srv, GList *ctx_stack)
 {
-	config_parser_context_t *ctx;
+	liConfigParserContext *ctx;
 
 	/* get top of stack */
-	ctx = (config_parser_context_t*) ctx_stack->data;
+	ctx = (liConfigParserContext*) ctx_stack->data;
 
 	ctx->p = ctx->ptr;
 	ctx->pe = ctx->ptr + ctx->len + 1; /* marks the end of the data to scan (+1 because of trailing \0 char) */

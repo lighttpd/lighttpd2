@@ -1,24 +1,24 @@
 
 #include <lighttpd/module.h>
 
-modules *modules_new(gpointer main, const gchar *module_dir) {
-	modules *m = g_slice_new(modules);
+liModules *modules_new(gpointer main, const gchar *module_dir) {
+	liModules *m = g_slice_new(liModules);
 
 	m->version = MODULE_VERSION;
 	m->main = main;
-	m->mods = g_array_new(FALSE, TRUE, sizeof(module*));
+	m->mods = g_array_new(FALSE, TRUE, sizeof(liModule*));
 	m->module_dir = g_strdup(module_dir);
 	m->sizeof_off_t = sizeof(off_t);
 
 	return m;
 }
 
-module *module_lookup(modules *mods, const gchar *name) {
-	module *mod;
+liModule *module_lookup(liModules *mods, const gchar *name) {
+	liModule *mod;
 	GArray *a = mods->mods;
 
 	for (guint i = 0; i < a->len; i++) {
-		mod = g_array_index(a, module*, i);
+		mod = g_array_index(a, liModule*, i);
 		if (mod != NULL && g_str_equal(mod->name->str, name))
 			return mod;
 	}
@@ -26,13 +26,13 @@ module *module_lookup(modules *mods, const gchar *name) {
 	return NULL;
 }
 
-void modules_free(modules* mods) {
+void modules_free(liModules* mods) {
 	/* unload all modules */
 	GArray *a = mods->mods;
-	module *mod;
+	liModule *mod;
 
 	for (guint i = 0; i < a->len; i++) {
-		mod = g_array_index(a, module*, i);
+		mod = g_array_index(a, liModule*, i);
 		if (!mod)
 			continue;
 		module_release(mods, mod);
@@ -40,13 +40,13 @@ void modules_free(modules* mods) {
 
 	g_array_free(mods->mods, TRUE);
 	g_free(mods->module_dir);
-	g_slice_free(modules, mods);
+	g_slice_free(liModules, mods);
 }
 
 
-module* module_load(modules *mods, const gchar* name) {
-	module *mod;
-	ModuleInit m_init;
+liModule* module_load(liModules *mods, const gchar* name) {
+	liModule *mod;
+	liModuleInitCB m_init;
 	GString *m_init_str, *m_free_str;
 	guint i;
 
@@ -58,7 +58,7 @@ module* module_load(modules *mods, const gchar* name) {
 		return mod;
 	}
 
-	mod = g_slice_new0(module);
+	mod = g_slice_new0(liModule);
 	mod->name = g_string_new(name);
 	mod->refcount = 1;
 	mod->path = g_module_build_path(mods->module_dir, name);
@@ -68,7 +68,7 @@ module* module_load(modules *mods, const gchar* name) {
 	if (!mod->module) {
 		g_string_free(mod->name, TRUE);
 		g_free(mod->path);
-		g_slice_free(module, mod);
+		g_slice_free(liModule, mod);
 		return NULL;
 	}
 
@@ -87,7 +87,7 @@ module* module_load(modules *mods, const gchar* name) {
 		g_string_free(m_free_str, TRUE);
 		g_free(mod->path);
 		g_string_free(mod->name, TRUE);
-		g_slice_free(module, mod);
+		g_slice_free(liModule, mod);
 		return NULL;
 	}
 
@@ -97,15 +97,15 @@ module* module_load(modules *mods, const gchar* name) {
 		g_string_free(m_free_str, TRUE);
 		g_free(mod->path);
 		g_string_free(mod->name, TRUE);
-		g_slice_free(module, mod);
+		g_slice_free(liModule, mod);
 		return NULL;
 	}
 
 	/* insert into free slot */
 	for (i = 0; i < mods->mods->len; i++) {
-		if (!g_array_index(mods->mods, module*, i))
+		if (!g_array_index(mods->mods, liModule*, i))
 		{
-			g_array_index(mods->mods, module*, i) = mod;
+			g_array_index(mods->mods, liModule*, i) = mod;
 			break;
 		}
 	}
@@ -121,16 +121,16 @@ module* module_load(modules *mods, const gchar* name) {
 	return mod;
 }
 
-void module_release(modules *mods, module *mod) {
+void module_release(liModules *mods, liModule *mod) {
 	guint i;
 
 	if (--mod->refcount > 0)
 		return;
 
 	for (i = 0; i < mods->mods->len; i++) {
-		if (g_array_index(mods->mods, module*, i) == mod)
+		if (g_array_index(mods->mods, liModule*, i) == mod)
 		{
-			g_array_index(mods->mods, module*, i) = NULL;
+			g_array_index(mods->mods, liModule*, i) = NULL;
 			break;
 		}
 	}
@@ -139,11 +139,11 @@ void module_release(modules *mods, module *mod) {
 	g_module_close(mod->module);
 	g_free(mod->path);
 	g_string_free(mod->name, TRUE);
-	g_slice_free(module, mod);
+	g_slice_free(liModule, mod);
 }
 
-void module_release_name(modules *mods, const gchar* name) {
-	module *mod = module_lookup(mods, name);
+void module_release_name(liModules *mods, const gchar* name) {
+	liModule *mod = module_lookup(mods, name);
 
 	if (mod)
 		module_release(mods, mod);

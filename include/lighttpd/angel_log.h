@@ -7,64 +7,63 @@
 
 /* #include <lighttpd/valgrind/valgrind.h> */
 
-#define REMOVE_PATH_FROM_FILE 1
-#if REMOVE_PATH_FROM_FILE
+#define LI_REMOVE_PATH_FROM_FILE 1
+#if LI_REMOVE_PATH_FROM_FILE
 LI_API const char *remove_path(const char *path);
-#define REMOVE_PATH(file) remove_path(file)
+#define LI_REMOVE_PATH(file) remove_path(file)
 #else
-#define REMOVE_PATH(file) file
+#define LI_REMOVE_PATH(file) file
 #endif
 
 #define SEGFAULT(srv, fmt, ...) \
 	do { \
-		log_write_(srv, LOG_LEVEL_ABORT, LOG_FLAG_TIMESTAMP, "(crashing) %s.%d: "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
+		log_write_(srv, LI_LOG_LEVEL_ABORT, LI_LOG_FLAG_TIMESTAMP, "(crashing) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
 		/* VALGRIND_PRINTF_BACKTRACE(fmt, __VA_ARGS__); */\
 		abort();\
 	} while(0)
 
 #define ERROR(srv, fmt, ...) \
-	log_write(srv, LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "error (%s:%d): "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write(srv, LI_LOG_LEVEL_ERROR, LI_LOG_FLAG_TIMESTAMP, "error (%s:%d): "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define WARNING(srv, fmt, ...) \
-	log_write(srv, LOG_LEVEL_WARNING, LOG_FLAG_TIMESTAMP, "warning (%s:%d): "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write(srv, LI_LOG_LEVEL_WARNING, LI_LOG_FLAG_TIMESTAMP, "warning (%s:%d): "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define INFO(srv, fmt, ...) \
-	log_write(srv, LOG_LEVEL_INFO, LOG_FLAG_TIMESTAMP, "info (%s:%d): "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write(srv, LI_LOG_LEVEL_INFO, LI_LOG_FLAG_TIMESTAMP, "info (%s:%d): "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define DEBUG(srv, fmt, ...) \
-	log_write(srv, LOG_LEVEL_DEBUG, LOG_FLAG_TIMESTAMP, "debug (%s:%d): "fmt, REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	log_write(srv, LI_LOG_LEVEL_DEBUG, LI_LOG_FLAG_TIMESTAMP, "debug (%s:%d): "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 /* log messages from lighty always as ERROR */
 #define INSTANCE(srv, inst, msg) \
-	log_write(srv, LOG_LEVEL_ERROR, LOG_FLAG_NONE, "lighttpd[%d]: %s", (int) inst->pid, msg)
+	log_write(srv, LI_LOG_LEVEL_ERROR, LI_LOG_FLAG_NONE, "lighttpd[%d]: %s", (int) inst->pid, msg)
 
 typedef enum {
-	LOG_LEVEL_DEBUG,
-	LOG_LEVEL_INFO,
-	LOG_LEVEL_WARNING,
-	LOG_LEVEL_ERROR,
-	LOG_LEVEL_ABORT
-} log_level_t;
+	LI_LOG_LEVEL_DEBUG,
+	LI_LOG_LEVEL_INFO,
+	LI_LOG_LEVEL_WARNING,
+	LI_LOG_LEVEL_ERROR,
+	LI_LOG_LEVEL_ABORT
+} liLogLevel;
 
-#define LOG_LEVEL_COUNT (LOG_LEVEL_ABORT+1)
+#define LI_LOG_LEVEL_COUNT (LI_LOG_LEVEL_ABORT+1)
 
 typedef enum {
-	LOG_TYPE_STDERR,
-	LOG_TYPE_FILE,
-	LOG_TYPE_PIPE,
-	LOG_TYPE_SYSLOG,
-	LOG_TYPE_NONE
-} log_type_t;
+	LI_LOG_TYPE_STDERR,
+	LI_LOG_TYPE_FILE,
+	LI_LOG_TYPE_PIPE,
+	LI_LOG_TYPE_SYSLOG,
+	LI_LOG_TYPE_NONE
+} liLogType;
 
-#define LOG_FLAG_NONE         (0x0)      /* default flag */
-#define LOG_FLAG_TIMESTAMP    (0x1)      /* prepend a timestamp to the log message */
+#define LI_LOG_FLAG_NONE         (0x0)      /* default flag */
+#define LI_LOG_FLAG_TIMESTAMP    (0x1)      /* prepend a timestamp to the log message */
 
-struct log_t;
-typedef struct log_t log_t;
+typedef struct liLog liLog;
 
-struct log_t {
-	log_type_t type;
-	gboolean levels[LOG_LEVEL_COUNT];
+struct liLog {
+	liLogType type;
+	gboolean levels[LI_LOG_LEVEL_COUNT];
 	GString *path;
 	gint fd;
 
@@ -74,9 +73,9 @@ struct log_t {
 	GString *log_line;
 };
 
-void log_init(server *srv);
-void log_clean(server *srv);
+void log_init(liServer *srv);
+void log_clean(liServer *srv);
 
-LI_API void log_write(server *srv, log_level_t log_level, guint flags, const gchar *fmt, ...) G_GNUC_PRINTF(4, 5);
+LI_API void log_write(liServer *srv, liLogLevel log_level, guint flags, const gchar *fmt, ...) G_GNUC_PRINTF(4, 5);
 
 #endif

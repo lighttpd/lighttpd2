@@ -32,8 +32,8 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
-LI_API gboolean mod_accesslog_init(modules *mods, module *mod);
-LI_API gboolean mod_accesslog_free(modules *mods, module *mod);
+LI_API gboolean mod_accesslog_init(liModules *mods, liModule *mod);
+LI_API gboolean mod_accesslog_free(liModules *mods, liModule *mod);
 
 struct al_data {
 	guint ts_ndx_gmtime;
@@ -169,7 +169,7 @@ static al_format al_get_format(gchar c) {
 		return NULL; \
 	} while (0)
 
-static GArray *al_parse_format(server *srv, GString *formatstr) {
+static GArray *al_parse_format(liServer *srv, GString *formatstr) {
 	GArray *arr = g_array_new(FALSE, TRUE, sizeof(al_format_entry));
 	al_format_entry e;
 	gchar *c, *k;
@@ -218,12 +218,12 @@ static GArray *al_parse_format(server *srv, GString *formatstr) {
 	return arr;
 }
 
-static GString *al_format_log(connection *con, al_data *ald, GArray *format) {
+static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 	GString *str = g_string_sized_new(255);
-	vrequest *vr = con->mainvr;
-	response *resp = &vr->response;
-	request *req = &vr->request;
-	physical *phys = &vr->physical;
+	liVRequest *vr = con->mainvr;
+	liResponse *resp = &vr->response;
+	liRequest *req = &vr->request;
+	liPhysical *phys = &vr->physical;
 	gchar *tmp_str = NULL;
 	GString *tmp_gstr = g_string_sized_new(127);
 	GString *tmp_gstr2;
@@ -315,10 +315,10 @@ static GString *al_format_log(connection *con, al_data *ald, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(req->uri.path));
 				break;
 			case AL_FORMAT_SERVER_NAME:
-				if (CORE_OPTION(CORE_OPTION_LOG).string)
+				if (CORE_OPTION(LI_CORE_OPTION_LOG).string)
 					g_string_append_len(str, GSTR_LEN(req->uri.host));
 				else
-					g_string_append_len(str, GSTR_LEN(CORE_OPTION(CORE_OPTION_SERVER_NAME).string));
+					g_string_append_len(str, GSTR_LEN(CORE_OPTION(LI_CORE_OPTION_SERVER_NAME).string));
 				break;
 			case AL_FORMAT_HOSTNAME:
 				if (req->uri.host->len)
@@ -361,11 +361,11 @@ static GString *al_format_log(connection *con, al_data *ald, GArray *format) {
 	return str;
 }
 
-static void al_handle_close(connection *con, plugin *p) {
+static void al_handle_close(liConnection *con, liPlugin *p) {
 	/* connection closed, log it */
 	GString *msg;
-	response *resp = &con->mainvr->response;
-	log_t *log = _OPTION(con->mainvr, p, AL_OPTION_ACCESSLOG).ptr;
+	liResponse *resp = &con->mainvr->response;
+	liLog *log = _OPTION(con->mainvr, p, AL_OPTION_ACCESSLOG).ptr;
 	GArray *format = _OPTION(con->mainvr, p, AL_OPTION_ACCESSLOG_FORMAT).list;
 
 	UNUSED(p);
@@ -382,7 +382,7 @@ static void al_handle_close(connection *con, plugin *p) {
 
 
 
-static void al_option_accesslog_free(server *srv, plugin *p, size_t ndx, option_value oval) {
+static void al_option_accesslog_free(liServer *srv, liPlugin *p, size_t ndx, liOptionValue oval) {
 	UNUSED(p);
 	UNUSED(ndx);
 
@@ -391,8 +391,8 @@ static void al_option_accesslog_free(server *srv, plugin *p, size_t ndx, option_
 	log_free(srv, oval.ptr);
 }
 
-static gboolean al_option_accesslog_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
-	log_t *log;
+static gboolean al_option_accesslog_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
+	liLog *log;
 
 	UNUSED(p);
 	UNUSED(ndx);
@@ -409,7 +409,7 @@ static gboolean al_option_accesslog_parse(server *srv, plugin *p, size_t ndx, va
 	return TRUE;
 }
 
-static void al_option_accesslog_format_free(server *srv, plugin *p, size_t ndx, option_value oval) {
+static void al_option_accesslog_format_free(liServer *srv, liPlugin *p, size_t ndx, liOptionValue oval) {
 	GArray *arr;
 
 	UNUSED(srv);
@@ -429,7 +429,7 @@ static void al_option_accesslog_format_free(server *srv, plugin *p, size_t ndx, 
 	g_array_free(arr, TRUE);
 }
 
-static gboolean al_option_accesslog_format_parse(server *srv, plugin *p, size_t ndx, value *val, option_value *oval) {
+static gboolean al_option_accesslog_format_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
 	GArray *arr;
 
 	UNUSED(p);
@@ -453,29 +453,29 @@ static gboolean al_option_accesslog_format_parse(server *srv, plugin *p, size_t 
 }
 
 
-static const plugin_option options[] = {
-	{ "accesslog", VALUE_NONE, NULL, al_option_accesslog_parse, al_option_accesslog_free },
-	{ "accesslog.format", VALUE_STRING, NULL, al_option_accesslog_format_parse, al_option_accesslog_format_free },
+static const liPluginOption options[] = {
+	{ "accesslog", LI_VALUE_NONE, NULL, al_option_accesslog_parse, al_option_accesslog_free },
+	{ "accesslog.format", LI_VALUE_STRING, NULL, al_option_accesslog_format_parse, al_option_accesslog_format_free },
 
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
-static const plugin_action actions[] = {
+static const liPluginAction actions[] = {
 	{ NULL, NULL }
 };
 
-static const plugin_setup setups[] = {
+static const liliPluginSetupCB setups[] = {
 	{ NULL, NULL }
 };
 
 
-static void plugin_accesslog_free(server *srv, plugin *p) {
+static void plugin_accesslog_free(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
 
 	g_slice_free(al_data, p->data);
 }
 
-static void plugin_accesslog_init(server *srv, plugin *p) {
+static void plugin_accesslog_init(liServer *srv, liPlugin *p) {
 	al_data *ald;
 
 	UNUSED(srv);
@@ -491,7 +491,7 @@ static void plugin_accesslog_init(server *srv, plugin *p) {
 	p->data = ald;
 }
 
-LI_API gboolean mod_accesslog_init(modules *mods, module *mod) {
+LI_API gboolean mod_accesslog_init(liModules *mods, liModule *mod) {
 	UNUSED(mod);
 
 	MODULE_VERSION_CHECK(mods);
@@ -501,7 +501,7 @@ LI_API gboolean mod_accesslog_init(modules *mods, module *mod) {
 	return mod->config != NULL;
 }
 
-LI_API gboolean mod_accesslog_free(modules *mods, module *mod) {
+LI_API gboolean mod_accesslog_free(liModules *mods, liModule *mod) {
 	UNUSED(mods); UNUSED(mod);
 
 	if (mod->config)

@@ -58,9 +58,10 @@
  */
 
 #include <lighttpd/base.h>
+#include <lighttpd/encoding.h>
 
-LI_API gboolean mod_rewrite_init(modules *mods, module *mod);
-LI_API gboolean mod_rewrite_free(modules *mods, module *mod);
+LI_API gboolean mod_rewrite_init(liModules *mods, liModule *mod);
+LI_API gboolean mod_rewrite_free(liModules *mods, liModule *mod);
 
 struct rewrite_plugin_data {
 	GPtrArray *tmp_strings; /* array of (GString*) */
@@ -79,7 +80,7 @@ struct rewrite_part {
 	union {
 		GString *str;
 		guint8 ndx;
-		cond_lvalue_t cond_lval;
+		liCondLValue cond_lval;
 	} data;
 };
 typedef struct rewrite_part rewrite_part;
@@ -93,7 +94,7 @@ typedef struct rewrite_rule rewrite_rule;
 
 struct rewrite_data {
 	GArray *rules;
-	plugin *p;
+	liPlugin *p;
 };
 typedef struct rewrite_data rewrite_data;
 
@@ -173,7 +174,7 @@ static GArray *rewrite_parts_parse(GString *str, gboolean *has_querystring) {
 
 				rp.data.cond_lval = cond_lvalue_from_string(c-len, len);
 
-				if (rp.data.cond_lval == COMP_UNKNOWN) {
+				if (rp.data.cond_lval == LI_COMP_UNKNOWN) {
 					/* parse error */
 					rewrite_parts_free(parts);
 					return NULL;
@@ -224,7 +225,7 @@ static GArray *rewrite_parts_parse(GString *str, gboolean *has_querystring) {
 	return parts;
 }
 
-static gboolean rewrite_internal(vrequest *vr, GString *dest_path, GString *dest_query, GRegex *regex, GArray *parts, gboolean raw) {
+static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *dest_query, GRegex *regex, GArray *parts, gboolean raw) {
 	guint i;
 	GString *str;
 	gchar *path;
@@ -261,7 +262,7 @@ static gboolean rewrite_internal(vrequest *vr, GString *dest_path, GString *dest
 		case REWRITE_PART_CAPTURED_PREV:
 			if (vr->action_stack.regex_stack->len) {
 				GArray *rs = vr->action_stack.regex_stack;
-				action_regex_stack_element *arse = &g_array_index(rs, action_regex_stack_element, rs->len - 1);
+				liActionRegexStackElement *arse = &g_array_index(rs, liActionRegexStackElement, rs->len - 1);
 
 				if (arse->string && g_match_info_fetch_pos(arse->match_info, rp->data.ndx, &start_pos, &end_pos) && start_pos != -1)
 					g_string_append_len(dest, arse->string->str + start_pos, end_pos - start_pos);
@@ -273,20 +274,20 @@ static gboolean rewrite_internal(vrequest *vr, GString *dest_path, GString *dest
 		case REWRITE_PART_VAR:
 
 			switch (rp->data.cond_lval) {
-			case COMP_REQUEST_LOCALIP: str = vr->con->srv_sock->local_addr_str; break;
-			case COMP_REQUEST_REMOTEIP: str = vr->con->remote_addr_str; break;
-			case COMP_REQUEST_PATH: str = vr->request.uri.path; break;
-			case COMP_REQUEST_HOST: str = vr->request.uri.host; break;
-			case COMP_REQUEST_QUERY_STRING: str = vr->request.uri.query; break;
-			case COMP_REQUEST_METHOD: str = vr->request.http_method_str; break;
-			case COMP_REQUEST_CONTENT_LENGTH:
+			case LI_COMP_REQUEST_LOCALIP: str = vr->con->srv_sock->local_addr_str; break;
+			case LI_COMP_REQUEST_REMOTEIP: str = vr->con->remote_addr_str; break;
+			case LI_COMP_REQUEST_PATH: str = vr->request.uri.path; break;
+			case LI_COMP_REQUEST_HOST: str = vr->request.uri.host; break;
+			case LI_COMP_REQUEST_QUERY_STRING: str = vr->request.uri.query; break;
+			case LI_COMP_REQUEST_METHOD: str = vr->request.http_method_str; break;
+			case LI_COMP_REQUEST_CONTENT_LENGTH:
 				g_string_printf(vr->con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
 				str = vr->con->wrk->tmp_str;
 				break;
 			default: str = NULL;
 			}
 
-			if (rp->data.cond_lval == COMP_REQUEST_SCHEME) {
+			if (rp->data.cond_lval == LI_COMP_REQUEST_SCHEME) {
 				if (vr->con->is_ssl)
 					g_string_append_len(dest, CONST_STR_LEN("https"));
 				else
@@ -310,7 +311,7 @@ static gboolean rewrite_internal(vrequest *vr, GString *dest_path, GString *dest
 	return TRUE;
 }
 
-static handler_t rewrite(vrequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context) {
 	guint i;
 	rewrite_rule *rule;
 	rewrite_data *rd = param;
@@ -336,14 +337,14 @@ static handler_t rewrite(vrequest *vr, gpointer param, gpointer *context) {
 			}
 
 			/* stop at first matching regex */
-			return HANDLER_GO_ON;
+			return LI_HANDLER_GO_ON;
 		}
 	}
 
-	return HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static void rewrite_free(server *srv, gpointer param) {
+static void rewrite_free(liServer *srv, gpointer param) {
 	guint i;
 	rewrite_data *rd = param;
 
@@ -360,9 +361,9 @@ static void rewrite_free(server *srv, gpointer param) {
 	g_slice_free(rewrite_data, rd);
 }
 
-static action* rewrite_create(server *srv, plugin* p, value *val) {
+static liAction* rewrite_create(liServer *srv, liPlugin* p, liValue *val) {
 	GArray *arr;
-	value *v;
+	liValue *v;
 	guint i;
 	rewrite_data *rd;
 	rewrite_rule rule;
@@ -372,7 +373,7 @@ static action* rewrite_create(server *srv, plugin* p, value *val) {
 	UNUSED(srv);
 	UNUSED(p);
 
-	if (!val || val->type != VALUE_LIST) {
+	if (!val || val->type != LI_VALUE_LIST) {
 		ERROR(srv, "%s", "rewrite expects a either a tuple of strings or a list of those");
 		return NULL;
 	}
@@ -389,23 +390,23 @@ static action* rewrite_create(server *srv, plugin* p, value *val) {
 
 	arr = val->data.list;
 
-	if (arr->len == 2 && g_array_index(arr, value*, 0)->type == VALUE_STRING && g_array_index(arr, value*, 1)->type == VALUE_STRING) {
+	if (arr->len == 2 && g_array_index(arr, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(arr, liValue*, 1)->type == LI_VALUE_STRING) {
 		/* only one rule */
 		rule.has_querystring = FALSE;
-		rule.parts = rewrite_parts_parse(g_array_index(arr, value*, 1)->data.string, &rule.has_querystring);
+		rule.parts = rewrite_parts_parse(g_array_index(arr, liValue*, 1)->data.string, &rule.has_querystring);
 
 		if (!rule.parts) {
 			rewrite_free(NULL, rd);
-			ERROR(srv, "rewrite: error parsing rule \"%s\"", g_array_index(arr, value*, 1)->data.string->str);
+			ERROR(srv, "rewrite: error parsing rule \"%s\"", g_array_index(arr, liValue*, 1)->data.string->str);
 			return NULL;
 		}
 
-		rule.regex = g_regex_new(g_array_index(arr, value*, 0)->data.string->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
+		rule.regex = g_regex_new(g_array_index(arr, liValue*, 0)->data.string->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
 
 		if (!rule.regex || err) {
 			rewrite_free(NULL, rd);
 			rewrite_parts_free(rule.parts);
-			ERROR(srv, "rewrite: error compiling regex \"%s\": %s", g_array_index(arr, value*, 0)->data.string->str, err->message);
+			ERROR(srv, "rewrite: error compiling regex \"%s\": %s", g_array_index(arr, liValue*, 0)->data.string->str, err->message);
 			return NULL;
 		}
 
@@ -413,10 +414,10 @@ static action* rewrite_create(server *srv, plugin* p, value *val) {
 	} else {
 		/* probably multiple rules */
 		for (i = 0; i < arr->len; i++) {
-			v = g_array_index(arr, value*, i);
+			v = g_array_index(arr, liValue*, i);
 
-			if (v->type != VALUE_LIST || v->data.list->len != 2 ||
-				g_array_index(v->data.list, value*, 0)->type != VALUE_STRING || g_array_index(v->data.list, value*, 1)->type != VALUE_STRING) {
+			if (v->type != LI_VALUE_LIST || v->data.list->len != 2 ||
+				g_array_index(v->data.list, liValue*, 0)->type != LI_VALUE_STRING || g_array_index(v->data.list, liValue*, 1)->type != LI_VALUE_STRING) {
 
 				rewrite_free(NULL, rd);
 				ERROR(srv, "%s", "rewrite expects a either a tuple of strings or a list of those");
@@ -424,20 +425,20 @@ static action* rewrite_create(server *srv, plugin* p, value *val) {
 			}
 
 			rule.has_querystring = FALSE;
-			rule.parts = rewrite_parts_parse(g_array_index(v->data.list, value*, 1)->data.string, &rule.has_querystring);
+			rule.parts = rewrite_parts_parse(g_array_index(v->data.list, liValue*, 1)->data.string, &rule.has_querystring);
 
 			if (!rule.parts) {
 				rewrite_free(NULL, rd);
-				ERROR(srv, "rewrite: error parsing rule \"%s\"", g_array_index(v->data.list, value*, 1)->data.string->str);
+				ERROR(srv, "rewrite: error parsing rule \"%s\"", g_array_index(v->data.list, liValue*, 1)->data.string->str);
 				return NULL;
 			}
 
-			rule.regex = g_regex_new(g_array_index(v->data.list, value*, 0)->data.string->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
+			rule.regex = g_regex_new(g_array_index(v->data.list, liValue*, 0)->data.string->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
 
 			if (!rule.regex || err) {
 				rewrite_free(NULL, rd);
 				rewrite_parts_free(rule.parts);
-				ERROR(srv, "rewrite: error compiling regex \"%s\": %s", g_array_index(v->data.list, value*, 0)->data.string->str, err->message);
+				ERROR(srv, "rewrite: error compiling regex \"%s\": %s", g_array_index(v->data.list, liValue*, 0)->data.string->str, err->message);
 				return NULL;
 			}
 
@@ -451,24 +452,24 @@ static action* rewrite_create(server *srv, plugin* p, value *val) {
 
 
 
-static const plugin_option options[] = {
-	{ "rewrite.debug", VALUE_BOOLEAN, NULL, NULL, NULL },
+static const liPluginOption options[] = {
+	{ "rewrite.debug", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
 
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
-static const plugin_action actions[] = {
+static const liPluginAction actions[] = {
 	{ "rewrite", rewrite_create },
 
 	{ NULL, NULL }
 };
 
-static const plugin_setup setups[] = {
+static const liliPluginSetupCB setups[] = {
 	{ NULL, NULL }
 };
 
 
-static void plugin_rewrite_free(server *srv, plugin *p) {
+static void plugin_rewrite_free(liServer *srv, liPlugin *p) {
 	guint i;
 	rewrite_plugin_data *data = p->data;
 
@@ -481,7 +482,7 @@ static void plugin_rewrite_free(server *srv, plugin *p) {
 	g_slice_free(rewrite_plugin_data, data);
 }
 
-static void plugin_rewrite_init(server *srv, plugin *p) {
+static void plugin_rewrite_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
 
 	p->options = options;
@@ -495,7 +496,7 @@ static void plugin_rewrite_init(server *srv, plugin *p) {
 }
 
 
-gboolean mod_rewrite_init(modules *mods, module *mod) {
+gboolean mod_rewrite_init(liModules *mods, liModule *mod) {
 	UNUSED(mod);
 
 	MODULE_VERSION_CHECK(mods);
@@ -505,7 +506,7 @@ gboolean mod_rewrite_init(modules *mods, module *mod) {
 	return mod->config != NULL;
 }
 
-gboolean mod_rewrite_free(modules *mods, module *mod) {
+gboolean mod_rewrite_free(liModules *mods, liModule *mod) {
 	if (mod->config)
 		plugin_free(mods->main, mod->config);
 
