@@ -139,7 +139,7 @@ static liHandlerResult cache_etag_filter_hit(liVRequest *vr, liFilter *f) {
 
 	f->in->is_closed = TRUE;
 
-	chunkqueue_append_file_fd(f->out, NULL, 0, cfile->hit_length, cfile->hit_fd);
+	li_chunkqueue_append_file_fd(f->out, NULL, 0, cfile->hit_length, cfile->hit_fd);
 	cfile->hit_fd = -1;
 	cache_etag_file_free(cfile);
 	f->param = NULL;
@@ -160,16 +160,16 @@ static liHandlerResult cache_etag_filter_miss(liVRequest *vr, liFilter *f) {
 	if (0 == f->in->length) return LI_HANDLER_GO_ON;
 
 	if (!cfile) { /* somehow we lost the file */
-		chunkqueue_steal_all(f->out, f->in);
+		li_chunkqueue_steal_all(f->out, f->in);
 		if (f->in->is_closed) f->out->is_closed = TRUE;
 		return LI_HANDLER_GO_ON;
 	}
 
-	if (LI_HANDLER_GO_ON != chunkiter_read(vr, citer, 0, 64*1024, &buf, &buflen)) {
+	if (LI_HANDLER_GO_ON != li_chunkiter_read(vr, citer, 0, 64*1024, &buf, &buflen)) {
 		VR_ERROR(vr, "%s", "Couldn't read data from chunkqueue");
 		cache_etag_file_free(cfile);
 		f->param = NULL;
-		chunkqueue_steal_all(f->out, f->in);
+		li_chunkqueue_steal_all(f->out, f->in);
 		if (f->in->is_closed) f->out->is_closed = TRUE;
 		return LI_HANDLER_GO_ON;
 	}
@@ -185,12 +185,12 @@ static liHandlerResult cache_etag_filter_miss(liVRequest *vr, liFilter *f) {
 				cfile->tmpfilename->str, g_strerror(errno));
 			cache_etag_file_free(cfile);
 			f->param = NULL;
-			chunkqueue_steal_all(f->out, f->in);
+			li_chunkqueue_steal_all(f->out, f->in);
 			if (f->in->is_closed) f->out->is_closed = TRUE;
 			return LI_HANDLER_GO_ON;
 		}
 	} else {
-		chunkqueue_steal_len(f->out, f->in, res);
+		li_chunkqueue_steal_len(f->out, f->in, res);
 		if (f->in->length == 0 && f->in->is_closed) {
 			cache_etag_file_finish(vr, cfile);
 			f->param = NULL;
@@ -240,9 +240,9 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 		/* Don't cache static files */
 		if (vr->out->is_closed && 0 == vr->out->mem_usage) return LI_HANDLER_GO_ON;
 
-		etag_entry = http_header_find_first(vr->response.headers, CONST_STR_LEN("etag"));
+		etag_entry = li_http_header_find_first(vr->response.headers, CONST_STR_LEN("etag"));
 		if (!etag_entry) return LI_HANDLER_GO_ON; /* no etag -> no caching */
-		if (http_header_find_next(etag_entry, CONST_STR_LEN("etag"))) {
+		if (li_http_header_find_next(etag_entry, CONST_STR_LEN("etag"))) {
 			VR_ERROR(vr, "%s", "duplicate etag header in response, will not cache it");
 			return LI_HANDLER_GO_ON;
 		}
@@ -260,7 +260,7 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 		}
 		if (-1 == (cfile->hit_fd = open(cfile->filename->str, O_RDONLY))) {
 			if (EMFILE == errno) {
-				server_out_of_fds(vr->wrk->srv);
+				li_server_out_of_fds(vr->wrk->srv);
 			}
 			VR_ERROR(vr, "Couldn't open cache file '%s': %s", cfile->filename->str, g_strerror(errno));
 			return LI_HANDLER_GO_ON; /* no caching */
@@ -273,9 +273,9 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 		}
 		cfile->hit_length = st.st_size;
 		g_string_truncate(tmp_str, 0);
-		l_g_string_append_int(tmp_str, st.st_size);
-		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(tmp_str));
-		vrequest_add_filter_out(vr, cache_etag_filter_hit, cache_etag_filter_free, cfile);
+		li_string_append_int(tmp_str, st.st_size);
+		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(tmp_str));
+		li_vrequest_add_filter_out(vr, cache_etag_filter_hit, cache_etag_filter_free, cfile);
 		*context = NULL;
 		return LI_HANDLER_GO_ON;
 	}
@@ -289,7 +289,7 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 		return LI_HANDLER_GO_ON; /* no caching */
 	}
 
-	vrequest_add_filter_out(vr, cache_etag_filter_miss, cache_etag_filter_free, cfile);
+	li_vrequest_add_filter_out(vr, cache_etag_filter_miss, cache_etag_filter_free, cfile);
 	*context = NULL;
 
 	return LI_HANDLER_GO_ON;
@@ -313,9 +313,9 @@ static liAction* cache_etag_create(liServer *srv, liPlugin* p, liValue *val) {
 	}
 
 	ctx = g_slice_new0(cache_etag_context);
-	ctx->path = value_extract_ptr(val);
+	ctx->path = li_value_extract_ptr(val);
 
-	return action_new_function(cache_etag_handle, cache_etag_cleanup, cache_etag_free, ctx);
+	return li_action_new_function(cache_etag_handle, cache_etag_cleanup, cache_etag_free, ctx);
 }
 
 static const liPluginOption options[] = {
@@ -343,14 +343,14 @@ static void plugin_init(liServer *srv, liPlugin *p) {
 gboolean mod_cache_disk_etag_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(mods->main, "mod_cache_disk_etag", plugin_init);
+	mod->config = li_plugin_register(mods->main, "mod_cache_disk_etag", plugin_init);
 
 	return mod->config != NULL;
 }
 
 gboolean mod_cache_disk_etag_free(liModules *mods, liModule *mod) {
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }

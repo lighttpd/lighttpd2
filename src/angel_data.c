@@ -3,7 +3,7 @@
 #include <lighttpd/angel_data.h>
 
 /* error handling */
-GQuark angel_data_error_quark() {
+GQuark li_angel_data_error_quark() {
 	return g_quark_from_static_string("angel-data-error-quark");
 }
 
@@ -17,25 +17,25 @@ static gboolean error_eof(GError **err, const gchar *info) {
 
 /* write */
 
-gboolean angel_data_write_int32(GString *buf, gint32 i, GError **err) {
+gboolean li_angel_data_write_int32(GString *buf, gint32 i, GError **err) {
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 	g_string_append_len(buf, (const gchar*) &i, sizeof(i));
 	return TRUE;
 }
 
-gboolean angel_data_write_int64(GString *buf, gint64 i, GError **err) {
+gboolean li_angel_data_write_int64(GString *buf, gint64 i, GError **err) {
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 	g_string_append_len(buf, (const gchar*) &i, sizeof(i));
 	return TRUE;
 }
 
-gboolean angel_data_write_char (GString *buf, gchar c, GError **err) {
+gboolean li_angel_data_write_char (GString *buf, gchar c, GError **err) {
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 	g_string_append_len(buf, &c, sizeof(c));
 	return TRUE;
 }
 
-gboolean angel_data_write_str  (GString *buf, const GString *str, GError **err) {
+gboolean li_angel_data_write_str  (GString *buf, const GString *str, GError **err) {
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 	if (str->len > LI_ANGEL_DATA_MAX_STR_LEN) {
 		g_set_error(err,
@@ -44,19 +44,19 @@ gboolean angel_data_write_str  (GString *buf, const GString *str, GError **err) 
 			"String too long (len: %" G_GSIZE_FORMAT "): '%s'", str->len, str->str);
 		return FALSE;
 	}
-	if (!angel_data_write_int32(buf, str->len, err)) return FALSE;
+	if (!li_angel_data_write_int32(buf, str->len, err)) return FALSE;
 	g_string_append_len(buf, GSTR_LEN(str));
 	return TRUE;
 }
 
-gboolean angel_data_write_cstr (GString *buf, const gchar *str, gsize len, GError **err) {
+gboolean li_angel_data_write_cstr (GString *buf, const gchar *str, gsize len, GError **err) {
 	const GString tmps = { (gchar*) str, len, 0 }; /* fake const GString */
-	return angel_data_write_str(buf, &tmps, err);
+	return li_angel_data_write_str(buf, &tmps, err);
 }
 
 /* read */
 
-gboolean angel_data_read_int32(liAngelBuffer *buf, gint32 *val, GError **err) {
+gboolean li_angel_data_read_int32(liAngelBuffer *buf, gint32 *val, GError **err) {
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 	if (buf->data->len - buf->pos < sizeof(gint32)) {
 		return error_eof(err, "int32");
@@ -68,7 +68,7 @@ gboolean angel_data_read_int32(liAngelBuffer *buf, gint32 *val, GError **err) {
 	return TRUE;
 }
 
-gboolean angel_data_read_int64(liAngelBuffer *buf, gint64 *val, GError **err) {
+gboolean li_angel_data_read_int64(liAngelBuffer *buf, gint64 *val, GError **err) {
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 	if (buf->data->len - buf->pos < sizeof(gint64)) {
 		return error_eof(err, "int64");
@@ -80,7 +80,7 @@ gboolean angel_data_read_int64(liAngelBuffer *buf, gint64 *val, GError **err) {
 	return TRUE;
 }
 
-gboolean angel_data_read_char (liAngelBuffer *buf, gchar *val, GError **err) {
+gboolean li_angel_data_read_char (liAngelBuffer *buf, gchar *val, GError **err) {
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 	if (buf->data->len - buf->pos < sizeof(gchar)) {
 		return error_eof(err, "char");
@@ -92,7 +92,7 @@ gboolean angel_data_read_char (liAngelBuffer *buf, gchar *val, GError **err) {
 	return TRUE;
 }
 
-gboolean angel_data_read_mem  (liAngelBuffer *buf, GString **val, gsize len, GError **err) {
+gboolean li_angel_data_read_mem  (liAngelBuffer *buf, GString **val, gsize len, GError **err) {
 	GString *s;
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 
@@ -110,7 +110,7 @@ gboolean angel_data_read_mem  (liAngelBuffer *buf, GString **val, gsize len, GEr
 	return TRUE;
 }
 
-gboolean angel_data_read_str  (liAngelBuffer *buf, GString **val, GError **err) {
+gboolean li_angel_data_read_str  (liAngelBuffer *buf, GString **val, GError **err) {
 	gint32 ilen;
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 
@@ -127,7 +127,7 @@ gboolean angel_data_read_str  (liAngelBuffer *buf, GString **val, GError **err) 
 			"String length in buffer invalid: %i", (gint) ilen);
 		return FALSE;
 	}
-	if (!angel_data_read_mem(buf, val, (gsize) ilen, err)) {
+	if (!li_angel_data_read_mem(buf, val, (gsize) ilen, err)) {
 		buf->pos -= sizeof(gint32);
 		return FALSE;
 	}

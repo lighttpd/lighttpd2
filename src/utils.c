@@ -20,19 +20,19 @@
 #include <stropts.h>
 #endif
 
-/* for send/receive_fd */
+/* for send/li_receive_fd */
 union fdmsg {
   struct cmsghdr h;
   gchar buf[1000];
 };
 
 
-void fatal(const gchar* msg) {
+void li_fatal(const gchar* msg) {
 	fprintf(stderr, "%s\n", msg);
 	abort();
 }
 
-void fd_no_block(int fd) {
+void li_fd_no_block(int fd) {
 #ifdef O_NONBLOCK
 	fcntl(fd, F_SETFL, O_NONBLOCK | O_RDWR);
 #elif defined _WIN32
@@ -43,7 +43,7 @@ void fd_no_block(int fd) {
 #endif
 }
 
-void fd_block(int fd) {
+void li_fd_block(int fd) {
 #ifdef O_NONBLOCK
 	fcntl(fd, F_SETFL, O_RDWR);
 #elif defined _WIN32
@@ -54,17 +54,17 @@ void fd_block(int fd) {
 #endif
 }
 
-void fd_init(int fd) {
+void li_fd_init(int fd) {
 #ifdef FD_CLOEXEC
 	/* close fd on exec (cgi) */
 	fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
-	fd_no_block(fd);
+	li_fd_no_block(fd);
 }
 
 #if 0
 #ifndef _WIN32
-int send_fd(int s, int fd) { /* write fd to unix socket s */
+int li_send_fd(int s, int fd) { /* write fd to unix socket s */
 	for ( ;; ) {
 		if (-1 == ioctl(s, I_SENDFD, fd)) {
 			switch (errno) {
@@ -78,7 +78,7 @@ int send_fd(int s, int fd) { /* write fd to unix socket s */
 	}
 }
 
-int receive_fd(int s, int *fd) { /* read fd from unix socket s */
+int li_receive_fd(int s, int *fd) { /* read fd from unix socket s */
 	struct strrecvfd res;
 	memset(&res, 0, sizeof(res));
 	for ( ;; ) {
@@ -96,7 +96,7 @@ int receive_fd(int s, int *fd) { /* read fd from unix socket s */
 #endif
 #endif
 
-gint send_fd(gint s, gint fd) { /* write fd to unix socket s */
+gint li_send_fd(gint s, gint fd) { /* write fd to unix socket s */
 	struct msghdr msg;
 	struct iovec  iov;
 #ifdef CMSG_FIRSTHDR
@@ -149,7 +149,7 @@ gint send_fd(gint s, gint fd) { /* write fd to unix socket s */
 }
 
 
-gint receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
+gint li_receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
 	struct iovec iov;
 	struct msghdr msg;
 #ifdef CMSG_FIRSTHDR
@@ -228,21 +228,21 @@ gint receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
 
 
 
-void ev_io_add_events(struct ev_loop *loop, ev_io *watcher, int events) {
+void li_ev_io_add_events(struct ev_loop *loop, ev_io *watcher, int events) {
 	if ((watcher->events & events) == events) return;
 	ev_io_stop(loop, watcher);
 	ev_io_set(watcher, watcher->fd, watcher->events | events);
 	ev_io_start(loop, watcher);
 }
 
-void ev_io_rem_events(struct ev_loop *loop, ev_io *watcher, int events) {
+void li_ev_io_rem_events(struct ev_loop *loop, ev_io *watcher, int events) {
 	if (0 == (watcher->events & events)) return;
 	ev_io_stop(loop, watcher);
 	ev_io_set(watcher, watcher->fd, watcher->events & ~events);
 	ev_io_start(loop, watcher);
 }
 
-void ev_io_set_events(struct ev_loop *loop, ev_io *watcher, int events) {
+void li_ev_io_set_events(struct ev_loop *loop, ev_io *watcher, int events) {
 	if (events == (watcher->events & (EV_READ | EV_WRITE))) return;
 	ev_io_stop(loop, watcher);
 	ev_io_set(watcher, watcher->fd, (watcher->events & ~(EV_READ | EV_WRITE)) | events);
@@ -270,7 +270,7 @@ static int hex2int(unsigned char hex) {
 	return res;
 }
 
-void url_decode(GString *path) {
+void li_url_decode(GString *path) {
 	char *src, *dst, c;
 	src = dst = path->str;
 	for ( ; *src; src++) {
@@ -307,7 +307,7 @@ void url_decode(GString *path) {
  *       the operation is performed in-place.
  */
 
-void path_simplify(GString *path) {
+void li_path_simplify(GString *path) {
 	int toklen;
 	char c, pre1;
 	char *start, *slash, *walk, *out;
@@ -374,7 +374,7 @@ void path_simplify(GString *path) {
 }
 
 
-GString *counter_format(guint64 count, liCounterType t, GString *dest) {
+GString *li_counter_format(guint64 count, liCounterType t, GString *dest) {
 	guint64 rest;
 
 	if (!dest)
@@ -444,7 +444,7 @@ GString *counter_format(guint64 count, liCounterType t, GString *dest) {
 }
 
 
-gchar *ev_backend_string(guint backend) {
+gchar *li_ev_backend_string(guint backend) {
 	switch (backend) {
 		case EVBACKEND_SELECT:	return "select";
 		case EVBACKEND_POLL:	return "poll";
@@ -457,22 +457,22 @@ gchar *ev_backend_string(guint backend) {
 }
 
 
-void string_destroy_notify(gpointer str) {
+void li_string_destroy_notify(gpointer str) {
 	g_string_free((GString*)str, TRUE);
 }
 
 
-guint hash_ipv4(gconstpointer key) {
+guint li_hash_ipv4(gconstpointer key) {
 	return *((guint*)key) * 2654435761;
 }
 
-guint hash_ipv6(gconstpointer key) {
+guint li_hash_ipv6(gconstpointer key) {
 	guint *i = ((guint*)key);
 	return (i[0] ^ i[1] ^ i[2] ^ i[3]) * 2654435761;
 }
 
 
-GString *sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean showport) {
+GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean showport) {
 	gchar *p;
 	guint8 len = 0;
 	guint8 tmp;
@@ -519,7 +519,7 @@ GString *sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean showpo
 		if (!dest)
 			dest = g_string_sized_new(INET6_ADDRSTRLEN+6);
 
-		ipv6_tostring(dest, saddr->ipv6.sin6_addr.s6_addr);
+		li_ipv6_tostring(dest, saddr->ipv6.sin6_addr.s6_addr);
 		if (showport) g_string_append_printf(dest, ":%u", (unsigned int) ntohs(saddr->ipv6.sin6_port));
 		break;
 #endif
@@ -537,13 +537,13 @@ GString *sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean showpo
 		if (!dest)
 			dest = g_string_new_len(CONST_STR_LEN("unknown sockaddr family"));
 		else
-			l_g_string_assign_len(dest, CONST_STR_LEN("unknown sockaddr family"));
+			li_string_assign_len(dest, CONST_STR_LEN("unknown sockaddr family"));
 	}
 
 	return dest;
 }
 
-liSocketAddress sockaddr_from_string(GString *str, guint tcp_default_port) {
+liSocketAddress li_sockaddr_from_string(GString *str, guint tcp_default_port) {
 	guint32 ipv4;
 #ifdef HAVE_IPV6
 	guint8 ipv6[16];
@@ -559,7 +559,7 @@ liSocketAddress sockaddr_from_string(GString *str, guint tcp_default_port) {
 		strcpy(saddr.addr->un.sun_path, str->str + 5);
 	} else
 #endif
-	if (parse_ipv4(str->str, &ipv4, NULL, &port)) {
+	if (li_parse_ipv4(str->str, &ipv4, NULL, &port)) {
 		if (!port) return saddr;
 		saddr.len = sizeof(struct sockaddr_in);
 		saddr.addr = (liSockAddr*) g_slice_alloc0(saddr.len);
@@ -568,7 +568,7 @@ liSocketAddress sockaddr_from_string(GString *str, guint tcp_default_port) {
 		saddr.addr->ipv4.sin_port = htons(port);
 #ifdef HAVE_IPV6
 	} else
-	if (parse_ipv6(str->str, ipv6, NULL, &port)) {
+	if (li_parse_ipv6(str->str, ipv6, NULL, &port)) {
 		if (!port) return saddr;
 		saddr.len = sizeof(struct sockaddr_in6);
 		saddr.addr = (liSockAddr*) g_slice_alloc0(saddr.len);
@@ -580,7 +580,7 @@ liSocketAddress sockaddr_from_string(GString *str, guint tcp_default_port) {
 	return saddr;
 }
 
-liSocketAddress sockaddr_local_from_socket(gint fd) {
+liSocketAddress li_sockaddr_local_from_socket(gint fd) {
 	socklen_t l = 0;
 	static struct sockaddr sa;
 	liSocketAddress saddr = { 0, NULL };
@@ -596,7 +596,7 @@ liSocketAddress sockaddr_local_from_socket(gint fd) {
 	return saddr;
 }
 
-liSocketAddress sockaddr_remote_from_socket(gint fd) {
+liSocketAddress li_sockaddr_remote_from_socket(gint fd) {
 	socklen_t l = 0;
 	static struct sockaddr sa;
 	liSocketAddress saddr = { 0, NULL };
@@ -612,14 +612,14 @@ liSocketAddress sockaddr_remote_from_socket(gint fd) {
 	return saddr;
 }
 
-void sockaddr_clear(liSocketAddress *saddr) {
+void li_sockaddr_clear(liSocketAddress *saddr) {
 	if (saddr->addr) g_slice_free1(saddr->len, saddr->addr);
 	saddr->addr = NULL;
 	saddr->len = 0;
 }
 
 /* unused */
-void gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, guint len) {
+void li_gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, guint len) {
 	for (guint i = 0; i < gstr->len; i++) {
 		if (gstr->str[i] == c) {
 			/* char found, replace */
@@ -631,32 +631,32 @@ void gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, guint
 	}
 }
 
-gboolean l_g_strncase_equal(GString *str, const gchar *s, guint len) {
+gboolean li_strncase_equal(GString *str, const gchar *s, guint len) {
 	if (str->len != len) return FALSE;
 	return 0 == g_ascii_strncasecmp(str->str, s, len);
 }
 
-gboolean l_g_string_suffix(GString *str, const gchar *s, gsize len) {
+gboolean li_string_suffix(GString *str, const gchar *s, gsize len) {
 	if (str->len < len)
 		return FALSE;
 
 	return (strcmp(str->str + str->len - len, s) == 0);
 }
 
-gboolean l_g_string_prefix(GString *str, const gchar *s, gsize len) {
+gboolean li_string_prefix(GString *str, const gchar *s, gsize len) {
 	if (str->len < len)
 		return FALSE;
 
 	return (strncmp(str->str, s, len) == 0);
 }
 
-GString *l_g_string_assign_len(GString *string, const gchar *val, gssize len) {
+GString *li_string_assign_len(GString *string, const gchar *val, gssize len) {
 	g_string_truncate(string, 0);
 	g_string_append_len(string, val, len);
 	return string;
 }
 
-void l_g_string_append_int(GString *dest, gint64 v) {
+void li_string_append_int(GString *dest, gint64 v) {
 	gchar *buf, *end, swap;
 	gsize len;
 	guint64 val;
@@ -696,7 +696,7 @@ void l_g_string_append_int(GString *dest, gint64 v) {
 }
 
 /* http://womble.decadentplace.org.uk/readdir_r-advisory.html */
-gsize dirent_buf_size(DIR * dirp) {
+gsize li_dirent_buf_size(DIR * dirp) {
 	glong name_max;
  	gsize name_end;
 

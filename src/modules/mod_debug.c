@@ -119,7 +119,7 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 				g_string_append_printf(cd->detailed, "	remote_addr_str = \"%s\",\n", cd->remote_addr_str->str);
 				g_string_append_printf(cd->detailed, "	local_addr_str = \"%s\",\n", cd->local_addr_str->str);
 				g_string_append_printf(cd->detailed, "	fd = %d,\n", cd->fd);
-				g_string_append_printf(cd->detailed, "	state = \"%s\",\n", connection_state_str(cd->state));
+				g_string_append_printf(cd->detailed, "	state = \"%s\",\n", li_connection_state_str(cd->state));
 				g_string_append_printf(cd->detailed, "	ts = %f,\n", cd->ts);
 				g_string_append_printf(cd->detailed,
 					"	io_timeout_elem = {\n"
@@ -159,7 +159,7 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 	UNUSED(fdata);
 
 	if (!complete) {
-		/* someone called collect_break, so we don't need any vrequest handling here. just free the result data */
+		/* someone called li_collect_break, so we don't need any vrequest handling here. just free the result data */
 		guint i, j;
 
 		for (i = 0; i < result->len; i++) {
@@ -215,7 +215,7 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 			for (j = 0; j < cons->len; j++) {
 				mod_debug_data_t *d = &g_array_index(cons, mod_debug_data_t, j);
 
-				counter_format((guint64)(CUR_TS(vr->wrk) - d->ts), COUNTER_TIME, duration);
+				li_counter_format((guint64)(CUR_TS(vr->wrk) - d->ts), COUNTER_TIME, duration);
 				g_string_append_printf(html, "<tr><td>%s</td><td style=\"text-align:right;\">%s</td><td style=\"padding-left:10px;\"><a href=\"?%u_%u_%d_%s\">debug</a></td></tr>\n",
 					d->remote_addr_str->str,
 					duration->str,
@@ -243,10 +243,10 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 
 	g_string_append_len(html, CONST_STR_LEN("</body>\n</html>\n"));
 
-	chunkqueue_append_string(vr->out, html);
-	http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
+	li_chunkqueue_append_string(vr->out, html);
+	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
 	vr->response.http_status = 200;
-	vrequest_joblist_append(vr);
+	li_vrequest_joblist_append(vr);
 
 	if (job->detailed.remote_addr_str)
 		g_string_free(job->detailed.remote_addr_str, TRUE);
@@ -259,13 +259,13 @@ static liHandlerResult debug_show_connections_cleanup(liVRequest *vr, gpointer p
 	UNUSED(vr);
 	UNUSED(param);
 
-	collect_break(ci);
+	li_collect_break(ci);
 
 	return LI_HANDLER_GO_ON;
 }
 
 static liHandlerResult debug_show_connections(liVRequest *vr, gpointer param, gpointer *context) {
-	if (vrequest_handle_direct(vr)) {
+	if (li_vrequest_handle_direct(vr)) {
 		liCollectInfo *ci;
 		mod_debug_job_t *j = g_slice_new0(mod_debug_job_t);
 		j->vr = vr;
@@ -282,7 +282,7 @@ static liHandlerResult debug_show_connections(liVRequest *vr, gpointer param, gp
 
 		VR_DEBUG(vr, "%s", "collecting debug info...");
 
-		ci = collect_start(vr->wrk, debug_collect_func, j, debug_collect_cb, j);
+		ci = li_collect_start(vr->wrk, debug_collect_func, j, debug_collect_cb, j);
 		*context = ci; /* may be NULL */
 	}
 
@@ -297,7 +297,7 @@ static liAction* debug_show_connections_create(liServer *srv, liPlugin* p, liVal
 		return NULL;
 	}
 
-	return action_new_function(debug_show_connections, debug_show_connections_cleanup, NULL, p);
+	return li_action_new_function(debug_show_connections, debug_show_connections_cleanup, NULL, p);
 }
 
 
@@ -330,14 +330,14 @@ gboolean mod_debug_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(mods->main, "mod_debug", plugin_debug_init);
+	mod->config = li_plugin_register(mods->main, "mod_debug", plugin_debug_init);
 
 	return mod->config != NULL;
 }
 
 gboolean mod_debug_free(liModules *mods, liModule *mod) {
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }

@@ -84,10 +84,10 @@ static void send_queue_clean(GQueue *queue) {
 	}
 }
 
-GQuark angel_call_error_quark() {
+GQuark li_angel_call_error_quark() {
 	return g_quark_from_static_string("angel-call-error-quark");
 }
-GQuark angel_connection_error_quark() {
+GQuark li_angel_connection_error_quark() {
 	return g_quark_from_static_string("angel-connection-error-quark");
 }
 
@@ -187,14 +187,14 @@ static gboolean angel_dispatch(liAngelConnection *acon, GError **err) {
 	case ANGEL_CALL_SEND_RESULT:
 		g_printerr("received result: %i\n", id);
 		g_mutex_lock(acon->mutex);
-			if (!idlist_is_used(acon->call_id_list, id)) {
+			if (!li_idlist_is_used(acon->call_id_list, id)) {
 				g_mutex_unlock(acon->mutex);
 				g_set_error(err, LI_ANGEL_CONNECTION_ERROR, LI_ANGEL_CONNECTION_INVALID_DATA,
 					"Invalid id: %i", (gint) id);
 				close_fd_array(acon->parse.fds);
 				return FALSE;
 			}
-			idlist_put(acon->call_id_list, id);
+			li_idlist_put(acon->call_id_list, id);
 			if (type == ANGEL_CALL_SEND_RESULT && (guint) id < acon->call_table->len) {
 				call = (liAngelCall*) g_ptr_array_index(acon->call_table, id);
 				g_ptr_array_index(acon->call_table, id) = NULL;
@@ -230,14 +230,14 @@ static gboolean angel_connection_read(liAngelConnection *acon, GError **err) {
 			if (!angel_fill_buffer(acon, 8*4, err)) return FALSE;
 			if (acon->in.data->len - acon->in.pos < 8*4) return TRUE; /* need more data */
 
-			if (!angel_data_read_int32(&acon->in, &magic, err)) return FALSE;
-			if (!angel_data_read_int32(&acon->in, &acon->parse.type, err)) return FALSE;
-			if (!angel_data_read_int32(&acon->in, &acon->parse.id, err)) return FALSE;
-			if (!angel_data_read_int32(&acon->in, &acon->parse.mod_len, err)) return FALSE;
-			if (!angel_data_read_int32(&acon->in, &acon->parse.action_len, err)) return FALSE;
-			if (!angel_data_read_int32(&acon->in, &acon->parse.error_len, err)) return FALSE;
-			if (!angel_data_read_int32(&acon->in, &acon->parse.data_len, err)) return FALSE;
-			if (!angel_data_read_int32(&acon->in, &acon->parse.missing_fds, err)) return FALSE;
+			if (!li_angel_data_read_int32(&acon->in, &magic, err)) return FALSE;
+			if (!li_angel_data_read_int32(&acon->in, &acon->parse.type, err)) return FALSE;
+			if (!li_angel_data_read_int32(&acon->in, &acon->parse.id, err)) return FALSE;
+			if (!li_angel_data_read_int32(&acon->in, &acon->parse.mod_len, err)) return FALSE;
+			if (!li_angel_data_read_int32(&acon->in, &acon->parse.action_len, err)) return FALSE;
+			if (!li_angel_data_read_int32(&acon->in, &acon->parse.error_len, err)) return FALSE;
+			if (!li_angel_data_read_int32(&acon->in, &acon->parse.data_len, err)) return FALSE;
+			if (!li_angel_data_read_int32(&acon->in, &acon->parse.missing_fds, err)) return FALSE;
 
 			if (ANGEL_MAGIC != magic) {
 				g_set_error(err, LI_ANGEL_CONNECTION_ERROR, LI_ANGEL_CONNECTION_INVALID_DATA,
@@ -253,7 +253,7 @@ static gboolean angel_connection_read(liAngelConnection *acon, GError **err) {
 		if (acon->in.data->len - acon->in.pos < acon->parse.body_size) return TRUE; /* need more data */
 		while (acon->parse.missing_fds > 0) {
 			int fd = -1;
-			switch (receive_fd(acon->fd, &fd)) {
+			switch (li_receive_fd(acon->fd, &fd)) {
 			case 0:
 				g_array_append_val(acon->parse.fds, fd);
 				acon->parse.missing_fds--;
@@ -269,10 +269,10 @@ static gboolean angel_connection_read(liAngelConnection *acon, GError **err) {
 		}
 
 		acon->parse.have_header = FALSE;
-		if (!angel_data_read_mem(&acon->in, &acon->parse.mod, acon->parse.mod_len, err)) return FALSE;
-		if (!angel_data_read_mem(&acon->in, &acon->parse.action, acon->parse.action_len, err)) return FALSE;
-		if (!angel_data_read_mem(&acon->in, &acon->parse.error, acon->parse.error_len, err)) return FALSE;
-		if (!angel_data_read_mem(&acon->in, &acon->parse.data, acon->parse.data_len, err)) return FALSE;
+		if (!li_angel_data_read_mem(&acon->in, &acon->parse.mod, acon->parse.mod_len, err)) return FALSE;
+		if (!li_angel_data_read_mem(&acon->in, &acon->parse.action, acon->parse.action_len, err)) return FALSE;
+		if (!li_angel_data_read_mem(&acon->in, &acon->parse.error, acon->parse.error_len, err)) return FALSE;
+		if (!li_angel_data_read_mem(&acon->in, &acon->parse.data, acon->parse.data_len, err)) return FALSE;
 
 		if (!angel_dispatch(acon, err)) return FALSE;
 
@@ -331,7 +331,7 @@ static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) 
 
 			case ANGEL_CONNECTION_ITEM_FDS:
 				while (send_item->value.fds.pos < send_item->value.fds.fds->len) {
-					switch (send_fd(w->fd, g_array_index(send_item->value.fds.fds, int, send_item->value.fds.pos))) {
+					switch (li_send_fd(w->fd, g_array_index(send_item->value.fds.fds, int, send_item->value.fds.pos))) {
 					case  0:
 						send_item->value.fds.pos++;
 						continue;
@@ -360,7 +360,7 @@ write_eagain:
 		out_queue_empty = (0 == acon->out->length);
 		g_mutex_unlock(acon->mutex);
 
-		if (out_queue_empty) ev_io_rem_events(loop, w, EV_WRITE);
+		if (out_queue_empty) li_ev_io_rem_events(loop, w, EV_WRITE);
 	}
 
 	if (revents | EV_READ) {
@@ -376,11 +376,11 @@ write_eagain:
 static void angel_connection_out_notify_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	liAngelConnection *acon = (liAngelConnection*) w->data;
 	UNUSED(revents);
-	ev_io_add_events(loop, &acon->fd_watcher, EV_WRITE);
+	li_ev_io_add_events(loop, &acon->fd_watcher, EV_WRITE);
 }
 
 /* create connection */
-liAngelConnection* angel_connection_new(struct ev_loop *loop, int fd, gpointer data,
+liAngelConnection* li_angel_connection_new(struct ev_loop *loop, int fd, gpointer data,
                                           liAngelReceiveCallCB recv_call, liAngelCloseCB close_cb) {
 	liAngelConnection *acon = g_slice_new0(liAngelConnection);
 
@@ -388,7 +388,7 @@ liAngelConnection* angel_connection_new(struct ev_loop *loop, int fd, gpointer d
 	acon->mutex = g_mutex_new();
 	acon->loop = loop;
 	acon->fd = fd;
-	acon->call_id_list = idlist_new(65535);
+	acon->call_id_list = li_idlist_new(65535);
 	acon->call_table = g_ptr_array_new();
 	ev_io_init(&acon->fd_watcher, angel_connection_io_cb, fd, EV_READ);
 	ev_io_start(acon->loop, &acon->fd_watcher);
@@ -412,11 +412,11 @@ liAngelConnection* angel_connection_new(struct ev_loop *loop, int fd, gpointer d
 	return acon;
 }
 
-void angel_connection_free(liAngelConnection *acon) {
+void li_angel_connection_free(liAngelConnection *acon) {
 	angel_connection_send_item_t *send_item;
 	guint i;
 
-	g_printerr("angel_connection_free\n");
+	g_printerr("li_angel_connection_free\n");
 
 	if (!acon) return;
 
@@ -445,7 +445,7 @@ void angel_connection_free(liAngelConnection *acon) {
 	ev_io_stop(acon->loop, &acon->fd_watcher);
 	ev_async_stop(acon->loop, &acon->out_notify_watcher);
 
-	idlist_free(acon->call_id_list);
+	li_idlist_free(acon->call_id_list);
 	while (NULL != (send_item = g_queue_pop_head(acon->out))) {
 		send_queue_item_free(send_item);
 	}
@@ -474,7 +474,7 @@ static void angel_call_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents
 	if (cb) cb(call, ctx, TRUE, NULL, NULL, NULL);
 }
 
-liAngelCall *angel_call_new(liAngelCallCB callback, ev_tstamp timeout) {
+liAngelCall *li_angel_call_new(liAngelCallCB callback, ev_tstamp timeout) {
 	liAngelCall* call = g_slice_new0(liAngelCall);
 
 	g_assert(NULL != callback);
@@ -487,7 +487,7 @@ liAngelCall *angel_call_new(liAngelCallCB callback, ev_tstamp timeout) {
 }
 
 /* returns TRUE if a call was cancelled */
-gboolean angel_call_free(liAngelCall *call) {
+gboolean li_angel_call_free(liAngelCall *call) {
 	gboolean r = FALSE;
 
 	if (call->acon) {
@@ -517,19 +517,19 @@ static gboolean prepare_call_header(GString **pbuf,
 
 	g_printerr("Prepare call with id: %i\n", id);
 
-	if (!angel_data_write_int32(buf, ANGEL_MAGIC, err)) return FALSE;
-	if (!angel_data_write_int32(buf, type, err)) return FALSE;
-	if (!angel_data_write_int32(buf, id, err)) return FALSE;
+	if (!li_angel_data_write_int32(buf, ANGEL_MAGIC, err)) return FALSE;
+	if (!li_angel_data_write_int32(buf, type, err)) return FALSE;
+	if (!li_angel_data_write_int32(buf, id, err)) return FALSE;
 	if (type != ANGEL_CALL_SEND_RESULT) {
-		if (!angel_data_write_int32(buf, mod_len, err)) return FALSE;
-		if (!angel_data_write_int32(buf, action_len, err)) return FALSE;
+		if (!li_angel_data_write_int32(buf, mod_len, err)) return FALSE;
+		if (!li_angel_data_write_int32(buf, action_len, err)) return FALSE;
 	} else {
-		if (!angel_data_write_int32(buf, 0, err)) return FALSE;
-		if (!angel_data_write_int32(buf, 0, err)) return FALSE;
+		if (!li_angel_data_write_int32(buf, 0, err)) return FALSE;
+		if (!li_angel_data_write_int32(buf, 0, err)) return FALSE;
 	}
-	if (!angel_data_write_int32(buf, error_len, err)) return FALSE;
-	if (!angel_data_write_int32(buf, data_len, err)) return FALSE;
-	if (!angel_data_write_int32(buf, fd_count, err)) return FALSE;
+	if (!li_angel_data_write_int32(buf, error_len, err)) return FALSE;
+	if (!li_angel_data_write_int32(buf, data_len, err)) return FALSE;
+	if (!li_angel_data_write_int32(buf, fd_count, err)) return FALSE;
 
 	if (type != ANGEL_CALL_SEND_RESULT) {
 		g_string_append_len(buf, mod, mod_len);
@@ -539,7 +539,7 @@ static gboolean prepare_call_header(GString **pbuf,
 	return TRUE;
 }
 
-gboolean angel_send_simple_call(
+gboolean li_angel_send_simple_call(
 		liAngelConnection *acon,
 		const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 		GString *data,
@@ -578,7 +578,7 @@ error:
 	return FALSE;
 }
 
-gboolean angel_send_call(
+gboolean li_angel_send_call(
 		liAngelConnection *acon,
 		const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 		liAngelCall *call,
@@ -601,7 +601,7 @@ gboolean angel_send_call(
 			goto error_before_new_id;
 		}
 
-		if (-1 == (call->id = idlist_get(acon->call_id_list))) {
+		if (-1 == (call->id = li_idlist_get(acon->call_id_list))) {
 			g_mutex_unlock(acon->mutex);
 			g_set_error(err, LI_ANGEL_CALL_ERROR, LI_ANGEL_CALL_OUT_OF_CALL_IDS, "out of call ids");
 			goto error;
@@ -636,7 +636,7 @@ gboolean angel_send_call(
 
 error:
 	if (-1 != call->id) {
-		idlist_put(acon->call_id_list, call->id);
+		li_idlist_put(acon->call_id_list, call->id);
 		call->id = -1;
 		call->acon = NULL;
 	}
@@ -646,7 +646,7 @@ error_before_new_id:
 	return FALSE;
 }
 
-gboolean angel_send_result(
+gboolean li_angel_send_result(
 		liAngelConnection *acon,
 		gint32 id,
 		GString *error, GString *data, GArray *fds,
@@ -692,7 +692,7 @@ error:
 }
 
 /* free temporary needed memroy; call this once in while after some activity */
-void angel_cleanup_tables(liAngelConnection *acon) {
+void li_angel_cleanup_tables(liAngelConnection *acon) {
 	UNUSED(acon);
 	/* TODO
 	guint max_used_id = idlist_cleanup(acon->call_id_list);

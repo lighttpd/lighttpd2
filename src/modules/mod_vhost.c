@@ -222,7 +222,7 @@ static liAction* vhost_simple_create(liServer *srv, liPlugin* p, liValue *val) {
 			return NULL;
 		}
 
-		*setting = value_extract(v).string;
+		*setting = li_value_extract(v).string;
 	}
 
 	if (!sd->server_root || !sd->docroot || !sd->default_vhost) {
@@ -238,7 +238,7 @@ static liAction* vhost_simple_create(liServer *srv, liPlugin* p, liValue *val) {
 	if (sd->docroot->len == 0 || sd->docroot->str[0] != G_DIR_SEPARATOR)
 		g_string_prepend_c(sd->docroot, G_DIR_SEPARATOR);
 
-	return action_new_function(vhost_simple, NULL, vhost_simple_free, sd);
+	return li_action_new_function(vhost_simple, NULL, vhost_simple_free, sd);
 }
 
 static liHandlerResult vhost_map(liVRequest *vr, gpointer param, gpointer *context) {
@@ -253,11 +253,11 @@ static liHandlerResult vhost_map(liVRequest *vr, gpointer param, gpointer *conte
 	if (v) {
 		if (debug)
 			VR_DEBUG(vr, "vhost_map: host %s found in hashtable", vr->request.uri.host->str);
-		action_enter(vr, v->data.val_action.action);
+		li_action_enter(vr, v->data.val_action.action);
 	} else if (md->default_action) {
 		if (debug)
 			VR_DEBUG(vr, "vhost_map: host %s not found in hashtable, executing default action", vr->request.uri.host->str);
-		action_enter(vr, md->default_action->data.val_action.action);
+		li_action_enter(vr, md->default_action->data.val_action.action);
 	} else {
 		if (debug)
 			VR_DEBUG(vr, "vhost_map: neither host %s found in hashtable nor default action specified, doing nothing", vr->request.uri.host->str);
@@ -289,7 +289,7 @@ static liAction* vhost_map_create(liServer *srv, liPlugin* p, liValue *val) {
 
 	md = g_slice_new0(vhost_map_data);
 	md->plugin = p;
-	md->hash = value_extract(val).hash;
+	md->hash = li_value_extract(val).hash;
 	str = g_string_new_len(CONST_STR_LEN("default"));
 	md->default_action = g_hash_table_lookup(md->hash, str);
 	g_string_free(str, TRUE);
@@ -300,15 +300,15 @@ static liAction* vhost_map_create(liServer *srv, liPlugin* p, liValue *val) {
 		val = v;
 
 		if (val->type != LI_VALUE_ACTION) {
-			ERROR(srv, "vhost.map expects a hashtable with action values as parameter, %s value given", value_type_string(val->type));
+			ERROR(srv, "vhost.map expects a hashtable with action values as parameter, %s value given", li_value_type_string(val->type));
 			vhost_map_free(srv, md);
 			return NULL;
 		}
 
-		action_acquire(val->data.val_action.action);
+		li_action_acquire(val->data.val_action.action);
 	}
 
-	return action_new_function(vhost_map, NULL, vhost_map_free, md);
+	return li_action_new_function(vhost_map, NULL, vhost_map_free, md);
 }
 
 static liHandlerResult vhost_pattern(liVRequest *vr, gpointer param, gpointer *context) {
@@ -418,7 +418,7 @@ static liAction* vhost_pattern_create(liServer *srv, liPlugin* p, liValue *val) 
 		return NULL;
 	}
 
-	str = value_extract(val).string;
+	str = li_value_extract(val).string;
 
 	pd = g_slice_new0(vhost_pattern_data);
 	pd->parts = g_array_sized_new(FALSE, TRUE, sizeof(vhost_pattern_part), 6);
@@ -501,7 +501,7 @@ static liAction* vhost_pattern_create(liServer *srv, liPlugin* p, liValue *val) 
 		g_array_append_val(pd->parts, part);
 	}
 
-	return action_new_function(vhost_pattern, NULL, vhost_pattern_free, pd);
+	return li_action_new_function(vhost_pattern, NULL, vhost_pattern_free, pd);
 }
 
 
@@ -538,14 +538,14 @@ gboolean mod_vhost_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(mods->main, "mod_vhost", plugin_vhost_init);
+	mod->config = li_plugin_register(mods->main, "mod_vhost", plugin_vhost_init);
 
 	return mod->config != NULL;
 }
 
 gboolean mod_vhost_free(liModules *mods, liModule *mod) {
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }

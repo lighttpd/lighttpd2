@@ -32,7 +32,7 @@
 	write data;
 }%%
 
-gboolean parse_ipv4(const char *str, guint32 *ip, guint32 *netmask, guint16 *port) {
+gboolean li_parse_ipv4(const char *str, guint32 *ip, guint32 *netmask, guint16 *port) {
 	guint8 *data = (guint8*) ip;
 	const char *p = str;
 	gboolean res = TRUE;
@@ -108,7 +108,7 @@ gboolean parse_ipv4(const char *str, guint32 *ip, guint32 *netmask, guint16 *por
 	write data;
 }%%
 
-gboolean parse_ipv6(const char *str, guint8 *ip, guint *network, guint16 *port) {
+gboolean li_parse_ipv6(const char *str, guint8 *ip, guint *network, guint16 *port) {
 	guint8 data[4] = {0,0,0,0};
 	guint16 *predata = (guint16*) ip, postdata[8];
 	size_t prec = 0, postc = 0;
@@ -132,7 +132,7 @@ gboolean parse_ipv6(const char *str, guint8 *ip, guint *network, guint16 *port) 
 	return TRUE;
 }
 
-GString* ipv6_tostring(GString *dest, const guint8 ip[16]) {
+GString* li_ipv6_tostring(GString *dest, const guint8 ip[16]) {
 #define IPV6_TEMPLATE "ffff:ffff:ffff:ffff:ffff:ffff:abc.def.ghi.jkl"
 	guint16 *data = (guint16*) ip;
 	size_t i;

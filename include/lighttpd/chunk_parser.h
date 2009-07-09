@@ -25,14 +25,14 @@ struct liChunkParserMark {
 	off_t pos;
 };
 
-LI_API void chunk_parser_init(liChunkParserCtx *ctx, liChunkQueue *cq);
-LI_API void chunk_parser_reset(liChunkParserCtx *ctx);
-LI_API liHandlerResult chunk_parser_prepare(liChunkParserCtx *ctx);
-LI_API liHandlerResult chunk_parser_next(liVRequest *vr, liChunkParserCtx *ctx, char **p, char **pe);
-LI_API void chunk_parser_done(liChunkParserCtx *ctx, goffset len);
+LI_API void li_chunk_parser_init(liChunkParserCtx *ctx, liChunkQueue *cq);
+LI_API void li_chunk_parser_reset(liChunkParserCtx *ctx);
+LI_API liHandlerResult li_chunk_parser_prepare(liChunkParserCtx *ctx);
+LI_API liHandlerResult li_chunk_parser_next(liVRequest *vr, liChunkParserCtx *ctx, char **p, char **pe);
+LI_API void li_chunk_parser_done(liChunkParserCtx *ctx, goffset len);
 
-LI_API gboolean chunk_extract_to(liVRequest *vr, liChunkParserMark from, liChunkParserMark to, GString *dest);
-LI_API GString* chunk_extract(liVRequest *vr, liChunkParserMark from, liChunkParserMark to);
+LI_API gboolean li_chunk_extract_to(liVRequest *vr, liChunkParserMark from, liChunkParserMark to, GString *dest);
+LI_API GString* li_chunk_extract(liVRequest *vr, liChunkParserMark from, liChunkParserMark to);
 
 INLINE liChunkParserMark chunk_parser_getmark(liChunkParserCtx *ctx, const char *fpc);
 

@@ -104,44 +104,44 @@ struct liVRequest {
 		} \
 	} while (0)
 
-LI_API liVRequest* vrequest_new(liConnection *con, liVRequestHandlerCB handle_response_headers, liVRequestHandlerCB handle_response_body, liVRequestHandlerCB handle_response_error, liVRequestHandlerCB handle_request_headers);
-LI_API void vrequest_free(liVRequest *vr);
-LI_API void vrequest_reset(liVRequest *vr);
+LI_API liVRequest* li_vrequest_new(liConnection *con, liVRequestHandlerCB handle_response_headers, liVRequestHandlerCB handle_response_body, liVRequestHandlerCB handle_response_error, liVRequestHandlerCB handle_request_headers);
+LI_API void li_vrequest_free(liVRequest *vr);
+LI_API void li_vrequest_reset(liVRequest *vr);
 
-LI_API liVRequestRef* vrequest_acquire_ref(liVRequest *vr);
-LI_API liVRequest* vrequest_release_ref(liVRequestRef *vr_ref);
+LI_API liVRequestRef* li_vrequest_acquire_ref(liVRequest *vr);
+LI_API liVRequest* li_vrequest_release_ref(liVRequestRef *vr_ref);
 
-LI_API void vrequest_add_filter_in(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
-LI_API void vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
+LI_API void li_vrequest_add_filter_in(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
+LI_API void li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
 
 /* Signals an internal error; handles the error in the _next_ loop */
-LI_API void vrequest_error(liVRequest *vr);
+LI_API void li_vrequest_error(liVRequest *vr);
 
-LI_API void vrequest_backend_overloaded(liVRequest *vr);
-LI_API void vrequest_backend_dead(liVRequest *vr);
-LI_API void vrequest_backend_error(liVRequest *vr, liBackendError berror);
+LI_API void li_vrequest_backend_overloaded(liVRequest *vr);
+LI_API void li_vrequest_backend_dead(liVRequest *vr);
+LI_API void li_vrequest_backend_error(liVRequest *vr, liBackendError berror);
 
 /* received all request headers */
-LI_API void vrequest_handle_request_headers(liVRequest *vr);
+LI_API void li_vrequest_handle_request_headers(liVRequest *vr);
 /* received (partial) request content */
-LI_API void vrequest_handle_request_body(liVRequest *vr);
+LI_API void li_vrequest_handle_request_body(liVRequest *vr);
 /* received all response headers/status code - call once from your indirect handler */
-LI_API void vrequest_handle_response_headers(liVRequest *vr);
+LI_API void li_vrequest_handle_response_headers(liVRequest *vr);
 /* received (partial) response content - call from your indirect handler */
-LI_API void vrequest_handle_response_body(liVRequest *vr);
+LI_API void li_vrequest_handle_response_body(liVRequest *vr);
 
 /* response completely ready */
-LI_API gboolean vrequest_handle_direct(liVRequest *vr);
+LI_API gboolean li_vrequest_handle_direct(liVRequest *vr);
 /* handle request over time */
-LI_API gboolean vrequest_handle_indirect(liVRequest *vr, liPlugin *p);
-LI_API gboolean vrequest_is_handled(liVRequest *vr);
+LI_API gboolean li_vrequest_handle_indirect(liVRequest *vr, liPlugin *p);
+LI_API gboolean li_vrequest_is_handled(liVRequest *vr);
 
-LI_API void vrequest_state_machine(liVRequest *vr);
-LI_API void vrequest_joblist_append(liVRequest *vr);
-LI_API void vrequest_joblist_append_async(liVRequest *vr);
+LI_API void li_vrequest_state_machine(liVRequest *vr);
+LI_API void li_vrequest_joblist_append(liVRequest *vr);
+LI_API void li_vrequest_joblist_append_async(liVRequest *vr);
 
-LI_API gboolean vrequest_stat(liVRequest *vr);
+LI_API gboolean li_vrequest_stat(liVRequest *vr);
 
-LI_API gboolean vrequest_redirect(liVRequest *vr, GString *uri);
+LI_API gboolean li_vrequest_redirect(liVRequest *vr, GString *uri);
 
 #endif

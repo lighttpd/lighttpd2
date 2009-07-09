@@ -24,7 +24,7 @@ static int lua_action_gc(lua_State *L) {
 	if (!a || !*a) return 0;
 
 	srv = (liServer*) lua_touserdata(L, lua_upvalueindex(1));
-	action_release(srv, *a);
+	li_action_release(srv, *a);
 	return 0;
 }
 

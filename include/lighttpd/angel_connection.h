@@ -59,11 +59,11 @@ struct liAngelCall {
 };
 
 /* error handling */
-#define LI_ANGEL_CALL_ERROR angel_call_error_quark()
-LI_API GQuark angel_call_error_quark();
+#define LI_ANGEL_CALL_ERROR li_angel_call_error_quark()
+LI_API GQuark li_angel_call_error_quark();
 
-#define LI_ANGEL_CONNECTION_ERROR angel_connection_error_quark()
-LI_API GQuark angel_connection_error_quark();
+#define LI_ANGEL_CONNECTION_ERROR li_angel_connection_error_quark()
+LI_API GQuark li_angel_connection_error_quark();
 
 typedef enum {
 	LI_ANGEL_CALL_ALREADY_RUNNING,              /* the angel_call struct is already in use for a call */
@@ -77,39 +77,39 @@ typedef enum {
 } liAngelConnectionError;
 
 /* create connection */
-LI_API liAngelConnection* angel_connection_new(
+LI_API liAngelConnection* li_angel_connection_new(
 	struct ev_loop *loop, int fd, gpointer data,
 	liAngelReceiveCallCB recv_call, liAngelCloseCB close_cb);
-LI_API void angel_connection_free(liAngelConnection *acon);
+LI_API void li_angel_connection_free(liAngelConnection *acon);
 
 
-LI_API liAngelCall *angel_call_new(liAngelCallCB callback, ev_tstamp timeout);
+LI_API liAngelCall *li_angel_call_new(liAngelCallCB callback, ev_tstamp timeout);
 /* returns TRUE if a call was cancelled; make sure you don't call free while you're calling send_call */
-LI_API gboolean angel_call_free(liAngelCall *call);
+LI_API gboolean li_angel_call_free(liAngelCall *call);
 
 /* calls */
 /* the GString* parameters get stolen by the angel call (moved to chunkqueue) */
-LI_API gboolean angel_send_simple_call(
+LI_API gboolean li_angel_send_simple_call(
 	liAngelConnection *acon,
 	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 	GString *data,
 	GError **err);
 
-LI_API gboolean angel_send_call(
+LI_API gboolean li_angel_send_call(
 	liAngelConnection *acon,
 	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 	liAngelCall *call,
 	GString *data,
 	GError **err);
 
-LI_API gboolean angel_send_result(
+LI_API gboolean li_angel_send_result(
 	liAngelConnection *acon,
 	gint32 id,
 	GString *error, GString *data, GArray *fds,
 	GError **err);
 
 /* free temporary needed memroy; call this once in while after some activity */
-LI_API void angel_cleanup_tables(liAngelConnection *acon);
+LI_API void li_angel_cleanup_tables(liAngelConnection *acon);
 
 /* Usage */
 #if 0
@@ -131,7 +131,7 @@ gboolean start_call(curctx) {
 		return TRUE;
 	}
 	data = build_call_data();
-	if (!angel_send_call(acon, CONST_STR_LEN("mymod"), CONST_STR_LEN("myaction"), &ctx->call, 10, data, &err)) {
+	if (!li_angel_send_call(acon, CONST_STR_LEN("mymod"), CONST_STR_LEN("myaction"), &ctx->call, 10, data, &err)) {
 		unlock();
 		report_error(&err);
 		return FALSE;

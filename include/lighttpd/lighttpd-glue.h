@@ -6,15 +6,15 @@
 #endif
 
 /* returns the description for a given http status code and sets the len to the length of the returned string */
-LI_API gchar *http_status_string(guint status_code, guint *len);
+LI_API gchar *li_http_status_string(guint status_code, guint *len);
 /* returns the http method as a string and sets len to the length of the returned string */
-LI_API gchar *http_method_string(liHttpMethod method, guint *len);
+LI_API gchar *li_http_method_string(liHttpMethod method, guint *len);
 /* returns the http version as a string and sets len to the length of the returned string */
-LI_API gchar *http_version_string(liHttpVersion method, guint *len);
+LI_API gchar *li_http_version_string(liHttpVersion method, guint *len);
 /* converts a given 3 digit http status code to a gchar[3] string. e.g. 403 to {'4','0','3'} */
-LI_API void http_status_to_str(gint status_code, gchar status_str[]);
+LI_API void li_http_status_to_str(gint status_code, gchar status_str[]);
 
 /* looks up the mimetype for a filename by comparing suffixes. first match is returned. do not free the result */
-LI_API GString *mimetype_get(liVRequest *vr, GString *filename);
+LI_API GString *li_mimetype_get(liVRequest *vr, GString *filename);
 
 #endif

@@ -95,17 +95,17 @@ static gboolean collect_insert_func(liWorker *ctx, liCollectInfo *ci) {
 	return FALSE;
 }
 
-liCollectInfo* collect_start(liWorker *ctx, liCollectFuncCB func, gpointer fdata, liCollectCB cb, gpointer cbdata) {
+liCollectInfo* li_collect_start(liWorker *ctx, liCollectFuncCB func, gpointer fdata, liCollectCB cb, gpointer cbdata) {
 	liCollectInfo *ci = collect_info_new(ctx, func, fdata, cb, cbdata);
 	if (collect_insert_func(ctx, ci)) return NULL; /* collect info is invalid now */
 	return ci;
 }
 
-void collect_break(liCollectInfo* ci) {
+void li_collect_break(liCollectInfo* ci) {
 	ci->stopped = TRUE;
 }
 
-void collect_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
+void li_collect_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	liWorker *wrk = (liWorker*) w->data;
 	collect_job *j;
 	UNUSED(loop);

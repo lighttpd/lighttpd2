@@ -27,19 +27,19 @@ struct liRadixTree32 {
 };
 
 
-LI_API liRadixTree32 *radixtree32_new(guint32 root_width);
-LI_API guint32 radixtree32_free(liRadixTree32 *tree);
+LI_API liRadixTree32 *li_radixtree32_new(guint32 root_width);
+LI_API guint32 li_radixtree32_free(liRadixTree32 *tree);
 
-LI_API void radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpointer data);
-LI_API gboolean radixtree32_remove(liRadixTree32 *tree, guint32 key, guint32 mask);
+LI_API void li_radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpointer data);
+LI_API gboolean li_radixtree32_remove(liRadixTree32 *tree, guint32 key, guint32 mask);
 
 /* lookup tree node (best match) */
-LI_API liRadixNode32 *radixtree32_lookup_node(liRadixTree32 *tree, guint32 key);
+LI_API liRadixNode32 *li_radixtree32_lookup_node(liRadixTree32 *tree, guint32 key);
 
 /* lookup data pointer (best match) */
-LI_API gpointer radixtree32_lookup(liRadixTree32 *tree, guint32 key);
+LI_API gpointer li_radixtree32_lookup(liRadixTree32 *tree, guint32 key);
 /* lookup data pointer (exact match) */
-LI_API gpointer radixtree32_lookup_exact(liRadixTree32 *tree, guint32 key);
+LI_API gpointer li_radixtree32_lookup_exact(liRadixTree32 *tree, guint32 key);
 
 /*
 typedef struct liRadixNode128 liRadixNode128;
@@ -61,10 +61,10 @@ struct liRadixTree128 {
 }
 
 LI_api liRadixTree128 *radixtree128_new(guint32 root_width);
-LI_API guint radixtree128_free(liRadixTree128 *tree);
+LI_API guint li_radixtree128_free(liRadixTree128 *tree);
 
-LI_API void radixtree128_insert(liRadixTree128 *tree, guint32 *key, guint32 *mask, gpointer data);
-LI_API gboolean radixtree128_remove(liRadixTree128 *tree, guint32 *key, guint32 *mask);
-LI_API gpointer radixtree128_lookup(liRadixTree128 *tree, guint32 *key);
+LI_API void li_radixtree128_insert(liRadixTree128 *tree, guint32 *key, guint32 *mask, gpointer data);
+LI_API gboolean li_radixtree128_remove(liRadixTree128 *tree, guint32 *key, guint32 *mask);
+LI_API gpointer li_radixtree128_lookup(liRadixTree128 *tree, guint32 *key);
 */
 #endif

@@ -43,7 +43,7 @@ static void chunkfile_release(liChunkFile *cf) {
 /* open the file cf->name if it is not already opened for reading
  * may return HANDLER_GO_ON, HANDLER_ERROR
  */
-liHandlerResult chunkfile_open(liVRequest *vr, liChunkFile *cf) {
+liHandlerResult li_chunkfile_open(liVRequest *vr, liChunkFile *cf) {
 	if (!cf) return LI_HANDLER_ERROR;
 	if (-1 != cf->fd) return LI_HANDLER_GO_ON;
 	if (!cf->name) {
@@ -52,7 +52,7 @@ liHandlerResult chunkfile_open(liVRequest *vr, liChunkFile *cf) {
 	}
 	if (-1 == (cf->fd = open(cf->name->str, O_RDONLY))) {
 		if (EMFILE == errno) {
-			server_out_of_fds(vr->wrk->srv);
+			li_server_out_of_fds(vr->wrk->srv);
 		}
 		VR_ERROR(vr, "Couldn't open file '%s': %s", GSTR_SAFE_STR(cf->name), g_strerror(errno));
 		return LI_HANDLER_ERROR;
@@ -83,7 +83,7 @@ liHandlerResult chunkfile_open(liVRequest *vr, liChunkFile *cf) {
  * but needs to do io in case of FILE_CHUNK; the data is _not_ marked as "done"
  * may return HANDLER_GO_ON, HANDLER_ERROR
  */
-liHandlerResult chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
+liHandlerResult li_chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
 	liChunk *c = chunkiter_chunk(iter);
 	off_t we_have, our_start;
 	liHandlerResult res = LI_HANDLER_GO_ON;
@@ -106,7 +106,7 @@ liHandlerResult chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start, of
 		*data_len = length;
 		break;
 	case FILE_CHUNK:
-		if (LI_HANDLER_GO_ON != (res = chunkfile_open(vr, c->file.file))) return res;
+		if (LI_HANDLER_GO_ON != (res = li_chunkfile_open(vr, c->file.file))) return res;
 
 		if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
 
@@ -155,10 +155,10 @@ read_chunk:
 	return LI_HANDLER_GO_ON;
 }
 
-/* same as chunkiter_read, but tries mmap() first and falls back to read();
+/* same as li_chunkiter_read, but tries mmap() first and falls back to read();
  * as accessing mmap()-ed areas may result in SIGBUS, you have to handle that signal somehow.
  */
-liHandlerResult chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
+liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
 	liChunk *c = chunkiter_chunk(iter);
 	off_t we_want, we_have, our_start, our_offset;
 	liHandlerResult res = LI_HANDLER_GO_ON;
@@ -182,7 +182,7 @@ liHandlerResult chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t star
 		*data_len = length;
 		break;
 	case FILE_CHUNK:
-		if (LI_HANDLER_GO_ON != (res = chunkfile_open(vr, c->file.file))) return res;
+		if (LI_HANDLER_GO_ON != (res = li_chunkfile_open(vr, c->file.file))) return res;
 
 		if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
 
@@ -327,7 +327,7 @@ static void chunk_free(liChunk *c) {
 /******************
  *    cqlimit     *
  ******************/
-liCQLimit* cqlimit_new(liVRequest *vr) {
+liCQLimit* li_cqlimit_new(liVRequest *vr) {
 	liCQLimit *cql = g_slice_new0(liCQLimit);
 	cql->refcount = 1;
 	cql->vr = vr;
@@ -335,7 +335,7 @@ liCQLimit* cqlimit_new(liVRequest *vr) {
 	return cql;
 }
 
-void cqlimit_reset(liCQLimit *cql) {
+void li_cqlimit_reset(liCQLimit *cql) {
 	assert(cql->current == 0);
 	assert(cql->io_watcher == NULL);
 	assert(cql->notify == NULL);
@@ -345,12 +345,12 @@ void cqlimit_reset(liCQLimit *cql) {
 	cql->notify = NULL;
 }
 
-void cqlimit_acquire(liCQLimit *cql) {
+void li_cqlimit_acquire(liCQLimit *cql) {
 	assert(g_atomic_int_get(&cql->refcount) > 0);
 	g_atomic_int_inc(&cql->refcount);
 }
 
-void cqlimit_release(liCQLimit *cql) {
+void li_cqlimit_release(liCQLimit *cql) {
 	if (!cql) return;
 	assert(g_atomic_int_get(&cql->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&cql->refcount)) {
@@ -361,7 +361,7 @@ void cqlimit_release(liCQLimit *cql) {
 static void cqlimit_lock(liCQLimit *cql) {
 	cql->locked = TRUE;
 	if (cql->io_watcher && cql->io_watcher->fd != -1) {
-		ev_io_rem_events(cql->vr->wrk->loop, cql->io_watcher, EV_READ);
+		li_ev_io_rem_events(cql->vr->wrk->loop, cql->io_watcher, EV_READ);
 	}
 	if (cql->notify) {
 		cql->notify(cql->vr, cql->context, cql->locked);
@@ -371,7 +371,7 @@ static void cqlimit_lock(liCQLimit *cql) {
 static void cqlimit_unlock(liCQLimit *cql) {
 	cql->locked = FALSE;
 	if (cql->io_watcher && cql->io_watcher->fd != -1) {
-		ev_io_add_events(cql->vr->wrk->loop, cql->io_watcher, EV_READ);
+		li_ev_io_add_events(cql->vr->wrk->loop, cql->io_watcher, EV_READ);
 	}
 	if (cql->notify) {
 		cql->notify(cql->vr, cql->context, cql->locked);
@@ -402,7 +402,7 @@ static void cqlimit_update(liChunkQueue *cq, goffset d) {
 	}
 }
 
-void cqlimit_set_limit(liCQLimit *cql, goffset limit) {
+void li_cqlimit_set_limit(liCQLimit *cql, goffset limit) {
 	if (!cql) return;
 
 	cql->limit = limit;
@@ -422,7 +422,7 @@ void cqlimit_set_limit(liCQLimit *cql, goffset limit) {
  *   chunkqueue   *
  ******************/
 
-liChunkQueue* chunkqueue_new() {
+liChunkQueue* li_chunkqueue_new() {
 	liChunkQueue *cq = g_slice_new0(liChunkQueue);
 	cq->queue = g_queue_new();
 	return cq;
@@ -436,7 +436,7 @@ static void __chunk_free(gpointer _c, gpointer userdata) {
 	chunk_free(c);
 }
 
-void chunkqueue_reset(liChunkQueue *cq) {
+void li_chunkqueue_reset(liChunkQueue *cq) {
 	if (!cq) return;
 	cq->is_closed = FALSE;
 	cq->bytes_in = cq->bytes_out = cq->length = 0;
@@ -446,35 +446,35 @@ void chunkqueue_reset(liChunkQueue *cq) {
 	g_queue_clear(cq->queue);
 }
 
-void chunkqueue_free(liChunkQueue *cq) {
+void li_chunkqueue_free(liChunkQueue *cq) {
 	if (!cq) return;
 	g_queue_foreach(cq->queue, __chunk_free, cq);
 	g_queue_free(cq->queue);
 	cq->queue = NULL;
-	cqlimit_release(cq->limit);
+	li_cqlimit_release(cq->limit);
 	cq->limit = NULL;
 	assert(cq->mem_usage == 0);
 	cq->mem_usage = 0;
 	g_slice_free(liChunkQueue, cq);
 }
 
-void chunkqueue_use_limit(liChunkQueue *cq, liVRequest *vr) {
+void li_chunkqueue_use_limit(liChunkQueue *cq, liVRequest *vr) {
 	if (cq->limit) return;
-	cq->limit = cqlimit_new(vr);
+	cq->limit = li_cqlimit_new(vr);
 }
 
-void chunkqueue_set_limit(liChunkQueue *cq, liCQLimit* cql) {
+void li_chunkqueue_set_limit(liChunkQueue *cq, liCQLimit* cql) {
 	gboolean upd_limit = (cql != cq->limit);
 	goffset memusage = cq->mem_usage;
-	if (cql) cqlimit_acquire(cql);
+	if (cql) li_cqlimit_acquire(cql);
 	if (upd_limit) cqlimit_update(cq, -memusage);
-	cqlimit_release(cq->limit);
+	li_cqlimit_release(cq->limit);
 	cq->limit = cql;
 	if (upd_limit) cqlimit_update(cq, memusage);
 }
 
 /* return -1 for unlimited, 0 for full and n > 0 for n bytes free */
-goffset chunkqueue_limit_available(liChunkQueue *cq) {
+goffset li_chunkqueue_limit_available(liChunkQueue *cq) {
 	liCQLimit *cql = cq->limit;
 	goffset avail;
 	if (!cql) return -1;
@@ -488,7 +488,7 @@ goffset chunkqueue_limit_available(liChunkQueue *cq) {
   * you may modify the data (not the length) if you are sure it isn't sent before.
   * if the length is NULL, str is destroyed immediately
   */
-void chunkqueue_append_string(liChunkQueue *cq, GString *str) {
+void li_chunkqueue_append_string(liChunkQueue *cq, GString *str) {
 	liChunk *c;
 	if (!str->len) {
 		g_string_free(str, TRUE);
@@ -507,7 +507,7 @@ void chunkqueue_append_string(liChunkQueue *cq, GString *str) {
   * you may modify the data (not the length) if you are sure it isn't sent before.
   * if the length is NULL, mem is destroyed immediately
   */
-void chunkqueue_append_bytearr(liChunkQueue *cq, GByteArray *mem) {
+void li_chunkqueue_append_bytearr(liChunkQueue *cq, GByteArray *mem) {
 	liChunk *c;
 	if (!mem->len) {
 		g_byte_array_free(mem, TRUE);
@@ -523,7 +523,7 @@ void chunkqueue_append_bytearr(liChunkQueue *cq, GByteArray *mem) {
 }
 
 /* memory gets copied */
-void chunkqueue_append_mem(liChunkQueue *cq, const void *mem, gssize len) {
+void li_chunkqueue_append_mem(liChunkQueue *cq, const void *mem, gssize len) {
 	liChunk *c;
 	if (!len) return;
 	c = chunk_new();
@@ -548,32 +548,32 @@ static void __chunkqueue_append_file(liChunkQueue *cq, GString *filename, off_t 
 	cq->bytes_in += length;
 }
 /* pass ownership of filename, do not free it */
-void chunkqueue_append_file(liChunkQueue *cq, GString *filename, off_t start, off_t length) {
+void li_chunkqueue_append_file(liChunkQueue *cq, GString *filename, off_t start, off_t length) {
 	if (length)
 		__chunkqueue_append_file(cq, filename, start, length, -1, FALSE);
 }
 
 /* if you already opened the file, you can pass the fd here - do not close it */
-void chunkqueue_append_file_fd(liChunkQueue *cq, GString *filename, off_t start, off_t length, int fd) {
+void li_chunkqueue_append_file_fd(liChunkQueue *cq, GString *filename, off_t start, off_t length, int fd) {
 	if (length)
 		__chunkqueue_append_file(cq, filename, start, length, fd, FALSE);
 }
 
 /* temp files get deleted after usage */
 /* pass ownership of filename, do not free it */
-void chunkqueue_append_tempfile(liChunkQueue *cq, GString *filename, off_t start, off_t length) {
+void li_chunkqueue_append_tempfile(liChunkQueue *cq, GString *filename, off_t start, off_t length) {
 	if (length)
 		__chunkqueue_append_file(cq, filename, start, length, -1, TRUE);
 }
 
 /* if you already opened the file, you can pass the fd here - do not close it */
-void chunkqueue_append_tempfile_fd(liChunkQueue *cq, GString *filename, off_t start, off_t length, int fd) {
+void li_chunkqueue_append_tempfile_fd(liChunkQueue *cq, GString *filename, off_t start, off_t length, int fd) {
 	if (length)
 		__chunkqueue_append_file(cq, filename, start, length, fd, TRUE);
 }
 
 /* steal up to length bytes from in and put them into out, return number of bytes stolen */
-goffset chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset length) {
+goffset li_chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset length) {
 	liChunk *c, *cnew;
 	GList* l;
 	goffset bytes = 0, meminbytes = 0, memoutbytes = 0;
@@ -647,7 +647,7 @@ goffset chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset length
 }
 
 /* steal all chunks from in and put them into out, return number of bytes stolen */
-goffset chunkqueue_steal_all(liChunkQueue *out, liChunkQueue *in) {
+goffset li_chunkqueue_steal_all(liChunkQueue *out, liChunkQueue *in) {
 	goffset len;
 
 	/* if in->queue is empty, do nothing */
@@ -685,7 +685,7 @@ goffset chunkqueue_steal_all(liChunkQueue *out, liChunkQueue *in) {
 }
 
 /* steal the first chunk from in and append it to out, return number of bytes stolen */
-goffset chunkqueue_steal_chunk(liChunkQueue *out, liChunkQueue *in) {
+goffset li_chunkqueue_steal_chunk(liChunkQueue *out, liChunkQueue *in) {
 	liChunk *c;
 	goffset length;
 	GList *l = g_queue_pop_head_link(in->queue);
@@ -711,7 +711,7 @@ goffset chunkqueue_steal_chunk(liChunkQueue *out, liChunkQueue *in) {
 }
 
 /* skip up to length bytes in a chunkqueue, return number of bytes skipped */
-goffset chunkqueue_skip(liChunkQueue *cq, goffset length) {
+goffset li_chunkqueue_skip(liChunkQueue *cq, goffset length) {
 	liChunk *c;
 	goffset bytes = 0;
 	goffset we_have;
@@ -737,7 +737,7 @@ goffset chunkqueue_skip(liChunkQueue *cq, goffset length) {
 	return bytes;
 }
 
-goffset chunkqueue_skip_all(liChunkQueue *cq) {
+goffset li_chunkqueue_skip_all(liChunkQueue *cq) {
 	goffset bytes = cq->length;
 
 	g_queue_foreach(cq->queue, __chunk_free, cq);
@@ -749,7 +749,7 @@ goffset chunkqueue_skip_all(liChunkQueue *cq) {
 	return bytes;
 }
 
-gboolean chunkqueue_extract_to(liVRequest *vr, liChunkQueue *cq, goffset len, GString *dest) {
+gboolean li_chunkqueue_extract_to(liVRequest *vr, liChunkQueue *cq, goffset len, GString *dest) {
 	liChunkIter ci;
 	goffset coff, clen;
 	g_string_set_size(dest, 0);
@@ -765,7 +765,7 @@ gboolean chunkqueue_extract_to(liVRequest *vr, liChunkQueue *cq, goffset len, GS
 		while (coff < clen) {
 			gchar *buf;
 			off_t we_have;
-			if (LI_HANDLER_GO_ON != chunkiter_read(vr, ci, coff, len, &buf, &we_have)) goto error;
+			if (LI_HANDLER_GO_ON != li_chunkiter_read(vr, ci, coff, len, &buf, &we_have)) goto error;
 			g_string_append_len(dest, buf, we_have);
 			coff += we_have;
 			len -= we_have;
@@ -781,7 +781,7 @@ error:
 	return FALSE;
 }
 
-gboolean chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *cq, goffset len, GByteArray *dest) {
+gboolean li_chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *cq, goffset len, GByteArray *dest) {
 	liChunkIter ci;
 	goffset coff, clen;
 	g_byte_array_set_size(dest, 0);
@@ -800,7 +800,7 @@ gboolean chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *cq, goffset
 		while (coff < clen) {
 			gchar *buf;
 			off_t we_have;
-			if (LI_HANDLER_GO_ON != chunkiter_read(vr, ci, coff, len, &buf, &we_have)) goto error;
+			if (LI_HANDLER_GO_ON != li_chunkiter_read(vr, ci, coff, len, &buf, &we_have)) goto error;
 			g_byte_array_append(dest, (guint8*) buf, we_have);
 			coff += we_have;
 			len -= we_have;

@@ -19,25 +19,25 @@ typedef enum {
 } liNetworkStatus;
 
 /** repeats write after EINTR */
-LI_API ssize_t net_write(int fd, void *buf, ssize_t nbyte);
+LI_API ssize_t li_net_write(int fd, void *buf, ssize_t nbyte);
 
 /** repeats read after EINTR */
-LI_API ssize_t net_read(int fd, void *buf, ssize_t nbyte);
+LI_API ssize_t li_net_read(int fd, void *buf, ssize_t nbyte);
 
-LI_API liNetworkStatus network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset write_max);
-LI_API liNetworkStatus network_read(liVRequest *vr, int fd, liChunkQueue *cq);
+LI_API liNetworkStatus li_network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset write_max);
+LI_API liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq);
 
 /* use writev for mem chunks, buffered read/write for files */
-LI_API liNetworkStatus network_write_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
+LI_API liNetworkStatus li_network_write_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
 
 #ifdef USE_SENDFILE
 /* use sendfile for files, writev for mem chunks */
-LI_API liNetworkStatus network_write_sendfile(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
+LI_API liNetworkStatus li_network_write_sendfile(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
 #endif
 
 /* write backends */
-LI_API liNetworkStatus network_backend_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
-LI_API liNetworkStatus network_backend_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
+LI_API liNetworkStatus li_network_backend_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
+LI_API liNetworkStatus li_network_backend_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);
 
 #define LI_NETWORK_FALLBACK(f, write_max) do { \
 	liNetworkStatus res; \

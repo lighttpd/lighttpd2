@@ -52,7 +52,7 @@ typedef enum {
 	LI_COMP_PHYSICAL_ISFILE,
 
 /* needs a key */
-	LI_COMP_REQUEST_HEADER,         /**< needs lowercase key, enforced by condition_lvalue_new */
+	LI_COMP_REQUEST_HEADER,         /**< needs lowercase key, enforced by li_condition_lvalue_new */
 
 	LI_COMP_UNKNOWN
 } liCondLValue;
@@ -106,21 +106,21 @@ struct liCondition {
 };
 
 /* lvalue */
-LI_API liConditionLValue* condition_lvalue_new(liCondLValue type, GString *key);
-LI_API void condition_lvalue_acquire(liConditionLValue *lvalue);
-LI_API void condition_lvalue_release(liConditionLValue *lvalue);
+LI_API liConditionLValue* li_condition_lvalue_new(liCondLValue type, GString *key);
+LI_API void li_condition_lvalue_acquire(liConditionLValue *lvalue);
+LI_API void li_condition_lvalue_release(liConditionLValue *lvalue);
 
-LI_API liCondition* condition_new_bool(liServer *srv, liConditionLValue *lvalue, gboolean b);
-LI_API liCondition* condition_new_string(liServer *srv, liCompOperator op, liConditionLValue *lvalue, GString *str);
-LI_API liCondition* condition_new_int(liServer *srv, liCompOperator op, liConditionLValue *lvalue, gint64 i);
+LI_API liCondition* li_condition_new_bool(liServer *srv, liConditionLValue *lvalue, gboolean b);
+LI_API liCondition* li_condition_new_string(liServer *srv, liCompOperator op, liConditionLValue *lvalue, GString *str);
+LI_API liCondition* li_condition_new_int(liServer *srv, liCompOperator op, liConditionLValue *lvalue, gint64 i);
 
-LI_API void condition_acquire(liCondition *c);
-LI_API void condition_release(liServer *srv, liCondition* c);
+LI_API void li_condition_acquire(liCondition *c);
+LI_API void li_condition_release(liServer *srv, liCondition* c);
 
-LI_API const char* comp_op_to_string(liCompOperator op);
-LI_API const char* cond_lvalue_to_string(liCondLValue t);
-LI_API liCondLValue cond_lvalue_from_string(const gchar *str, guint len);
+LI_API const char* li_comp_op_to_string(liCompOperator op);
+LI_API const char* li_cond_lvalue_to_string(liCondLValue t);
+LI_API liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len);
 
-LI_API liHandlerResult condition_check(liVRequest *vr, liCondition *cond, gboolean *result);
+LI_API liHandlerResult li_condition_check(liVRequest *vr, liCondition *cond, gboolean *result);
 
 #endif

@@ -1,40 +1,40 @@
 #include <lighttpd/angel_base.h>
 
-liValue* value_new_none() {
+liValue* li_value_new_none() {
 	liValue *v = g_slice_new0(liValue);
 	v->type = LI_VALUE_NONE;
 	return v;
 }
 
-liValue* value_new_bool(gboolean val) {
+liValue* li_value_new_bool(gboolean val) {
 	liValue *v = g_slice_new0(liValue);
 	v->data.boolean = val;
 	v->type = LI_VALUE_BOOLEAN;
 	return v;
 }
 
-liValue* value_new_number(gint64 val) {
+liValue* li_value_new_number(gint64 val) {
 	liValue *v = g_slice_new0(liValue);
 	v->data.number = val;
 	v->type = LI_VALUE_NUMBER;
 	return v;
 }
 
-liValue* value_new_string(GString *val) {
+liValue* li_value_new_string(GString *val) {
 	liValue *v = g_slice_new0(liValue);
 	v->data.string = val;
 	v->type = LI_VALUE_STRING;
 	return v;
 }
 
-liValue* value_new_range(liValueRange val) {
+liValue* li_value_new_range(liValueRange val) {
 	liValue *v = g_slice_new0(liValue);
 	v->data.range = val;
 	v->type = LI_VALUE_RANGE;
 	return v;
 }
 
-liValue* value_new_list() {
+liValue* li_value_new_list() {
 	liValue *v = g_slice_new0(liValue);
 	v->data.list = g_ptr_array_new();
 	v->type = LI_VALUE_LIST;
@@ -46,10 +46,10 @@ static void _value_hash_free_key(gpointer data) {
 }
 
 static void _value_hash_free_value(gpointer data) {
-	value_free((liValue*) data);
+	li_value_free((liValue*) data);
 }
 
-liValue* value_new_hash() {
+liValue* li_value_new_hash() {
 	liValue *v = g_slice_new0(liValue);
 	v->data.hash = g_hash_table_new_full(
 		(GHashFunc) g_string_hash, (GEqualFunc) g_string_equal,
@@ -58,47 +58,47 @@ liValue* value_new_hash() {
 	return v;
 }
 
-liValue* value_copy(liValue* val) {
+liValue* li_value_copy(liValue* val) {
 	liValue *n;
 
 	switch (val->type) {
-	case LI_VALUE_NONE: n = value_new_bool(FALSE); n->type = LI_VALUE_NONE; return n; /* hack */
-	case LI_VALUE_BOOLEAN: return value_new_bool(val->data.boolean);
-	case LI_VALUE_NUMBER: return value_new_number(val->data.number);
-	case LI_VALUE_STRING: return value_new_string(g_string_new_len(GSTR_LEN(val->data.string)));
-	case LI_VALUE_RANGE: return value_new_range(val->data.range);
+	case LI_VALUE_NONE: n = li_value_new_bool(FALSE); n->type = LI_VALUE_NONE; return n; /* hack */
+	case LI_VALUE_BOOLEAN: return li_value_new_bool(val->data.boolean);
+	case LI_VALUE_NUMBER: return li_value_new_number(val->data.number);
+	case LI_VALUE_STRING: return li_value_new_string(g_string_new_len(GSTR_LEN(val->data.string)));
+	case LI_VALUE_RANGE: return li_value_new_range(val->data.range);
 	/* list: we have to copy every value in the list! */
 	case LI_VALUE_LIST:
-		n = value_new_list();
+		n = li_value_new_list();
 		g_ptr_array_set_size(n->data.list, val->data.list->len);
 		for (guint i = 0; i < val->data.list->len; i++) {
-			g_ptr_array_index(n->data.list, i) = value_copy(g_ptr_array_index(val->data.list, i));
+			g_ptr_array_index(n->data.list, i) = li_value_copy(g_ptr_array_index(val->data.list, i));
 		}
 		return n;
 	/* hash: iterate over hashtable, clone each value */
 	case LI_VALUE_HASH:
-		n = value_new_hash();
+		n = li_value_new_hash();
 		{
 			GHashTableIter iter;
 			gpointer k, v;
 			g_hash_table_iter_init(&iter, val->data.hash);
 			while (g_hash_table_iter_next(&iter, &k, &v))
-				g_hash_table_insert(n->data.hash, g_string_new_len(GSTR_LEN((GString*)k)), value_copy((liValue*)v));
+				g_hash_table_insert(n->data.hash, g_string_new_len(GSTR_LEN((GString*)k)), li_value_copy((liValue*)v));
 		}
 		return n;
 	}
 	return NULL;
 }
 
-static void value_list_free(GPtrArray *vallist) {
+static void li_value_list_free(GPtrArray *vallist) {
 	if (!vallist) return;
 	for (gsize i = 0; i < vallist->len; i++) {
-		value_free(g_ptr_array_index(vallist, i));
+		li_value_free(g_ptr_array_index(vallist, i));
 	}
 	g_ptr_array_free(vallist, TRUE);
 }
 
-void value_free(liValue* val) {
+void li_value_free(liValue* val) {
 	if (!val) return;
 
 	switch (val->type) {
@@ -113,7 +113,7 @@ void value_free(liValue* val) {
 	case LI_VALUE_RANGE:
 		break;
 	case LI_VALUE_LIST:
-		value_list_free(val->data.list);
+		li_value_list_free(val->data.list);
 		break;
 	case LI_VALUE_HASH:
 		g_hash_table_destroy(val->data.hash);
@@ -123,7 +123,7 @@ void value_free(liValue* val) {
 	g_slice_free(liValue, val);
 }
 
-const char* value_type_string(liValueType type) {
+const char* li_value_type_string(liValueType type) {
 	switch(type) {
 	case LI_VALUE_NONE:
 		return "none";
@@ -143,7 +143,7 @@ const char* value_type_string(liValueType type) {
 	return "<unknown>";
 }
 
-GString *value_to_string(liValue *val) {
+GString *li_value_to_string(liValue *val) {
 	GString *str = NULL;
 
 	switch (val->type) {
@@ -168,11 +168,11 @@ GString *value_to_string(liValue *val) {
 		case LI_VALUE_LIST:
 			str = g_string_new_len(CONST_STR_LEN("("));
 			if (val->data.list->len) {
-				GString *tmp = value_to_string(g_ptr_array_index(val->data.list, 0));
+				GString *tmp = li_value_to_string(g_ptr_array_index(val->data.list, 0));
 				g_string_append(str, tmp->str);
 				g_string_free(tmp, TRUE);
 				for (guint i = 1; i < val->data.list->len; i++) {
-					tmp = value_to_string(g_ptr_array_index(val->data.list, i));
+					tmp = li_value_to_string(g_ptr_array_index(val->data.list, i));
 					g_string_append_len(str, CONST_STR_LEN(", "));
 					g_string_append(str, tmp->str);
 					g_string_free(tmp, TRUE);
@@ -193,7 +193,7 @@ GString *value_to_string(liValue *val) {
 			while (g_hash_table_iter_next(&iter, &k, &v)) {
 				if (i)
 					g_string_append_len(str, CONST_STR_LEN(", "));
-				tmp = value_to_string((liValue*)v);
+				tmp = li_value_to_string((liValue*)v);
 				g_string_append_len(str, GSTR_LEN((GString*)k));
 				g_string_append_len(str, CONST_STR_LEN(": "));
 				g_string_append_len(str, GSTR_LEN(tmp));

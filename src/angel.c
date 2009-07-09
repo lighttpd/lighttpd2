@@ -7,26 +7,26 @@ static void angel_call_cb(liAngelConnection *acon,
 		gint32 id, GString *data) {
 	liServer *srv = acon->data;
 	ERROR(srv, "received message for %s:%s, not implemented yet", mod, action);
-	if (-1 != id) angel_send_result(acon, id, g_string_new_len(CONST_STR_LEN("not implemented yet")), NULL, NULL, NULL);
+	if (-1 != id) li_angel_send_result(acon, id, g_string_new_len(CONST_STR_LEN("not implemented yet")), NULL, NULL, NULL);
 }
 
 static void angel_close_cb(liAngelConnection *acon, GError *err) {
 	liServer *srv = acon->data;
-	ERROR(srv, "fatal: angel connection close: %s", err ? err->message : g_strerror(errno));
+	ERROR(srv, "li_fatal: angel connection close: %s", err ? err->message : g_strerror(errno));
 	if (err) g_error_free(err);
 	exit(1);
 }
 
-void angel_setup(liServer *srv) {
-	srv->acon = angel_connection_new(srv->loop, 0, srv, angel_call_cb, angel_close_cb);
+void li_angel_setup(liServer *srv) {
+	srv->acon = li_angel_connection_new(srv->loop, 0, srv, angel_call_cb, angel_close_cb);
 }
 
-static void angel_listen_cb(liAngelCall *acall, gpointer ctx, gboolean timeout, GString *error, GString *data, GArray *fds) {
+static void li_angel_listen_cb(liAngelCall *acall, gpointer ctx, gboolean timeout, GString *error, GString *data, GArray *fds) {
 	liServer *srv = ctx;
 	guint i;
 	UNUSED(data);
 
-	angel_call_free(acall);
+	li_angel_call_free(acall);
 
 	ERROR(srv, "%s", "listen_cb");
 
@@ -44,7 +44,7 @@ static void angel_listen_cb(liAngelCall *acall, gpointer ctx, gboolean timeout, 
 	if (fds && fds->len > 0) {
 		for (i = 0; i < fds->len; i++) {
 			INFO(srv, "listening on fd %i", g_array_index(fds, int, i));
-			server_listen(srv, g_array_index(fds, int, i));
+			li_server_listen(srv, g_array_index(fds, int, i));
 		}
 		g_array_set_size(fds, 0);
 	} else {
@@ -53,13 +53,13 @@ static void angel_listen_cb(liAngelCall *acall, gpointer ctx, gboolean timeout, 
 }
 
 /* listen to a socket */
-void angel_listen(liServer *srv, GString *str) {
+void li_angel_listen(liServer *srv, GString *str) {
 	if (srv->acon) {
-		liAngelCall *acall = angel_call_new(angel_listen_cb, 3.0);
+		liAngelCall *acall = li_angel_call_new(li_angel_listen_cb, 3.0);
 		GError *err = NULL;
 
 		acall->context = srv;
-		if (!angel_send_call(srv->acon, CONST_STR_LEN("core"), CONST_STR_LEN("listen"), acall, g_string_new_len(GSTR_LEN(str)), &err)) {
+		if (!li_angel_send_call(srv->acon, CONST_STR_LEN("core"), CONST_STR_LEN("listen"), acall, g_string_new_len(GSTR_LEN(str)), &err)) {
 			ERROR(srv, "couldn't send call: %s", err->message);
 			g_error_free(err);
 		}
@@ -69,12 +69,12 @@ void angel_listen(liServer *srv, GString *str) {
 			ERROR(srv, "listen('%s') failed", str->str);
 			/* TODO: exit? */
 		} else {
-			server_listen(srv, fd);
+			li_server_listen(srv, fd);
 		}
 	}
 }
 
 /* send log messages while startup to angel */
-void angel_log(liServer *srv, GString *str) {
+void li_angel_log(liServer *srv, GString *str) {
 	angel_fake_log(srv, str);
 }

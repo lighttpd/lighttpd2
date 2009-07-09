@@ -20,17 +20,17 @@ typedef gpointer (*liCollectFuncCB)(liWorker *wrk, gpointer fdata);
   *   - fdata : the data the CollectFunc got (this data must be valid until cb is called)
   *   - result: the return values
   *   - complete: determines if cbdata is still valid
-  *     if this is FALSE, it may be called from another context than collect_start was called
+  *     if this is FALSE, it may be called from another context than li_collect_start was called
   */
 typedef void (*liCollectCB)(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete);
 
 typedef struct liCollectInfo liCollectInfo;
 
-/** collect_start returns NULL if the callback was called directly (e.g. for only one worker and ctx = wrk) */
-LI_API liCollectInfo* collect_start(liWorker *ctx, liCollectFuncCB func, gpointer fdata, liCollectCB cb, gpointer cbdata);
-LI_API void collect_break(liCollectInfo* ci); /** this will result in complete == FALSE in the callback; call it if cbdata gets invalid */
+/** li_collect_start returns NULL if the callback was called directly (e.g. for only one worker and ctx = wrk) */
+LI_API liCollectInfo* li_collect_start(liWorker *ctx, liCollectFuncCB func, gpointer fdata, liCollectCB cb, gpointer cbdata);
+LI_API void li_collect_break(liCollectInfo* ci); /** this will result in complete == FALSE in the callback; call it if cbdata gets invalid */
 
 /* internal functions */
-LI_API void collect_watcher_cb(struct ev_loop *loop, ev_async *w, int revents);
+LI_API void li_collect_watcher_cb(struct ev_loop *loop, ev_async *w, int revents);
 
 #endif

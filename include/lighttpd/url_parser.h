@@ -3,7 +3,7 @@
 
 #include <lighttpd/base.h>
 
-LI_API gboolean parse_raw_url(liRequestUri *uri);
-LI_API gboolean parse_hostname(liRequestUri *uri);
+LI_API gboolean li_parse_raw_url(liRequestUri *uri);
+LI_API gboolean li_parse_hostname(liRequestUri *uri);
 
 #endif

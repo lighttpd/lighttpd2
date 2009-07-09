@@ -73,13 +73,13 @@ int main(int argc, char *argv[]) {
 	/* initialize threading */
 	g_thread_init(NULL);
 
-	srv = server_new(module_dir);
-	server_loop_init(srv);
+	srv = li_server_new(module_dir);
+	li_server_loop_init(srv);
 
 	/* load core plugin */
-	srv->core_plugin = plugin_register(srv, "core", plugin_core_init);
+	srv->core_plugin = li_plugin_register(srv, "core", plugin_core_init);
 	if (use_angel) {
-		angel_setup(srv);
+		li_angel_setup(srv);
 	}
 
 	/* if no path is specified for the config, read lighttpd.conf from current directory */
@@ -107,14 +107,14 @@ int main(int argc, char *argv[]) {
 			log_thread_start(srv);
 			g_atomic_int_set(&srv->exiting, TRUE);
 			log_thread_wakeup(srv);
-			server_free(srv);
+			li_server_free(srv);
 			if (free_config_path)
 				g_free(config_path);
 			return 1;
 		}
 
 		/* append fallback "static" action */
-		a = create_action(srv, "static", NULL);
+		a = li_create_action(srv, "static", NULL);
 		g_array_append_val(srv->mainaction->data.list, a);
 
 		g_get_current_time(&end);
@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
 	}
 	else {
 #ifdef HAVE_LUA_H
-		config_lua_load(srv, config_path);
+		li_config_lua_load(srv, config_path);
 		/* lua config frontend */
 #else
 		g_print("lua config frontend not available\n");
@@ -145,15 +145,15 @@ int main(int argc, char *argv[]) {
 
 	/* TRACE(srv, "%s", "Test!"); */
 
-	server_worker_init(srv);
-	server_start(srv);
+	li_server_worker_init(srv);
+	li_server_start(srv);
 
 	if (!luaconfig)
 		config_parser_finish(srv, ctx_stack, TRUE);
 
 	INFO(srv, "%s", "going down");
 
-	server_free(srv);
+	li_server_free(srv);
 
 	if (module_dir != def_module_dir)
 		g_free((gpointer)module_dir);

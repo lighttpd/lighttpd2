@@ -16,14 +16,14 @@ static liValue* lua_params_to_value(liServer *srv, lua_State *L) {
 	case 1:
 		return NULL;
 	case 2:
-		return value_from_lua(srv, L);
+		return li_value_from_lua(srv, L);
 	default:
-		val = value_new_list();
+		val = li_value_new_list();
 		g_array_set_size(val->data.list, lua_gettop(L) - 1);
 		while (lua_gettop(L) > 1) {
-			if (NULL == (subval = value_from_lua(srv, L))) {
+			if (NULL == (subval = li_value_from_lua(srv, L))) {
 				ERROR(srv, "Couldn't convert value from lua (lua type '%s')", lua_typename(L, lua_type(L, -1)));
-				value_free(val);
+				li_value_free(val);
 				return NULL;
 			}
 			g_array_index(val->data.list, liValue*, lua_gettop(L) - 1) = subval;
@@ -140,8 +140,8 @@ static int handle_server_action(liServer *srv, lua_State *L, gpointer _sa) {
 	val = lua_params_to_value(srv, L);
 
 	/* TRACE(srv, "%s", "Creating action"); */
-	a = sa->create_action(srv, sa->p, val);
-	value_free(val);
+	a = sa->li_create_action(srv, sa->p, val);
+	li_value_free(val);
 
 	if (NULL == a) {
 		lua_pushstring(L, "creating action failed");
@@ -161,16 +161,16 @@ static int handle_server_setup(liServer *srv, lua_State *L, gpointer _ss) {
 	/* TRACE(srv, "%s", "Calling setup"); */
 
 	if (!ss->setup(srv, ss->p, val)) {
-		value_free(val);
+		li_value_free(val);
 		lua_pushstring(L, "setup failed");
 		lua_error(L);
 	}
 
-	value_free(val);
+	li_value_free(val);
 	return 0;
 }
 
-gboolean config_lua_load(liServer *srv, const gchar *filename) {
+gboolean li_config_lua_load(liServer *srv, const gchar *filename) {
 	lua_State *L;
 
 	L = luaL_newstate();
@@ -200,7 +200,7 @@ gboolean config_lua_load(liServer *srv, const gchar *filename) {
 
 	lua_getfield(L, LUA_GLOBALSINDEX, "actions");
 	srv->mainaction = lua_get_action(L, -1);
-	action_acquire(srv->mainaction);
+	li_action_acquire(srv->mainaction);
 	lua_pop(L, 1);
 
 	assert(lua_gettop(L) == 0);

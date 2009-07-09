@@ -12,14 +12,14 @@ struct action_stack_element {
 	gboolean finished, backlog_provided;
 };
 
-void action_release(liServer *srv, liAction *a) {
+void li_action_release(liServer *srv, liAction *a) {
 	guint i;
 	if (!a) return;
 	assert(g_atomic_int_get(&a->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&a->refcount)) {
 		switch (a->type) {
 		case ACTION_TSETTING:
-			release_option(srv, &a->data.setting);
+			li_release_option(srv, &a->data.setting);
 			break;
 		case ACTION_TFUNCTION:
 			if (a->data.function.free) {
@@ -27,13 +27,13 @@ void action_release(liServer *srv, liAction *a) {
 			}
 			break;
 		case ACTION_TCONDITION:
-			condition_release(srv, a->data.condition.cond);
-			action_release(srv, a->data.condition.target);
-			action_release(srv, a->data.condition.target_else);
+			li_condition_release(srv, a->data.condition.cond);
+			li_action_release(srv, a->data.condition.target);
+			li_action_release(srv, a->data.condition.target_else);
 			break;
 		case ACTION_TLIST:
 			for (i = a->data.list->len; i-- > 0; ) {
-				action_release(srv, g_array_index(a->data.list, liAction*, i));
+				li_action_release(srv, g_array_index(a->data.list, liAction*, i));
 			}
 			g_array_free(a->data.list, TRUE);
 			break;
@@ -47,12 +47,12 @@ void action_release(liServer *srv, liAction *a) {
 	}
 }
 
-void action_acquire(liAction *a) {
+void li_action_acquire(liAction *a) {
 	assert(g_atomic_int_get(&a->refcount) > 0);
 	g_atomic_int_inc(&a->refcount);
 }
 
-liAction *action_new_setting(liOptionSet setting) {
+liAction *li_action_new_setting(liOptionSet setting) {
 	liAction *a = g_slice_new(liAction);
 
 	a->refcount = 1;
@@ -62,7 +62,7 @@ liAction *action_new_setting(liOptionSet setting) {
 	return a;
 }
 
-liAction *action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup, liActionFreeCB ffree, gpointer param) {
+liAction *li_action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup, liActionFreeCB ffree, gpointer param) {
 	liAction *a;
 
 	a = g_slice_new(liAction);
@@ -76,7 +76,7 @@ liAction *action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup, l
 	return a;
 }
 
-liAction *action_new_list() {
+liAction *li_action_new_list() {
 	liAction *a;
 
 	a = g_slice_new(liAction);
@@ -87,7 +87,7 @@ liAction *action_new_list() {
 	return a;
 }
 
-liAction *action_new_condition(liCondition *cond, liAction *target, liAction *target_else) {
+liAction *li_action_new_condition(liCondition *cond, liAction *target, liAction *target_else) {
 	liAction *a;
 
 	a = g_slice_new(liAction);
@@ -100,7 +100,7 @@ liAction *action_new_condition(liCondition *cond, liAction *target, liAction *ta
 	return a;
 }
 
-liAction *action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB bfallback, liBackendFinishedCB bfinished, liBalancerFreeCB bfree, gpointer param, gboolean provide_backlog) {
+liAction *li_action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB bfallback, liBackendFinishedCB bfinished, liBalancerFreeCB bfree, gpointer param, gboolean provide_backlog) {
 	liAction *a;
 
 	a = g_slice_new(liAction);
@@ -147,18 +147,18 @@ static void action_stack_element_release(liServer *srv, liVRequest *vr, action_s
 		break;
 	}
 
-	action_release(srv, ase->act);
+	li_action_release(srv, ase->act);
 	ase->act = NULL;
 	ase->data.context = NULL;
 }
 
-void action_stack_init(liActionStack *as) {
+void li_action_stack_init(liActionStack *as) {
 	as->stack = g_array_sized_new(FALSE, TRUE, sizeof(action_stack_element), 15);
 	as->regex_stack = g_array_sized_new(FALSE, FALSE, sizeof(liActionRegexStackElement), 15);
 	g_array_set_size(as->regex_stack, 0);
 }
 
-void action_stack_reset(liVRequest *vr, liActionStack *as) {
+void li_action_stack_reset(liVRequest *vr, liActionStack *as) {
 	liServer *srv = vr->wrk->srv;
 	guint i;
 	for (i = as->stack->len; i-- > 0; ) {
@@ -168,7 +168,7 @@ void action_stack_reset(liVRequest *vr, liActionStack *as) {
 	as->backend_failed = FALSE;
 }
 
-void action_stack_clear(liVRequest *vr, liActionStack *as) {
+void li_action_stack_clear(liVRequest *vr, liActionStack *as) {
 	liServer *srv = vr->wrk->srv;
 	guint i;
 	for (i = as->stack->len; i-- > 0; ) {
@@ -184,12 +184,12 @@ static action_stack_element *action_stack_top(liActionStack* as) {
 }
 
 /** handle sublist now, remember current position (stack) */
-void action_enter(liVRequest *vr, liAction *a) {
+void li_action_enter(liVRequest *vr, liAction *a) {
 	liActionStack *as = &vr->action_stack;
 	action_stack_element *top_ase = action_stack_top(as);
 	action_stack_element ase = { a, { 0 }, FALSE,
 		(top_ase ? top_ase->backlog_provided || (top_ase->act->type == ACTION_TBALANCER && top_ase->act->data.balancer.provide_backlog) : FALSE) };
-	action_acquire(a);
+	li_action_acquire(a);
 	g_array_append_val(as->stack, ase);
 }
 
@@ -198,7 +198,7 @@ static void action_stack_pop(liServer *srv, liVRequest *vr, liActionStack *as) {
 	g_array_set_size(as->stack, as->stack->len - 1);
 }
 
-liHandlerResult action_execute(liVRequest *vr) {
+liHandlerResult li_action_execute(liVRequest *vr) {
 	liAction *a;
 	liActionStack *as = &vr->action_stack;
 	action_stack_element *ase;
@@ -218,7 +218,7 @@ liHandlerResult action_execute(liVRequest *vr) {
 				ase = action_stack_top(as);
 			}
 			if (!ase) { /* no backlogging balancer found */
-				if (vrequest_handle_direct(vr))
+				if (li_vrequest_handle_direct(vr))
 					vr->response.http_status = 503;
 				return LI_HANDLER_GO_ON;
 			}
@@ -232,7 +232,7 @@ liHandlerResult action_execute(liVRequest *vr) {
 				ase->finished = TRUE;
 				break;
 			case LI_HANDLER_ERROR:
-				action_stack_reset(vr, as);
+				li_action_stack_reset(vr, as);
 			case LI_HANDLER_COMEBACK:
 			case LI_HANDLER_WAIT_FOR_EVENT:
 				return res;
@@ -266,7 +266,7 @@ liHandlerResult action_execute(liVRequest *vr) {
 				ase->finished = TRUE;
 				break;
 			case LI_HANDLER_ERROR:
-				action_stack_reset(vr, as);
+				li_action_stack_reset(vr, as);
 			case LI_HANDLER_COMEBACK:
 			case LI_HANDLER_WAIT_FOR_EVENT:
 				return res;
@@ -274,19 +274,19 @@ liHandlerResult action_execute(liVRequest *vr) {
 			break;
 		case ACTION_TCONDITION:
 			condres = FALSE;
-			res = condition_check(vr, a->data.condition.cond, &condres);
+			res = li_condition_check(vr, a->data.condition.cond, &condres);
 			switch (res) {
 			case LI_HANDLER_GO_ON:
 				ase->finished = TRUE;
 				if (condres) {
-					if (a->data.condition.target) action_enter(vr, a->data.condition.target);
+					if (a->data.condition.target) li_action_enter(vr, a->data.condition.target);
 				}
 				else if (a->data.condition.target_else) {
-					action_enter(vr, a->data.condition.target_else);
+					li_action_enter(vr, a->data.condition.target_else);
 				}
 				break;
 			case LI_HANDLER_ERROR:
-				action_stack_reset(vr, as);
+				li_action_stack_reset(vr, as);
 			case LI_HANDLER_COMEBACK:
 			case LI_HANDLER_WAIT_FOR_EVENT:
 				return res;
@@ -296,7 +296,7 @@ liHandlerResult action_execute(liVRequest *vr) {
 			if (ase->data.pos >= a->data.list->len) {
 				action_stack_pop(srv, vr, as);
 			} else {
-				action_enter(vr, g_array_index(a->data.list, liAction*, ase->data.pos));
+				li_action_enter(vr, g_array_index(a->data.list, liAction*, ase->data.pos));
 				ase->data.pos++;
 			}
 			break;
@@ -307,7 +307,7 @@ liHandlerResult action_execute(liVRequest *vr) {
 				ase->finished = TRUE;
 				break;
 			case LI_HANDLER_ERROR:
-				action_stack_reset(vr, as);
+				li_action_stack_reset(vr, as);
 			case LI_HANDLER_COMEBACK:
 			case LI_HANDLER_WAIT_FOR_EVENT:
 				return res;
@@ -316,7 +316,7 @@ liHandlerResult action_execute(liVRequest *vr) {
 		}
 	}
 	if (as->backend_failed) {
-		if (vrequest_handle_direct(vr))
+		if (li_vrequest_handle_direct(vr))
 			vr->response.http_status = 503;
 	}
 	return LI_HANDLER_GO_ON;

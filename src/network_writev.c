@@ -25,7 +25,7 @@
 #endif
 
 /* first chunk must be a STRING_CHUNK ! */
-liNetworkStatus network_backend_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
+liNetworkStatus li_network_backend_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
 	off_t we_have;
 	ssize_t r;
 	gboolean did_write_something = FALSE;
@@ -87,7 +87,7 @@ liNetworkStatus network_backend_writev(liVRequest *vr, int fd, liChunkQueue *cq,
 			res = LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 			goto cleanup;
 		}
-		chunkqueue_skip(cq, r);
+		li_chunkqueue_skip(cq, r);
 		*write_max -= r;
 
 		if (r != we_have) {
@@ -111,15 +111,15 @@ cleanup:
 	return res;
 }
 
-liNetworkStatus network_write_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
+liNetworkStatus li_network_write_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
 	if (cq->length == 0) return LI_NETWORK_STATUS_FATAL_ERROR;
 	do {
 		switch (chunkqueue_first_chunk(cq)->type) {
 		case STRING_CHUNK:
-			LI_NETWORK_FALLBACK(network_backend_writev, write_max);
+			LI_NETWORK_FALLBACK(li_network_backend_writev, write_max);
 			break;
 		case FILE_CHUNK:
-			LI_NETWORK_FALLBACK(network_backend_write, write_max);
+			LI_NETWORK_FALLBACK(li_network_backend_write, write_max);
 			break;
 		default:
 			return LI_NETWORK_STATUS_FATAL_ERROR;

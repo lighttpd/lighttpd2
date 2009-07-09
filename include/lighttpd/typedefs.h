@@ -79,11 +79,11 @@ typedef struct liHttpHeader liHttpHeader;
 
 typedef struct liHttpHeaders liHttpHeaders;
 
-/* http_request_parser.h */
+/* li_http_request_parser.h */
 
 typedef struct liHttpRequestCtx liHttpRequestCtx;
 
-/* http_response_parser.h */
+/* li_http_response_parser.h */
 
 typedef struct liHttpResponseCtx liHttpResponseCtx;
 

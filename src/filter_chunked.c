@@ -21,21 +21,21 @@ static void http_chunk_append_len(liChunkQueue *cq, size_t len) {
 	}
 	g_byte_array_append(a, (guint8*) CONST_STR_LEN("\r\n"));
 
-	chunkqueue_append_bytearr(cq, a);
+	li_chunkqueue_append_bytearr(cq, a);
 }
 
 
-liHandlerResult filter_chunked_encode(liConnection *con, liChunkQueue *out, liChunkQueue *in) {
+liHandlerResult li_filter_chunked_encode(liConnection *con, liChunkQueue *out, liChunkQueue *in) {
 	UNUSED(con);
 
 	if (in->length > 0) {
 		http_chunk_append_len(out, in->length);
-		chunkqueue_steal_all(out, in);
-		chunkqueue_append_mem(out, CONST_STR_LEN("\r\n"));
+		li_chunkqueue_steal_all(out, in);
+		li_chunkqueue_append_mem(out, CONST_STR_LEN("\r\n"));
 	}
 	if (in->is_closed) {
 		if (!out->is_closed) {
-			chunkqueue_append_mem(out, CONST_STR_LEN("0\r\n\r\n"));
+			li_chunkqueue_append_mem(out, CONST_STR_LEN("0\r\n\r\n"));
 			out->is_closed = TRUE;
 		}
 		return LI_HANDLER_GO_ON;
@@ -43,7 +43,7 @@ liHandlerResult filter_chunked_encode(liConnection *con, liChunkQueue *out, liCh
 	return LI_HANDLER_GO_ON;
 }
 
-liHandlerResult filter_chunked_decode(liConnection *con, liChunkQueue *out, liChunkQueue *in) {
+liHandlerResult li_filter_chunked_decode(liConnection *con, liChunkQueue *out, liChunkQueue *in) {
 	UNUSED(con);
 	UNUSED(out);
 	UNUSED(in);

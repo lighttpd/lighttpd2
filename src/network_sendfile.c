@@ -167,7 +167,7 @@ static liNetworkStatus network_backend_sendfile(liVRequest *vr, int fd, liChunkQ
 			return did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_FATAL_ERROR;
 		}
 
-		switch (chunkfile_open(vr, c->file.file)) {
+		switch (li_chunkfile_open(vr, c->file.file)) {
 		case LI_HANDLER_GO_ON:
 			break;
 		default:
@@ -181,13 +181,13 @@ static liNetworkStatus network_backend_sendfile(liVRequest *vr, int fd, liChunkQ
 		r = 0;
 		switch (lighty_sendfile(vr, fd, c->file.file->fd, file_offset, toSend, &r)) {
 		case NSR_SUCCESS:
-			chunkqueue_skip(cq, r);
+			li_chunkqueue_skip(cq, r);
 			*write_max -= r;
 			break;
 		case NSR_WAIT_FOR_EVENT:
 			return LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 		case NSR_FALLBACK:
-			LI_NETWORK_FALLBACK(network_backend_write, write_max);
+			LI_NETWORK_FALLBACK(li_network_backend_write, write_max);
 			break;
 		case NSR_CLOSE:
 			return LI_NETWORK_STATUS_CONNECTION_CLOSE;
@@ -218,14 +218,14 @@ static liNetworkStatus network_backend_sendfile(liVRequest *vr, int fd, liChunkQ
 	return LI_NETWORK_STATUS_SUCCESS;
 }
 
-liNetworkStatus network_write_sendfile(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
+liNetworkStatus li_network_write_sendfile(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
 	if (cq->length == 0) return LI_NETWORK_STATUS_FATAL_ERROR;
 
 	do {
 		switch (chunkqueue_first_chunk(cq)->type) {
 		case MEM_CHUNK:
 		case STRING_CHUNK:
-			LI_NETWORK_FALLBACK(network_backend_writev, write_max);
+			LI_NETWORK_FALLBACK(li_network_backend_writev, write_max);
 			break;
 		case FILE_CHUNK:
 			LI_NETWORK_FALLBACK(network_backend_sendfile, write_max);

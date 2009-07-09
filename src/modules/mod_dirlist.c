@@ -172,11 +172,11 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 	UNUSED(context);
 
-	if (vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
+	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
 
 	if (vr->physical.path->len == 0) return LI_HANDLER_GO_ON;
 
-	switch (stat_cache_get_dirlist(vr, vr->physical.path, &sce)) {
+	switch (li_stat_cache_get_dirlist(vr, vr->physical.path, &sce)) {
 	case LI_HANDLER_GO_ON: break;
 	case LI_HANDLER_WAIT_FOR_EVENT: return LI_HANDLER_WAIT_FOR_EVENT;
 	default: return LI_HANDLER_ERROR;
@@ -187,13 +187,13 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 	if (sce->data.failed) {
 		/* stat failed */
-		stat_cache_entry_release(vr, sce);
+		li_stat_cache_entry_release(vr, sce);
 		switch (sce->data.err) {
 		case ENOENT:
 		case ENOTDIR:
 			return LI_HANDLER_GO_ON;
 		case EACCES:
-			if (!vrequest_handle_direct(vr)) return LI_HANDLER_ERROR;
+			if (!li_vrequest_handle_direct(vr)) return LI_HANDLER_ERROR;
 			vr->response.http_status = 403;
 			return LI_HANDLER_GO_ON;
 		default:
@@ -201,12 +201,12 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 			return LI_HANDLER_ERROR;
 		}
 	} else if (!S_ISDIR(sce->data.st.st_mode)) {
-		stat_cache_entry_release(vr, sce);
+		li_stat_cache_entry_release(vr, sce);
 		return LI_HANDLER_GO_ON;
 	} else if (vr->request.uri.path->str[vr->request.uri.path->len-1] != G_DIR_SEPARATOR) {
 		GString *host, *uri;
-		if (!vrequest_handle_direct(vr)) {
-			stat_cache_entry_release(vr, sce);
+		if (!li_vrequest_handle_direct(vr)) {
+			li_stat_cache_entry_release(vr, sce);
 			return LI_HANDLER_ERROR;
 		}
 		/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
@@ -230,9 +230,9 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 		}
 
 		vr->response.http_status = 301;
-		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
+		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
 		g_string_free(uri, TRUE);
-		stat_cache_entry_release(vr, sce);
+		li_stat_cache_entry_release(vr, sce);
 		return LI_HANDLER_GO_ON;
 	} else {
 		/* everything ok, we have the directory listing */
@@ -247,8 +247,8 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 		struct tm tm;
 		gboolean hide;
 
-		if (!vrequest_handle_direct(vr)) {
-			stat_cache_entry_release(vr, sce);
+		if (!li_vrequest_handle_direct(vr)) {
+			li_stat_cache_entry_release(vr, sce);
 			return LI_HANDLER_ERROR;
 		}
 		vr->response.http_status = 200;
@@ -256,11 +256,11 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 		if (dd->debug)
 			VR_DEBUG(vr, "dirlist for \"%s\", %u entries", sce->data.path->str, sce->dirlist->len);
 
-		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(dd->content_type));
-		etag_set_header(vr, &sce->data.st, &cachable);
+		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(dd->content_type));
+		li_etag_set_header(vr, &sce->data.st, &cachable);
 		if (cachable) {
 			vr->response.http_status = 304;
-			stat_cache_entry_release(vr, sce);
+			li_stat_cache_entry_release(vr, sce);
 			return LI_HANDLER_GO_ON;
 		}
 
@@ -285,7 +285,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 				continue;
 
 			for (j = 0; j < dd->exclude_suffix->len; j++) {
-				if (l_g_string_suffix(sced->path, GSTR_LEN((GString*)g_ptr_array_index(dd->exclude_suffix, j)))) {
+				if (li_string_suffix(sced->path, GSTR_LEN((GString*)g_ptr_array_index(dd->exclude_suffix, j)))) {
 					hide = TRUE;
 					break;
 				}
@@ -295,7 +295,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 				continue;
 
 			for (j = 0; j < dd->exclude_prefix->len; j++) {
-				if (l_g_string_prefix(sced->path, GSTR_LEN((GString*)g_ptr_array_index(dd->exclude_prefix, j)))) {
+				if (li_string_prefix(sced->path, GSTR_LEN((GString*)g_ptr_array_index(dd->exclude_prefix, j)))) {
 					hide = TRUE;
 					break;
 				}
@@ -345,7 +345,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 				string_encode(sced->path->str, encoded, ENCODING_HTML);
 				g_string_append_len(listing, GSTR_LEN(encoded));
 				g_string_append_len(listing, CONST_STR_LEN("</a></td><td class=\"modified\" val=\""));
-				l_g_string_append_int(listing, sced->st.st_mtime);
+				li_string_append_int(listing, sced->st.st_mtime);
 				g_string_append_len(listing, CONST_STR_LEN("\">"));
 				g_string_append_len(listing, datebuf, datebuflen);
 				g_string_append_len(listing, CONST_STR_LEN("</td>"
@@ -359,7 +359,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 		/* list files */
 		for (i = 0; i < files->len; i++) {
 			sced = &g_array_index(sce->dirlist, liStatCacheEntryData, g_array_index(files, guint, i));
-			mime_str = mimetype_get(vr, sced->path);
+			mime_str = li_mimetype_get(vr, sced->path);
 
 			localtime_r(&(sced->st.st_mtime), &tm);
 			datebuflen = strftime(datebuf, sizeof(datebuf), "%Y-%b-%d %H:%M:%S", &tm);
@@ -376,11 +376,11 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 			g_string_append_len(listing, CONST_STR_LEN(
 				"</a></td>"
 				"<td class=\"modified\" val=\""));
-			l_g_string_append_int(listing, sced->st.st_mtime);
+			li_string_append_int(listing, sced->st.st_mtime);
 			g_string_append_len(listing, CONST_STR_LEN("\">"));
 			g_string_append_len(listing, datebuf, datebuflen);
 			g_string_append_len(listing, CONST_STR_LEN("</td><td class=\"size\" val=\""));
-			l_g_string_append_int(listing, sced->st.st_size);
+			li_string_append_int(listing, sced->st.st_size);
 			g_string_append_len(listing, CONST_STR_LEN("\">"));
 			g_string_append(listing, sizebuf);
 			g_string_append_len(listing, CONST_STR_LEN("</td><td class=\"type\">"));
@@ -404,13 +404,13 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 		g_string_append_printf(listing, html_footer, CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string->str);
 
-		chunkqueue_append_string(vr->out, listing);
+		li_chunkqueue_append_string(vr->out, listing);
 		g_string_free(encoded, TRUE);
 		g_array_free(directories, TRUE);
 		g_array_free(files, TRUE);
 	}
 
-	stat_cache_entry_release(vr, sce);
+	li_stat_cache_entry_release(vr, sce);
 
 	return LI_HANDLER_GO_ON;
 }
@@ -550,7 +550,7 @@ static liAction* dirlist_create(liServer *srv, liPlugin* p, liValue *val) {
 		}
 	}
 
-	return action_new_function(dirlist, NULL, dirlist_free, data);
+	return li_action_new_function(dirlist, NULL, dirlist_free, data);
 }
 
 static const liPluginOption options[] = {
@@ -600,14 +600,14 @@ gboolean mod_dirlist_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(mods->main, "mod_dirlist", plugin_dirlist_init);
+	mod->config = li_plugin_register(mods->main, "mod_dirlist", plugin_dirlist_init);
 
 	return mod->config != NULL;
 }
 
 gboolean mod_dirlist_free(liModules *mods, liModule *mod) {
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }

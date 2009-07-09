@@ -67,8 +67,8 @@ static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *co
 	UNUSED(redirect_url);
 
 	if (addr->plain.sa_family == AF_INET) {
-		if (radixtree32_lookup(acd->ipv4, htonl(addr->ipv4.sin_addr.s_addr))) {
-			vrequest_handle_direct(vr);
+		if (li_radixtree32_lookup(acd->ipv4, htonl(addr->ipv4.sin_addr.s_addr))) {
+			li_vrequest_handle_direct(vr);
 			vr->response.http_status = 403;
 
 			if (log_blocked) {
@@ -91,7 +91,7 @@ static void access_check_free(liServer *srv, gpointer param) {
 
 	UNUSED(srv);
 
-	radixtree32_free(acd->ipv4);
+	li_radixtree32_free(acd->ipv4);
 	g_slice_free(access_check_data, acd);
 }
 
@@ -115,14 +115,14 @@ static liAction* access_check_create(liServer *srv, liPlugin* p, liValue *val) {
 
 	acd = g_slice_new0(access_check_data);
 	acd->p = p;
-	acd->ipv4 = radixtree32_new(2);
+	acd->ipv4 = li_radixtree32_new(2);
 
 	for (i = 0; i < arr->len; i++) {
 		v = g_array_index(arr, liValue*, i);
 
 		if (v->type != LI_VALUE_LIST || v->data.list->len != 2) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
-			radixtree32_free(acd->ipv4);
+			li_radixtree32_free(acd->ipv4);
 			g_slice_free(access_check_data, acd);
 			return NULL;
 		}
@@ -131,7 +131,7 @@ static liAction* access_check_create(liServer *srv, liPlugin* p, liValue *val) {
 
 		if (v->type != LI_VALUE_STRING) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
-			radixtree32_free(acd->ipv4);
+			li_radixtree32_free(acd->ipv4);
 			g_slice_free(access_check_data, acd);
 			return NULL;
 		}
@@ -143,7 +143,7 @@ static liAction* access_check_create(liServer *srv, liPlugin* p, liValue *val) {
 			got_deny = TRUE;
 		} else {
 			ERROR(srv, "access_check: invalid option \"%s\"", v->data.string->str);
-			radixtree32_free(acd->ipv4);
+			li_radixtree32_free(acd->ipv4);
 			g_slice_free(access_check_data, acd);
 			return NULL;
 		}
@@ -152,7 +152,7 @@ static liAction* access_check_create(liServer *srv, liPlugin* p, liValue *val) {
 
 		if (v->type != LI_VALUE_LIST) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
-			radixtree32_free(acd->ipv4);
+			li_radixtree32_free(acd->ipv4);
 			g_slice_free(access_check_data, acd);
 			return NULL;
 		}
@@ -162,20 +162,20 @@ static liAction* access_check_create(liServer *srv, liPlugin* p, liValue *val) {
 
 			if (ip->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
-				radixtree32_free(acd->ipv4);
+				li_radixtree32_free(acd->ipv4);
 				g_slice_free(access_check_data, acd);
 				return NULL;
 			}
 
 			if (g_str_equal(ip->data.string->str, "all")) {
-				radixtree32_insert(acd->ipv4, 0, 0x00000000, GINT_TO_POINTER(deny));
-			} else if (parse_ipv4(ip->data.string->str, &ipv4, &netmaskv4, NULL)) {
-				radixtree32_insert(acd->ipv4, htonl(ipv4), htonl(netmaskv4), GINT_TO_POINTER(deny));
-			/*} else if (parse_ipv6(v->data.string->str, ..., NULL) {
-				radixtree128_insert(acd->ipv6, ipv6, netmaskv6, (gpointer)allow;*/
+				li_radixtree32_insert(acd->ipv4, 0, 0x00000000, GINT_TO_POINTER(deny));
+			} else if (li_parse_ipv4(ip->data.string->str, &ipv4, &netmaskv4, NULL)) {
+				li_radixtree32_insert(acd->ipv4, htonl(ipv4), htonl(netmaskv4), GINT_TO_POINTER(deny));
+			/*} else if (li_parse_ipv6(v->data.string->str, ..., NULL) {
+				li_radixtree128_insert(acd->ipv6, ipv6, netmaskv6, (gpointer)allow;*/
 			} else {
 				ERROR(srv, "access_check: error parsing ip: %s", ip->data.string->str);
-				radixtree32_free(acd->ipv4);
+				li_radixtree32_free(acd->ipv4);
 				g_slice_free(access_check_data, acd);
 				return NULL;
 			}
@@ -183,9 +183,9 @@ static liAction* access_check_create(liServer *srv, liPlugin* p, liValue *val) {
 	}
 
 	if (!got_deny)
-		radixtree32_insert(acd->ipv4, 0, 0x00000000, GINT_TO_POINTER(TRUE));
+		li_radixtree32_insert(acd->ipv4, 0, 0x00000000, GINT_TO_POINTER(TRUE));
 
-	return action_new_function(access_check, NULL, access_check_free, acd);
+	return li_action_new_function(access_check, NULL, access_check_free, acd);
 }
 
 
@@ -196,7 +196,7 @@ static liHandlerResult access_deny(liVRequest *vr, gpointer param, gpointer *con
 	UNUSED(context);
 	UNUSED(redirect_url);
 
-	vrequest_handle_direct(vr);
+	li_vrequest_handle_direct(vr);
 	vr->response.http_status = 403;
 
 	if (log_blocked) {
@@ -215,7 +215,7 @@ static liAction* access_deny_create(liServer *srv, liPlugin* p, liValue *val) {
 		return NULL;
 	}
 
-	return action_new_function(access_deny, NULL, NULL, p);
+	return li_action_new_function(access_deny, NULL, NULL, p);
 }
 
 
@@ -252,14 +252,14 @@ gboolean mod_access_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(mods->main, "mod_access", plugin_access_init);
+	mod->config = li_plugin_register(mods->main, "mod_access", plugin_access_init);
 
 	return mod->config != NULL;
 }
 
 gboolean mod_access_free(liModules *mods, liModule *mod) {
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }

@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
 	/* initialize threading */
 	g_thread_init(NULL);
 
-	srv = server_new(module_dir);
+	srv = li_server_new(module_dir);
 
 	if (!plugins_config_load(srv, config_path)) {
 		result = -1;
@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
 	INFO(srv, "%s", "going down");
 
 cleanup:
-	if (srv) server_free(srv);
+	if (srv) li_server_free(srv);
 	if (config_path) g_free((gchar*) config_path);
 	if (module_dir != def_module_dir) g_free((gchar*) module_dir);
 

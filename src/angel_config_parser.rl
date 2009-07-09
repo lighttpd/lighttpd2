@@ -37,7 +37,7 @@ typedef struct {
 	int line, column;
 } filecontext;
 
-GQuark angel_config_parser_error_quark() {
+GQuark li_angel_config_parser_error_quark() {
 	return g_quark_from_static_string("angel-config-parser-error-quark");
 }
 
@@ -98,14 +98,14 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	action startitem {
 		ctx->itemname = ctx->token;
 		ctx->token = g_string_sized_new(0);
-		ctx->itemvalue = value_new_hash();
+		ctx->itemvalue = li_value_new_hash();
 	}
 
 	action enditem {
 		plugins_handle_item(srv, ctx->itemname, ctx->itemvalue);
 		g_string_free(ctx->itemname, TRUE);
 		ctx->itemname = NULL;
-		value_free(ctx->itemvalue);
+		li_value_free(ctx->itemvalue);
 		ctx->itemvalue = NULL;
 	}
 
@@ -199,22 +199,22 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 
 
 	action value_true {
-		ctx->curvalue = value_new_bool(TRUE);
+		ctx->curvalue = li_value_new_bool(TRUE);
 	}
 
 	action value_false {
-		ctx->curvalue = value_new_bool(FALSE);
+		ctx->curvalue = li_value_new_bool(FALSE);
 	}
 
 	action value_number {
-		ctx->curvalue = value_new_number(ctx->number);
+		ctx->curvalue = li_value_new_number(ctx->number);
 	}
 
 	action value_range {
 		liValueRange vr = { ctx->number2, ctx->number };
-		ctx->curvalue = value_new_range(vr);
+		ctx->curvalue = li_value_new_range(vr);
 		if (ctx->number2 > ctx->number) {
-			GString *tmp = value_to_string(ctx->curvalue);
+			GString *tmp = li_value_to_string(ctx->curvalue);
 			UPDATE_COLUMN();
 			PARSE_ERROR_FMT("range broken: %s (from > to)", tmp->str);
 			g_string_free(tmp, TRUE);
@@ -223,12 +223,12 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	}
 
 	action value_string {
-		ctx->curvalue = value_new_string(ctx->token);
+		ctx->curvalue = li_value_new_string(ctx->token);
 		ctx->token = g_string_sized_new(0);
 	}
 
 	action value_list_start {
-		g_ptr_array_add(ctx->valuestack, value_new_list());
+		g_ptr_array_add(ctx->valuestack, li_value_new_list());
 		ctx->curvalue = NULL;
 		fcall value_list_sub;
 	}
@@ -245,7 +245,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	}
 
 	action value_hash_start {
-		g_ptr_array_add(ctx->valuestack, value_new_hash());
+		g_ptr_array_add(ctx->valuestack, li_value_new_hash());
 		ctx->curvalue = NULL;
 		fcall value_hash_sub;
 	}
@@ -261,13 +261,13 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 		if (NULL != g_hash_table_lookup(vhash->data.hash, vname->data.string)) {
 			UPDATE_COLUMN();
 			PARSE_ERROR_FMT("duplicate key '%s' in item '%s'", vname->data.string->str, ctx->itemname->str);
-			value_free(vname);
+			li_value_free(vname);
 			ctx->cs = angel_config_parser_error; fbreak;
 		}
 		g_hash_table_insert(vhash->data.hash, vname->data.string, ctx->curvalue);
 		ctx->curvalue = NULL;
 		vname->type = LI_VALUE_NONE;
-		value_free(vname);
+		li_value_free(vname);
 	}
 	action value_hash_end {
 		guint ndx = ctx->valuestack->len - 1;
@@ -277,7 +277,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	}
 
 	action option_start {
-		g_ptr_array_add(ctx->valuestack, value_new_string(ctx->token));
+		g_ptr_array_add(ctx->valuestack, li_value_new_string(ctx->token));
 		ctx->token = g_string_sized_new(0);
 		ctx->curvalue= NULL;
 	}
@@ -285,17 +285,17 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 		guint ndx = ctx->valuestack->len-1;
 		liValue *vname = g_ptr_array_index(ctx->valuestack, ndx);
 		g_ptr_array_set_size(ctx->valuestack, ndx);
-		if (!ctx->curvalue) ctx->curvalue = value_new_none();
+		if (!ctx->curvalue) ctx->curvalue = li_value_new_none();
 		if (NULL != g_hash_table_lookup(ctx->itemvalue->data.hash, vname->data.string)) {
 			UPDATE_COLUMN();
 			PARSE_ERROR_FMT("duplicate key '%s' in item '%s'", vname->data.string->str, ctx->itemname->str);
-			value_free(vname);
+			li_value_free(vname);
 			ctx->cs = angel_config_parser_error; fbreak;
 		}
 		g_hash_table_insert(ctx->itemvalue->data.hash, vname->data.string, ctx->curvalue);
 		ctx->curvalue = NULL;
 		vname->type = LI_VALUE_NONE;
-		value_free(vname);
+		li_value_free(vname);
 	}
 
 	line_sane = ( '\n' ) @newline;
@@ -403,12 +403,12 @@ static void angel_config_parser_free(pcontext *ctx) {
 	g_array_free(ctx->g_stack, TRUE);
 	g_string_free(ctx->token, TRUE);
 	for (guint i = 0; i < ctx->valuestack->len; i++) {
-		value_free(g_ptr_array_index(ctx->valuestack, i));
+		li_value_free(g_ptr_array_index(ctx->valuestack, i));
 	}
 	g_ptr_array_free(ctx->valuestack, TRUE);
 	if (ctx->itemname) g_string_free(ctx->itemname, TRUE);
-	value_free(ctx->itemvalue);
-	value_free(ctx->curvalue);
+	li_value_free(ctx->itemvalue);
+	li_value_free(ctx->curvalue);
 	g_slice_free(pcontext, ctx);
 }
 
@@ -442,7 +442,7 @@ static gboolean angel_config_parse_data(liServer *srv, pcontext *ctx, filecontex
 	return TRUE;
 }
 
-gboolean angel_config_parse_file(liServer *srv, const gchar *filename, GError **err) {
+gboolean li_angel_config_parse_file(liServer *srv, const gchar *filename, GError **err) {
 	char *data = NULL;
 	gsize len = 0;
 	filecontext sfctx, *fctx = &sfctx;

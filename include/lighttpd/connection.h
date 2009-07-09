@@ -93,17 +93,17 @@ struct liConnection {
 	} stats;
 };
 
-LI_API liConnection* connection_new(liWorker *wrk);
-LI_API void connection_reset(liConnection *con);
-LI_API void connection_reset_keep_alive(liConnection *con);
-LI_API void connection_free(liConnection *con);
+LI_API liConnection* li_connection_new(liWorker *wrk);
+LI_API void li_connection_reset(liConnection *con);
+LI_API void li_connection_reset_keep_alive(liConnection *con);
+LI_API void li_connection_free(liConnection *con);
 
-LI_API void connection_error(liConnection *con);
-LI_API void connection_internal_error(liConnection *con);
+LI_API void li_connection_error(liConnection *con);
+LI_API void li_connection_internal_error(liConnection *con);
 
-LI_API void connection_handle_direct(liConnection *con);
-LI_API void connection_handle_indirect(liConnection *con, liPlugin *p);
+LI_API void li_connection_handle_direct(liConnection *con);
+LI_API void li_connection_handle_indirect(liConnection *con, liPlugin *p);
 
-LI_API gchar *connection_state_str(liConnectionState state);
+LI_API gchar *li_connection_state_str(liConnectionState state);
 
 #endif

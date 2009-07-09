@@ -27,7 +27,7 @@ struct liServer {
 	liWorker *main_worker;
 	guint worker_count;
 	GArray *workers;
-	GArray *ts_formats;      /** array of (GString*), add with server_ts_format_add() */
+	GArray *ts_formats;      /** array of (GString*), add with li_server_ts_format_add() */
 
 	struct ev_loop *loop;
 	guint loop_flags;
@@ -50,8 +50,8 @@ struct liServer {
 	GHashTable *actions;      /**< const gchar* => (server_action*) */
 	GHashTable *setups;       /**< const gchar* => (server_setup*) */
 
-	GArray *plugins_handle_close; /** list of handle_close callbacks */
-	GArray *plugins_handle_vrclose; /** list of handle_vrclose callbacks */
+	GArray *li_plugins_handle_close; /** list of handle_close callbacks */
+	GArray *li_plugins_handle_vrclose; /** list of handle_vrclose callbacks */
 
 	GArray *option_def_values;/** array of option_value */
 	liAction *mainaction;
@@ -84,27 +84,27 @@ struct liServer {
 };
 
 
-LI_API liServer* server_new(const gchar *module_dir);
-LI_API void server_free(liServer* srv);
-LI_API gboolean server_loop_init(liServer *srv);
-LI_API gboolean server_worker_init(liServer *srv);
+LI_API liServer* li_server_new(const gchar *module_dir);
+LI_API void li_server_free(liServer* srv);
+LI_API gboolean li_server_loop_init(liServer *srv);
+LI_API gboolean li_server_worker_init(liServer *srv);
 
-LI_API void server_listen(liServer *srv, int fd);
+LI_API void li_server_listen(liServer *srv, int fd);
 
 /* Start accepting connection, use log files, no new plugins after that */
-LI_API void server_start(liServer *srv);
+LI_API void li_server_start(liServer *srv);
 /* stop accepting connections, turn keep-alive off, close all shutdown sockets, set exiting = TRUE */
-LI_API void server_stop(liServer *srv);
+LI_API void li_server_stop(liServer *srv);
 /* exit asap with cleanup */
-LI_API void server_exit(liServer *srv);
+LI_API void li_server_exit(liServer *srv);
 
-LI_API GString *server_current_timestamp();
+LI_API GString *li_server_current_timestamp();
 
-LI_API void server_out_of_fds(liServer *srv);
+LI_API void li_server_out_of_fds(liServer *srv);
 
-LI_API guint server_ts_format_add(liServer *srv, GString* format);
+LI_API guint li_server_ts_format_add(liServer *srv, GString* format);
 
-LI_API void server_socket_release(liServerSocket* sock);
-LI_API void server_socket_acquire(liServerSocket* sock);
+LI_API void li_server_socket_release(liServerSocket* sock);
+LI_API void li_server_socket_acquire(liServerSocket* sock);
 
 #endif

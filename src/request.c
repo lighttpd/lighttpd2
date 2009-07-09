@@ -2,7 +2,7 @@
 #include <lighttpd/base.h>
 #include <lighttpd/url_parser.h>
 
-void request_init(liRequest *req) {
+void li_request_init(liRequest *req) {
 	req->http_method = LI_HTTP_METHOD_UNSET;
 	req->http_method_str = g_string_sized_new(0);
 	req->http_version = LI_HTTP_VERSION_UNSET;
@@ -15,12 +15,12 @@ void request_init(liRequest *req) {
 	req->uri.query = g_string_sized_new(0);
 	req->uri.host = g_string_sized_new(0);
 
-	req->headers = http_headers_new();
+	req->headers = li_http_headers_new();
 
 	req->content_length = -1;
 }
 
-void request_reset(liRequest *req) {
+void li_request_reset(liRequest *req) {
 	req->http_method = LI_HTTP_METHOD_UNSET;
 	g_string_truncate(req->http_method_str, 0);
 	req->http_version = LI_HTTP_VERSION_UNSET;
@@ -33,12 +33,12 @@ void request_reset(liRequest *req) {
 	g_string_truncate(req->uri.query, 0);
 	g_string_truncate(req->uri.host, 0);
 
-	http_headers_reset(req->headers);
+	li_http_headers_reset(req->headers);
 
 	req->content_length = -1;
 }
 
-void request_clear(liRequest *req) {
+void li_request_clear(liRequest *req) {
 	req->http_method = LI_HTTP_METHOD_UNSET;
 	g_string_free(req->http_method_str, TRUE);
 	req->http_version = LI_HTTP_VERSION_UNSET;
@@ -51,7 +51,7 @@ void request_clear(liRequest *req) {
 	g_string_free(req->uri.query, TRUE);
 	g_string_free(req->uri.host, TRUE);
 
-	http_headers_free(req->headers);
+	li_http_headers_free(req->headers);
 
 	req->content_length = -1;
 }
@@ -60,7 +60,7 @@ void request_clear(liRequest *req) {
 static void bad_request(liConnection *con, int status) {
 	con->keep_alive = FALSE;
 	con->mainvr->response.http_status = status;
-	vrequest_handle_direct(con->mainvr);
+	li_vrequest_handle_direct(con->mainvr);
 }
 
 static gboolean request_parse_url(liVRequest *vr) {
@@ -69,15 +69,15 @@ static gboolean request_parse_url(liVRequest *vr) {
 	g_string_truncate(req->uri.query, 0);
 	g_string_truncate(req->uri.path, 0);
 
-	if (!parse_raw_url(&req->uri))
+	if (!li_parse_raw_url(&req->uri))
 		return FALSE;
 
 	/* "*" only allowed for method OPTIONS */
 	if (0 == strcmp(req->uri.path->str, "*") && req->http_method != LI_HTTP_METHOD_OPTIONS)
 		return FALSE;
 
-	url_decode(req->uri.path);
-	path_simplify(req->uri.path);
+	li_url_decode(req->uri.path);
+	li_path_simplify(req->uri.path);
 
 	if (0 == req->uri.orig_path->len) {
 		g_string_append_len(req->uri.orig_path, GSTR_LEN(req->uri.path)); /* save orig path */
@@ -86,18 +86,18 @@ static gboolean request_parse_url(liVRequest *vr) {
 	return TRUE;
 }
 
-gboolean request_validate_header(liConnection *con) {
+gboolean li_request_validate_header(liConnection *con) {
 	liRequest *req = &con->mainvr->request;
 	liHttpHeader *hh;
 	GList *l;
 
 	switch (req->http_version) {
 	case LI_HTTP_VERSION_1_0:
-		if (!http_header_is(req->headers, CONST_STR_LEN("connection"), CONST_STR_LEN("keep-alive")))
+		if (!li_http_header_is(req->headers, CONST_STR_LEN("connection"), CONST_STR_LEN("keep-alive")))
 			con->keep_alive = FALSE;
 		break;
 	case LI_HTTP_VERSION_1_1:
-		if (http_header_is(req->headers, CONST_STR_LEN("connection"), CONST_STR_LEN("close")))
+		if (li_http_header_is(req->headers, CONST_STR_LEN("connection"), CONST_STR_LEN("close")))
 			con->keep_alive = FALSE;
 		break;
 	case LI_HTTP_VERSION_UNSET:
@@ -111,9 +111,9 @@ gboolean request_validate_header(liConnection *con) {
 	}
 
 	/* get hostname */
-	l = http_header_find_first(req->headers, CONST_STR_LEN("host"));
+	l = li_http_header_find_first(req->headers, CONST_STR_LEN("host"));
 	if (NULL != l) {
-		if (NULL != http_header_find_next(l, CONST_STR_LEN("host"))) {
+		if (NULL != li_http_header_find_next(l, CONST_STR_LEN("host"))) {
 			/* more than one "host" header */
 			bad_request(con, 400); /* bad request */
 			return FALSE;
@@ -121,7 +121,7 @@ gboolean request_validate_header(liConnection *con) {
 
 		hh = (liHttpHeader*) l->data;
 		g_string_append_len(req->uri.authority, HEADER_VALUE_LEN(hh));
-		if (!parse_hostname(&req->uri)) {
+		if (!li_parse_hostname(&req->uri)) {
 			bad_request(con, 400); /* bad request */
 			return FALSE;
 		}
@@ -140,7 +140,7 @@ gboolean request_validate_header(liConnection *con) {
 	}
 
 	/* content-length */
-	hh = http_header_lookup(req->headers, CONST_STR_LEN("content-length"));
+	hh = li_http_header_lookup(req->headers, CONST_STR_LEN("content-length"));
 	if (hh) {
 		const gchar *val = HEADER_VALUE(hh);
 		gint64 r;
@@ -176,11 +176,11 @@ gboolean request_validate_header(liConnection *con) {
 	}
 
 	/* Expect: 100-continue */
-	l = http_header_find_first(req->headers, CONST_STR_LEN("expect"));
+	l = li_http_header_find_first(req->headers, CONST_STR_LEN("expect"));
 	if (l) {
 		gboolean expect_100_cont = FALSE;
 
-		for ( ; l ; l = http_header_find_next(l, CONST_STR_LEN("expect")) ) {
+		for ( ; l ; l = li_http_header_find_next(l, CONST_STR_LEN("expect")) ) {
 			hh = (liHttpHeader*) l->data;
 			if (0 == g_strcasecmp( HEADER_VALUE(hh), "100-continue" )) {
 				expect_100_cont = TRUE;
@@ -235,7 +235,7 @@ gboolean request_validate_header(liConnection *con) {
 	return TRUE;
 }
 
-void physical_init(liPhysical *phys) {
+void li_physical_init(liPhysical *phys) {
 	phys->path = g_string_sized_new(127);
 	phys->basedir = g_string_sized_new(63);
 	phys->doc_root = g_string_sized_new(63);
@@ -245,7 +245,7 @@ void physical_init(liPhysical *phys) {
 	phys->have_errno = FALSE;
 }
 
-void physical_reset(liPhysical *phys) {
+void li_physical_reset(liPhysical *phys) {
 	g_string_truncate(phys->path, 0);
 	g_string_truncate(phys->basedir, 0);
 	g_string_truncate(phys->doc_root, 0);
@@ -255,7 +255,7 @@ void physical_reset(liPhysical *phys) {
 	phys->have_errno = FALSE;
 }
 
-void physical_clear(liPhysical *phys) {
+void li_physical_clear(liPhysical *phys) {
 	g_string_free(phys->path, TRUE);
 	g_string_free(phys->basedir, TRUE);
 	g_string_free(phys->doc_root, TRUE);

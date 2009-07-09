@@ -12,7 +12,7 @@
 #include <stdarg.h>
 
 #if REMOVE_PATH_FROM_FILE
-const char *remove_path(const char *path) {
+const char *li_remove_path(const char *path) {
 	char *p = strrchr(path, DIR_SEPERATOR);
 	if (NULL != p && *(p) != '\0') {
 		return (p + 1);
@@ -21,11 +21,11 @@ const char *remove_path(const char *path) {
 }
 #endif
 
-void log_write(liServer *srv, liLog *log, GString *msg) {
+void li_log_write(liServer *srv, liLog *log, GString *msg) {
 	liLogEntry *log_entry;
 
 	if (g_atomic_int_get(&srv->state) == LI_SERVER_STARTING) {
-		angel_log(srv, msg);
+		li_angel_log(srv, msg);
 		return;
 	}
 
@@ -38,7 +38,7 @@ void log_write(liServer *srv, liLog *log, GString *msg) {
 	g_async_queue_push(srv->logs.queue, log_entry);
 }
 
-gboolean log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, const gchar *fmt, ...) {
+gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, const gchar *fmt, ...) {
 	va_list ap;
 	GString *log_line;
 	liLog *log = NULL;
@@ -85,7 +85,7 @@ gboolean log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint f
 			if (log->lastmsg_count > 0) {
 				guint count = log->lastmsg_count;
 				log->lastmsg_count = 0;
-				log_write_(srv, vr, log_level, flags | LOG_FLAG_NOLOCK | LOG_FLAG_ALLOW_REPEAT, "last message repeated %d times", count);
+				li_log_write_(srv, vr, log_level, flags | LOG_FLAG_NOLOCK | LOG_FLAG_ALLOW_REPEAT, "last message repeated %d times", count);
 			}
 		}
 	}
@@ -128,7 +128,7 @@ gboolean log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint f
 
 	if (g_atomic_int_get(&srv->state) == LI_SERVER_STARTING) {
 		log_unref(srv, log);
-		angel_log(srv, log_line);
+		li_angel_log(srv, log_line);
 		return TRUE;
 	}
 	log_entry = g_slice_new(liLogEntry);
@@ -404,7 +404,7 @@ void log_init(liServer *srv) {
 	srv->logs.thread_alive = FALSE;
 
 	/* first entry in srv->logs.timestamps is the default timestamp */
-	log_timestamp_new(srv, g_string_new_len(CONST_STR_LEN("%d/%b/%Y %T %Z")));
+	li_log_timestamp_new(srv, g_string_new_len(CONST_STR_LEN("%d/%b/%Y %T %Z")));
 
 	/* first entry in srv->logs.targets is the plain good old stderr */
 	str = g_string_new_len(CONST_STR_LEN("stderr"));
@@ -441,7 +441,7 @@ void log_cleanup(liServer *srv) {
 		}*/
 	}
 
-	log_timestamp_free(srv, g_array_index(srv->logs.timestamps, liLogTimestamp*, 0));
+	li_log_timestamp_free(srv, g_array_index(srv->logs.timestamps, liLogTimestamp*, 0));
 
 	g_array_free(srv->logs.timestamps, TRUE);
 }
@@ -493,7 +493,7 @@ void log_unlock(liLog *log) {
 	g_mutex_unlock(log->mutex);
 }
 
-liLogTimestamp *log_timestamp_new(liServer *srv, GString *format) {
+liLogTimestamp *li_log_timestamp_new(liServer *srv, GString *format) {
 	liLogTimestamp *ts;
 
 	/* check if there already exists a timestamp entry with the same format */
@@ -518,7 +518,7 @@ liLogTimestamp *log_timestamp_new(liServer *srv, GString *format) {
 	return ts;
 }
 
-gboolean log_timestamp_free(liServer *srv, liLogTimestamp *ts) {
+gboolean li_log_timestamp_free(liServer *srv, liLogTimestamp *ts) {
 	if (g_atomic_int_dec_and_test(&(ts->refcount))) {
 		for (guint i = 0; i < srv->logs.timestamps->len; i++) {
 			if (g_string_equal(g_array_index(srv->logs.timestamps, liLogTimestamp*, i)->format, ts->format)) {
@@ -535,7 +535,7 @@ gboolean log_timestamp_free(liServer *srv, liLogTimestamp *ts) {
 	return FALSE;
 }
 
-void log_split_lines(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix) {
+void li_log_split_lines(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix) {
 	gchar *start;
 
 	start = txt;
@@ -543,7 +543,7 @@ void log_split_lines(liServer *srv, liVRequest *vr, liLogLevel log_level, guint 
 		if ('\r' == *txt || '\n' == *txt) {
 			*txt = '\0';
 			if (txt - start > 1) { /* skip empty lines*/
-				log_write_(srv, vr, log_level, flags, "%s%s", prefix, start);
+				li_log_write_(srv, vr, log_level, flags, "%s%s", prefix, start);
 			}
 			txt++;
 			while (*txt == '\n' || *txt == '\r') txt++;
@@ -553,11 +553,11 @@ void log_split_lines(liServer *srv, liVRequest *vr, liLogLevel log_level, guint 
 		}
 	}
 	if (txt - start > 1) { /* skip empty lines*/
-		log_write_(srv, vr, log_level, flags, "%s%s", prefix, start);
+		li_log_write_(srv, vr, log_level, flags, "%s%s", prefix, start);
 	}
 }
 
-void log_split_lines_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) {
+void li_log_split_lines_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) {
 	va_list ap;
 	GString *prefix;
 
@@ -566,7 +566,7 @@ void log_split_lines_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint
 	g_string_vprintf(prefix, fmt, ap);
 	va_end(ap);
 
-	log_split_lines(srv, vr, log_level, flags, txt, prefix->str);
+	li_log_split_lines(srv, vr, log_level, flags, txt, prefix->str);
 
 	g_string_free(prefix, TRUE);
 }

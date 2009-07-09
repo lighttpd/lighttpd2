@@ -25,10 +25,10 @@ struct liOptionSet {
 };
 
 /* Extract content from value, value set to none */
-LI_API liOptionValue value_extract(liValue *val);
+LI_API liOptionValue li_value_extract(liValue *val);
 
-LI_API gpointer value_extract_ptr(liValue *val);
-LI_API gint64 value_extract_number(liValue *val);
-LI_API gboolean value_extract_bool(liValue *val);
+LI_API gpointer li_value_extract_ptr(liValue *val);
+LI_API gint64 li_value_extract_number(liValue *val);
+LI_API gboolean li_value_extract_bool(liValue *val);
 
 #endif

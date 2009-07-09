@@ -229,7 +229,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 	UNUSED(fdata);
 
 	if (!complete) {
-		/* someone called collect_break, so we don't need any vrequest handling here. just free the result data */
+		/* someone called li_collect_break, so we don't need any vrequest handling here. just free the result data */
 		guint i, j;
 
 		for (i = 0; i < result->len; i++) {
@@ -321,7 +321,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			"	<body>\n"
 		));
 
-		counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, tmpstr);
+		li_counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, tmpstr);
 		g_string_append_printf(html, html_top,
 			vr->request.uri.host->str,
 			tmpstr->str,
@@ -338,9 +338,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			#define PERCENTAGE(x, y) (y ? (x * 100 / y) : 0)
 			for (i = 0; i < result->len; i++) {
 				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
-				counter_format(sd->stats.requests, COUNTER_UNITS, count_req);
-				counter_format(sd->stats.bytes_in, COUNTER_BYTES, count_bin);
-				counter_format(sd->stats.bytes_out, COUNTER_BYTES, count_bout);
+				li_counter_format(sd->stats.requests, COUNTER_UNITS, count_req);
+				li_counter_format(sd->stats.bytes_in, COUNTER_BYTES, count_bin);
+				li_counter_format(sd->stats.bytes_out, COUNTER_BYTES, count_bout);
 				g_string_printf(tmpstr, "Worker #%u", i+1);
 				g_string_append_printf(html, html_worker_row, "", tmpstr->str,
 					count_req->str, PERCENTAGE(sd->stats.requests, totals.requests),
@@ -350,9 +350,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			}
 			#undef PERCENTAGE
 
-			counter_format(totals.requests, COUNTER_UNITS, count_req);
-			counter_format(totals.bytes_in, COUNTER_BYTES, count_bin);
-			counter_format(totals.bytes_out, COUNTER_BYTES, count_bout);
+			li_counter_format(totals.requests, COUNTER_UNITS, count_req);
+			li_counter_format(totals.bytes_in, COUNTER_BYTES, count_bin);
+			li_counter_format(totals.bytes_out, COUNTER_BYTES, count_bout);
 			g_string_append_printf(html, html_worker_row, "totals", "Total",
 				count_req->str, G_GUINT64_CONSTANT(100),
 				count_bin->str, G_GUINT64_CONSTANT(100),
@@ -371,9 +371,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			for (i = 0; i < result->len; i++) {
 				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 
-				counter_format(sd->stats.requests / uptime, COUNTER_UNITS, count_req);
-				counter_format(sd->stats.bytes_in / uptime, COUNTER_BYTES, count_bin);
-				counter_format(sd->stats.bytes_out / uptime, COUNTER_BYTES, count_bout);
+				li_counter_format(sd->stats.requests / uptime, COUNTER_UNITS, count_req);
+				li_counter_format(sd->stats.bytes_in / uptime, COUNTER_BYTES, count_bin);
+				li_counter_format(sd->stats.bytes_out / uptime, COUNTER_BYTES, count_bout);
 				g_string_printf(tmpstr, "Worker #%u", i+1);
 				g_string_append_printf(html, html_worker_row_avg, "", tmpstr->str,
 					count_req->str,
@@ -384,9 +384,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			}
 			#undef PERCENTAGE
 
-			counter_format(totals.requests / uptime, COUNTER_UNITS, count_req);
-			counter_format(totals.bytes_in / uptime, COUNTER_BYTES, count_bin);
-			counter_format(totals.bytes_out / uptime, COUNTER_BYTES, count_bout);
+			li_counter_format(totals.requests / uptime, COUNTER_UNITS, count_req);
+			li_counter_format(totals.bytes_in / uptime, COUNTER_BYTES, count_bin);
+			li_counter_format(totals.bytes_out / uptime, COUNTER_BYTES, count_bout);
 			g_string_append_printf(html, html_worker_row_avg, "totals", "Total",
 				count_req->str,
 				count_bin->str,
@@ -407,9 +407,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			for (i = 0; i < result->len; i++) {
 				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 
-				counter_format(sd->stats.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, count_req);
-				counter_format(sd->stats.bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bin);
-				counter_format(sd->stats.bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bout);
+				li_counter_format(sd->stats.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, count_req);
+				li_counter_format(sd->stats.bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bin);
+				li_counter_format(sd->stats.bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bout);
 				g_string_printf(tmpstr, "Worker #%u", i+1);
 				g_string_append_printf(html, html_worker_row_avg, "", tmpstr->str,
 					count_req->str,
@@ -420,9 +420,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			}
 			#undef PERCENTAGE
 
-			counter_format(totals.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, count_req);
-			counter_format(totals.bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bin);
-			counter_format(totals.bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bout);
+			li_counter_format(totals.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, count_req);
+			li_counter_format(totals.bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bin);
+			li_counter_format(totals.bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bout);
 			g_string_append_printf(html, html_worker_row_avg, "totals", "Total",
 				count_req->str,
 				count_bin->str,
@@ -480,17 +480,17 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 				for (j = 0; j < sd->connections->len; j++) {
 					mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
 
-					counter_format((guint64)(CUR_TS(vr->wrk) - cd->ts), COUNTER_TIME, ts);
-					counter_format(cd->bytes_in, COUNTER_BYTES, bytes_in);
-					counter_format(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_in_5s);
-					counter_format(cd->bytes_out, COUNTER_BYTES, bytes_out);
-					counter_format(cd->bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_out_5s);
-					counter_format(cd->request_size, COUNTER_BYTES, req_len);
-					counter_format(cd->response_size, COUNTER_BYTES, resp_len);
+					li_counter_format((guint64)(CUR_TS(vr->wrk) - cd->ts), COUNTER_TIME, ts);
+					li_counter_format(cd->bytes_in, COUNTER_BYTES, bytes_in);
+					li_counter_format(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_in_5s);
+					li_counter_format(cd->bytes_out, COUNTER_BYTES, bytes_out);
+					li_counter_format(cd->bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_out_5s);
+					li_counter_format(cd->request_size, COUNTER_BYTES, req_len);
+					li_counter_format(cd->response_size, COUNTER_BYTES, resp_len);
 
 					g_string_append_printf(html, html_connections_row,
 						cd->remote_addr_str->str,
-						connection_state_str(cd->state),
+						li_connection_state_str(cd->state),
 						cd->host->str,
 						cd->path->str,
 						cd->query->len ? "?":"",
@@ -500,7 +500,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 						bytes_out->str,
 						bytes_in_5s->str,
 						bytes_out_5s->str,
-						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? http_method_string(cd->method, &len) : "",
+						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? li_http_method_string(cd->method, &len) : "",
 						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? req_len->str : "",
 						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? resp_len->str : ""
 					);
@@ -536,8 +536,8 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			" </body>\n"
 			"</html>\n"
 		));
-		chunkqueue_append_string(vr->out, html);
-		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
+		li_chunkqueue_append_string(vr->out, html);
+		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
 
 		g_string_free(count_req, TRUE);
 		g_string_free(count_bin, TRUE);
@@ -546,16 +546,16 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 
 		vr->response.http_status = 200;
 
-		vrequest_joblist_append(vr);
+		li_vrequest_joblist_append(vr);
 	} else {
 		/* something went wrong, client may have dropped the connection */
 		VR_ERROR(vr, "%s", "collect request didn't end up complete");
-		vrequest_error(vr);
+		li_vrequest_error(vr);
 	}
 }
 
 static liHandlerResult status_page_handle(liVRequest *vr, gpointer param, gpointer *context) {
-	if (vrequest_handle_direct(vr)) {
+	if (li_vrequest_handle_direct(vr)) {
 		liCollectInfo *ci;
 		mod_status_job *j = g_slice_new(mod_status_job);
 		j->vr = vr;
@@ -564,7 +564,7 @@ static liHandlerResult status_page_handle(liVRequest *vr, gpointer param, gpoint
 
 		VR_DEBUG(vr, "%s", "collecting stats...");
 
-		ci = collect_start(vr->wrk, status_collect_func, NULL, status_collect_cb, j);
+		ci = li_collect_start(vr->wrk, status_collect_func, NULL, status_collect_cb, j);
 		*context = ci; /* may be NULL */
 	}
 
@@ -577,7 +577,7 @@ static liHandlerResult status_page_cleanup(liVRequest *vr, gpointer param, gpoin
 	UNUSED(vr);
 	UNUSED(param);
 
-	collect_break(ci);
+	li_collect_break(ci);
 
 	return LI_HANDLER_GO_ON;
 }
@@ -586,7 +586,7 @@ static liAction* status_page(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(srv);
 	UNUSED(val);
 
-	return action_new_function(status_page_handle, status_page_cleanup, NULL, p);
+	return li_action_new_function(status_page_handle, status_page_cleanup, NULL, p);
 }
 
 
@@ -622,7 +622,7 @@ gboolean mod_status_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(mods->main, "mod_status", plugin_status_init);
+	mod->config = li_plugin_register(mods->main, "mod_status", plugin_status_init);
 
 	return mod->config != NULL;
 }
@@ -631,7 +631,7 @@ gboolean mod_status_free(liModules *mods, liModule *mod) {
 	UNUSED(mods); UNUSED(mod);
 
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }

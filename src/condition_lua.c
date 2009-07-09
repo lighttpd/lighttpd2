@@ -99,7 +99,7 @@ static int lua_condition_gc(lua_State *L) {
 	if (!c || !*c) return 0;
 
 	srv = (liServer*) lua_touserdata(L, lua_upvalueindex(1));
-	condition_release(srv, *c);
+	li_condition_release(srv, *c);
 	return 0;
 }
 
@@ -107,7 +107,7 @@ static int lua_cond_lvalue_gc(lua_State *L) {
 	liConditionLValue **lvalue = (liConditionLValue**) luaL_checkudata(L, 1, LUA_COND_LVALUE);
 	if (!lvalue || !*lvalue) return 0;
 
-	condition_lvalue_release(*lvalue);
+	li_condition_lvalue_release(*lvalue);
 	return 0;
 }
 
@@ -138,7 +138,7 @@ int lua_push_condition(liServer *srv, lua_State *L, liCondition *c) {
 static int lua_cond_lvalue_tostring(lua_State *L) {
 	liConditionLValue *lvalue = lua_get_condition_lvalue(L, 1);
 	if (!lvalue) return 0;
-	lua_pushstring(L, cond_lvalue_to_string(lvalue->type));
+	lua_pushstring(L, li_cond_lvalue_to_string(lvalue->type));
 	if (lvalue->key) {
 		lua_pushstring(L, "['");
 		lua_pushstring(L, lvalue->key->str);
@@ -159,10 +159,10 @@ static int lua_cond_lvalue_cmp(lua_State *L) {
 	srv = (liServer*) lua_touserdata(L, lua_upvalueindex(1));
 	cmpop = (liCompOperator) lua_tointeger(L, lua_upvalueindex(2));
 
-	if (NULL == (sval = lua_togstring(L, 2))) return 0;
-	c = condition_new_string(srv, cmpop, lvalue, sval);
+	if (NULL == (sval = li_lua_togstring(L, 2))) return 0;
+	c = li_condition_new_string(srv, cmpop, lvalue, sval);
 	if (c) {
-		condition_lvalue_acquire(lvalue);
+		li_condition_lvalue_acquire(lvalue);
 		lua_push_condition(srv, L, c);
 		return 1;
 	}
@@ -209,7 +209,7 @@ static int lua_push_cond_lvalue(liServer *srv, lua_State *L, liConditionLValue *
 /* cond_lvalue_t metatable */
 static int lua_cond_lvalue_t_tostring(lua_State *L) {
 	liCondLValue t = lua_get_cond_lvalue_t(L, 1);
-	lua_pushstring(L, cond_lvalue_to_string(t));
+	lua_pushstring(L, li_cond_lvalue_to_string(t));
 	return 1;
 }
 
@@ -220,8 +220,8 @@ static int lua_cond_lvalue_t_index(lua_State *L) {
 
 	srv = (liServer*) lua_touserdata(L, lua_upvalueindex(1));
 	if (t < LI_COND_LVALUE_FIRST_WITH_KEY || t >= LI_COND_LVALUE_END) return 0;
-	if (NULL == (key = lua_togstring(L, 2))) return 0;
-	lua_push_cond_lvalue(srv, L, condition_lvalue_new(t, key));
+	if (NULL == (key = li_lua_togstring(L, 2))) return 0;
+	lua_push_cond_lvalue(srv, L, li_condition_lvalue_new(t, key));
 	return 1;
 }
 
@@ -253,12 +253,12 @@ void lua_push_lvalues_dict(liServer *srv, lua_State *L) {
 	size_t i;
 
 	for (i = 0; i < LI_COND_LVALUE_FIRST_WITH_KEY; i++) {
-		lua_push_cond_lvalue(srv, L, condition_lvalue_new(i, NULL));
-		lua_settop_in_dicts(L, cond_lvalue_to_string(i));
+		lua_push_cond_lvalue(srv, L, li_condition_lvalue_new(i, NULL));
+		lua_settop_in_dicts(L, li_cond_lvalue_to_string(i));
 	}
 
 	for ( ; i < LI_COND_LVALUE_END; i++) {
 		lua_push_cond_lvalue_t(srv, L, i);
-		lua_settop_in_dicts(L, cond_lvalue_to_string(i));
+		lua_settop_in_dicts(L, li_cond_lvalue_to_string(i));
 	}
 }

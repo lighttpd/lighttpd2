@@ -4,16 +4,16 @@
 
 /** Machine **/
 
-#define _getString(M, FPC) (chunk_extract(vr, ctx->M, GETMARK(FPC)))
+#define _getString(M, FPC) (li_chunk_extract(vr, ctx->M, GETMARK(FPC)))
 #define getString(FPC) _getString(mark, FPC)
 
-#define _getStringTo(M, FPC, s) (chunk_extract_to(vr, ctx->M, GETMARK(FPC), s))
+#define _getStringTo(M, FPC, s) (li_chunk_extract_to(vr, ctx->M, GETMARK(FPC), s))
 #define getStringTo(FPC, s) _getStringTo(mark, FPC, s)
 
 
 %%{
 
-	machine http_request_parser;
+	machine li_http_request_parser;
 	variable cs ctx->chunk_ctx.cs;
 
 	action mark { ctx->mark = GETMARK(fpc); }
@@ -30,7 +30,7 @@
 		getStringTo(fpc, ctx->h_value);
 	}
 	action header {
-		http_header_insert(ctx->request->headers, GSTR_LEN(ctx->h_key), GSTR_LEN(ctx->h_value));
+		li_http_header_insert(ctx->request->headers, GSTR_LEN(ctx->h_key), GSTR_LEN(ctx->h_value));
 	}
 
 # RFC 2616
@@ -118,16 +118,16 @@
 
 %% write data;
 
-static int http_request_parser_has_error(liHttpRequestCtx *ctx) {
-	return ctx->chunk_ctx.cs == http_request_parser_error;
+static int li_http_request_parser_has_error(liHttpRequestCtx *ctx) {
+	return ctx->chunk_ctx.cs == li_http_request_parser_error;
 }
 
-static int http_request_parser_is_finished(liHttpRequestCtx *ctx) {
-	return ctx->chunk_ctx.cs >= http_request_parser_first_final;
+static int li_http_request_parser_is_finished(liHttpRequestCtx *ctx) {
+	return ctx->chunk_ctx.cs >= li_http_request_parser_first_final;
 }
 
-void http_request_parser_init(liHttpRequestCtx* ctx, liRequest *req, liChunkQueue *cq) {
-	chunk_parser_init(&ctx->chunk_ctx, cq);
+void li_http_request_parser_init(liHttpRequestCtx* ctx, liRequest *req, liChunkQueue *cq) {
+	li_chunk_parser_init(&ctx->chunk_ctx, cq);
 	ctx->request = req;
 	ctx->h_key = g_string_sized_new(0);
 	ctx->h_value = g_string_sized_new(0);
@@ -135,39 +135,39 @@ void http_request_parser_init(liHttpRequestCtx* ctx, liRequest *req, liChunkQueu
 	%% write init;
 }
 
-void http_request_parser_reset(liHttpRequestCtx* ctx) {
-	chunk_parser_reset(&ctx->chunk_ctx);
+void li_http_request_parser_reset(liHttpRequestCtx* ctx) {
+	li_chunk_parser_reset(&ctx->chunk_ctx);
 	g_string_truncate(ctx->h_key, 0);
 	g_string_truncate(ctx->h_value, 0);
 
 	%% write init;
 }
 
-void http_request_parser_clear(liHttpRequestCtx *ctx) {
+void li_http_request_parser_clear(liHttpRequestCtx *ctx) {
 	g_string_free(ctx->h_key, TRUE);
 	g_string_free(ctx->h_value, TRUE);
 }
 
-liHandlerResult http_request_parse(liVRequest *vr, liHttpRequestCtx *ctx) {
+liHandlerResult li_http_request_parse(liVRequest *vr, liHttpRequestCtx *ctx) {
 	liHandlerResult res;
 
-	if (http_request_parser_is_finished(ctx)) return LI_HANDLER_GO_ON;
+	if (li_http_request_parser_is_finished(ctx)) return LI_HANDLER_GO_ON;
 
-	if (LI_HANDLER_GO_ON != (res = chunk_parser_prepare(&ctx->chunk_ctx))) return res;
+	if (LI_HANDLER_GO_ON != (res = li_chunk_parser_prepare(&ctx->chunk_ctx))) return res;
 
-	while (!http_request_parser_has_error(ctx) && !http_request_parser_is_finished(ctx)) {
+	while (!li_http_request_parser_has_error(ctx) && !li_http_request_parser_is_finished(ctx)) {
 		char *p, *pe;
 
-		if (LI_HANDLER_GO_ON != (res = chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
+		if (LI_HANDLER_GO_ON != (res = li_chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
 
 		%% write exec;
 
-		chunk_parser_done(&ctx->chunk_ctx, p - ctx->chunk_ctx.buf);
+		li_chunk_parser_done(&ctx->chunk_ctx, p - ctx->chunk_ctx.buf);
 	}
 
-	if (http_request_parser_has_error(ctx)) return LI_HANDLER_ERROR;
-	if (http_request_parser_is_finished(ctx)) {
-		chunkqueue_skip(ctx->chunk_ctx.cq, ctx->chunk_ctx.bytes_in);
+	if (li_http_request_parser_has_error(ctx)) return LI_HANDLER_ERROR;
+	if (li_http_request_parser_is_finished(ctx)) {
+		li_chunkqueue_skip(ctx->chunk_ctx.cq, ctx->chunk_ctx.bytes_in);
 		return LI_HANDLER_GO_ON;
 	}
 	return LI_HANDLER_ERROR;

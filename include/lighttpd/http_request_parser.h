@@ -13,11 +13,11 @@ struct liHttpRequestCtx {
 	GString *h_key, *h_value;
 };
 
-LI_API void http_request_parser_init(liHttpRequestCtx* ctx, liRequest *req, liChunkQueue *cq);
-LI_API void http_request_parser_reset(liHttpRequestCtx* ctx);
-LI_API void http_request_parser_clear(liHttpRequestCtx *ctx);
+LI_API void li_http_request_parser_init(liHttpRequestCtx* ctx, liRequest *req, liChunkQueue *cq);
+LI_API void li_http_request_parser_reset(liHttpRequestCtx* ctx);
+LI_API void li_http_request_parser_clear(liHttpRequestCtx *ctx);
 
-LI_API liHandlerResult http_request_parse(liVRequest *vr, liHttpRequestCtx *ctx);
+LI_API liHandlerResult li_http_request_parse(liVRequest *vr, liHttpRequestCtx *ctx);
 
 
 #endif

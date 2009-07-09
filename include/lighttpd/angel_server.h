@@ -60,20 +60,20 @@ struct liServer {
 	liLog log;
 };
 
-LI_API liServer* server_new(const gchar *module_dir);
-LI_API void server_free(liServer* srv);
+LI_API liServer* li_server_new(const gchar *module_dir);
+LI_API void li_server_free(liServer* srv);
 
-LI_API liInstance* server_new_instance(liServer *srv, liInstanceConf *ic);
-LI_API void instance_replace(liInstance *oldi, liInstance *newi);
-LI_API void instance_set_state(liInstance *i, liInstanceState s);
+LI_API liInstance* li_server_new_instance(liServer *srv, liInstanceConf *ic);
+LI_API void li_instance_replace(liInstance *oldi, liInstance *newi);
+LI_API void li_instance_set_state(liInstance *i, liInstanceState s);
 
-LI_API liInstanceConf* instance_conf_new(gchar **cmd, GString *username, uid_t uid, gid_t gid);
-LI_API void instance_conf_release(liInstanceConf *ic);
-LI_API void instance_conf_acquire(liInstanceConf *ic);
+LI_API liInstanceConf* li_instance_conf_new(gchar **cmd, GString *username, uid_t uid, gid_t gid);
+LI_API void li_instance_conf_release(liInstanceConf *ic);
+LI_API void li_instance_conf_acquire(liInstanceConf *ic);
 
-LI_API void instance_release(liInstance *i);
-LI_API void instance_acquire(liInstance *i);
+LI_API void li_instance_release(liInstance *i);
+LI_API void li_instance_acquire(liInstance *i);
 
-LI_API void instance_job_append(liInstance *i);
+LI_API void li_instance_job_append(liInstance *i);
 
 #endif

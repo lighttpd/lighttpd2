@@ -77,7 +77,7 @@
 	write data;
 }%%
 
-gboolean parse_raw_url(liRequestUri *uri) {
+gboolean li_parse_raw_url(liRequestUri *uri) {
 	const char *p, *pe, *eof;
 	const char *mark = NULL, *host_mark = NULL;
 	int cs;
@@ -93,7 +93,7 @@ gboolean parse_raw_url(liRequestUri *uri) {
 	return (cs >= url_parser_first_final);
 }
 
-gboolean parse_hostname(liRequestUri *uri) {
+gboolean li_parse_hostname(liRequestUri *uri) {
 	const char *p, *pe, *eof;
 	const char *mark = NULL, *host_mark = NULL;
 	int cs;

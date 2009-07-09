@@ -2,22 +2,22 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
-tristate_t http_response_handle_cachable_etag(liVRequest *vr, GString *etag) {
+tristate_t li_http_response_handle_cachable_etag(liVRequest *vr, GString *etag) {
 	GList *l;
 	tristate_t res = TRI_MAYBE;
 	gchar *setag = NULL;
 
 	if (!etag) {
-		liHttpHeader *hetag = http_header_lookup(vr->response.headers, CONST_STR_LEN("etag"));
+		liHttpHeader *hetag = li_http_header_lookup(vr->response.headers, CONST_STR_LEN("etag"));
 		if (hetag) setag = hetag->data->str + hetag->keylen + 2;
 	} else {
 		setag = etag->str;
 	}
 
 	for (
-			l = http_header_find_first(vr->request.headers, CONST_STR_LEN("If-None-Match"));
+			l = li_http_header_find_first(vr->request.headers, CONST_STR_LEN("If-None-Match"));
 			l;
-			l = http_header_find_next(l, CONST_STR_LEN("If-None-Match"))) {
+			l = li_http_header_find_next(l, CONST_STR_LEN("If-None-Match"))) {
 		liHttpHeader *h = (liHttpHeader*) l->data;
 		res = TRI_FALSE; /* if the header was given at least once, we need a match */
 		if (!setag) return res;
@@ -28,7 +28,7 @@ tristate_t http_response_handle_cachable_etag(liVRequest *vr, GString *etag) {
 	return res;
 }
 
-tristate_t http_response_handle_cachable_modified(liVRequest *vr, GString *last_modified) {
+tristate_t li_http_response_handle_cachable_modified(liVRequest *vr, GString *last_modified) {
 	GList *l;
 	gchar *slm = NULL, *hlm;
 	liHttpHeader *h;
@@ -36,15 +36,15 @@ tristate_t http_response_handle_cachable_modified(liVRequest *vr, GString *last_
 	char *semicolon;
 
 	if (!last_modified) {
-		h = http_header_lookup(vr->response.headers, CONST_STR_LEN("last-modified"));
+		h = li_http_header_lookup(vr->response.headers, CONST_STR_LEN("last-modified"));
 		if (h) slm = h->data->str + h->keylen + 2;
 	} else {
 		slm = last_modified->str;
 	}
 
-	l = http_header_find_first(vr->request.headers, CONST_STR_LEN("If-Modified-Since"));
+	l = li_http_header_find_first(vr->request.headers, CONST_STR_LEN("If-Modified-Since"));
 	if (!l) return TRI_MAYBE; /* no if-modified-since header */
-	if (http_header_find_next(l, CONST_STR_LEN("If-Modified-Since"))) {
+	if (li_http_header_find_next(l, CONST_STR_LEN("If-Modified-Since"))) {
 		return TRI_FALSE; /* we only check one if-modified-since header */
 	}
 	h = (liHttpHeader*) l->data;
@@ -94,7 +94,7 @@ tristate_t http_response_handle_cachable_modified(liVRequest *vr, GString *last_
 	}
 }
 
-void etag_mutate(GString *mut, GString *etag) {
+void li_etag_mutate(GString *mut, GString *etag) {
 	guint i;
 	guint32 h;
 
@@ -102,41 +102,41 @@ void etag_mutate(GString *mut, GString *etag) {
 
 	g_string_truncate(mut, 0);
 	g_string_append_len(mut, CONST_STR_LEN("\""));
-	l_g_string_append_int(mut, (guint64) h);
+	li_string_append_int(mut, (guint64) h);
 	g_string_append_len(mut, CONST_STR_LEN("\""));
 }
 
-void etag_set_header(liVRequest *vr, struct stat *st, gboolean *cachable) {
+void li_etag_set_header(liVRequest *vr, struct stat *st, gboolean *cachable) {
 	guint flags = CORE_OPTION(LI_CORE_OPTION_ETAG_FLAGS).number;
 	GString *tmp_str = vr->wrk->tmp_str;
 	struct tm tm;
 	tristate_t c_able = cachable ? TRI_MAYBE : TRI_FALSE;
 
 	if (0 == flags) {
-		http_header_remove(vr->response.headers, CONST_STR_LEN("etag"));
+		li_http_header_remove(vr->response.headers, CONST_STR_LEN("etag"));
 	} else {
 		g_string_truncate(tmp_str, 0);
 	
 		if (flags & LI_ETAG_USE_INODE) {
-			l_g_string_append_int(tmp_str, st->st_ino);
+			li_string_append_int(tmp_str, st->st_ino);
 		}
 		
 		if (flags & LI_ETAG_USE_SIZE) {
 			if (tmp_str->len != 0) g_string_append_len(tmp_str, CONST_STR_LEN("-"));
-			l_g_string_append_int(tmp_str, st->st_size);
+			li_string_append_int(tmp_str, st->st_size);
 		}
 		
 		if (flags & LI_ETAG_USE_MTIME) {
 			if (tmp_str->len != 0) g_string_append_len(tmp_str, CONST_STR_LEN("-"));
-			l_g_string_append_int(tmp_str, st->st_mtime);
+			li_string_append_int(tmp_str, st->st_mtime);
 		}
 	
-		etag_mutate(tmp_str, tmp_str);
+		li_etag_mutate(tmp_str, tmp_str);
 	
-		http_header_overwrite(vr->response.headers, CONST_STR_LEN("ETag"), GSTR_LEN(tmp_str));
+		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("ETag"), GSTR_LEN(tmp_str));
 
 		if (c_able != TRI_FALSE) {
-			switch (http_response_handle_cachable_etag(vr, tmp_str)) {
+			switch (li_http_response_handle_cachable_etag(vr, tmp_str)) {
 			case TRI_FALSE: c_able = TRI_FALSE; break;
 			case TRI_MAYBE: break;
 			case TRI_TRUE : c_able = TRI_TRUE; break;
@@ -148,10 +148,10 @@ void etag_set_header(liVRequest *vr, struct stat *st, gboolean *cachable) {
 		g_string_set_size(tmp_str, 256);
 		g_string_set_size(tmp_str, strftime(tmp_str->str, tmp_str->len-1,
 			"%a, %d %b %Y %H:%M:%S GMT", &tm));
-		http_header_overwrite(vr->response.headers, CONST_STR_LEN("Last-Modified"), GSTR_LEN(tmp_str));
+		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Last-Modified"), GSTR_LEN(tmp_str));
 
 		if (c_able != TRI_FALSE) {
-			switch (http_response_handle_cachable_modified(vr, tmp_str)) {
+			switch (li_http_response_handle_cachable_modified(vr, tmp_str)) {
 			case TRI_FALSE: c_able = TRI_FALSE; break;
 			case TRI_MAYBE: break;
 			case TRI_TRUE : c_able = TRI_TRUE; break;

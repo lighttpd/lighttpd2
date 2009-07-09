@@ -72,7 +72,7 @@ void throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	wrk = w->data;
 	now = ev_now(loop);
 
-	while (NULL != (wqe = waitqueue_pop(&wrk->throttle_queue))) {
+	while (NULL != (wqe = li_waitqueue_pop(&wrk->throttle_queue))) {
 		con = wqe->data;
 
 		if (con->throttle.pool.ptr) {
@@ -138,8 +138,8 @@ void throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 				con->throttle.con.magazine += con->throttle.con.rate * THROTTLE_GRANULARITY;
 		}
 
-		ev_io_add_events(loop, &con->sock_watcher, EV_WRITE);
+		li_ev_io_add_events(loop, &con->sock_watcher, EV_WRITE);
 	}
 
-	waitqueue_update(&wrk->throttle_queue);
+	li_waitqueue_update(&wrk->throttle_queue);
 }

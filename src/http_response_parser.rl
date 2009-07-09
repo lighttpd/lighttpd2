@@ -4,16 +4,16 @@
 
 /** Machine **/
 
-#define _getString(M, FPC) (chunk_extract(vr, ctx->M, GETMARK(FPC)))
+#define _getString(M, FPC) (li_chunk_extract(vr, ctx->M, GETMARK(FPC)))
 #define getString(FPC) _getString(mark, FPC)
 
-#define _getStringTo(M, FPC, s) (chunk_extract_to(vr, ctx->M, GETMARK(FPC), s))
+#define _getStringTo(M, FPC, s) (li_chunk_extract_to(vr, ctx->M, GETMARK(FPC), s))
 #define getStringTo(FPC, s) _getStringTo(mark, FPC, s)
 
 
 %%{
 
-	machine http_response_parser;
+	machine li_http_response_parser;
 	variable cs ctx->chunk_ctx.cs;
 
 	action mark { ctx->mark = GETMARK(fpc); }
@@ -32,10 +32,10 @@
 		getStringTo(fpc, ctx->h_value);
 	}
 	action header {
-		if (ctx->accept_cgi && l_g_strncase_equal(ctx->h_key, CONST_STR_LEN("Status"))) {
+		if (ctx->accept_cgi && li_strncase_equal(ctx->h_key, CONST_STR_LEN("Status"))) {
 			ctx->response->http_status = atoi(ctx->h_value->str);
 		} else {
-			http_header_insert(ctx->response->headers, GSTR_LEN(ctx->h_key), GSTR_LEN(ctx->h_value));
+			li_http_header_insert(ctx->response->headers, GSTR_LEN(ctx->h_key), GSTR_LEN(ctx->h_value));
 		}
 	}
 
@@ -88,16 +88,16 @@
 
 %% write data;
 
-static int http_response_parser_has_error(liHttpResponseCtx *ctx) {
-	return ctx->chunk_ctx.cs == http_response_parser_error;
+static int li_http_response_parser_has_error(liHttpResponseCtx *ctx) {
+	return ctx->chunk_ctx.cs == li_http_response_parser_error;
 }
 
-static int http_response_parser_is_finished(liHttpResponseCtx *ctx) {
-	return ctx->chunk_ctx.cs >= http_response_parser_first_final;
+static int li_http_response_parser_is_finished(liHttpResponseCtx *ctx) {
+	return ctx->chunk_ctx.cs >= li_http_response_parser_first_final;
 }
 
-void http_response_parser_init(liHttpResponseCtx* ctx, liResponse *req, liChunkQueue *cq, gboolean accept_cgi, gboolean accept_nph) {
-	chunk_parser_init(&ctx->chunk_ctx, cq);
+void li_http_response_parser_init(liHttpResponseCtx* ctx, liResponse *req, liChunkQueue *cq, gboolean accept_cgi, gboolean accept_nph) {
+	li_chunk_parser_init(&ctx->chunk_ctx, cq);
 	ctx->response = req;
 	ctx->accept_cgi = accept_cgi;
 	ctx->accept_nph = accept_nph;
@@ -107,39 +107,39 @@ void http_response_parser_init(liHttpResponseCtx* ctx, liResponse *req, liChunkQ
 	%% write init;
 }
 
-void http_response_parser_reset(liHttpResponseCtx* ctx) {
-	chunk_parser_reset(&ctx->chunk_ctx);
+void li_http_response_parser_reset(liHttpResponseCtx* ctx) {
+	li_chunk_parser_reset(&ctx->chunk_ctx);
 	g_string_truncate(ctx->h_key, 0);
 	g_string_truncate(ctx->h_value, 0);
 
 	%% write init;
 }
 
-void http_response_parser_clear(liHttpResponseCtx *ctx) {
+void li_http_response_parser_clear(liHttpResponseCtx *ctx) {
 	g_string_free(ctx->h_key, TRUE);
 	g_string_free(ctx->h_value, TRUE);
 }
 
-liHandlerResult http_response_parse(liVRequest *vr, liHttpResponseCtx *ctx) {
+liHandlerResult li_http_response_parse(liVRequest *vr, liHttpResponseCtx *ctx) {
 	liHandlerResult res;
 
-	if (http_response_parser_is_finished(ctx)) return LI_HANDLER_GO_ON;
+	if (li_http_response_parser_is_finished(ctx)) return LI_HANDLER_GO_ON;
 
-	if (LI_HANDLER_GO_ON != (res = chunk_parser_prepare(&ctx->chunk_ctx))) return res;
+	if (LI_HANDLER_GO_ON != (res = li_chunk_parser_prepare(&ctx->chunk_ctx))) return res;
 
-	while (!http_response_parser_has_error(ctx) && !http_response_parser_is_finished(ctx)) {
+	while (!li_http_response_parser_has_error(ctx) && !li_http_response_parser_is_finished(ctx)) {
 		char *p, *pe;
 
-		if (LI_HANDLER_GO_ON != (res = chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
+		if (LI_HANDLER_GO_ON != (res = li_chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
 
 		%% write exec;
 
-		chunk_parser_done(&ctx->chunk_ctx, p - ctx->chunk_ctx.buf);
+		li_chunk_parser_done(&ctx->chunk_ctx, p - ctx->chunk_ctx.buf);
 	}
 
-	if (http_response_parser_has_error(ctx)) return LI_HANDLER_ERROR;
-	if (http_response_parser_is_finished(ctx)) {
-		chunkqueue_skip(ctx->chunk_ctx.cq, ctx->chunk_ctx.bytes_in);
+	if (li_http_response_parser_has_error(ctx)) return LI_HANDLER_ERROR;
+	if (li_http_response_parser_is_finished(ctx)) {
+		li_chunkqueue_skip(ctx->chunk_ctx.cq, ctx->chunk_ctx.bytes_in);
 		if (ctx->response->http_status == 0) ctx->response->http_status = 200;
 		return LI_HANDLER_GO_ON;
 	}

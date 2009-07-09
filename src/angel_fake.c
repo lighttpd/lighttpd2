@@ -11,7 +11,7 @@ int angel_fake_listen(liServer *srv, GString *str) {
 #endif
 	guint16 port = 80;
 
-	if (parse_ipv4(str->str, &ipv4, NULL, &port)) {
+	if (li_parse_ipv4(str->str, &ipv4, NULL, &port)) {
 		int s, v;
 		struct sockaddr_in addr;
 		memset(&addr, 0, sizeof(addr));
@@ -41,11 +41,11 @@ int angel_fake_listen(liServer *srv, GString *str) {
 		DEBUG(srv, "listen to ipv4: '%s' port: %d", inet_ntoa(*(struct in_addr*)&ipv4), port);
 		return s;
 #ifdef HAVE_IPV6
-	} else if (parse_ipv6(str->str, ipv6, NULL, &port)) {
+	} else if (li_parse_ipv6(str->str, ipv6, NULL, &port)) {
 		GString *ipv6_str = g_string_sized_new(0);
 		int s, v;
 		struct sockaddr_in6 addr;
-		ipv6_tostring(ipv6_str, ipv6);
+		li_ipv6_tostring(ipv6_str, ipv6);
 		
 		memset(&addr, 0, sizeof(addr));
 		addr.sin6_family = AF_INET6;

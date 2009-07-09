@@ -27,8 +27,8 @@ struct liAngelBuffer {
 };
 
 /* error handling */
-#define LI_ANGEL_DATA_ERROR angel_data_error_quark()
-LI_API GQuark angel_data_error_quark();
+#define LI_ANGEL_DATA_ERROR li_angel_data_error_quark()
+LI_API GQuark li_angel_data_error_quark();
 
 typedef enum {
 	LI_ANGEL_DATA_ERROR_EOF,                    /* not enough data to read value */
@@ -37,11 +37,11 @@ typedef enum {
 } liAngelDataError;
 
 /* write */
-LI_API gboolean angel_data_write_int32(GString *buf, gint32 i, GError **err);
-LI_API gboolean angel_data_write_int64(GString *buf, gint64 i, GError **err);
-LI_API gboolean angel_data_write_char (GString *buf, gchar c, GError **err);
-LI_API gboolean angel_data_write_str  (GString *buf, const GString *str, GError **err);
-LI_API gboolean angel_data_write_cstr (GString *buf, const gchar *str, gsize len, GError **err);
+LI_API gboolean li_angel_data_write_int32(GString *buf, gint32 i, GError **err);
+LI_API gboolean li_angel_data_write_int64(GString *buf, gint64 i, GError **err);
+LI_API gboolean li_angel_data_write_char (GString *buf, gchar c, GError **err);
+LI_API gboolean li_angel_data_write_str  (GString *buf, const GString *str, GError **err);
+LI_API gboolean li_angel_data_write_cstr (GString *buf, const gchar *str, gsize len, GError **err);
 
 /* read:
  * - if the val pointer is NULL, the data will be discarded
@@ -49,10 +49,10 @@ LI_API gboolean angel_data_write_cstr (GString *buf, const gchar *str, gsize len
  *   otherwise a new GString* will be created
  * - *val will only be modified if no error is returned
  */
-LI_API gboolean angel_data_read_int32(liAngelBuffer *buf, gint32 *val, GError **err);
-LI_API gboolean angel_data_read_int64(liAngelBuffer *buf, gint64 *val, GError **err);
-LI_API gboolean angel_data_read_char (liAngelBuffer *buf, gchar *val, GError **err);
-LI_API gboolean angel_data_read_str  (liAngelBuffer *buf, GString **val, GError **err);
-LI_API gboolean angel_data_read_mem  (liAngelBuffer *buf, GString **val, gsize len, GError **err);
+LI_API gboolean li_angel_data_read_int32(liAngelBuffer *buf, gint32 *val, GError **err);
+LI_API gboolean li_angel_data_read_int64(liAngelBuffer *buf, gint64 *val, GError **err);
+LI_API gboolean li_angel_data_read_char (liAngelBuffer *buf, gchar *val, GError **err);
+LI_API gboolean li_angel_data_read_str  (liAngelBuffer *buf, GString **val, GError **err);
+LI_API gboolean li_angel_data_read_mem  (liAngelBuffer *buf, GString **val, gsize len, GError **err);
 
 #endif

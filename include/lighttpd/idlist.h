@@ -24,18 +24,18 @@ struct liIDList {
 };
 
 /* create new idlist; the parameter max_ids is "signed" on purpose */
-LI_API liIDList* idlist_new(gint max_ids);
+LI_API liIDList* li_idlist_new(gint max_ids);
 
 /* free idlist */
-LI_API void idlist_free(liIDList *l);
+LI_API void li_idlist_free(liIDList *l);
 
 /* request new id; return -1 if no id is available, valid ids are always > 0 */
-LI_API gint idlist_get(liIDList *l);
+LI_API gint li_idlist_get(liIDList *l);
 
 /* check whether an id is in use and can be "_put" */
-LI_API gboolean idlist_is_used(liIDList *l, gint id);
+LI_API gboolean li_idlist_is_used(liIDList *l, gint id);
 
 /* release id. never release an id more than once! */
-LI_API void idlist_put(liIDList *l, gint id);
+LI_API void li_idlist_put(liIDList *l, gint id);
 
 #endif

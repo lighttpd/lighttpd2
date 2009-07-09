@@ -42,7 +42,7 @@ static void balancer_free(liServer *srv, balancer *b) {
 	if (!b) return;
 	for (i = 0; i < b->backends->len; i++) {
 		backend *be = &g_array_index(b->backends, backend, i);
-		action_release(srv, be->act);
+		li_action_release(srv, be->act);
 	}
 	g_array_free(b->backends, TRUE);
 	g_slice_free(balancer, b);
@@ -52,7 +52,7 @@ static gboolean balancer_fill_backends(balancer *b, liServer *srv, liValue *val)
 	if (val->type == LI_VALUE_ACTION) {
 		backend be = { val->data.val_action.action, 0, BE_ALIVE };
 		assert(srv == val->data.val_action.srv);
-		action_acquire(be.act);
+		li_action_acquire(be.act);
 		g_array_append_val(b->backends, be);
 		return TRUE;
 	} else if (val->type == LI_VALUE_LIST) {
@@ -64,19 +64,19 @@ static gboolean balancer_fill_backends(balancer *b, liServer *srv, liValue *val)
 		for (i = 0; i < val->data.list->len; i++) {
 			liValue *oa = g_array_index(val->data.list, liValue*, i);
 			if (oa->type != LI_VALUE_ACTION) {
-				ERROR(srv, "expected action at entry %u of list, got %s", i, value_type_string(oa->type));
+				ERROR(srv, "expected action at entry %u of list, got %s", i, li_value_type_string(oa->type));
 				return FALSE;
 			}
 			assert(srv == oa->data.val_action.srv);
 			{
 				backend be = { oa->data.val_action.action, 0, BE_ALIVE };
-				action_acquire(be.act);
+				li_action_acquire(be.act);
 				g_array_append_val(b->backends, be);
 			}
 		}
 		return TRUE;
 	} else {
-		ERROR(srv, "expected list, got %s", value_type_string(val->type));
+		ERROR(srv, "expected list, got %s", li_value_type_string(val->type));
 		return FALSE;
 	}
 }
@@ -91,7 +91,7 @@ static liHandlerResult balancer_act_select(liVRequest *vr, gboolean backlog_prov
 	/* TODO implement some selection algorithms */
 
 	be->load++;
-	action_enter(vr, be->act);
+	li_action_enter(vr, be->act);
 	*context = GINT_TO_POINTER(be_ndx);
 
 	return LI_HANDLER_GO_ON;
@@ -111,7 +111,7 @@ static liHandlerResult balancer_act_fallback(liVRequest *vr, gboolean backlog_pr
 
 	be->load--;
 	*context = GINT_TO_POINTER(-1);
-	vrequest_backend_error(vr, error);
+	li_vrequest_backend_error(vr, error);
 	return LI_HANDLER_GO_ON;
 }
 
@@ -150,7 +150,7 @@ static liAction* balancer_rr(liServer *srv, liPlugin* p, liValue *val) {
 		return NULL;
 	}
 
-	a = action_new_balancer(balancer_act_select, balancer_act_fallback, balancer_act_finished, balancer_act_free, b, TRUE);
+	a = li_action_new_balancer(balancer_act_select, balancer_act_fallback, balancer_act_finished, balancer_act_free, b, TRUE);
 	return a;
 }
 
@@ -181,14 +181,14 @@ static void plugin_init(liServer *srv, liPlugin *p) {
 gboolean mod_balancer_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(mods->main, "mod_balancer", plugin_init);
+	mod->config = li_plugin_register(mods->main, "mod_balancer", plugin_init);
 
 	return mod->config != NULL;
 }
 
 gboolean mod_balancer_free(liModules *mods, liModule *mod) {
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }

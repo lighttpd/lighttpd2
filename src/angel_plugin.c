@@ -36,7 +36,7 @@ static server_item* server_item_new(liPlugin *p, const liPluginItem *p_item) {
 	return si;
 }
 
-static void plugin_free(liServer *srv, liPlugin *p) {
+static void li_plugin_free(liServer *srv, liPlugin *p) {
 	if (p->handle_free) p->handle_free(srv, p);
 	g_hash_table_destroy(p->angel_callbacks);
 	g_slice_free(liPlugin, p);
@@ -58,10 +58,10 @@ static void _server_module_release(gpointer d) {
 
 	for (i = sm->plugins->len; i-- > 0; ) {
 		liPlugin *p = g_ptr_array_index(sm->plugins, i);
-		plugin_free(sm->srv, p);
+		li_plugin_free(sm->srv, p);
 	}
 	g_ptr_array_free(sm->plugins, TRUE);
-	if (sm->mod) module_release(sm->srv->plugins.modules, sm->mod);
+	if (sm->mod) li_module_release(sm->srv->plugins.modules, sm->mod);
 	g_free(sm->name);
 	g_slice_free(server_module, sm);
 }
@@ -83,7 +83,7 @@ static server_module* server_module_new(liServer *srv, const gchar *name) { /* m
 void plugins_init(liServer *srv, const gchar *module_dir) {
 	liPlugins *ps = &srv->plugins;
 
-	ps->modules = modules_new(srv, module_dir);
+	ps->modules = li_modules_new(srv, module_dir);
 
 	ps->items = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, _server_item_free);
 	ps->load_items = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, _server_item_free);
@@ -117,7 +117,7 @@ void plugins_clear(liServer *srv) {
 
 	if (ps->config_filename) g_string_free(ps->config_filename, TRUE);
 
-	modules_free(ps->modules);
+	li_modules_free(ps->modules);
 }
 
 void plugins_config_clean(liServer *srv) {
@@ -146,7 +146,7 @@ gboolean plugins_config_load(liServer *srv, const gchar *filename) {
 		return FALSE;
 	}
 
-	if (!angel_config_parse_file(srv, filename, &error)) {
+	if (!li_angel_config_parse_file(srv, filename, &error)) {
 		ERROR(srv, "failed to parse config file: %s", error->message);
 		g_error_free(error);
 		plugins_config_clean(srv);
@@ -208,7 +208,7 @@ void plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
 #if 1
 	/* debug items */
 	{
-		GString *tmp = value_to_string(hash);
+		GString *tmp = li_value_to_string(hash);
 		ERROR(srv, "Item '%s': %s", itemname->str, tmp->str);
 		g_string_free(tmp, TRUE);
 	}
@@ -250,7 +250,7 @@ void plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
 			if (pi->type != LI_VALUE_NONE && optlist[i] && optlist[i]->type != pi->type) {
 				/* TODO: convert from string if possible */
 				ERROR(srv, "Invalid value type of option '%s' in item '%s', got '%s' but expected '%s'",
-					pi->name, itemname->str, value_type_string(optlist[i]->type), value_type_string(pi->type));
+					pi->name, itemname->str, li_value_type_string(optlist[i]->type), li_value_type_string(pi->type));
 				valid = FALSE;
 			}
 		}
@@ -328,7 +328,7 @@ gboolean plugins_load_module(liServer *srv, const gchar *name) {
 		sm = server_module_new(srv, modname);
 		g_hash_table_insert(ps->load_module_refs, sm->name, sm);
 		if (name) {
-			mod = module_load(ps->modules, name);
+			mod = li_module_load(ps->modules, name);
 
 			if (!mod) {
 				_server_module_release(sm);
@@ -351,7 +351,7 @@ gboolean plugins_load_module(liServer *srv, const gchar *name) {
 	return TRUE;
 }
 
-liPlugin *angel_plugin_register(liServer *srv, liModule *mod, const gchar *name, liPluginInitCB init) {
+liPlugin *li_angel_plugin_register(liServer *srv, liModule *mod, const gchar *name, liPluginInitCB init) {
 	liPlugins *ps = &srv->plugins;
 	server_module *sm;
 	liPlugin *p;
@@ -366,7 +366,7 @@ liPlugin *angel_plugin_register(liServer *srv, liModule *mod, const gchar *name,
 	p = plugin_new(name);
 	if (!init(srv, p)) {
 		ERROR(srv, "Couldn't load plugin '%s' for module '%s': init failed", name, mod->name->str);
-		plugin_free(srv, p);
+		li_plugin_free(srv, p);
 		return NULL;
 	}
 

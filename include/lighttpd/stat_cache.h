@@ -91,16 +91,16 @@ void stat_cache_free(liStatCache *sc);
  if fd is set, a new fd is acquired via open() and stat info via fstat(), otherwise only a stat() is performed
  returns HANDLER_WAIT_FOR_EVENT in case of a cache MISS, HANDLER_GO_ON in case of a hit and HANDLER_ERROR in case of an error
 */
-LI_API liHandlerResult stat_cache_get(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd);
+LI_API liHandlerResult li_stat_cache_get(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd);
 
 /*
  sce->dirlist will contain a list of stat_cache_entry_data upon success
  returns HANDLER_WAIT_FOR_EVENT in case of a cache MISS, HANDLER_GO_ON in case of a hit and HANDLER_ERROR in case of an error
 */
-LI_API liHandlerResult stat_cache_get_dirlist(liVRequest *vr, GString *path, liStatCacheEntry **result);
+LI_API liHandlerResult li_stat_cache_get_dirlist(liVRequest *vr, GString *path, liStatCacheEntry **result);
 
-LI_API void stat_cache_entry_acquire(liVRequest *vr, liStatCacheEntry *sce);
+LI_API void li_stat_cache_entry_acquire(liVRequest *vr, liStatCacheEntry *sce);
 /* release a stat_cache_entry so it can be cleaned up */
-LI_API void stat_cache_entry_release(liVRequest *vr, liStatCacheEntry *sce);
+LI_API void li_stat_cache_entry_release(liVRequest *vr, liStatCacheEntry *sce);
 
 #endif

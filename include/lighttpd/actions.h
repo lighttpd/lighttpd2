@@ -72,22 +72,22 @@ struct liAction {
 };
 
 /* no new/free function, so just use the struct direct (i.e. not a pointer) */
-LI_API void action_stack_init(liActionStack *as);
-LI_API void action_stack_reset(liVRequest *vr, liActionStack *as);
-LI_API void action_stack_clear(liVRequest *vr, liActionStack *as);
+LI_API void li_action_stack_init(liActionStack *as);
+LI_API void li_action_stack_reset(liVRequest *vr, liActionStack *as);
+LI_API void li_action_stack_clear(liVRequest *vr, liActionStack *as);
 
 /** handle sublist now, remember current position (stack) */
-LI_API void action_enter(liVRequest *vr, liAction *a);
-LI_API liHandlerResult action_execute(liVRequest *vr);
+LI_API void li_action_enter(liVRequest *vr, liAction *a);
+LI_API liHandlerResult li_action_execute(liVRequest *vr);
 
 
-LI_API void action_release(liServer *srv, liAction *a);
-LI_API void action_acquire(liAction *a);
+LI_API void li_action_release(liServer *srv, liAction *a);
+LI_API void li_action_acquire(liAction *a);
 /* create new action */
-LI_API liAction *action_new_setting(liOptionSet setting);
-LI_API liAction *action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup, liActionFreeCB ffree, gpointer param);
-LI_API liAction *action_new_list();
-LI_API liAction *action_new_condition(liCondition *cond, liAction *target, liAction *target_else);
-LI_API liAction *action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB bfallback, liBackendFinishedCB bfinished, liBalancerFreeCB bfree, gpointer param, gboolean provide_backlog);
+LI_API liAction *li_action_new_setting(liOptionSet setting);
+LI_API liAction *li_action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup, liActionFreeCB ffree, gpointer param);
+LI_API liAction *li_action_new_list();
+LI_API liAction *li_action_new_condition(liCondition *cond, liAction *target, liAction *target_else);
+LI_API liAction *li_action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB bfallback, liBackendFinishedCB bfinished, liBalancerFreeCB bfree, gpointer param, gboolean provide_backlog);
 
 #endif

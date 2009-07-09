@@ -77,6 +77,6 @@ void plugins_handle_item(liServer *srv, GString *itemname, liValue *hash);
 /* "core" is a reserved module name for interal use */
 gboolean plugins_load_module(liServer *srv, const gchar *name);
 /* Needed by modules to register their plugin(s) */
-LI_API liPlugin *angel_plugin_register(liServer *srv, liModule *mod, const gchar *name, liPluginInitCB init);
+LI_API liPlugin *li_angel_plugin_register(liServer *srv, liModule *mod, const gchar *name, liPluginInitCB init);
 
 #endif

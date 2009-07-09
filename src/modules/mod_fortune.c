@@ -50,14 +50,14 @@ static liHandlerResult fortune_header_handle(liVRequest *vr, gpointer param, gpo
 
 	if (fd->cookies->len) {
 		GString *cookie = fortune_rand(fd);
-		http_header_insert(vr->response.headers, CONST_STR_LEN("X-fortune"), GSTR_LEN(cookie));
+		li_http_header_insert(vr->response.headers, CONST_STR_LEN("X-fortune"), GSTR_LEN(cookie));
 	}
 	return LI_HANDLER_GO_ON;
 }
 
 static liAction* fortune_header(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(srv); UNUSED(val);
-	return action_new_function(fortune_header_handle, NULL, NULL, p->data);
+	return li_action_new_function(fortune_header_handle, NULL, NULL, p->data);
 }
 
 static liHandlerResult fortune_page_handle(liVRequest *vr, gpointer param, gpointer *context) {
@@ -65,16 +65,16 @@ static liHandlerResult fortune_page_handle(liVRequest *vr, gpointer param, gpoin
 
 	UNUSED(context);
 
-	if (!vrequest_handle_direct(vr))
+	if (!li_vrequest_handle_direct(vr))
 		return LI_HANDLER_GO_ON;
 
 	vr->response.http_status = 200;
 
 	if (fd->cookies->len) {
 		GString *cookie = fortune_rand(fd);
-		chunkqueue_append_mem(vr->out, GSTR_LEN(cookie));
+		li_chunkqueue_append_mem(vr->out, GSTR_LEN(cookie));
 	} else {
-		chunkqueue_append_mem(vr->out, CONST_STR_LEN("no cookies in the cookie box"));
+		li_chunkqueue_append_mem(vr->out, CONST_STR_LEN("no cookies in the cookie box"));
 	}
 
 	return LI_HANDLER_GO_ON;
@@ -82,7 +82,7 @@ static liHandlerResult fortune_page_handle(liVRequest *vr, gpointer param, gpoin
 
 static liAction* fortune_page(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(srv); UNUSED(val);
-	return action_new_function(fortune_page_handle, NULL, NULL, p->data);
+	return li_action_new_function(fortune_page_handle, NULL, NULL, p->data);
 }
 
 static gboolean fortune_load(liServer *srv, liPlugin* p, liValue *val) {
@@ -94,7 +94,7 @@ static gboolean fortune_load(liServer *srv, liPlugin* p, liValue *val) {
 	fortune_data *fd = p->data;
 
 	if (!val || val->type != LI_VALUE_STRING) {
-		ERROR(srv, "fortune.load takes a string as parameter, %s given", val ? value_type_string(val->type) : "none");
+		ERROR(srv, "fortune.load takes a string as parameter, %s given", val ? li_value_type_string(val->type) : "none");
 		return FALSE;
 	}
 
@@ -189,7 +189,7 @@ gboolean mod_fortune_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(srv, "mod_fortune", plugin_fortune_init);
+	mod->config = li_plugin_register(srv, "mod_fortune", plugin_fortune_init);
 
 	if (!mod->config)
 		return FALSE;
@@ -199,7 +199,7 @@ gboolean mod_fortune_init(liModules *mods, liModule *mod) {
 
 gboolean mod_fortune_free(liModules *mods, liModule *mod) {
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }

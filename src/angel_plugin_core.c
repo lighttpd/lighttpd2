@@ -86,7 +86,7 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 
 	g_ptr_array_add(cmd, NULL);
 	cmdarr = (gchar**) g_ptr_array_free(cmd, FALSE);
-	config->load_instconf = instance_conf_new(cmdarr, user, uid, gid);
+	config->load_instconf = li_instance_conf_new(cmdarr, user, uid, gid);
 }
 
 static const liPluginItemOption core_instance_options[] = {
@@ -111,7 +111,7 @@ static int do_listen(liServer *srv, GString *str) {
 #endif
 	guint16 port = 80;
 
-	if (parse_ipv4(str->str, &ipv4, NULL, &port)) {
+	if (li_parse_ipv4(str->str, &ipv4, NULL, &port)) {
 		int s, v;
 		struct sockaddr_in addr;
 		memset(&addr, 0, sizeof(addr));
@@ -141,11 +141,11 @@ static int do_listen(liServer *srv, GString *str) {
 		DEBUG(srv, "listen to ipv4: '%s' port: %d", str->str, port);
 		return s;
 #ifdef HAVE_IPV6
-	} else if (parse_ipv6(str->str, ipv6, NULL, &port)) {
+	} else if (li_parse_ipv6(str->str, ipv6, NULL, &port)) {
 		GString *ipv6_str = g_string_sized_new(0);
 		int s, v;
 		struct sockaddr_in6 addr;
-		ipv6_tostring(ipv6_str, ipv6);
+		li_ipv6_tostring(ipv6_str, ipv6);
 
 		memset(&addr, 0, sizeof(addr));
 		addr.sin6_family = AF_INET6;
@@ -204,7 +204,7 @@ static void core_listen(liServer *srv, liInstance *i, liPlugin *p, gint32 id, GS
 	if (-1 == fd) {
 		GString *error = g_string_sized_new(0);
 		g_string_printf(error, "Couldn't listen to '%s'", data->str);
-		if (!angel_send_result(i->acon, id, error, NULL, NULL, &err)) {
+		if (!li_angel_send_result(i->acon, id, error, NULL, NULL, &err)) {
 			ERROR(srv, "Couldn't send result: %s", err->message);
 			g_error_free(err);
 		}
@@ -214,7 +214,7 @@ static void core_listen(liServer *srv, liInstance *i, liPlugin *p, gint32 id, GS
 	fds = g_array_new(FALSE, FALSE, sizeof(int));
 	g_array_append_val(fds, fd);
 
-	if (!angel_send_result(i->acon, id, NULL, NULL, fds, &err)) {
+	if (!li_angel_send_result(i->acon, id, NULL, NULL, fds, &err)) {
 		ERROR(srv, "Couldn't send result: %s", err->message);
 		g_error_free(err);
 		return;
@@ -228,13 +228,13 @@ static void core_free(liServer *srv, liPlugin *p) {
 	core_clean(srv, p);
 
 	if (config->instconf) {
-		instance_conf_release(config->instconf);
+		li_instance_conf_release(config->instconf);
 		config->instconf = NULL;
 	}
 
 	if (config->inst) {
-		instance_set_state(config->inst, LI_INSTANCE_DOWN);
-		instance_release(config->inst);
+		li_instance_set_state(config->inst, LI_INSTANCE_DOWN);
+		li_instance_release(config->inst);
 		config->inst = NULL;
 	}
 }
@@ -244,7 +244,7 @@ static void core_clean(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
 
 	if (config->load_instconf) {
-		instance_conf_release(config->load_instconf);
+		li_instance_conf_release(config->load_instconf);
 		config->load_instconf = NULL;
 	}
 
@@ -261,13 +261,13 @@ static void core_activate(liServer *srv, liPlugin *p) {
 	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 
 	if (config->instconf) {
-		instance_conf_release(config->instconf);
+		li_instance_conf_release(config->instconf);
 		config->instconf = NULL;
 	}
 
 	if (config->inst) {
-		instance_set_state(config->inst, LI_INSTANCE_DOWN);
-		instance_release(config->inst);
+		li_instance_set_state(config->inst, LI_INSTANCE_DOWN);
+		li_instance_release(config->inst);
 		config->inst = NULL;
 	}
 
@@ -275,8 +275,8 @@ static void core_activate(liServer *srv, liPlugin *p) {
 	config->load_instconf = NULL;
 
 	if (config->instconf) {
-		config->inst = server_new_instance(srv, config->instconf);
-		instance_set_state(config->inst, LI_INSTANCE_ACTIVE);
+		config->inst = li_server_new_instance(srv, config->instconf);
+		li_instance_set_state(config->inst, LI_INSTANCE_ACTIVE);
 		ERROR(srv, "%s", "Starting instance");
 	}
 }
@@ -298,5 +298,5 @@ static gboolean core_init(liServer *srv, liPlugin *p) {
 
 gboolean plugin_core_init(liServer *srv) {
 	/* load core plugins */
-	return NULL != angel_plugin_register(srv, NULL, "core", core_init);
+	return NULL != li_angel_plugin_register(srv, NULL, "core", core_init);
 }

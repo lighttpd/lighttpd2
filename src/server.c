@@ -2,33 +2,33 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
-static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents);
+static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents);
 
 static liServerSocket* server_socket_new(int fd) {
 	liServerSocket *sock = g_slice_new0(liServerSocket);
 
 	sock->refcount = 1;
 	sock->watcher.data = sock;
-	sock->local_addr = sockaddr_local_from_socket(fd);
+	sock->local_addr = li_sockaddr_local_from_socket(fd);
 	sock->local_addr_str = g_string_sized_new(0);
-	sockaddr_to_string(sock->local_addr, sock->local_addr_str, FALSE);
-	fd_init(fd);
-	ev_init(&sock->watcher, server_listen_cb);
+	li_sockaddr_to_string(sock->local_addr, sock->local_addr_str, FALSE);
+	li_fd_init(fd);
+	ev_init(&sock->watcher, li_server_listen_cb);
 	ev_io_set(&sock->watcher, fd, EV_READ);
 	return sock;
 }
 
-void server_socket_release(liServerSocket* sock) {
+void li_server_socket_release(liServerSocket* sock) {
 	if (!sock) return;
 	assert(g_atomic_int_get(&sock->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&sock->refcount)) {
-		sockaddr_clear(&sock->local_addr);
+		li_sockaddr_clear(&sock->local_addr);
 		g_string_free(sock->local_addr_str, TRUE);
 		g_slice_free(liServerSocket, sock);
 	}
 }
 
-void server_socket_acquire(liServerSocket* sock) {
+void li_server_socket_acquire(liServerSocket* sock) {
 	assert(g_atomic_int_get(&sock->refcount) > 0);
 	g_atomic_int_inc(&sock->refcount);
 }
@@ -64,7 +64,7 @@ static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 
 	if (g_atomic_int_get(&srv->state) != LI_SERVER_STOPPING) {
 		INFO(srv, "%s", "Got signal, shutdown");
-		server_stop(srv);
+		li_server_stop(srv);
 	} else {
 		INFO(srv, "%s", "Got second signal, force shutdown");
 
@@ -80,7 +80,7 @@ static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	UNUSED(loop); UNUSED(w); UNUSED(revents);
 }
 
-liServer* server_new(const gchar *module_dir) {
+liServer* li_server_new(const gchar *module_dir) {
 	liServer* srv = g_slice_new0(liServer);
 
 	srv->magic = LIGHTTPD_SERVER_MAGIC;
@@ -91,15 +91,15 @@ liServer* server_new(const gchar *module_dir) {
 
 	srv->sockets = g_ptr_array_new();
 
-	srv->modules = modules_new(srv, module_dir);
+	srv->modules = li_modules_new(srv, module_dir);
 
 	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
 	srv->options = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_value_free);
 	srv->actions = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_action_free);
 	srv->setups  = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_setup_free);
 
-	srv->plugins_handle_close = g_array_new(FALSE, TRUE, sizeof(liPlugin*));
-	srv->plugins_handle_vrclose = g_array_new(FALSE, TRUE, sizeof(liPlugin*));
+	srv->li_plugins_handle_close = g_array_new(FALSE, TRUE, sizeof(liPlugin*));
+	srv->li_plugins_handle_vrclose = g_array_new(FALSE, TRUE, sizeof(liPlugin*));
 	srv->option_def_values = g_array_new(FALSE, TRUE, sizeof(liOptionValue));
 
 	srv->mainaction = NULL;
@@ -108,7 +108,7 @@ liServer* server_new(const gchar *module_dir) {
 
 	srv->ts_formats = g_array_new(FALSE, TRUE, sizeof(GString*));
 	/* error log ts format */
-	server_ts_format_add(srv, g_string_new("%a, %d %b %Y %H:%M:%S GMT"));
+	li_server_ts_format_add(srv, g_string_new("%a, %d %b %Y %H:%M:%S GMT"));
 
 	srv->throttle_pools = g_array_new(FALSE, TRUE, sizeof(liThrottlePool*));
 
@@ -119,10 +119,10 @@ liServer* server_new(const gchar *module_dir) {
 	return srv;
 }
 
-void server_free(liServer* srv) {
+void li_server_free(liServer* srv) {
 	if (!srv) return;
 
-	server_stop(srv);
+	li_server_stop(srv);
 	g_atomic_int_set(&srv->exiting, TRUE);
 
 	/* join all workers */
@@ -131,12 +131,12 @@ void server_free(liServer* srv) {
 		for (i = 1; i < srv->workers->len; i++) {
 			liWorker *wrk;
 			wrk = g_array_index(srv->workers, liWorker*, i);
-			worker_exit(srv->main_worker, wrk);
+			li_worker_exit(srv->main_worker, wrk);
 			g_thread_join(wrk->thread);
 		}
 	}
 
-	action_release(srv, srv->mainaction);
+	li_action_release(srv, srv->mainaction);
 
 	/* free throttle pools */
 	{
@@ -155,7 +155,7 @@ void server_free(liServer* srv) {
 			struct ev_loop *loop;
 			wrk = g_array_index(srv->workers, liWorker*, i);
 			loop = wrk->loop;
-			worker_free(wrk);
+			li_worker_free(wrk);
 			if (i == 0) {
 				ev_default_destroy();
 			} else {
@@ -166,9 +166,9 @@ void server_free(liServer* srv) {
 	}
 
 	/* release modules */
-	modules_free(srv->modules);
+	li_modules_free(srv->modules);
 
-	plugin_free(srv, srv->core_plugin);
+	li_plugin_free(srv, srv->core_plugin);
 
 	log_cleanup(srv);
 
@@ -176,7 +176,7 @@ void server_free(liServer* srv) {
 		guint i; for (i = 0; i < srv->sockets->len; i++) {
 			liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
 			close(sock->watcher.fd);
-			server_socket_release(sock);
+			li_server_socket_release(sock);
 		}
 		g_ptr_array_free(srv->sockets, TRUE);
 	}
@@ -189,9 +189,9 @@ void server_free(liServer* srv) {
 	}
 
 	g_array_free(srv->option_def_values, TRUE);
-	server_plugins_free(srv);
-	g_array_free(srv->plugins_handle_close, TRUE);
-	g_array_free(srv->plugins_handle_vrclose, TRUE);
+	li_server_plugins_free(srv);
+	g_array_free(srv->li_plugins_handle_close, TRUE);
+	g_array_free(srv->li_plugins_handle_vrclose, TRUE);
 
 	if (srv->started_str)
 		g_string_free(srv->started_str, TRUE);
@@ -201,22 +201,22 @@ void server_free(liServer* srv) {
 
 static gpointer server_worker_cb(gpointer data) {
 	liWorker *wrk = (liWorker*) data;
-	worker_run(wrk);
+	li_worker_run(wrk);
 	return NULL;
 }
 
-gboolean server_loop_init(liServer *srv) {
+gboolean li_server_loop_init(liServer *srv) {
 	srv->loop = ev_default_loop(srv->loop_flags);
 
 	if (!srv->loop) {
-		fatal ("could not initialise libev, bad $LIBEV_FLAGS in environment?");
+		li_fatal ("could not initialise libev, bad $LIBEV_FLAGS in environment?");
 		return FALSE;
 	}
 
 	return TRUE;
 }
 
-gboolean server_worker_init(liServer *srv) {
+gboolean li_server_worker_init(liServer *srv) {
 	struct ev_loop *loop = srv->loop;
 	guint i;
 
@@ -226,16 +226,16 @@ gboolean server_worker_init(liServer *srv) {
 
 	if (srv->worker_count < 1) srv->worker_count = 1;
 	g_array_set_size(srv->workers, srv->worker_count);
-	srv->main_worker = g_array_index(srv->workers, liWorker*, 0) = worker_new(srv, loop);
+	srv->main_worker = g_array_index(srv->workers, liWorker*, 0) = li_worker_new(srv, loop);
 	srv->main_worker->ndx = 0;
 	for (i = 1; i < srv->worker_count; i++) {
 		GError *error = NULL;
 		liWorker *wrk;
 		if (NULL == (loop = ev_loop_new(srv->loop_flags))) {
-			fatal ("could not create extra libev loops");
+			li_fatal ("could not create extra libev loops");
 			return FALSE;
 		}
-		wrk = g_array_index(srv->workers, liWorker*, i) = worker_new(srv, loop);
+		wrk = g_array_index(srv->workers, liWorker*, i) = li_worker_new(srv, loop);
 		wrk->ndx = i;
 		if (NULL == (wrk->thread = g_thread_create(server_worker_cb, wrk, TRUE, &error))) {
 			g_error ( "g_thread_create failed: %s", error->message );
@@ -246,7 +246,7 @@ gboolean server_worker_init(liServer *srv) {
 	return TRUE;
 }
 
-static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
+static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	liServerSocket *sock = (liServerSocket*) w->data;
 	liServer *srv = sock->srv;
 	int s;
@@ -265,11 +265,11 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			remote_addr.len = l;
 			memcpy(remote_addr.addr, &sa, l);
 		} else {
-			remote_addr = sockaddr_remote_from_socket(s);
+			remote_addr = li_sockaddr_remote_from_socket(s);
 		}
 		l = sizeof(sa); /* reset l */
 
-		fd_init(s);
+		li_fd_init(s);
 
 		for (i = 1; i < srv->worker_count; i++) {
 			liWorker *wt = g_array_index(srv->workers, liWorker*, i);
@@ -283,8 +283,8 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 		g_atomic_int_inc((gint*) &wrk->connection_load);
 		/* TRACE(srv, "selected worker %u with load %u", sel, min_load); */
-		server_socket_acquire(sock);
-		worker_new_con(srv->main_worker, wrk, remote_addr, s, sock);
+		li_server_socket_acquire(sock);
+		li_worker_new_con(srv->main_worker, wrk, remote_addr, s, sock);
 	}
 
 #ifdef _WIN32
@@ -303,7 +303,7 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		break;
 
 	case EMFILE: /* we are out of FDs */
-		server_out_of_fds(srv);
+		li_server_out_of_fds(srv);
 		/* TODO: disable accept callbacks? */
 		break;
 	default:
@@ -312,7 +312,7 @@ static void server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	}
 }
 
-void server_listen(liServer *srv, int fd) {
+void li_server_listen(liServer *srv, int fd) {
 	liServerSocket *sock = server_socket_new(fd);
 
 	sock->srv = srv;
@@ -321,7 +321,7 @@ void server_listen(liServer *srv, int fd) {
 	if (g_atomic_int_get(&srv->state) == LI_SERVER_RUNNING) ev_io_start(srv->main_worker->loop, &sock->watcher);
 }
 
-void server_start(liServer *srv) {
+void li_server_start(liServer *srv) {
 	guint i;
 	liServerState srvstate = g_atomic_int_get(&srv->state);
 	if (srvstate == LI_SERVER_STOPPING || srvstate == LI_SERVER_RUNNING) return; /* no restart after stop */
@@ -329,13 +329,13 @@ void server_start(liServer *srv) {
 
 	if (!srv->mainaction) {
 		ERROR(srv, "%s", "No action handlers defined");
-		server_stop(srv);
+		li_server_stop(srv);
 		return;
 	}
 
 	srv->keep_alive_queue_timeout = 5;
 
-	plugins_prepare_callbacks(srv);
+	li_plugins_prepare_callbacks(srv);
 
 	for (i = 0; i < srv->sockets->len; i++) {
 		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
@@ -344,17 +344,17 @@ void server_start(liServer *srv) {
 
 	srv->started = ev_now(srv->main_worker->loop);
 	{
-		GString *str = worker_current_timestamp(srv->main_worker, 0);
+		GString *str = li_worker_current_timestamp(srv->main_worker, 0);
 		srv->started = ev_now(srv->main_worker->loop);
 		srv->started_str = g_string_new_len(GSTR_LEN(str));
 	}
 
 	log_thread_start(srv);
 
-	worker_run(srv->main_worker);
+	li_worker_run(srv->main_worker);
 }
 
-void server_stop(liServer *srv) {
+void li_server_stop(liServer *srv) {
 	guint i;
 
 	if (g_atomic_int_get(&srv->state) == LI_SERVER_STOPPING) return;
@@ -370,15 +370,15 @@ void server_stop(liServer *srv) {
 		for (i = 0; i < srv->worker_count; i++) {
 			liWorker *wrk;
 			wrk = g_array_index(srv->workers, liWorker*, i);
-			worker_stop(srv->main_worker, wrk);
+			li_worker_stop(srv->main_worker, wrk);
 		}
 	}
 
 	log_thread_wakeup(srv);
 }
 
-void server_exit(liServer *srv) {
-	server_stop(srv);
+void li_server_exit(liServer *srv) {
+	li_server_stop(srv);
 
 	g_atomic_int_set(&srv->exiting, TRUE);
 
@@ -388,13 +388,13 @@ void server_exit(liServer *srv) {
 		for (i = 0; i < srv->worker_count; i++) {
 			liWorker *wrk;
 			wrk = g_array_index(srv->workers, liWorker*, i);
-			worker_exit(srv->main_worker, wrk);
+			li_worker_exit(srv->main_worker, wrk);
 		}
 	}
 }
 
 /* cache timestamp */
-GString *server_current_timestamp() {
+GString *li_server_current_timestamp() {
 	static GStaticPrivate last_ts_key = G_STATIC_PRIVATE_INIT;
 	static GStaticPrivate ts_str_key = G_STATIC_PRIVATE_INIT;
 
@@ -409,7 +409,7 @@ GString *server_current_timestamp() {
 	}
 	if (ts_str == NULL) {
 		ts_str = g_string_sized_new(255);
-		g_static_private_set(&ts_str_key, ts_str, (GDestroyNotify)string_destroy_notify);
+		g_static_private_set(&ts_str_key, ts_str, (GDestroyNotify)li_string_destroy_notify);
 	}
 
 	if (cur_ts != *last_ts) {
@@ -425,11 +425,11 @@ GString *server_current_timestamp() {
 	return ts_str;
 }
 
-void server_out_of_fds(liServer *srv) {
+void li_server_out_of_fds(liServer *srv) {
 	ERROR(srv, "%s", "Too many open files. Either raise your fd limit or use a lower connection limit.");
 }
 
-guint server_ts_format_add(liServer *srv, GString* format) {
+guint li_server_ts_format_add(liServer *srv, GString* format) {
 	/* check if not already registered */
 	guint i;
 	for (i = 0; i < srv->ts_formats->len; i++) {

@@ -87,7 +87,7 @@ static liHandlerResult expire(liVRequest *vr, gpointer param, gpointer *context)
 		if (!vr->physical.path->len)
 			return LI_HANDLER_GO_ON;
 
-		switch (stat_cache_get(vr, vr->physical.path, &st, &err, NULL)) {
+		switch (li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL)) {
 		case LI_HANDLER_GO_ON: break;
 		case LI_HANDLER_WAIT_FOR_EVENT: return LI_HANDLER_WAIT_FOR_EVENT;
 		default: return LI_HANDLER_GO_ON;
@@ -116,11 +116,11 @@ static liHandlerResult expire(liVRequest *vr, gpointer param, gpointer *context)
 	g_string_set_size(date_str, len);
 
 	/* finally set the headers */
-	http_header_overwrite(vr->response.headers, CONST_STR_LEN("Expires"), GSTR_LEN(date_str));
+	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Expires"), GSTR_LEN(date_str));
 	g_string_truncate(date_str, 0);
 	g_string_append_len(date_str, CONST_STR_LEN("max-age="));
-	l_g_string_append_int(date_str, max_age);
-	http_header_append(vr->response.headers, CONST_STR_LEN("Cache-Control"), GSTR_LEN(date_str));
+	li_string_append_int(date_str, max_age);
+	li_http_header_append(vr->response.headers, CONST_STR_LEN("Cache-Control"), GSTR_LEN(date_str));
 
 	return LI_HANDLER_GO_ON;
 }
@@ -204,7 +204,7 @@ static liAction* expire_create(liServer *srv, liPlugin* p, liValue *val) {
 		return NULL;
 	}
 
-	return action_new_function(expire, NULL, expire_free, rule);
+	return li_action_new_function(expire, NULL, expire_free, rule);
 }
 
 
@@ -238,14 +238,14 @@ gboolean mod_expire_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(mods->main, "mod_expire", plugin_expire_init);
+	mod->config = li_plugin_register(mods->main, "mod_expire", plugin_expire_init);
 
 	return mod->config != NULL;
 }
 
 gboolean mod_expire_free(liModules *mods, liModule *mod) {
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }

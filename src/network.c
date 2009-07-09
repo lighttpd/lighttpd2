@@ -3,7 +3,7 @@
 #include <lighttpd/plugin_core.h>
 
 /** repeats write after EINTR */
-ssize_t net_write(int fd, void *buf, ssize_t nbyte) {
+ssize_t li_net_write(int fd, void *buf, ssize_t nbyte) {
 	ssize_t r;
 	while (-1 == (r = write(fd, buf, nbyte))) {
 		switch (errno) {
@@ -20,7 +20,7 @@ ssize_t net_write(int fd, void *buf, ssize_t nbyte) {
 }
 
 /** repeats read after EINTR */
-ssize_t net_read(int fd, void *buf, ssize_t nbyte) {
+ssize_t li_net_read(int fd, void *buf, ssize_t nbyte) {
 	ssize_t r;
 	while (-1 == (r = read(fd, buf, nbyte))) {
 		switch (errno) {
@@ -36,7 +36,7 @@ ssize_t net_read(int fd, void *buf, ssize_t nbyte) {
 	return r;
 }
 
-liNetworkStatus network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset write_max) {
+liNetworkStatus li_network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset write_max) {
 	liNetworkStatus res;
 #ifdef TCP_CORK
 	int corked = 0;
@@ -56,9 +56,9 @@ liNetworkStatus network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset 
 	write_bytes = write_max;
 	/* TODO: add setup-option to select the backend */
 #ifdef USE_SENDFILE
-	res = network_write_sendfile(vr, fd, cq, &write_bytes);
+	res = li_network_write_sendfile(vr, fd, cq, &write_bytes);
 #else
-	res = network_write_writev(vr, fd, cq, &write_bytes);
+	res = li_network_write_writev(vr, fd, cq, &write_bytes);
 #endif
 	wrote = write_max - write_bytes;
 	if (wrote > 0 && res == LI_NETWORK_STATUS_WAIT_FOR_EVENT) res = LI_NETWORK_STATUS_SUCCESS;
@@ -73,7 +73,7 @@ liNetworkStatus network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset 
 	return res;
 }
 
-liNetworkStatus network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
+liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
@@ -84,7 +84,7 @@ liNetworkStatus network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 			max_read = cq->limit->limit - cq->limit->current;
 			if (max_read <= 0) {
 				max_read = 0; /* we still have to read something */
-				VR_ERROR(vr, "%s", "network_read: fd should be disabled as chunkqueue is already full");
+				VR_ERROR(vr, "%s", "li_network_read: fd should be disabled as chunkqueue is already full");
 			}
 		}
 	}
@@ -92,7 +92,7 @@ liNetworkStatus network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 	do {
 		GByteArray *buf = g_byte_array_sized_new(blocksize);
 		g_byte_array_set_size(buf, blocksize);
-		if (-1 == (r = net_read(fd, buf->data, blocksize))) {
+		if (-1 == (r = li_net_read(fd, buf->data, blocksize))) {
 			g_byte_array_free(buf, TRUE);
 			switch (errno) {
 			case EAGAIN:
@@ -111,7 +111,7 @@ liNetworkStatus network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 			return len ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_CONNECTION_CLOSE;
 		}
 		g_byte_array_set_size(buf, r);
-		chunkqueue_append_bytearr(cq, buf);
+		li_chunkqueue_append_bytearr(cq, buf);
 		len += r;
 	} while (r == blocksize && len < max_read);
 

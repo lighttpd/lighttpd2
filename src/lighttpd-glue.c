@@ -8,7 +8,7 @@
 		return x; \
 	} while(0)
 
-gchar *http_status_string(guint status_code, guint *len) {
+gchar *li_http_status_string(guint status_code, guint *len) {
 	/* RFC 2616 (as well as RFC 2518, RFC 2817, RFC 2295, RFC 2774, RFC 4918) */
 	switch (status_code) {
 	/* 1XX information */
@@ -75,7 +75,7 @@ gchar *http_status_string(guint status_code, guint *len) {
 	}
 }
 
-gchar *http_method_string(liHttpMethod method, guint *len) {
+gchar *li_http_method_string(liHttpMethod method, guint *len) {
 	switch (method) {
 	case LI_HTTP_METHOD_UNSET:           SET_LEN_AND_RETURN_STR("UNKNOWN");
 	case LI_HTTP_METHOD_GET:             SET_LEN_AND_RETURN_STR("GET");
@@ -106,7 +106,7 @@ gchar *http_method_string(liHttpMethod method, guint *len) {
 	return NULL;
 }
 
-gchar *http_version_string(liHttpVersion method, guint *len) {
+gchar *li_http_version_string(liHttpVersion method, guint *len) {
 	switch (method) {
 	case LI_HTTP_VERSION_1_1: SET_LEN_AND_RETURN_STR("HTTP/1.1");
 	case LI_HTTP_VERSION_1_0: SET_LEN_AND_RETURN_STR("HTTP/1.0");
@@ -119,7 +119,7 @@ gchar *http_version_string(liHttpVersion method, guint *len) {
 
 #undef SET_LEN_AND_RETURN_STR
 
-void http_status_to_str(gint status_code, gchar status_str[]) {
+void li_http_status_to_str(gint status_code, gchar status_str[]) {
 	status_str[2] = status_code % 10 + '0';
 	status_code /= 10;
 	status_str[1] = status_code % 10 + '0';
@@ -128,7 +128,7 @@ void http_status_to_str(gint status_code, gchar status_str[]) {
 }
 
 
-GString *mimetype_get(liVRequest *vr, GString *filename) {
+GString *li_mimetype_get(liVRequest *vr, GString *filename) {
 	/* search in mime_types option for the first match */
 	GArray *arr;
 

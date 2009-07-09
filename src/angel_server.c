@@ -18,11 +18,11 @@ static void jobqueue_callback(struct ev_loop *loop, ev_async *w, int revents) {
 	while (NULL != (i = g_queue_pop_head(&todo))) {
 		i->in_jobqueue = FALSE;
 		instance_state_machine(i);
-		instance_release(i);
+		li_instance_release(i);
 	}
 }
 
-liServer* server_new(const gchar *module_dir) {
+liServer* li_server_new(const gchar *module_dir) {
 	liServer *srv = g_slice_new0(liServer);
 
 	srv->loop = ev_default_loop(0);
@@ -38,7 +38,7 @@ liServer* server_new(const gchar *module_dir) {
 	return srv;
 }
 
-void server_free(liServer* srv) {
+void li_server_free(liServer* srv) {
 	plugins_clear(srv);
 
 	log_clean(srv);
@@ -61,7 +61,7 @@ static void instance_angel_call_cb(liAngelConnection *acon,
 		GString *errstr = g_string_sized_new(0);
 		GError *err = NULL;
 		g_string_printf(errstr, "Plugin '%s' not available in lighttpd-angel", mod);
-		if (!angel_send_result(acon, id, errstr, NULL, NULL, &err)) {
+		if (!li_angel_send_result(acon, id, errstr, NULL, NULL, &err)) {
 			ERROR(srv, "Couldn't send result: %s", err->message);
 			g_error_free(err);
 		}
@@ -73,7 +73,7 @@ static void instance_angel_call_cb(liAngelConnection *acon,
 		GString *errstr = g_string_sized_new(0);
 		GError *err = NULL;
 		g_string_printf(errstr, "Action '%s' not available in plugin '%s' of lighttpd-angel", action, mod);
-		if (!angel_send_result(acon, id, errstr, NULL, NULL, &err)) {
+		if (!li_angel_send_result(acon, id, errstr, NULL, NULL, &err)) {
 			ERROR(srv, "Couldn't send result: %s", err->message);
 			g_error_free(err);
 		}
@@ -91,7 +91,7 @@ static void instance_angel_close_cb(liAngelConnection *acon, GError *err) {
 	if (err) g_error_free(err);
 
 	i->acon = NULL;
-	angel_connection_free(acon);
+	li_angel_connection_free(acon);
 }
 
 static void instance_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
@@ -105,11 +105,11 @@ static void instance_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 		i->s_cur = LI_INSTANCE_DOWN;
 	}
 	i->pid = -1;
-	angel_connection_free(i->acon);
+	li_angel_connection_free(i->acon);
 	i->acon = NULL;
 	ev_child_stop(loop, w);
-	instance_job_append(i);
-	instance_release(i);
+	li_instance_job_append(i);
+	li_instance_release(i);
 }
 
 static void instance_spawn(liInstance *i) {
@@ -118,10 +118,10 @@ static void instance_spawn(liInstance *i) {
 		ERROR(i->srv, "socketpair error, cannot spawn instance: %s", g_strerror(errno));
 		return;
 	}
-	fd_init(confd[0]);
-	fd_no_block(confd[1]);
+	li_fd_init(confd[0]);
+	li_fd_no_block(confd[1]);
 
-	i->acon = angel_connection_new(i->srv->loop, confd[0], i, instance_angel_call_cb, instance_angel_close_cb);
+	i->acon = li_angel_connection_new(i->srv->loop, confd[0], i, instance_angel_call_cb, instance_angel_close_cb);
 	i->pid = fork();
 	switch (i->pid) {
 	case 0: {
@@ -150,19 +150,19 @@ static void instance_spawn(liInstance *i) {
 		ev_child_set(&i->child_watcher, i->pid, 0);
 		ev_child_start(i->srv->loop, &i->child_watcher);
 		i->s_cur = LI_INSTANCE_LOADING;
-		instance_acquire(i);
+		li_instance_acquire(i);
 		ERROR(i->srv, "Instance (%i) spawned: %s", i->pid, i->ic->cmd[0]);
 		break;
 	}
 }
 
-liInstance* server_new_instance(liServer *srv, liInstanceConf *ic) {
+liInstance* li_server_new_instance(liServer *srv, liInstanceConf *ic) {
 	liInstance *i;
 
 	i = g_slice_new0(liInstance);
 	i->refcount = 1;
 	i->srv = srv;
-	instance_conf_acquire(ic);
+	li_instance_conf_acquire(ic);
 	i->ic = ic;
 	i->pid = -1;
 	i->s_cur = i->s_dest = LI_INSTANCE_DOWN;
@@ -172,10 +172,10 @@ liInstance* server_new_instance(liServer *srv, liInstanceConf *ic) {
 	return i;
 }
 
-void instance_replace(liInstance *oldi, liInstance *newi) {
+void li_instance_replace(liInstance *oldi, liInstance *newi) {
 }
 
-void instance_set_state(liInstance *i, liInstanceState s) {
+void li_instance_set_state(liInstance *i, liInstanceState s) {
 	if (i->s_dest == s) return;
 	switch (s) {
 	case LI_INSTANCE_DOWN:
@@ -206,10 +206,10 @@ void instance_set_state(liInstance *i, liInstanceState s) {
 			case LI_INSTANCE_WARMUP:
 				break;
 			case LI_INSTANCE_ACTIVE:
-				angel_send_simple_call(i->acon, CONST_STR_LEN("core"), CONST_STR_LEN("run"), buf, &error);
+				li_angel_send_simple_call(i->acon, CONST_STR_LEN("core"), CONST_STR_LEN("run"), buf, &error);
 				break;
 			case LI_INSTANCE_SUSPEND:
-				angel_send_simple_call(i->acon, CONST_STR_LEN("core"), CONST_STR_LEN("suspend"), buf, &error);
+				li_angel_send_simple_call(i->acon, CONST_STR_LEN("core"), CONST_STR_LEN("suspend"), buf, &error);
 				break;
 			}
 		}
@@ -252,7 +252,7 @@ static void instance_state_machine(liInstance *i) {
 	}
 }
 
-void instance_release(liInstance *i) {
+void li_instance_release(liInstance *i) {
 	liServer *srv;
 	liInstance *t;
 	if (!i) return;
@@ -264,28 +264,28 @@ void instance_release(liInstance *i) {
 		kill(i->pid, SIGTERM);
 		i->pid = -1;
 		i->s_cur = LI_INSTANCE_DOWN;
-		angel_connection_free(i->acon);
+		li_angel_connection_free(i->acon);
 		i->acon = NULL;
 	}
 
-	instance_conf_release(i->ic);
+	li_instance_conf_release(i->ic);
 	i->ic = NULL;
 
 	t = i->replace; i->replace = NULL;
-	instance_release(t);
+	li_instance_release(t);
 
 	t = i->replace_by; i->replace_by = NULL;
-	instance_release(t);
+	li_instance_release(t);
 
 	g_slice_free(liInstance, i);
 }
 
-void instance_acquire(liInstance *i) {
+void li_instance_acquire(liInstance *i) {
 	assert(g_atomic_int_get(&i->refcount) > 0);
 	g_atomic_int_inc(&i->refcount);
 }
 
-liInstanceConf* instance_conf_new(gchar **cmd, GString *username, uid_t uid, gid_t gid) {
+liInstanceConf* li_instance_conf_new(gchar **cmd, GString *username, uid_t uid, gid_t gid) {
 	liInstanceConf *ic = g_slice_new0(liInstanceConf);
 	ic->refcount = 1;
 	ic->cmd = cmd;
@@ -297,7 +297,7 @@ liInstanceConf* instance_conf_new(gchar **cmd, GString *username, uid_t uid, gid
 	return ic;
 }
 
-void instance_conf_release(liInstanceConf *ic) {
+void li_instance_conf_release(liInstanceConf *ic) {
 	if (!ic) return;
 	assert(g_atomic_int_get(&ic->refcount) > 0);
 	if (!g_atomic_int_dec_and_test(&ic->refcount)) return;
@@ -305,15 +305,15 @@ void instance_conf_release(liInstanceConf *ic) {
 	g_slice_free(liInstanceConf, ic);
 }
 
-void instance_conf_acquire(liInstanceConf *ic) {
+void li_instance_conf_acquire(liInstanceConf *ic) {
 	assert(g_atomic_int_get(&ic->refcount) > 0);
 	g_atomic_int_inc(&ic->refcount);
 }
 
-void instance_job_append(liInstance *i) {
+void li_instance_job_append(liInstance *i) {
 	liServer *srv = i->srv;
 	if (!i->in_jobqueue) {
-		instance_acquire(i);
+		li_instance_acquire(i);
 		i->in_jobqueue = TRUE;
 		g_queue_push_tail(&srv->job_queue, i);
 		ev_async_send(srv->loop, &srv->job_watcher);

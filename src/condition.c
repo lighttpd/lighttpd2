@@ -1,12 +1,12 @@
 #include <lighttpd/base.h>
 
 static gboolean condition_parse_ip(liConditionRValue *val, const char *txt) {
-	if (parse_ipv4(txt, &val->ipv4.addr, NULL, NULL)) {
+	if (li_parse_ipv4(txt, &val->ipv4.addr, NULL, NULL)) {
 		val->type = LI_COND_VALUE_SOCKET_IPV4;
 		val->ipv4.networkmask = 0xFFFFFFFF;
 		return TRUE;
 	}
-	if (parse_ipv6(txt, val->ipv6.addr, NULL, NULL)) {
+	if (li_parse_ipv6(txt, val->ipv6.addr, NULL, NULL)) {
 		val->type = LI_COND_VALUE_SOCKET_IPV6;
 		val->ipv6.network = 128;
 		return TRUE;
@@ -15,11 +15,11 @@ static gboolean condition_parse_ip(liConditionRValue *val, const char *txt) {
 }
 
 static gboolean condition_parse_ip_net(liConditionRValue *val, const char *txt) {
-	if (parse_ipv4(txt, &val->ipv4.addr, &val->ipv4.networkmask, NULL)) {
+	if (li_parse_ipv4(txt, &val->ipv4.addr, &val->ipv4.networkmask, NULL)) {
 		val->type = LI_COND_VALUE_SOCKET_IPV4;
 		return TRUE;
 	}
-	if (parse_ipv6(txt, val->ipv6.addr, &val->ipv6.network, NULL)) {
+	if (li_parse_ipv6(txt, val->ipv6.addr, &val->ipv6.network, NULL)) {
 		val->type = LI_COND_VALUE_SOCKET_IPV6;
 		return TRUE;
 	}
@@ -44,7 +44,7 @@ static gboolean condition_ip_from_socket(liConditionRValue *val, liSockAddr *add
 	return FALSE;
 }
 
-liConditionLValue* condition_lvalue_new(liCondLValue type, GString *key) {
+liConditionLValue* li_condition_lvalue_new(liCondLValue type, GString *key) {
 	liConditionLValue *lvalue = g_slice_new0(liConditionLValue);
 	if (type == LI_COMP_REQUEST_HEADER) g_string_ascii_down(key);
 	lvalue->type = type;
@@ -53,12 +53,12 @@ liConditionLValue* condition_lvalue_new(liCondLValue type, GString *key) {
 	return lvalue;
 }
 
-void condition_lvalue_acquire(liConditionLValue *lvalue) {
+void li_condition_lvalue_acquire(liConditionLValue *lvalue) {
 	assert(g_atomic_int_get(&lvalue->refcount) > 0);
 	g_atomic_int_inc(&lvalue->refcount);
 }
 
-void condition_lvalue_release(liConditionLValue *lvalue) {
+void li_condition_lvalue_release(liConditionLValue *lvalue) {
 	if (!lvalue) return;
 	assert(g_atomic_int_get(&lvalue->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&lvalue->refcount)) {
@@ -113,13 +113,13 @@ static liCondition* cond_new_ip(liServer *srv, liCompOperator op, liConditionLVa
 	c = condition_new(op, lvalue);
 	if (!condition_parse_ip_net(&c->rvalue, str->str)) {
 		ERROR(srv, "Invalid ip address '%s'", str->str);
-		condition_release(srv, c);
+		li_condition_release(srv, c);
 		return NULL;
 	}
 	return c;
 }
 
-liCondition* condition_new_bool(liServer *srv, liConditionLValue *lvalue, gboolean b) {
+liCondition* li_condition_new_bool(liServer *srv, liConditionLValue *lvalue, gboolean b) {
 	liCondition *c;
 	UNUSED(srv);
 	c = condition_new(LI_CONFIG_COND_EQ, lvalue);
@@ -128,7 +128,7 @@ liCondition* condition_new_bool(liServer *srv, liConditionLValue *lvalue, gboole
 	return c;
 }
 
-liCondition* condition_new_string(liServer *srv, liCompOperator op, liConditionLValue *lvalue, GString *str) {
+liCondition* li_condition_new_string(liServer *srv, liCompOperator op, liConditionLValue *lvalue, GString *str) {
 	switch (op) {
 	case LI_CONFIG_COND_EQ:
 	case LI_CONFIG_COND_NE:
@@ -147,16 +147,16 @@ liCondition* condition_new_string(liServer *srv, liCompOperator op, liConditionL
 	case LI_CONFIG_COND_GE:
 	case LI_CONFIG_COND_LT:
 	case LI_CONFIG_COND_LE:
-		ERROR(srv, "Cannot compare strings with '%s'", comp_op_to_string(op));
+		ERROR(srv, "Cannot compare strings with '%s'", li_comp_op_to_string(op));
 		return NULL;
 	}
 	ERROR(srv, "Condition creation failed: %s %s '%s' (perhaps you compiled without pcre?)",
-		cond_lvalue_to_string(lvalue->type), comp_op_to_string(op),
+		li_cond_lvalue_to_string(lvalue->type), li_comp_op_to_string(op),
 		str->str);
 	return NULL;
 }
 
-liCondition* condition_new_int(liServer *srv, liCompOperator op, liConditionLValue *lvalue, gint64 i) {
+liCondition* li_condition_new_int(liServer *srv, liCompOperator op, liConditionLValue *lvalue, gint64 i) {
 	liCondition *c;
 	switch (op) {
 	case LI_CONFIG_COND_PREFIX:
@@ -167,7 +167,7 @@ liCondition* condition_new_int(liServer *srv, liCompOperator op, liConditionLVal
 	case LI_CONFIG_COND_NOMATCH:
 	case LI_CONFIG_COND_IP:
 	case LI_CONFIG_COND_NOTIP:
-		ERROR(srv, "Cannot compare integers with '%s'", comp_op_to_string(op));
+		ERROR(srv, "Cannot compare integers with '%s'", li_comp_op_to_string(op));
 		return NULL;
 	case LI_CONFIG_COND_EQ:
 	case LI_CONFIG_COND_NE:
@@ -181,14 +181,14 @@ liCondition* condition_new_int(liServer *srv, liCompOperator op, liConditionLVal
 		return c;
 	}
 	ERROR(srv, "Condition creation failed: %s %s %"G_GINT64_FORMAT" (perhaps you compiled without pcre?)",
-		cond_lvalue_to_string(lvalue->type), comp_op_to_string(op),
+		li_cond_lvalue_to_string(lvalue->type), li_comp_op_to_string(op),
 		i);
 	return NULL;
 }
 
 
 static void condition_free(liCondition *c) {
-	condition_lvalue_release(c->lvalue);
+	li_condition_lvalue_release(c->lvalue);
 	switch (c->rvalue.type) {
 	case LI_COND_VALUE_BOOL:
 	case LI_COND_VALUE_NUMBER:
@@ -208,12 +208,12 @@ static void condition_free(liCondition *c) {
 	g_slice_free(liCondition, c);
 }
 
-void condition_acquire(liCondition *c) {
+void li_condition_acquire(liCondition *c) {
 	assert(g_atomic_int_get(&c->refcount) > 0);
 	g_atomic_int_inc(&c->refcount);
 }
 
-void condition_release(liServer *srv, liCondition* c) {
+void li_condition_release(liServer *srv, liCondition* c) {
 	UNUSED(srv);
 	if (!c) return;
 	assert(g_atomic_int_get(&c->refcount) > 0);
@@ -222,7 +222,7 @@ void condition_release(liServer *srv, liCondition* c) {
 	}
 }
 
-const char* comp_op_to_string(liCompOperator op) {
+const char* li_comp_op_to_string(liCompOperator op) {
 	switch (op) {
 	case LI_CONFIG_COND_EQ: return "==";
 	case LI_CONFIG_COND_NE: return "!=";
@@ -243,7 +243,7 @@ const char* comp_op_to_string(liCompOperator op) {
 	return "<unkown>";
 }
 
-const char* cond_lvalue_to_string(liCondLValue t) {
+const char* li_cond_lvalue_to_string(liCondLValue t) {
 	switch (t) {
 	case LI_COMP_REQUEST_LOCALIP: return "request.localip";
 	case LI_COMP_REQUEST_REMOTEIP: return "request.remoteip";
@@ -265,7 +265,7 @@ const char* cond_lvalue_to_string(liCondLValue t) {
 	return "<unkown>";
 }
 
-liCondLValue cond_lvalue_from_string(const gchar *str, guint len) {
+liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 	gchar *c = (gchar*)str;
 
 	if (g_str_has_prefix(c, "request.")) {
@@ -309,13 +309,13 @@ liCondLValue cond_lvalue_from_string(const gchar *str, guint len) {
 	return LI_COMP_UNKNOWN;
 }
 
-static liHandlerResult condition_check_eval_bool(liVRequest *vr, liCondition *cond, gboolean *res) {
+static liHandlerResult li_condition_check_eval_bool(liVRequest *vr, liCondition *cond, gboolean *res) {
 	*res = FALSE;
 
 	if (cond->lvalue->type == LI_COMP_PHYSICAL_ISDIR ||
 		cond->lvalue->type == LI_COMP_PHYSICAL_ISFILE) {
 		if (!vr->physical.have_stat) {
-			if (vr->physical.have_errno || !vrequest_stat(vr)) {
+			if (vr->physical.have_errno || !li_vrequest_stat(vr)) {
 				switch (vr->physical.stat_errno) {
 				case EACCES: vr->response.http_status = 403; break;
 				case EBADF: vr->response.http_status = 500; break;
@@ -327,7 +327,7 @@ static liHandlerResult condition_check_eval_bool(liVRequest *vr, liCondition *co
 				case ENOTDIR: vr->response.http_status = 404; break;
 				default: vr->response.http_status = 500;
 				}
-				vrequest_handle_direct(vr);
+				li_vrequest_handle_direct(vr);
 				return LI_HANDLER_GO_ON;
 			}
 		}
@@ -341,7 +341,7 @@ static liHandlerResult condition_check_eval_bool(liVRequest *vr, liCondition *co
 		*res = S_ISREG(vr->physical.stat.st_mode);
 		break;
 	default:
-		VR_ERROR(vr, "invalid lvalue \"%s\" for boolean comparison", cond_lvalue_to_string(cond->lvalue->type));
+		VR_ERROR(vr, "invalid lvalue \"%s\" for boolean comparison", li_cond_lvalue_to_string(cond->lvalue->type));
 		return LI_HANDLER_ERROR;
 	}
 
@@ -349,7 +349,7 @@ static liHandlerResult condition_check_eval_bool(liVRequest *vr, liCondition *co
 }
 
 /* LI_COND_VALUE_STRING and LI_COND_VALUE_REGEXP only */
-static liHandlerResult condition_check_eval_string(liVRequest *vr, liCondition *cond, gboolean *res) {
+static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liCondition *cond, gboolean *res) {
 	liActionRegexStackElement arse;
 	liConnection *con = vr->con;
 	const char *val = "";
@@ -384,7 +384,7 @@ static liHandlerResult condition_check_eval_string(liVRequest *vr, liCondition *
 		/* TODO: physical path exists */
 		break;
 	case LI_COMP_REQUEST_HEADER:
-		http_header_get_fast(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
+		li_http_header_get_fast(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
 		break;
 	case LI_COMP_REQUEST_CONTENT_LENGTH:
@@ -430,7 +430,7 @@ static liHandlerResult condition_check_eval_string(liVRequest *vr, liCondition *
 	case LI_CONFIG_COND_GT:
 	case LI_CONFIG_COND_LE:
 	case LI_CONFIG_COND_LT:
-		VR_ERROR(vr, "cannot compare string/regexp with '%s'", comp_op_to_string(cond->op));
+		VR_ERROR(vr, "cannot compare string/regexp with '%s'", li_comp_op_to_string(cond->op));
 		return LI_HANDLER_ERROR;
 	}
 
@@ -438,7 +438,7 @@ static liHandlerResult condition_check_eval_string(liVRequest *vr, liCondition *
 }
 
 
-static liHandlerResult condition_check_eval_int(liVRequest *vr, liCondition *cond, gboolean *res) {
+static liHandlerResult li_condition_check_eval_int(liVRequest *vr, liCondition *cond, gboolean *res) {
 	gint64 val;
 	*res = FALSE;
 
@@ -447,7 +447,7 @@ static liHandlerResult condition_check_eval_int(liVRequest *vr, liCondition *con
 		val = vr->request.content_length;
 	case LI_COMP_PHYSICAL_SIZE:
 		if (!vr->physical.have_stat) {
-			if (vr->physical.have_errno || !vrequest_stat(vr)) {
+			if (vr->physical.have_errno || !li_vrequest_stat(vr)) {
 				switch (vr->physical.stat_errno) {
 				case EACCES: vr->response.http_status = 403; break;
 				case EBADF: vr->response.http_status = 500; break;
@@ -459,14 +459,14 @@ static liHandlerResult condition_check_eval_int(liVRequest *vr, liCondition *con
 				case ENOTDIR: vr->response.http_status = 404; break;
 				default: vr->response.http_status = 500;
 				}
-				vrequest_handle_direct(vr);
+				li_vrequest_handle_direct(vr);
 				return LI_HANDLER_GO_ON;
 			}
 		}
 		val = (gint64)vr->physical.stat.st_size;
 		break;
 	default:
-		VR_ERROR(vr, "couldn't get int value for '%s'", cond_lvalue_to_string(cond->lvalue->type));
+		VR_ERROR(vr, "couldn't get int value for '%s'", li_cond_lvalue_to_string(cond->lvalue->type));
 		return LI_HANDLER_ERROR;
 	}
 
@@ -497,7 +497,7 @@ static liHandlerResult condition_check_eval_int(liVRequest *vr, liCondition *con
 	case LI_CONFIG_COND_NOMATCH:
 	case LI_CONFIG_COND_IP:
 	case LI_CONFIG_COND_NOTIP:
-		VR_ERROR(vr, "cannot compare int with '%s'", comp_op_to_string(cond->op));
+		VR_ERROR(vr, "cannot compare int with '%s'", li_comp_op_to_string(cond->op));
 		return LI_HANDLER_ERROR;
 	}
 
@@ -546,7 +546,7 @@ static gboolean ip_in_net(liConditionRValue *target, liConditionRValue *network)
 }
 
 /* LI_CONFIG_COND_IP and LI_CONFIG_COND_NOTIP only */
-static liHandlerResult condition_check_eval_ip(liVRequest *vr, liCondition *cond, gboolean *res) {
+static liHandlerResult li_condition_check_eval_ip(liVRequest *vr, liCondition *cond, gboolean *res) {
 	liConnection *con = vr->con;
 	liConditionRValue ipval;
 	const char *val = NULL;
@@ -585,7 +585,7 @@ static liHandlerResult condition_check_eval_ip(liVRequest *vr, liCondition *cond
 		return LI_HANDLER_ERROR;
 		break;
 	case LI_COMP_REQUEST_HEADER:
-		http_header_get_fast(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
+		li_http_header_get_fast(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
 		break;
 	case LI_COMP_PHYSICAL_SIZE:
@@ -623,27 +623,27 @@ static liHandlerResult condition_check_eval_ip(liVRequest *vr, liCondition *cond
 	case LI_CONFIG_COND_GT:
 	case LI_CONFIG_COND_LE:
 	case LI_CONFIG_COND_LT:
-		VR_ERROR(vr, "cannot match ips with '%s'", comp_op_to_string(cond->op));
+		VR_ERROR(vr, "cannot match ips with '%s'", li_comp_op_to_string(cond->op));
 		return LI_HANDLER_ERROR;
 	}
 
 	return LI_HANDLER_GO_ON;
 }
 
-liHandlerResult condition_check(liVRequest *vr, liCondition *cond, gboolean *res) {
+liHandlerResult li_condition_check(liVRequest *vr, liCondition *cond, gboolean *res) {
 	switch (cond->rvalue.type) {
 	case LI_COND_VALUE_BOOL:
-		return condition_check_eval_bool(vr, cond, res);
+		return li_condition_check_eval_bool(vr, cond, res);
 	case LI_COND_VALUE_STRING:
 #ifdef HAVE_PCRE_H
 	case LI_COND_VALUE_REGEXP:
 #endif
-		return condition_check_eval_string(vr, cond, res);
+		return li_condition_check_eval_string(vr, cond, res);
 	case LI_COND_VALUE_NUMBER:
-		return condition_check_eval_int(vr, cond, res);
+		return li_condition_check_eval_int(vr, cond, res);
 	case LI_COND_VALUE_SOCKET_IPV4:
 	case LI_COND_VALUE_SOCKET_IPV6:
-		return condition_check_eval_ip(vr, cond, res);
+		return li_condition_check_eval_ip(vr, cond, res);
 	}
 	VR_ERROR(vr, "Unsupported conditional type: %i", cond->rvalue.type);
 	return LI_HANDLER_ERROR;

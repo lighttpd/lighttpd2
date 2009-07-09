@@ -265,7 +265,7 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_REQUEST_HEADER:
-				http_header_get_fast(tmp_gstr, req->headers, GSTR_LEN(e->key));
+				li_http_header_get_fast(tmp_gstr, req->headers, GSTR_LEN(e->key));
 				if (tmp_gstr->len)
 					al_append_escaped(str, tmp_gstr);
 				else
@@ -275,7 +275,7 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(req->http_method_str));
 				break;
 			case AL_FORMAT_RESPONSE_HEADER:
-				http_header_get_fast(tmp_gstr, resp->headers, GSTR_LEN(e->key));
+				li_http_header_get_fast(tmp_gstr, resp->headers, GSTR_LEN(e->key));
 				if (tmp_gstr->len)
 					al_append_escaped(str, tmp_gstr);
 				else
@@ -296,7 +296,7 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 					al_append_escaped(str, req->uri.query);
 				}
 				g_string_append_c(str, ' ');
-				tmp_str = http_version_string(req->http_version, &len);
+				tmp_str = li_http_version_string(req->http_version, &len);
 				g_string_append_len(str, tmp_str, len);
 				break;
 			case AL_FORMAT_STATUS_CODE:
@@ -304,7 +304,7 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 				break;
 			case AL_FORMAT_TIME:
 				/* todo: implement format string */
-				tmp_gstr2 = worker_current_timestamp(con->wrk, ald->ts_ndx_gmtime);
+				tmp_gstr2 = li_worker_current_timestamp(con->wrk, ald->ts_ndx_gmtime);
 				g_string_append_len(str, GSTR_LEN(tmp_gstr2));
 				break;
 			case AL_FORMAT_AUTHED_USER:
@@ -377,7 +377,7 @@ static void al_handle_close(liConnection *con, liPlugin *p) {
 	msg = al_format_log(con, p->data, format);
 
 	g_string_append_len(msg, CONST_STR_LEN("\r\n"));
-	log_write(con->srv, log, msg);
+	li_log_write(con->srv, log, msg);
 }
 
 
@@ -487,7 +487,7 @@ static void plugin_accesslog_init(liServer *srv, liPlugin *p) {
 	p->handle_close = al_handle_close;
 
 	ald = g_slice_new0(al_data);
-	ald->ts_ndx_gmtime = server_ts_format_add(srv, g_string_new_len(CONST_STR_LEN("[%d/%b/%Y:%H:%M:%S +0000]")));
+	ald->ts_ndx_gmtime = li_server_ts_format_add(srv, g_string_new_len(CONST_STR_LEN("[%d/%b/%Y:%H:%M:%S +0000]")));
 	p->data = ald;
 }
 
@@ -496,7 +496,7 @@ LI_API gboolean mod_accesslog_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(mods->main, "mod_accesslog", plugin_accesslog_init);
+	mod->config = li_plugin_register(mods->main, "mod_accesslog", plugin_accesslog_init);
 
 	return mod->config != NULL;
 }
@@ -505,7 +505,7 @@ LI_API gboolean mod_accesslog_free(liModules *mods, liModule *mod) {
 	UNUSED(mods); UNUSED(mod);
 
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }

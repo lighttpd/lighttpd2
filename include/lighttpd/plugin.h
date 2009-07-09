@@ -54,13 +54,13 @@ struct liPluginOption {
 	liValueType type;
 
 	gpointer default_value;
-	liPluginParseOptionCB parse_option;
+	liPluginParseOptionCB li_parse_option;
 	liPluginFreeOptionCB free_option;
 };
 
 struct liPluginAction {
 	const gchar *name;
-	liPluginCreateActionCB create_action;
+	liPluginCreateActionCB li_create_action;
 };
 
 struct liliPluginSetupCB {
@@ -72,14 +72,14 @@ struct liliPluginSetupCB {
 struct liServerOption {
 	liPlugin *p;
 
-	/** the value is freed with value_free after the parse call, so you
-	  *   probably want to extract the content via value_extract*
+	/** the value is freed with li_value_free after the parse call, so you
+	  *   probably want to extract the content via li_value_extract*
 	  * val is zero to get the global default value if nothing is specified
 	  * save result in value
 	  *
 	  * Default behaviour (NULL) is to extract the inner value from val
 	  */
-	liPluginParseOptionCB parse_option;
+	liPluginParseOptionCB li_parse_option;
 
 	/** the free_option handler has to free all allocated resources;
 	  * it may get called with 0 initialized options, so you have to
@@ -87,7 +87,7 @@ struct liServerOption {
 	  */
 	liPluginFreeOptionCB free_option;
 
-	/** if parse_option is NULL, the default_value is used; it is only used
+	/** if li_parse_option is NULL, the default_value is used; it is only used
 	  * for the following value types:
 	  * - BOOLEAN, NUMBER: casted with GPOINTER_TO_INT, i.e. set it with GINT_TO_POINTER
 	  *     the numbers are limited to the 32-bit range according to the glib docs
@@ -101,7 +101,7 @@ struct liServerOption {
 
 struct liServerAction {
 	liPlugin *p;
-	liPluginCreateActionCB create_action;
+	liPluginCreateActionCB li_create_action;
 };
 
 struct liServerSetup {
@@ -110,32 +110,32 @@ struct liServerSetup {
 };
 
 /* Needed by modules to register their plugin(s) */
-LI_API liPlugin *plugin_register(liServer *srv, const gchar *name, liPluginInitCB init);
+LI_API liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB init);
 
 /* Internal needed functions */
-LI_API void plugin_free(liServer *srv, liPlugin *p);
-LI_API void server_plugins_free(liServer *srv);
+LI_API void li_plugin_free(liServer *srv, liPlugin *p);
+LI_API void li_server_plugins_free(liServer *srv);
 
 /** free val after call (val may be modified by parser) */
-LI_API gboolean parse_option(liServer *srv, const char *name, liValue *val, liOptionSet *mark);
-LI_API void release_option(liServer *srv, liOptionSet *mark); /**< Does not free the option_set memory */
+LI_API gboolean li_parse_option(liServer *srv, const char *name, liValue *val, liOptionSet *mark);
+LI_API void li_release_option(liServer *srv, liOptionSet *mark); /**< Does not free the option_set memory */
 
-LI_API void plugins_prepare_callbacks(liServer *srv);
-LI_API void plugins_handle_close(liConnection *con);
-LI_API void plugins_handle_vrclose(liVRequest *vr);
+LI_API void li_plugins_prepare_callbacks(liServer *srv);
+LI_API void li_plugins_handle_close(liConnection *con);
+LI_API void li_plugins_handle_vrclose(liVRequest *vr);
 
 /* Needed for config frontends */
 /** For parsing 'somemod.option = "somevalue"', free value after call */
-LI_API liAction* option_action(liServer *srv, const gchar *name, liValue *val);
+LI_API liAction* li_option_action(liServer *srv, const gchar *name, liValue *val);
 /** For parsing 'somemod.action value', e.g. 'rewrite "/url" => "/destination"'
   * free value after call
   */
-LI_API liAction* create_action(liServer *srv, const gchar *name, liValue *val);
+LI_API liAction* li_create_action(liServer *srv, const gchar *name, liValue *val);
 /** For setup function, e.g. 'listen "127.0.0.1:8080"'; free value after call */
-LI_API gboolean call_setup(liServer *srv, const char *name, liValue *val);
+LI_API gboolean li_call_setup(liServer *srv, const char *name, liValue *val);
 
 /** free val after call */
-LI_API gboolean plugin_set_default_option(liServer *srv, const gchar* name, liValue *val);
+LI_API gboolean li_plugin_set_default_option(liServer *srv, const gchar* name, liValue *val);
 
 /* needs vrequest *vr and plugin *p */
 #define OPTION(idx) _OPTION(vr, p, idx)

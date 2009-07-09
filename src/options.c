@@ -2,7 +2,7 @@
 #include <lighttpd/base.h>
 
 /* Extract ovalue from ovalue, ovalue set to none */
-liOptionValue value_extract(liValue *val) {
+liOptionValue li_value_extract(liValue *val) {
 	liOptionValue oval = {0};
 	if (!val) return oval;
 
@@ -35,15 +35,15 @@ liOptionValue value_extract(liValue *val) {
 	return oval;
 }
 
-gpointer value_extract_ptr(liValue *val) {
-	liOptionValue oval = value_extract(val);
+gpointer li_value_extract_ptr(liValue *val) {
+	liOptionValue oval = li_value_extract(val);
 	return oval.ptr;
 }
-gint64 value_extract_number(liValue *val) {
-	liOptionValue oval = value_extract(val);
+gint64 li_value_extract_number(liValue *val) {
+	liOptionValue oval = li_value_extract(val);
 	return oval.number;
 }
-gboolean value_extract_bool(liValue *val) {
-	liOptionValue oval = value_extract(val);
+gboolean li_value_extract_bool(liValue *val) {
+	liOptionValue oval = li_value_extract(val);
 	return oval.boolean;
 }

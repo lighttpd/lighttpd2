@@ -1,7 +1,7 @@
 
 #include <lighttpd/base.h>
 
-liNetworkStatus network_backend_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
+liNetworkStatus li_network_backend_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	char *block_data;
 	off_t block_len;
@@ -15,7 +15,7 @@ liNetworkStatus network_backend_write(liVRequest *vr, int fd, liChunkQueue *cq, 
 
 		ci = chunkqueue_iter(cq);
 		/* TODO: handle SIGBUS */
-		switch (chunkiter_read_mmap(vr, ci, 0, blocksize, &block_data, &block_len)) {
+		switch (li_chunkiter_read_mmap(vr, ci, 0, blocksize, &block_data, &block_len)) {
 		case LI_HANDLER_GO_ON:
 			break;
 		case LI_HANDLER_ERROR:
@@ -23,7 +23,7 @@ liNetworkStatus network_backend_write(liVRequest *vr, int fd, liChunkQueue *cq, 
 			return LI_NETWORK_STATUS_FATAL_ERROR;
 		}
 
-		if (-1 == (r = net_write(fd, block_data, block_len))) {
+		if (-1 == (r = li_net_write(fd, block_data, block_len))) {
 			switch (errno) {
 			case EAGAIN:
 #if EWOULDBLOCK != EAGAIN
@@ -41,7 +41,7 @@ liNetworkStatus network_backend_write(liVRequest *vr, int fd, liChunkQueue *cq, 
 			return did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 		}
 
-		chunkqueue_skip(cq, r);
+		li_chunkqueue_skip(cq, r);
 		did_write_something = TRUE;
 		*write_max -= r;
 	} while (r == block_len && *write_max > 0);

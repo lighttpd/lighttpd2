@@ -54,7 +54,7 @@ struct liWorker {
 	struct ev_loop *loop;
 	ev_prepare loop_prepare;
 	ev_check loop_check;
-	ev_async worker_stop_watcher, worker_exit_watcher;
+	ev_async li_worker_stop_watcher, li_worker_exit_watcher;
 
 	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections
 	                            * use with atomic, read direct from local worker context
@@ -77,7 +77,7 @@ struct liWorker {
 	guint connection_load;    /** incremented by server_accept_cb, decremented by worker_con_put. use atomic access */
 
 	
-	GArray *timestamps;      /** array of (worker_ts), use only from local worker context and through worker_current_timestamp(wrk, ndx) */
+	GArray *timestamps;      /** array of (worker_ts), use only from local worker context and through li_worker_current_timestamp(wrk, ndx) */
 
 	/* incoming queues */
 	/*  - new connections (after accept) */
@@ -100,20 +100,20 @@ struct liWorker {
 	liStatCache *stat_cache;
 };
 
-LI_API liWorker* worker_new(liServer *srv, struct ev_loop *loop);
-LI_API void worker_free(liWorker *wrk);
+LI_API liWorker* li_worker_new(liServer *srv, struct ev_loop *loop);
+LI_API void li_worker_free(liWorker *wrk);
 
-LI_API void worker_run(liWorker *wrk);
-LI_API void worker_stop(liWorker *context, liWorker *wrk);
-LI_API void worker_exit(liWorker *context, liWorker *wrk);
+LI_API void li_worker_run(liWorker *wrk);
+LI_API void li_worker_stop(liWorker *context, liWorker *wrk);
+LI_API void li_worker_exit(liWorker *context, liWorker *wrk);
 
-LI_API void worker_new_con(liWorker *ctx, liWorker *wrk, liSocketAddress remote_addr, int s, liServerSocket *srv_sock);
+LI_API void li_worker_new_con(liWorker *ctx, liWorker *wrk, liSocketAddress remote_addr, int s, liServerSocket *srv_sock);
 
-LI_API void worker_check_keepalive(liWorker *wrk);
+LI_API void li_worker_check_keepalive(liWorker *wrk);
 
-LI_API GString* worker_current_timestamp(liWorker *wrk, guint format_ndx);
+LI_API GString* li_worker_current_timestamp(liWorker *wrk, guint format_ndx);
 
 /* shutdown write and wait for eof before shutdown read and close */
-LI_API void worker_add_closing_socket(liWorker *wrk, int fd);
+LI_API void li_worker_add_closing_socket(liWorker *wrk, int fd);
 
 #endif

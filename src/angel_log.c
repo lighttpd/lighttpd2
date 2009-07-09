@@ -2,7 +2,7 @@
 #include <lighttpd/angel_base.h>
 
 #if LI_REMOVE_PATH_FROM_FILE
-const char *remove_path(const char *path) {
+const char *li_remove_path(const char *path) {
 	char *p = strrchr(path, DIR_SEPERATOR);
 	if (NULL != p && *(p) != '\0') {
 		return (p + 1);
@@ -31,7 +31,7 @@ void log_clean(liServer *srv) {
 	g_string_free(srv->log.log_line, TRUE);
 }
 
-void log_write(liServer *srv, liLogLevel log_level, guint flags, const gchar *fmt, ...) {
+void li_log_write(liServer *srv, liLogLevel log_level, guint flags, const gchar *fmt, ...) {
 	va_list ap;
 	GString *log_line = srv->log.log_line;
 

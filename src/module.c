@@ -1,7 +1,7 @@
 
 #include <lighttpd/module.h>
 
-liModules *modules_new(gpointer main, const gchar *module_dir) {
+liModules *li_modules_new(gpointer main, const gchar *module_dir) {
 	liModules *m = g_slice_new(liModules);
 
 	m->version = MODULE_VERSION;
@@ -13,7 +13,7 @@ liModules *modules_new(gpointer main, const gchar *module_dir) {
 	return m;
 }
 
-liModule *module_lookup(liModules *mods, const gchar *name) {
+liModule *li_module_lookup(liModules *mods, const gchar *name) {
 	liModule *mod;
 	GArray *a = mods->mods;
 
@@ -26,7 +26,7 @@ liModule *module_lookup(liModules *mods, const gchar *name) {
 	return NULL;
 }
 
-void modules_free(liModules* mods) {
+void li_modules_free(liModules* mods) {
 	/* unload all modules */
 	GArray *a = mods->mods;
 	liModule *mod;
@@ -35,7 +35,7 @@ void modules_free(liModules* mods) {
 		mod = g_array_index(a, liModule*, i);
 		if (!mod)
 			continue;
-		module_release(mods, mod);
+		li_module_release(mods, mod);
 	}
 
 	g_array_free(mods->mods, TRUE);
@@ -44,13 +44,13 @@ void modules_free(liModules* mods) {
 }
 
 
-liModule* module_load(liModules *mods, const gchar* name) {
+liModule* li_module_load(liModules *mods, const gchar* name) {
 	liModule *mod;
 	liModuleInitCB m_init;
 	GString *m_init_str, *m_free_str;
 	guint i;
 
-	mod = module_lookup(mods, name);
+	mod = li_module_lookup(mods, name);
 
 	if (mod) {
 		/* module already loaded, increment refcount and return */
@@ -121,7 +121,7 @@ liModule* module_load(liModules *mods, const gchar* name) {
 	return mod;
 }
 
-void module_release(liModules *mods, liModule *mod) {
+void li_module_release(liModules *mods, liModule *mod) {
 	guint i;
 
 	if (--mod->refcount > 0)
@@ -142,9 +142,9 @@ void module_release(liModules *mods, liModule *mod) {
 	g_slice_free(liModule, mod);
 }
 
-void module_release_name(liModules *mods, const gchar* name) {
-	liModule *mod = module_lookup(mods, name);
+void li_module_release_name(liModules *mods, const gchar* name) {
+	liModule *mod = li_module_lookup(mods, name);
 
 	if (mod)
-		module_release(mods, mod);
+		li_module_release(mods, mod);
 }

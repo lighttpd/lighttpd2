@@ -1,7 +1,7 @@
 
 #include <lighttpd/radix.h>
 
-liRadixTree32 *radixtree32_new(guint32 root_width) {
+liRadixTree32 *li_radixtree32_new(guint32 root_width) {
 	guint32 i;
 	liRadixTree32 *tree = g_slice_new(liRadixTree32);
 
@@ -21,7 +21,7 @@ liRadixTree32 *radixtree32_new(guint32 root_width) {
 	return tree;
 }
 
-guint radixtree32_free(liRadixTree32 *tree) {
+guint li_radixtree32_free(liRadixTree32 *tree) {
 	guint32 i;
 	liRadixNode32 *node, *parent;
 	guint32 n = 0;
@@ -58,7 +58,7 @@ guint radixtree32_free(liRadixTree32 *tree) {
 	return n;
 }
 
-void radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpointer data) {
+void li_radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpointer data) {
 	liRadixNode32 *last_node, *leaf;
 	liRadixNode32 *node = tree->root[(key & tree->root_mask) >> (32 - tree->root_width)];
 	//g_print("root: %p, %x & %x => %x\n", (void*)node, key, tree->root_mask, (key & tree->root_mask) >> (32 - tree->root_width));
@@ -161,7 +161,7 @@ void radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpointer
 	tree->size++;
 }
 
-gboolean radixtree32_remove(liRadixTree32 *tree, guint32 key, guint32 mask) {
+gboolean li_radixtree32_remove(liRadixTree32 *tree, guint32 key, guint32 mask) {
 	liRadixNode32 *node = tree->root[(key & tree->root_mask) >> (32 - tree->root_width)];
 
 	while (node) {
@@ -224,7 +224,7 @@ gboolean radixtree32_remove(liRadixTree32 *tree, guint32 key, guint32 mask) {
 	return FALSE;
 }
 
-liRadixNode32 *radixtree32_lookup_node(liRadixTree32 *tree, guint32 key) {
+liRadixNode32 *li_radixtree32_lookup_node(liRadixTree32 *tree, guint32 key) {
 	liRadixNode32 *node = tree->root[(key & tree->root_mask) >> (32 - tree->root_width)];
 	liRadixNode32 *result = NULL;
 
@@ -246,14 +246,14 @@ liRadixNode32 *radixtree32_lookup_node(liRadixTree32 *tree, guint32 key) {
 	return result;
 }
 
-gpointer radixtree32_lookup(liRadixTree32 *tree, guint32 key) {
-	liRadixNode32 *node = radixtree32_lookup_node(tree, key);
+gpointer li_radixtree32_lookup(liRadixTree32 *tree, guint32 key) {
+	liRadixNode32 *node = li_radixtree32_lookup_node(tree, key);
 
 	return node ? node->data : NULL;
 }
 
-gpointer radixtree32_lookup_exact(liRadixTree32 *tree, guint32 key) {
-	liRadixNode32 *node = radixtree32_lookup_node(tree, key);
+gpointer li_radixtree32_lookup_exact(liRadixTree32 *tree, guint32 key) {
+	liRadixNode32 *node = li_radixtree32_lookup_node(tree, key);
 
 	if (!node)
 		return NULL;

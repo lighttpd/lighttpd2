@@ -13,7 +13,7 @@ static int lua_fixindex(lua_State *L, int ndx) {
 	return ndx;
 }
 
-static liValue* value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
+static liValue* li_value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 	liValue *val = NULL, *sub_option;
 	GArray *list = NULL;
 	GHashTable *hash = NULL;
@@ -27,7 +27,7 @@ static liValue* value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 		case LUA_TNUMBER:
 			if (hash) goto mixerror;
 			if (!list) {
-				val = value_new_list();
+				val = li_value_new_list();
 				list = val->data.list;
 			}
 			ikey = lua_tointeger(L, -2) - 1;
@@ -36,7 +36,7 @@ static liValue* value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 				lua_pop(L, 1);
 				continue;
 			}
-			sub_option = value_from_lua(srv, L);
+			sub_option = li_value_from_lua(srv, L);
 			if (!sub_option) continue;
 			if ((size_t) ikey >= list->len) {
 				g_array_set_size(list, ikey + 1);
@@ -47,16 +47,16 @@ static liValue* value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 		case LUA_TSTRING:
 			if (list) goto mixerror;
 			if (!hash) {
-				val = value_new_hash();
+				val = li_value_new_hash();
 				hash = val->data.hash;
 			}
-			skey = lua_togstring(L, -2);
+			skey = li_lua_togstring(L, -2);
 			if (g_hash_table_lookup(hash, skey)) {
 				ERROR(srv, "Key already exists in hash: '%s' - skipping entry", skey->str);
 				lua_pop(L, 1);
 				continue;
 			}
-			sub_option = value_from_lua(srv, L);
+			sub_option = li_value_from_lua(srv, L);
 			if (!sub_option) {
 				g_string_free(skey, TRUE);
 				continue;
@@ -80,31 +80,31 @@ mixerror:
 }
 
 
-liValue* value_from_lua(liServer *srv, lua_State *L) {
+liValue* li_value_from_lua(liServer *srv, lua_State *L) {
 	liValue *val;
 
 	switch (lua_type(L, -1)) {
 	case LUA_TNIL:
 		lua_pop(L, 1);
-		return value_new_none();
+		return li_value_new_none();
 
 	case LUA_TBOOLEAN:
-		val = value_new_bool(lua_toboolean(L, -1));
+		val = li_value_new_bool(lua_toboolean(L, -1));
 		lua_pop(L, 1);
 		return val;
 
 	case LUA_TNUMBER:
-		val = value_new_number(lua_tonumber(L, -1));
+		val = li_value_new_number(lua_tonumber(L, -1));
 		lua_pop(L, 1);
 		return val;
 
 	case LUA_TSTRING:
-		val = value_new_string(lua_togstring(L, -1));
+		val = li_value_new_string(li_lua_togstring(L, -1));
 		lua_pop(L, 1);
 		return val;
 
 	case LUA_TTABLE:
-		val = value_from_lua_table(srv, L, -1);
+		val = li_value_from_lua_table(srv, L, -1);
 		lua_pop(L, 1);
 		return val;
 
@@ -112,17 +112,17 @@ liValue* value_from_lua(liServer *srv, lua_State *L) {
 		{ /* check for action */
 			liAction *a = lua_get_action(L, -1);
 			if (a) {
-				action_acquire(a);
+				li_action_acquire(a);
 				lua_pop(L, 1);
-				return val = value_new_action(srv, a);
+				return val = li_value_new_action(srv, a);
 			}
 		}
 		{ /* check for condition */
 			liCondition *c = lua_get_condition(L, -1);
 			if (c) {
-				condition_acquire(c);
+				li_condition_acquire(c);
 				lua_pop(L, 1);
-				return val = value_new_condition(srv, c);
+				return val = li_value_new_condition(srv, c);
 			}
 		}
 		ERROR(srv, "%s", "Unknown lua userdata");
@@ -140,7 +140,7 @@ liValue* value_from_lua(liServer *srv, lua_State *L) {
 	}
 }
 
-GString* lua_togstring(lua_State *L, int ndx) {
+GString* li_lua_togstring(lua_State *L, int ndx) {
 	const char *buf;
 	size_t len = 0;
 	GString *str = NULL;

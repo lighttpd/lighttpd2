@@ -131,7 +131,7 @@ enum FCGI_ProtocolStatus {
 static fastcgi_context* fastcgi_context_new(liServer *srv, liPlugin *p, GString *dest_socket) {
 	liSocketAddress saddr;
 	fastcgi_context* ctx;
-	saddr = sockaddr_from_string(dest_socket, 0);
+	saddr = li_sockaddr_from_string(dest_socket, 0);
 	if (NULL == saddr.addr) {
 		ERROR(srv, "Invalid socket address '%s'", dest_socket->str);
 		return NULL;
@@ -148,7 +148,7 @@ static void fastcgi_context_release(fastcgi_context *ctx) {
 	if (!ctx) return;
 	assert(g_atomic_int_get(&ctx->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
-		sockaddr_clear(&ctx->socket);
+		li_sockaddr_clear(&ctx->socket);
 		g_slice_free(fastcgi_context, ctx);
 	}
 }
@@ -170,13 +170,13 @@ static fastcgi_connection* fastcgi_connection_new(liVRequest *vr, fastcgi_contex
 	ev_init(&fcon->fd_watcher, fastcgi_fd_cb);
 	ev_io_set(&fcon->fd_watcher, -1, 0);
 	fcon->fd_watcher.data = fcon;
-	fcon->fcgi_in = chunkqueue_new();
-	fcon->fcgi_out = chunkqueue_new();
-	fcon->stdout = chunkqueue_new();
+	fcon->fcgi_in = li_chunkqueue_new();
+	fcon->fcgi_out = li_chunkqueue_new();
+	fcon->stdout = li_chunkqueue_new();
 	fcon->buf_in_record = g_byte_array_sized_new(FCGI_HEADER_LEN);
 	fcon->requestid = 1;
 	fcon->state = FS_WAIT_FOR_REQUEST;
-	http_response_parser_init(&fcon->parse_response_ctx, &vr->response, fcon->stdout, TRUE, FALSE);
+	li_http_response_parser_init(&fcon->parse_response_ctx, &vr->response, fcon->stdout, TRUE, FALSE);
 	fcon->response_headers_finished = FALSE;
 	return fcon;
 }
@@ -190,12 +190,12 @@ static void fastcgi_connection_free(fastcgi_connection *fcon) {
 	fastcgi_context_release(fcon->ctx);
 	if (fcon->fd != -1) close(fcon->fd);
 
-	chunkqueue_free(fcon->fcgi_in);
-	chunkqueue_free(fcon->fcgi_out);
-	chunkqueue_free(fcon->stdout);
+	li_chunkqueue_free(fcon->fcgi_in);
+	li_chunkqueue_free(fcon->fcgi_out);
+	li_chunkqueue_free(fcon->stdout);
 	g_byte_array_free(fcon->buf_in_record, TRUE);
 
-	http_response_parser_clear(&fcon->parse_response_ctx);
+	li_http_response_parser_clear(&fcon->parse_response_ctx);
 
 	g_slice_free(fastcgi_connection, fcon);
 }
@@ -236,7 +236,7 @@ static guint8 stream_build_fcgi_record(GByteArray *buf, guint8 type, guint16 req
 static guint8 stream_send_fcgi_record(liChunkQueue *out, guint8 type, guint16 requestid, guint16 datalen) {
 	GByteArray *record = g_byte_array_sized_new(FCGI_HEADER_LEN);
 	guint8 padlen = stream_build_fcgi_record(record, type, requestid, datalen);
-	chunkqueue_append_bytearr(out, record);
+	li_chunkqueue_append_bytearr(out, record);
 	return padlen;
 }
 
@@ -247,7 +247,7 @@ static void stream_send_data(liChunkQueue *out, guint8 type, guint16 requestid, 
 		GByteArray *tmpa = g_byte_array_sized_new(tosend + padlen);
 		g_byte_array_append(tmpa, (const guint8*) data, tosend);
 		append_padding(tmpa, padlen);
-		chunkqueue_append_bytearr(out, tmpa);
+		li_chunkqueue_append_bytearr(out, tmpa);
 		data += tosend;
 		datalen -= tosend;
 	}
@@ -261,7 +261,7 @@ static void stream_send_bytearr(liChunkQueue *out, guint8 type, guint16 requesti
 	} else {
 		guint8 padlen = stream_send_fcgi_record(out, type, requestid, data->len);
 		append_padding(data, padlen);
-		chunkqueue_append_bytearr(out, data);
+		li_chunkqueue_append_bytearr(out, data);
 	}
 }
 
@@ -269,8 +269,8 @@ static void stream_send_chunks(liChunkQueue *out, guint8 type, guint16 requestid
 	while (in->length > 0) {
 		guint16 tosend = (in->length > G_MAXUINT16) ? G_MAXUINT16 : in->length;
 		guint8 padlen = stream_send_fcgi_record(out, type, requestid, tosend);
-		chunkqueue_steal_len(out, in, tosend);
-		chunkqueue_append_mem(out, __padding, padlen);
+		li_chunkqueue_steal_len(out, in, tosend);
+		li_chunkqueue_append_mem(out, __padding, padlen);
 	}
 
 	if (in->is_closed && !out->is_closed) {
@@ -308,13 +308,13 @@ static void fastcgi_send_begin(fastcgi_connection *fcon) {
 	g_byte_array_append(buf, (const guint8*) &w, sizeof(w));
 	l_byte_array_append_c(buf, 0); /* TODO: FCGI_KEEP_CONN */
 	append_padding(buf, 5);
-	chunkqueue_append_bytearr(fcon->fcgi_out, buf);
+	li_chunkqueue_append_bytearr(fcon->fcgi_out, buf);
 }
 
 static void fastcgi_env_add(GByteArray *buf, liEnvironmentDup *envdup, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	GString *sval;
 
-	if (NULL != (sval = environment_dup_pop(envdup, key, keylen))) {
+	if (NULL != (sval = li_environment_dup_pop(envdup, key, keylen))) {
 		append_key_value_pair(buf, key, keylen, GSTR_LEN(sval));
 	} else {
 		append_key_value_pair(buf, key, keylen, val, valuelen);
@@ -419,7 +419,7 @@ static void fastcgi_send_env(liVRequest *vr, fastcgi_connection *fcon) {
 	GByteArray *buf = g_byte_array_sized_new(0);
 	liEnvironmentDup *envdup;
 
-	envdup = environment_make_dup(&vr->env);
+	envdup = li_environment_make_dup(&vr->env);
 	fastcgi_env_create(vr, envdup, buf);
 
 	{
@@ -430,7 +430,7 @@ static void fastcgi_send_env(liVRequest *vr, fastcgi_connection *fcon) {
 			liHttpHeader *h = (liHttpHeader*) i->data;
 			GString hkey = { h->data->str, h->keylen, 0 };
 			g_string_truncate(tmp, 0);
-			if (!l_g_strncase_equal(&hkey, CONST_STR_LEN("CONTENT-TYPE"))) {
+			if (!li_strncase_equal(&hkey, CONST_STR_LEN("CONTENT-TYPE"))) {
 				g_string_append_len(tmp, CONST_STR_LEN("HTTP_"));
 			}
 			g_string_append_len(tmp, h->data->str, h->keylen);
@@ -450,7 +450,7 @@ static void fastcgi_send_env(liVRequest *vr, fastcgi_connection *fcon) {
 		}
 	}
 
-	environment_dup_free(envdup);
+	li_environment_dup_free(envdup);
 
 	stream_send_bytearr(fcon->fcgi_out, FCGI_PARAMS, fcon->requestid, buf);
 	stream_send_fcgi_record(fcon->fcgi_out, FCGI_PARAMS, fcon->requestid, 0);
@@ -459,7 +459,7 @@ static void fastcgi_send_env(liVRequest *vr, fastcgi_connection *fcon) {
 static void fastcgi_forward_request(liVRequest *vr, fastcgi_connection *fcon) {
 	stream_send_chunks(fcon->fcgi_out, FCGI_STDIN, fcon->requestid, vr->in);
 	if (fcon->fcgi_out->length > 0)
-		ev_io_add_events(vr->wrk->loop, &fcon->fd_watcher, EV_WRITE);
+		li_ev_io_add_events(vr->wrk->loop, &fcon->fd_watcher, EV_WRITE);
 }
 
 static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
@@ -471,7 +471,7 @@ static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
 			/* wait for padding data ? */
 			gint len = fcon->fcgi_in->length;
 			if (len > fcon->fcgi_in_record.remainingPadding) len = fcon->fcgi_in_record.remainingPadding;
-			chunkqueue_skip(fcon->fcgi_in, len);
+			li_chunkqueue_skip(fcon->fcgi_in, len);
 			fcon->fcgi_in_record.remainingPadding -= len;
 			if (0 != fcon->fcgi_in_record.remainingPadding) return FALSE; /* wait for data */
 			fcon->fcgi_in_record.valid = FALSE; /* read next packet */
@@ -480,7 +480,7 @@ static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
 		}
 	}
 
-	if (!chunkqueue_extract_to_bytearr(fcon->vr, fcon->fcgi_in, FCGI_HEADER_LEN, fcon->buf_in_record)) return FALSE; /* need more data */
+	if (!li_chunkqueue_extract_to_bytearr(fcon->vr, fcon->fcgi_in, FCGI_HEADER_LEN, fcon->buf_in_record)) return FALSE; /* need more data */
 
 	data = (const unsigned char*) fcon->buf_in_record->data;
 	fcon->fcgi_in_record.version = data[0];
@@ -493,7 +493,7 @@ static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
 	fcon->fcgi_in_record.valid = TRUE;
 	fcon->fcgi_in_record.first = TRUE;
 
-	chunkqueue_skip(fcon->fcgi_in, FCGI_HEADER_LEN);
+	li_chunkqueue_skip(fcon->fcgi_in, FCGI_HEADER_LEN);
 
 	return TRUE;
 }
@@ -515,34 +515,34 @@ static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 			VR_ERROR(vr, "Unknown fastcgi protocol version %i", (gint) fcon->fcgi_in_record.version);
 			close(fcon->fd);
 			fcon->fd = -1;
-			vrequest_error(vr);
+			li_vrequest_error(vr);
 			return FALSE;
 		}
 		switch (fcon->fcgi_in_record.type) {
 		case FCGI_END_REQUEST:
-			chunkqueue_skip(fcon->fcgi_in, fastcgi_available(fcon));
+			li_chunkqueue_skip(fcon->fcgi_in, fastcgi_available(fcon));
 			fcon->stdout->is_closed = TRUE;
 			break;
 		case FCGI_STDOUT:
 			if (0 == fcon->fcgi_in_record.contentLength) {
 				fcon->stdout->is_closed = TRUE;
 			} else {
-				chunkqueue_steal_len(fcon->stdout, fcon->fcgi_in, fastcgi_available(fcon));
+				li_chunkqueue_steal_len(fcon->stdout, fcon->fcgi_in, fastcgi_available(fcon));
 			}
 			break;
 		case FCGI_STDERR:
 			len = fastcgi_available(fcon);
-			chunkqueue_extract_to(vr, fcon->fcgi_in, len, vr->wrk->tmp_str);
+			li_chunkqueue_extract_to(vr, fcon->fcgi_in, len, vr->wrk->tmp_str);
 			if (FASTCGI_OPTION(FASTCGI_OPTION_LOG_PLAIN_ERRORS).boolean) {
-				log_split_lines(vr->wrk->srv, vr, LI_LOG_LEVEL_BACKEND, 0, vr->wrk->tmp_str->str, "");
+				li_log_split_lines(vr->wrk->srv, vr, LI_LOG_LEVEL_BACKEND, 0, vr->wrk->tmp_str->str, "");
 			} else {
 				VR_BACKEND_LINES(vr, vr->wrk->tmp_str->str, "%s", "(fcgi-stderr) ");
 			}
-			chunkqueue_skip(fcon->fcgi_in, len);
+			li_chunkqueue_skip(fcon->fcgi_in, len);
 			break;
 		default:
 			if (fcon->fcgi_in_record.first) VR_WARNING(vr, "Unhandled fastcgi record type %i", (gint) fcon->fcgi_in_record.type);
-			chunkqueue_skip(fcon->fcgi_in, fastcgi_available(fcon));
+			li_chunkqueue_skip(fcon->fcgi_in, fastcgi_available(fcon));
 			break;
 		}
 		fcon->fcgi_in_record.first = FALSE;
@@ -559,21 +559,21 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	if (fcon->state == FS_CONNECTING) {
 		if (LI_HANDLER_GO_ON != fastcgi_statemachine(fcon->vr, fcon)) {
-			vrequest_error(fcon->vr);
+			li_vrequest_error(fcon->vr);
 		}
 		return;
 	}
 
 	if (revents & EV_READ) {
 		if (fcon->fcgi_in->is_closed) {
-			ev_io_rem_events(loop, w, EV_READ);
+			li_ev_io_rem_events(loop, w, EV_READ);
 		} else {
-			switch (network_read(fcon->vr, w->fd, fcon->fcgi_in)) {
+			switch (li_network_read(fcon->vr, w->fd, fcon->fcgi_in)) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:
 				VR_ERROR(fcon->vr, "%s", "network read fatal error");
-				vrequest_error(fcon->vr);
+				li_vrequest_error(fcon->vr);
 				return;
 			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
 				fcon->fcgi_in->is_closed = TRUE;
@@ -585,7 +585,7 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
 				/* TODO: aio */
-				ev_io_rem_events(loop, w, EV_READ);
+				li_ev_io_rem_events(loop, w, EV_READ);
 				break;
 			}
 		}
@@ -593,12 +593,12 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	if (fcon->fd != -1 && (revents & EV_WRITE)) {
 		if (fcon->fcgi_out->length > 0) {
-			switch (network_write(fcon->vr, w->fd, fcon->fcgi_out, 256*1024)) {
+			switch (li_network_write(fcon->vr, w->fd, fcon->fcgi_out, 256*1024)) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:
 				VR_ERROR(fcon->vr, "%s", "network write fatal error");
-				vrequest_error(fcon->vr);
+				li_vrequest_error(fcon->vr);
 				return;
 			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
 				fcon->fcgi_in->is_closed = TRUE;
@@ -609,32 +609,32 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
-				ev_io_rem_events(loop, w, EV_WRITE);
+				li_ev_io_rem_events(loop, w, EV_WRITE);
 				/* TODO: aio */
 				break;
 			}
 		}
 		if (fcon->fcgi_out->length == 0) {
-			ev_io_rem_events(loop, w, EV_WRITE);
+			li_ev_io_rem_events(loop, w, EV_WRITE);
 		}
 	}
 
 	if (!fastcgi_parse_response(fcon)) return;
 
-	if (!fcon->response_headers_finished && LI_HANDLER_GO_ON == http_response_parse(fcon->vr, &fcon->parse_response_ctx)) {
+	if (!fcon->response_headers_finished && LI_HANDLER_GO_ON == li_http_response_parse(fcon->vr, &fcon->parse_response_ctx)) {
 		fcon->response_headers_finished = TRUE;
-		vrequest_handle_response_headers(fcon->vr);
+		li_vrequest_handle_response_headers(fcon->vr);
 	}
 
 	if (fcon->response_headers_finished) {
-		chunkqueue_steal_all(fcon->vr->out, fcon->stdout);
+		li_chunkqueue_steal_all(fcon->vr->out, fcon->stdout);
 		fcon->vr->out->is_closed = fcon->stdout->is_closed;
-		vrequest_handle_response_body(fcon->vr);
+		li_vrequest_handle_response_body(fcon->vr);
 	}
 
 	if (fcon->fcgi_in->is_closed && !fcon->vr->out->is_closed) {
 		VR_ERROR(fcon->vr, "%s", "unexpected end-of-file (perhaps the fastcgi process died)");
-		vrequest_error(fcon->vr);
+		li_vrequest_error(fcon->vr);
 	}
 }
 
@@ -650,7 +650,7 @@ static liHandlerResult fastcgi_statemachine(liVRequest *vr, fastcgi_connection *
 	case FS_WAIT_FOR_REQUEST:
 		/* wait until we have either all data or the cqlimit is full */
 		if (-1 == vr->request.content_length || vr->request.content_length != vr->in->length) {
-			if (0 != chunkqueue_limit_available(vr->in))
+			if (0 != li_chunkqueue_limit_available(vr->in))
 				return LI_HANDLER_GO_ON;
 		}
 		fcon->state = FS_CONNECT;
@@ -662,12 +662,12 @@ static liHandlerResult fastcgi_statemachine(liVRequest *vr, fastcgi_connection *
 		} while (-1 == fcon->fd && errno == EINTR);
 		if (-1 == fcon->fd) {
 			if (errno == EMFILE) {
-				server_out_of_fds(vr->wrk->srv);
+				li_server_out_of_fds(vr->wrk->srv);
 			}
 			VR_ERROR(vr, "Couldn't open socket: %s", g_strerror(errno));
 			return LI_HANDLER_ERROR;
 		}
-		fd_init(fcon->fd);
+		li_fd_init(fcon->fd);
 		ev_io_set(&fcon->fd_watcher, fcon->fd, EV_READ | EV_WRITE);
 		ev_io_start(vr->wrk->loop, &fcon->fd_watcher);
 
@@ -682,14 +682,14 @@ static liHandlerResult fastcgi_statemachine(liVRequest *vr, fastcgi_connection *
 				return LI_HANDLER_GO_ON;
 			case EAGAIN: /* backend overloaded */
 				fastcgi_close(vr, p);
-				vrequest_backend_overloaded(vr);
+				li_vrequest_backend_overloaded(vr);
 				return LI_HANDLER_GO_ON;
 			default:
 				VR_ERROR(vr, "Couldn't connect to '%s': %s",
-					sockaddr_to_string(fcon->ctx->socket, vr->wrk->tmp_str, TRUE)->str,
+					li_sockaddr_to_string(fcon->ctx->socket, vr->wrk->tmp_str, TRUE)->str,
 					g_strerror(errno));
 				fastcgi_close(vr, p);
-				vrequest_backend_dead(vr);
+				li_vrequest_backend_dead(vr);
 				return LI_HANDLER_GO_ON;
 			}
 		}
@@ -719,7 +719,7 @@ static liHandlerResult fastcgi_handle(liVRequest *vr, gpointer param, gpointer *
 	fastcgi_context *ctx = (fastcgi_context*) param;
 	fastcgi_connection *fcon;
 	UNUSED(context);
-	if (!vrequest_handle_indirect(vr, ctx->plugin)) return LI_HANDLER_GO_ON;
+	if (!li_vrequest_handle_indirect(vr, ctx->plugin)) return LI_HANDLER_GO_ON;
 
 	fcon = fastcgi_connection_new(vr, ctx);
 	if (!fcon) {
@@ -727,9 +727,9 @@ static liHandlerResult fastcgi_handle(liVRequest *vr, gpointer param, gpointer *
 	}
 	g_ptr_array_index(vr->plugin_ctx, ctx->plugin->id) = fcon;
 
-	chunkqueue_set_limit(fcon->fcgi_in, vr->out->limit);
-	chunkqueue_set_limit(fcon->stdout, vr->out->limit);
-	chunkqueue_set_limit(fcon->fcgi_out, vr->in->limit);
+	li_chunkqueue_set_limit(fcon->fcgi_in, vr->out->limit);
+	li_chunkqueue_set_limit(fcon->stdout, vr->out->limit);
+	li_chunkqueue_set_limit(fcon->fcgi_out, vr->in->limit);
 	if (vr->out->limit) vr->out->limit->io_watcher = &fcon->fd_watcher;
 
 	return fastcgi_statemachine(vr, fcon);
@@ -771,7 +771,7 @@ static liAction* fastcgi_create(liServer *srv, liPlugin* p, liValue *val) {
 	ctx = fastcgi_context_new(srv, p, val->data.string);
 	if (!ctx) return NULL;
 
-	return action_new_function(fastcgi_handle, NULL, fastcgi_free, ctx);
+	return li_action_new_function(fastcgi_handle, NULL, fastcgi_free, ctx);
 }
 
 static const liPluginOption options[] = {
@@ -805,14 +805,14 @@ static void plugin_init(liServer *srv, liPlugin *p) {
 gboolean mod_fastcgi_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(mods->main, "mod_fastcgi", plugin_init);
+	mod->config = li_plugin_register(mods->main, "mod_fastcgi", plugin_init);
 
 	return mod->config != NULL;
 }
 
 gboolean mod_fastcgi_free(liModules *mods, liModule *mod) {
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }

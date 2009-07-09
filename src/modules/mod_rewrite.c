@@ -172,7 +172,7 @@ static GArray *rewrite_parts_parse(GString *str, gboolean *has_querystring) {
 					return NULL;
 				}
 
-				rp.data.cond_lval = cond_lvalue_from_string(c-len, len);
+				rp.data.cond_lval = li_cond_lvalue_from_string(c-len, len);
 
 				if (rp.data.cond_lval == LI_COMP_UNKNOWN) {
 					/* parse error */
@@ -447,7 +447,7 @@ static liAction* rewrite_create(liServer *srv, liPlugin* p, liValue *val) {
 	}
 
 
-	return action_new_function(rewrite, NULL, rewrite_free, rd);
+	return li_action_new_function(rewrite, NULL, rewrite_free, rd);
 }
 
 
@@ -501,14 +501,14 @@ gboolean mod_rewrite_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = plugin_register(mods->main, "mod_rewrite", plugin_rewrite_init);
+	mod->config = li_plugin_register(mods->main, "mod_rewrite", plugin_rewrite_init);
 
 	return mod->config != NULL;
 }
 
 gboolean mod_rewrite_free(liModules *mods, liModule *mod) {
 	if (mod->config)
-		plugin_free(mods->main, mod->config);
+		li_plugin_free(mods->main, mod->config);
 
 	return TRUE;
 }
