@@ -74,8 +74,9 @@
 #cmakedefine  HAVE_LIBXML
 
 /* PCRE */
-#cmakedefine  HAVE_PCRE_H
-#cmakedefine  HAVE_LIBPCRE
+/* We use pcre through glib */
+/* #cmakedefine  HAVE_PCRE_H */
+/* #cmakedefine  HAVE_LIBPCRE */
 
 #cmakedefine  HAVE_POLL_H
 #cmakedefine  HAVE_PWD_H

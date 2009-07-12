@@ -10,7 +10,7 @@ MACRO(ADD_AND_INSTALL_LIBRARY LIBNAME SRCFILES)
 
 		ADD_TARGET_PROPERTIES(${LIBNAME} LINK_FLAGS ${COMMON_LDFLAGS})
 		ADD_TARGET_PROPERTIES(${LIBNAME} COMPILE_FLAGS ${COMMON_CFLAGS})
-		SET_TARGET_PROPERTIES(${LIBNAME} PROPERTIES CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
+		SET_TARGET_PROPERTIES(${LIBNAME} PROPERTIES CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
 		## Windows likes to link it this way back to app!
 		IF(WIN32)
@@ -29,7 +29,7 @@ MACRO(ADD_TARGET_PROPERTIES _target _name)
 		SET(_properties "${_properties} ${_prop}")
 	ENDFOREACH(_prop)
 	GET_TARGET_PROPERTY(_old_properties ${_target} ${_name})
-	MESSAGE("adding property to ${_target} ${_name}:" ${_properties})
+	MESSAGE(STATUS "adding property to ${_target} ${_name}:" ${_properties})
 	IF(NOT _old_properties)
 		# in case it's NOTFOUND
 		SET(_old_properties)

@@ -150,7 +150,7 @@ liCondition* li_condition_new_string(liServer *srv, liCompOperator op, liConditi
 		ERROR(srv, "Cannot compare strings with '%s'", li_comp_op_to_string(op));
 		return NULL;
 	}
-	ERROR(srv, "Condition creation failed: %s %s '%s' (perhaps you compiled without pcre?)",
+	ERROR(srv, "Condition creation failed: %s %s '%s'",
 		li_cond_lvalue_to_string(lvalue->type), li_comp_op_to_string(op),
 		str->str);
 	return NULL;
@@ -180,7 +180,7 @@ liCondition* li_condition_new_int(liServer *srv, liCompOperator op, liConditionL
 		c->rvalue.i = i;
 		return c;
 	}
-	ERROR(srv, "Condition creation failed: %s %s %"G_GINT64_FORMAT" (perhaps you compiled without pcre?)",
+	ERROR(srv, "Condition creation failed: %s %s %"G_GINT64_FORMAT,
 		li_cond_lvalue_to_string(lvalue->type), li_comp_op_to_string(op),
 		i);
 	return NULL;
@@ -635,9 +635,7 @@ liHandlerResult li_condition_check(liVRequest *vr, liCondition *cond, gboolean *
 	case LI_COND_VALUE_BOOL:
 		return li_condition_check_eval_bool(vr, cond, res);
 	case LI_COND_VALUE_STRING:
-#ifdef HAVE_PCRE_H
 	case LI_COND_VALUE_REGEXP:
-#endif
 		return li_condition_check_eval_string(vr, cond, res);
 	case LI_COND_VALUE_NUMBER:
 		return li_condition_check_eval_int(vr, cond, res);

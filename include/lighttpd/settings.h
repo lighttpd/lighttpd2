@@ -76,10 +76,6 @@
 # include <unistd.h>
 #endif
 
-#ifdef HAVE_PCRE_H
-#include <pcre.h>
-#endif
-
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>

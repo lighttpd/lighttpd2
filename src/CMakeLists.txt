@@ -17,10 +17,12 @@ ADD_DEFINITIONS(-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGE_FILES)
 
 OPTION(WITH_XATTR "with xattr-support for the stat-cache [default: on]" ON)
 OPTION(WITH_OPENSSL "with openssl-support [default: on]" ON)
-OPTION(WITH_PCRE "with regex support [default: on]" ON)
 OPTION(WITH_LUA "with lua 5.1 for lua-configfile [default: on]" ON)
 OPTION(BUILD_STATIC "build a static lighttpd with all modules added")
 OPTION(BUILD_EXTRA_WARNINGS "extra warnings")
+
+# We use pcre through glib
+#OPTION(WITH_PCRE "with regex support [default: on]" ON)
 
 IF(BUILD_STATIC)
   SET(LIGHTTPD_STATIC 1)
@@ -113,31 +115,6 @@ CHECK_C_SOURCE_COMPILES("
 		return 0;
 	}" HAVE_IPV6)
 
-## refactor me
-MACRO(XCONFIG _package _include_DIR _link_DIR _link_FLAGS _cflags)
-# reset the variables at the beginning
-  SET(${_include_DIR})
-  SET(${_link_DIR})
-  SET(${_link_FLAGS})
-  SET(${_cflags})
-
-  FIND_PROGRAM(${_package}CONFIG_EXECUTABLE NAMES ${_package} PATHS /usr/local/bin )
-
-  # if pkg-config has been found
-  IF(${_package}CONFIG_EXECUTABLE)
-    SET(XCONFIG_EXECUTABLE "${${_package}CONFIG_EXECUTABLE}")
-    MESSAGE(STATUS "found ${_package}: ${XCONFIG_EXECUTABLE}")
-
-    EXEC_PROGRAM(${XCONFIG_EXECUTABLE} ARGS --libs OUTPUT_VARIABLE __link_FLAGS)
-    STRING(REPLACE "\n" "" ${_link_FLAGS} ${__link_FLAGS})
-    EXEC_PROGRAM(${XCONFIG_EXECUTABLE} ARGS --cflags OUTPUT_VARIABLE __cflags)
-    STRING(REPLACE "\n" "" ${_cflags} ${__cflags})
-
-  ELSE(${_package}CONFIG_EXECUTABLE)
-    MESSAGE(STATUS "found ${_package}: no")
-  ENDIF(${_package}CONFIG_EXECUTABLE)
-ENDMACRO(XCONFIG _package _include_DIR _link_DIR _link_FLAGS _cflags)
-
 IF(WITH_XATTR)
   CHECK_INCLUDE_FILES(attr/attributes.h HAVE_ATTR_ATTRIBUTES_H)
 ENDIF(WITH_XATTR)
@@ -165,68 +142,17 @@ IF(WITH_OPENSSL)
   ENDIF(HAVE_OPENSSL_SSL_H)
 ENDIF(WITH_OPENSSL)
 
-IF(WITH_PCRE)
-  ## if we have pcre-config, use it
-  XCONFIG(pcre-config PCRE_INCDIR PCRE_LIBDIR PCRE_LDFLAGS PCRE_CFLAGS)
-  IF(PCRE_LDFLAGS OR PCRE_CFLAGS) 
-    MESSAGE(STATUS "found pcre at: LDFLAGS: ${PCRE_LDFLAGS} CFLAGS: ${PCRE_CFLAGS}")
-
-    IF(NOT PCRE_CFLAGS STREQUAL "\n")
-      ## if it is empty we'll get newline returned
-      SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PCRE_CFLAGS}")
-    ENDIF(NOT PCRE_CFLAGS STREQUAL "\n")
-
-    CHECK_INCLUDE_FILES(pcre.h HAVE_PCRE_H)
-
-    SET(CMAKE_REQUIRED_FLAGS ${PCRE_LDFLAGS})
-    CHECK_LIBRARY_EXISTS(pcre pcre_exec "" HAVE_LIBPCRE)
-    SET(CMAKE_REQUIRED_FLAGS)
-
-  ELSE(PCRE_LDFLAGS OR PCRE_CFLAGS) 
-    IF(NOT WIN32)
-      CHECK_INCLUDE_FILES(pcre.h HAVE_PCRE_H)
-      CHECK_LIBRARY_EXISTS(pcre pcre_exec "" HAVE_LIBPCRE)
-  		SET(PCRE_LIBRARY pcre)
-    ELSE(NOT WIN32)
-      FIND_PATH(PCRE_INCLUDE_DIR pcre.h
-      /usr/local/include
-      /usr/include
-      )
-  
-      SET(PCRE_NAMES pcre)
-      FIND_LIBRARY(PCRE_LIBRARY
-      NAMES ${PCRE_NAMES}
-      PATHS /usr/lib /usr/local/lib
-      )
-  
-      IF(PCRE_INCLUDE_DIR AND PCRE_LIBRARY)
-        SET(CMAKE_REQUIRED_INCLUDES ${PCRE_INCLUDE_DIR})
-        SET(CMAKE_REQUIRED_LIBRARIES ${PCRE_LIBRARY})
-        CHECK_INCLUDE_FILES(pcre.h HAVE_PCRE_H)
-        CHECK_LIBRARY_EXISTS(pcre pcre_exec "" HAVE_LIBPCRE)
-        SET(CMAKE_REQUIRED_INCLUDES)
-        SET(CMAKE_REQUIRED_LIBRARIES)
-        INCLUDE_DIRECTORIES(${PCRE_INCLUDE_DIR})
-      ENDIF(PCRE_INCLUDE_DIR AND PCRE_LIBRARY)
-    ENDIF(NOT WIN32)
-  ENDIF(PCRE_LDFLAGS OR PCRE_CFLAGS) 
-
-  IF(NOT HAVE_PCRE_H)
-    MESSAGE(FATAL_ERROR "pcre.h couldn't be found")
-  ENDIF(NOT HAVE_PCRE_H)
-  IF(NOT HAVE_LIBPCRE)
-    MESSAGE(FATAL_ERROR "libpcre couldn't be found")
-  ENDIF(NOT HAVE_LIBPCRE)
-
-ENDIF(WITH_PCRE)
+# We use pcre through glib
+#IF(WITH_PCRE)
+#  pkg_check_modules(PCRE REQUIRED libpcre)
+#ENDIF(WITH_PCRE)
 
 # glib/gthread
 pkg_check_modules(GTHREAD REQUIRED gthread-2.0)
 pkg_check_modules(GMODULE REQUIRED gmodule-2.0)
 
 IF(WITH_LUA)
-  pkg_search_module(LUA REQUIRED lua lua5.1)
-  MESSAGE(STATUS "found lua at: INCDIR: ${LUA_INCLUDE_DIRS} LIBDIR: ${LUA_LIBRARY_DIRS} LDFLAGS: ${LUA_LDFLAGS} CFLAGS: ${LUA_CFLAGS}")
+  pkg_search_module(LUA REQUIRED lua lua5.1 lua-5.1)
   SET(HAVE_LIBLUA 1 "Have liblua")
   SET(HAVE_LUA_H  1 "Have liblua header")
 ENDIF(WITH_LUA)
@@ -380,9 +306,11 @@ ADD_EXECUTABLE(lighttpd-angel
 ADD_TARGET_PROPERTIES(lighttpd-angel LINK_FLAGS "${LUA_LDFLAGS} ${EV_LDFLAGS} ${GTHREAD_LDFLAGS} ${GMODULE_LDFLAGS} ${WARN_FLAGS}")
 ADD_TARGET_PROPERTIES(lighttpd-angel COMPILE_FLAGS "${LUA_CFLAGS} ${EV_CFLAGS} ${GTHREAD_CFLAGS} ${GMODULE_CFLAGS} ${WARN_FLAGS}")
 
-IF(HAVE_PCRE_H)
-  TARGET_LINK_LIBRARIES(lighttpd ${PCRE_LIBRARY})
-ENDIF(HAVE_PCRE_H)
+# We use pcre through glib
+#IF(WITH_PCRE)
+#  ADD_TARGET_PROPERTIES(lighttpd LINK_FLAGS ${PCRE_LDFLAGS})
+#  ADD_TARGET_PROPERTIES(lighttpd COMPILE_FLAGS ${PCRE_CFLAGS})
+#ENDIF(WITH_PCRE)
 
 IF(CMAKE_COMPILER_IS_GNUCC)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -Wall -g -Wshadow -W -pedantic")
@@ -392,7 +320,7 @@ IF(CMAKE_COMPILER_IS_GNUCC)
   ADD_DEFINITIONS(-D_GNU_SOURCE)
 ENDIF(CMAKE_COMPILER_IS_GNUCC)
 
-SET_TARGET_PROPERTIES(lighttpd PROPERTIES CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
+SET_TARGET_PROPERTIES(lighttpd PROPERTIES CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
 IF(WIN32)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DNVALGRIND")
@@ -404,10 +332,6 @@ IF(WIN32)
     ADD_TARGET_PROPERTIES(lighttpd LINK_FLAGS "-Wl,-subsystem,console")
   ENDIF(MINGW)
 ENDIF(WIN32)
-
-IF(HAVE_PCRE_H)
-  TARGET_LINK_LIBRARIES(lighttpd pcre)
-ENDIF(HAVE_PCRE_H)
 
 IF(HAVE_LIBSSL AND HAVE_LIBCRYPTO)
   TARGET_LINK_LIBRARIES(lighttpd ssl)

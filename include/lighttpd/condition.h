@@ -19,7 +19,6 @@ typedef enum {
 	LI_CONFIG_COND_SUFFIX,  /** =$ */
 	LI_CONFIG_COND_NOSUFFIX,/** !$ */
 
-/* only usable with pcre */
 	LI_CONFIG_COND_MATCH,   /** =~ */
 	LI_CONFIG_COND_NOMATCH, /** !~ */
 
@@ -71,9 +70,7 @@ typedef enum {
 	LI_COND_VALUE_BOOL,
 	LI_COND_VALUE_NUMBER,
 	LI_COND_VALUE_STRING,
-#ifdef HAVE_PCRE_H
 	LI_COND_VALUE_REGEXP,
-#endif
 	LI_COND_VALUE_SOCKET_IPV4,  /** only match ip/netmask */
 	LI_COND_VALUE_SOCKET_IPV6   /** only match ip/netmask */
 } liCondRValue;
