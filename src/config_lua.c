@@ -170,8 +170,35 @@ static int handle_server_setup(liServer *srv, lua_State *L, gpointer _ss) {
 	return 0;
 }
 
+static int traceback (lua_State *L) {
+	if (!lua_isstring(L, 1))  /* 'message' not a string? */
+		return 1;  /* keep it intact */
+	lua_getfield(L, LUA_GLOBALSINDEX, "debug");
+	if (!lua_istable(L, -1)) {
+		lua_pop(L, 1);
+		return 1;
+	}
+	lua_getfield(L, -1, "traceback");
+	if (!lua_isfunction(L, -1)) {
+		lua_pop(L, 2);
+		return 1;
+	}
+	lua_pushvalue(L, 1);  /* pass error message */
+	lua_pushinteger(L, 2);  /* skip this function and traceback */
+	lua_call(L, 2, 1);  /* call debug.traceback */
+	return 1;
+}
+
+static int push_traceback(lua_State *L, int narg) {
+	int base = lua_gettop(L) - narg;  /* function index */
+	lua_pushcfunction(L, traceback);
+	lua_insert(L, base);
+	return base;
+}
+
 gboolean li_config_lua_load(liServer *srv, const gchar *filename) {
 	lua_State *L;
+	int errfunc;
 
 	L = luaL_newstate();
 	luaL_openlibs(L);
@@ -191,10 +218,12 @@ gboolean li_config_lua_load(liServer *srv, const gchar *filename) {
 
 	lua_push_lvalues_dict(srv, L);
 
-	if (lua_pcall(L, 0, 1, 0)) {
+	errfunc = push_traceback(L, 0);
+	if (lua_pcall(L, 0, 1, errfunc)) {
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
 		return FALSE;
 	}
+	lua_remove(L, errfunc);
 
 	lua_pop(L, 1); /* pop the ret-value */
 
