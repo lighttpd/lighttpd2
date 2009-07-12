@@ -50,7 +50,6 @@
  *     This way, the expensive vhost.map_regex is only used if the vhost was not found in vhost.map.
  *
  * Todo:
- *     - use stat cache (when implemented)
  *     - add vhost.map_regex action which maps a hostname to an action using regular expression matching on a list of strings
  *       - normal hashtable lookup not possible, traverse list and apply every regex to the hostname until a match is found
  *       - optimize list by ordering it by number of matches every n seconds
@@ -121,22 +120,30 @@ typedef struct vhost_pattern_data vhost_pattern_data;
 
 static liHandlerResult vhost_simple(liVRequest *vr, gpointer param, gpointer *context) {
 	struct stat st;
+	gint err;
 	gboolean debug;
 	vhost_simple_data *sd = param;
 
-	UNUSED(context);
-
 	debug = _OPTION(vr, sd->plugin, 0).boolean;
 
-	/* build document root: sd->server_root + req.host + sd->docroot */
-	g_string_truncate(vr->physical.doc_root, 0);
-	g_string_append_len(vr->physical.doc_root, GSTR_LEN(sd->server_root));
-	g_string_append_len(vr->physical.doc_root, GSTR_LEN(vr->request.uri.host));
-	g_string_append_len(vr->physical.doc_root, GSTR_LEN(sd->docroot));
+	/* we use context to check if the physical path was already built */
+	if (*context == NULL) {
+		/* build document root: sd->server_root + req.host + sd->docroot */
+		g_string_truncate(vr->physical.doc_root, 0);
+		g_string_append_len(vr->physical.doc_root, GSTR_LEN(sd->server_root));
+		g_string_append_len(vr->physical.doc_root, GSTR_LEN(vr->request.uri.host));
+		g_string_append_len(vr->physical.doc_root, GSTR_LEN(sd->docroot));
+	}
 
 	/* check if directory exists. if not, fall back to default host */
 	vr->physical.have_stat = FALSE; vr->physical.have_errno = FALSE;
-	if (-1 == stat(vr->physical.doc_root->str, &st)) {
+
+	switch (li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL)) {
+	case LI_HANDLER_GO_ON: break;
+	case LI_HANDLER_WAIT_FOR_EVENT:
+		*context = GINT_TO_POINTER(1);
+		return LI_HANDLER_WAIT_FOR_EVENT;
+	default:
 		if (debug)
 			VR_DEBUG(vr, "vhost.simple: docroot for vhost \"%s\" does not exist, falling back to default", vr->request.uri.host->str);
 		g_string_truncate(vr->physical.doc_root, sd->server_root->len);
