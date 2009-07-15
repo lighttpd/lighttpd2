@@ -181,7 +181,7 @@ ADD_DEFINITIONS(
 ENDIF(NOT WIN32)
 
 ## Write out config.h
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake ${CMAKE_BINARY_DIR}/include/main/config.h)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake ${CMAKE_BINARY_DIR}/include/lighttpd/config.h)
 
 ADD_DEFINITIONS(-DHAVE_CONFIG_H)
 
