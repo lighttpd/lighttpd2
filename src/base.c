@@ -1,3 +1,0 @@
-
-#include <lighttpd/base.h>
-

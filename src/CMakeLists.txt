@@ -181,63 +181,67 @@ ADD_DEFINITIONS(
 ENDIF(NOT WIN32)
 
 ## Write out config.h
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake ${CMAKE_BINARY_DIR}/include/lighttpd/config.h)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake ${CMAKE_BINARY_DIR}/include/main/config.h)
 
 ADD_DEFINITIONS(-DHAVE_CONFIG_H)
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/include  ${CMAKE_BINARY_DIR}/include)
 
 SET(COMMON_SRC
-	angel.c
 	angel_connection.c
 	angel_data.c
+	encoding.c
+	idlist.c
+	ip_parsers.c
+	module.c
+	radix.c
+	sys-files.c
+	sys-socket.c
+	utils.c
+	waitqueue.c
+)
+
+ADD_PREFIX(COMMON_SRC common/)
+
+SET(LIGHTTPD_SHARED_SRC
+	angel.c
 	angel_fake.c
 	actions.c
-	base.c
 	chunk.c
 	chunk_parser.c
 	collect.c
 	condition.c
 	config_parser.c
 	connection.c
-	encoding.c
 	environment.c
 	etag.c
 	filter_chunked.c
 	http_headers.c
 	http_request_parser.c
 	http_response_parser.c
-	idlist.c
-	ip_parsers.c
 	lighttpd-glue.c
 	log.c
-	module.c
 	network.c
 	network_write.c network_writev.c
 	network_sendfile.c
 	options.c
 	plugin.c
 	profiler.c
-	radix.c
 	request.c
 	response.c
 	server.c
 	stat_cache.c
-	sys-files.c
-	sys-socket.c
 	throttle.c
 	url_parser.c
-	utils.c
 	value.c
 	virtualrequest.c
-	waitqueue.c
 	worker.c
 
 	plugin_core.c
 )
 
 IF(WITH_LUA)
-SET(COMMON_SRC ${COMMON_SRC}
+SET(LIGHTTPD_SHARED_SRC ${LIGHTTPD_SHARED_SRC}
 	actions_lua.c
 	condition_lua.c
 	config_lua.c
@@ -245,21 +249,41 @@ SET(COMMON_SRC ${COMMON_SRC}
 )
 ENDIF(WITH_LUA)
 
+ADD_PREFIX(LIGHTTPD_SHARED_SRC main/)
+
+SET(ANGEL_SHARED_SRC
+	angel_config_parser.c
+	angel_log.c
+	angel_plugin.c
+	angel_plugin_core.c
+	angel_server.c
+	angel_value.c
+)
+ADD_PREFIX(ANGEL_SHARED_SRC angel/)
+
 ## Build parsers by using ragel...
-RAGEL_PARSER(config_parser.rl -T0)
-RAGEL_PARSER(http_request_parser.rl)
-RAGEL_PARSER(http_response_parser.rl)
-RAGEL_PARSER(ip_parsers.rl)
-RAGEL_PARSER(url_parser.rl)
-RAGEL_PARSER(angel_config_parser.rl)
+RAGEL_PARSER(main/config_parser.rl -T0)
+RAGEL_PARSER(main/http_request_parser.rl)
+RAGEL_PARSER(main/http_response_parser.rl)
+RAGEL_PARSER(common/ip_parsers.rl)
+RAGEL_PARSER(main/url_parser.rl)
+RAGEL_PARSER(angel/angel_config_parser.rl)
 
 SET(L_INSTALL_TARGETS)
 
 ADD_EXECUTABLE(lighttpd
-	lighttpd.c
+	main/lighttpd.c
+	${LIGHTTPD_SHARED_SRC}
 	${COMMON_SRC}
 )
 SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd)
+
+ADD_EXECUTABLE(lighttpd-angel
+	angel/angel_main.c
+	${ANGEL_SHARED_SRC}
+	${COMMON_SRC}
+)
+SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd-angel)
 
 IF(BUILD_EXTRA_WARNINGS)
 	SET(WARN_FLAGS "-g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wcast-align -Wsign-compare -Wnested-externs -Wpointer-arith -Wl,--as-needed")
@@ -286,22 +310,6 @@ ADD_AND_INSTALL_LIBRARY(mod_vhost "modules/mod_vhost.c")
 
 ADD_TARGET_PROPERTIES(lighttpd LINK_FLAGS ${COMMON_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd COMPILE_FLAGS ${COMMON_CFLAGS})
-
-ADD_EXECUTABLE(lighttpd-angel
-	angel_config_parser.c
-	angel_connection.c
-	angel_data.c
-	angel_log.c
-	angel_main.c
-	angel_plugin.c
-	angel_plugin_core.c
-	angel_server.c
-	angel_value.c
-	idlist.c
-	ip_parsers.c
-	module.c
-	utils.c
-)
 
 ADD_TARGET_PROPERTIES(lighttpd-angel LINK_FLAGS "${LUA_LDFLAGS} ${EV_LDFLAGS} ${GTHREAD_LDFLAGS} ${GMODULE_LDFLAGS} ${WARN_FLAGS}")
 ADD_TARGET_PROPERTIES(lighttpd-angel COMPILE_FLAGS "${LUA_CFLAGS} ${EV_CFLAGS} ${GTHREAD_CFLAGS} ${GMODULE_CFLAGS} ${WARN_FLAGS}")
