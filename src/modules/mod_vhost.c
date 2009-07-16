@@ -326,13 +326,13 @@ static liAction* vhost_map_create(liServer *srv, liPlugin* p, liValue *val) {
 }
 
 static liHandlerResult vhost_map_regex(liVRequest *vr, gpointer param, gpointer *context) {
-	liValue *v;
-	vhost_map_regex_entry *entry;
 	guint i;
 	ev_tstamp now;
 	vhost_map_regex_data *mrd = param;
 	GArray *list = g_array_index(mrd->lists, GArray*, vr->wrk->ndx);
 	gboolean debug = _OPTION(vr, mrd->plugin, 0).boolean;
+	liValue *v = NULL;
+	vhost_map_regex_entry *entry = NULL;
 
 	UNUSED(context);
 
