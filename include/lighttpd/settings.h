@@ -208,4 +208,14 @@
 #include <lighttpd/sys-process.h>
 #include <lighttpd/sys-socket.h>
 
+#if( 2 < __GNUC__ )
+#pragma GCC poison strtok asctime ctime tmpnam strerror
+#ifdef HAVE_LOCALTIME_R
+#pragma GCC poison localtime
+#endif
+#ifdef HAVE_GMTIME_R
+#pragma GCC poison gmtime
+#endif
+#endif
+
 #endif

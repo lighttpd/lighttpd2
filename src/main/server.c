@@ -414,10 +414,16 @@ GString *li_server_current_timestamp() {
 
 	if (cur_ts != *last_ts) {
 		gsize s;
+		struct tm tm;
 
 		g_string_set_size(ts_str, 255);
+#ifdef HAVE_GMTIME_R
+		s = strftime(ts_str->str, ts_str->allocated_len,
+				"%a, %d %b %Y %H:%M:%S GMT", gmtime_r(&cur_ts, &tm));
+#else
 		s = strftime(ts_str->str, ts_str->allocated_len,
 				"%a, %d %b %Y %H:%M:%S GMT", gmtime(&cur_ts));
+#endif
 		g_string_set_size(ts_str, s);
 		*last_ts = cur_ts;
 	}

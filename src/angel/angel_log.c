@@ -48,8 +48,14 @@ void li_log_write(liServer *srv, liLogLevel log_level, guint flags, const gchar 
 
 		if (cur_ts != srv->log.last_ts) {
 			gsize s;
+			struct tm tm;
+
 			g_string_set_size(log_ts, 255);
+#ifdef HAVE_LOCALTIME_R
+			s = strftime(log_ts->str, log_ts->allocated_len, "%Y-%m-%d %H:%M:%S %Z: ", localtime_r(&cur_ts, &tm));
+#else
 			s = strftime(log_ts->str, log_ts->allocated_len, "%Y-%m-%d %H:%M:%S %Z: ", localtime(&cur_ts));
+#endif
 
 			g_string_set_size(log_ts, s);
 
