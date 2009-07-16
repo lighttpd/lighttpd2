@@ -407,6 +407,7 @@ static liAction* rewrite_create(liServer *srv, liPlugin* p, liValue *val) {
 			rewrite_free(NULL, rd);
 			rewrite_parts_free(rule.parts);
 			ERROR(srv, "rewrite: error compiling regex \"%s\": %s", g_array_index(arr, liValue*, 0)->data.string->str, err->message);
+			g_error_free(err);
 			return NULL;
 		}
 
@@ -439,6 +440,7 @@ static liAction* rewrite_create(liServer *srv, liPlugin* p, liValue *val) {
 				rewrite_free(NULL, rd);
 				rewrite_parts_free(rule.parts);
 				ERROR(srv, "rewrite: error compiling regex \"%s\": %s", g_array_index(v->data.list, liValue*, 0)->data.string->str, err->message);
+				g_error_free(err);
 				return NULL;
 			}
 
