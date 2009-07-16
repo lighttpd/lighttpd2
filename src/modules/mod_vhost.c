@@ -396,24 +396,23 @@ static liHandlerResult vhost_map_regex(liVRequest *vr, gpointer param, gpointer 
 }
 
 static void vhost_map_regex_free(liServer *srv, gpointer param) {
-	guint i, j;
+	guint i;
 	vhost_map_regex_entry *entry;
 	vhost_map_regex_data *mrd = param;
-	GArray *list;
 
 	UNUSED(srv);
 
-	for (i = 0; i < mrd->lists->len; i++) {
-		list = g_array_index(mrd->lists, GArray*, i);
+	for (i = 0; i < g_array_index(mrd->lists, GArray*, 0)->len; i++) {
+		entry = &g_array_index(g_array_index(mrd->lists, GArray*, 0), vhost_map_regex_entry, i);
 
-		for (j = 0; j < list->len; j++) {
-			entry = &g_array_index(list, vhost_map_regex_entry, j);
+		g_regex_unref(entry->regex);
+		li_value_free(entry->action);
+	}
 
-			g_regex_unref(entry->regex);
-			li_value_free(entry->action);
-		}
+	g_array_free(g_array_index(mrd->lists, GArray*, 0), TRUE);
 
-		g_array_free(list, TRUE);
+	for (i = 1; i < mrd->lists->len; i++) {
+		g_array_free(g_array_index(mrd->lists, GArray*, i), TRUE);
 	}
 
 	g_array_free(mrd->lists, TRUE);
