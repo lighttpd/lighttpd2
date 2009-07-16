@@ -19,7 +19,7 @@
  *         - lookup action by using the hostname as the key of the hashtable
  *         - if not found, use default action
  *         - fast and flexible but no matching on hostnames possible
- *     (todo) vhost.map_regex ["host1regex": action1, "host2regex": action2, "default": action0];
+ *     vhost.map_regex ["host1regex": action1, "host2regex": action2, "default": action0];
  *         - lookup action by traversing the list and applying a regex match of the hostname on each entry
  *         - if no match, use default action
  *         - slowest method but the most flexible one
@@ -86,6 +86,22 @@ struct vhost_map_data {
 	liValue *default_action;
 };
 typedef struct vhost_map_data vhost_map_data;
+
+struct vhost_map_regex_entry {
+	GRegex *regex;
+	liValue *action;
+	ev_tstamp tstamp;
+	guint hits;
+	guint hits_30s;
+};
+typedef struct vhost_map_regex_entry vhost_map_regex_entry;
+
+struct vhost_map_regex_data {
+	liPlugin *plugin;
+	GArray *list; /* array of vhost_map_regex_entry */
+	liValue *default_action;
+};
+typedef struct vhost_map_regex_data vhost_map_regex_data;
 
 struct vhost_pattern_part {
 	enum {
@@ -318,6 +334,152 @@ static liAction* vhost_map_create(liServer *srv, liPlugin* p, liValue *val) {
 	return li_action_new_function(vhost_map, NULL, vhost_map_free, md);
 }
 
+static liHandlerResult vhost_map_regex(liVRequest *vr, gpointer param, gpointer *context) {
+	liValue *v;
+	vhost_map_regex_entry *entry;
+	guint i;
+	ev_tstamp now;
+	vhost_map_regex_data *mrd = param;
+	gboolean debug = _OPTION(vr, mrd->plugin, 0).boolean;
+
+	UNUSED(context);
+
+	/* loop through all rules to find a match */
+	for (i = 0; i < mrd->list->len; i++) {
+		entry = &g_array_index(mrd->list, vhost_map_regex_entry, i);
+
+		if (!g_regex_match(entry->regex, vr->request.uri.host->str, 0, NULL))
+			continue;
+
+		v = entry->action;
+
+		/* match found, update stats */
+		now = CUR_TS(vr->wrk);
+		entry->hits++;
+
+		if ((now - entry->tstamp) > 30.0) {
+			vhost_map_regex_entry *entry_prev, entry_tmp;
+
+			entry->tstamp = now;
+			entry->hits_30s = entry->hits;
+			entry->hits = 0;
+
+			if (i) {
+				entry_prev = &g_array_index(mrd->list, vhost_map_regex_entry, i-1);
+
+				if ((now - entry_prev->tstamp) > 30.0) {
+					entry_prev->tstamp = now;
+					entry_prev->hits_30s = entry_prev->hits;
+					entry_prev->hits = 0;
+				}
+
+				/* reorder list and put entries with more hits at the beginning */
+				if (entry->hits_30s > entry_prev->hits_30s) {
+					/* swap entry and entry_prev */
+					entry_tmp = *entry_prev;
+					g_array_index(mrd->list, vhost_map_regex_entry, i-1) = *entry;
+					g_array_index(mrd->list, vhost_map_regex_entry, i) = entry_tmp;
+					entry = &g_array_index(mrd->list, vhost_map_regex_entry, i-1);
+				}
+			}
+		}
+
+		break;
+	}
+
+	if (v) {
+		if (debug)
+			VR_DEBUG(vr, "vhost_map_regex: host %s matches pattern \"%s\"", vr->request.uri.host->str, g_regex_get_pattern(entry->regex));
+		li_action_enter(vr, v->data.val_action.action);
+	} else if (mrd->default_action) {
+		if (debug)
+			VR_DEBUG(vr, "vhost_map_regex: host %s didn't match, executing default action", vr->request.uri.host->str);
+		li_action_enter(vr, mrd->default_action->data.val_action.action);
+	} else {
+		if (debug)
+			VR_DEBUG(vr, "vhost_map_regex: neither did %s match nor default action specified, doing nothing", vr->request.uri.host->str);
+	}
+
+	return LI_HANDLER_GO_ON;
+}
+
+static void vhost_map_regex_free(liServer *srv, gpointer param) {
+	guint i;
+	vhost_map_regex_entry *entry;
+	vhost_map_regex_data *mrd = param;
+
+	UNUSED(srv);
+
+	for (i = 0; i < mrd->list->len; i++) {
+		entry = &g_array_index(mrd->list, vhost_map_regex_entry, i);
+
+		g_regex_unref(entry->regex);
+		li_value_free(entry->action);
+	}
+
+	g_array_free(mrd->list, TRUE);
+
+	if (mrd->default_action)
+		li_value_free(mrd->default_action);
+
+	g_slice_free(vhost_map_regex_data, mrd);
+}
+
+static liAction* vhost_map_regex_create(liServer *srv, liPlugin* p, liValue *val) {
+	GHashTable *hash;
+	GHashTableIter iter;
+	gpointer k, v;
+	vhost_map_regex_data *mrd;
+	vhost_map_regex_entry entry;
+	GError *err = NULL;
+
+	if (!val || val->type != LI_VALUE_HASH) {
+		ERROR(srv, "%s", "vhost.map_regex expects a hashtable as parameter");
+		return NULL;
+	}
+
+	mrd = g_slice_new0(vhost_map_regex_data);
+	mrd->plugin = p;
+	mrd->list = g_array_new(FALSE, FALSE, sizeof(vhost_map_regex_entry));
+
+	hash = val->data.hash;
+
+	/* check if every value in the hashtable is an action */
+	g_hash_table_iter_init(&iter, hash);
+	while (g_hash_table_iter_next(&iter, &k, &v)) {
+		val = v;
+
+		if (val->type != LI_VALUE_ACTION) {
+			ERROR(srv, "vhost.map_regex expects a hashtable with action values as parameter, %s value given", li_value_type_string(val->type));
+			vhost_map_regex_free(srv, mrd);
+			return NULL;
+		}
+
+		if (g_str_equal(((GString*)k)->str, "default")) {
+			mrd->default_action = li_value_copy(val);
+			continue;
+		}
+
+		entry.hits = 0;
+		entry.hits_30s = 0;
+		entry.tstamp = 0.0;
+		entry.regex = g_regex_new(((GString*)k)->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
+
+		if (!entry.regex || err) {
+			vhost_map_regex_free(srv, mrd);
+			ERROR(srv, "vhost.map_regex: error compiling regex \"%s\": %s", ((GString*)k)->str, err->message);
+			g_error_free(err);
+			return NULL;
+		}
+
+		entry.action = li_value_copy(val);
+
+		g_array_append_val(mrd->list, entry);
+	}
+
+	return li_action_new_function(vhost_map_regex, NULL, vhost_map_regex_free, mrd);
+}
+
 static liHandlerResult vhost_pattern(liVRequest *vr, gpointer param, gpointer *context) {
 	GArray *parts = g_array_sized_new(FALSE, TRUE, sizeof(vhost_pattern_hostpart), 6);
 	vhost_pattern_data *pattern = param;
@@ -521,6 +683,7 @@ static const liPluginOption options[] = {
 static const liPluginAction actions[] = {
 	{ "vhost.simple", vhost_simple_create },
 	{ "vhost.map", vhost_map_create },
+	{ "vhost.map_regex", vhost_map_regex_create },
 	{ "vhost.pattern", vhost_pattern_create },
 
 	{ NULL, NULL }
