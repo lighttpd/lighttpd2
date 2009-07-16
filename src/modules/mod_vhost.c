@@ -50,16 +50,7 @@
  *     This way, the expensive vhost.map_regex is only used if the vhost was not found in vhost.map.
  *
  * Todo:
- *     - add vhost.map_regex action which maps a hostname to an action using regular expression matching on a list of strings
- *       - normal hashtable lookup not possible, traverse list and apply every regex to the hostname until a match is found
- *       - optimize list by ordering it by number of matches every n seconds
- *         => frequently matched vhosts at the beginning resulting in a better hitrate
- *         - copy list, order the copy, exchange original list and copy
- *         - delete original list (now the copy) before the next optimization run or just overwrite it during the copy step
- *         - reset counter of entries that haven't been matched during the last n hours
- *       - also build a hashtable to cache lookups?
- *     - mod_evhost equivalent?
- *     - add setup actions to control vhost.map_regex caching behaviour
+ *     -
  *
  * Author:
  *     Copyright (c) 2009 Thomas Porzelt
@@ -98,7 +89,7 @@ typedef struct vhost_map_regex_entry vhost_map_regex_entry;
 
 struct vhost_map_regex_data {
 	liPlugin *plugin;
-	GArray *list; /* array of vhost_map_regex_entry */
+	GArray *lists; /* array of array of vhost_map_regex_entry */
 	liValue *default_action;
 };
 typedef struct vhost_map_regex_data vhost_map_regex_data;
@@ -340,13 +331,14 @@ static liHandlerResult vhost_map_regex(liVRequest *vr, gpointer param, gpointer 
 	guint i;
 	ev_tstamp now;
 	vhost_map_regex_data *mrd = param;
+	GArray *list = g_array_index(mrd->lists, GArray*, vr->wrk->ndx);
 	gboolean debug = _OPTION(vr, mrd->plugin, 0).boolean;
 
 	UNUSED(context);
 
 	/* loop through all rules to find a match */
-	for (i = 0; i < mrd->list->len; i++) {
-		entry = &g_array_index(mrd->list, vhost_map_regex_entry, i);
+	for (i = 0; i < list->len; i++) {
+		entry = &g_array_index(list, vhost_map_regex_entry, i);
 
 		if (!g_regex_match(entry->regex, vr->request.uri.host->str, 0, NULL))
 			continue;
@@ -365,7 +357,7 @@ static liHandlerResult vhost_map_regex(liVRequest *vr, gpointer param, gpointer 
 			entry->hits = 0;
 
 			if (i) {
-				entry_prev = &g_array_index(mrd->list, vhost_map_regex_entry, i-1);
+				entry_prev = &g_array_index(list, vhost_map_regex_entry, i-1);
 
 				if ((now - entry_prev->tstamp) > 30.0) {
 					entry_prev->tstamp = now;
@@ -377,9 +369,9 @@ static liHandlerResult vhost_map_regex(liVRequest *vr, gpointer param, gpointer 
 				if (entry->hits_30s > entry_prev->hits_30s) {
 					/* swap entry and entry_prev */
 					entry_tmp = *entry_prev;
-					g_array_index(mrd->list, vhost_map_regex_entry, i-1) = *entry;
-					g_array_index(mrd->list, vhost_map_regex_entry, i) = entry_tmp;
-					entry = &g_array_index(mrd->list, vhost_map_regex_entry, i-1);
+					g_array_index(list, vhost_map_regex_entry, i-1) = *entry;
+					g_array_index(list, vhost_map_regex_entry, i) = entry_tmp;
+					entry = &g_array_index(list, vhost_map_regex_entry, i-1);
 				}
 			}
 		}
@@ -404,20 +396,27 @@ static liHandlerResult vhost_map_regex(liVRequest *vr, gpointer param, gpointer 
 }
 
 static void vhost_map_regex_free(liServer *srv, gpointer param) {
-	guint i;
+	guint i, j;
 	vhost_map_regex_entry *entry;
 	vhost_map_regex_data *mrd = param;
+	GArray *list;
 
 	UNUSED(srv);
 
-	for (i = 0; i < mrd->list->len; i++) {
-		entry = &g_array_index(mrd->list, vhost_map_regex_entry, i);
+	for (i = 0; i < mrd->lists->len; i++) {
+		list = g_array_index(mrd->lists, GArray*, i);
 
-		g_regex_unref(entry->regex);
-		li_value_free(entry->action);
+		for (j = 0; j < list->len; j++) {
+			entry = &g_array_index(list, vhost_map_regex_entry, j);
+
+			g_regex_unref(entry->regex);
+			li_value_free(entry->action);
+		}
+
+		g_array_free(list, TRUE);
 	}
 
-	g_array_free(mrd->list, TRUE);
+	g_array_free(mrd->lists, TRUE);
 
 	if (mrd->default_action)
 		li_value_free(mrd->default_action);
@@ -431,6 +430,8 @@ static liAction* vhost_map_regex_create(liServer *srv, liPlugin* p, liValue *val
 	gpointer k, v;
 	vhost_map_regex_data *mrd;
 	vhost_map_regex_entry entry;
+	GArray *list;
+	guint i;
 	GError *err = NULL;
 
 	if (!val || val->type != LI_VALUE_HASH) {
@@ -440,7 +441,9 @@ static liAction* vhost_map_regex_create(liServer *srv, liPlugin* p, liValue *val
 
 	mrd = g_slice_new0(vhost_map_regex_data);
 	mrd->plugin = p;
-	mrd->list = g_array_new(FALSE, FALSE, sizeof(vhost_map_regex_entry));
+	mrd->lists = g_array_sized_new(FALSE, FALSE, sizeof(GArray*), srv->worker_count ? srv->worker_count : 1);
+
+	list = g_array_new(FALSE, FALSE, sizeof(vhost_map_regex_entry));
 
 	hash = val->data.hash;
 
@@ -474,7 +477,16 @@ static liAction* vhost_map_regex_create(liServer *srv, liPlugin* p, liValue *val
 
 		entry.action = li_value_copy(val);
 
-		g_array_append_val(mrd->list, entry);
+		g_array_append_val(list, entry);
+	}
+
+	g_array_append_val(mrd->lists, list);
+
+	for (i = 1; i < srv->worker_count; i++) {
+		GArray *arr = g_array_sized_new(FALSE, FALSE, sizeof(vhost_map_regex_entry), list->len);
+
+		g_array_append_vals(arr, list->data, list->len);
+		g_array_append_val(mrd->lists, arr);
 	}
 
 	return li_action_new_function(vhost_map_regex, NULL, vhost_map_regex_free, mrd);
