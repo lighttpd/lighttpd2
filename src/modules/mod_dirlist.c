@@ -161,14 +161,13 @@ static void dirlist_format_size(gchar *buf, goffset size) {
 		*buf++ = remaining + '0';
 	}
 	*buf++ = *u;
-	*buf++ = '\0';
+	*buf = '\0';
 }
 
 static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context) {
 	GString *listing;
 	liStatCacheEntry *sce;
 	dirlist_data *dd;
-	dirlist_plugin_data *pd;
 
 	UNUSED(context);
 
@@ -183,7 +182,6 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 	}
 
 	dd = param;
-	pd = dd->plugin->data;
 
 	if (sce->data.failed) {
 		/* stat failed */

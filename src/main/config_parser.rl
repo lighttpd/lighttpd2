@@ -931,9 +931,8 @@
 			ctx->in_setup_block = FALSE;
 		}
 		else {
-			liAction *al;
 			/* pop action list stack */
-			al = g_queue_pop_head(ctx->action_list_stack);
+			g_queue_pop_head(ctx->action_list_stack);
 
 		}
 	}

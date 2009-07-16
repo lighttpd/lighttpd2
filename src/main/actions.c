@@ -215,7 +215,6 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			action_stack_pop(srv, vr, as);
 			while (NULL != (ase = action_stack_top(as)) && (ase->act->type != ACTION_TBALANCER || !ase->act->data.balancer.provide_backlog)) {
 				action_stack_pop(srv, vr, as);
-				ase = action_stack_top(as);
 			}
 			if (!ase) { /* no backlogging balancer found */
 				if (li_vrequest_handle_direct(vr))

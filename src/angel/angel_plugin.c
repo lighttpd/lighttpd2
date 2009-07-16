@@ -273,6 +273,7 @@ static gboolean plugins_activate_module(liServer *srv, server_module *sm) {
 	for (i = 0; i < sm->plugins->len; i++) {
 		p = g_ptr_array_index(sm->plugins, i);
 		g_ptr_array_add(ps->load_plugins, p);
+		g_hash_table_insert(ps->load_ht_plugins, (gpointer) p->name, p);
 		if (!p->items) continue;
 
 		for (pi = p->items; pi->name; pi++) {
@@ -288,8 +289,6 @@ static gboolean plugins_activate_module(liServer *srv, server_module *sm) {
 		}
 	}
 
-	g_hash_table_insert(ps->load_ht_plugins, (gpointer) p->name, p);
-
 	return TRUE;
 
 item_collission:
@@ -302,6 +301,7 @@ item_collission:
 
 	for ( ; i-- > 0; ) {
 		p = g_ptr_array_index(sm->plugins, i);
+		g_hash_table_remove(ps->load_ht_plugins, p->name);
 		if (!p->items) continue;
 
 		for (pi = p->items; pi->name; pi++) {
@@ -359,13 +359,13 @@ liPlugin *li_angel_plugin_register(liServer *srv, liModule *mod, const gchar *na
 
 	sm = g_hash_table_lookup(ps->load_module_refs, modname);
 	if (!sm) {
-		ERROR(srv, "Module '%s' not loaded; cannot load plugin '%s'", mod->name->str, name);
+		ERROR(srv, "Module '%s' not loaded; cannot load plugin '%s'", modname, name);
 		return NULL;
 	}
 
 	p = plugin_new(name);
 	if (!init(srv, p)) {
-		ERROR(srv, "Couldn't load plugin '%s' for module '%s': init failed", name, mod->name->str);
+		ERROR(srv, "Couldn't load plugin '%s' for module '%s': init failed", name, modname);
 		li_plugin_free(srv, p);
 		return NULL;
 	}

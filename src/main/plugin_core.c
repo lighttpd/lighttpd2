@@ -528,7 +528,6 @@ static gboolean core_event_handler(liServer *srv, liPlugin* p, liValue *val) {
 	}
 
 	str = val->data.string->str;
-	backend = 0; /* libev will chose the right one by default */
 
 	if (g_str_equal(str, "select"))
 		backend = EVBACKEND_SELECT;

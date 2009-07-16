@@ -153,7 +153,6 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
 	mod_debug_job_t *job = cbdata;
 	liVRequest *vr;
-	liPlugin *p;
 	GString *html;
 
 	UNUSED(fdata);
@@ -187,7 +186,6 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 	}
 
 	vr = job->vr;
-	p = job->p;
 	/* clear context so it doesn't get cleaned up anymore */
 	*(job->context) = NULL;
 

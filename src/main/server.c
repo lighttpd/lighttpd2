@@ -258,7 +258,7 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	while (-1 != (s = accept(w->fd, &sa, &l))) {
 		liWorker *wrk = srv->main_worker;
-		guint i, min_load = g_atomic_int_get(&wrk->connection_load), sel = 0;
+		guint i, min_load = g_atomic_int_get(&wrk->connection_load);
 
 		if (l <= sizeof(sa)) {
 			remote_addr.addr = g_slice_alloc(l);
@@ -277,12 +277,10 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			if (load < min_load) {
 				wrk = wt;
 				min_load = load;
-				sel = i;
 			}
 		}
 
 		g_atomic_int_inc((gint*) &wrk->connection_load);
-		/* TRACE(srv, "selected worker %u with load %u", sel, min_load); */
 		li_server_socket_acquire(sock);
 		li_worker_new_con(srv->main_worker, wrk, remote_addr, s, sock);
 	}

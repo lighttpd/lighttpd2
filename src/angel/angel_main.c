@@ -88,5 +88,5 @@ cleanup:
 	if (config_path) g_free((gchar*) config_path);
 	if (module_dir != def_module_dir) g_free((gchar*) module_dir);
 
-	return 0;
+	return result;
 }

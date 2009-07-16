@@ -445,6 +445,7 @@ static liHandlerResult li_condition_check_eval_int(liVRequest *vr, liCondition *
 	switch (cond->lvalue->type) {
 	case LI_COMP_REQUEST_CONTENT_LENGTH:
 		val = vr->request.content_length;
+		break;
 	case LI_COMP_PHYSICAL_SIZE:
 		if (!vr->physical.have_stat) {
 			if (vr->physical.have_errno || !li_vrequest_stat(vr)) {

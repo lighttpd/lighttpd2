@@ -284,7 +284,7 @@ static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *de
 				g_string_printf(vr->con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
 				str = vr->con->wrk->tmp_str;
 				break;
-			default: str = NULL;
+			default: continue;
 			}
 
 			if (rp->data.cond_lval == LI_COMP_REQUEST_SCHEME) {

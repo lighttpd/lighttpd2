@@ -756,8 +756,6 @@ gboolean li_chunkqueue_extract_to(liVRequest *vr, liChunkQueue *cq, goffset len,
 	if (len > cq->length) return FALSE;
 
 	ci = chunkqueue_iter(cq);
-	coff = 0;
-	clen = chunkiter_length(ci);
 
 	while (len > 0) {
 		coff = 0;
@@ -791,8 +789,6 @@ gboolean li_chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *cq, goff
 	g_byte_array_set_size(dest, 0);
 
 	ci = chunkqueue_iter(cq);
-	coff = 0;
-	clen = chunkiter_length(ci);
 
 	while (len > 0) {
 		coff = 0;

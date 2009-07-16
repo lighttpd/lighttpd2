@@ -114,7 +114,7 @@ liValue* li_value_from_lua(liServer *srv, lua_State *L) {
 			if (a) {
 				li_action_acquire(a);
 				lua_pop(L, 1);
-				return val = li_value_new_action(srv, a);
+				return li_value_new_action(srv, a);
 			}
 		}
 		{ /* check for condition */
@@ -122,7 +122,7 @@ liValue* li_value_from_lua(liServer *srv, lua_State *L) {
 			if (c) {
 				li_condition_acquire(c);
 				lua_pop(L, 1);
-				return val = li_value_new_condition(srv, c);
+				return li_value_new_condition(srv, c);
 			}
 		}
 		ERROR(srv, "%s", "Unknown lua userdata");
