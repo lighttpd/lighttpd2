@@ -420,7 +420,7 @@ static liAction* core_status(liServer *srv, liPlugin* p, liValue *val) {
 
 	UNUSED(p);
 
-	if (val || val->type != LI_VALUE_NUMBER) {
+	if (!val || val->type != LI_VALUE_NUMBER) {
 		ERROR(srv, "%s", "status action expects a number as parameter");
 		return NULL;
 	}

@@ -61,7 +61,7 @@ guint li_radixtree32_free(liRadixTree32 *tree) {
 void li_radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpointer data) {
 	liRadixNode32 *last_node, *leaf;
 	liRadixNode32 *node = tree->root[(key & tree->root_mask) >> (32 - tree->root_width)];
-	//g_print("root: %p, %x & %x => %x\n", (void*)node, key, tree->root_mask, (key & tree->root_mask) >> (32 - tree->root_width));
+
 	if (!node) {
 		/* no root node yet */
 		node = g_slice_new(liRadixNode32);
@@ -77,11 +77,10 @@ void li_radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpoin
 		return;
 	}
 
-	do {//g_print("%x & %x => %x != %x\n", key, node->mask, key & node->mask, node->key);
-		if ((key & mask & node->mask) != node->key) {guint i;
+	do {
+		if ((key & mask & node->mask) != node->key) {
 			/* node key differs, split tree */
-			guint32 tmp;
-			liRadixNode32 *new_node;i=0;
+			liRadixNode32 *new_node;
 
 			/* the new internal node */
 			new_node = g_slice_new(liRadixNode32);
@@ -101,14 +100,11 @@ void li_radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpoin
 			leaf->left = NULL;
 			leaf->right = NULL;
 
-			do {//g_print("xxx #%u %x & %x => %x != %x\n", i++, key, new_node->mask, key&new_node->mask, node->key);
-				tmp = new_node->mask;
+			do {
 				new_node->mask <<= 1;
 				new_node->key &= new_node->mask;
 			} while ((key & mask & new_node->mask) != new_node->key);
-			//g_print("xxx %x & %x => %x != %x\n", key, new_node->mask, key&new_node->mask, node->key);
 
-			//if (key & (~ (~ new_node->mask >> 1))) {
 			if ((key & new_node->mask) > (key & (~ (~ new_node->mask >> 1)))) {
 				new_node->left = node;
 				new_node->right = leaf;
@@ -138,7 +134,6 @@ void li_radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpoin
 		last_node = node;
 
 		/* compare next bit */
-		//if (key & (~ (~ node->mask >> 1)))
 		if ((key & node->mask) > (key & (~ (~ node->mask >> 1))))
 			node = node->right;
 		else
@@ -152,7 +147,6 @@ void li_radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpoin
 	leaf->mask = mask;
 	leaf->parent = last_node;
 
-	//if (key & (~ (~ last_node->key >> 1)))
 	if ((key & last_node->mask) > (key & (~ (~ last_node->mask >> 1))))
 		last_node->right = leaf;
 	else
@@ -167,7 +161,6 @@ gboolean li_radixtree32_remove(liRadixTree32 *tree, guint32 key, guint32 mask) {
 	while (node) {
 		if (!node->data || (key & mask) != node->key) {
 			/* compare next bit */
-			//if (key & (~ (~ node->key >> 1)))
 			if ((key & node->mask) > (key & (~ (~ node->mask >> 1))))
 				node = node->right;
 			else
@@ -228,7 +221,7 @@ liRadixNode32 *li_radixtree32_lookup_node(liRadixTree32 *tree, guint32 key) {
 	liRadixNode32 *node = tree->root[(key & tree->root_mask) >> (32 - tree->root_width)];
 	liRadixNode32 *result = NULL;
 
-	while (node) {//g_print("%x & %x => %x != %x\n", key, node->mask, key & node->mask, node->key);
+	while (node) {
 		if ((key & node->mask) != node->key)
 			return result;
 
@@ -236,7 +229,6 @@ liRadixNode32 *li_radixtree32_lookup_node(liRadixTree32 *tree, guint32 key) {
 			result = node;
 
 		/* compare next bit */
-		//if (key & (~ (~ node->key >> 1)))
 		if ((key & node->mask) > (key & (~ (~ node->mask >> 1))))
 			node = node->right;
 		else

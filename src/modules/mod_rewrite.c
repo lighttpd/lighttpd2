@@ -43,8 +43,8 @@
  *
  *
  * Tip:
- *     As strings in the config already allow special characters like \n, you will need to escape $ and % with a backslash twice
- *     because \\ is replaced with \. For example: "esca\\$ped" will be rewriten to "esca$ped".
+ *     As both config parser and regex compiler use backslashes to escape special characters, you will have to escape them twice.
+ *     For example "^foo\\dbar$" will end up as "^foo\dbar$" as regex input, which would match things like "foo3bar".
  *
  * Todo:
  *     - rewrite rule without regex, just overwriting the path/query

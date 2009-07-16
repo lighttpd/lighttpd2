@@ -149,26 +149,13 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 
 
 gpointer log_thread(liServer *srv) {
-	GAsyncQueue *queue;
 	liLog *log;
 	liLogEntry *log_entry;
 	GString *msg;
 	gssize bytes_written;
 	gssize write_res;
 
-	queue = srv->logs.queue;
-
 	while (TRUE) {
-		/* do we need to rotate logs? */
-		/*
-		if (g_atomic_int_get(&srv->rotate_logs)) {
-			g_atomic_int_set(&srv->rotate_logs, FALSE);
-			g_mutex_lock(srv->logs.mutex);
-			g_hash_table_foreach(srv->logs.targets, (GHFunc) log_rotate, srv);
-			g_mutex_unlock(srv->logs.mutex);
-		}
-		*/
-
 		if (g_atomic_int_get(&srv->logs.thread_stop) == TRUE)
 			break;
 
