@@ -30,6 +30,9 @@
 #define INSTANCE(srv, inst, msg) \
 	li_log_write(srv, LI_LOG_LEVEL_ERROR, LI_LOG_FLAG_NONE, "lighttpd[%d]: %s", (int) inst->pid, msg)
 
+#define GERROR(srv, error, fmt, ...) \
+	li_log_write_(srv, LI_LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "error (%s:%d): " fmt "\n  %s", LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__, error ? error->message : "Empty GError")
+
 typedef enum {
 	LI_LOG_LEVEL_DEBUG,
 	LI_LOG_LEVEL_INFO,

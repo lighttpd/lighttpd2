@@ -31,6 +31,8 @@
 #define _BACKEND_LINES(srv, vr, txt, fmt, ...) \
 	li_log_split_lines_(srv, vr, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, txt, "(backend) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
+#define _GERROR(srv, vr, error, fmt, ...) \
+	li_log_write_(srv, vr, LI_LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "(error) %s.%d: " fmt "\n  %s", LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__, error ? error->message : "Empty GError")
 
 #define VR_SEGFAULT(vr, fmt, ...) _SEGFAULT(vr->wrk->srv, vr, fmt, __VA_ARGS__)
 #define VR_ERROR(vr, fmt, ...)    _ERROR(vr->wrk->srv, vr, fmt, __VA_ARGS__)
@@ -39,6 +41,7 @@
 #define VR_DEBUG(vr, fmt, ...)    _DEBUG(vr->wrk->srv, vr, fmt, __VA_ARGS__)
 #define VR_BACKEND(vr, fmt, ...)  _BACKEND(vr->wrk->srv, vr, fmt, __VA_ARGS__)
 #define VR_BACKEND_LINES(vr, txt, fmt, ...) _BACKEND_LINES(vr->wrk->srv, vr, txt, fmt, __VA_ARGS__)
+#define VR_GERROR(vr, error, fmt, ...) _GERROR(vr->work->srv, vr, error, fmt, __VA_ARGS__)
 
 #define SEGFAULT(srv, fmt, ...)   _SEGFAULT(srv, NULL, fmt, __VA_ARGS__)
 #define ERROR(srv, fmt, ...)      _ERROR(srv, NULL, fmt, __VA_ARGS__)
@@ -46,6 +49,7 @@
 #define INFO(srv, fmt, ...)       _INFO(srv, NULL, fmt, __VA_ARGS__)
 #define DEBUG(srv, fmt, ...)      _DEBUG(srv, NULL, fmt, __VA_ARGS__)
 #define BACKEND(srv, fmt, ...)    _BACKEND(srv, NULL, fmt, __VA_ARGS__)
+#define GERROR(srv, error, fmt, ...) _GERROR(srv, NULL, error, fmt, __VA_ARGS__)
 
 /* flags for li_log_write */
 #define LOG_FLAG_NONE         (0x0)      /* default flag */
