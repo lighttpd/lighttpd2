@@ -77,7 +77,8 @@ struct liWorker {
 	guint connection_load;    /** incremented by server_accept_cb, decremented by worker_con_put. use atomic access */
 
 	
-	GArray *timestamps;      /** array of (worker_ts), use only from local worker context and through li_worker_current_timestamp(wrk, ndx) */
+	GArray *timestamps_gmt; /** array of (worker_ts), use only from local worker context and through li_worker_current_timestamp(wrk, LI_GMTIME, ndx) */
+	GArray *timestamps_local;
 
 	/* incoming queues */
 	/*  - new connections (after accept) */
@@ -111,7 +112,7 @@ LI_API void li_worker_new_con(liWorker *ctx, liWorker *wrk, liSocketAddress remo
 
 LI_API void li_worker_check_keepalive(liWorker *wrk);
 
-LI_API GString* li_worker_current_timestamp(liWorker *wrk, guint format_ndx);
+LI_API GString* li_worker_current_timestamp(liWorker *wrk, liTimeFunc, guint format_ndx);
 
 /* shutdown write and wait for eof before shutdown read and close */
 LI_API void li_worker_add_closing_socket(liWorker *wrk, int fd);

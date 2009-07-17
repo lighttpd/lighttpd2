@@ -36,7 +36,7 @@ LI_API gboolean mod_accesslog_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_accesslog_free(liModules *mods, liModule *mod);
 
 struct al_data {
-	guint ts_ndx_gmtime;
+	guint ts_ndx;
 };
 typedef struct al_data al_data;
 
@@ -304,7 +304,7 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 				break;
 			case AL_FORMAT_TIME:
 				/* todo: implement format string */
-				tmp_gstr2 = li_worker_current_timestamp(con->wrk, ald->ts_ndx_gmtime);
+				tmp_gstr2 = li_worker_current_timestamp(con->wrk, LI_LOCALTIME, ald->ts_ndx);
 				g_string_append_len(str, GSTR_LEN(tmp_gstr2));
 				break;
 			case AL_FORMAT_AUTHED_USER:
@@ -487,7 +487,7 @@ static void plugin_accesslog_init(liServer *srv, liPlugin *p) {
 	p->handle_close = al_handle_close;
 
 	ald = g_slice_new0(al_data);
-	ald->ts_ndx_gmtime = li_server_ts_format_add(srv, g_string_new_len(CONST_STR_LEN("[%d/%b/%Y:%H:%M:%S +0000]")));
+	ald->ts_ndx = li_server_ts_format_add(srv, g_string_new_len(CONST_STR_LEN("[%d/%b/%Y:%H:%M:%S +%z]")));
 	p->data = ald;
 }
 

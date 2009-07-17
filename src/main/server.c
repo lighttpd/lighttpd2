@@ -108,6 +108,8 @@ liServer* li_server_new(const gchar *module_dir) {
 
 	srv->ts_formats = g_array_new(FALSE, TRUE, sizeof(GString*));
 	/* error log ts format */
+	li_server_ts_format_add(srv, g_string_new("%a, %d %b %Y %H:%M:%S %Z"));
+	/* http header ts format */
 	li_server_ts_format_add(srv, g_string_new("%a, %d %b %Y %H:%M:%S GMT"));
 
 	srv->throttle_pools = g_array_new(FALSE, TRUE, sizeof(liThrottlePool*));
@@ -342,7 +344,7 @@ void li_server_start(liServer *srv) {
 
 	srv->started = ev_now(srv->main_worker->loop);
 	{
-		GString *str = li_worker_current_timestamp(srv->main_worker, 0);
+		GString *str = li_worker_current_timestamp(srv->main_worker, LI_LOCALTIME, LI_TS_FORMAT_DEFAULT);
 		srv->started = ev_now(srv->main_worker->loop);
 		srv->started_str = g_string_new_len(GSTR_LEN(str));
 	}

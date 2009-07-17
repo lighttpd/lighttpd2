@@ -15,6 +15,9 @@ typedef enum {
 
 typedef enum { TRI_FALSE, TRI_MAYBE, TRI_TRUE } tristate_t;
 
+typedef enum { LI_GMTIME, LI_LOCALTIME } liTimeFunc;
+typedef enum { LI_TS_FORMAT_DEFAULT, LI_TS_FORMAT_HEADER } liTSFormat;
+
 /* structs from headers, in alphabetic order */
 
 /* actions.h */

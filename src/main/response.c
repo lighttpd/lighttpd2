@@ -108,7 +108,7 @@ void li_response_send_headers(liConnection *con) {
 		}
 
 		if (!have_date) {
-			GString *d = li_worker_current_timestamp(con->wrk, 0);
+			GString *d = li_worker_current_timestamp(con->wrk, LI_GMTIME, LI_TS_FORMAT_HEADER);
 			/* HTTP/1.1 requires a Date: header */
 			g_string_append_len(head, CONST_STR_LEN("Date: "));
 			g_string_append_len(head, GSTR_LEN(d));

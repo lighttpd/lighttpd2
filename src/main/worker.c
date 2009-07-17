@@ -154,25 +154,37 @@ static void worker_job_async_queue_cb(struct ev_loop *loop, ev_async *w, int rev
 
 
 /* cache timestamp */
-GString *li_worker_current_timestamp(liWorker *wrk, guint format_ndx) {
+GString *li_worker_current_timestamp(liWorker *wrk, liTimeFunc timefunc, guint format_ndx) {
 	gsize len;
 	struct tm tm;
-	liWorkerTS *wts = &g_array_index(wrk->timestamps, liWorkerTS, format_ndx);
+	liWorkerTS *wts;
 	time_t now = (time_t)CUR_TS(wrk);
+
+	if (timefunc == LI_GMTIME)
+		wts = &g_array_index(wrk->timestamps_gmt, liWorkerTS, format_ndx);
+	else
+		wts = &g_array_index(wrk->timestamps_local, liWorkerTS, format_ndx);
 
 	/* cache hit */
 	if (now == wts->last_generated)
 		return wts->str;
 
-	g_string_set_size(wts->str, 255);
-	if (!gmtime_r(&now, &tm))
+	if (timefunc == LI_GMTIME) {
+		if (!gmtime_r(&now, &tm))
+			return NULL;
+	} else if (!localtime_r(&now, &tm))
 		return NULL;
+
+	g_string_set_size(wts->str, 255);
+
 	len = strftime(wts->str->str, wts->str->allocated_len, g_array_index(wrk->srv->ts_formats, GString*, format_ndx)->str, &tm);
+
 	if (len == 0)
 		return NULL;
 
 	g_string_set_size(wts->str, len);
 	wts->last_generated = now;
+
 	return wts->str;
 }
 
@@ -292,12 +304,19 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 
 	wrk->tmp_str = g_string_sized_new(255);
 
-	wrk->timestamps = g_array_sized_new(FALSE, TRUE, sizeof(liWorkerTS), srv->ts_formats->len);
-	g_array_set_size(wrk->timestamps, srv->ts_formats->len);
+	wrk->timestamps_gmt = g_array_sized_new(FALSE, TRUE, sizeof(liWorkerTS), srv->ts_formats->len);
+	g_array_set_size(wrk->timestamps_gmt, srv->ts_formats->len);
 	{
 		guint i;
 		for (i = 0; i < srv->ts_formats->len; i++)
-			g_array_index(wrk->timestamps, liWorkerTS, i).str = g_string_sized_new(255);
+			g_array_index(wrk->timestamps_gmt, liWorkerTS, i).str = g_string_sized_new(255);
+	}
+	wrk->timestamps_local = g_array_sized_new(FALSE, TRUE, sizeof(liWorkerTS), srv->ts_formats->len);
+	g_array_set_size(wrk->timestamps_local, srv->ts_formats->len);
+	{
+		guint i;
+		for (i = 0; i < srv->ts_formats->len; i++)
+			g_array_index(wrk->timestamps_local, liWorkerTS, i).str = g_string_sized_new(255);
 	}
 
 	ev_init(&wrk->li_worker_exit_watcher, li_worker_exit_cb);
@@ -378,9 +397,12 @@ void li_worker_free(liWorker *wrk) {
 
 	{ /* free timestamps */
 		guint i;
-		for (i = 0; i < wrk->timestamps->len; i++)
-			g_string_free(g_array_index(wrk->timestamps, liWorkerTS, i).str, TRUE);
-		g_array_free(wrk->timestamps, TRUE);
+		for (i = 0; i < wrk->timestamps_gmt->len; i++) {
+			g_string_free(g_array_index(wrk->timestamps_gmt, liWorkerTS, i).str, TRUE);
+			g_string_free(g_array_index(wrk->timestamps_local, liWorkerTS, i).str, TRUE);
+		}
+		g_array_free(wrk->timestamps_gmt, TRUE);
+		g_array_free(wrk->timestamps_local, TRUE);
 	}
 
 	ev_ref(wrk->loop);
