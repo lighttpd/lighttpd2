@@ -715,12 +715,13 @@
 				GString *tmpstr = li_value_to_string(val);
 				g_printerr("%s:%zd type: %s, value: %s\n", ctx->filename, ctx->line, li_value_type_string(val->type), tmpstr->str);
 				g_string_free(tmpstr, TRUE);
-				li_value_free(val);
 			}
+
+			li_value_free(val);
+			li_value_free(name);
 		}
 		/* normal function action */
 		else {
-			/* TODO */
 			if (ctx->in_setup_block) {
 				/* we are in the setup { } block, call setups and don't append to action list */
 				if (!li_call_setup(srv, name->data.string->str, val)) {
@@ -728,6 +729,7 @@
 					li_value_free(val);
 					return FALSE;
 				}
+
 				li_value_free(val);
 			}
 			else {
@@ -742,9 +744,9 @@
 
 				g_array_append_val(al->data.list, a);
 			}
-		}
 
-		li_value_free(name);
+			li_value_free(name);
+		}
 	}
 
 	action condition_start {
