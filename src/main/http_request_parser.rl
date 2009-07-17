@@ -27,7 +27,7 @@
 		g_string_truncate(ctx->h_value, 0);
 	}
 	action header_value {
-		getStringTo(fpc, ctx->h_value);
+		getStringTo(fpc - 2, ctx->h_value);
 	}
 	action header {
 		li_http_header_insert(ctx->request->headers, GSTR_LEN(ctx->h_key), GSTR_LEN(ctx->h_value));
@@ -109,11 +109,12 @@
 	Request_URI = ("*" | ( any - CTL - SP )+) >mark %uri;
 	Request_Line = Method " " Request_URI " " HTTP_Version CRLF;
 
-	Field_Content = ( TEXT+ | ( Token | Separators | Quoted_String )+ );
-	Field_Value = " "* (Field_Content+ ( Field_Content | LWS )*)? >mark %header_value;
-	Message_Header = Token >mark %header_key ":" Field_Value? % header;
+	# Field_Content = ( TEXT+ | ( Token | Separators | Quoted_String )+ );
+	Field_Content = ( (OCTET - CTL - DQUOTE) | SP | HT | Quoted_String )+;
+	Field_Value = (SP | HT)* <: ( ( Field_Content | LWS )* CRLF ) >mark %header_value;
+	Message_Header = Token >mark %header_key ":" Field_Value % header;
 
-	main := (CRLF)* Request_Line (Message_Header CRLF)* CRLF @ done;
+	main := (CRLF)* Request_Line (Message_Header)* CRLF @ done;
 }%%
 
 %% write data;

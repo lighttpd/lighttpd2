@@ -29,7 +29,7 @@
 		g_string_truncate(ctx->h_value, 0);
 	}
 	action header_value {
-		getStringTo(fpc, ctx->h_value);
+		getStringTo(fpc - 2, ctx->h_value);
 	}
 	action header {
 		if (ctx->accept_cgi && li_strncase_equal(ctx->h_key, CONST_STR_LEN("Status"))) {
@@ -79,11 +79,12 @@
 	Status = (digit digit digit) >mark %status;
 	Response_Line = "HTTP/" digit+ "." digit+ SP Status SP (any - CTL - CR - LF)* CRLF;
 
-	Field_Content = ( TEXT+ | ( Token | Separators | Quoted_String )+ );
-	Field_Value = " "* (Field_Content+ ( Field_Content | LWS )*)? >mark %header_value;
-	Message_Header = Token >mark %header_key ":" Field_Value? % header;
+	# Field_Content = ( TEXT+ | ( Token | Separators | Quoted_String )+ );
+	Field_Content = ( (OCTET - CTL - DQUOTE) | SP | HT | Quoted_String )+;
+	Field_Value = (SP | HT)* <: ( ( Field_Content | LWS )* CRLF ) >mark %header_value;
+	Message_Header = Token >mark %header_key ":" Field_Value % header;
 
-	main := Response_Line? (Message_Header CRLF)* CRLF @ done;
+	main := Response_Line? (Message_Header)* CRLF @ done;
 }%%
 
 %% write data;
