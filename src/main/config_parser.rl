@@ -624,19 +624,73 @@
 		_printf("got function: %s %s; in line %zd\n", name->data.string->str, li_value_type_string(val->type), ctx->line);
 
 		if (g_str_equal(name->data.string->str, "include")) {
+			GPatternSpec *pattern;
+			GDir *dir;
+			gchar *pos;
+			const gchar *filename;
+			GString *path;
+			guint len;
+			GError *err = NULL;
+
+			li_value_free(name);
+
 			if (val->type != LI_VALUE_STRING) {
 				WARNING(srv,  "include directive takes a string as parameter, %s given", li_value_type_string(val->type));
-				li_value_free(name);
 				li_value_free(val);
 				return FALSE;
 			}
 
-			if (!config_parser_file(srv, ctx_stack, val->data.string->str)) {
-				li_value_free(name);
+			/* split path into dirname and filename/pattern. e.g. /etc/lighttpd/vhost_*.conf => /etc/lighttpd/ and vhost_*.conf */
+			pos = g_strrstr(val->data.string->str, G_DIR_SEPARATOR_S);
+
+			if (!pos) {
+				/* doesn't seem like a path, include single file */
+				if (!config_parser_file(srv, ctx_stack, val->data.string->str)) {
+					li_value_free(val);
+					return FALSE;
+				}
+
 				li_value_free(val);
+				return TRUE;
+			}
+
+
+			path = g_string_new_len(val->data.string->str, pos - val->data.string->str + 1);
+
+			dir = g_dir_open(path->str, 0, &err);
+
+			if (!dir) {
+				ERROR(srv, "include: could not open directory \"%s\": %s", path->str, err->message);
+				g_string_free(path, TRUE);
+				li_value_free(val);
+				g_error_free(err);
 				return FALSE;
 			}
 
+			pattern = g_pattern_spec_new(pos+1);
+			len = path->len;
+
+			/* loop through all filenames in the directory and include matching ones */
+			while (NULL != (filename = g_dir_read_name(dir))) {
+				if (!g_pattern_match_string(pattern, filename))
+					continue;
+
+				g_string_append(path, filename);
+
+				if (!config_parser_file(srv, ctx_stack, path->str)) {
+					li_value_free(val);
+					g_pattern_spec_free(pattern);
+					g_dir_close(dir);
+					g_string_free(path, TRUE);
+					return FALSE;
+				}
+
+				g_string_truncate(path, len);
+			}
+
+			g_string_free(path, TRUE);
+			g_pattern_spec_free(pattern);
+			g_dir_close(dir);
 			li_value_free(val);
 		}
 		else if (g_str_equal(name->data.string->str, "include_shell")) {
@@ -1124,8 +1178,8 @@ liConfigParserContext *config_parser_context_new(liServer *srv, GList *ctx_stack
 			g_hash_table_insert(ctx->uservars, str, o);
 
 		/* initialize var.CWD */
-		str = g_string_sized_new(1024);
-		if (NULL != getcwd(str->str, 1023)) {
+		str = g_string_sized_new(1023);
+		if (NULL != getcwd(str->str, 1022)) {
 			g_string_set_size(str, strlen(str->str));
 			o = li_value_new_string(str);
 			str = g_string_new_len(CONST_STR_LEN("var.CWD"));
