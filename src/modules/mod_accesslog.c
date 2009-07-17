@@ -487,7 +487,7 @@ static void plugin_accesslog_init(liServer *srv, liPlugin *p) {
 	p->handle_close = al_handle_close;
 
 	ald = g_slice_new0(al_data);
-	ald->ts_ndx = li_server_ts_format_add(srv, g_string_new_len(CONST_STR_LEN("[%d/%b/%Y:%H:%M:%S +%z]")));
+	ald->ts_ndx = li_server_ts_format_add(srv, g_string_new_len(CONST_STR_LEN("[%d/%b/%Y:%H:%M:%S %z]")));
 	p->data = ald;
 }
 
