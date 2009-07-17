@@ -67,4 +67,21 @@ LI_API void li_string_append_int(GString *dest, gint64 val);
 
 LI_API gsize li_dirent_buf_size(DIR * dirp);
 
+/* error log helper functions */
+#define LI_REMOVE_PATH_FROM_FILE 1
+#if LI_REMOVE_PATH_FROM_FILE
+LI_API const char *li_remove_path(const char *path);
+#define LI_REMOVE_PATH(file) li_remove_path(file)
+#else
+#define LI_REMOVE_PATH(file) file
+#endif
+
+#define LI_SYS_ERROR li_sys_error_quark()
+LI_API GQuark li_sys_error_quark();
+
+#define LI_SET_SYS_ERROR(error, msg) \
+	_li_set_sys_error(error, msg, REMOVE_PATH(__FILE__), __LINE__);
+
+LI_API gboolean _li_set_sys_error(GError **error, const gchar *msg, const gchar *file, int lineno);
+
 #endif

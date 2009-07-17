@@ -7,14 +7,6 @@
 
 /* #include <lighttpd/valgrind/valgrind.h> */
 
-#define LI_REMOVE_PATH_FROM_FILE 1
-#if LI_REMOVE_PATH_FROM_FILE
-LI_API const char *li_remove_path(const char *path);
-#define LI_REMOVE_PATH(file) li_remove_path(file)
-#else
-#define LI_REMOVE_PATH(file) file
-#endif
-
 #define SEGFAULT(srv, fmt, ...) \
 	do { \
 		li_log_write_(srv, LI_LOG_LEVEL_ABORT, LI_LOG_FLAG_TIMESTAMP, "(crashing) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \

@@ -11,16 +11,6 @@
 #include <fcntl.h>
 #include <stdarg.h>
 
-#if REMOVE_PATH_FROM_FILE
-const char *li_remove_path(const char *path) {
-	char *p = strrchr(path, DIR_SEPERATOR);
-	if (NULL != p && *(p) != '\0') {
-		return (p + 1);
-	}
-	return path;
-}
-#endif
-
 void li_log_write(liServer *srv, liLog *log, GString *msg) {
 	liLogEntry *log_entry;
 

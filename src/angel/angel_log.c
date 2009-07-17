@@ -1,16 +1,6 @@
 
 #include <lighttpd/angel_base.h>
 
-#if LI_REMOVE_PATH_FROM_FILE
-const char *li_remove_path(const char *path) {
-	char *p = strrchr(path, DIR_SEPERATOR);
-	if (NULL != p && *(p) != '\0') {
-		return (p + 1);
-	}
-	return path;
-}
-#endif
-
 void log_init(liServer *srv) {
 	srv->log.type = LI_LOG_TYPE_STDERR;
 
