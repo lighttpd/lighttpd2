@@ -162,8 +162,16 @@ static gboolean connection_handle_read(liConnection *con) {
 		case LI_HANDLER_ERROR:
 		case LI_HANDLER_COMEBACK: /* unexpected */
 			/* unparsable header */
-			li_connection_error(con);
-			return FALSE;
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "%s", "parsing header failed");
+			}
+			con->keep_alive = FALSE;
+			con->mainvr->response.http_status = 400;
+			li_vrequest_handle_direct(con->mainvr);
+			con->state = LI_CON_STATE_WRITE;
+			con->in->is_closed = TRUE;
+			forward_response_body(con);
+			return TRUE;
 		}
 
 		con->wrk->stats.requests++;
