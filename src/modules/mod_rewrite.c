@@ -25,7 +25,7 @@
  *     rewrite.debug = <true|false>;
  *         - if set, debug information is written to the log
  * Actions:
- *     rewrite "/new/path"; (not implemented yet)
+ *     rewrite "/new/path";
  *         - sets request.path to "/new/path", substituting all placeholders. $0..$9 get replaced by empty strings.
  *     rewrite "regex" => "/new/path";
  *         - sets request.path to "/new/path" if "regex" matched the original req.path.
@@ -47,7 +47,6 @@
  *     For example "^foo\\dbar$" will end up as "^foo\dbar$" as regex input, which would match things like "foo3bar".
  *
  * Todo:
- *     - rewrite rule without regex, just overwriting the path/query
  *     - implement rewrite_optimized which reorders rules according to hitcount
  *     - implement rewrite_raw which uses the raw uri
  *
@@ -229,24 +228,32 @@ static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *de
 	guint i;
 	GString *str;
 	gchar *path;
-	GMatchInfo *match_info;
 	gint start_pos, end_pos;
 	gboolean encoded;
 	GString *dest = dest_path;
+	GMatchInfo *match_info = NULL;
 
 	if (raw)
 		path = vr->request.uri.raw->str;
 	else
 		path = vr->request.uri.path->str;
 
-	if (!g_regex_match(regex, path, 0, &match_info))
+	if (regex && !g_regex_match(regex, path, 0, &match_info)) {
+		if (match_info)
+			g_match_info_free(match_info);
+
 		return FALSE;
+	}
 
 	g_string_truncate(dest_path, 0);
 	g_string_truncate(dest_query, 0);
 
-	if (!parts->len)
+	if (!parts->len) {
+		if (match_info)
+			g_match_info_free(match_info);
+
 		return TRUE;
+	}
 
 	for (i = 0; i < parts->len; i++) {
 		rewrite_part *rp = &g_array_index(parts, rewrite_part, i);
@@ -255,7 +262,7 @@ static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *de
 		switch (rp->type) {
 		case REWRITE_PART_STRING: g_string_append_len(dest, GSTR_LEN(rp->data.str)); break;
 		case REWRITE_PART_CAPTURED:
-			if (g_match_info_fetch_pos(match_info, rp->data.ndx, &start_pos, &end_pos) && start_pos != -1)
+			if (regex && g_match_info_fetch_pos(match_info, rp->data.ndx, &start_pos, &end_pos) && start_pos != -1)
 				g_string_append_len(dest, path + start_pos, end_pos - start_pos);
 
 			break;
@@ -325,8 +332,12 @@ static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context
 
 		if (rewrite_internal(vr, vr->wrk->tmp_str, g_ptr_array_index(rpd->tmp_strings, vr->wrk->ndx), rule->regex, rule->parts, FALSE)) {
 			/* regex matched */
-			if (debug)
-				VR_DEBUG(vr, "rewrite: \"%s\" => \"%s\"", vr->request.uri.path->str, vr->wrk->tmp_str->str);
+			if (debug) {
+				VR_DEBUG(vr, "rewrite: path \"%s\" => \"%s\", query \"%s\" => \"%s\"",
+					vr->request.uri.path->str, vr->wrk->tmp_str->str,
+					vr->request.uri.query->str, ((GString*)g_ptr_array_index(rpd->tmp_strings, vr->wrk->ndx))->str
+				);
+			}
 
 			g_string_truncate(vr->request.uri.path, 0);
 			g_string_append_len(vr->request.uri.path, GSTR_LEN(vr->wrk->tmp_str));
@@ -354,7 +365,9 @@ static void rewrite_free(liServer *srv, gpointer param) {
 		rewrite_rule *rule = &g_array_index(rd->rules, rewrite_rule, i);
 
 		rewrite_parts_free(rule->parts);
-		g_regex_unref(rule->regex);
+
+		if (rule->regex)
+			g_regex_unref(rule->regex);
 	}
 
 	g_array_free(rd->rules, TRUE);
@@ -373,8 +386,8 @@ static liAction* rewrite_create(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(srv);
 	UNUSED(p);
 
-	if (!val || val->type != LI_VALUE_LIST) {
-		ERROR(srv, "%s", "rewrite expects a either a tuple of strings or a list of those");
+	if (!val || !(val->type == LI_VALUE_STRING || val->type == LI_VALUE_LIST)) {
+		ERROR(srv, "%s", "rewrite expects a either a string, a tuple of strings or a list of string tuples");
 		return NULL;
 	}
 
@@ -390,7 +403,20 @@ static liAction* rewrite_create(liServer *srv, liPlugin* p, liValue *val) {
 
 	arr = val->data.list;
 
-	if (arr->len == 2 && g_array_index(arr, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(arr, liValue*, 1)->type == LI_VALUE_STRING) {
+	if (val->type == LI_VALUE_STRING) {
+		/* rewrite "/foo/bar"; */
+		rule.has_querystring = FALSE;
+		rule.parts = rewrite_parts_parse(val->data.string, &rule.has_querystring);
+		rule.regex = NULL;
+
+		if (!rule.parts) {
+			rewrite_free(NULL, rd);
+			ERROR(srv, "rewrite: error parsing rule \"%s\"", val->data.string->str);
+			return NULL;
+		}
+
+		g_array_append_val(rd->rules, rule);
+	} else if (arr->len == 2 && g_array_index(arr, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(arr, liValue*, 1)->type == LI_VALUE_STRING) {
 		/* only one rule */
 		rule.has_querystring = FALSE;
 		rule.parts = rewrite_parts_parse(g_array_index(arr, liValue*, 1)->data.string, &rule.has_querystring);
