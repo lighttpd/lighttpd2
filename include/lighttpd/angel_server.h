@@ -32,7 +32,7 @@ struct liInstance {
 	liServer *srv;
 	liInstanceConf *ic;
 
-	pid_t pid;
+	liProc *proc;
 	ev_child child_watcher;
 
 	liInstanceState s_cur, s_dest;

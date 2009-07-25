@@ -9,12 +9,7 @@
 
 #include <lighttpd/module.h>
 
-/* angel_server.h */
-
-typedef struct liServer liServer;
-typedef struct liInstance liInstance;
-typedef struct liInstanceConf liInstanceConf;
-
+#include <lighttpd/angel_typedefs.h>
 
 #include <lighttpd/angel_value.h>
 #include <lighttpd/angel_data.h>
@@ -22,6 +17,8 @@ typedef struct liInstanceConf liInstanceConf;
 #include <lighttpd/angel_log.h>
 #include <lighttpd/angel_plugin.h>
 #include <lighttpd/angel_server.h>
+
+#include <lighttpd/angel_proc.h>
 
 #include <lighttpd/utils.h>
 

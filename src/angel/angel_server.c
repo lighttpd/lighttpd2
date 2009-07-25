@@ -1,8 +1,6 @@
 
 #include <lighttpd/angel_base.h>
 
-#include <grp.h>
-
 static void instance_state_machine(liInstance *i);
 
 static void jobqueue_callback(struct ev_loop *loop, ev_async *w, int revents) {
@@ -98,18 +96,30 @@ static void instance_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 	liInstance *i = (liInstance*) w->data;
 
 	if (i->s_cur == LI_INSTANCE_LOADING) {
-		ERROR(i->srv, "spawning child %i failed, not restarting", i->pid);
+		ERROR(i->srv, "spawning child %i failed, not restarting", i->proc->child_pid);
 		i->s_dest = i->s_cur = LI_INSTANCE_DOWN; /* TODO: retry spawn later? */
 	} else {
-		ERROR(i->srv, "child %i died", i->pid);
+		ERROR(i->srv, "child %i died", i->proc->child_pid);
 		i->s_cur = LI_INSTANCE_DOWN;
 	}
-	i->pid = -1;
+	li_proc_free(i->proc);
+	i->proc = NULL;
 	li_angel_connection_free(i->acon);
 	i->acon = NULL;
 	ev_child_stop(loop, w);
 	li_instance_job_append(i);
 	li_instance_release(i);
+}
+
+static void instance_spawn_setup(gpointer ctx) {
+	int *confd = ctx;
+
+	if (confd[1] != 0) {
+		dup2(confd[1], 0);
+		close(confd[1]);
+	}
+
+	dup2(STDERR_FILENO, STDOUT_FILENO);
 }
 
 static void instance_spawn(liInstance *i) {
@@ -122,38 +132,16 @@ static void instance_spawn(liInstance *i) {
 	li_fd_no_block(confd[1]);
 
 	i->acon = li_angel_connection_new(i->srv->loop, confd[0], i, instance_angel_call_cb, instance_angel_close_cb);
-	i->pid = fork();
-	switch (i->pid) {
-	case 0: {
-		gchar **args;
-		setsid(); /* lead session, so we don't recieve the signals for the angel */
-		if (getuid() == 0 && (i->ic->uid != (uid_t) -1) && (i->ic->gid != (gid_t) -1)) {
-			setgid(i->ic->gid);
-			setgroups(0, NULL);
-			initgroups(i->ic->username->str, i->ic->gid);
-			setuid(i->ic->uid);
-		}
+	i->proc = li_proc_new(i->srv, i->ic->cmd, NULL, i->ic->uid, i->ic->gid, i->ic->username->str, instance_spawn_setup, confd);
 
-		if (confd[1] != 0) {
-			dup2(confd[1], 0);
-			close(confd[1]);
-		}
-		/* TODO: close stdout/stderr ? */
-		execvp(i->ic->cmd[0], i->ic->cmd);
-		g_printerr("exec('%s') failed: %s\n", i->ic->cmd[0], g_strerror(errno));
-		exit(-1);
-	}
-	case -1:
-		break;
-	default:
-		close(confd[1]);
-		ev_child_set(&i->child_watcher, i->pid, 0);
-		ev_child_start(i->srv->loop, &i->child_watcher);
-		i->s_cur = LI_INSTANCE_LOADING;
-		li_instance_acquire(i);
-		ERROR(i->srv, "Instance (%i) spawned: %s", i->pid, i->ic->cmd[0]);
-		break;
-	}
+	if (!i->proc) return;
+
+	close(confd[1]);
+	ev_child_set(&i->child_watcher, i->proc->child_pid, 0);
+	ev_child_start(i->srv->loop, &i->child_watcher);
+	i->s_cur = LI_INSTANCE_LOADING;
+	li_instance_acquire(i);
+	DEBUG(i->srv, "Instance (%i) spawned: %s", i->proc->child_pid, i->ic->cmd[0]);
 }
 
 liInstance* li_server_new_instance(liServer *srv, liInstanceConf *ic) {
@@ -164,7 +152,6 @@ liInstance* li_server_new_instance(liServer *srv, liInstanceConf *ic) {
 	i->srv = srv;
 	li_instance_conf_acquire(ic);
 	i->ic = ic;
-	i->pid = -1;
 	i->s_cur = i->s_dest = LI_INSTANCE_DOWN;
 	ev_child_init(&i->child_watcher, instance_child_cb, -1, 0);
 	i->child_watcher.data = i;
@@ -190,10 +177,10 @@ void li_instance_set_state(liInstance *i, liInstanceState s) {
 	i->s_dest = s;
 	if (s == LI_INSTANCE_DOWN) {
 		if (i->s_cur != LI_INSTANCE_DOWN) {
-			kill(i->pid, SIGTERM);
+			kill(i->proc->child_pid, SIGTERM);
 		}
 	} else {
-		if (i->pid == (pid_t) -1) {
+		if (!i->proc) {
 			instance_spawn(i);
 			return;
 		} else {
@@ -222,28 +209,28 @@ static void instance_state_machine(liInstance *i) {
 		olds = i->s_cur;
 		switch (i->s_dest) {
 		case LI_INSTANCE_DOWN:
-			if (i->pid == (pid_t) -1) {
+			if (!i->proc) {
 				i->s_cur = LI_INSTANCE_DOWN;
 				break;
 			}
-			kill(i->pid, SIGINT);
+			kill(i->proc->child_pid, SIGINT);
 			return;
 		case LI_INSTANCE_LOADING:
 			break;
 		case LI_INSTANCE_WARMUP:
-			if (i->pid == (pid_t) -1) {
+			if (!i->proc) {
 				instance_spawn(i);
 				return;
 			}
 			break;
 		case LI_INSTANCE_ACTIVE:
-			if (i->pid == (pid_t) -1) {
+			if (!i->proc) {
 				instance_spawn(i);
 				return;
 			}
 			break;
 		case LI_INSTANCE_SUSPEND:
-			if (i->pid == (pid_t) -1) {
+			if (!i->proc) {
 				instance_spawn(i);
 				return;
 			}
@@ -259,10 +246,11 @@ void li_instance_release(liInstance *i) {
 	assert(g_atomic_int_get(&i->refcount) > 0);
 	if (!g_atomic_int_dec_and_test(&i->refcount)) return;
 	srv = i->srv;
-	if (i->pid != (pid_t) -1) {
+	if (i->proc) {
 		ev_child_stop(srv->loop, &i->child_watcher);
-		kill(i->pid, SIGTERM);
-		i->pid = -1;
+		kill(i->proc->child_pid, SIGTERM);
+		li_proc_free(i->proc);
+		i->proc = NULL;
 		i->s_cur = LI_INSTANCE_DOWN;
 		li_angel_connection_free(i->acon);
 		i->acon = NULL;

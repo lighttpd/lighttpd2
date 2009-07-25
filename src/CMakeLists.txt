@@ -248,6 +248,7 @@ SET(ANGEL_SHARED_SRC
 	angel_log.c
 	angel_plugin.c
 	angel_plugin_core.c
+	angel_proc.c
 	angel_server.c
 	angel_value.c
 )
