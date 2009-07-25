@@ -69,8 +69,9 @@ LI_API gsize li_dirent_buf_size(DIR * dirp);
 
 /* error log helper functions */
 #define LI_REMOVE_PATH_FROM_FILE 1
-#if LI_REMOVE_PATH_FROM_FILE
 LI_API const char *li_remove_path(const char *path);
+
+#if LI_REMOVE_PATH_FROM_FILE
 #define LI_REMOVE_PATH(file) li_remove_path(file)
 #else
 #define LI_REMOVE_PATH(file) file

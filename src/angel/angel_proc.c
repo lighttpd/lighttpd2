@@ -145,7 +145,7 @@ liProc* li_proc_new(liServer *srv, gchar **args, gchar **env, uid_t uid, gid_t g
 	proc->srv = srv;
 	proc->child_pid = -1;
 	proc->epipe = li_error_pipe_new(srv, proc_epipe_cb, proc);
-	proc->appname = g_strdup(args[0]);
+	proc->appname = g_strdup(li_remove_path(args[0]));
 
 	switch (pid = fork()) {
 	case 0:

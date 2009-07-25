@@ -725,7 +725,6 @@ gsize li_dirent_buf_size(DIR * dirp) {
     return (name_end > sizeof(struct dirent) ? name_end : sizeof(struct dirent));
 }
 
-#if LI_REMOVE_PATH_FROM_FILE
 const char *li_remove_path(const char *path) {
 	char *p = strrchr(path, DIR_SEPERATOR);
 	if (NULL != p && *(p) != '\0') {
@@ -733,7 +732,6 @@ const char *li_remove_path(const char *path) {
 	}
 	return path;
 }
-#endif
 
 GQuark li_sys_error_quark() {
 	return g_quark_from_static_string("li-sys-error-quark");
