@@ -31,7 +31,10 @@
 	li_log_write(srv, LI_LOG_LEVEL_ERROR, LI_LOG_FLAG_NONE, "lighttpd[%d]: %s", (int) inst->pid, msg)
 
 #define GERROR(srv, error, fmt, ...) \
-	li_log_write_(srv, LI_LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "error (%s:%d): " fmt "\n  %s", LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__, error ? error->message : "Empty GError")
+	li_log_write_(srv, LI_LOG_LEVEL_ERROR, LI_LOG_FLAG_TIMESTAMP, "error (%s:%d): " fmt "\n  %s", LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__, error ? error->message : "Empty GError")
+
+#define BACKEND_LINES(srv, txt, ...) \
+	li_log_split_lines_(srv, LI_LOG_LEVEL_INFO, LI_LOG_FLAG_TIMESTAMP, txt, __VA_ARGS__)
 
 typedef enum {
 	LI_LOG_LEVEL_DEBUG,
@@ -72,5 +75,9 @@ void log_init(liServer *srv);
 void log_clean(liServer *srv);
 
 LI_API void li_log_write(liServer *srv, liLogLevel log_level, guint flags, const gchar *fmt, ...) G_GNUC_PRINTF(4, 5);
+
+/* replaces '\r' and '\n' with '\0' */
+LI_API void li_log_split_lines(liServer *srv, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix);
+LI_API void li_log_split_lines_(liServer *srv, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) G_GNUC_PRINTF(5, 6);
 
 #endif

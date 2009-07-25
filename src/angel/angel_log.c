@@ -63,3 +63,39 @@ void li_log_write(liServer *srv, liLogLevel log_level, guint flags, const gchar 
 
 	fprintf(stderr, "%s", log_line->str);
 }
+
+void li_log_split_lines(liServer *srv, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix) {
+	gchar *start;
+
+	start = txt;
+	while ('\0' != *txt) {
+		if ('\r' == *txt || '\n' == *txt) {
+			*txt = '\0';
+			if (txt - start > 1) { /* skip empty lines*/
+				li_log_write(srv, log_level, flags, "%s%s", prefix, start);
+			}
+			txt++;
+			while (*txt == '\n' || *txt == '\r') txt++;
+			start = txt;
+		} else {
+			txt++;
+		}
+	}
+	if (txt - start > 1) { /* skip empty lines*/
+		li_log_write(srv, log_level, flags, "%s%s", prefix, start);
+	}
+}
+
+void li_log_split_lines_(liServer *srv, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) {
+	va_list ap;
+	GString *prefix;
+
+	prefix = g_string_sized_new(0);
+	va_start(ap, fmt);
+	g_string_vprintf(prefix, fmt, ap);
+	va_end(ap);
+
+	li_log_split_lines(srv, log_level, flags, txt, prefix->str);
+
+	g_string_free(prefix, TRUE);
+}

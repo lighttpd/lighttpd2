@@ -134,7 +134,7 @@ void li_error_pipe_flush(liErrorPipe *epipe) {
 static void proc_epipe_cb(liServer *srv, liErrorPipe *epipe, GString *msg) {
 	liProc *proc = epipe->ctx;
 
-	ERROR(srv, "%s (pid: %i): %s", proc->appname, proc->child_pid, msg->str);
+	BACKEND_LINES(srv, msg->str, "%s[%i]: ", proc->appname, proc->child_pid);
 }
 
 liProc* li_proc_new(liServer *srv, gchar **args, gchar **env, uid_t uid, gid_t gid, gchar *username, liProcSetupCB cb, gpointer ctx) {
