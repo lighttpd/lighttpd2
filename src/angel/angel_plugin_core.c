@@ -266,7 +266,7 @@ static void core_activate(liServer *srv, liPlugin *p) {
 	}
 
 	if (config->inst) {
-		li_instance_set_state(config->inst, LI_INSTANCE_DOWN);
+		li_instance_set_state(config->inst, LI_INSTANCE_FINISHED);
 		li_instance_release(config->inst);
 		config->inst = NULL;
 	}
@@ -276,7 +276,7 @@ static void core_activate(liServer *srv, liPlugin *p) {
 
 	if (config->instconf) {
 		config->inst = li_server_new_instance(srv, config->instconf);
-		li_instance_set_state(config->inst, LI_INSTANCE_ACTIVE);
+		li_instance_set_state(config->inst, LI_INSTANCE_RUNNING);
 		ERROR(srv, "%s", "Starting instance");
 	}
 }

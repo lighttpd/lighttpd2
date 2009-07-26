@@ -146,7 +146,7 @@ gboolean plugins_config_load(liServer *srv, const gchar *filename) {
 		return FALSE;
 	}
 
-	if (!li_angel_config_parse_file(srv, filename, &error)) {
+	if (filename && !li_angel_config_parse_file(srv, filename, &error)) {
 		ERROR(srv, "failed to parse config file: %s", error->message);
 		g_error_free(error);
 		plugins_config_clean(srv);
@@ -195,7 +195,7 @@ gboolean plugins_config_load(liServer *srv, const gchar *filename) {
 	if (!ps->config_filename) {
 		ps->config_filename = g_string_new(filename);
 	} else {
-		g_string_assign(ps->config_filename, filename);
+		g_string_assign(ps->config_filename, filename ? filename : "");
 	}
 
 	return TRUE;

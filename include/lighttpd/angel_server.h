@@ -10,11 +10,12 @@
 #endif
 
 typedef enum {
-	LI_INSTANCE_DOWN,    /* not running */
-	LI_INSTANCE_LOADING, /* startup */
-	LI_INSTANCE_WARMUP,  /* running, but logging to files disabled */
-	LI_INSTANCE_ACTIVE,  /* everything running */
-	LI_INSTANCE_SUSPEND  /* handle remaining connections, suspend logs+accept() */
+	LI_INSTANCE_DOWN,       /* not started yet */
+	LI_INSTANCE_SUSPENDED,  /* inactive, neither accept nor logs, handle remaining connections */
+	LI_INSTANCE_SILENT,     /* only accept(), no logging: waiting for another instance to suspend */
+	LI_INSTANCE_RUNNING,    /* everything running */
+	LI_INSTANCE_SUSPENDING, /* suspended accept(), still logging, handle remaining connections  */
+	LI_INSTANCE_FINISHED    /* not running */
 } liInstanceState;
 
 struct liInstanceConf {
@@ -40,7 +41,6 @@ struct liInstance {
 	liInstance *replace, *replace_by;
 
 	liAngelConnection *acon;
-	gboolean in_jobqueue;
 };
 
 struct liServer {
@@ -52,9 +52,6 @@ struct liServer {
 		sig_w_TERM,
 		sig_w_PIPE;
 
-	GQueue job_queue;
-	ev_async job_watcher;
-
 	liPlugins plugins;
 
 	liLog log;
@@ -62,6 +59,8 @@ struct liServer {
 
 LI_API liServer* li_server_new(const gchar *module_dir);
 LI_API void li_server_free(liServer* srv);
+
+LI_API void li_server_stop(liServer *srv);
 
 LI_API liInstance* li_server_new_instance(liServer *srv, liInstanceConf *ic);
 LI_API void li_instance_replace(liInstance *oldi, liInstance *newi);
@@ -73,7 +72,5 @@ LI_API void li_instance_conf_acquire(liInstanceConf *ic);
 
 LI_API void li_instance_release(liInstance *i);
 LI_API void li_instance_acquire(liInstance *i);
-
-LI_API void li_instance_job_append(liInstance *i);
 
 #endif
