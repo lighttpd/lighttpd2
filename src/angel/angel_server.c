@@ -120,16 +120,13 @@ static void instance_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 	liInstance *i = (liInstance*) w->data;
 	liInstanceState news;
 
-	if (i->s_cur == LI_INSTANCE_DOWN && i->s_dest != LI_INSTANCE_FINISHED) {
-		ERROR(i->srv, "spawning child %i failed, not restarting", i->proc->child_pid);
-		news = i->s_dest = LI_INSTANCE_FINISHED; /* TODO: retry spawn later? */
-	} else if (i->s_dest == LI_INSTANCE_FINISHED) {
+	if (i->s_dest == LI_INSTANCE_FINISHED) {
 		if (WIFEXITED(w->rstatus)) {
 			if (0 != WEXITSTATUS(w->rstatus)) {
 				ERROR(i->srv, "child %i died with exit status %i", i->proc->child_pid, WEXITSTATUS(w->rstatus));
 			} /* exit status 0 is ok, no message */
 		} else if (WIFSIGNALED(w->rstatus)) {
-			ERROR(i->srv, "child %i died after signal %s", i->proc->child_pid, g_strsignal(WTERMSIG(w->rstatus)));
+			ERROR(i->srv, "child %i died: killed by %s", i->proc->child_pid, g_strsignal(WTERMSIG(w->rstatus)));
 		} else {
 			ERROR(i->srv, "child %i died with unexpected stat_val %i", i->proc->child_pid, w->rstatus);
 		}
@@ -138,11 +135,16 @@ static void instance_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 		if (WIFEXITED(w->rstatus)) {
 			ERROR(i->srv, "child %i died with exit status %i", i->proc->child_pid, WEXITSTATUS(w->rstatus));
 		} else if (WIFSIGNALED(w->rstatus)) {
-			ERROR(i->srv, "child %i died after signal %s", i->proc->child_pid, g_strsignal(WTERMSIG(w->rstatus)));
+			ERROR(i->srv, "child %i died: killed by %s", i->proc->child_pid, g_strsignal(WTERMSIG(w->rstatus)));
 		} else {
 			ERROR(i->srv, "child %i died with unexpected stat_val %i", i->proc->child_pid, w->rstatus);
 		}
-		news = LI_INSTANCE_DOWN;
+		if (i->s_cur == LI_INSTANCE_DOWN) {
+			ERROR(i->srv, "spawning child %i failed, not restarting", i->proc->child_pid);
+			news = i->s_dest = LI_INSTANCE_FINISHED; /* TODO: retry spawn later? */
+		} else {
+			news = LI_INSTANCE_DOWN;
+		}
 	}
 	li_proc_free(i->proc);
 	i->proc = NULL;

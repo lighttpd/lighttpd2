@@ -151,7 +151,7 @@ static gboolean angel_dispatch(liAngelConnection *acon, GError **err) {
 	gint32 id = acon->parse.id, type = acon->parse.type;
 	liAngelCall *call = NULL;
 	liAngelCallCB cb = NULL;
-	gpointer ctx;
+	gpointer ctx = NULL;
 
 	switch (type) {
 	case ANGEL_CALL_SEND_SIMPLE:
