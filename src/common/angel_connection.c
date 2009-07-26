@@ -185,7 +185,6 @@ static gboolean angel_dispatch(liAngelConnection *acon, GError **err) {
 			id, acon->parse.data);
 		break;
 	case ANGEL_CALL_SEND_RESULT:
-		g_printerr("received result: %i\n", id);
 		g_mutex_lock(acon->mutex);
 			if (!li_idlist_is_used(acon->call_id_list, id)) {
 				g_mutex_unlock(acon->mutex);
@@ -263,7 +262,6 @@ static gboolean angel_connection_read(liAngelConnection *acon, GError **err) {
 					"receive fd error: %s", g_strerror(errno));
 				return FALSE;
 			case -2:
-				g_printerr("waiting for fds: %i\n", acon->parse.missing_fds);
 				return TRUE; /* need more data */
 			}
 		}
@@ -421,8 +419,6 @@ void li_angel_connection_free(liAngelConnection *acon) {
 	angel_connection_send_item_t *send_item;
 	guint i;
 
-	g_printerr("li_angel_connection_free\n");
-
 	if (!acon) return;
 
 	close(acon->fd);
@@ -519,8 +515,6 @@ static gboolean prepare_call_header(GString **pbuf,
 	GString *buf;
 	buf = g_string_sized_new(8*4 + mod_len + action_len);
 	*pbuf = buf;
-
-	g_printerr("Prepare call with id: %i\n", id);
 
 	if (!li_angel_data_write_int32(buf, ANGEL_MAGIC, err)) return FALSE;
 	if (!li_angel_data_write_int32(buf, type, err)) return FALSE;

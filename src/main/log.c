@@ -414,7 +414,7 @@ void log_cleanup(liServer *srv) {
 
 	for (i = 0; i < srv->logs.timestamps->len; i++) {
 		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, i);
-		g_print("ts #%d refcount: %d\n", i, ts->refcount);
+		/* g_print("ts #%d refcount: %d\n", i, ts->refcount); */
 		/*if (g_atomic_int_dec_and_test(&ts->refcount)) {
 			g_string_free(ts->cached, TRUE);
 			g_string_free(ts->format, TRUE);
