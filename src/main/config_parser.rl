@@ -695,7 +695,7 @@
 		}
 		else if (g_str_equal(name->data.string->str, "include_shell")) {
 			if (val->type != LI_VALUE_STRING) {
-				WARNING(srv,  "include_shell directive takes a string as parameter, %s given", li_value_type_string(val->type));
+				WARNING(srv, "include_shell directive takes a string as parameter, %s given", li_value_type_string(val->type));
 				li_value_free(name);
 				li_value_free(val);
 				return FALSE;
@@ -713,7 +713,7 @@
 		else if (g_str_has_prefix(name->data.string->str, "__")) {
 			if (g_str_equal(name->data.string->str + 2, "print")) {
 				GString *tmpstr = li_value_to_string(val);
-				g_printerr("%s:%zd type: %s, value: %s\n", ctx->filename, ctx->line, li_value_type_string(val->type), tmpstr->str);
+				DEBUG(srv, "%s:%zd type: %s, value: %s", ctx->filename, ctx->line, li_value_type_string(val->type), tmpstr->str);
 				g_string_free(tmpstr, TRUE);
 			}
 
