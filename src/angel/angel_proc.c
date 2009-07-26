@@ -165,9 +165,11 @@ liProc* li_proc_new(liServer *srv, gchar **args, gchar **env, uid_t uid, gid_t g
 			setuid(uid);
 		}
 
-		if (NULL == env) env = environ;
+		if (NULL == env)
+			execv(args[0], args);
+		else
+			execve(args[0], args, env);
 
-		execve(args[0], args, env);
 		g_printerr("exec('%s') failed: %s\n", args[0], g_strerror(errno));
 		exit(-1);
 
