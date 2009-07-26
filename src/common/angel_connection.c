@@ -115,6 +115,10 @@ static gboolean angel_fill_buffer(liAngelConnection *acon, guint need, GError **
 #endif
 				g_string_set_size(acon->in.data, old_len);
 				return TRUE;
+			case ECONNRESET:
+				g_set_error(err, LI_ANGEL_CONNECTION_ERROR, LI_ANGEL_CONNECTION_RESET, "eof");
+				g_string_set_size(acon->in.data, old_len);
+				return FALSE;
 			default:
 				g_set_error(err, LI_ANGEL_CONNECTION_ERROR, LI_ANGEL_CONNECTION_CLOSED,
 					"read error: %s", g_strerror(errno));
@@ -122,7 +126,7 @@ static gboolean angel_fill_buffer(liAngelConnection *acon, guint need, GError **
 				return FALSE;
 			}
 		} else if (r == 0) { /* eof */
-			errno = ECONNRESET;
+			g_set_error(err, LI_ANGEL_CONNECTION_ERROR, LI_ANGEL_CONNECTION_RESET, "eof");
 			g_string_set_size(acon->in.data, old_len);
 			return FALSE;
 		} else {

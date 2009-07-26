@@ -101,8 +101,15 @@ static void instance_angel_call_cb(liAngelConnection *acon,
 static void instance_angel_close_cb(liAngelConnection *acon, GError *err) {
 	liInstance *i = (liInstance*) acon->data;
 	liServer *srv = i->srv;
+	gboolean hide_error = FALSE;
 
-	ERROR(srv, "angel connection closed: %s", err ? err->message : g_strerror(errno));
+	if (err) {
+		if (LI_INSTANCE_FINISHED == i->s_dest &&
+			LI_ANGEL_CONNECTION_RESET == err->code &&
+			LI_ANGEL_CONNECTION_ERROR == err->domain) hide_error = TRUE;
+	}
+	if (!hide_error)
+		ERROR(srv, "angel connection closed: %s", err ? err->message : g_strerror(errno));
 	if (err) g_error_free(err);
 
 	i->acon = NULL;
@@ -113,11 +120,28 @@ static void instance_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 	liInstance *i = (liInstance*) w->data;
 	liInstanceState news;
 
-	if (i->s_cur == LI_INSTANCE_DOWN) {
+	if (i->s_cur == LI_INSTANCE_DOWN && i->s_dest != LI_INSTANCE_FINISHED) {
 		ERROR(i->srv, "spawning child %i failed, not restarting", i->proc->child_pid);
 		news = i->s_dest = LI_INSTANCE_FINISHED; /* TODO: retry spawn later? */
+	} else if (i->s_dest == LI_INSTANCE_FINISHED) {
+		if (WIFEXITED(w->rstatus)) {
+			if (0 != WEXITSTATUS(w->rstatus)) {
+				ERROR(i->srv, "child %i died with exit status %i", i->proc->child_pid, WEXITSTATUS(w->rstatus));
+			} /* exit status 0 is ok, no message */
+		} else if (WIFSIGNALED(w->rstatus)) {
+			ERROR(i->srv, "child %i died after signal %s", i->proc->child_pid, g_strsignal(WTERMSIG(w->rstatus)));
+		} else {
+			ERROR(i->srv, "child %i died with unexpected stat_val %i", i->proc->child_pid, w->rstatus);
+		}
+		news = LI_INSTANCE_FINISHED;
 	} else {
-		ERROR(i->srv, "child %i died", i->proc->child_pid);
+		if (WIFEXITED(w->rstatus)) {
+			ERROR(i->srv, "child %i died with exit status %i", i->proc->child_pid, WEXITSTATUS(w->rstatus));
+		} else if (WIFSIGNALED(w->rstatus)) {
+			ERROR(i->srv, "child %i died after signal %s", i->proc->child_pid, g_strsignal(WTERMSIG(w->rstatus)));
+		} else {
+			ERROR(i->srv, "child %i died with unexpected stat_val %i", i->proc->child_pid, w->rstatus);
+		}
 		news = LI_INSTANCE_DOWN;
 	}
 	li_proc_free(i->proc);

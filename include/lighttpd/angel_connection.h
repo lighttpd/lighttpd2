@@ -73,6 +73,7 @@ typedef enum {
 
 typedef enum {
 	LI_ANGEL_CONNECTION_CLOSED,                 /* error on socket */
+	LI_ANGEL_CONNECTION_RESET,                  /* connection closed by remote side */
 	LI_ANGEL_CONNECTION_INVALID_DATA            /* invalid data from stream */
 } liAngelConnectionError;
 
