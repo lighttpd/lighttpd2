@@ -50,7 +50,7 @@ void stat_cache_free(liStatCache *sc) {
 	g_thread_join(sc->thread);
 	g_slice_free(liStatCacheEntry, dummy);
 
-	ev_async_stop(sc->delete_queue.loop, &sc->job_watcher);
+	li_ev_safe_ref_and_stop(ev_async_stop, sc->delete_queue.loop, &sc->job_watcher);
 
 	/* clear cache */
 	g_hash_table_iter_init(&iter, sc->entries);

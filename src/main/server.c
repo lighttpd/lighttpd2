@@ -45,18 +45,16 @@ static void server_setup_free(gpointer _ss) {
 	g_slice_free(liServerSetup, _ss);
 }
 
-#define CATCH_SIGNAL(loop, cb, n) do {\
-	ev_init(&srv->sig_w_##n, cb); \
-	ev_signal_set(&srv->sig_w_##n, SIG##n); \
-	ev_signal_start(loop, &srv->sig_w_##n); \
-	srv->sig_w_##n.data = srv; \
-	ev_unref(loop); /* Signal watchers shouldn't keep loop alive */ \
+#define CATCH_SIGNAL(loop, cb, n) do {              \
+    ev_init(&srv->sig_w_##n, cb);                   \
+    ev_signal_set(&srv->sig_w_##n, SIG##n);         \
+    ev_signal_start(loop, &srv->sig_w_##n);         \
+    srv->sig_w_##n.data = srv;                      \
+    /* Signal watchers shouldn't keep loop alive */ \
+    ev_unref(loop);                                 \
 } while (0)
 
-#define UNCATCH_SIGNAL(loop, n) do {\
-	ev_ref(loop); \
-	ev_signal_stop(loop, &srv->sig_w_##n); \
-} while (0)
+#define UNCATCH_SIGNAL(loop, n) li_ev_safe_ref_and_stop(ev_signal_stop, loop, &srv->sig_w_##n)
 
 static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	liServer *srv = (liServer*) w->data;

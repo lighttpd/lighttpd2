@@ -316,8 +316,8 @@ static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) 
 #endif
 							goto write_eagain;
 						default: /* Fatal error, connection has to be closed */
-							ev_async_stop(loop, &acon->out_notify_watcher);
-							ev_io_stop(loop, &acon->fd_watcher);
+							li_ev_safe_ref_and_stop(ev_async_stop, loop, &acon->out_notify_watcher);
+							li_ev_safe_ref_and_stop(ev_io_stop, loop, &acon->fd_watcher);
 							acon->close_cb(acon, NULL); /* TODO: set err */
 							return;
 						}
@@ -336,8 +336,8 @@ static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) 
 						send_item->value.fds.pos++;
 						continue;
 					case -1: /* Fatal error, connection has to be closed */
-							ev_async_stop(loop, &acon->out_notify_watcher);
-							ev_io_stop(loop, &acon->fd_watcher);
+							li_ev_safe_ref_and_stop(ev_async_stop, loop, &acon->out_notify_watcher);
+							li_ev_safe_ref_and_stop(ev_io_stop, loop, &acon->fd_watcher);
 							acon->close_cb(acon, NULL); /* TODO: set err */
 							return;
 					case -2: goto write_eagain;
@@ -366,8 +366,8 @@ write_eagain:
 	if (revents | EV_READ) {
 		GError *err = NULL;
 		if (!angel_connection_read(acon, &err)) {
-			ev_async_stop(loop, &acon->out_notify_watcher);
-			ev_io_stop(loop, &acon->fd_watcher);
+			li_ev_safe_ref_and_stop(ev_async_stop, loop, &acon->out_notify_watcher);
+			li_ev_safe_ref_and_stop(ev_io_stop, loop, &acon->fd_watcher);
 			acon->close_cb(acon, err);
 		}
 	}
@@ -390,12 +390,17 @@ liAngelConnection* li_angel_connection_new(struct ev_loop *loop, int fd, gpointe
 	acon->fd = fd;
 	acon->call_id_list = li_idlist_new(65535);
 	acon->call_table = g_ptr_array_new();
+
 	ev_io_init(&acon->fd_watcher, angel_connection_io_cb, fd, EV_READ);
 	ev_io_start(acon->loop, &acon->fd_watcher);
 	acon->fd_watcher.data = acon;
+	ev_unref(acon->loop); /* this watcher shouldn't keep the loop alive */
+
 	ev_async_init(&acon->out_notify_watcher, angel_connection_out_notify_cb);
 	ev_async_start(acon->loop, &acon->out_notify_watcher);
 	acon->out_notify_watcher.data = acon;
+	ev_unref(acon->loop); /* this watcher shouldn't keep the loop alive */
+
 	acon->out = g_queue_new();
 	acon->in.data = g_string_sized_new(1024);
 	acon->in.pos = 0;
@@ -442,8 +447,8 @@ void li_angel_connection_free(liAngelConnection *acon) {
 	g_mutex_free(acon->mutex);
 	acon->mutex = NULL;
 
-	ev_io_stop(acon->loop, &acon->fd_watcher);
-	ev_async_stop(acon->loop, &acon->out_notify_watcher);
+	li_ev_safe_ref_and_stop(ev_async_stop, acon->loop, &acon->out_notify_watcher);
+	li_ev_safe_ref_and_stop(ev_io_stop, acon->loop, &acon->fd_watcher);
 
 	li_idlist_free(acon->call_id_list);
 	while (NULL != (send_item = g_queue_pop_head(acon->out))) {

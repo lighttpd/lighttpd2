@@ -392,8 +392,7 @@ void li_worker_free(liWorker *wrk) {
 		g_queue_clear(&wrk->closing_sockets);
 	}
 
-	ev_ref(wrk->loop);
-	ev_async_stop(wrk->loop, &wrk->job_async_queue_watcher);
+	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->job_async_queue_watcher);
 
 	{ /* free timestamps */
 		guint i;
@@ -405,8 +404,7 @@ void li_worker_free(liWorker *wrk) {
 		g_array_free(wrk->timestamps_local, TRUE);
 	}
 
-	ev_ref(wrk->loop);
-	ev_async_stop(wrk->loop, &wrk->li_worker_exit_watcher);
+	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->li_worker_exit_watcher);
 
 	{
 		GAsyncQueue *q = wrk->job_async_queue;
@@ -426,11 +424,9 @@ void li_worker_free(liWorker *wrk) {
 
 	g_async_queue_unref(wrk->new_con_queue);
 
-	ev_ref(wrk->loop);
-	ev_timer_stop(wrk->loop, &wrk->stats_watcher);
+	li_ev_safe_ref_and_stop(ev_timer_stop, wrk->loop, &wrk->stats_watcher);
 
-	ev_ref(wrk->loop);
-	ev_async_stop(wrk->loop, &wrk->collect_watcher);
+	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->collect_watcher);
 	li_collect_watcher_cb(wrk->loop, &wrk->collect_watcher, 0);
 	g_async_queue_unref(wrk->collect_queue);
 
