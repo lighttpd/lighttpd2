@@ -119,6 +119,7 @@ static void instance_angel_close_cb(liAngelConnection *acon, GError *err) {
 static void instance_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 	liInstance *i = (liInstance*) w->data;
 	liInstanceState news;
+	UNUSED(revents);
 
 	if (i->s_dest == LI_INSTANCE_FINISHED) {
 		if (WIFEXITED(w->rstatus)) {
