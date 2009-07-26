@@ -244,13 +244,13 @@ static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *
 			break;
 		case REDIRECT_ABSOLUTE_PATH:
 			/* /foo/bar?baz */
-			g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
+			g_string_append_len(dest, CONST_STR_LEN(vr->con->is_ssl ? "https" : "http"));
 			g_string_append_len(dest, CONST_STR_LEN("://"));
 			g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
 			break;
 		case REDIRECT_RELATIVE_PATH:
 			/* foo/bar?baz */
-			g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
+			g_string_append_len(dest, CONST_STR_LEN(vr->con->is_ssl ? "https" : "http"));
 			g_string_append_len(dest, CONST_STR_LEN("://"));
 			g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
 			/* search for last slash /foo/bar */
@@ -263,7 +263,7 @@ static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *
 			break;
 		case REDIRECT_RELATIVE_QUERY:
 			/* ?bar */
-			g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
+			g_string_append_len(dest, CONST_STR_LEN(vr->con->is_ssl ? "https" : "http"));
 			g_string_append_len(dest, CONST_STR_LEN("://"));
 			g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
 			g_string_append_len(dest, GSTR_LEN(vr->request.uri.path));
@@ -299,6 +299,7 @@ static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *
 			switch (rp->data.cond_lval) {
 			case LI_COMP_REQUEST_LOCALIP: str = vr->con->srv_sock->local_addr_str; break;
 			case LI_COMP_REQUEST_REMOTEIP: str = vr->con->remote_addr_str; break;
+			case LI_COMP_REQUEST_SCHEME: str = NULL; break;
 			case LI_COMP_REQUEST_PATH: str = vr->request.uri.path; break;
 			case LI_COMP_REQUEST_HOST: str = vr->request.uri.host; break;
 			case LI_COMP_REQUEST_QUERY_STRING: str = vr->request.uri.query; break;
