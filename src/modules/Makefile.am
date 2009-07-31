@@ -51,10 +51,6 @@ install_libs += mod_rewrite.la
 mod_rewrite_la_SOURCES = mod_rewrite.c
 mod_rewrite_la_LDFLAGS = -module -export-dynamic -avoid-version -no-undefined
 
-install_libs += mod_rrd.la
-mod_rrd_la_SOURCES = mod_rrd.c
-mod_rrd_la_LDFLAGS = -module -export-dynamic -avoid-version -no-undefined
-
 install_libs += mod_status.la
 mod_status_la_SOURCES = mod_status.c
 mod_status_la_LDFLAGS = -module -export-dynamic -avoid-version -no-undefined
