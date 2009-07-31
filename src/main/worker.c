@@ -1,7 +1,7 @@
 
-#include <sched.h>
-
 #include <lighttpd/base.h>
+
+#include <sched.h>
 
 static liConnection* worker_con_get(liWorker *wrk);
 void worker_con_put(liConnection *con);
@@ -438,7 +438,7 @@ void li_worker_free(liWorker *wrk) {
 }
 
 void li_worker_run(liWorker *wrk) {
-	#ifdef LIGHTY_OS_LINUX
+#ifdef LIGHTY_OS_LINUX
 	/* sched_setaffinity is only available on linux */
 	cpu_set_t mask;
 
@@ -457,7 +457,7 @@ void li_worker_run(liWorker *wrk) {
 			ERROR(wrk->srv, "%s", "cpu 0 not enabled, no affinity set");
 		}
 	}
-	#endif
+#endif
 	
 	ev_loop(wrk->loop, 0);
 }

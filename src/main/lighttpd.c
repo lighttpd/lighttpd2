@@ -4,7 +4,11 @@
 #include <lighttpd/profiler.h>
 
 #ifdef HAVE_LUA_H
-#include <lighttpd/config_lua.h>
+# include <lighttpd/config_lua.h>
+#endif
+
+#ifndef DEFAULT_LIBDIR
+# define DEFAULT_LIBDIR "/usr/local/lib/lighttpd"
 #endif
 
 void plugin_core_init(liServer *srv, liPlugin *p);
@@ -17,7 +21,7 @@ int main(int argc, char *argv[]) {
 	gboolean free_config_path = TRUE;
 
 	gchar *config_path = NULL;
-	const gchar *def_module_dir = "/usr/local/lib"; /* TODO: configure module-dir with make-system */
+	const gchar *def_module_dir = DEFAULT_LIBDIR;
 	const gchar *module_dir = def_module_dir;
 	gboolean luaconfig = FALSE;
 	gboolean test_config = FALSE;
@@ -30,7 +34,7 @@ int main(int argc, char *argv[]) {
 		{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_path, "filename/path of the config", "PATH" },
 		{ "lua", 'l', 0, G_OPTION_ARG_NONE, &luaconfig, "use the lua config frontend", NULL },
 		{ "test", 't', 0, G_OPTION_ARG_NONE, &test_config, "test config and exit", NULL },
-		{ "module-dir", 'm', 0, G_OPTION_ARG_STRING, &module_dir, "module directory", "PATH" },
+		{ "module-dir", 'm', 0, G_OPTION_ARG_STRING, &module_dir, "module directory [default: " DEFAULT_LIBDIR "]", "PATH" },
 		{ "version", 'v', 0, G_OPTION_ARG_NONE, &show_version, "show version and exit", NULL },
 		{ "angel", 0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_NONE, &use_angel, "spawned by angel", NULL },
 		{ NULL, 0, 0, 0, NULL, NULL, NULL }
@@ -64,9 +68,9 @@ int main(int argc, char *argv[]) {
 	if (show_version) {
 		g_print("%s-%s - a fast and lightweight webserver\n", PACKAGE_NAME, PACKAGE_VERSION);
 		g_print("Build date: %s\n", PACKAGE_BUILD_DATE);
-		#ifdef LIGHTTPD_REVISION
+#ifdef LIGHTTPD_REVISION
 		g_print("Revision: %s\n", LIGHTTPD_REVISION);
-		#endif
+#endif
 		return 0;
 	}
 

@@ -34,7 +34,7 @@
 
 
 #ifdef HAVE_CONFIG_H
-#include <lighttpd/config.h>
+# include <lighttpd/config.h>
 #endif
 
 #if defined HAVE_LIBSSL && defined HAVE_OPENSSL_SSL_H
