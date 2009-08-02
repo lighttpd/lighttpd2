@@ -45,6 +45,11 @@ lighttpd_shared_src+= \
 	config_lua.c \
 	value_lua.c
 endif
+EXTRA_lighttpd_SOURCES=\
+	actions_lua.c \
+	condition_lua.c \
+	config_lua.c \
+	value_lua.c
 
 BUILT_SOURCES=config_parser.c http_request_parser.c http_response_parser.c url_parser.c
 
