@@ -337,10 +337,10 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 				datebuf[datebuflen] = '\0';
 
 				g_string_append_len(listing, CONST_STR_LEN("				<tr><td><a href=\""));
-				string_encode(sced->path->str, encoded, ENCODING_URI);
+				li_string_encode(sced->path->str, encoded, LI_ENCODING_URI);
 				g_string_append_len(listing, GSTR_LEN(encoded));
 				g_string_append_len(listing, CONST_STR_LEN("/\">"));
-				string_encode(sced->path->str, encoded, ENCODING_HTML);
+				li_string_encode(sced->path->str, encoded, LI_ENCODING_HTML);
 				g_string_append_len(listing, GSTR_LEN(encoded));
 				g_string_append_len(listing, CONST_STR_LEN("</a></td><td class=\"modified\" val=\""));
 				li_string_append_int(listing, sced->st.st_mtime);
@@ -366,10 +366,10 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 			dirlist_format_size(sizebuf, sced->st.st_size);
 
 			g_string_append_len(listing, CONST_STR_LEN("				<tr><td><a href=\""));
-			string_encode(sced->path->str, encoded, ENCODING_URI);
+			li_string_encode(sced->path->str, encoded, LI_ENCODING_URI);
 			g_string_append_len(listing, GSTR_LEN(encoded));
 			g_string_append_len(listing, CONST_STR_LEN("\">"));
-			string_encode(sced->path->str, encoded, ENCODING_HTML);
+			li_string_encode(sced->path->str, encoded, LI_ENCODING_HTML);
 			g_string_append_len(listing, GSTR_LEN(encoded));
 			g_string_append_len(listing, CONST_STR_LEN(
 				"</a></td>"

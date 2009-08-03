@@ -72,7 +72,7 @@ static const gchar encode_map_uri[] = {
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* F0 - FF */
 };
 
-GString *string_encode_append(const gchar *str, GString *dest, encoding_t encoding) {
+GString *li_string_encode_append(const gchar *str, GString *dest, liEncoding encoding) {
 	GString *result;
 	guchar *c;
 	guchar *pos = NULL;
@@ -81,16 +81,16 @@ GString *string_encode_append(const gchar *str, GString *dest, encoding_t encodi
 	const gchar *map = NULL;
 
 	switch (encoding) {
-	case ENCODING_HTML:
+	case LI_ENCODING_HTML:
 		/* replace html chars with &#xHH; */
 		map = encode_map_html;
 		encoded_len = 6;
 		break;
-	case ENCODING_HEX:
+	case LI_ENCODING_HEX:
 		map = encode_map_hex;
 		encoded_len = 2;
 		break;
-	case ENCODING_URI:
+	case LI_ENCODING_URI:
 		/* ? => %HH */
 		map = encode_map_uri;
 		encoded_len = 3;
@@ -116,7 +116,7 @@ GString *string_encode_append(const gchar *str, GString *dest, encoding_t encodi
 	}
 
 	switch (encoding) {
-	case ENCODING_HTML:
+	case LI_ENCODING_HTML:
 		for (c = (guchar*)str; *c != '\0'; c++) {
 			if (map[*c]) {
 				/* char needs to be encoded */
@@ -133,7 +133,7 @@ GString *string_encode_append(const gchar *str, GString *dest, encoding_t encodi
 			}
 		}
 		break;
-	case ENCODING_HEX:
+	case LI_ENCODING_HEX:
 		for (c = (guchar*)str; *c != '\0'; c++) {
 			if (map[*c]) {
 				/* char needs to be encoded */
@@ -145,7 +145,7 @@ GString *string_encode_append(const gchar *str, GString *dest, encoding_t encodi
 			}
 		}
 		break;
-	case ENCODING_URI:
+	case LI_ENCODING_URI:
 		for (c = (guchar*)str; *c != '\0'; c++) {
 			if (map[*c]) {
 				/* char needs to be encoded */
@@ -165,7 +165,7 @@ GString *string_encode_append(const gchar *str, GString *dest, encoding_t encodi
 	return result;
 }
 
-GString *string_encode(const gchar *str, GString *dest, encoding_t encoding) {
+GString *li_string_encode(const gchar *str, GString *dest, liEncoding encoding) {
 	if (dest) g_string_truncate(dest, 0);
-	return string_encode_append(str, dest, encoding);
+	return li_string_encode_append(str, dest, encoding);
 }

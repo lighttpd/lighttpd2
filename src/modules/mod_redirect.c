@@ -318,7 +318,7 @@ static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *
 					g_string_append_len(dest, CONST_STR_LEN("http"));
 			} else {
 				if (encoded)
-					string_encode_append(str->str, dest, ENCODING_URI);
+					li_string_encode_append(str->str, dest, LI_ENCODING_URI);
 				else
 					g_string_append_len(dest, GSTR_LEN(str));
 			}
