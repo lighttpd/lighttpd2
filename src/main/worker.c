@@ -470,6 +470,7 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 		ev_async_stop(wrk->loop, &wrk->new_con_watcher);
 		li_waitqueue_stop(&wrk->io_timeout_queue);
 		li_waitqueue_stop(&wrk->throttle_queue);
+		li_waitqueue_stop(&wrk->stat_cache->delete_queue);
 		li_worker_new_con_cb(wrk->loop, &wrk->new_con_watcher, 0); /* handle remaining new connections */
 
 		/* close keep alive connections */
