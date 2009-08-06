@@ -58,7 +58,7 @@ tristate_t li_http_response_handle_cachable_modified(liVRequest *vr, GString *la
 	}
 
 	if (0 == strncmp(hlm, slm, used_len)) {
-		return TRI_TRUE;
+		return (slm[used_len] == '\0' || slm[used_len] == ';') ? TRI_TRUE : TRI_FALSE;
 	} else {
 		char buf[sizeof("Sat, 23 Jul 2005 21:20:01 GMT")];
 		time_t t_header, t_file;
@@ -82,10 +82,12 @@ tristate_t li_http_response_handle_cachable_modified(liVRequest *vr, GString *la
 			/* not returning "412" - should we? */
 			return TRI_FALSE;
 		}
+		tm.tm_isdst = 0;
 		t_header = mktime(&tm);
 
 		memset(&tm, 0, sizeof(tm));
 		strptime(slm, "%a, %d %b %Y %H:%M:%S GMT", &tm);
+		tm.tm_isdst = 0;
 		t_file = mktime(&tm);
 
 		if (t_file > t_header) return TRI_FALSE;
