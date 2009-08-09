@@ -11,16 +11,21 @@
  *     status.css <name|url> - set the stylesheet to use
  *         type: string; values: "default", "blue" or a url to an external css file
  * Actions:
- *     status.page           - returns the status page to the client
+ *     status.show           - returns the status page to the client
+ *     status.show_runtime   - returns the runtime info page to the client
  *
  * Example config:
- *     req.path == "/status" {
+ *     req.path == "/srv-status" {
  *         status.css = "http://mydomain/status.css";
- *         status.page;
+ *         if req.query == "runtime" {
+ *             status.show_runtime;
+ *         } else {
+ *             status.show;
+ *         }
  *     }
  *
  * Todo:
- *     - handle race condition when connection is gone while collecting data (needs per connection plugin data)
+ *     - add querystring parameters like refresh=X and format=plain
  *
  * Author:
  *     Copyright (c) 2008 Thomas Porzelt
@@ -111,6 +116,56 @@ static const gchar html_connections_row[] =
 	"				<td>%s</td>\n"
 	"				<td>%s</td>\n"
 	"			</tr>\n";
+
+
+static const gchar html_server_info[] =
+	"		<table cellspacing=\"0\">\n"
+	"			<tr>\n"
+	"				<td  class=\"left\" style=\"width: 100px;\">Hostname</td>\n"
+	"				<td class=\"left\">%s</td>\n"
+	"			</tr>\n"
+	"			<tr>\n"
+	"				<td class=\"left\">User</td>\n"
+	"				<td class=\"left\">%s (%u)</td>\n"
+	"			</tr>\n"
+	"				<td class=\"left\">Event handler</td>\n"
+	"				<td class=\"left\">%s</td>\n"
+	"		</table>\n";
+static const gchar html_libinfo_th[] =
+	"		<table cellspacing=\"0\">\n"
+	"			<tr>\n"
+	"				<th style=\"width: 100px;\"></th>\n"
+	"				<th style=\"width: 100px;\">linked</th>\n"
+	"				<th style=\"width: 100px;\">headers</th>\n"
+	"			</tr>\n";
+static const gchar html_libinfo_row[] =
+	"			<tr>\n"
+	"				<td class=\"left\">%s</td>\n"
+	"				<td style=\"text-align: center;\">%s</td>\n"
+	"				<td style=\"text-align: center;\">%s</td>\n"
+	"			</tr>\n";
+static const gchar html_libev_th[] =
+	"		<table cellspacing=\"0\">\n"
+	"			<tr>\n"
+	"				<th style=\"width: 100px;\"></th>\n"
+	"				<th style=\"width: 100px;\">select</th>\n"
+	"				<th style=\"width: 100px;\">poll</th>\n"
+	"				<th style=\"width: 100px;\">epoll</th>\n"
+	"				<th style=\"width: 100px;\">kqueue</th>\n"
+	"				<th style=\"width: 100px;\">/dev/poll</th>\n"
+	"				<th style=\"width: 125px;\">solaris event port</th>\n"
+	"			</tr>\n";
+static const gchar html_libev_row[] =
+	"			<tr>\n"
+	"				<td class=\"left\">%s</td>\n"
+	"				<td style=\"text-align: center;\">%s</td>\n"
+	"				<td style=\"text-align: center;\">%s</td>\n"
+	"				<td style=\"text-align: center;\">%s</td>\n"
+	"				<td style=\"text-align: center;\">%s</td>\n"
+	"				<td style=\"text-align: center;\">%s</td>\n"
+	"				<td style=\"text-align: center;\">%s</td>\n"
+	"			</tr>\n";
+
 
 static const gchar css_default[] =
 	"		<style type=\"text/css\">\n"
@@ -554,7 +609,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 	}
 }
 
-static liHandlerResult status_page_handle(liVRequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult status_show(liVRequest *vr, gpointer param, gpointer *context) {
 	if (li_vrequest_handle_direct(vr)) {
 		liCollectInfo *ci;
 		mod_status_job *j = g_slice_new(mod_status_job);
@@ -571,7 +626,7 @@ static liHandlerResult status_page_handle(liVRequest *vr, gpointer param, gpoint
 	return (*context) ? LI_HANDLER_WAIT_FOR_EVENT : LI_HANDLER_GO_ON;
 }
 
-static liHandlerResult status_page_cleanup(liVRequest *vr, gpointer param, gpointer context) {
+static liHandlerResult status_show_cleanup(liVRequest *vr, gpointer param, gpointer context) {
 	liCollectInfo *ci = (liCollectInfo*) context;
 
 	UNUSED(vr);
@@ -582,11 +637,210 @@ static liHandlerResult status_page_cleanup(liVRequest *vr, gpointer param, gpoin
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* status_page(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* status_show_create(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(srv);
 	UNUSED(val);
 
-	return li_action_new_function(status_page_handle, status_page_cleanup, NULL, p);
+	return li_action_new_function(status_show, status_show_cleanup, NULL, p);
+}
+
+static gint str_comp(gconstpointer a, gconstpointer b) {
+	return strcmp(*(const gchar**)a, *(const gchar**)b); 
+}
+
+static liHandlerResult status_show_runtime(liVRequest *vr, gpointer param, gpointer *context) {
+	GString *html;
+	liPlugin* p = param;
+	GString* css = _OPTION(vr, p, 0).string;
+
+	UNUSED(context);
+
+	if (!li_vrequest_handle_direct(vr))
+		return LI_HANDLER_ERROR;
+
+	html = g_string_sized_new(2047);
+
+
+	g_string_append_len(html, CONST_STR_LEN(header));
+
+	if (!css || !css->len) /* default css */
+		g_string_append_len(html, CONST_STR_LEN(css_default));
+	else if (g_str_equal(css->str, "blue")) /* blue css */
+		g_string_append_len(html, CONST_STR_LEN(css_blue));
+	else /* external css */
+		g_string_append_printf(html, "		<link rel=\"stylesheet\" rev=\"stylesheet\" href=\"%s\" media=\"screen\" />\n", css->str);
+
+	g_string_append_len(html, CONST_STR_LEN(
+		"	</head>\n"
+		"	<body>\n"
+	));
+
+	li_counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, vr->wrk->tmp_str);
+	g_string_append_printf(html, html_top,
+		vr->request.uri.host->str,
+		vr->wrk->tmp_str->str,
+		vr->wrk->srv->started_str->str
+	);
+
+
+	/* general info */
+	{
+		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Server info</strong></div>\n"));
+		g_string_append_printf(html, html_server_info,
+			g_get_host_name(), g_get_user_name(), getuid(), li_ev_backend_string(ev_backend(vr->wrk->loop))
+		);
+	}
+
+	/* library info */
+	{
+		GString *tmp_str = g_string_sized_new(31);
+
+		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Libraries</strong></div>\n"));
+		g_string_append_len(html, CONST_STR_LEN(html_libinfo_th));
+
+		g_string_truncate(tmp_str, 0);
+		g_string_append_printf(tmp_str, "%u.%u.%u", glib_major_version, glib_minor_version, glib_micro_version);
+		g_string_truncate(vr->wrk->tmp_str, 0);
+		g_string_append_printf(vr->wrk->tmp_str, "%u.%u.%u", GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION);
+
+		g_string_append_printf(html, html_libinfo_row, "GLib",
+			tmp_str->str,
+			vr->wrk->tmp_str->str
+		);
+
+		g_string_truncate(tmp_str, 0);
+		g_string_append_printf(tmp_str, "%u.%u", ev_version_major(), ev_version_minor());
+		g_string_truncate(vr->wrk->tmp_str, 0);
+		g_string_append_printf(vr->wrk->tmp_str, "%u.%u", EV_VERSION_MAJOR, EV_VERSION_MINOR);
+
+		g_string_append_printf(html, html_libinfo_row, "libev",
+			tmp_str->str,
+			vr->wrk->tmp_str->str
+		);
+
+		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+		g_string_free(tmp_str, TRUE);
+	}
+
+	/* libev info */
+	{
+		guint i;
+
+		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>libev backends</strong></div>\n"));
+		g_string_append_len(html, CONST_STR_LEN(html_libev_th));
+
+		/* supported backend, aka compiled in */
+		i = ev_supported_backends();
+		g_string_append_printf(html, html_libev_row, "supported",
+			i & EVBACKEND_SELECT ? "yes" : "no",
+			i & EVBACKEND_POLL ? "yes" : "no",
+			i & EVBACKEND_EPOLL ? "yes" : "no",
+			i & EVBACKEND_KQUEUE ? "yes" : "no",
+			i & EVBACKEND_DEVPOLL ? "yes" : "no",
+			i & EVBACKEND_PORT ? "yes" : "no"
+		);
+
+		/* recommended backends */
+		i = ev_recommended_backends();
+		g_string_append_printf(html, html_libev_row, "recommended",
+			i & EVBACKEND_SELECT ? "yes" : "no",
+			i & EVBACKEND_POLL ? "yes" : "no",
+			i & EVBACKEND_EPOLL ? "yes" : "no",
+			i & EVBACKEND_KQUEUE ? "yes" : "no",
+			i & EVBACKEND_DEVPOLL ? "yes" : "no",
+			i & EVBACKEND_PORT ? "yes" : "no"
+		);
+
+		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+	}
+
+	/* list modules */
+	{
+		guint i, col;
+		gpointer k, v;
+		GHashTableIter iter;
+		GArray *list = g_array_sized_new(FALSE, FALSE, sizeof(gchar*), g_hash_table_size(vr->wrk->srv->plugins));
+
+		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Loaded modules</strong></div>\n"));
+		g_string_append_len(html, CONST_STR_LEN("		<table cellspacing=\"0\">\n"));
+
+		g_hash_table_iter_init(&iter, vr->wrk->srv->plugins);
+
+		while (g_hash_table_iter_next(&iter, &k, &v))
+			g_array_append_val(list, k);
+
+		g_array_sort(list, str_comp);
+
+		col = 0;
+
+		for (i = 1; i < list->len; i++) {
+			if (col == 0) {
+				g_string_append_len(html, CONST_STR_LEN("			<tr>\n"));
+				col++;
+			}
+			else if (col == 5) {
+				g_string_append_len(html, CONST_STR_LEN("			</tr>\n"));
+				col = 0;
+				continue;
+			} else {
+				col++;
+			}
+
+			g_string_append_printf(html, "				<td class=\"left\">%s</td>\n", g_array_index(list, gchar*, i));
+		}
+
+		if (col) {
+			for (i = 5 - col; i; i--)
+				g_string_append_len(html, CONST_STR_LEN("				<td></td>\n"));
+
+			g_string_append_len(html, CONST_STR_LEN("			</tr>\n"));
+		}
+
+		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+
+		g_array_free(list, TRUE);
+	}
+
+	/* list environment vars */
+	{
+		gchar **e;
+		gchar **env = g_listenv();
+
+		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Process environment</strong></div>\n"));
+		g_string_append_len(html, CONST_STR_LEN("		<table cellspacing=\"0\">\n"));
+
+		for (e = env; *e; e++) {
+			g_string_append_printf(html, "			<tr><td class=\"left\">%s</td><td class=\"left\">%s</td></tr>\n", *e, getenv(*e));
+		}
+
+		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+
+		g_strfreev(env);
+	}
+
+	g_string_append_len(html, CONST_STR_LEN(
+		" </body>\n"
+		"</html>\n"
+	));
+
+	li_chunkqueue_append_string(vr->out, html);
+	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
+
+	vr->response.http_status = 200;
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* status_show_runtime_create(liServer *srv, liPlugin* p, liValue *val) {
+
+	UNUSED(srv);
+
+	if (val) {
+		ERROR(srv, "%s", "status.show_runtime expects no parameter");
+		return NULL;
+	}
+
+	return li_action_new_function(status_show_runtime, NULL, NULL, p);
 }
 
 
@@ -598,7 +852,8 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "status.page", status_page },
+	{ "status.show", status_show_create },
+	{ "status.show_runtime", status_show_runtime_create },
 
 	{ NULL, NULL }
 };
