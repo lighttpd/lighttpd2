@@ -374,6 +374,41 @@ void li_path_simplify(GString *path) {
 }
 
 
+gboolean li_querystring_find(GString *querystring, const gchar *key, const guint key_len, gchar **val, guint *val_len) {
+	gchar delim = '\0';
+	gchar *end = querystring->str + querystring->len;
+	gchar *start = querystring->str;
+	gchar *c = querystring->str;
+
+	/* search for key */
+	for (c = querystring->str; c != end; c++) {
+		if ((*c == '&' || *c == ';') && delim == '\0')
+			delim = *c;
+
+		if (*c == '=' || (*c == delim && delim != '\0')) {
+			if ((c - start) == (gint)key_len && memcmp(start, key, key_len) == 0) {
+				/* key found */
+				c++;
+				*val = c;
+
+				/* get length of val */
+				for (; c != end; c++) {
+					if ((*c == '&' || *c == ';') && (delim == '\0' || *c == delim))
+						break;
+				}
+
+				*val_len = c - *val;
+				return TRUE;
+			}
+
+			start = c + 1;
+		}
+	}
+
+	return FALSE;
+}
+
+
 GString *li_counter_format(guint64 count, liCounterType t, GString *dest) {
 	guint64 rest;
 

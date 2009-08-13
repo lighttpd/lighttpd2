@@ -41,6 +41,9 @@ LI_API void li_url_decode(GString *path);
 
 LI_API void li_path_simplify(GString *path);
 
+/* finds the first value for a given key in the querystring. works with '&' as well as ';' delimiters */
+LI_API gboolean li_querystring_find(GString *querystring, const gchar *key, const guint key_len, gchar **val, guint *val_len);
+
 /* formats a given guint64 for output. if dest is NULL, a new string is allocated */
 LI_API GString *li_counter_format(guint64 count, liCounterType t, GString *dest);
 
