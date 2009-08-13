@@ -20,7 +20,7 @@
  *     }
  *
  * Todo:
- *     - add querystring parameters like refresh=X and format=plain
+ *     - add querystring parameter format=plain
  *
  * Author:
  *     Copyright (c) 2008-2009 Thomas Porzelt
@@ -30,6 +30,7 @@
 
 #include <lighttpd/base.h>
 #include <lighttpd/collect.h>
+#include <lighttpd/encoding.h>
 
 LI_API gboolean mod_status_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_status_free(liModules *mods, liModule *mod);
@@ -317,7 +318,6 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 
 	if (complete) {
 		GString *html;
-		GString *css;
 		GString *tmpstr;
 		GString *count_req, *count_bin, *count_bout;
 		guint uptime;
@@ -364,14 +364,33 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 
 		g_string_append_len(html, header, sizeof(header)-1);
 
+		/* auto refresh */
+		{
+			gchar *val;
+			guint len;
+			gchar c;
+
+			if (li_querystring_find(vr->request.uri.query, CONST_STR_LEN("refresh"), &val, &len)) {
+				g_string_append_len(html, CONST_STR_LEN("<meta http-equiv=\"refresh\" content=\""));
+				/* temp char swap */
+				c = val[len]; val[len] = '\0';
+				li_string_encode_append(val, html, LI_ENCODING_HTML);
+				val[len] = c;
+				g_string_append_len(html, CONST_STR_LEN("\">\n"));
+			}
+		}
+
 		/* css */
-		css = _OPTION(vr, p, 0).string;
-		if (!css || !css->len) /* default css */
-			g_string_append_len(html, css_default, sizeof(css_default)-1);
-		else if (g_str_equal(css->str, "blue")) /* blue css */
-			g_string_append_len(html, css_blue, sizeof(css_blue)-1);
-		else /* external css */
-			g_string_append_printf(html, "		<link rel=\"stylesheet\" rev=\"stylesheet\" href=\"%s\" media=\"screen\" />\n", css->str);
+		{
+			GString *css = _OPTION(vr, p, 0).string;
+
+			if (!css || !css->len) /* default css */
+				g_string_append_len(html, css_default, sizeof(css_default)-1);
+			else if (g_str_equal(css->str, "blue")) /* blue css */
+				g_string_append_len(html, css_blue, sizeof(css_blue)-1);
+			else /* external css */
+				g_string_append_printf(html, "		<link rel=\"stylesheet\" rev=\"stylesheet\" href=\"%s\" media=\"screen\" />\n", css->str);
+		}
 
 		g_string_append_len(html, CONST_STR_LEN(
 			"	</head>\n"
@@ -667,19 +686,39 @@ static gint str_comp(gconstpointer a, gconstpointer b) {
 
 static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 	GString *html;
-	GString* css = _OPTION(vr, p, 0).string;
 
 	html = g_string_sized_new(2047);
 
 
 	g_string_append_len(html, CONST_STR_LEN(header));
 
-	if (!css || !css->len) /* default css */
-		g_string_append_len(html, CONST_STR_LEN(css_default));
-	else if (g_str_equal(css->str, "blue")) /* blue css */
-		g_string_append_len(html, CONST_STR_LEN(css_blue));
-	else /* external css */
-		g_string_append_printf(html, "		<link rel=\"stylesheet\" rev=\"stylesheet\" href=\"%s\" media=\"screen\" />\n", css->str);
+	/* auto refresh */
+	{
+		gchar *val;
+		guint len;
+		gchar c;
+
+		if (li_querystring_find(vr->request.uri.query, CONST_STR_LEN("refresh"), &val, &len)) {
+			g_string_append_len(html, CONST_STR_LEN("<meta http-equiv=\"refresh\" content=\""));
+			/* temp char swap */
+			c = val[len]; val[len] = '\0';
+			li_string_encode_append(val, html, LI_ENCODING_HTML);
+			val[len] = c;
+			g_string_append_len(html, CONST_STR_LEN("\">\n"));
+		}
+	}
+
+	/* css */
+	{
+		GString* css = _OPTION(vr, p, 0).string;
+
+		if (!css || !css->len) /* default css */
+			g_string_append_len(html, CONST_STR_LEN(css_default));
+		else if (g_str_equal(css->str, "blue")) /* blue css */
+			g_string_append_len(html, CONST_STR_LEN(css_blue));
+		else /* external css */
+			g_string_append_printf(html, "		<link rel=\"stylesheet\" rev=\"stylesheet\" href=\"%s\" media=\"screen\" />\n", css->str);
+	}
 
 	g_string_append_len(html, CONST_STR_LEN(
 		"	</head>\n"
