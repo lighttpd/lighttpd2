@@ -2,33 +2,28 @@
  * mod_status - display server status
  *
  * Description:
- *     mod_status can display a page with statistics like requests, traffic and active connections
- *     it can be customized with different stylesheets (css)
+ *     mod_status can display a page with statistics like requests, traffic and active connections.
+ *     It can be customized with different stylesheets (css)
  *
  * Setups:
  *     none
  * Options:
- *     status.css <name|url> - set the stylesheet to use
+ *     status.css <name|url> - set the stylesheet to use, optional
  *         type: string; values: "default", "blue" or a url to an external css file
  * Actions:
- *     status.show           - returns the status page to the client
- *     status.show_runtime   - returns the runtime info page to the client
+ *     status.info           - returns the status info page to the client
  *
  * Example config:
  *     req.path == "/srv-status" {
  *         status.css = "http://mydomain/status.css";
- *         if req.query == "runtime" {
- *             status.show_runtime;
- *         } else {
- *             status.show;
- *         }
+ *         status.info;
  *     }
  *
  * Todo:
  *     - add querystring parameters like refresh=X and format=plain
  *
  * Author:
- *     Copyright (c) 2008 Thomas Porzelt
+ *     Copyright (c) 2008-2009 Thomas Porzelt
  * License:
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
@@ -39,6 +34,9 @@
 LI_API gboolean mod_status_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_status_free(liModules *mods, liModule *mod);
 
+static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p);
+static gint str_comp(gconstpointer a, gconstpointer b);
+
 /* html snippet constants */
 static const gchar header[] =
 	"<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n"
@@ -48,7 +46,9 @@ static const gchar header[] =
 	"	<head>\n"
 	"		<title>Lighttpd Status</title>\n";
 static const gchar html_top[] =
-	"		<div class=\"header\">Lighttpd Server Status</div>\n"
+	"		<div class=\"header\">Lighttpd Server Status | "
+	"			<span style=\"font-size: 12px;\"><a href=\"?\">main</a></strong> - <a href=\"?mode=runtime\">runtime</a></span>"
+	"		</div>\n"
 	"		<div class=\"spacer\">\n"
 	"			<strong>Hostname</strong>: <span>%s</span>"
 	"			<strong>Uptime</strong>: <span>%s</span>\n"
@@ -171,9 +171,10 @@ static const gchar css_default[] =
 	"		<style type=\"text/css\">\n"
 	"			body { margin: 0; padding: 0; font-family: \"lucida grande\",tahoma,verdana,arial,sans-serif; font-size: 12px; }\n"
 	"			.header { padding: 5px; background-color: #6D84B4; font-size: 16px; color: white; border: 1px solid #3B5998; font-weight: bold; }\n"
+	"			.header a { color: #F2F2F2; }\n"
 	"			.spacer { background-color: #F2F2F2; border-bottom: 1px solid #CCC; padding: 5px; }\n"
 	"			.spacer span { padding-right: 25px; }\n"
-	"			.title { margin-left: 6px; margin-top: 25px; margin-bottom: 5px; }\n"
+	"			.title { margin-left: 6px; margin-top: 20px; margin-bottom: 5px; }\n"
 	"			.text { margin-left: 6px; margin-bottom: 5px; }\n"
 	"			table { margin-left: 5px; border: 1px solid #CCC; }\n"
 	"			th { font-weight: normal; padding: 3px; background-color: #E0E0E0;\n"
@@ -187,9 +188,10 @@ static const gchar css_blue[] =
 	"		<style type=\"text/css\">\n"
 	"			body { margin: 0; padding: 0; font-family: \"lucida grande\",tahoma,verdana,arial,sans-serif; font-size: 12px; background-color: #6d84b4; }\n"
 	"			.header { padding: 5px; background-color: #6D84B4; font-size: 16px; color: white; border: 1px solid #3B5998; font-weight: bold; }\n"
+	"			.header a { color: #F2F2F2; }\n"
 	"			.spacer { background-color: #F2F2F2; border-bottom: 1px solid #CCC; padding: 5px; }\n"
 	"			.spacer span { padding-right: 25px; }\n"
-	"			.title { margin-left: 6px; margin-top: 25px; margin-bottom: 5px; }\n"
+	"			.title { margin-left: 6px; margin-top: 20px; margin-bottom: 5px; }\n"
 	"			.text { margin-left: 6px; margin-bottom: 5px; }\n"
 	"			table { margin-left: 5px; border: 1px solid #CCC; }\n"
 	"			th { font-weight: normal; padding: 3px; background-color: #E0E0E0;\n"
@@ -609,24 +611,39 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 	}
 }
 
-static liHandlerResult status_show(liVRequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult status_info(liVRequest *vr, gpointer param, gpointer *context) {
 	if (li_vrequest_handle_direct(vr)) {
-		liCollectInfo *ci;
-		mod_status_job *j = g_slice_new(mod_status_job);
-		j->vr = vr;
-		j->context = context;
-		j->p = (liPlugin*) param;
+		gchar *val;
+		guint len;
 
-		VR_DEBUG(vr, "%s", "collecting stats...");
+		if (!li_querystring_find(vr->request.uri.query, CONST_STR_LEN("mode"), &val, &len)) {
+			/* no 'mode' query parameter given */
+			liCollectInfo *ci;
+			mod_status_job *j = g_slice_new(mod_status_job);
+			j->vr = vr;
+			j->context = context;
+			j->p = (liPlugin*) param;
 
-		ci = li_collect_start(vr->wrk, status_collect_func, NULL, status_collect_cb, j);
-		*context = ci; /* may be NULL */
+			VR_DEBUG(vr, "%s", "collecting stats...");
+
+			ci = li_collect_start(vr->wrk, status_collect_func, NULL, status_collect_cb, j);
+			*context = ci; /* may be NULL */
+			return (*context) ? LI_HANDLER_WAIT_FOR_EVENT : LI_HANDLER_GO_ON;
+		} else {
+			/* 'mode' parameter given */
+			if (strncmp(val, "runtime", len) == 0) {
+				return status_info_runtime(vr, param);
+			} else {
+				VR_ERROR(vr, "%s", "status: unknown mode parameter");
+				return LI_HANDLER_ERROR;
+			}
+		}
 	}
 
-	return (*context) ? LI_HANDLER_WAIT_FOR_EVENT : LI_HANDLER_GO_ON;
+	return LI_HANDLER_GO_ON;
 }
 
-static liHandlerResult status_show_cleanup(liVRequest *vr, gpointer param, gpointer context) {
+static liHandlerResult status_info_cleanup(liVRequest *vr, gpointer param, gpointer context) {
 	liCollectInfo *ci = (liCollectInfo*) context;
 
 	UNUSED(vr);
@@ -637,26 +654,20 @@ static liHandlerResult status_show_cleanup(liVRequest *vr, gpointer param, gpoin
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* status_show_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* status_info_create(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(srv);
 	UNUSED(val);
 
-	return li_action_new_function(status_show, status_show_cleanup, NULL, p);
+	return li_action_new_function(status_info, status_info_cleanup, NULL, p);
 }
 
 static gint str_comp(gconstpointer a, gconstpointer b) {
 	return strcmp(*(const gchar**)a, *(const gchar**)b); 
 }
 
-static liHandlerResult status_show_runtime(liVRequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 	GString *html;
-	liPlugin* p = param;
 	GString* css = _OPTION(vr, p, 0).string;
-
-	UNUSED(context);
-
-	if (!li_vrequest_handle_direct(vr))
-		return LI_HANDLER_ERROR;
 
 	html = g_string_sized_new(2047);
 
@@ -831,18 +842,6 @@ static liHandlerResult status_show_runtime(liVRequest *vr, gpointer param, gpoin
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* status_show_runtime_create(liServer *srv, liPlugin* p, liValue *val) {
-
-	UNUSED(srv);
-
-	if (val) {
-		ERROR(srv, "%s", "status.show_runtime expects no parameter");
-		return NULL;
-	}
-
-	return li_action_new_function(status_show_runtime, NULL, NULL, p);
-}
-
 
 
 static const liPluginOption options[] = {
@@ -852,8 +851,7 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "status.show", status_show_create },
-	{ "status.show_runtime", status_show_runtime_create },
+	{ "status.info", status_info_create },
 
 	{ NULL, NULL }
 };
