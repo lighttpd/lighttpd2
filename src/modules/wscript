@@ -1,0 +1,42 @@
+
+#!/usr/bin/env python
+# encoding: utf-8
+
+"""
+waf build script for Lighttpd 2.x
+License and Copyright: see COPYING file
+"""
+
+import Options, sys
+
+def lighty_mod(bld, target, src, uselib = [], option = ''):
+	if option and not getattr(Options.options, option):
+		return
+
+	mod = bld.new_task_gen(
+		features = 'cc cshlib',
+		target = target,
+		source = src,
+		defines = ['HAVE_CONFIG_H=1'],
+		uselib = ['glib', 'gthread', 'gmodule', 'ev', 'lighty_mod'],
+		uselib_local = ['common'])
+
+
+def configure(conf):
+	pass
+
+
+def build(bld):
+	lighty_mod(bld, 'mod_access', 'mod_access.c')
+	lighty_mod(bld, 'mod_accesslog', 'mod_accesslog.c')
+	lighty_mod(bld, 'mod_balancer', 'mod_balancer.c')
+	lighty_mod(bld, 'mod_cache_disk_etag', 'mod_cache_disk_etag.c')
+	lighty_mod(bld, 'mod_debug', 'mod_debug.c')
+	lighty_mod(bld, 'mod_dirlist', 'mod_dirlist.c')
+	lighty_mod(bld, 'mod_expire', 'mod_expire.c')
+	lighty_mod(bld, 'mod_fastcgi', 'mod_fastcgi.c')
+	lighty_mod(bld, 'mod_fortune', 'mod_fortune.c')
+	lighty_mod(bld, 'mod_redirect', 'mod_redirect.c')
+	lighty_mod(bld, 'mod_rewrite', 'mod_rewrite.c')
+	lighty_mod(bld, 'mod_status', 'mod_status.c')
+	lighty_mod(bld, 'mod_vhost', 'mod_vhost.c')

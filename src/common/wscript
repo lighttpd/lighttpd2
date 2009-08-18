@@ -1,0 +1,34 @@
+
+#!/usr/bin/env python
+# encoding: utf-8
+
+"""
+waf build script for Lighttpd 2.x
+License and Copyright: see COPYING file
+"""
+
+import Options, sys, Utils
+
+source = '''
+	angel_connection.c
+	angel_data.c
+	encoding.c
+	idlist.c
+	ip_parsers.rl
+	module.c
+	radix.c
+	utils.c
+	waitqueue.c
+'''
+
+def configure(conf):
+	opts = Options.options
+	pass
+
+
+def build(bld):
+	libcommon = bld.new_task_gen(
+		features = 'cc cstaticlib',
+	 	source = source,
+		uselib = ['glib', 'gthread', 'gmodule', 'ev'],
+		target = 'common')

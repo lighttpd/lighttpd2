@@ -1,0 +1,35 @@
+
+#!/usr/bin/env python
+# encoding: utf-8
+
+"""
+waf build script for Lighttpd 2.x
+License and Copyright: see COPYING file
+"""
+
+import Options, sys
+
+source = '''
+	angel_config_parser.rl
+	angel_log.c
+	angel_main.c
+	angel_plugin.c
+	angel_plugin_core.c
+	angel_proc.c
+	angel_server.c
+	angel_value.c
+'''
+
+def configure(conf):
+	opts = Options.options
+	pass
+
+
+def build(bld):
+	libcommon = bld.new_task_gen(
+		features = 'cc cprogram',
+	 	source = source,
+		defines = ['HAVE_CONFIG_H=1'],
+		uselib = ['glib', 'gthread', 'gmodule', 'ev'],
+		uselib_local = ['common'],
+		target = 'lighttpd-angel')

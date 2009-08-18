@@ -31,11 +31,12 @@ def set_options(opt):
 	opt.add_option('--debug', action='store_true', help='Do not compile with -O2', dest = 'debug', default = False)
 	opt.add_option('--extra-warnings', action='store_true', help='show more warnings while compiling', dest='extra_warnings', default=False)
 
+
 def configure(conf):
 	opts = Options.options
 
-	conf.check_message_2('The waf build system has been disabled, please use cmake for the time being.', 'RED')
-	sys.exit(1)
+	#conf.check_message_2('The waf build system has been disabled, please use cmake for the time being.', 'RED')
+	#sys.exit(1)
 
 	conf.define('APPNAME', APPNAME)
 	conf.define('VERSION', VERSION)
@@ -44,6 +45,21 @@ def configure(conf):
 	conf.check_tool('ragel', tooldir = '.')
 
 	conf.env['CCFLAGS'] = tolist(conf.env['CCFLAGS'])
+	conf.env['CCFLAGS'] += [
+		'-std=gnu99', '-Wall', '-Wshadow', '-W', '-pedantic', '-fPIC',
+		'-D_GNU_SOURCE', '-D_FILE_OFFSET_BITS=64', '-D_LARGEFILE_SOURCE', '-D_LARGE_FILES',
+#	'-fno-strict-aliasing',
+	]
+
+	if sys.platform != 'darwin':
+		conf.env['LINKFLAGS'] += [ '-export-dynamic' ]
+		conf.env['LINKFLAGS_lighty_mod'] += [ '-module', '-avoid-version', '-W,l-no-undefined' ]
+	else:
+		# OSX aka darwin needs special treatment
+		conf.env['shlib_PATTERN'] = 'lib%s.so'
+		conf.env['LINKFLAGS'] += ['-flat_namespace']
+		conf.env['LINKFLAGS_lighty_mod'] += ['-undefined', 'dynamic_lookup']
+
 	
 	# check for available libraries
 	conf.check_cfg(package='glib-2.0', uselib_store='glib', atleast_version='2.16', args='--cflags --libs', mandatory=True)
@@ -60,7 +76,7 @@ def configure(conf):
 
 	if opts.extra_warnings:
 		conf.env['CCFLAGS'] += [
-			'-g', '-g2', '-Wall', '-Wmissing-declarations',
+			'-g', '-g2', '-Wmissing-declarations',
 		 	'-Wdeclaration-after-statement', '-Wno-pointer-sign', '-Wcast-align', '-Winline', '-Wsign-compare',
 			'-Wnested-externs', '-Wpointer-arith'#, '-Werror', '-Wbad-function-cast', '-Wmissing-prototypes'
 		]
@@ -106,11 +122,12 @@ def configure(conf):
 	conf.check(function_name='pathconf', header_name='unistd.h', define_name='HAVE_PATHCONF')
 	conf.check(function_name='dirfd', header_name=['sys/types.h', 'dirent.h'], define_name='HAVE_DIRFD')
 	
-	conf.env['CPPPATH_lighty'] += [ '../include' ]
+	conf.env['CPPPATH'] += [ '../include' ]
 	
-	conf.env['CPPPATH_lightymod'] += [ '../include' ]
-	
-	conf.sub_config('src')
+	conf.sub_config('src/common')
+	conf.sub_config('src/angel')
+	conf.sub_config('src/main')
+	conf.sub_config('src/modules')
 	
 	conf.define('LIGHTTPD_VERSION_ID', 20000)
 	conf.define('PACKAGE_NAME', APPNAME)
@@ -127,7 +144,7 @@ def configure(conf):
 	
 	Utils.pprint('WHITE', '----------------------------------------')
 	Utils.pprint('BLUE', 'Summary:')
-	print_summary(conf, 'Install Lighttpd/' + VERSION + ' in', conf.env['PREFIX'])
+	print_summary(conf, 'Install lighttpd/' + VERSION + ' in', conf.env['PREFIX'])
 	if revno:
 		print_summary(conf, 'Revision', revno)
 	print_summary(conf, 'Using glib version', glib_version)
@@ -138,8 +155,10 @@ def configure(conf):
 	
 
 def build(bld):
-	bld.add_subdirs('src')
-	
+	bld.add_subdirs('src/common')
+	bld.add_subdirs('src/angel')
+	bld.add_subdirs('src/main')
+	bld.add_subdirs('src/modules')
 	
 def print_summary(conf, msg, result, color = 'GREEN'):
 	conf.check_message_1(msg)
