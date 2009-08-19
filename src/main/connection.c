@@ -231,6 +231,14 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			con->wrk->stats.bytes_in += transferred;
 			con->stats.bytes_in += transferred;
 
+			if ((ev_now(loop) - con->stats.last_avg) >= 5.0) {
+				con->stats.bytes_out_5s_diff = con->stats.bytes_out - con->stats.bytes_out_5s;
+				con->stats.bytes_out_5s = con->stats.bytes_out;
+				con->stats.bytes_in_5s_diff = con->stats.bytes_in - con->stats.bytes_in_5s;
+				con->stats.bytes_in_5s = con->stats.bytes_in;
+				con->stats.last_avg = ev_now(loop);
+			}
+
 			switch (res) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				if (!connection_handle_read(con)) return;
@@ -295,7 +303,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			}
 
 			if ((ev_now(loop) - con->stats.last_avg) >= 5.0) {
-				con->stats.bytes_out_5s_diff = con->wrk->stats.bytes_out - con->wrk->stats.bytes_out_5s;
+				con->stats.bytes_out_5s_diff = con->stats.bytes_out - con->stats.bytes_out_5s;
 				con->stats.bytes_out_5s = con->stats.bytes_out;
 				con->stats.bytes_in_5s_diff = con->stats.bytes_in - con->stats.bytes_in_5s;
 				con->stats.bytes_in_5s = con->stats.bytes_in;
