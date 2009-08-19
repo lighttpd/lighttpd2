@@ -649,48 +649,46 @@
 					li_value_free(val);
 					return FALSE;
 				}
+			} else {
+				/* we got a path, check for matching names */
+				path = g_string_new_len(val->data.string->str, pos - val->data.string->str + 1);
 
-				li_value_free(val);
-				return TRUE;
-			}
+				dir = g_dir_open(path->str, 0, &err);
 
-
-			path = g_string_new_len(val->data.string->str, pos - val->data.string->str + 1);
-
-			dir = g_dir_open(path->str, 0, &err);
-
-			if (!dir) {
-				ERROR(srv, "include: could not open directory \"%s\": %s", path->str, err->message);
-				g_string_free(path, TRUE);
-				li_value_free(val);
-				g_error_free(err);
-				return FALSE;
-			}
-
-			pattern = g_pattern_spec_new(pos+1);
-			len = path->len;
-
-			/* loop through all filenames in the directory and include matching ones */
-			while (NULL != (filename = g_dir_read_name(dir))) {
-				if (!g_pattern_match_string(pattern, filename))
-					continue;
-
-				g_string_append(path, filename);
-
-				if (!config_parser_file(srv, ctx_stack, path->str)) {
-					li_value_free(val);
-					g_pattern_spec_free(pattern);
-					g_dir_close(dir);
+				if (!dir) {
+					ERROR(srv, "include: could not open directory \"%s\": %s", path->str, err->message);
 					g_string_free(path, TRUE);
+					li_value_free(val);
+					g_error_free(err);
 					return FALSE;
 				}
 
-				g_string_truncate(path, len);
+				pattern = g_pattern_spec_new(pos+1);
+				len = path->len;
+
+				/* loop through all filenames in the directory and include matching ones */
+				while (NULL != (filename = g_dir_read_name(dir))) {
+					if (!g_pattern_match_string(pattern, filename))
+						continue;
+
+					g_string_append(path, filename);
+
+					if (!config_parser_file(srv, ctx_stack, path->str)) {
+						li_value_free(val);
+						g_pattern_spec_free(pattern);
+						g_dir_close(dir);
+						g_string_free(path, TRUE);
+						return FALSE;
+					}
+
+					g_string_truncate(path, len);
+				}
+
+				g_string_free(path, TRUE);
+				g_pattern_spec_free(pattern);
+				g_dir_close(dir);
 			}
 
-			g_string_free(path, TRUE);
-			g_pattern_spec_free(pattern);
-			g_dir_close(dir);
 			li_value_free(val);
 		}
 		else if (g_str_equal(name->data.string->str, "include_shell")) {
