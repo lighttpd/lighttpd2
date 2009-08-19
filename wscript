@@ -153,7 +153,6 @@ def configure(conf):
 	
 
 def build(bld):
-	print "top level"
 	bld.add_subdirs('src/common')
 	bld.add_subdirs('src/angel')
 	bld.add_subdirs('src/main')
