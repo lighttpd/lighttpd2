@@ -121,14 +121,12 @@ def configure(conf):
 	conf.check(function_name='fpathconf', header_name='unistd.h', define_name='HAVE_FPATHCONF')
 	conf.check(function_name='pathconf', header_name='unistd.h', define_name='HAVE_PATHCONF')
 	conf.check(function_name='dirfd', header_name=['sys/types.h', 'dirent.h'], define_name='HAVE_DIRFD')
-	
-	conf.env['CPPPATH'] += [ '../include' ]
-	
+
 	conf.sub_config('src/common')
 	conf.sub_config('src/angel')
 	conf.sub_config('src/main')
 	conf.sub_config('src/modules')
-	
+
 	conf.define('LIGHTTPD_VERSION_ID', 20000)
 	conf.define('PACKAGE_NAME', APPNAME)
 	conf.define('PACKAGE_VERSION', VERSION)
@@ -141,7 +139,7 @@ def configure(conf):
 		conf.define('LIGHTTPD_REVISION', revno)
 
 	conf.write_config_header('include/lighttpd/config.h')
-	
+
 	Utils.pprint('WHITE', '----------------------------------------')
 	Utils.pprint('BLUE', 'Summary:')
 	print_summary(conf, 'Install lighttpd/' + VERSION + ' in', conf.env['PREFIX'])
@@ -155,6 +153,7 @@ def configure(conf):
 	
 
 def build(bld):
+	print "top level"
 	bld.add_subdirs('src/common')
 	bld.add_subdirs('src/angel')
 	bld.add_subdirs('src/main')

@@ -74,4 +74,5 @@ def build(bld):
 		defines = ['HAVE_CONFIG_H=1'],
 		uselib = libs,
 		uselib_local = ['common'],
+		includes = ['#/include/'],
 		target = 'lighttpd')

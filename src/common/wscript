@@ -31,4 +31,5 @@ def build(bld):
 		features = 'cc cstaticlib',
 	 	source = source,
 		uselib = ['glib', 'gthread', 'gmodule', 'ev'],
+		includes = ['#/include/'],
 		target = 'common')

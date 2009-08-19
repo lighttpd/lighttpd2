@@ -32,4 +32,5 @@ def build(bld):
 		defines = ['HAVE_CONFIG_H=1'],
 		uselib = ['glib', 'gthread', 'gmodule', 'ev'],
 		uselib_local = ['common'],
+		includes = ['#/include/'],
 		target = 'lighttpd-angel')

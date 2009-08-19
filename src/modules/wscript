@@ -15,11 +15,12 @@ def lighty_mod(bld, target, src, uselib = [], option = ''):
 
 	mod = bld.new_task_gen(
 		features = 'cc cshlib',
-		target = target,
 		source = src,
 		defines = ['HAVE_CONFIG_H=1'],
 		uselib = ['glib', 'gthread', 'gmodule', 'ev', 'lighty_mod'],
-		uselib_local = ['common'])
+		uselib_local = ['common'],
+		includes = ['#/include/'],
+		target = target,)
 
 
 def configure(conf):
