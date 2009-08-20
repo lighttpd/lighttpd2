@@ -30,6 +30,7 @@ def build(bld):
 	libcommon = bld.new_task_gen(
 		features = 'cc cstaticlib',
 	 	source = source,
+		defines = ['HAVE_CONFIG_H=1'],
 		uselib = ['glib', 'gthread', 'gmodule', 'ev'],
 		includes = ['#/include/'],
 		target = 'common')
