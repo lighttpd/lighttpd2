@@ -52,7 +52,10 @@ AC_CHECK_HEADERS([ev.h],[
 	AC_CHECK_LIB([ev], [ev_loop], [
 		AC_SUBST(LIBEV_CFLAGS, [])
 		AC_SUBST(LIBEV_LIBS, [-lev])
-	])],[
+		],[
+		AC_MSG_ERROR([libev not found])
+		]
+	)],[
 		AC_MSG_ERROR([libev not found])
 	]
 )
