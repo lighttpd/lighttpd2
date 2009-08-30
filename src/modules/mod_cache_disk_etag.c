@@ -153,7 +153,7 @@ static liHandlerResult cache_etag_filter_miss(liVRequest *vr, liFilter *f) {
 	cache_etag_file *cfile = (cache_etag_file*) f->param;
 	ssize_t res;
 	gchar *buf;
-	goffset buflen;
+	off_t buflen;
 	liChunkIter citer = chunkqueue_iter(f->in);
 	UNUSED(vr);
 
