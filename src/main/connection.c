@@ -55,13 +55,16 @@ static void forward_response_body(liConnection *con) {
 
 static void connection_request_done(liConnection *con) {
 	liVRequest *vr = con->mainvr;
+	liServerState s;
+
 	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(con->mainvr, "response end (keep_alive = %i)", con->keep_alive);
 	}
 
 	li_plugins_handle_close(con);
 
-	if (con->keep_alive && g_atomic_int_get(&con->srv->state) == LI_SERVER_RUNNING) {
+	s = g_atomic_int_get(&con->srv->dest_state);
+	if (con->keep_alive &&  (LI_SERVER_RUNNING == s || LI_SERVER_WARMUP == s)) {
 		li_connection_reset_keep_alive(con);
 	} else {
 		worker_con_put(con);

@@ -14,9 +14,17 @@
 void li_log_write(liServer *srv, liLog *log, GString *msg) {
 	liLogEntry *log_entry;
 
-	if (g_atomic_int_get(&srv->state) == LI_SERVER_STARTING) {
+	switch (g_atomic_int_get(&srv->state)) {
+	case LI_SERVER_INIT:
+	case LI_SERVER_LOADING:
+	case LI_SERVER_SUSPENDED:
+	case LI_SERVER_WARMUP:
+	case LI_SERVER_STOPPING:
+	case LI_SERVER_DOWN:
 		li_angel_log(srv, msg);
 		return;
+	default:
+		break;
 	}
 
 	log_ref(srv, log);
@@ -122,10 +130,18 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 
 	g_string_append_len(log_line, CONST_STR_LEN("\r\n"));
 
-	if (g_atomic_int_get(&srv->state) == LI_SERVER_STARTING) {
+	switch (g_atomic_int_get(&srv->state)) {
+	case LI_SERVER_INIT:
+	case LI_SERVER_LOADING:
+	case LI_SERVER_SUSPENDED:
+	case LI_SERVER_WARMUP:
+	case LI_SERVER_STOPPING:
+	case LI_SERVER_DOWN:
 		log_unref(srv, log);
 		li_angel_log(srv, log_line);
 		return TRUE;
+	default:
+		break;
 	}
 	log_entry = g_slice_new(liLogEntry);
 	log_entry->log = log;

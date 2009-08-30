@@ -1287,6 +1287,29 @@ static liAction* core_throttle_connection(liServer *srv, liPlugin* p, liValue *v
 	return li_action_new_function(core_handle_throttle_connection, NULL, NULL, GUINT_TO_POINTER((guint) rate));
 }
 
+static void core_warmup(liServer *srv, liPlugin *p, gint32 id, GString *data) {
+	UNUSED(p);
+	UNUSED(id);
+	UNUSED(data);
+
+	li_server_goto_state(srv, LI_SERVER_WARMUP);
+}
+
+static void core_run(liServer *srv, liPlugin *p, gint32 id, GString *data) {
+	UNUSED(p);
+	UNUSED(id);
+	UNUSED(data);
+
+	li_server_goto_state(srv, LI_SERVER_RUNNING);
+}
+
+static void core_suspend(liServer *srv, liPlugin *p, gint32 id, GString *data) {
+	UNUSED(p);
+	UNUSED(id);
+	UNUSED(data);
+
+	li_server_goto_state(srv, LI_SERVER_SUSPENDED);
+}
 
 static const liPluginOption options[] = {
 	{ "debug.log_request_handling", LI_VALUE_BOOLEAN, GINT_TO_POINTER(FALSE), NULL, NULL },
@@ -1357,6 +1380,10 @@ static const liPluginSetup setups[] = {
 };
 
 static const liPluginAngel angelcbs[] = {
+	{ "warmup", core_warmup },
+	{ "run", core_run },
+	{ "suspend", core_suspend },
+
 	{ NULL, NULL }
 };
 

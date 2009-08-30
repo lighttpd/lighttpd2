@@ -8,6 +8,8 @@ static void angel_call_cb(liAngelConnection *acon,
 	liServer *srv = acon->data;
 	liPlugin *p;
 	const liPluginAngel *acb;
+	UNUSED(action_len);
+	UNUSED(mod_len);
 
 	if (NULL == (p = g_hash_table_lookup(srv->plugins, mod))) goto not_found;
 	if (NULL == p->angelcbs) goto not_found;
@@ -35,6 +37,7 @@ static void angel_close_cb(liAngelConnection *acon, GError *err) {
 
 void li_angel_setup(liServer *srv) {
 	srv->acon = li_angel_connection_new(srv->loop, 0, srv, angel_call_cb, angel_close_cb);
+	srv->dest_state = LI_SERVER_SUSPENDED;
 }
 
 static void li_angel_listen_cb(liAngelCall *acall, gpointer ctx, gboolean timeout, GString *error, GString *data, GArray *fds) {

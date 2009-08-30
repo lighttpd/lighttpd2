@@ -50,9 +50,12 @@ static void li_plugin_free_setups(liServer *srv, liPlugin *p) {
 }
 
 void li_plugin_free(liServer *srv, liPlugin *p) {
+	liServerState s;
+
 	if (!p) return;
 
-	if (g_atomic_int_get(&srv->state) == LI_SERVER_RUNNING) {
+	s = g_atomic_int_get(&srv->state);
+	if (LI_SERVER_INIT != s && LI_SERVER_DOWN != s) {
 		ERROR(srv, "Cannot free plugin '%s' while server is running", p->name);
 		return;
 	}
@@ -71,8 +74,10 @@ void li_plugin_free(liServer *srv, liPlugin *p) {
 void li_server_plugins_free(liServer *srv) {
 	gpointer key, val;
 	GHashTableIter i;
+	liServerState s;
 
-	if (g_atomic_int_get(&srv->state) == LI_SERVER_RUNNING) {
+	s = g_atomic_int_get(&srv->state);
+	if (LI_SERVER_INIT != s && LI_SERVER_DOWN != s) {
 		ERROR(srv, "%s", "Cannot free plugins while server is running");
 		return;
 	}
@@ -95,13 +100,15 @@ void li_server_plugins_free(liServer *srv) {
 
 liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB init) {
 	liPlugin *p;
+	liServerState s;
 
 	if (!init) {
 		ERROR(srv, "Module '%s' needs an init function", name);
 		return NULL;
 	}
 
-	if (g_atomic_int_get(&srv->state) != LI_SERVER_STARTING) {
+	s = g_atomic_int_get(&srv->state);
+	if (LI_SERVER_INIT != s) {
 		ERROR(srv, "Cannot register plugin '%s' after server was started", name);
 		return NULL;
 	}
@@ -432,4 +439,28 @@ static void li_plugin_free_default_options(liServer *srv, liPlugin *p) {
 		li_release_option(srv, &mark);
 		g_array_index(srv->option_def_values, liOptionValue, sopt->index) = oempty;
 	}
+}
+
+void li_plugins_prepare_worker(liWorker *srv) { /* blocking callbacks */
+	/* TODO */
+}
+void li_plugins_prepare(liServer* srv) { /* "prepare", async */
+	/* TODO */
+}
+
+void li_plugins_start_listen(liServer *srv) { /* "warmup" */
+	/* TODO */
+}
+void li_plugins_stop_listen(liServer *srv) { /* "prepare suspend", async */
+	/* TODO */
+}
+void li_plugins_start_log(liServer *srv) { /* "run" */
+	/* TODO */
+}
+void li_plugins_stop_log(liServer *srv) { /* "suspend now" */
+	/* TODO */
+}
+
+void li_plugin_ready_for_state(liServer *srv, liPlugin *p, liServerState state) {
+	/* TODO */
 }

@@ -195,6 +195,8 @@ static void core_listen(liServer *srv, liInstance *i, liPlugin *p, gint32 id, GS
 	GError *err = NULL;
 	gint fd;
 	GArray *fds;
+	UNUSED(p);
+
 	DEBUG(srv, "core_listen(%i) '%s'", id, data->str);
 
 	if (-1 == id) return; /* ignore simple calls */
@@ -218,6 +220,22 @@ static void core_listen(liServer *srv, liInstance *i, liPlugin *p, gint32 id, GS
 		ERROR(srv, "Couldn't send result: %s", err->message);
 		g_error_free(err);
 		return;
+	}
+}
+
+static void core_reached_state(liServer *srv, liInstance *i, liPlugin *p, gint32 id, GString *data) {
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(id);
+
+	if (0 == strcmp(data->str, "suspended")) {
+		li_instance_state_reached(i, LI_INSTANCE_SUSPENDED);
+	} else if (0 == strcmp(data->str, "warmup")) {
+		li_instance_state_reached(i, LI_INSTANCE_WARMUP);
+	} else if (0 == strcmp(data->str, "running")) {
+		li_instance_state_reached(i, LI_INSTANCE_RUNNING);
+	} else if (0 == strcmp(data->str, "suspending")) {
+		li_instance_state_reached(i, LI_INSTANCE_SUSPENDING);
 	}
 }
 
@@ -292,6 +310,7 @@ static gboolean core_init(liServer *srv, liPlugin *p) {
 	p->handle_activate_config = core_activate;
 
 	g_hash_table_insert(p->angel_callbacks, "listen", (gpointer)(intptr_t)core_listen);
+	g_hash_table_insert(p->angel_callbacks, "reached-state", (gpointer)(intptr_t)core_reached_state);
 
 	return TRUE;
 }

@@ -12,7 +12,7 @@
 typedef enum {
 	LI_INSTANCE_DOWN,       /* not started yet */
 	LI_INSTANCE_SUSPENDED,  /* inactive, neither accept nor logs, handle remaining connections */
-	LI_INSTANCE_SILENT,     /* only accept(), no logging: waiting for another instance to suspend */
+	LI_INSTANCE_WARMUP,     /* only accept(), no logging: waiting for another instance to suspend */
 	LI_INSTANCE_RUNNING,    /* everything running */
 	LI_INSTANCE_SUSPENDING, /* suspended accept(), still logging, handle remaining connections  */
 	LI_INSTANCE_FINISHED    /* not running */
@@ -65,6 +65,7 @@ LI_API void li_server_stop(liServer *srv);
 LI_API liInstance* li_server_new_instance(liServer *srv, liInstanceConf *ic);
 LI_API void li_instance_replace(liInstance *oldi, liInstance *newi);
 LI_API void li_instance_set_state(liInstance *i, liInstanceState s);
+LI_API void li_instance_state_reached(liInstance *i, liInstanceState s);
 
 LI_API liInstanceConf* li_instance_conf_new(gchar **cmd, GString *username, uid_t uid, gid_t gid);
 LI_API void li_instance_conf_release(liInstanceConf *ic);

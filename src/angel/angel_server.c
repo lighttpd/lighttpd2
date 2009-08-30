@@ -1,8 +1,6 @@
 
 #include <lighttpd/angel_base.h>
 
-static void instance_state_reached(liInstance *i, liInstanceState s);
-
 #define CATCH_SIGNAL(loop, cb, n) do {              \
     ev_init(&srv->sig_w_##n, cb);                   \
     ev_signal_set(&srv->sig_w_##n, SIG##n);         \
@@ -70,6 +68,8 @@ static void instance_angel_call_cb(liAngelConnection *acon,
 	liPlugins *ps = &srv->plugins;
 	liPlugin *p;
 	liPluginHandleCallCB cb;
+	UNUSED(mod_len);
+	UNUSED(action_len);
 
 	p = g_hash_table_lookup(ps->ht_plugins, mod);
 	if (!p) {
@@ -152,7 +152,7 @@ static void instance_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 	li_angel_connection_free(i->acon);
 	i->acon = NULL;
 	ev_child_stop(loop, w);
-	instance_state_reached(i, news);
+	li_instance_state_reached(i, news);
 	li_instance_release(i);
 }
 
@@ -205,6 +205,7 @@ liInstance* li_server_new_instance(liServer *srv, liInstanceConf *ic) {
 }
 
 void li_instance_replace(liInstance *oldi, liInstance *newi) {
+	/* TODO ??? */
 }
 
 void li_instance_set_state(liInstance *i, liInstanceState s) {
@@ -214,7 +215,7 @@ void li_instance_set_state(liInstance *i, liInstanceState s) {
 	case LI_INSTANCE_SUSPENDING:
 		ERROR(i->srv, "Invalid destination state %i", s);
 		return; /* cannot set this */
-	case LI_INSTANCE_SILENT:
+	case LI_INSTANCE_WARMUP:
 	case LI_INSTANCE_SUSPENDED:
 	case LI_INSTANCE_RUNNING:
 	case LI_INSTANCE_FINISHED:
@@ -230,8 +231,8 @@ void li_instance_set_state(liInstance *i, liInstanceState s) {
 		case LI_INSTANCE_DOWN:
 		case LI_INSTANCE_SUSPENDING:
 			break; /* cannot be set */
-		case LI_INSTANCE_SILENT:
-			li_angel_send_simple_call(i->acon, CONST_STR_LEN("core"), CONST_STR_LEN("run-silent"), NULL, &error);
+		case LI_INSTANCE_WARMUP:
+			li_angel_send_simple_call(i->acon, CONST_STR_LEN("core"), CONST_STR_LEN("warmup"), NULL, &error);
 			break;
 		case LI_INSTANCE_SUSPENDED:
 			li_angel_send_simple_call(i->acon, CONST_STR_LEN("core"), CONST_STR_LEN("suspend"), NULL, &error);
@@ -243,7 +244,7 @@ void li_instance_set_state(liInstance *i, liInstanceState s) {
 			if (i->proc) {
 				kill(i->proc->child_pid, SIGTERM);
 			} else {
-				instance_state_reached(i, LI_INSTANCE_FINISHED);
+				li_instance_state_reached(i, LI_INSTANCE_FINISHED);
 			}
 			break;
 		}
@@ -254,13 +255,13 @@ void li_instance_set_state(liInstance *i, liInstanceState s) {
 			if (i->proc) {
 				kill(i->proc->child_pid, SIGTERM);
 			} else {
-				instance_state_reached(i, LI_INSTANCE_FINISHED);
+				li_instance_state_reached(i, LI_INSTANCE_FINISHED);
 			}
 		}
 	}
 }
 
-static void instance_state_reached(liInstance *i, liInstanceState s) {
+void li_instance_state_reached(liInstance *i, liInstanceState s) {
 	GError *error = NULL;
 
 	i->s_cur = s;
@@ -279,9 +280,9 @@ static void instance_state_reached(liInstance *i, liInstanceState s) {
 			break; /* impossible */
 		case LI_INSTANCE_SUSPENDED:
 			break;
-		case LI_INSTANCE_SILENT:
+		case LI_INSTANCE_WARMUP:
 			/* make sure we move to SILENT after we spawned the instance */
-			li_angel_send_simple_call(i->acon, CONST_STR_LEN("core"), CONST_STR_LEN("run-silent"), NULL, &error);
+			li_angel_send_simple_call(i->acon, CONST_STR_LEN("core"), CONST_STR_LEN("warmup"), NULL, &error);
 			break;
 		case LI_INSTANCE_RUNNING:
 			/* make sure we move to RUNNING after we spawned the instance */
@@ -292,7 +293,7 @@ static void instance_state_reached(liInstance *i, liInstanceState s) {
 			break; /* nothing to do, instance should already know what to do */
 		}
 		break;
-	case LI_INSTANCE_SILENT:
+	case LI_INSTANCE_WARMUP:
 		/* TODO: replace another instance? */
 		break;
 	case LI_INSTANCE_RUNNING:
@@ -314,7 +315,7 @@ static void instance_state_reached(liInstance *i, liInstanceState s) {
 		if (i->proc) {
 			kill(i->proc->child_pid, SIGTERM);
 		} else {
-			instance_state_reached(i, LI_INSTANCE_FINISHED);
+			li_instance_state_reached(i, LI_INSTANCE_FINISHED);
 		}
 	}
 }

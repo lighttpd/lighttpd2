@@ -143,14 +143,20 @@ int main(int argc, char *argv[]) {
 #endif
 	}
 
+	if (!srv->mainaction) {
+		ERROR(srv, "%s", "No action handlers defined");
+		return 1;
+	}
+
 	/* if config should only be tested, exit here  */
 	if (test_config)
 		return 0;
 
 	/* TRACE(srv, "%s", "Test!"); */
 
-	li_server_worker_init(srv);
-	li_server_start(srv);
+	li_server_reached_state(srv, LI_SERVER_LOADING);
+	li_worker_run(srv->main_worker);
+	li_server_reached_state(srv, LI_SERVER_DOWN);
 
 	if (!luaconfig)
 		config_parser_finish(srv, ctx_stack, TRUE);

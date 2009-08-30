@@ -3,6 +3,7 @@
 #include <lighttpd/plugin_core.h>
 
 static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents);
+static void li_server_stop(liServer *srv);
 
 static liServerSocket* server_socket_new(int fd) {
 	liServerSocket *sock = g_slice_new0(liServerSocket);
@@ -58,18 +59,15 @@ static void server_setup_free(gpointer _ss) {
 
 static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	liServer *srv = (liServer*) w->data;
+	UNUSED(loop);
 	UNUSED(revents);
 
-	if (g_atomic_int_get(&srv->state) != LI_SERVER_STOPPING) {
+	if (g_atomic_int_get(&srv->dest_state) != LI_SERVER_DOWN) {
 		INFO(srv, "%s", "Got signal, shutdown");
-		li_server_stop(srv);
+		li_server_goto_state(srv, LI_SERVER_DOWN);
 	} else {
 		INFO(srv, "%s", "Got second signal, force shutdown");
-
-		/* reset default behaviour which will kill us the third time */
-		UNCATCH_SIGNAL(loop, INT);
-		UNCATCH_SIGNAL(loop, TERM);
-		UNCATCH_SIGNAL(loop, PIPE);
+		exit(1);
 	}
 }
 
@@ -82,7 +80,8 @@ liServer* li_server_new(const gchar *module_dir) {
 	liServer* srv = g_slice_new0(liServer);
 
 	srv->magic = LIGHTTPD_SERVER_MAGIC;
-	srv->state = LI_SERVER_STARTING;
+	srv->state = LI_SERVER_INIT;
+	srv->dest_state = LI_SERVER_RUNNING;
 
 	srv->workers = g_array_new(FALSE, TRUE, sizeof(liWorker*));
 	srv->worker_count = 0;
@@ -115,6 +114,7 @@ liServer* li_server_new(const gchar *module_dir) {
 	log_init(srv);
 
 	srv->io_timeout = 300; /* default I/O timeout */
+	srv->keep_alive_queue_timeout = 5;
 
 	return srv;
 }
@@ -310,75 +310,69 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	}
 }
 
+/* main worker only */
 void li_server_listen(liServer *srv, int fd) {
 	liServerSocket *sock = server_socket_new(fd);
 
 	sock->srv = srv;
 	g_ptr_array_add(srv->sockets, sock);
 
-	if (g_atomic_int_get(&srv->state) == LI_SERVER_RUNNING) ev_io_start(srv->main_worker->loop, &sock->watcher);
+	if (LI_SERVER_RUNNING == srv->state || LI_SERVER_WARMUP == srv->state) ev_io_start(srv->main_worker->loop, &sock->watcher);
 }
 
-void li_server_start(liServer *srv) {
+static void li_server_start_listen(liServer *srv) {
 	guint i;
-	liServerState srvstate = g_atomic_int_get(&srv->state);
-	if (srvstate == LI_SERVER_STOPPING || srvstate == LI_SERVER_RUNNING) return; /* no restart after stop */
-	g_atomic_int_set(&srv->state, LI_SERVER_RUNNING);
-
-	if (!srv->mainaction) {
-		ERROR(srv, "%s", "No action handlers defined");
-		li_server_stop(srv);
-		return;
-	}
-
-	srv->keep_alive_queue_timeout = 5;
-
-	li_plugins_prepare_callbacks(srv);
 
 	for (i = 0; i < srv->sockets->len; i++) {
 		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
 		ev_io_start(srv->main_worker->loop, &sock->watcher);
 	}
 
-	srv->started = ev_now(srv->main_worker->loop);
 	{
 		GString *str = li_worker_current_timestamp(srv->main_worker, LI_LOCALTIME, LI_TS_FORMAT_DEFAULT);
 		srv->started = ev_now(srv->main_worker->loop);
 		srv->started_str = g_string_new_len(GSTR_LEN(str));
 	}
-
-	log_thread_start(srv);
-
-	li_worker_run(srv->main_worker);
 }
 
-void li_server_stop(liServer *srv) {
+static void li_server_stop_listen(liServer *srv) {
 	guint i;
 
-	if (g_atomic_int_get(&srv->state) == LI_SERVER_STOPPING) return;
-	g_atomic_int_set(&srv->state, LI_SERVER_STOPPING);
-
-	if (srv->main_worker) {
-		for (i = 0; i < srv->sockets->len; i++) {
-			liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
-			ev_io_stop(srv->main_worker->loop, &sock->watcher);
-		}
-
-		/* stop all workers */
-		for (i = 0; i < srv->worker_count; i++) {
-			liWorker *wrk;
-			wrk = g_array_index(srv->workers, liWorker*, i);
-			li_worker_stop(srv->main_worker, wrk);
-		}
+	for (i = 0; i < srv->sockets->len; i++) {
+		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
+		ev_io_stop(srv->main_worker->loop, &sock->watcher);
 	}
 
-	log_thread_wakeup(srv);
+	/* suspend all workers (close keep-alive connections) */
+	for (i = 0; i < srv->worker_count; i++) {
+		liWorker *wrk;
+		wrk = g_array_index(srv->workers, liWorker*, i);
+		li_worker_suspend(srv->main_worker, wrk);
+	}
+}
+
+static void li_server_stop(liServer *srv) {
+	guint i;
+
+	for (i = 0; i < srv->sockets->len; i++) {
+		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
+		ev_io_stop(srv->main_worker->loop, &sock->watcher);
+	}
+
+	/* stop all workers */
+	for (i = 0; i < srv->worker_count; i++) {
+		liWorker *wrk;
+		wrk = g_array_index(srv->workers, liWorker*, i);
+		li_worker_stop(srv->main_worker, wrk);
+	}
 }
 
 void li_server_exit(liServer *srv) {
 	li_server_stop(srv);
 
 	g_atomic_int_set(&srv->exiting, TRUE);
+	g_atomic_int_set(&srv->state, LI_SERVER_DOWN);
+	g_atomic_int_set(&srv->dest_state, LI_SERVER_DOWN);
 
 	/* exit all workers */
 	{
@@ -443,4 +437,207 @@ guint li_server_ts_format_add(liServer *srv, GString* format) {
 
 	g_array_append_val(srv->ts_formats, format);
 	return i;
+}
+
+/* state machine: call this functions only in the main worker context */
+/* Note: main worker doesn't need atomic read for state */
+
+#if 0
+	case LI_SERVER_INIT:
+	case LI_SERVER_LOADING:
+	case LI_SERVER_SUSPENDED:
+	case LI_SERVER_WARMUP:
+	case LI_SERVER_RUNNING:
+	case LI_SERVER_SUSPENDING:
+	case LI_SERVER_STOPPING:
+	case LI_SERVER_DOWN:
+#endif
+
+static const gchar* li_server_state_string(liServerState state) {
+	switch (state) {
+	case LI_SERVER_INIT: return "init";
+	case LI_SERVER_LOADING: return "loading";
+	case LI_SERVER_SUSPENDED: return "suspended";
+	case LI_SERVER_WARMUP: return "warmup";
+	case LI_SERVER_RUNNING: return "running";
+	case LI_SERVER_SUSPENDING: return "suspending";
+	case LI_SERVER_STOPPING: return "stopping";
+	case LI_SERVER_DOWN: return "down";
+	}
+
+	return "<unkown>";
+}
+
+/* next state in the machine we want to reach to reach */
+static liServerState li_server_next_state(liServer *srv) {
+	switch (srv->state) {
+	case LI_SERVER_INIT:
+		return LI_SERVER_LOADING;
+	case LI_SERVER_LOADING:
+		if (LI_SERVER_DOWN == srv->dest_state) return LI_SERVER_STOPPING;
+		return LI_SERVER_SUSPENDED;
+	case LI_SERVER_SUSPENDED:
+		switch (srv->dest_state) {
+		case LI_SERVER_INIT:
+		case LI_SERVER_LOADING:
+		case LI_SERVER_SUSPENDED:
+			return LI_SERVER_SUSPENDED;
+		case LI_SERVER_WARMUP:
+		case LI_SERVER_RUNNING:
+		case LI_SERVER_SUSPENDING:
+			return LI_SERVER_WARMUP;
+		case LI_SERVER_STOPPING:
+		case LI_SERVER_DOWN:
+			return LI_SERVER_STOPPING;
+		}
+		return LI_SERVER_DOWN;
+	case LI_SERVER_WARMUP:
+		if (LI_SERVER_WARMUP == srv->dest_state) return LI_SERVER_WARMUP;
+		return LI_SERVER_RUNNING;
+	case LI_SERVER_RUNNING:
+		if (LI_SERVER_RUNNING == srv->dest_state) return LI_SERVER_RUNNING;
+		return LI_SERVER_SUSPENDING;
+	case LI_SERVER_SUSPENDING:
+		if (LI_SERVER_RUNNING == srv->dest_state) return LI_SERVER_RUNNING;
+		if (LI_SERVER_SUSPENDING == srv->dest_state) return LI_SERVER_SUSPENDING;
+		return LI_SERVER_SUSPENDED;
+	case LI_SERVER_STOPPING:
+	case LI_SERVER_DOWN:
+		return LI_SERVER_DOWN;
+	}
+	return LI_SERVER_DOWN;
+}
+
+static void li_server_start_transition(liServer *srv, liServerState state) {
+	guint i;
+	DEBUG(srv, "Try reaching state: %s (dest: %s)", li_server_state_string(state), li_server_state_string(srv->dest_state));
+
+	switch (state) {
+	case LI_SERVER_INIT:
+	case LI_SERVER_LOADING:
+	case LI_SERVER_SUSPENDED:
+		/* TODO: wait for prepare / suspended */
+		li_server_reached_state(srv, LI_SERVER_SUSPENDED);
+		break;
+	case LI_SERVER_WARMUP:
+		li_server_start_listen(srv);
+		li_plugins_start_listen(srv);
+		li_server_reached_state(srv, LI_SERVER_WARMUP);
+		break;
+	case LI_SERVER_RUNNING:
+		if (LI_SERVER_WARMUP == srv->state) {
+			li_plugins_start_log(srv);
+			li_server_reached_state(srv, LI_SERVER_RUNNING);
+		} else if (LI_SERVER_SUSPENDING == srv->state) {
+			li_server_start_listen(srv);
+			li_plugins_start_listen(srv);
+			li_server_reached_state(srv, LI_SERVER_RUNNING);
+		}
+		break;
+	case LI_SERVER_SUSPENDING:
+		li_server_stop_listen(srv);
+		li_plugins_stop_listen(srv);
+		/* wait for closed connections and plugins */
+		/* TODO: wait */
+		li_server_reached_state(srv, LI_SERVER_SUSPENDING);
+		break;
+	case LI_SERVER_STOPPING:
+		/* stop all workers */
+		for (i = 0; i < srv->worker_count; i++) {
+			liWorker *wrk;
+			wrk = g_array_index(srv->workers, liWorker*, i);
+			li_worker_stop(srv->main_worker, wrk);
+		}
+
+		log_thread_wakeup(srv);
+		li_server_reached_state(srv, LI_SERVER_STOPPING);
+		break;
+	case LI_SERVER_DOWN:
+		/* wait */
+		break;
+	}
+}
+
+void li_server_goto_state(liServer *srv, liServerState state) {
+	if (srv->dest_state == LI_SERVER_DOWN || srv->dest_state == state) return; /* cannot undo this */
+
+	switch (state) {
+	case LI_SERVER_INIT:
+	case LI_SERVER_LOADING:
+	case LI_SERVER_SUSPENDING:
+	case LI_SERVER_STOPPING:
+		return; /* invalid dest states */
+	case LI_SERVER_WARMUP:
+	case LI_SERVER_RUNNING:
+	case LI_SERVER_SUSPENDED:
+	case LI_SERVER_DOWN:
+		break;
+	}
+
+	g_atomic_int_set(&srv->dest_state, state);
+
+	if (srv->dest_state != srv->state) {
+		liServerState want_state = li_server_next_state(srv);
+		li_server_start_transition(srv, want_state);
+	}
+}
+
+void li_server_reached_state(liServer *srv, liServerState state) {
+	liServerState want_state = li_server_next_state(srv);
+	liServerState old_state = srv->state;
+
+	if (state != want_state) return;
+	if (state == srv->state) return;
+
+	g_atomic_int_set(&srv->state, state);
+	DEBUG(srv, "Reached state: %s (dest: %s)", li_server_state_string(state), li_server_state_string(srv->dest_state));
+
+	switch (srv->state) {
+	case LI_SERVER_INIT:
+		break;
+	case LI_SERVER_LOADING:
+		li_plugins_prepare_callbacks(srv);
+		li_server_worker_init(srv);
+
+		{
+			GString *str = li_worker_current_timestamp(srv->main_worker, LI_LOCALTIME, LI_TS_FORMAT_DEFAULT);
+			srv->started = ev_now(srv->main_worker->loop);
+			srv->started_str = g_string_new_len(GSTR_LEN(str));
+		}
+
+		log_thread_start(srv);
+
+		li_plugins_prepare(srv);
+		/* wait for plugins to report success */
+		break;
+	case LI_SERVER_SUSPENDED:
+		if (LI_SERVER_SUSPENDING == old_state) {
+			li_plugins_stop_log(srv);
+		}
+		break;
+	case LI_SERVER_WARMUP:
+	case LI_SERVER_RUNNING:
+		break;
+	case LI_SERVER_SUSPENDING:
+	case LI_SERVER_STOPPING:
+		break;
+	case LI_SERVER_DOWN:
+		/* li_server_exit(srv); */
+		return;
+	}
+
+	if (srv->acon) {
+		GString *data = g_string_new(li_server_state_string(srv->state));
+		GError *err = NULL;
+
+		if (!li_angel_send_simple_call(srv->acon, CONST_STR_LEN("core"), CONST_STR_LEN("reached-state"), data, &err)) {
+			GERROR(srv, err, "%s", "couldn't send state update to angel");
+			g_error_free(err);
+		}
+	}
+
+	if (srv->dest_state != srv->state) {
+		want_state = li_server_next_state(srv);
+		li_server_start_transition(srv, want_state);
+	}
 }

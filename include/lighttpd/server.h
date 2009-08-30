@@ -6,9 +6,14 @@
 #endif
 
 typedef enum {
-	LI_SERVER_STARTING,         /** start up: don't write log files, don't accept connections */
-	LI_SERVER_RUNNING,          /** running: write logs, accept connections */
-	LI_SERVER_STOPPING          /** stopping: flush logs, don't accept new connections */
+	LI_SERVER_INIT,             /** start state */
+	LI_SERVER_LOADING,          /** config loaded, prepare listeing sockets/open log files */
+	LI_SERVER_SUSPENDED,        /** ready to go, no logs */
+	LI_SERVER_WARMUP,           /** listen() active, no logs yet, handling remaining connections */
+	LI_SERVER_RUNNING,          /** listen() and logs active */
+	LI_SERVER_SUSPENDING,       /** listen() stopped, logs active, handling remaining connections */
+	LI_SERVER_STOPPING,         /** listen() stopped, no logs, handling remaining connections */
+	LI_SERVER_DOWN              /** exit */
 } liServerState;
 
 struct liServerSocket {
@@ -21,7 +26,7 @@ struct liServerSocket {
 
 struct liServer {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
-	liServerState state;       /** atomic access */
+	liServerState state, dest_state;       /** atomic access */
 	liAngelConnection *acon;
 
 	liWorker *main_worker;
@@ -91,10 +96,6 @@ LI_API gboolean li_server_worker_init(liServer *srv);
 
 LI_API void li_server_listen(liServer *srv, int fd);
 
-/* Start accepting connection, use log files, no new plugins after that */
-LI_API void li_server_start(liServer *srv);
-/* stop accepting connections, turn keep-alive off, close all shutdown sockets, set exiting = TRUE */
-LI_API void li_server_stop(liServer *srv);
 /* exit asap with cleanup */
 LI_API void li_server_exit(liServer *srv);
 
@@ -106,5 +107,8 @@ LI_API guint li_server_ts_format_add(liServer *srv, GString* format);
 
 LI_API void li_server_socket_release(liServerSocket* sock);
 LI_API void li_server_socket_acquire(liServerSocket* sock);
+
+LI_API void li_server_goto_state(liServer *srv, liServerState state);
+LI_API void li_server_reached_state(liServer *srv, liServerState state);
 
 #endif

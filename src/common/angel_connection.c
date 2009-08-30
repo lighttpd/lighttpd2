@@ -557,17 +557,17 @@ gboolean li_angel_send_simple_call(
 		goto error;
 	}
 
-	if (data->len > ANGEL_CALL_MAX_STR_LEN) {
+	if (data && data->len > ANGEL_CALL_MAX_STR_LEN) {
 		g_set_error(err, LI_ANGEL_CALL_ERROR, LI_ANGEL_CALL_INVALID, "data too lang for angel call: %" G_GSIZE_FORMAT " > %i", data->len, ANGEL_CALL_MAX_STR_LEN);
 		goto error;
 	}
 
-	if (!prepare_call_header(&buf, ANGEL_CALL_SEND_SIMPLE, -1, mod, mod_len, action, action_len, 0, data->len, 0, err)) goto error;
+	if (!prepare_call_header(&buf, ANGEL_CALL_SEND_SIMPLE, -1, mod, mod_len, action, action_len, 0, data ? data->len : 0, 0, err)) goto error;
 
 	g_mutex_lock(acon->mutex);
 		queue_was_empty = (0 == acon->out->length);
 		send_queue_push_string(acon->out, buf);
-		send_queue_push_string(acon->out, data);
+		if (data) send_queue_push_string(acon->out, data);
 	g_mutex_unlock(acon->mutex);
 
 	if (queue_was_empty)
@@ -629,7 +629,7 @@ gboolean li_angel_send_call(
 	g_mutex_lock(acon->mutex);
 		queue_was_empty = (0 == acon->out->length);
 		send_queue_push_string(acon->out, buf);
-		send_queue_push_string(acon->out, data);
+		if (data) send_queue_push_string(acon->out, data);
 	g_mutex_unlock(acon->mutex);
 
 	if (queue_was_empty)
@@ -675,7 +675,7 @@ gboolean li_angel_send_result(
 		queue_was_empty = (0 == acon->out->length);
 		send_queue_push_string(acon->out, buf);
 		send_queue_push_string(acon->out, error);
-		send_queue_push_string(acon->out, data);
+		if (data) send_queue_push_string(acon->out, data);
 		send_queue_push_fds(acon->out, fds);
 	g_mutex_unlock(acon->mutex);
 

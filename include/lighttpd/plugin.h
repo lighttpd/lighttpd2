@@ -33,6 +33,8 @@ struct liPlugin {
 
 	size_t opt_base_index;
 
+	gboolean ready_for_next_state; /**< don't modify this; use li_plugin_ready_for_state() instead */
+
 	liPluginFreeCB free;   /**< called before plugin is unloaded */
 
 	liPluginHandleVRequestCB handle_request_body;
@@ -128,6 +130,18 @@ LI_API gboolean li_parse_option(liServer *srv, const char *name, liValue *val, l
 LI_API void li_release_option(liServer *srv, liOptionSet *mark); /**< Does not free the option_set memory */
 
 LI_API void li_plugins_prepare_callbacks(liServer *srv);
+
+/* server state machine callbacks */
+LI_API void li_plugins_prepare_worker(liWorker *srv); /* blocking callbacks */
+LI_API void li_plugins_prepare(liServer *srv); /* "prepare", async */
+
+LI_API void li_plugins_start_listen(liServer *srv); /* "warmup" */
+LI_API void li_plugins_stop_listen(liServer *srv); /* "prepare suspend", async */
+LI_API void li_plugins_start_log(liServer *srv); /* "run" */
+LI_API void li_plugins_stop_log(liServer *srv); /* "suspend now" */
+
+LI_API void li_plugin_ready_for_state(liServer *srv, liPlugin *p, liServerState state);
+
 LI_API void li_plugins_handle_close(liConnection *con);
 LI_API void li_plugins_handle_vrclose(liVRequest *vr);
 
