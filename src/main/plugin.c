@@ -38,7 +38,7 @@ static void li_plugin_free_actions(liServer *srv, liPlugin *p) {
 
 static void li_plugin_free_setups(liServer *srv, liPlugin *p) {
 	size_t i;
-	const liliPluginSetupCB *ps;
+	const liPluginSetup *ps;
 	liServerSetup *ss;
 
 	if (!p->setups) return;
@@ -169,7 +169,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 	if (p->setups) {
 		size_t i;
 		liServerSetup *ss;
-		const liliPluginSetupCB *ps;
+		const liPluginSetup *ps;
 
 		for (i = 0; (ps = &p->setups[i])->name; i++) {
 			if (NULL != (ss = (liServerSetup*)g_hash_table_lookup(srv->setups, ps->name))) {

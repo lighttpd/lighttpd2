@@ -130,9 +130,11 @@ typedef struct liPluginAction liPluginAction;
 
 typedef struct liServerAction liServerAction;
 
-typedef struct liliPluginSetupCB liliPluginSetupCB;
+typedef struct liPluginSetup liPluginSetup;
 
 typedef struct liServerSetup liServerSetup;
+
+typedef struct liPluginAngel liPluginAngel;
 
 /* request.h */
 

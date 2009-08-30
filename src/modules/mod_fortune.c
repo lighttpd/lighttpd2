@@ -147,7 +147,7 @@ static const liPluginAction actions[] = {
 	{ NULL, NULL }
 };
 
-static const liliPluginSetupCB setups[] = {
+static const liPluginSetup setups[] = {
 	{ "fortune.load", fortune_load },
 	{ NULL, NULL }
 };

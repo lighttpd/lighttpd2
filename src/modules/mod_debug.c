@@ -309,7 +309,7 @@ static const liPluginAction actions[] = {
 	{ NULL, NULL }
 };
 
-static const liliPluginSetupCB setups[] = {
+static const liPluginSetup setups[] = {
 	{ NULL, NULL }
 };
 

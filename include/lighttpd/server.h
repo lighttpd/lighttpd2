@@ -42,13 +42,13 @@ struct liServer {
 
 	liModules *modules;
 
-	GHashTable *plugins;      /**< const gchar* => (plugin*) */
+	GHashTable *plugins;      /**< const gchar* => (liPlugin*) */
 	liPlugin *core_plugin;
 
 	/* registered by plugins */
-	GHashTable *options;      /**< const gchar* => (server_option*) */
-	GHashTable *actions;      /**< const gchar* => (server_action*) */
-	GHashTable *setups;       /**< const gchar* => (server_setup*) */
+	GHashTable *options;      /**< const gchar* => (liServerOption*) */
+	GHashTable *actions;      /**< const gchar* => (liServerAction*) */
+	GHashTable *setups;       /**< const gchar* => (liServerSetup*) */
 
 	GArray *li_plugins_handle_close; /** list of handle_close callbacks */
 	GArray *li_plugins_handle_vrclose; /** list of handle_vrclose callbacks */

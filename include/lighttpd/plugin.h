@@ -18,6 +18,7 @@ typedef gboolean (*liPluginParseOptionCB)   (liServer *srv, liPlugin *p, size_t 
 typedef void     (*liPluginFreeOptionCB)    (liServer *srv, liPlugin *p, size_t ndx, liOptionValue oval);
 typedef liAction*(*liPluginCreateActionCB)  (liServer *srv, liPlugin *p, liValue *val);
 typedef gboolean (*liPluginSetupCB)         (liServer *srv, liPlugin *p, liValue *val);
+typedef void     (*liPluginAngelCB)         (liServer *srv, liPlugin *p, gint32 id, GString *data);
 
 typedef void     (*liPluginHandleCloseCB)   (liConnection *con, liPlugin *p);
 typedef liHandlerResult(*liPluginHandleVRequestCB)(liVRequest *vr, liPlugin *p);
@@ -46,7 +47,8 @@ struct liPlugin {
 
 	const liPluginOption *options;
 	const liPluginAction *actions;
-	const liliPluginSetupCB *setups;
+	const liPluginSetup *setups;
+	const liPluginAngel *angelcbs;
 };
 
 struct liPluginOption {
@@ -63,9 +65,14 @@ struct liPluginAction {
 	liPluginCreateActionCB li_create_action;
 };
 
-struct liliPluginSetupCB {
+struct liPluginSetup {
 	const gchar *name;
 	liPluginSetupCB setup;
+};
+
+struct liPluginAngel {
+	const gchar *name;
+	liPluginAngelCB angel_cb;
 };
 
 /* Internal structures */

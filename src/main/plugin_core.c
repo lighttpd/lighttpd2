@@ -1344,7 +1344,7 @@ static const liPluginAction actions[] = {
 	{ NULL, NULL }
 };
 
-static const liliPluginSetupCB setups[] = {
+static const liPluginSetup setups[] = {
 	{ "set_default", core_setup_set },
 	{ "listen", core_listen },
 	{ "event_handler", core_event_handler },
@@ -1356,6 +1356,10 @@ static const liliPluginSetupCB setups[] = {
 	{ NULL, NULL }
 };
 
+static const liPluginAngel angelcbs[] = {
+	{ NULL, NULL }
+};
+
 void plugin_core_init(liServer *srv, liPlugin *p);
 void plugin_core_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
@@ -1363,4 +1367,5 @@ void plugin_core_init(liServer *srv, liPlugin *p) {
 	p->options = options;
 	p->actions = actions;
 	p->setups = setups;
+	p->angelcbs = angelcbs;
 }

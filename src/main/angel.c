@@ -6,8 +6,24 @@ static void angel_call_cb(liAngelConnection *acon,
 		const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
 		gint32 id, GString *data) {
 	liServer *srv = acon->data;
-	ERROR(srv, "received message for %s:%s, not implemented yet", mod, action);
-	if (-1 != id) li_angel_send_result(acon, id, g_string_new_len(CONST_STR_LEN("not implemented yet")), NULL, NULL, NULL);
+	liPlugin *p;
+	const liPluginAngel *acb;
+
+	if (NULL == (p = g_hash_table_lookup(srv->plugins, mod))) goto not_found;
+	if (NULL == p->angelcbs) goto not_found;
+
+	for (acb = p->angelcbs; acb->name; acb++) {
+		if (0 == strcmp(acb->name, action)) break;
+	}
+	if (!acb->name) goto not_found;
+
+	acb->angel_cb(srv, p, id, data);
+
+	return;
+
+not_found:
+	ERROR(srv, "received message for %s:%s, couldn't find receiver", mod, action);
+	if (-1 != id) li_angel_send_result(acon, id, g_string_new_len(CONST_STR_LEN("receiver not found")), NULL, NULL, NULL);
 }
 
 static void angel_close_cb(liAngelConnection *acon, GError *err) {
