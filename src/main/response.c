@@ -33,14 +33,14 @@ void li_response_send_headers(liConnection *con) {
 
 	head = g_string_sized_new(8*1024-1);
 
-	if (0 == con->out->length && con->mainvr->handle_response_body == NULL
+	if (0 == con->out->length && con->mainvr->backend == NULL
 		&& vr->response.http_status >= 400 && vr->response.http_status < 600) {
 
 		/*li_chunkqueue_append_mem(con->out, CONST_STR_LEN("Custom error\r\n"));*/
 		li_response_send_error_page(con);
 	}
 
-	if (con->mainvr->handle_response_body == NULL) {
+	if (con->mainvr->backend == NULL) {
 		con->out->is_closed = TRUE;
 	}
 
