@@ -101,6 +101,7 @@ def configure(conf):
 					conf.check(function_name='lua_setfield', header_name='lua.h', uselib='lua', mandatory=True)
 		conf.define('HAVE_LUA_H', 1)
 		conf.define('HAVE_LIBLUA', 1)
+		conf.define('USE_LUA', 1)
 	
 	if not opts.static:
 		conf.check(lib='dl', uselib_store='dl')

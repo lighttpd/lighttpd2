@@ -48,25 +48,22 @@ source = '''
 '''
 
 def configure(conf):
+	pass
+
+
+def build(bld):
 	global source
 
-	opts = Options.options
+	libs = ['glib', 'gthread', 'gmodule', 'ev']
 
-	if opts.lua:
+	if bld.env['USE_LUA'] == 1:
+		libs += ['lua']
 		source += '''
 			actions_lua.c
 			condition_lua.c
 			config_lua.c
 			value_lua.c
 		'''
-
-
-def build(bld):
-	opts = Options.options
-	libs = ['glib', 'gthread', 'gmodule', 'ev']
-
-	if opts.lua:
-		libs += ['lua']
 
 	libcommon = bld.new_task_gen(
 		features = 'cc cprogram',
