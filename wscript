@@ -87,11 +87,18 @@ def configure(conf):
 		]
 
 	if opts.lua:
+		# lua has different names in pkg-config on different systems, we do trial and error
+		# debian
 		if not conf.check_cfg(package='lua5.1', uselib_store='lua', args='--cflags --libs'):
-			conf.env['LIB_lua'] = [ 'm' ]
-			conf.check(lib='lua', uselib_store='lua', mandatory=True)
-			conf.check(header_name='lua.h', uselib='lua', mandatory=True)
-			conf.check(function_name='lua_setfield', header_name='lua.h', uselib='lua', mandatory=True)
+			# freebsd
+			if not conf.check_cfg(package='lua-5.1', uselib_store='lua', args='--cflags --libs'):
+				# osx
+				if not conf.check_cfg(package='lua', uselib_store='lua', args='--cflags --libs'):
+					# no pkg-config, try by hand
+					conf.env['LIB_lua'] = [ 'm' ]
+					conf.check(lib='lua', uselib_store='lua', mandatory=True)
+					conf.check(header_name='lua.h', uselib='lua', mandatory=True)
+					conf.check(function_name='lua_setfield', header_name='lua.h', uselib='lua', mandatory=True)
 		conf.define('HAVE_LUA_H', 1)
 		conf.define('HAVE_LIBLUA', 1)
 	
