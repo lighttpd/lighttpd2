@@ -9,15 +9,12 @@ License and Copyright: see COPYING file
 
 import Options, sys
 
-def lighty_mod(bld, target, src, uselib = [], option = ''):
-	if option and not getattr(Options.options, option):
-		return
-
+def lighty_mod(bld, target, src, uselib = []):
 	mod = bld.new_task_gen(
 		features = 'cc cshlib',
 		source = src,
 		defines = ['HAVE_CONFIG_H=1'],
-		uselib = ['glib', 'gthread', 'gmodule', 'ev', 'lighty_mod'],
+		uselib = ['glib', 'gthread', 'gmodule', 'ev', 'lighty_mod'] + uselib,
 		uselib_local = ['common'],
 		includes = ['#/include/'],
 		target = target,)
@@ -30,8 +27,11 @@ def configure(conf):
 def build(bld):
 	lighty_mod(bld, 'mod_access', 'mod_access.c')
 	lighty_mod(bld, 'mod_accesslog', 'mod_accesslog.c')
+	lighty_mod(bld, 'mod_auth', 'mod_auth.c')
 	lighty_mod(bld, 'mod_balancer', 'mod_balancer.c')
 	lighty_mod(bld, 'mod_cache_disk_etag', 'mod_cache_disk_etag.c')
+	if bld.env['USE_ZLIB'] == 1:
+		lighty_mod(bld, 'mod_compress', 'mod_compress.c', uselib=['z'])
 	lighty_mod(bld, 'mod_debug', 'mod_debug.c')
 	lighty_mod(bld, 'mod_dirlist', 'mod_dirlist.c')
 	lighty_mod(bld, 'mod_expire', 'mod_expire.c')
