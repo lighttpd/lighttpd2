@@ -68,12 +68,13 @@ static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *co
 
 	if (addr->plain.sa_family == AF_INET) {
 		if (li_radixtree32_lookup(acd->ipv4, htonl(addr->ipv4.sin_addr.s_addr))) {
-			li_vrequest_handle_direct(vr);
+			if (!li_vrequest_handle_direct(vr))
+				return LI_HANDLER_GO_ON;
+
 			vr->response.http_status = 403;
 
-			if (log_blocked) {
+			if (log_blocked)
 				VR_INFO(vr, "access.check: blocked %s", vr->con->remote_addr_str->str);
-			}
 		}
 	} else if (addr->plain.sa_family == AF_INET6) {
 		VR_ERROR(vr, "%s", "access.check doesn't support ipv6 clients yet");
@@ -196,7 +197,9 @@ static liHandlerResult access_deny(liVRequest *vr, gpointer param, gpointer *con
 	UNUSED(context);
 	UNUSED(redirect_url);
 
-	li_vrequest_handle_direct(vr);
+	if (!li_vrequest_handle_direct(vr))
+		return LI_HANDLER_GO_ON;
+
 	vr->response.http_status = 403;
 
 	if (log_blocked) {
