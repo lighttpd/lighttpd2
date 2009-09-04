@@ -165,18 +165,18 @@ gboolean plugins_config_load(liServer *srv, const gchar *filename) {
 		}
 	}
 
-	ERROR(srv, "%s", "activate");
+	INFO(srv, "%s", "activate");
 
 	/* activate new config */
 	for (i = ps->load_plugins->len; i-- > 0; ) {
 		liPlugin *p = g_ptr_array_index(ps->load_plugins, i);
-		ERROR(srv, "activate: %s", p->name);
+		INFO(srv, "activate: %s", p->name);
 		if (p->handle_activate_config) {
 			p->handle_activate_config(srv, p);
 		}
 	}
 
-	ERROR(srv, "%s", "done");
+	INFO(srv, "%s", "done");
 
 	{ /* swap the arrays */
 		GPtrArray *tmp = ps->load_plugins; ps->load_plugins = ps->plugins; ps->plugins = tmp;
@@ -205,7 +205,7 @@ void plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
 	liPlugins *ps = &srv->plugins;
 	server_item *si;
 
-#if 1
+#if 0
 	/* debug items */
 	{
 		GString *tmp = li_value_to_string(hash);

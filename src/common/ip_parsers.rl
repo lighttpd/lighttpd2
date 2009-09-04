@@ -25,9 +25,9 @@
 	end = (space | 0) @{ cs = ipv4_parser_first_final; fbreak; };
 
 	ipv4 := ipv4_data end;
-	ipv4_cidr := ipv4_data netmask end;
-	ipv4_socket := ipv4_data port end;
-	ipv4_socket_cidr := ipv4_data netmask port end;
+	ipv4_cidr := ipv4_data netmask? end;
+	ipv4_socket := ipv4_data port? end;
+	ipv4_socket_cidr := ipv4_data netmask? port? end;
 
 	write data;
 }%%
@@ -37,6 +37,9 @@ gboolean li_parse_ipv4(const char *str, guint32 *ip, guint32 *netmask, guint16 *
 	const char *p = str;
 	gboolean res = TRUE;
 	int cs, tmpval = 0, i = 0;
+
+	if (netmask) *netmask = 0xffffffffu;
+	if (port) *port = 0;
 
 	%% write init nocs;
 
@@ -115,6 +118,9 @@ gboolean li_parse_ipv6(const char *str, guint8 *ip, guint *network, guint16 *por
 	const char *p = str, *mark = NULL;
 	gboolean res = TRUE, compressed = FALSE;
 	int cs, tmpval = 0, i = 0;
+
+	if (network) *network = 128;
+	if (port) *port = 0;
 
 	%% write init nocs;
 

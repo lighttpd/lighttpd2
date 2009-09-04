@@ -9,11 +9,13 @@ int angel_fake_listen(liServer *srv, GString *str) {
 #ifdef HAVE_IPV6
 	guint8 ipv6[16];
 #endif
-	guint16 port = 80;
+	guint16 port;
 
 	if (li_parse_ipv4(str->str, &ipv4, NULL, &port)) {
 		int s, v;
 		struct sockaddr_in addr;
+
+		if (!port) port = 80;
 		memset(&addr, 0, sizeof(addr));
 		addr.sin_family = AF_INET;
 		addr.sin_addr.s_addr = ipv4;
@@ -47,6 +49,7 @@ int angel_fake_listen(liServer *srv, GString *str) {
 		struct sockaddr_in6 addr;
 		li_ipv6_tostring(ipv6_str, ipv6);
 		
+		if (!port) port = 80;
 		memset(&addr, 0, sizeof(addr));
 		addr.sin6_family = AF_INET6;
 		memcpy(&addr.sin6_addr, ipv6, 16);

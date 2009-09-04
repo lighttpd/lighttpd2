@@ -99,22 +99,115 @@ static const liPluginItemOption core_instance_options[] = {
 	{ NULL, 0, 0 }
 };
 
+static void core_listen_mask_free(liPluginCoreListenMask *mask) {
+	switch (mask->type) {
+	case LI_PLUGIN_CORE_LISTEN_MASK_IPV4:
+	case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
+		break;
+	case LI_PLUGIN_CORE_LISTEN_MASK_UNIX:
+		g_string_free(mask->value.unix_socket.path, TRUE);
+		break;
+	}
+	g_slice_free(liPluginCoreListenMask, mask);
+}
+
+static void core_listen_parse(liServer *srv, liPlugin *p, liValue **options) {
+	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+	gboolean have_type = FALSE;
+
+	liPluginCoreListenMask *mask = g_slice_new0(liPluginCoreListenMask);
+
+	if (options[0]) { /* ip */
+		if (have_type) goto only_one_type;
+		have_type = TRUE;
+		if (li_parse_ipv4(options[0]->data.string->str, &mask->value.ipv4.addr, &mask->value.ipv4.networkmask, &mask->value.ipv4.port)) {
+			mask->type = LI_PLUGIN_CORE_LISTEN_MASK_IPV4;
+		} else if (li_parse_ipv6(options[0]->data.string->str, mask->value.ipv6.addr, &mask->value.ipv6.network, &mask->value.ipv6.port)) {
+			mask->type = LI_PLUGIN_CORE_LISTEN_MASK_IPV6;
+		} else {
+			ERROR(srv, "couldn't parse ip/network:port in listen mask '%s'", options[0]->data.string->str);
+			config->load_failed = FALSE;
+			g_slice_free(liPluginCoreListenMask, mask);
+			return;
+		}
+	}
+
+	if (options[1]) { /* unix */
+		if (have_type) goto only_one_type;
+		have_type = TRUE;
+		mask->type = LI_PLUGIN_CORE_LISTEN_MASK_UNIX;
+		mask->value.unix_socket.path = g_string_new_len(GSTR_LEN(options[2]->data.string));
+	}
+
+	if (!have_type) {
+		ERROR(srv, "%s", "no options found in listen mask");
+		config->load_failed = FALSE;
+		g_slice_free(liPluginCoreListenMask, mask);
+		return;
+	}
+
+	g_ptr_array_add(config->load_listen_masks, mask);
+	return;
+
+only_one_type:
+	ERROR(srv, "%s", "you can only use one of 'ip' and 'unix' in listen masks");
+	config->load_failed = FALSE;
+	g_slice_free(liPluginCoreListenMask, mask);
+	return;
+}
+
+static const liPluginItemOption core_listen_options[] = {
+	{ "ip", LI_VALUE_STRING, 0 },
+	{ "unix", LI_VALUE_STRING, 0 },
+	{ NULL, 0, 0 }
+};
+
+
 static const liPluginItem core_items[] = {
 	{ "instance", core_instance_parse, core_instance_options },
+	{ "listen", core_listen_parse, core_listen_options },
 	{ NULL, NULL, NULL }
 };
 
-static int do_listen(liServer *srv, GString *str) {
+static int do_listen(liServer *srv, liPluginCoreConfig *config, GString *str) {
 	guint32 ipv4;
 #ifdef HAVE_IPV6
 	guint8 ipv6[16];
 #endif
-	guint16 port = 80;
+	guint16 port;
+	guint i;
+	liPluginCoreListenMask *mask;
 
 	if (li_parse_ipv4(str->str, &ipv4, NULL, &port)) {
 		int s, v;
 		struct sockaddr_in addr;
 		memset(&addr, 0, sizeof(addr));
+
+		if (!port) port = 80;
+
+		if (config->listen_masks->len) {
+			for (i = 0; i < config->listen_masks->len; i++) {
+				mask = g_ptr_array_index(config->listen_masks, i);
+				switch (mask->type) {
+				case LI_PLUGIN_CORE_LISTEN_MASK_IPV4:
+					if (!ipv4_in_ipv4_net(ipv4, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
+					if ((mask->value.ipv4.port != port) && (mask->value.ipv4.port != 0 || (port != 80 && port != 443))) continue;
+					break;
+				case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
+					if (!ipv4_in_ipv6_net(ipv4, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
+					if ((mask->value.ipv6.port != port) && (mask->value.ipv6.port != 0 || (port != 80 && port != 443))) continue;
+					break;
+				case LI_PLUGIN_CORE_LISTEN_MASK_UNIX:
+					continue;
+				}
+				break;
+			}
+			if (i == config->listen_masks->len) {
+				ERROR(srv, "listen to socket '%s' not allowed", str->str);
+				return -1;
+			}
+		}
+
 		addr.sin_family = AF_INET;
 		addr.sin_addr.s_addr = ipv4;
 		addr.sin_port = htons(port);
@@ -146,6 +239,30 @@ static int do_listen(liServer *srv, GString *str) {
 		int s, v;
 		struct sockaddr_in6 addr;
 		li_ipv6_tostring(ipv6_str, ipv6);
+		if (!port) port = 80;
+
+		if (config->listen_masks->len) {
+			for (i = 0; i < config->listen_masks->len; i++) {
+				mask = g_ptr_array_index(config->listen_masks, i);
+				switch (mask->type) {
+				case LI_PLUGIN_CORE_LISTEN_MASK_IPV4:
+					if (!ipv6_in_ipv4_net(ipv6, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
+					if ((mask->value.ipv4.port != port) && (mask->value.ipv4.port != 0 || (port != 80 && port != 443))) continue;
+					break;
+				case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
+					if (!ipv6_in_ipv6_net(ipv6, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
+					if ((mask->value.ipv6.port != port) && (mask->value.ipv6.port != 0 || (port != 80 && port != 443))) continue;
+					break;
+				case LI_PLUGIN_CORE_LISTEN_MASK_UNIX:
+					continue;
+				}
+				break;
+			}
+			if (i == config->listen_masks->len) {
+				ERROR(srv, "listen to socket '%s' not allowed", str->str);
+				return -1;
+			}
+		}
 
 		memset(&addr, 0, sizeof(addr));
 		addr.sin6_family = AF_INET6;
@@ -185,6 +302,7 @@ static int do_listen(liServer *srv, GString *str) {
 		g_string_free(ipv6_str, TRUE);
 		return s;
 #endif
+/* TODO: listen unix socket */
 	} else {
 		ERROR(srv, "Invalid ip: '%s'", str->str);
 		return -1;
@@ -195,13 +313,13 @@ static void core_listen(liServer *srv, liInstance *i, liPlugin *p, gint32 id, GS
 	GError *err = NULL;
 	gint fd;
 	GArray *fds;
-	UNUSED(p);
+	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 
 	DEBUG(srv, "core_listen(%i) '%s'", id, data->str);
 
 	if (-1 == id) return; /* ignore simple calls */
 
-	fd = do_listen(srv, data);
+	fd = do_listen(srv, config, data);
 
 	if (-1 == fd) {
 		GString *error = g_string_sized_new(0);
@@ -242,6 +360,7 @@ static void core_reached_state(liServer *srv, liInstance *i, liPlugin *p, gint32
 static void core_clean(liServer *srv, liPlugin *p);
 static void core_free(liServer *srv, liPlugin *p) {
 	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+	guint i;
 
 	core_clean(srv, p);
 
@@ -255,16 +374,30 @@ static void core_free(liServer *srv, liPlugin *p) {
 		li_instance_release(config->inst);
 		config->inst = NULL;
 	}
+
+	for (i = 0; i < config->listen_masks->len; i++) {
+		core_listen_mask_free(g_ptr_array_index(config->listen_masks, i));
+	}
+	g_ptr_array_free(config->listen_masks, TRUE);
+	g_ptr_array_free(config->load_listen_masks, TRUE);
+	config->listen_masks = NULL;
+	config->load_listen_masks = NULL;
 }
 
 static void core_clean(liServer *srv, liPlugin *p) {
 	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+	guint i;
 	UNUSED(srv);
 
 	if (config->load_instconf) {
 		li_instance_conf_release(config->load_instconf);
 		config->load_instconf = NULL;
 	}
+
+	for (i = 0; i < config->load_listen_masks->len; i++) {
+		core_listen_mask_free(g_ptr_array_index(config->load_listen_masks, i));
+	}
+	g_ptr_array_set_size(config->load_listen_masks, 0);
 
 	config->load_failed = FALSE;
 }
@@ -277,6 +410,8 @@ static gboolean core_check(liServer *srv, liPlugin *p) {
 
 static void core_activate(liServer *srv, liPlugin *p) {
 	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+	GPtrArray *tmp_ptrarray;
+	guint i;
 
 	if (config->instconf) {
 		li_instance_conf_release(config->instconf);
@@ -289,25 +424,36 @@ static void core_activate(liServer *srv, liPlugin *p) {
 		config->inst = NULL;
 	}
 
+	for (i = 0; i < config->listen_masks->len; i++) {
+		core_listen_mask_free(g_ptr_array_index(config->listen_masks, i));
+	}
+	g_ptr_array_set_size(config->listen_masks, 0);
+
+
 	config->instconf = config->load_instconf;
 	config->load_instconf = NULL;
+
+	tmp_ptrarray = config->load_listen_masks; config->load_listen_masks = config->listen_masks; config->listen_masks = tmp_ptrarray;
 
 	if (config->instconf) {
 		config->inst = li_server_new_instance(srv, config->instconf);
 		li_instance_set_state(config->inst, LI_INSTANCE_RUNNING);
-		ERROR(srv, "%s", "Starting instance");
 	}
 }
 
 static gboolean core_init(liServer *srv, liPlugin *p) {
+	liPluginCoreConfig *config;
 	UNUSED(srv);
-	p->data = g_slice_new0(liPluginCoreConfig);
+	p->data = config = g_slice_new0(liPluginCoreConfig);
 	p->items = core_items;
 
 	p->handle_free = core_free;
 	p->handle_clean_config = core_clean;
 	p->handle_check_config = core_check;
 	p->handle_activate_config = core_activate;
+
+	config->listen_masks = g_ptr_array_new();
+	config->load_listen_masks = g_ptr_array_new();
 
 	g_hash_table_insert(p->angel_callbacks, "listen", (gpointer)(intptr_t)core_listen);
 	g_hash_table_insert(p->angel_callbacks, "reached-state", (gpointer)(intptr_t)core_reached_state);

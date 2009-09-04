@@ -583,7 +583,7 @@ liSocketAddress li_sockaddr_from_string(GString *str, guint tcp_default_port) {
 #ifdef HAVE_IPV6
 	guint8 ipv6[16];
 #endif
-	guint16 port = tcp_default_port;
+	guint16 port;
 	liSocketAddress saddr = { 0, NULL };
 
 #ifdef HAVE_SYS_UN_H
@@ -595,7 +595,7 @@ liSocketAddress li_sockaddr_from_string(GString *str, guint tcp_default_port) {
 	} else
 #endif
 	if (li_parse_ipv4(str->str, &ipv4, NULL, &port)) {
-		if (!port) return saddr;
+		if (!port) port = tcp_default_port;
 		saddr.len = sizeof(struct sockaddr_in);
 		saddr.addr = (liSockAddr*) g_slice_alloc0(saddr.len);
 		saddr.addr->ipv4.sin_family = AF_INET;
@@ -604,7 +604,7 @@ liSocketAddress li_sockaddr_from_string(GString *str, guint tcp_default_port) {
 #ifdef HAVE_IPV6
 	} else
 	if (li_parse_ipv6(str->str, ipv6, NULL, &port)) {
-		if (!port) return saddr;
+		if (!port) port = tcp_default_port;
 		saddr.len = sizeof(struct sockaddr_in6);
 		saddr.addr = (liSockAddr*) g_slice_alloc0(saddr.len);
 		saddr.addr->ipv6.sin6_family = AF_INET6;
@@ -651,6 +651,30 @@ void li_sockaddr_clear(liSocketAddress *saddr) {
 	if (saddr->addr) g_slice_free1(saddr->len, saddr->addr);
 	saddr->addr = NULL;
 	saddr->len = 0;
+}
+
+gboolean ipv4_in_ipv4_net(guint32 target, guint32 match, guint32 networkmask) {
+	return (target & networkmask) == (match & networkmask);
+}
+
+gboolean ipv6_in_ipv6_net(const unsigned char *target, const guint8 *match, guint network) {
+	guint8 mask = network % 8;
+	if (0 != memcmp(target, match, network / 8)) return FALSE;
+	if (!mask) return TRUE;
+	mask = ~(((guint) 1 << (8-mask)) - 1);
+	return (target[network / 8] & mask) == (match[network / 8] & mask);
+}
+
+gboolean ipv6_in_ipv4_net(const unsigned char *target, guint32 match, guint32 networkmask) {
+	static const guint8 ipv6match[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0, 0 };
+	if (!ipv6_in_ipv6_net(target, ipv6match, 96)) return  FALSE;
+	return ipv4_in_ipv4_net(*(guint32*)(target+12), match, networkmask);
+}
+
+gboolean ipv4_in_ipv6_net(guint32 target, const guint8 *match, guint network) {
+	guint8 ipv6[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0, 0 };
+	*(guint32*) (ipv6+12) = target;
+	return ipv6_in_ipv6_net(ipv6, match, network);
 }
 
 /* unused */

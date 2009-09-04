@@ -15,7 +15,7 @@ static void read_pipe(liServer *srv, liErrorPipe *epipe, gboolean flush) {
 		if (ioctl(epipe->fds[0], FIONREAD, &toread) || toread == 0) {
 			toread = 256;
 		} else {
-			if (toread > max_read) toread = max_read;
+			if (toread < 0 || toread > max_read) toread = max_read;
 		}
 
 		buf = g_string_sized_new(toread);
