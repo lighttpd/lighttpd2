@@ -157,6 +157,38 @@ static gboolean connection_handle_read(liConnection *con) {
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "%s", "reading request header");
 		}
+
+		/* max uri length 8 kilobytes */
+		if (vr->request.uri.raw->len > 8*1024) {
+			VR_INFO(vr,
+				"request uri too large. limit: 8kb, received: %s",
+				li_counter_format(vr->request.uri.raw->len, COUNTER_BYTES, vr->wrk->tmp_str)->str
+			);
+
+			con->keep_alive = FALSE;
+			con->mainvr->response.http_status = 414; /* Request-URI Too Large */
+			li_vrequest_handle_direct(con->mainvr);
+			con->state = LI_CON_STATE_WRITE;
+			con->in->is_closed = TRUE;
+			forward_response_body(con);
+			return TRUE;
+		}
+
+		if (con->raw_in->length > 64*1024) {
+			VR_INFO(vr,
+				"request header too large. limit: 64kb, received: %s",
+				li_counter_format((guint64)con->raw_in->length, COUNTER_BYTES, vr->wrk->tmp_str)->str
+			);
+
+			con->keep_alive = FALSE;
+			con->mainvr->response.http_status = 413; /* Request Entity Too Large */
+			li_vrequest_handle_direct(con->mainvr);
+			con->state = LI_CON_STATE_WRITE;
+			con->in->is_closed = TRUE;
+			forward_response_body(con);
+			return TRUE;
+		}
+
 		switch(li_http_request_parse(con->mainvr, &con->req_parser_ctx)) {
 		case LI_HANDLER_GO_ON:
 			break; /* go on */
