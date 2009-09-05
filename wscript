@@ -23,7 +23,7 @@ def set_options(opt):
 	opt.tool_options('ragel', tdir = '.')
 	
 	# ./waf configure options
-	opt.add_option('--with-lua', action='store_true', help='with lua 5.1 for mod_magnet [default: off]', dest = 'lua', default = False)
+	opt.add_option('--with-lua', action='store_true', help='with lua 5.1 for mod_magnet', dest = 'lua', default = False)
 	opt.add_option('--with-all', action='store_true', help='Enable all features', dest = 'all', default = False)
 	opt.add_option('--static', action='store_true', help='build a static lighttpd with all modules added', dest = 'static', default = False)
 	opt.add_option('--append', action='store', help='Append string to binary names / library dir', dest = 'append', default = '')
@@ -48,6 +48,7 @@ def configure(conf):
 	conf.env['CCFLAGS'] += [
 		'-std=gnu99', '-Wall', '-Wshadow', '-W', '-pedantic', '-fPIC',
 		'-D_GNU_SOURCE', '-D_FILE_OFFSET_BITS=64', '-D_LARGEFILE_SOURCE', '-D_LARGE_FILES',
+		'-g', '-g2'
 #	'-fno-strict-aliasing',
 	]
 
@@ -74,17 +75,20 @@ def configure(conf):
 	if opts.all:
 		opts.lua = True
 
+	if not opts.debug:
+		conf.env['CCFLAGS'] += ['-O2']
+
 	if opts.extra_warnings:
 		conf.env['CCFLAGS'] += [
-			'-g', '-g2', '-Wmissing-declarations',
-		 	'-Wdeclaration-after-statement', '-Wno-pointer-sign', '-Wcast-align', '-Winline', '-Wsign-compare',
+			'-Wmissing-declarations', '-Wdeclaration-after-statement', '-Wno-pointer-sign', '-Wcast-align', '-Winline', '-Wsign-compare',
 			'-Wnested-externs', '-Wpointer-arith'#, '-Werror', '-Wbad-function-cast', '-Wmissing-prototypes'
 		]
 		conf.env['LDFLAGS'] += [
-			'-g', '-g2', '-Wall', '-Wmissing-prototypes', '-Wmissing-declarations',
+			'-Wmissing-prototypes', '-Wmissing-declarations',
 		 	'-Wdeclaration-after-statement', '-Wno-pointer-sign', '-Wcast-align', '-Winline', '-Wsign-compare',
 			'-Wnested-externs', '-Wpointer-arith', '-Wl,--as-needed'#, '-Werror', '-Wbad-function-cast'
 		]
+
 
 	if opts.lua:
 		# lua has different names in pkg-config on different systems, we do trial and error
