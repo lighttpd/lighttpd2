@@ -239,6 +239,7 @@ SET(COMMON_CFLAGS "${LUA_CFLAGS} ${LIBEV_CFLAGS} ${GTHREAD_CFLAGS} ${GMODULE_CFL
 
 ADD_AND_INSTALL_LIBRARY(mod_access "modules/mod_access.c")
 ADD_AND_INSTALL_LIBRARY(mod_accesslog "modules/mod_accesslog.c")
+ADD_AND_INSTALL_LIBRARY(mod_auth "modules/mod_auth.c")
 ADD_AND_INSTALL_LIBRARY(mod_balancer "modules/mod_balancer.c")
 ADD_AND_INSTALL_LIBRARY(mod_cache_disk_etag "modules/mod_cache_disk_etag.c")
 ADD_AND_INSTALL_LIBRARY(mod_debug "modules/mod_debug.c")
