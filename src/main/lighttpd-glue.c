@@ -52,6 +52,7 @@ gchar *li_http_status_string(guint status_code, guint *len) {
 	case 415: SET_LEN_AND_RETURN_STR("Unsupported Media Type");
 	case 416: SET_LEN_AND_RETURN_STR("Request range not satisfiable");
 	case 417: SET_LEN_AND_RETURN_STR("Expectation Failed");
+	case 418: SET_LEN_AND_RETURN_STR("I'm a teapot");
 	case 421: SET_LEN_AND_RETURN_STR("There are too many connections from your internet address");
 	case 422: SET_LEN_AND_RETURN_STR("Unprocessable Entity");
 	case 423: SET_LEN_AND_RETURN_STR("Locked");
