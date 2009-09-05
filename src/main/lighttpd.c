@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
 		micros = (d - s - millis) %1000;
 		DEBUG(srv, "parsed config file in %lu seconds, %lu milliseconds, %lu microseconds", s, millis, micros);
 
-		if (g_queue_get_length(ctx->option_stack) != 0 || g_queue_get_length(ctx->action_list_stack))
+		if (g_queue_get_length(ctx->option_stack) != 0 || g_queue_get_length(ctx->action_list_stack) != 1)
 			DEBUG(srv, "option_stack: %u action_list_stack: %u (should be 0:1)", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
 
 		config_parser_finish(srv, ctx_stack, FALSE);
