@@ -53,7 +53,8 @@
 	HT = '\t';
 	DQUOTE = '"';
 
-	CRLF = CR LF;
+	# RFC 2616 requires CRLF = CR LF; but many backends only send us LF (especially cgi)
+	CRLF = (CR LF | LF);
 	LWS = CRLF? (SP | HT)+; # linear white space
 	TEXT = (OCTET - CTL) | LWS;
 	HEX = [a-fA-F0-9];
