@@ -9,7 +9,7 @@
  *       listen     - (mandatory) the socket address (same as standard listen)
  *       pemfile    - (mandatory) contains key and direct certificate for the key (PEM format)
  *       ca-file    - contains certificate chain
- *       ciphers    - contains comma separated list of allowed ciphers
+ *       ciphers    - contains colon separated list of allowed ciphers
  *       allow-ssl2 - boolean option to allow ssl2 (disabled by default)
  *
  * Example config:
