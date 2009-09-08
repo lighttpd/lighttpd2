@@ -66,4 +66,4 @@ lighttpd_SOURCES=lighttpd.c $(lighttpd_shared_src)
 
 lighttpd_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) -DDEFAULT_LIBDIR='"$(pkglibdir)"'
 lighttpd_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
-lighttpd_LDADD=../common/libcommon.a
+lighttpd_LDADD=../common/liblighttpd-common.la

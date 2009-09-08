@@ -1,5 +1,5 @@
 
-noinst_LIBRARIES=libcommon.a
+lib_LTLIBRARIES=liblighttpd-common.la
 common_cflags=-I$(top_srcdir)/include -I$(top_builddir)/include
 
 common_src= \
@@ -20,5 +20,6 @@ BUILT_SOURCES=ip_parsers.c
 ip_parsers.c: ip_parsers.rl
 	ragel -C -T1 -o $@ $<
 
-libcommon_a_SOURCES=$(common_src)
-libcommon_a_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS)
+liblighttpd_common_la_SOURCES=$(common_src)
+liblighttpd_common_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS)
+liblighttpd_common_la_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS)
