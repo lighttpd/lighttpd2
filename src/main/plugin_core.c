@@ -200,6 +200,8 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 		return LI_HANDLER_ERROR;
 	}
 
+	/* need trailing slash */
+	if (vr->request.uri.path->len == 0 || vr->request.uri.path->str[vr->request.uri.path->len - 1] != '/') return LI_HANDLER_GO_ON;
 
 	res = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
 	if (res == LI_HANDLER_WAIT_FOR_EVENT)
@@ -241,10 +243,13 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 
 		if (res == LI_HANDLER_GO_ON) {
 			/* file exists. change physical path */
-			if (file->str[0] == '/')
+			if (file->str[0] == '/') {
 				g_string_truncate(vr->physical.path, vr->physical.doc_root->len);
+				g_string_truncate(vr->request.uri.path, 0);
+			}
 
 			g_string_append_len(vr->physical.path, GSTR_LEN(file));
+			g_string_append_len(vr->request.uri.path, GSTR_LEN(file));
 
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "using index file: '%s'", file->str);
