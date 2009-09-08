@@ -449,6 +449,7 @@ liConnection* li_connection_new(liWorker *wrk) {
 	ev_io_set(&con->sock_watcher, -1, 0);
 	con->sock_watcher.data = con;
 	con->remote_addr_str = g_string_sized_new(INET6_ADDRSTRLEN);
+	con->is_ssl = FALSE;
 	con->keep_alive = TRUE;
 
 	con->raw_in  = li_chunkqueue_new();
@@ -497,6 +498,7 @@ void li_connection_reset(liConnection *con) {
 	li_server_socket_release(con->srv_sock);
 	con->srv_sock = NULL;
 	con->srv_sock_data = NULL;
+	con->is_ssl = FALSE;
 
 	ev_io_stop(con->wrk->loop, &con->sock_watcher);
 	if (con->sock_watcher.fd != -1) {

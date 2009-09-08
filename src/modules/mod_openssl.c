@@ -61,6 +61,7 @@ static gboolean openssl_con_new(liConnection *con) {
 	}
 
 	con->srv_sock_data = conctx;
+	con->is_ssl = TRUE;
 
 	return TRUE;
 
