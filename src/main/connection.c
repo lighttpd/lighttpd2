@@ -5,6 +5,9 @@
 /* only call it from the worker context the con belongs to */
 void worker_con_put(liConnection *con); /* worker.c */
 
+static void li_connection_reset_keep_alive(liConnection *con);
+static void li_connection_internal_error(liConnection *con);
+
 static void parse_request_body(liConnection *con) {
 	if ((con->state > LI_CON_STATE_HANDLE_MAINVR || con->mainvr->state >= LI_VRS_READ_CONTENT) && !con->in->is_closed) {
 		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_READ);
@@ -30,11 +33,15 @@ static void forward_response_body(liConnection *con) {
 	liVRequest *vr = con->mainvr;
 	if (con->state >= LI_CON_STATE_HANDLE_MAINVR) {
 		if (!con->response_headers_sent) {
-			con->response_headers_sent = TRUE;
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "%s", "write response headers");
 			}
-			li_response_send_headers(con);
+			con->response_headers_sent = TRUE;
+			if (!li_response_send_headers(con)) {
+				con->response_headers_sent = FALSE;
+				li_connection_internal_error(con);
+				return;
+			}
 		}
 
 		if (vr->response.transfer_encoding & LI_HTTP_TRANSFER_ENCODING_CHUNKED) {
@@ -101,14 +108,18 @@ void li_connection_error(liConnection *con) {
 	worker_con_put(con);
 }
 
-void li_connection_internal_error(liConnection *con) {
+static void li_connection_internal_error(liConnection *con) {
 	liVRequest *vr = con->mainvr;
 	if (con->response_headers_sent) {
-		VR_ERROR(vr, "%s", "Couldn't send '500 Internal Error': headers already sent");
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "%s", "Couldn't send '500 Internal Error': headers already sent");
+		}
 		li_connection_error(con);
 	} else {
 		liHttpVersion v;
-		VR_ERROR(vr, "%s", "internal error");
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "%s", "internal error");
+		}
 
 		/* We only need the http version from the http request */
 		v = con->mainvr->request.http_version;
@@ -557,8 +568,7 @@ void li_connection_reset(liConnection *con) {
 	con->throttled = FALSE;
 }
 
-void server_check_keepalive(liServer *srv);
-void li_connection_reset_keep_alive(liConnection *con) {
+static void li_connection_reset_keep_alive(liConnection *con) {
 	liVRequest *vr = con->mainvr;
 	ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 	{

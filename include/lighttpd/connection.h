@@ -93,17 +93,15 @@ struct liConnection {
 	} stats;
 };
 
+/* Internal functions */
 LI_API liConnection* li_connection_new(liWorker *wrk);
-LI_API void li_connection_reset(liConnection *con);
-LI_API void li_connection_reset_keep_alive(liConnection *con);
 LI_API void li_connection_free(liConnection *con);
+LI_API void li_connection_reset(liConnection *con);
 
-LI_API void li_connection_error(liConnection *con);
-LI_API void li_connection_internal_error(liConnection *con);
+/** aborts an active connection, calls all plugin cleanup handlers */
+LI_API void li_connection_error(liConnection *con); /* used in worker.c */
 
-LI_API void li_connection_handle_direct(liConnection *con);
-LI_API void li_connection_handle_indirect(liConnection *con, liPlugin *p);
-
+/* public function */
 LI_API gchar *li_connection_state_str(liConnectionState state);
 
 #endif

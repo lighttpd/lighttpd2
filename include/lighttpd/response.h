@@ -15,7 +15,7 @@ LI_API void li_response_init(liResponse *resp);
 LI_API void li_response_reset(liResponse *resp);
 LI_API void li_response_clear(liResponse *resp);
 
-LI_API void li_response_send_headers(liConnection *con);
+LI_API gboolean li_response_send_headers(liConnection *con);
 LI_API void li_response_send_error_page(liConnection *con);
 
 #endif

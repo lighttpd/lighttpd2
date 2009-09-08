@@ -20,15 +20,13 @@ void li_response_clear(liResponse *resp) {
 	resp->transfer_encoding = LI_HTTP_TRANSFER_ENCODING_IDENTITY;
 }
 
-void li_response_send_headers(liConnection *con) {
+gboolean li_response_send_headers(liConnection *con) {
 	GString *head;
 	liVRequest *vr = con->mainvr;
 
 	if (vr->response.http_status < 100 || vr->response.http_status > 999) {
 		VR_ERROR(vr, "wrong status: %i", vr->response.http_status);
-		con->response_headers_sent = FALSE;
-		li_connection_internal_error(con);
-		return;
+		return FALSE;
 	}
 
 	head = g_string_sized_new(8*1024-1);
@@ -128,6 +126,8 @@ void li_response_send_headers(liConnection *con) {
 
 	g_string_append_len(head, CONST_STR_LEN("\r\n"));
 	li_chunkqueue_append_string(con->raw_out, head);
+
+	return TRUE;
 }
 
 #define SET_LEN_AND_RETURN_STR(x) \
