@@ -108,13 +108,7 @@ int main(int argc, char *argv[]) {
 		ctx = (liConfigParserContext*) ctx_stack->data;
 		if (!config_parser_file(srv, ctx_stack, config_path)) {
 			config_parser_finish(srv, ctx_stack, TRUE);
-			log_thread_start(srv);
-			g_atomic_int_set(&srv->exiting, TRUE);
-			log_thread_wakeup(srv);
-			li_server_free(srv);
-			if (free_config_path)
-				g_free(config_path);
-			return 1;
+			return 1; /* no cleanup on config error, same as config test */
 		}
 
 		/* append fallback "static" action */
