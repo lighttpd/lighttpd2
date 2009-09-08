@@ -5,6 +5,12 @@
 #define LIGHTTPD_SERVER_MAGIC ((guint)0x12AB34CD)
 #endif
 
+typedef gboolean (*liConnectionNewCB)(liConnection *con);
+typedef void (*liConnectionCloseCB)(liConnection *con);
+typedef liNetworkStatus (*liConnectionWriteCB)(liConnection *con, goffset write_max);
+typedef liNetworkStatus (*liConnectionReadCB)(liConnection *con);
+typedef void (*liServerSocketReleaseCB)(liServerSocket *srv_sock);
+
 typedef enum {
 	LI_SERVER_INIT,             /** start state */
 	LI_SERVER_LOADING,          /** config loaded, prepare listeing sockets/open log files */
@@ -22,6 +28,14 @@ struct liServerSocket {
 	ev_io watcher;
 	liSocketAddress local_addr;
 	GString *local_addr_str;
+
+	/* Custom sockets (ssl) */
+	gpointer data;
+	liConnectionWriteCB write_cb;
+	liConnectionReadCB read_cb;
+	liConnectionNewCB new_cb;
+	liConnectionCloseCB close_cb;
+	liServerSocketReleaseCB release_cb;
 };
 
 struct liServer {
@@ -94,7 +108,7 @@ LI_API void li_server_free(liServer* srv);
 LI_API gboolean li_server_loop_init(liServer *srv);
 LI_API gboolean li_server_worker_init(liServer *srv);
 
-LI_API void li_server_listen(liServer *srv, int fd);
+LI_API liServerSocket* li_server_listen(liServer *srv, int fd);
 
 /* exit asap with cleanup */
 LI_API void li_server_exit(liServer *srv);

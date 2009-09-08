@@ -30,6 +30,7 @@ struct liConnection {
 	liServer *srv;
 	liWorker *wrk;
 	liServerSocket *srv_sock;
+	gpointer srv_sock_data; /** private data for custom sockets (ssl) */
 
 	liConnectionState state;
 	gboolean response_headers_sent, expect_100_cont;
@@ -95,7 +96,9 @@ struct liConnection {
 
 /* Internal functions */
 LI_API liConnection* li_connection_new(liWorker *wrk);
+/** Free dead connections */
 LI_API void li_connection_free(liConnection *con);
+/** close connection */
 LI_API void li_connection_reset(liConnection *con);
 
 /** aborts an active connection, calls all plugin cleanup handlers */

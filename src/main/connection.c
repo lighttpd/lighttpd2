@@ -271,7 +271,11 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		} else {
 			transferred = con->raw_in->length;
 
-			res = li_network_read(con->mainvr, w->fd, con->raw_in);
+			if (con->srv_sock->read_cb) {
+				res = con->srv_sock->read_cb(con);
+			} else {
+				res = li_network_read(con->mainvr, w->fd, con->raw_in);
+			}
 
 			transferred = con->raw_in->length - transferred;
 			con->wrk->stats.bytes_in += transferred;
@@ -319,7 +323,11 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			if (write_max > 0) {
 				transferred = con->raw_out->length;
 
-				res = li_network_write(con->mainvr, w->fd, con->raw_out, write_max);
+				if (con->srv_sock->write_cb) {
+					res = con->srv_sock->write_cb(con, write_max);
+				} else {
+					res = li_network_write(con->mainvr, w->fd, con->raw_out, write_max);
+				}
 
 				transferred = transferred - con->raw_out->length;
 				con->wrk->stats.bytes_out += transferred;
@@ -483,8 +491,12 @@ void li_connection_reset(liConnection *con) {
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
+	if (con->srv_sock->close_cb)
+		con->srv_sock->close_cb(con);
+
 	li_server_socket_release(con->srv_sock);
 	con->srv_sock = NULL;
+	con->srv_sock_data = NULL;
 
 	ev_io_stop(con->wrk->loop, &con->sock_watcher);
 	if (con->sock_watcher.fd != -1) {

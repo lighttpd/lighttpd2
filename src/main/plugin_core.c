@@ -511,7 +511,7 @@ static gboolean core_listen(liServer *srv, liPlugin* p, liValue *val) {
 	}
 
 	ipstr = val->data.string;
-	li_angel_listen(srv, ipstr);
+	li_angel_listen(srv, ipstr, NULL, NULL);
 
 	return TRUE;
 }

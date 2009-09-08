@@ -40,12 +40,21 @@ void li_angel_setup(liServer *srv) {
 	srv->dest_state = LI_SERVER_SUSPENDED;
 }
 
-static void li_angel_listen_cb(liAngelCall *acall, gpointer ctx, gboolean timeout, GString *error, GString *data, GArray *fds) {
-	liServer *srv = ctx;
+typedef struct angel_listen_cb_ctx angel_listen_cb_ctx;
+struct angel_listen_cb_ctx {
+	liServer *srv;
+	liAngelListenCB cb;
+	gpointer data;
+};
+
+static void li_angel_listen_cb(liAngelCall *acall, gpointer pctx, gboolean timeout, GString *error, GString *data, GArray *fds) {
+	angel_listen_cb_ctx ctx = * (angel_listen_cb_ctx*) pctx;
+	liServer *srv = ctx.srv;
 	guint i;
 	UNUSED(data);
 
 	li_angel_call_free(acall);
+	g_slice_free(angel_listen_cb_ctx, pctx);
 
 	ERROR(srv, "%s", "listen_cb");
 
@@ -62,8 +71,13 @@ static void li_angel_listen_cb(liAngelCall *acall, gpointer ctx, gboolean timeou
 
 	if (fds && fds->len > 0) {
 		for (i = 0; i < fds->len; i++) {
-			INFO(srv, "listening on fd %i", g_array_index(fds, int, i));
-			li_server_listen(srv, g_array_index(fds, int, i));
+			int fd = g_array_index(fds, int, i);
+			DEBUG(srv, "listening on fd %i", fd);
+			if (ctx.cb) {
+				ctx.cb(srv, fd, ctx.data);
+			} else {
+				li_server_listen(srv, fd);
+			}
 		}
 		g_array_set_size(fds, 0);
 	} else {
@@ -72,12 +86,16 @@ static void li_angel_listen_cb(liAngelCall *acall, gpointer ctx, gboolean timeou
 }
 
 /* listen to a socket */
-void li_angel_listen(liServer *srv, GString *str) {
+void li_angel_listen(liServer *srv, GString *str, liAngelListenCB cb, gpointer data) {
 	if (srv->acon) {
 		liAngelCall *acall = li_angel_call_new(li_angel_listen_cb, 3.0);
+		angel_listen_cb_ctx *ctx = g_slice_new0(angel_listen_cb_ctx);
 		GError *err = NULL;
 
-		acall->context = srv;
+		ctx->srv = srv;
+		ctx->cb = cb;
+		ctx->data = data;
+		acall->context = ctx;
 		if (!li_angel_send_call(srv->acon, CONST_STR_LEN("core"), CONST_STR_LEN("listen"), acall, g_string_new_len(GSTR_LEN(str)), &err)) {
 			ERROR(srv, "couldn't send call: %s", err->message);
 			g_error_free(err);
@@ -88,7 +106,11 @@ void li_angel_listen(liServer *srv, GString *str) {
 			ERROR(srv, "listen('%s') failed", str->str);
 			/* TODO: exit? */
 		} else {
-			li_server_listen(srv, fd);
+			if (cb) {
+				cb(srv, fd, data);
+			} else {
+				li_server_listen(srv, fd);
+			}
 		}
 	}
 }

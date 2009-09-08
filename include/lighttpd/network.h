@@ -9,15 +9,6 @@
 # define USE_SENDFILE
 #endif
 
-typedef enum {
-	LI_NETWORK_STATUS_SUCCESS,             /**< some IO was actually done (read/write) or cq was empty for write */
-	LI_NETWORK_STATUS_FATAL_ERROR,
-	LI_NETWORK_STATUS_CONNECTION_CLOSE,
-	LI_NETWORK_STATUS_WAIT_FOR_EVENT,      /**< read/write returned -1 with errno=EAGAIN/EWOULDBLOCK; no real IO was done
-	                                            internal: some io may be done */
-	LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT   /**< nothing done yet, read/write will be done somewhere else */
-} liNetworkStatus;
-
 /** repeats write after EINTR */
 LI_API ssize_t li_net_write(int fd, void *buf, ssize_t nbyte);
 

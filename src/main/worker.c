@@ -275,6 +275,12 @@ void li_worker_new_con(liWorker *ctx, liWorker *wrk, liSocketAddress remote_addr
 		con->ts = CUR_TS(con->wrk);
 		li_sockaddr_to_string(remote_addr, con->remote_addr_str, FALSE);
 		li_waitqueue_push(&wrk->io_timeout_queue, &con->io_timeout_elem);
+
+		if (srv_sock->new_cb) {
+			if (!srv_sock->new_cb(con)) {
+				li_connection_error(con);
+			}
+		}
 	} else {
 		li_worker_new_con_data *d = g_slice_new(li_worker_new_con_data);
 		d->remote_addr = remote_addr;
@@ -610,6 +616,8 @@ void worker_con_put(liConnection *con) {
 		g_array_index(wrk->connections, liConnection*, tmp->idx) = tmp;
 	}
 
+	li_connection_reset(con);
+
 	/* realloc wrk->connections if it makes sense (too many allocated, only every 60sec) */
 	/* if (active < allocated*0.70) { allocated *= 0.85 } */
 	threshold = (wrk->connections->len * 7) / 10;
@@ -622,8 +630,5 @@ void worker_con_put(liConnection *con) {
 		}
 		wrk->connections->len = threshold;
 		wrk->connections_gc_ts = now;
-	} else {
-		/* no realloc */
-		li_connection_reset(con);
 	}
 }

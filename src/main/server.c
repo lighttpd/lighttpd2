@@ -23,6 +23,8 @@ void li_server_socket_release(liServerSocket* sock) {
 	if (!sock) return;
 	assert(g_atomic_int_get(&sock->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&sock->refcount)) {
+		if (sock->release_cb) sock->release_cb(sock);
+
 		li_sockaddr_clear(&sock->local_addr);
 		g_string_free(sock->local_addr_str, TRUE);
 		g_slice_free(liServerSocket, sock);
@@ -165,13 +167,6 @@ void li_server_free(liServer* srv) {
 		g_array_free(srv->workers, TRUE);
 	}
 
-	/* release modules */
-	li_modules_free(srv->modules);
-
-	li_plugin_free(srv, srv->core_plugin);
-
-	log_cleanup(srv);
-
 	{
 		guint i; for (i = 0; i < srv->sockets->len; i++) {
 			liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
@@ -180,6 +175,13 @@ void li_server_free(liServer* srv) {
 		}
 		g_ptr_array_free(srv->sockets, TRUE);
 	}
+
+	/* release modules */
+	li_modules_free(srv->modules);
+
+	li_plugin_free(srv, srv->core_plugin);
+
+	log_cleanup(srv);
 
 	{
 		guint i;
@@ -311,13 +313,15 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 }
 
 /* main worker only */
-void li_server_listen(liServer *srv, int fd) {
+liServerSocket* li_server_listen(liServer *srv, int fd) {
 	liServerSocket *sock = server_socket_new(fd);
 
 	sock->srv = srv;
 	g_ptr_array_add(srv->sockets, sock);
 
 	if (LI_SERVER_RUNNING == srv->state || LI_SERVER_WARMUP == srv->state) ev_io_start(srv->main_worker->loop, &sock->watcher);
+
+	return sock;
 }
 
 static void li_server_start_listen(liServer *srv) {
