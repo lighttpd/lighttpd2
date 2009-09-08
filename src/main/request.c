@@ -80,7 +80,7 @@ static gboolean request_parse_url(liVRequest *vr) {
 	li_path_simplify(req->uri.path);
 
 	if (0 == req->uri.orig_path->len) {
-		g_string_append_len(req->uri.orig_path, GSTR_LEN(req->uri.path)); /* save orig path */
+		g_string_append_len(req->uri.orig_path, GSTR_LEN(req->uri.raw)); /* save orig raw uri */
 	}
 
 	return TRUE;

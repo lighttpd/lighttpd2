@@ -381,8 +381,8 @@ static void fastcgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteAr
 	fastcgi_env_add(buf, envdup, CONST_STR_LEN("DOCUMENT_ROOT"), GSTR_LEN(vr->physical.doc_root));
 
 	fastcgi_env_add(buf, envdup, CONST_STR_LEN("REQUEST_URI"), GSTR_LEN(vr->request.uri.orig_path));
-	if (!g_string_equal(vr->request.uri.orig_path, vr->request.uri.path)) {
-		fastcgi_env_add(buf, envdup, CONST_STR_LEN("REDIRECT_URI"), GSTR_LEN(vr->request.uri.path));
+	if (!g_string_equal(vr->request.uri.orig_path, vr->request.uri.raw)) {
+		fastcgi_env_add(buf, envdup, CONST_STR_LEN("REDIRECT_URI"), GSTR_LEN(vr->request.uri.raw));
 	}
 	fastcgi_env_add(buf, envdup, CONST_STR_LEN("QUERY_STRING"), GSTR_LEN(vr->request.uri.query));
 
