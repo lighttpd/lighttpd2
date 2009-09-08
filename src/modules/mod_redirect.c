@@ -342,6 +342,8 @@ static liHandlerResult redirect(liVRequest *vr, gpointer param, gpointer *contex
 
 	UNUSED(context);
 
+	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
+
 	for (i = 0; i < rd->rules->len; i++) {
 		rule = &g_array_index(rd->rules, redirect_rule, i);
 
@@ -409,6 +411,8 @@ static liAction* redirect_create(liServer *srv, liPlugin* p, liValue *val) {
 		/* redirect "/foo/bar"; */
 		if (g_str_has_prefix(val->data.string->str, "http://"))
 			rule.type = REDIRECT_ABSOLUTE_URI;
+		else if (g_str_has_prefix(val->data.string->str, "https://"))
+			rule.type = REDIRECT_ABSOLUTE_URI;
 		else if (val->data.string->str[0] == '/')
 			rule.type = REDIRECT_ABSOLUTE_PATH;
 		else if (val->data.string->str[0] == '?')
@@ -429,6 +433,8 @@ static liAction* redirect_create(liServer *srv, liPlugin* p, liValue *val) {
 	} else if (arr->len == 2 && g_array_index(arr, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(arr, liValue*, 1)->type == LI_VALUE_STRING) {
 		/* only one rule */
 		if (g_str_has_prefix(g_array_index(arr, liValue*, 1)->data.string->str, "http://"))
+			rule.type = REDIRECT_ABSOLUTE_URI;
+		else if (g_str_has_prefix(g_array_index(arr, liValue*, 1)->data.string->str, "https://"))
 			rule.type = REDIRECT_ABSOLUTE_URI;
 		else if (g_array_index(arr, liValue*, 1)->data.string->str[0] == '/')
 			rule.type = REDIRECT_ABSOLUTE_PATH;
@@ -470,6 +476,8 @@ static liAction* redirect_create(liServer *srv, liPlugin* p, liValue *val) {
 			}
 
 			if (g_str_has_prefix(g_array_index(v->data.list, liValue*, 1)->data.string->str, "http://"))
+				rule.type = REDIRECT_ABSOLUTE_URI;
+			else if (g_str_has_prefix(g_array_index(v->data.list, liValue*, 1)->data.string->str, "https://"))
 				rule.type = REDIRECT_ABSOLUTE_URI;
 			else if (g_array_index(v->data.list, liValue*, 1)->data.string->str[0] == '/')
 				rule.type = REDIRECT_ABSOLUTE_PATH;
