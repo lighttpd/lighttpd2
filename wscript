@@ -9,8 +9,12 @@ License and Copyright: see COPYING file
 import Options, types, os, sys, Runner, Utils
 from time import gmtime, strftime, timezone
 
+LIGHTTPD_VERSION_MAJOR=2
+LIGHTTPD_VERSION_MINOR=0
+LIGHTTPD_VERSION_PATCH=0
+
 # the following two variables are used by the target "waf dist"
-VERSION='2.0-pre'
+VERSION='%d.%d.%d' % (LIGHTTPD_VERSION_MAJOR,LIGHTTPD_VERSION_MINOR,LIGHTTPD_VERSION_PATCH)
 APPNAME='lighttpd'
 
 # these variables are mandatory ('/' are converted automatically)
@@ -24,6 +28,7 @@ def set_options(opt):
 	
 	# ./waf configure options
 	opt.add_option('--with-lua', action='store_true', help='with lua 5.1 for mod_magnet', dest = 'lua', default = False)
+	opt.add_option('--with-openssl', action='store_true', help='with openssl-support [default: off]', dest='openssl', default=False)
 	opt.add_option('--with-all', action='store_true', help='Enable all features', dest = 'all', default = False)
 	opt.add_option('--static', action='store_true', help='build a static lighttpd with all modules added', dest = 'static', default = False)
 	opt.add_option('--append', action='store', help='Append string to binary names / library dir', dest = 'append', default = '')
@@ -38,8 +43,13 @@ def configure(conf):
 	#conf.check_message_2('The waf build system has been disabled, please use cmake for the time being.', 'RED')
 	#sys.exit(1)
 
-	conf.define('APPNAME', APPNAME)
-	conf.define('VERSION', VERSION)
+	conf.define('LIGHTTPD_VERSION_MAJOR', LIGHTTPD_VERSION_MAJOR)
+	conf.define('LIGHTTPD_VERSION_MINOR', LIGHTTPD_VERSION_MINOR)
+	conf.define('LIGHTTPD_VERSION_PATCH', LIGHTTPD_VERSION_PATCH)
+	conf.define('PACKAGE_NAME', APPNAME)
+	conf.define('PACKAGE_VERSION', VERSION)
+	conf.define('PACKAGE_BUILD_DATE', strftime("%b %d %Y %H:%M:%S UTC", gmtime()));
+	conf.define('LIBRARY_DIR', opts.libdir)
 
 	conf.check_tool('compiler_cc')
 	conf.check_tool('ragel', tooldir = '.')
@@ -106,7 +116,16 @@ def configure(conf):
 		conf.define('HAVE_LUA_H', 1)
 		conf.define('HAVE_LIBLUA', 1)
 		conf.define('USE_LUA', 1)
-	
+
+	if opts.openssl:
+		if not conf.check_cfg(package='openssl', uselib_store='ssl', args='--cflags --libs'):
+			conf.check(lib='ssl', uselib_store='ssl', mandatory=True)
+			conf.check(header_name='openssl/ssl.h', uselib='ssl', mandatory=True)
+			conf.check(lib='crypto', uselib_store='crypto', mandatory=True)
+			conf.check(function_name='BIO_f_base64', header_name=['openssl/bio.h','openssl/evp.h'], uselib='crypto', mandatory=True)
+			conf.check(function_name='SSL_new', header_name='openssl/ssl.h', uselib='ssl', mandatory=True)
+		conf.define('USE_OPENSSL', 1)
+
 	if not opts.static:
 		conf.check(lib='dl', uselib_store='dl')
 	
@@ -139,13 +158,6 @@ def configure(conf):
 	conf.sub_config('src/main')
 	conf.sub_config('src/modules')
 
-	conf.define('LIGHTTPD_VERSION_ID', 20000)
-	conf.define('PACKAGE_NAME', APPNAME)
-	conf.define('PACKAGE_VERSION', VERSION)
-	conf.define('PACKAGE_BUILD_DATE', strftime("%b %d %Y %H:%M:%S UTC", gmtime()));
-	conf.define('LIBRARY_DIR', opts.libdir)
-	conf.define('HAVE_CONFIG_H', 1)
-
 	revno = get_revno(conf)
 	if revno:
 		conf.define('LIGHTTPD_REVISION', revno)
@@ -162,6 +174,7 @@ def configure(conf):
 	print_summary(conf, 'Build static binary', 'yes' if opts.static else 'no', 'YELLOW' if opts.static else 'GREEN')
 	print_summary(conf, 'Build debug binary', 'yes' if opts.debug else 'no', 'YELLOW' if opts.debug else 'GREEN')
 	print_summary(conf, 'With lua support', 'yes' if opts.lua else 'no', 'GREEN' if opts.lua else 'YELLOW')
+	print_summary(conf, 'With ssl support', 'yes' if opts.openssl else 'no', 'GREEN' if opts.openssl else 'YELLOW')
 	
 
 def build(bld):

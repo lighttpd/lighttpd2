@@ -30,13 +30,13 @@ def build(bld):
 	lighty_mod(bld, 'mod_auth', 'mod_auth.c')
 	lighty_mod(bld, 'mod_balancer', 'mod_balancer.c')
 	lighty_mod(bld, 'mod_cache_disk_etag', 'mod_cache_disk_etag.c')
-	if bld.env['USE_ZLIB'] == 1:
-		lighty_mod(bld, 'mod_compress', 'mod_compress.c', uselib=['z'])
 	lighty_mod(bld, 'mod_debug', 'mod_debug.c')
 	lighty_mod(bld, 'mod_dirlist', 'mod_dirlist.c')
 	lighty_mod(bld, 'mod_expire', 'mod_expire.c')
 	lighty_mod(bld, 'mod_fastcgi', 'mod_fastcgi.c')
 	lighty_mod(bld, 'mod_fortune', 'mod_fortune.c')
+	if bld.env['USE_OPENSSL'] == 1:
+		lighty_mod(bld, 'mod_openssl', 'mod_openssl.c', uselib=['ssl','crypto'])
 	lighty_mod(bld, 'mod_redirect', 'mod_redirect.c')
 	lighty_mod(bld, 'mod_rewrite', 'mod_rewrite.c')
 	lighty_mod(bld, 'mod_status', 'mod_status.c')
