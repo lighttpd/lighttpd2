@@ -149,6 +149,60 @@ if test x$ipv6 = xtrue; then
   fi
 fi
 
+
+dnl Check for openssl
+AC_MSG_CHECKING(for OpenSSL)
+AC_ARG_WITH(openssl,
+    AC_HELP_STRING([--with-openssl@<:@=DIR@:>@],[Include openssl support (default no)]),
+    [WITH_OPENSSL=$withval],[WITH_OPENSSL=no])
+
+OPENSSL_CFLAGS=""
+OPENSSL_LIBS=""
+
+if test "$WITH_OPENSSL" != "no"; then
+  use_openssl=yes
+  if test "$WITH_OPENSSL" != "yes"; then
+    OPENSSL_CFLAGS="-I$WITH_OPENSSL/include"
+    OPENSSL_LIBS="-L$WITH_OPENSSL/lib"
+  fi
+else
+  use_openssl=no
+fi
+AC_MSG_RESULT([$use_openssl])
+
+AC_ARG_WITH(openssl-includes,
+  AC_HELP_STRING([--with-openssl-includes=DIR],[OpenSSL includes]),
+  [ use_openssl=yes OPENSSL_CFLAGS="-I$withval" ]
+)
+
+AC_ARG_WITH(openssl-libs,
+  AC_HELP_STRING([--with-openssl-libs=DIR],[OpenSSL libraries]),
+  [ use_openssl=yes OPENSSL_LIBS="-L$withval" ]
+)
+
+AC_ARG_WITH(kerberos5,
+  AC_HELP_STRING([--with-kerberos5],[use Kerberos5 support with OpenSSL]),
+  [ use_kerberos=yes ], [use_kerberos=no]
+)
+
+if test "x$use_openssl" = "xyes"; then
+  if test "x$use_kerberos" != "xyes"; then
+    OPENSSL_CFLAGS="$OPENSSL_CFLAGS -DOPENSSL_NO_KRB5"
+  fi
+
+  AC_CHECK_HEADERS([openssl/ssl.h])
+  OLDLIBS="$LIBS"
+  AC_CHECK_LIB(crypto, BIO_f_base64, [
+    AC_CHECK_LIB(ssl, SSL_new, [ OPENSSL_LIBS="$OPENSSL_LIBS -lssl -lcrypto"
+      AC_DEFINE(HAVE_LIBSSL, [], [Have libssl]) ], [], [ -lcrypto "$DL_LIB" ])
+  ], [], [])
+  LIBS="$OLDLIBS"
+
+  AC_SUBST(OPENSSL_CFLAGS)
+  AC_SUBST(OPENSSL_LIBS)
+fi
+
+
 # check for extra compiler options (warning options)
 if test "${GCC}" = "yes"; then
     CFLAGS="${CFLAGS} -Wall -W -Wshadow -pedantic -std=gnu99"
