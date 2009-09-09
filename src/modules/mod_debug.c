@@ -96,7 +96,7 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->is_ssl = c->is_ssl;
 		cd->keep_alive = c->keep_alive;
 		cd->remote_addr_str = g_string_new_len(GSTR_LEN(c->remote_addr_str));
-		cd->local_addr_str = g_string_new_len(GSTR_LEN(c->srv_sock->local_addr_str));
+		cd->local_addr_str = g_string_new_len(GSTR_LEN(c->local_addr_str));
 		cd->host = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.host));
 		cd->path = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.path));
 		cd->query = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.query));

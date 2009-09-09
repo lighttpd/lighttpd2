@@ -297,7 +297,7 @@ static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *
 		case REDIRECT_PART_VAR:
 
 			switch (rp->data.cond_lval) {
-			case LI_COMP_REQUEST_LOCALIP: str = vr->con->srv_sock->local_addr_str; break;
+			case LI_COMP_REQUEST_LOCALIP: str = vr->con->local_addr_str; break;
 			case LI_COMP_REQUEST_REMOTEIP: str = vr->con->remote_addr_str; break;
 			case LI_COMP_REQUEST_SCHEME: str = NULL; break;
 			case LI_COMP_REQUEST_PATH: str = vr->request.uri.path; break;

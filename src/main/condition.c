@@ -357,7 +357,7 @@ static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liConditio
 
 	switch (cond->lvalue->type) {
 	case LI_COMP_REQUEST_LOCALIP:
-		val = con->srv_sock->local_addr_str->str;
+		val = con->local_addr_str->str;
 		break;
 	case LI_COMP_REQUEST_REMOTEIP:
 		val = con->remote_addr_str->str;
@@ -533,7 +533,7 @@ static liHandlerResult li_condition_check_eval_ip(liVRequest *vr, liCondition *c
 
 	switch (cond->lvalue->type) {
 	case LI_COMP_REQUEST_LOCALIP:
-		if (!condition_ip_from_socket(&ipval, con->srv_sock->local_addr.addr))
+		if (!condition_ip_from_socket(&ipval, con->local_addr.addr))
 			return LI_HANDLER_GO_ON;
 		break;
 	case LI_COMP_REQUEST_REMOTEIP:

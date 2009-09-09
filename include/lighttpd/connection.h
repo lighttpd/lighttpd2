@@ -39,8 +39,8 @@ struct liConnection {
 	liChunkQueue *in, *out;    /* link to mainvr->in/out */
 
 	ev_io sock_watcher;
-	liSocketAddress remote_addr;
-	GString *remote_addr_str;
+	liSocketAddress remote_addr, local_addr;
+	GString *remote_addr_str, *local_addr_str;
 	gboolean is_ssl, keep_alive;
 
 	liVRequest *mainvr;

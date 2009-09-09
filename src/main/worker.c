@@ -269,12 +269,18 @@ void li_worker_new_con(liWorker *ctx, liWorker *wrk, liSocketAddress remote_addr
 
 		con->srv_sock = srv_sock;
 		con->state = LI_CON_STATE_REQUEST_START;
-		con->remote_addr = remote_addr;
 		ev_io_set(&con->sock_watcher, s, EV_READ);
 		ev_io_start(wrk->loop, &con->sock_watcher);
 		con->ts = CUR_TS(con->wrk);
+
+		con->remote_addr = remote_addr;
 		li_sockaddr_to_string(remote_addr, con->remote_addr_str, FALSE);
+
+		con->local_addr = li_sockaddr_local_from_socket(s);
+		li_sockaddr_to_string(con->local_addr, con->local_addr_str, FALSE);
+
 		li_waitqueue_push(&wrk->io_timeout_queue, &con->io_timeout_elem);
+
 
 		if (srv_sock->new_cb) {
 			if (!srv_sock->new_cb(con)) {

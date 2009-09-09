@@ -330,10 +330,10 @@ static void fastcgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteAr
 	fastcgi_env_add(buf, envdup, CONST_STR_LEN("GATEWAY_INTERFACE"), CONST_STR_LEN("CGI/1.1"));
 	{
 		guint port = 0;
-		switch (con->srv_sock->local_addr.addr->plain.sa_family) {
-		case AF_INET: port = con->srv_sock->local_addr.addr->ipv4.sin_port; break;
+		switch (con->local_addr.addr->plain.sa_family) {
+		case AF_INET: port = con->local_addr.addr->ipv4.sin_port; break;
 #ifdef HAVE_IPV6
-		case AF_INET6: port = con->srv_sock->local_addr.addr->ipv6.sin6_port; break;
+		case AF_INET6: port = con->local_addr.addr->ipv6.sin6_port; break;
 #endif
 		}
 		if (port) {
@@ -341,7 +341,7 @@ static void fastcgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteAr
 			fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_PORT"), GSTR_LEN(tmp));
 		}
 	}
-	fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_ADDR"), GSTR_LEN(con->srv_sock->local_addr_str));
+	fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_ADDR"), GSTR_LEN(con->local_addr_str));
 
 	{
 		guint port = 0;

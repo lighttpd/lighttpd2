@@ -26,8 +26,6 @@ struct liServerSocket {
 	gint refcount;
 	liServer *srv;
 	ev_io watcher;
-	liSocketAddress local_addr;
-	GString *local_addr_str;
 
 	/* Custom sockets (ssl) */
 	gpointer data;

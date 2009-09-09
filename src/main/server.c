@@ -10,9 +10,6 @@ static liServerSocket* server_socket_new(int fd) {
 
 	sock->refcount = 1;
 	sock->watcher.data = sock;
-	sock->local_addr = li_sockaddr_local_from_socket(fd);
-	sock->local_addr_str = g_string_sized_new(0);
-	li_sockaddr_to_string(sock->local_addr, sock->local_addr_str, FALSE);
 	li_fd_init(fd);
 	ev_init(&sock->watcher, li_server_listen_cb);
 	ev_io_set(&sock->watcher, fd, EV_READ);
@@ -25,8 +22,6 @@ void li_server_socket_release(liServerSocket* sock) {
 	if (g_atomic_int_dec_and_test(&sock->refcount)) {
 		if (sock->release_cb) sock->release_cb(sock);
 
-		li_sockaddr_clear(&sock->local_addr);
-		g_string_free(sock->local_addr_str, TRUE);
 		g_slice_free(liServerSocket, sock);
 	}
 }
