@@ -9,26 +9,26 @@ License and Copyright: see COPYING file
 
 import Options, sys, Utils
 
-source = '''
-	angel_connection.c
-	angel_data.c
-	encoding.c
-	idlist.c
-	ip_parsers.rl
-	module.c
-	radix.c
-	utils.c
-	waitqueue.c
-'''
-
 def configure(conf):
 	opts = Options.options
 	pass
 
 
 def build(bld):
+	source = '''
+		angel_connection.c
+		angel_data.c
+		encoding.c
+		idlist.c
+		ip_parsers.rl
+		module.c
+		radix.c
+		utils.c
+		waitqueue.c
+	'''
+
 	libcommon = bld.new_task_gen(
-		features = 'cc cstaticlib',
+		features = 'cc cshlib',
 	 	source = source,
 		defines = ['HAVE_CONFIG_H=1'],
 		uselib = ['glib', 'gthread', 'gmodule', 'ev'],

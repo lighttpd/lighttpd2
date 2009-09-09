@@ -9,52 +9,51 @@ License and Copyright: see COPYING file
 
 import Options, sys
 
-source = '''
-	actions.c
-	angel.c
-	angel_fake.c
-	chunk.c
-	chunk_parser.c
-	collect.c
-	condition.c
-	config_parser.rl
-	connection.c
-	environment.c
-	etag.c
-	filter_chunked.c
-	http_headers.c
-	http_request_parser.rl
-	http_response_parser.rl
-	lighttpd-glue.c
-	lighttpd.c
-	log.c
-	network.c
-	network_sendfile.c
-	network_write.c
-	network_writev.c
-	options.c
-	plugin.c
-	plugin_core.c
-	profiler.c
-	request.c
-	response.c
-	server.c
-	stat_cache.c
-	throttle.c
-	url_parser.rl
-	value.c
-	virtualrequest.c
-	worker.c
-'''
 
 def configure(conf):
 	pass
 
 
 def build(bld):
-	global source
-
 	libs = ['glib', 'gthread', 'gmodule', 'ev']
+
+	source = '''
+		actions.c
+		angel.c
+		angel_fake.c
+		chunk.c
+		chunk_parser.c
+		collect.c
+		condition.c
+		config_parser.rl
+		connection.c
+		environment.c
+		etag.c
+		filter_chunked.c
+		http_headers.c
+		http_request_parser.rl
+		http_response_parser.rl
+		lighttpd-glue.c
+		lighttpd.c
+		log.c
+		network.c
+		network_sendfile.c
+		network_write.c
+		network_writev.c
+		options.c
+		plugin.c
+		plugin_core.c
+		profiler.c
+		request.c
+		response.c
+		server.c
+		stat_cache.c
+		throttle.c
+		url_parser.rl
+		value.c
+		virtualrequest.c
+		worker.c
+	'''
 
 	if bld.env['USE_LUA'] == 1:
 		libs += ['lua']
