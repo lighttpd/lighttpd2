@@ -84,6 +84,7 @@ def configure(conf):
 
 	if opts.all:
 		opts.lua = True
+		opts.openssl = True
 
 	if not opts.debug:
 		conf.env['CCFLAGS'] += ['-O2']
