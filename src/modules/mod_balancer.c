@@ -1,3 +1,27 @@
+/*
+ * mod_balancer - balance between different backends
+ *
+ * Description:
+ *     mod_balancer balances between different backends;
+ *
+ * Setups:
+ *     none
+ * Options:
+ *     none
+ * Actions:
+ *     balance.rr <actions> - balance between actions (list or single action)
+*
+ * Example config:
+ *     balance.rr { fastcgi "127.0.0.1:9090"; };
+ *
+ * Todo:
+ *     - add some select function (current: always take first)
+ *     - support backlogs
+ *
+ * Author:
+ *     Copyright (c) 2009 Stefan Bühler
+ */
+
 
 #include <lighttpd/base.h>
 
