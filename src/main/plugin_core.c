@@ -522,51 +522,6 @@ static gboolean core_listen(liServer *srv, liPlugin* p, liValue *val) {
 }
 
 
-static gboolean core_event_handler(liServer *srv, liPlugin* p, liValue *val) {
-	guint backend;
-	gchar *str;
-	UNUSED(p);
-
-	if (val->type != LI_VALUE_STRING) {
-		ERROR(srv, "%s", "event_handler expects a string as parameter");
-		return FALSE;
-	}
-
-	str = val->data.string->str;
-
-	if (g_str_equal(str, "select"))
-		backend = EVBACKEND_SELECT;
-	else if (g_str_equal(str, "poll"))
-		backend = EVBACKEND_POLL;
-	else if (g_str_equal(str, "epoll"))
-		backend = EVBACKEND_EPOLL;
-	else if (g_str_equal(str, "kqueue"))
-		backend = EVBACKEND_KQUEUE;
-	else if (g_str_equal(str, "devpoll"))
-		backend = EVBACKEND_DEVPOLL;
-	else if (g_str_equal(str, "port"))
-		backend = EVBACKEND_PORT;
-	else {
-		ERROR(srv, "unkown event handler: '%s'", str);
-		return FALSE;
-	}
-
-	if (backend) {
-		if (!(ev_supported_backends() & backend)) {
-			ERROR(srv, "unsupported event handler: '%s'", str);
-			return FALSE;
-		}
-
-		if (!(ev_recommended_backends() & backend)) {
-			DEBUG(srv, "warning: event handler '%s' not recommended for this platform!", str);
-		}
-	}
-
-	srv->loop_flags |= backend;
-
-	return TRUE;
-}
-
 static gboolean core_workers(liServer *srv, liPlugin* p, liValue *val) {
 	gint workers;
 	UNUSED(p);
@@ -1375,7 +1330,6 @@ static const liPluginAction actions[] = {
 static const liPluginSetup setups[] = {
 	{ "set_default", core_setup_set },
 	{ "listen", core_listen },
-	{ "event_handler", core_event_handler },
 	{ "workers", core_workers },
 	{ "module_load", core_module_load },
 	{ "io_timeout", core_io_timeout },
