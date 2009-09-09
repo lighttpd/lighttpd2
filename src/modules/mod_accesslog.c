@@ -315,7 +315,7 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(req->uri.path));
 				break;
 			case AL_FORMAT_SERVER_NAME:
-				if (CORE_OPTION(LI_CORE_OPTION_LOG).string)
+				if (CORE_OPTION(LI_CORE_OPTION_SERVER_NAME).string)
 					g_string_append_len(str, GSTR_LEN(req->uri.host));
 				else
 					g_string_append_len(str, GSTR_LEN(CORE_OPTION(LI_CORE_OPTION_SERVER_NAME).string));
