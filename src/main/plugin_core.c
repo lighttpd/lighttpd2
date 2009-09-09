@@ -771,10 +771,6 @@ static gboolean core_option_etag_use_parse(liServer *srv, liPlugin *p, size_t nd
 		return TRUE;
 	}
 
-	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "etag.use option expects a list of strings, parameter is of type %s", li_value_type_string(val->type));
-	}
-
 	arr = val->data.list;
 	for (guint i = 0; i < arr->len; i++) {
 		liValue *v = g_array_index(arr, liValue*, i);
@@ -1277,7 +1273,7 @@ static const liPluginOption options[] = {
 	{ "log.timestamp", LI_VALUE_STRING, NULL, core_option_log_timestamp_parse, core_option_log_timestamp_free },
 	{ "log", LI_VALUE_HASH, NULL, core_option_log_parse, core_option_log_free },
 
-	{ "static-file.exclude", LI_VALUE_LIST, NULL, NULL, NULL },
+	{ "static-file.exclude", LI_VALUE_LIST, NULL, NULL, NULL }, /* TODO: not used right now */
 
 	{ "server.name", LI_VALUE_STRING, NULL, NULL, NULL },
 	{ "server.tag", LI_VALUE_STRING, "lighttpd-2.0~sandbox", NULL, NULL },
@@ -1288,7 +1284,7 @@ static const liPluginOption options[] = {
 
 	{ "throttle", LI_VALUE_NUMBER, GINT_TO_POINTER(0), NULL, NULL },
 
-	{ "etag.use", LI_VALUE_NONE, NULL, core_option_etag_use_parse, NULL },
+	{ "etag.use", LI_VALUE_LIST, NULL, core_option_etag_use_parse, NULL },
 
 	{ NULL, 0, NULL, NULL, NULL }
 };
