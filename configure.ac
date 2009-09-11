@@ -98,7 +98,7 @@ if test "$WITH_LUA" != "no"; then
  USE_LUA=true
 fi
 
-AM_CONDITIONAL(USE_LUA, test "$USE_LUA" = "true")
+AM_CONDITIONAL([USE_LUA], [test "$USE_LUA" = "true"])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -193,15 +193,23 @@ if test "x$use_openssl" = "xyes"; then
   AC_CHECK_HEADERS([openssl/ssl.h])
   OLDLIBS="$LIBS"
   AC_CHECK_LIB(crypto, BIO_f_base64, [
-    AC_CHECK_LIB(ssl, SSL_new, [ OPENSSL_LIBS="$OPENSSL_LIBS -lssl -lcrypto"
-      AC_DEFINE(HAVE_LIBSSL, [], [Have libssl]) ], [], [ -lcrypto "$DL_LIB" ])
+    AC_CHECK_LIB(ssl, SSL_new, [
+      OPENSSL_LIBS="$OPENSSL_LIBS -lssl -lcrypto"
+      have_openssl=yes
+      AC_DEFINE(HAVE_OPENSSL, [], [Have openssl])
+    ], [], [ -lcrypto "$DL_LIB" ])
   ], [], [])
   LIBS="$OLDLIBS"
+
+  if test "x$have_openssl" != "xyes"; then
+    AC_MSG_ERROR(Couldn't find openssl)
+  fi
 
   AC_SUBST(OPENSSL_CFLAGS)
   AC_SUBST(OPENSSL_LIBS)
 fi
 
+AM_CONDITIONAL([USE_OPENSSL], [test "x$have_openssl" = "xyes"])
 
 # check for extra compiler options (warning options)
 if test "${GCC}" = "yes"; then

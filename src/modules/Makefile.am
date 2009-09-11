@@ -58,10 +58,12 @@ libmod_fortune_la_SOURCES = mod_fortune.c
 libmod_fortune_la_LDFLAGS = $(common_ldflags)
 libmod_fortune_la_LIBADD = $(common_libadd)
 
+if USE_OPENSSL
 install_libs += libmod_openssl.la
 libmod_openssl_la_SOURCES = mod_openssl.c
 libmod_openssl_la_LDFLAGS = $(common_ldflags) $(OPENSSL_LIBS)
 libmod_openssl_la_LIBADD = $(common_libadd)
+endif
 
 install_libs += libmod_redirect.la
 libmod_redirect_la_SOURCES = mod_redirect.c
