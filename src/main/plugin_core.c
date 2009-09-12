@@ -771,7 +771,11 @@ static gboolean core_option_etag_use_parse(liServer *srv, liPlugin *p, size_t nd
 		return TRUE;
 	}
 
-	arr = val->data.list;
+	/* Need manual type check, as resulting option type is number */
+	if (val->type != LI_VALUE_LIST) {
+		ERROR(srv, "etag.use option expects a list of strings, parameter is of type %s", li_value_type_string(val->type));
+	}
+arr = val->data.list;
 	for (guint i = 0; i < arr->len; i++) {
 		liValue *v = g_array_index(arr, liValue*, i);
 		if (v->type != LI_VALUE_STRING) {
@@ -1284,7 +1288,7 @@ static const liPluginOption options[] = {
 
 	{ "throttle", LI_VALUE_NUMBER, GINT_TO_POINTER(0), NULL, NULL },
 
-	{ "etag.use", LI_VALUE_LIST, NULL, core_option_etag_use_parse, NULL },
+	{ "etag.use", LI_VALUE_NONE, NULL, core_option_etag_use_parse, NULL }, /* type in config is list, internal type is number for flags */
 
 	{ NULL, 0, NULL, NULL, NULL }
 };
