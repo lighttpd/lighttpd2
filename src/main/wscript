@@ -62,6 +62,16 @@ def build(bld):
 			condition_lua.c
 			config_lua.c
 			value_lua.c
+
+			chunk_lua.c
+			connection_lua.c
+			core_lua.c
+			environment_lua.c
+			http_headers_lua.c
+			physical_lua.c
+			request_lua.c
+			response_lua.c
+			virtualrequest_lua.c
 		'''
 
 	libcommon = bld.new_task_gen(

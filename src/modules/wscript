@@ -17,7 +17,10 @@ def lighty_mod(bld, target, src, uselib = []):
 		uselib = ['glib', 'gthread', 'gmodule', 'ev', 'lighty_mod'] + uselib,
 		uselib_local = ['common'],
 		includes = ['#/include/'],
-		target = target,)
+		target = target)
+
+	if sys.platform == 'darwin':
+		mod.env['shlib_PATTERN'] = 'lib%s.so'
 
 
 def configure(conf):

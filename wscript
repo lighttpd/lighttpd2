@@ -67,7 +67,6 @@ def configure(conf):
 		conf.env['LINKFLAGS_lighty_mod'] += [ '-module', '-avoid-version', '-W,l-no-undefined' ]
 	else:
 		# OSX aka darwin needs special treatment
-		conf.env['shlib_PATTERN'] = 'lib%s.so'
 		conf.env['LINKFLAGS'] += ['-flat_namespace']
 		conf.env['LINKFLAGS_lighty_mod'] += ['-undefined', 'dynamic_lookup']
 

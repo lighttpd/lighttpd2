@@ -10,7 +10,6 @@ License and Copyright: see COPYING file
 import Options, sys, Utils
 
 def configure(conf):
-	opts = Options.options
 	pass
 
 
