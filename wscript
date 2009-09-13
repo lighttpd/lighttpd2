@@ -152,6 +152,8 @@ def configure(conf):
 	conf.check(function_name='fpathconf', header_name='unistd.h', define_name='HAVE_FPATHCONF')
 	conf.check(function_name='pathconf', header_name='unistd.h', define_name='HAVE_PATHCONF')
 	conf.check(function_name='dirfd', header_name=['sys/types.h', 'dirent.h'], define_name='HAVE_DIRFD')
+	conf.check(function_name='localtime_r', header_name=['time.h'], define_name='HAVE_LOCALTIME_R')
+	conf.check(function_name='gmtime_r', header_name=['time.h'], define_name='HAVE_GMTIME_R')
 
 	conf.sub_config('src/common')
 	conf.sub_config('src/angel')

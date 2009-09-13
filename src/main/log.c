@@ -104,8 +104,12 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 
 		if (cur_ts != ts->last_ts) {
 			gsize s;
+#ifdef HAVE_LOCALTIME_R
 			struct tm tm;
+#endif
+
 			g_string_set_size(ts->cached, 255);
+
 #ifdef HAVE_LOCALTIME_R
 			s = strftime(ts->cached->str, ts->cached->allocated_len,
 				ts->format->str, localtime_r(&cur_ts, &tm));

@@ -428,7 +428,9 @@ GString *li_server_current_timestamp() {
 
 	if (cur_ts != *last_ts) {
 		gsize s;
+#ifdef HAVE_GMTIME_R
 		struct tm tm;
+#endif
 
 		g_string_set_size(ts_str, 255);
 #ifdef HAVE_GMTIME_R
