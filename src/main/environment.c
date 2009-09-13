@@ -17,6 +17,7 @@ void li_environment_reset(liEnvironment *env) {
 
 void li_environment_clear(liEnvironment *env) {
 	g_hash_table_destroy(env->table);
+	env->table = NULL;
 }
 
 void li_environment_set(liEnvironment *env, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {

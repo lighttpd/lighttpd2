@@ -41,7 +41,7 @@
 #define VR_DEBUG(vr, fmt, ...)    _DEBUG(vr->wrk->srv, vr, fmt, __VA_ARGS__)
 #define VR_BACKEND(vr, fmt, ...)  _BACKEND(vr->wrk->srv, vr, fmt, __VA_ARGS__)
 #define VR_BACKEND_LINES(vr, txt, fmt, ...) _BACKEND_LINES(vr->wrk->srv, vr, txt, fmt, __VA_ARGS__)
-#define VR_GERROR(vr, error, fmt, ...) _GERROR(vr->work->srv, vr, error, fmt, __VA_ARGS__)
+#define VR_GERROR(vr, error, fmt, ...) _GERROR(vr->wrk->srv, vr, error, fmt, __VA_ARGS__)
 
 #define SEGFAULT(srv, fmt, ...)   _SEGFAULT(srv, NULL, fmt, __VA_ARGS__)
 #define ERROR(srv, fmt, ...)      _ERROR(srv, NULL, fmt, __VA_ARGS__)

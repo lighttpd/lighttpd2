@@ -41,7 +41,7 @@ struct liRequest {
 
 	liHttpHeaders *headers;
 	/* Parsed headers: */
-	goffset content_length;
+	goffset content_length; /* -1 if not specified */
 };
 
 LI_API void li_request_init(liRequest *req);

@@ -384,7 +384,7 @@ static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liConditio
 		/* TODO: physical path exists */
 		break;
 	case LI_COMP_REQUEST_HEADER:
-		li_http_header_get_fast(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
+		li_http_header_get_all(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
 		break;
 	case LI_COMP_REQUEST_CONTENT_LENGTH:
@@ -562,7 +562,7 @@ static liHandlerResult li_condition_check_eval_ip(liVRequest *vr, liCondition *c
 		return LI_HANDLER_ERROR;
 		break;
 	case LI_COMP_REQUEST_HEADER:
-		li_http_header_get_fast(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
+		li_http_header_get_all(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
 		break;
 	case LI_COMP_PHYSICAL_SIZE:

@@ -154,7 +154,7 @@ gboolean li_http_header_is(liHttpHeaders *headers, const gchar *key, size_t keyl
 	return FALSE;
 }
 
-void li_http_header_get_fast(GString *dest, liHttpHeaders *headers, const gchar *key, size_t keylen) {
+void li_http_header_get_all(GString *dest, liHttpHeaders *headers, const gchar *key, size_t keylen) {
 	GList *l;
 	g_string_truncate(dest, 0);
 

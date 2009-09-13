@@ -17,9 +17,9 @@ struct liEnvironmentDup {
 	GHashTable *table;
 };
 
-LI_API void li_environment_init(liEnvironment *env);
-LI_API void li_environment_reset(liEnvironment *env);
-LI_API void li_environment_clear(liEnvironment *env);
+LI_API void li_environment_init(liEnvironment *env); /* create table */
+LI_API void li_environment_reset(liEnvironment *env); /* remove all entries */
+LI_API void li_environment_clear(liEnvironment *env); /* destroy table */
 
 /* overwrite previous value */
 LI_API void li_environment_set(liEnvironment *env, const gchar *key, size_t keylen, const gchar *val, size_t valuelen);
