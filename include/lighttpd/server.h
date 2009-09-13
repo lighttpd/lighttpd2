@@ -1,8 +1,14 @@
 #ifndef _LIGHTTPD_SERVER_H_
 #define _LIGHTTPD_SERVER_H_
 
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include <lighttpd/base.h> instead of this file
+#endif
+
+struct lua_State;
+
 #ifndef LIGHTTPD_SERVER_MAGIC
-#define LIGHTTPD_SERVER_MAGIC ((guint)0x12AB34CD)
+# define LIGHTTPD_SERVER_MAGIC ((guint)0x12AB34CD)
 #endif
 
 typedef gboolean (*liConnectionNewCB)(liConnection *con);
@@ -40,6 +46,9 @@ struct liServer {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
 	liServerState state, dest_state;       /** atomic access */
 	liAngelConnection *acon;
+
+	GMutex *lualock;
+	struct lua_State *L;     /** NULL if compiled without Lua */
 
 	liWorker *main_worker;
 	guint worker_count;

@@ -38,18 +38,27 @@ lighttpd_shared_src= \
 	 \
 	plugin_core.c
 
+lua_src= \
+	actions_lua.c \
+	condition_lua.c \
+	config_lua.c \
+	value_lua.c \
+	 \
+	chunk_lua.c \
+	connection_lua.c \
+	core_lua.c \
+	environment_lua.c \
+	http_headers_lua.c \
+	physical_lua.c \
+	request_lua.c \
+	response_lua.c \
+	virtualrequest_lua.c
+
+
 if USE_LUA
-lighttpd_shared_src+= \
-	actions_lua.c \
-	condition_lua.c \
-	config_lua.c \
-	value_lua.c
+lighttpd_shared_src+=$(lua_src)
 endif
-EXTRA_lighttpd_SOURCES=\
-	actions_lua.c \
-	condition_lua.c \
-	config_lua.c \
-	value_lua.c
+EXTRA_lighttpd_SOURCES=$(lua_src)
 
 BUILT_SOURCES=config_parser.c http_request_parser.c http_response_parser.c url_parser.c
 

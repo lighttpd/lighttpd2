@@ -5,9 +5,9 @@
 #include <lualib.h>
 #include <lauxlib.h>
 
-#define LUA_CONDITION "condition*"
-#define LUA_COND_LVALUE "cond_lliValue*"
-#define LUA_COND_LVALUE_T "cond_lvalue_t"
+#define LUA_CONDITION "liCondition*"
+#define LUA_COND_LVALUE "liConditionLValue*"
+#define LUA_COND_LVALUE_T "liCondLValue"
 
 /* helper */
 #define lua_mt_register_srv(srv, L, name, func) do {\

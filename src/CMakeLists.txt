@@ -182,6 +182,16 @@ SET(LIGHTTPD_SHARED_SRC ${LIGHTTPD_SHARED_SRC}
 	condition_lua.c
 	config_lua.c
 	value_lua.c
+
+	chunk_lua.c
+	core_lua.c
+	connection_lua.c
+	environment_lua.c
+	http_headers_lua.c
+	physical_lua.c
+	request_lua.c
+	response_lua.c
+	virtualrequest_lua.c
 )
 ENDIF(WITH_LUA)
 

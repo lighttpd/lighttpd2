@@ -2,6 +2,13 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
+#ifdef HAVE_LUA_H
+# include <lighttpd/core_lua.h>
+# include <lualib.h>
+# include <lauxlib.h>
+#endif
+
+
 static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents);
 static void li_server_stop(liServer *srv);
 
@@ -80,6 +87,16 @@ liServer* li_server_new(const gchar *module_dir) {
 	srv->state = LI_SERVER_INIT;
 	srv->dest_state = LI_SERVER_RUNNING;
 
+#ifdef HAVE_LUA_H
+	srv->L = luaL_newstate();
+	luaL_openlibs(srv->L);
+	li_lua_init(srv, srv->L);
+
+	srv->lualock = g_mutex_new();
+#else
+	srv->L = NULL;
+#endif
+
 	srv->workers = g_array_new(FALSE, TRUE, sizeof(liWorker*));
 	srv->worker_count = 0;
 
@@ -134,6 +151,12 @@ void li_server_free(liServer* srv) {
 	}
 
 	li_action_release(srv, srv->mainaction);
+
+#ifdef HAVE_LUA_H
+	lua_close(srv->L);
+	srv->L = NULL;
+	g_mutex_free(srv->lualock);
+#endif
 
 	/* free throttle pools */
 	{

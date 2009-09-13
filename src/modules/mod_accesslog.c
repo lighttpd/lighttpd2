@@ -265,7 +265,7 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_REQUEST_HEADER:
-				li_http_header_get_fast(tmp_gstr, req->headers, GSTR_LEN(e->key));
+				li_http_header_get_all(tmp_gstr, req->headers, GSTR_LEN(e->key));
 				if (tmp_gstr->len)
 					al_append_escaped(str, tmp_gstr);
 				else
@@ -275,7 +275,7 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(req->http_method_str));
 				break;
 			case AL_FORMAT_RESPONSE_HEADER:
-				li_http_header_get_fast(tmp_gstr, resp->headers, GSTR_LEN(e->key));
+				li_http_header_get_all(tmp_gstr, resp->headers, GSTR_LEN(e->key));
 				if (tmp_gstr->len)
 					al_append_escaped(str, tmp_gstr);
 				else

@@ -129,8 +129,13 @@ liValue* li_value_from_lua(liServer *srv, lua_State *L) {
 		lua_pop(L, 1);
 		return NULL;
 
+	case LUA_TFUNCTION: {
+			liAction *a = lua_make_action(srv, L, -1);
+			lua_pop(L, 1);
+			return li_value_new_action(srv, a);
+		}
+
 	case LUA_TLIGHTUSERDATA:
-	case LUA_TFUNCTION:
 	case LUA_TTHREAD:
 	case LUA_TNONE:
 	default:

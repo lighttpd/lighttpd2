@@ -4,6 +4,8 @@
 #include <lighttpd/value_lua.h>
 #include <lighttpd/actions_lua.h>
 
+# include <lighttpd/core_lua.h>
+
 #include <lualib.h>
 #include <lauxlib.h>
 
@@ -170,38 +172,13 @@ static int handle_server_setup(liServer *srv, lua_State *L, gpointer _ss) {
 	return 0;
 }
 
-static int traceback (lua_State *L) {
-	if (!lua_isstring(L, 1))  /* 'message' not a string? */
-		return 1;  /* keep it intact */
-	lua_getfield(L, LUA_GLOBALSINDEX, "debug");
-	if (!lua_istable(L, -1)) {
-		lua_pop(L, 1);
-		return 1;
-	}
-	lua_getfield(L, -1, "traceback");
-	if (!lua_isfunction(L, -1)) {
-		lua_pop(L, 2);
-		return 1;
-	}
-	lua_pushvalue(L, 1);  /* pass error message */
-	lua_pushinteger(L, 2);  /* skip this function and traceback */
-	lua_call(L, 2, 1);  /* call debug.traceback */
-	return 1;
-}
-
-static int push_traceback(lua_State *L, int narg) {
-	int base = lua_gettop(L) - narg;  /* function index */
-	lua_pushcfunction(L, traceback);
-	lua_insert(L, base);
-	return base;
-}
-
 gboolean li_config_lua_load(liServer *srv, const gchar *filename) {
-	lua_State *L;
+	lua_State *L = srv->L;
 	int errfunc;
 
-	L = luaL_newstate();
-	luaL_openlibs(L);
+	li_lua_lock(srv);
+
+	li_lua_new_globals(L);
 
 	if (0 != luaL_loadfile(L, filename)) {
 		ERROR(srv, "Loading script '%s' failed: %s", filename, lua_tostring(L, -1));
@@ -218,7 +195,7 @@ gboolean li_config_lua_load(liServer *srv, const gchar *filename) {
 
 	lua_push_lvalues_dict(srv, L);
 
-	errfunc = push_traceback(L, 0);
+	errfunc = li_lua_push_traceback(L, 0);
 	if (lua_pcall(L, 0, 1, errfunc)) {
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
 		return FALSE;
@@ -234,6 +211,9 @@ gboolean li_config_lua_load(liServer *srv, const gchar *filename) {
 
 	assert(lua_gettop(L) == 0);
 
-	lua_close(L);
+	li_lua_restore_globals(L);
+
+	li_lua_unlock(srv);
+
 	return TRUE;
 }
