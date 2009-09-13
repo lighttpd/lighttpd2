@@ -6,14 +6,15 @@
 #endif
 
 struct liRequestUri {
-	GString *raw;
+	GString *raw;                      /* may include  scheme and authority before path_raw */
+	GString *raw_path, *raw_orig_path; /* not decoded path with querystring */
 
 	GString *scheme;
-	GString *authority;
-	GString *path, *orig_path;
+	GString *authority;                /* authority: may include auth and ports and hostname trailing dots */
+	GString *path;
 	GString *query;
 
-	GString *host; /* without userinfo and port */
+	GString *host; /* without userinfo and port and trailing dots */
 };
 
 struct liPhysical {

@@ -224,7 +224,7 @@ static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *
 	GMatchInfo *match_info = NULL;
 
 	if (raw)
-		path = vr->request.uri.raw->str;
+		path = vr->request.uri.raw_path->str;
 	else
 		path = vr->request.uri.path->str;
 

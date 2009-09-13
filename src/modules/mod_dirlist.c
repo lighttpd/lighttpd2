@@ -212,7 +212,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 		host = vr->request.uri.authority->len ? vr->request.uri.authority : vr->con->local_addr_str;
 		uri = g_string_sized_new(
 			8 /* https:// */ + host->len +
-			vr->request.uri.orig_path->len + 2 /* /? */ + vr->request.uri.query->len
+			vr->request.uri.raw_orig_path->len + 2 /* /? */ + vr->request.uri.query->len
 		);
 
 		if (vr->con->is_ssl)
@@ -220,7 +220,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 		else
 			g_string_append_len(uri, CONST_STR_LEN("http://"));
 		g_string_append_len(uri, GSTR_LEN(host));
-		g_string_append_len(uri, GSTR_LEN(vr->request.uri.orig_path));
+		g_string_append_len(uri, GSTR_LEN(vr->request.uri.raw_orig_path));
 		g_string_append_c(uri, '/');
 		if (vr->request.uri.query->len) {
 			g_string_append_c(uri, '?');

@@ -8,10 +8,11 @@ void li_request_init(liRequest *req) {
 	req->http_version = LI_HTTP_VERSION_UNSET;
 
 	req->uri.raw = g_string_sized_new(0);
+	req->uri.raw_path = g_string_sized_new(0);
+	req->uri.raw_orig_path = g_string_sized_new(0);
 	req->uri.scheme = g_string_sized_new(0);
 	req->uri.authority = g_string_sized_new(0);
 	req->uri.path = g_string_sized_new(0);
-	req->uri.orig_path = g_string_sized_new(0);
 	req->uri.query = g_string_sized_new(0);
 	req->uri.host = g_string_sized_new(0);
 
@@ -26,10 +27,11 @@ void li_request_reset(liRequest *req) {
 	req->http_version = LI_HTTP_VERSION_UNSET;
 
 	g_string_truncate(req->uri.raw, 0);
+	g_string_truncate(req->uri.raw_path, 0);
+	g_string_truncate(req->uri.raw_orig_path, 0);
 	g_string_truncate(req->uri.scheme, 0);
 	g_string_truncate(req->uri.authority, 0);
 	g_string_truncate(req->uri.path, 0);
-	g_string_truncate(req->uri.orig_path, 0);
 	g_string_truncate(req->uri.query, 0);
 	g_string_truncate(req->uri.host, 0);
 
@@ -44,10 +46,11 @@ void li_request_clear(liRequest *req) {
 	req->http_version = LI_HTTP_VERSION_UNSET;
 
 	g_string_free(req->uri.raw, TRUE);
+	g_string_free(req->uri.raw_path, TRUE);
+	g_string_free(req->uri.raw_orig_path, TRUE);
 	g_string_free(req->uri.scheme, TRUE);
 	g_string_free(req->uri.authority, TRUE);
 	g_string_free(req->uri.path, TRUE);
-	g_string_free(req->uri.orig_path, TRUE);
 	g_string_free(req->uri.query, TRUE);
 	g_string_free(req->uri.host, TRUE);
 
@@ -79,8 +82,8 @@ static gboolean request_parse_url(liVRequest *vr) {
 	li_url_decode(req->uri.path);
 	li_path_simplify(req->uri.path);
 
-	if (0 == req->uri.orig_path->len) {
-		g_string_append_len(req->uri.orig_path, GSTR_LEN(req->uri.raw)); /* save orig raw uri */
+	if (0 == req->uri.raw_orig_path->len) {
+		g_string_append_len(req->uri.raw_orig_path, GSTR_LEN(req->uri.raw_path)); /* save orig raw uri */
 	}
 
 	return TRUE;
@@ -90,6 +93,12 @@ gboolean li_request_validate_header(liConnection *con) {
 	liRequest *req = &con->mainvr->request;
 	liHttpHeader *hh;
 	GList *l;
+
+	if (con->is_ssl) {
+		g_string_append_len(req->uri.scheme, CONST_STR_LEN("https"));
+	} else {
+		g_string_append_len(req->uri.scheme, CONST_STR_LEN("http"));
+	}
 
 	switch (req->http_version) {
 	case LI_HTTP_VERSION_1_0:
@@ -121,14 +130,11 @@ gboolean li_request_validate_header(liConnection *con) {
 
 		hh = (liHttpHeader*) l->data;
 		g_string_append_len(req->uri.authority, HEADER_VALUE_LEN(hh));
-		if (!li_parse_hostname(&req->uri)) {
-			bad_request(con, 400); /* bad request */
-			return FALSE;
-		}
+		/* check header after we parsed the url, as it may override uri.authority */
 	}
 
 	/* Need hostname in HTTP/1.1 */
-	if (req->uri.host->len == 0 && req->http_version == LI_HTTP_VERSION_1_1) {
+	if (req->uri.authority->len == 0 && req->http_version == LI_HTTP_VERSION_1_1) {
 		bad_request(con, 400); /* bad request */
 		return FALSE;
 	}
@@ -137,6 +143,20 @@ gboolean li_request_validate_header(liConnection *con) {
 	if (!request_parse_url(con->mainvr)) {
 		bad_request(con, 400); /* bad request */
 		return FALSE;
+	}
+
+	if (req->uri.host->len == 0 && req->uri.authority->len != 0) {
+		if (!li_parse_hostname(&req->uri)) {
+			bad_request(con, 400); /* bad request */
+			return FALSE;
+		}
+	}
+
+	/* remove trailing dots from hostname */
+	{
+		guint i = req->uri.host->len;
+		while (i > 0 && req->uri.host->str[i-1] == '.') i--;
+		g_string_truncate(req->uri.host, i);
 	}
 
 	/* content-length */

@@ -9,11 +9,15 @@
 
 	action mark { mark = fpc; }
 	action mark_host { host_mark = fpc; }
+	action mark_url { url_mark = fpc; }
 
 	action save_host {
 		g_string_truncate(uri->host, 0);
 		g_string_append_len(uri->host, host_mark, fpc - host_mark);
 		g_string_ascii_down(uri->host);
+	}
+	action save_url {
+		g_string_append_len(uri->raw_path, url_mark, fpc - url_mark);
 	}
 	action save_authority {
 		g_string_truncate(uri->authority, 0);
@@ -25,6 +29,9 @@
 	}
 	action save_query {
 		g_string_append_len(uri->query, mark, fpc - mark);
+	}
+	action save_scheme {
+		g_string_append_len(uri->scheme, mark, fpc - mark);
 	}
 
 	pct_encoded = "%" xdigit xdigit;
@@ -67,9 +74,9 @@
 	query = ( pchar | "/" | "?" )* >mark %save_query;
 	fragment = ( pchar | "/" | "?" )*;
 
-	URI_path = path ( "?" query )? ( "#" fragment )?;
+	URI_path = (path >mark_url ( "?" query )?) %save_url ( "#" fragment )?;
 
-	URI = scheme "://" (authority >mark %save_authority) URI_path;
+	URI = (scheme >mark %save_scheme) "://" (authority >mark %save_authority) URI_path;
 
 	parse_URI := URI | ("*" >mark %save_path) | URI_path;
 	parse_Hostname := (host >mark_host %save_host) ( ":" port )?;
@@ -79,7 +86,7 @@
 
 gboolean li_parse_raw_url(liRequestUri *uri) {
 	const char *p, *pe, *eof;
-	const char *mark = NULL, *host_mark = NULL;
+	const char *mark = NULL, *host_mark = NULL, *url_mark = NULL;
 	int cs;
 
 	p = uri->raw->str;
@@ -95,7 +102,7 @@ gboolean li_parse_raw_url(liRequestUri *uri) {
 
 gboolean li_parse_hostname(liRequestUri *uri) {
 	const char *p, *pe, *eof;
-	const char *mark = NULL, *host_mark = NULL;
+	const char *mark = NULL, *host_mark = NULL, *url_mark = NULL;
 	int cs;
 
 	g_string_ascii_down(uri->authority);

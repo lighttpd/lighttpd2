@@ -290,7 +290,7 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 			case AL_FORMAT_FIRST_LINE:
 				g_string_append_len(str, GSTR_LEN(req->http_method_str));
 				g_string_append_c(str, ' ');
-				al_append_escaped(str, req->uri.orig_path);
+				al_append_escaped(str, req->uri.raw_orig_path);
 				if (req->uri.query->len) {
 					g_string_append_c(str, '?');
 					al_append_escaped(str, req->uri.query);
