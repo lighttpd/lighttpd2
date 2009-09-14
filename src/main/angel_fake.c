@@ -32,15 +32,15 @@ int angel_fake_listen(liServer *srv, GString *str) {
 		}
 		if (-1 == bind(s, (struct sockaddr*)&addr, sizeof(addr))) {
 			close(s);
-			ERROR(srv, "Couldn't bind socket to '%s': %s", inet_ntoa(*(struct in_addr*)&ipv4), g_strerror(errno));
+			ERROR(srv, "Couldn't bind socket to '%s': %s", inet_ntoa(addr.sin_addr), g_strerror(errno));
 			return -1;
 		}
 		if (-1 == listen(s, 1000)) {
 			close(s);
-			ERROR(srv, "Couldn't listen on '%s': %s", inet_ntoa(*(struct in_addr*)&ipv4), g_strerror(errno));
+			ERROR(srv, "Couldn't listen on '%s': %s", inet_ntoa(addr.sin_addr), g_strerror(errno));
 			return -1;
 		}
-		DEBUG(srv, "listen to ipv4: '%s' port: %d", inet_ntoa(*(struct in_addr*)&ipv4), port);
+		DEBUG(srv, "listen to ipv4: '%s' port: %d", inet_ntoa(addr.sin_addr), port);
 		return s;
 #ifdef HAVE_IPV6
 	} else if (li_parse_ipv6(str->str, ipv6, NULL, &port)) {
