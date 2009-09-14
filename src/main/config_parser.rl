@@ -599,14 +599,26 @@
 				}
 			}
 			else {
-				al = g_queue_peek_head(ctx->action_list_stack);
-				a = li_create_action(srv, name->data.string->str, NULL);
+				/* lookup hashtable of defined actions */
+				a = g_hash_table_lookup(ctx->action_blocks, name->data.string);
+
+				if (a == NULL) {
+					a = li_create_action(srv, name->data.string->str, NULL);
+				} else {
+					li_action_acquire(a);
+				}
 
 				if (a == NULL) {
 					li_value_free(name);
 					return FALSE;
 				}
 
+				if (a == NULL) {
+					li_value_free(name);
+					return FALSE;
+				}
+
+				al = g_queue_peek_head(ctx->action_list_stack);
 				g_array_append_val(al->data.list, a);
 			}
 		}
