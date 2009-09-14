@@ -41,6 +41,9 @@ LI_API void li_url_decode(GString *path);
 
 LI_API void li_path_simplify(GString *path);
 
+/* ensures path has a trailing slash */
+INLINE void li_path_append_slash(GString *path);
+
 /* finds the first value for a given key in the querystring. works with '&' as well as ';' delimiters */
 LI_API gboolean li_querystring_find(GString *querystring, const gchar *key, const guint key_len, gchar **val, guint *val_len);
 
@@ -101,3 +104,8 @@ LI_API GQuark li_sys_error_quark();
 LI_API gboolean _li_set_sys_error(GError **error, const gchar *msg, const gchar *file, int lineno);
 
 #endif
+
+INLINE void li_path_append_slash(GString *path) {
+	if (path->len == 0 || path->str[path->len-1] != '/')
+		g_string_append_len(path, "/", 1);
+}

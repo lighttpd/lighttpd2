@@ -162,6 +162,7 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 	/* build physical path: docroot + uri.path */
 	g_string_truncate(vr->physical.path, 0);
 	g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
+	li_path_append_slash(vr->physical.path);
 	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
 
 	VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
