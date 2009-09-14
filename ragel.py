@@ -32,4 +32,4 @@ def ragel(self, node):
 	tsk.set_outputs(out)
 
 def detect(conf):
-	dang = conf.find_program('ragel', var='RAGEL')
+	dang = conf.find_program('ragel', var='RAGEL', mandatory=True)
