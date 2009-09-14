@@ -1,6 +1,10 @@
 #include <lighttpd/base.h>
 #include <lighttpd/config_parser.h>
 
+#ifdef HAVE_LUA_H
+# include <lighttpd/config_lua.h>
+#endif
+
 #if 0
 	#define _printf(fmt, ...) g_print(fmt, __VA_ARGS__)
 #else
@@ -707,6 +711,31 @@
 
 			li_value_free(val);
 		}
+#ifdef HAVE_LUA_H
+		else if (g_str_equal(name->data.string->str, "include_lua")) {
+			if (val->type != LI_VALUE_STRING) {
+				WARNING(srv, "include_lua directive takes a string as parameter, %s given", li_value_type_string(val->type));
+				li_value_free(name);
+				li_value_free(val);
+				return FALSE;
+			}
+
+			if (!li_config_lua_load(srv, val->data.string->str, &a)) {
+				ERROR(srv, "include_lua '%s' failed", val->data.string->str);
+				li_value_free(name);
+				li_value_free(val);
+				return FALSE;
+			}
+			li_value_free(name);
+			li_value_free(val);
+
+			/* include lua doesn't need to produce an action */
+			if (a != NULL) {
+				al = g_queue_peek_head(ctx->action_list_stack);
+				g_array_append_val(al->data.list, a);
+			}
+		}
+#endif
 		/* internal functions */
 		else if (g_str_has_prefix(name->data.string->str, "__")) {
 			if (g_str_equal(name->data.string->str + 2, "print")) {

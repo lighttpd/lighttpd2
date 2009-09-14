@@ -141,9 +141,13 @@ static int handle_server_action(liServer *srv, lua_State *L, gpointer _sa) {
 	lua_checkstack(L, 16);
 	val = lua_params_to_value(srv, L);
 
+	li_lua_unlock(srv);
+
 	/* TRACE(srv, "%s", "Creating action"); */
 	a = sa->li_create_action(srv, sa->p, val);
 	li_value_free(val);
+
+	li_lua_lock(srv);
 
 	if (NULL == a) {
 		lua_pushstring(L, "creating action failed");
@@ -156,13 +160,17 @@ static int handle_server_action(liServer *srv, lua_State *L, gpointer _sa) {
 static int handle_server_setup(liServer *srv, lua_State *L, gpointer _ss) {
 	liServerSetup *ss = (liServerSetup*) _ss;
 	liValue *val;
+	gboolean res;
 
 	lua_checkstack(L, 16);
 	val = lua_params_to_value(srv, L);
 
+	li_lua_unlock(srv);
 	/* TRACE(srv, "%s", "Calling setup"); */
+	res = ss->setup(srv, ss->p, val);
+	li_lua_lock(srv);
 
-	if (!ss->setup(srv, ss->p, val)) {
+	if (!res) {
 		li_value_free(val);
 		lua_pushstring(L, "setup failed");
 		lua_error(L);
@@ -172,11 +180,16 @@ static int handle_server_setup(liServer *srv, lua_State *L, gpointer _ss) {
 	return 0;
 }
 
-gboolean li_config_lua_load(liServer *srv, const gchar *filename) {
+gboolean li_config_lua_load(liServer *srv, const gchar *filename, liAction **pact) {
 	lua_State *L = srv->L;
 	int errfunc;
+	int lua_stack_top;
+
+	*pact = NULL;
 
 	li_lua_lock(srv);
+
+	lua_stack_top = lua_gettop(L);
 
 	li_lua_new_globals(L);
 
@@ -204,12 +217,23 @@ gboolean li_config_lua_load(liServer *srv, const gchar *filename) {
 
 	lua_pop(L, 1); /* pop the ret-value */
 
-	lua_getfield(L, LUA_GLOBALSINDEX, "actions");
-	srv->mainaction = lua_get_action(L, -1);
-	li_action_acquire(srv->mainaction);
+	{
+		liAction *act;
+		lua_getfield(L, LUA_GLOBALSINDEX, "actions");
+
+		act = lua_get_action(L, -1);
+		if (NULL == act && lua_isfunction(L, -1)) {
+			act = lua_make_action(srv, L, -1);
+		}
+
+		if (act != NULL) {
+			li_action_acquire(act);
+			*pact = act;
+		}
+	}
 	lua_pop(L, 1);
 
-	assert(lua_gettop(L) == 0);
+	assert(lua_gettop(L) == lua_stack_top);
 
 	li_lua_restore_globals(L);
 
