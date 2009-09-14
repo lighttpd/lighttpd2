@@ -29,7 +29,19 @@
 		g_string_truncate(ctx->h_value, 0);
 	}
 	action header_value {
-		getStringTo(fpc - 2, ctx->h_value);
+		guint i;
+		/* strip whitespace */
+		getStringTo(fpc, ctx->h_value);
+		for (i = ctx->h_value->len; i-- > 0; ) {
+			switch (ctx->h_value->str[i]) {
+			case '\r':
+			case '\n':
+			case ' ':
+				continue;
+			}
+			break;
+		}
+		g_string_truncate(ctx->h_value, i+1);
 	}
 	action header {
 		if (ctx->accept_cgi && li_strncase_equal(ctx->h_key, CONST_STR_LEN("Status"))) {
