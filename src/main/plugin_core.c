@@ -990,11 +990,16 @@ static liHandlerResult core_conditional_do(liVRequest *vr, gpointer param, gbool
 }
 
 static liHandlerResult core_handle_physical_exists(liVRequest *vr, gpointer param, gpointer *context) {
+	struct stat st;
+	int err;
+	liHandlerResult res;
 	UNUSED(context);
 
 	if (0 == vr->physical.path->len) return core_conditional_do(vr, param, FALSE);
-	li_vrequest_stat(vr);
-	return core_conditional_do(vr, param, vr->physical.have_stat);
+	res = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
+	if (res == LI_HANDLER_WAIT_FOR_EVENT)
+		return res;
+	return core_conditional_do(vr, param, (res == LI_HANDLER_GO_ON));
 }
 static liAction* core_physical_exists(liServer *srv, liPlugin* p, liValue *val) {
 	core_conditional *cc = core_conditional_create(srv, val, 0);
@@ -1005,11 +1010,16 @@ static liAction* core_physical_exists(liServer *srv, liPlugin* p, liValue *val) 
 }
 
 static liHandlerResult core_handle_physical_is_file(liVRequest *vr, gpointer param, gpointer *context) {
+	struct stat st;
+	int err;
+	liHandlerResult res;
 	UNUSED(context);
 
 	if (0 == vr->physical.path->len) return core_conditional_do(vr, param, FALSE);
-	li_vrequest_stat(vr);
-	return core_conditional_do(vr, param, vr->physical.have_stat && S_ISREG(vr->physical.stat.st_mode));
+	res = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
+	if (res == LI_HANDLER_WAIT_FOR_EVENT)
+		return res;
+	return core_conditional_do(vr, param, (res == LI_HANDLER_GO_ON && S_ISREG(st.st_mode)));
 }
 static liAction* core_physical_is_file(liServer *srv, liPlugin* p, liValue *val) {
 	core_conditional *cc = core_conditional_create(srv, val, 0);
@@ -1020,11 +1030,16 @@ static liAction* core_physical_is_file(liServer *srv, liPlugin* p, liValue *val)
 }
 
 static liHandlerResult core_handle_physical_is_dir(liVRequest *vr, gpointer param, gpointer *context) {
+	struct stat st;
+	int err;
+	liHandlerResult res;
 	UNUSED(context);
 
 	if (0 == vr->physical.path->len) return core_conditional_do(vr, param, FALSE);
-	li_vrequest_stat(vr);
-	return core_conditional_do(vr, param, vr->physical.have_stat && S_ISDIR(vr->physical.stat.st_mode));
+	res = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
+	if (res == LI_HANDLER_WAIT_FOR_EVENT)
+		return res;
+	return core_conditional_do(vr, param, (res == LI_HANDLER_GO_ON && S_ISDIR(st.st_mode)));
 }
 static liAction* core_physical_is_dir(liServer *srv, liPlugin* p, liValue *val) {
 	core_conditional *cc = core_conditional_create(srv, val, 0);
