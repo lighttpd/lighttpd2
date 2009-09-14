@@ -1096,7 +1096,7 @@
 
 	# statements
 	assignment = ( varname ws* '=' ws* value_statement ';' ) %assignment;
-	function_noparam = ( varname ';' ) %function_noparam;
+	function_noparam = ( varname ws* ';' ) %function_noparam;
 	function_param = ( varname ws+ value_statement ';') %function_param;
 	function = ( function_noparam | function_param );
 
