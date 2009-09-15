@@ -171,6 +171,14 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 	UNUSED(context);
 
+	switch (vr->request.http_method) {
+	case LI_HTTP_METHOD_GET:
+	case LI_HTTP_METHOD_HEAD:
+		break;
+	default:
+		return LI_HANDLER_GO_ON;
+	}
+
 	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
 
 	if (vr->physical.path->len == 0) return LI_HANDLER_GO_ON;

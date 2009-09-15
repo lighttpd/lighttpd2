@@ -62,8 +62,15 @@ static liAction* fortune_header(liServer *srv, liPlugin* p, liValue *val) {
 
 static liHandlerResult fortune_page_handle(liVRequest *vr, gpointer param, gpointer *context) {
 	fortune_data *fd = param;
-
 	UNUSED(context);
+
+	switch (vr->request.http_method) {
+	case LI_HTTP_METHOD_GET:
+	case LI_HTTP_METHOD_HEAD:
+		break;
+	default:
+		return LI_HANDLER_GO_ON;
+	}
 
 	if (!li_vrequest_handle_direct(vr))
 		return LI_HANDLER_GO_ON;

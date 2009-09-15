@@ -326,9 +326,14 @@ static gboolean vrequest_do_handle_actions(liVRequest *vr) {
 		if (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS) {
 			/* request not handled */
 			li_vrequest_handle_direct(vr);
-			vr->response.http_status = 404;
-			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-				VR_DEBUG(vr, "%s", "actions didn't handle request");
+			if (vr->request.http_method == LI_HTTP_METHOD_OPTIONS) {
+				vr->response.http_status = 200;
+				li_http_header_append(vr->response.headers, CONST_STR_LEN("Allow"), CONST_STR_LEN("OPTIONS, GET, HEAD, POST"));
+			} else {
+				vr->response.http_status = 404;
+				if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+					VR_DEBUG(vr, "%s", "actions didn't handle request");
+				}
 			}
 			return TRUE;
 		}

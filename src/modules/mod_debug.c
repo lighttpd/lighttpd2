@@ -263,6 +263,14 @@ static liHandlerResult debug_show_connections_cleanup(liVRequest *vr, gpointer p
 }
 
 static liHandlerResult debug_show_connections(liVRequest *vr, gpointer param, gpointer *context) {
+	switch (vr->request.http_method) {
+	case LI_HTTP_METHOD_GET:
+	case LI_HTTP_METHOD_HEAD:
+		break;
+	default:
+		return LI_HANDLER_GO_ON;
+	}
+
 	if (li_vrequest_handle_direct(vr)) {
 		liCollectInfo *ci;
 		mod_debug_job_t *j = g_slice_new0(mod_debug_job_t);

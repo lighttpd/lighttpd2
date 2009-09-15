@@ -653,6 +653,14 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 static liHandlerResult status_info(liVRequest *vr, gpointer _param, gpointer *context) {
 	mod_status_param *param = _param;
 
+	switch (vr->request.http_method) {
+	case LI_HTTP_METHOD_GET:
+	case LI_HTTP_METHOD_HEAD:
+		break;
+	default:
+		return LI_HANDLER_GO_ON;
+	}
+
 	if (li_vrequest_handle_direct(vr)) {
 		gchar *val;
 		guint len;
