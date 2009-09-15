@@ -650,61 +650,75 @@
 
 			li_value_free(name);
 
-			if (val->type != LI_VALUE_STRING) {
-				WARNING(srv,  "include directive takes a string as parameter, %s given", li_value_type_string(val->type));
+			if (val->type != LI_VALUE_STRING || val->data.string->len == 0) {
+				WARNING(srv,  "include directive takes a non-empty string as parameter, %s given", li_value_type_string(val->type));
 				li_value_free(val);
 				return FALSE;
 			}
 
 			/* split path into dirname and filename/pattern. e.g. /etc/lighttpd/vhost_*.conf => /etc/lighttpd/ and vhost_*.conf */
-			pos = g_strrstr(val->data.string->str, G_DIR_SEPARATOR_S);
 
-			if (!pos) {
-				/* doesn't seem like a path, include single file */
-				if (!config_parser_file(srv, ctx_stack, val->data.string->str)) {
-					li_value_free(val);
-					return FALSE;
-				}
-			} else {
-				/* we got a path, check for matching names */
+			if (val->data.string->str[0] == G_DIR_SEPARATOR) {
+				/* absolute path */
+				pos = strrchr(val->data.string->str, G_DIR_SEPARATOR);
 				path = g_string_new_len(val->data.string->str, pos - val->data.string->str + 1);
-
-				dir = g_dir_open(path->str, 0, &err);
-
-				if (!dir) {
-					ERROR(srv, "include: could not open directory \"%s\": %s", path->str, err->message);
-					g_string_free(path, TRUE);
-					li_value_free(val);
-					g_error_free(err);
-					return FALSE;
-				}
-
 				pattern = g_pattern_spec_new(pos+1);
-				len = path->len;
+			} else {
+				/* relative path */
+				pos = strrchr(ctx->filename, G_DIR_SEPARATOR);
 
-				/* loop through all filenames in the directory and include matching ones */
-				while (NULL != (filename = g_dir_read_name(dir))) {
-					if (!g_pattern_match_string(pattern, filename))
-						continue;
-
-					g_string_append(path, filename);
-
-					if (!config_parser_file(srv, ctx_stack, path->str)) {
-						li_value_free(val);
-						g_pattern_spec_free(pattern);
-						g_dir_close(dir);
-						g_string_free(path, TRUE);
-						return FALSE;
-					}
-
-					g_string_truncate(path, len);
+				if (pos) {
+					path = g_string_new_len(ctx->filename, pos - ctx->filename + 1);
+				} else {
+					/* current working directory */
+					path = g_string_new_len(CONST_STR_LEN("." G_DIR_SEPARATOR_S));
 				}
 
-				g_string_free(path, TRUE);
-				g_pattern_spec_free(pattern);
-				g_dir_close(dir);
+				pos = strrchr(val->data.string->str, G_DIR_SEPARATOR);
+
+				if (pos) {
+					g_string_append_len(path, val->data.string->str, pos - val->data.string->str + 1);
+					pattern = g_pattern_spec_new(pos+1);
+				} else {
+					pattern = g_pattern_spec_new(val->data.string->str);
+				}
 			}
 
+			/* we got a path, check for matching names */
+			dir = g_dir_open(path->str, 0, &err);
+
+			if (!dir) {
+				ERROR(srv, "include: could not open directory \"%s\": %s", path->str, err->message);
+				g_string_free(path, TRUE);
+				li_value_free(val);
+				g_error_free(err);
+				g_pattern_spec_free(pattern);
+				return FALSE;
+			}
+
+			len = path->len;
+
+			/* loop through all filenames in the directory and include matching ones */
+			while (NULL != (filename = g_dir_read_name(dir))) {
+				if (!g_pattern_match_string(pattern, filename))
+					continue;
+
+				g_string_append(path, filename);
+
+				if (!config_parser_file(srv, ctx_stack, path->str)) {
+					g_string_free(path, TRUE);
+					g_pattern_spec_free(pattern);
+					g_dir_close(dir);
+					li_value_free(val);
+					return FALSE;
+				}
+
+				g_string_truncate(path, len);
+			}
+
+			g_string_free(path, TRUE);
+			g_pattern_spec_free(pattern);
+			g_dir_close(dir);
 			li_value_free(val);
 		}
 		else if (g_str_equal(name->data.string->str, "include_shell")) {
