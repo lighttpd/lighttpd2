@@ -3,6 +3,8 @@
 #include <lighttpd/angel_config_parser.h>
 #include <lighttpd/angel_plugin_core.h>
 
+#include <lighttpd/version.h>
+
 # ifndef HAVE_ISSETUGID
 
 static int l_issetugid() {
@@ -50,7 +52,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (show_version) {
-		g_print("%s %s - a fast and lightweight webserver\n", PACKAGE_NAME "-angel", PACKAGE_VERSION);
+		g_print(PACKAGE_NAME "-angel" "/" PACKAGE_VERSION REPO_VERSION " - a fast and lightweight webserver\n");
 		g_print("Build date: %s\n", PACKAGE_BUILD_DATE);
 		goto cleanup;
 	}

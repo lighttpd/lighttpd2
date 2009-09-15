@@ -3,6 +3,8 @@
 #include <lighttpd/plugin_core.h>
 #include <lighttpd/profiler.h>
 
+#include <lighttpd/version.h>
+
 #include <sys/stat.h>
 #include <fcntl.h>
 
@@ -1159,7 +1161,7 @@ static const liPluginOption options[] = {
 	{ "static-file.exclude", LI_VALUE_LIST, NULL, NULL, NULL }, /* TODO: not used right now */
 
 	{ "server.name", LI_VALUE_STRING, NULL, NULL, NULL },
-	{ "server.tag", LI_VALUE_STRING, "lighttpd-2.0~sandbox", NULL, NULL },
+	{ "server.tag", LI_VALUE_STRING, PACKAGE_DESC, NULL, NULL },
 	{ "server.max_keep_alive_idle", LI_VALUE_NUMBER, GINT_TO_POINTER(5), NULL, NULL },
 	{ "server.max_keep_alive_requests", LI_VALUE_NUMBER, GINT_TO_POINTER(15), NULL, NULL },
 

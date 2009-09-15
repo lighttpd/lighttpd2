@@ -3,6 +3,8 @@
 #include <lighttpd/config_parser.h>
 #include <lighttpd/profiler.h>
 
+#include <lighttpd/version.h>
+
 #ifdef HAVE_LUA_H
 # include <lighttpd/config_lua.h>
 #endif
@@ -66,7 +68,7 @@ int main(int argc, char *argv[]) {
 
 	/* -v, show version and exit */
 	if (show_version) {
-		g_print("%s-%s - a fast and lightweight webserver\n", PACKAGE_NAME, PACKAGE_VERSION);
+		g_print(PACKAGE_DESC " - a fast and lightweight webserver\n");
 		g_print("Build date: %s\n", PACKAGE_BUILD_DATE);
 #ifdef LIGHTTPD_REVISION
 		g_print("Revision: %s\n", LIGHTTPD_REVISION);
