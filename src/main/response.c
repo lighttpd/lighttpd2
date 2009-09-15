@@ -244,7 +244,7 @@ void li_response_send_error_page(liConnection *con) {
 	str = li_response_error_description(con->mainvr->response.http_status, &len);
 	g_string_append_len(html, str, len);
 	
-	g_string_append_len(html, CONST_STR_LEN("			<p style=\"text-align: right; margin-top: 25px;\">"));
+	g_string_append_len(html, CONST_STR_LEN("			<p id=\"footer\">"));
 	g_string_append_len(html, GSTR_LEN(CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string));
 	g_string_append_len(html, CONST_STR_LEN(
 		"</p>\n"
