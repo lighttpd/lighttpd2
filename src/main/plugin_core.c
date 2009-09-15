@@ -153,9 +153,6 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 
 	g_string_truncate(vr->physical.doc_root, 0);
 	g_string_append_len(vr->physical.doc_root, GSTR_LEN((GString*) param));
-	/* reset stat info because path has changed */
-	vr->physical.have_stat = FALSE;
-	vr->physical.have_errno = FALSE;
 
 	VR_DEBUG(vr, "docroot: %s", vr->physical.doc_root->str);
 
