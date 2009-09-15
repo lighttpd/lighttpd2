@@ -484,29 +484,6 @@ void li_vrequest_joblist_append_async(liVRequest *vr) {
 	ev_async_send(wrk->loop, &wrk->job_async_queue_watcher);
 }
 
-gboolean li_vrequest_stat(liVRequest *vr) {
-	/* Do not stat again */
-	if (vr->physical.have_stat || vr->physical.have_errno) return vr->physical.have_stat;
-
-	if (-1 == stat(vr->physical.path->str, &vr->physical.stat)) {
-		vr->physical.have_stat = FALSE;
-		vr->physical.have_errno = TRUE;
-		vr->physical.stat_errno = errno;
-		switch (errno) {
-		case EACCES:
-		case ENOENT:
-		case ENOTDIR:
-			break;
-		default:
-			VR_DEBUG(vr, "stat(%s) failed: %s (%d)", vr->physical.path->str, g_strerror(vr->physical.stat_errno), vr->physical.stat_errno);
-		}
-		return FALSE;
-	}
-
-	vr->physical.have_stat = TRUE;
-	return TRUE;
-}
-
 gboolean li_vrequest_redirect(liVRequest *vr, GString *uri) {
 	if (!li_vrequest_handle_direct(vr))
 		return FALSE;

@@ -257,30 +257,18 @@ gboolean li_request_validate_header(liConnection *con) {
 
 void li_physical_init(liPhysical *phys) {
 	phys->path = g_string_sized_new(127);
-	phys->basedir = g_string_sized_new(63);
 	phys->doc_root = g_string_sized_new(63);
-	phys->rel_path = g_string_sized_new(63);
 	phys->pathinfo = g_string_sized_new(63);
-	phys->have_stat = FALSE;
-	phys->have_errno = FALSE;
 }
 
 void li_physical_reset(liPhysical *phys) {
 	g_string_truncate(phys->path, 0);
-	g_string_truncate(phys->basedir, 0);
 	g_string_truncate(phys->doc_root, 0);
-	g_string_truncate(phys->rel_path, 0);
 	g_string_truncate(phys->pathinfo, 0);
-	phys->have_stat = FALSE;
-	phys->have_errno = FALSE;
 }
 
 void li_physical_clear(liPhysical *phys) {
 	g_string_free(phys->path, TRUE);
-	g_string_free(phys->basedir, TRUE);
 	g_string_free(phys->doc_root, TRUE);
-	g_string_free(phys->rel_path, TRUE);
 	g_string_free(phys->pathinfo, TRUE);
-	phys->have_stat = FALSE;
-	phys->have_errno = FALSE;
 }

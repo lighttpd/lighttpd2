@@ -877,7 +877,7 @@
 			if (g_str_equal(str, "path"))
 				lvalue = li_condition_lvalue_new(LI_COMP_PHYSICAL_PATH, NULL);
 			else if (g_str_equal(str, "exists"))
-				lvalue = li_condition_lvalue_new(LI_COMP_PHYSICAL_PATH_EXISTS, NULL);
+				lvalue = li_condition_lvalue_new(LI_COMP_PHYSICAL_EXISTS, NULL);
 			else if (g_str_equal(str, "size"))
 				lvalue = li_condition_lvalue_new(LI_COMP_PHYSICAL_SIZE, NULL);
 			else if (g_str_equal(str, "is_dir"))

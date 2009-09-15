@@ -19,17 +19,8 @@ struct liRequestUri {
 
 struct liPhysical {
 	GString *path;
-	GString *basedir;
-
 	GString *doc_root;
-	GString *rel_path;
-
 	GString *pathinfo;
-
-	gboolean have_stat;
-	gboolean have_errno;
-	guint stat_errno;
-	struct stat stat; /* contains valid data only if have_stat is true */
 };
 
 struct liRequest {

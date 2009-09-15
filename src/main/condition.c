@@ -254,7 +254,7 @@ const char* li_cond_lvalue_to_string(liCondLValue t) {
 	case LI_COMP_REQUEST_METHOD: return "request.method";
 	case LI_COMP_REQUEST_CONTENT_LENGTH: return "request.length";
 	case LI_COMP_PHYSICAL_PATH: return "physical.path";
-	case LI_COMP_PHYSICAL_PATH_EXISTS: return "physical.exist";
+	case LI_COMP_PHYSICAL_EXISTS: return "physical.exist";
 	case LI_COMP_PHYSICAL_SIZE: return "physical.size";
 	case LI_COMP_PHYSICAL_ISDIR: return "physical.is_dir";
 	case LI_COMP_PHYSICAL_ISFILE: return "physical.is_file";
@@ -297,7 +297,7 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 		if (strncmp(c, "path", len) == 0)
 			return LI_COMP_PHYSICAL_PATH;
 		else if (strncmp(c, "exists", len) == 0)
-			return LI_COMP_PHYSICAL_PATH_EXISTS;
+			return LI_COMP_PHYSICAL_EXISTS;
 		else if (strncmp(c, "size", len) == 0)
 			return LI_COMP_PHYSICAL_SIZE;
 		else if (strncmp(c, "is_file", len) == 0)
@@ -310,40 +310,47 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 }
 
 static liHandlerResult li_condition_check_eval_bool(liVRequest *vr, liCondition *cond, gboolean *res) {
-	*res = FALSE;
+	liHandlerResult r;
+	struct stat st;
+	int err;
 
-	if (cond->lvalue->type == LI_COMP_PHYSICAL_ISDIR ||
-		cond->lvalue->type == LI_COMP_PHYSICAL_ISFILE) {
-		if (!vr->physical.have_stat) {
-			if (vr->physical.have_errno || !li_vrequest_stat(vr)) {
-				switch (vr->physical.stat_errno) {
-				case EACCES: vr->response.http_status = 403; break;
-				case EBADF: vr->response.http_status = 500; break;
-				case EFAULT: vr->response.http_status = 500; break;
-				case ELOOP: vr->response.http_status = 500; break;
-				case ENAMETOOLONG: vr->response.http_status = 500; break;
-				case ENOENT: vr->response.http_status = 404; break;
-				case ENOMEM: vr->response.http_status = 500; break;
-				case ENOTDIR: vr->response.http_status = 404; break;
-				default: vr->response.http_status = 500;
-				}
-				li_vrequest_handle_direct(vr);
-				return LI_HANDLER_GO_ON;
-			}
+	*res = !cond->rvalue.b; /* "FALSE" is "not (expected result)" */
+
+	switch (cond->lvalue->type) {
+	case LI_COMP_PHYSICAL_ISDIR:
+	case LI_COMP_PHYSICAL_ISFILE:
+	case LI_COMP_PHYSICAL_EXISTS:
+		if (vr->physical.path->len == 0) {
+			/* no file, return FALSE */
+			return LI_HANDLER_GO_ON;
 		}
+
+		r = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
+		if (r == LI_HANDLER_WAIT_FOR_EVENT) return r;
+
+		/* not found, return FALSE */
+		if (r != LI_HANDLER_GO_ON) return LI_HANDLER_GO_ON;
+		break;
+	default:
+		memset(&st, 0, sizeof(st));
+		break;
 	}
 
 	switch (cond->lvalue->type) {
 	case LI_COMP_PHYSICAL_ISDIR:
-		*res = S_ISDIR(vr->physical.stat.st_mode);
+		*res = S_ISDIR(st.st_mode);
 		break;
 	case LI_COMP_PHYSICAL_ISFILE:
-		*res = S_ISREG(vr->physical.stat.st_mode);
+		*res = S_ISREG(st.st_mode);
+		break;
+	case LI_COMP_PHYSICAL_EXISTS:
+		*res = TRUE;
 		break;
 	default:
 		VR_ERROR(vr, "invalid lvalue \"%s\" for boolean comparison", li_cond_lvalue_to_string(cond->lvalue->type));
 		return LI_HANDLER_ERROR;
 	}
+	if (!cond->rvalue.b) *res = !*res;
 
 	return LI_HANDLER_GO_ON;
 }
@@ -380,9 +387,6 @@ static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liConditio
 	case LI_COMP_PHYSICAL_PATH:
 		val = vr->physical.path->str;
 		break;
-	case LI_COMP_PHYSICAL_PATH_EXISTS:
-		/* TODO: physical path exists */
-		break;
 	case LI_COMP_REQUEST_HEADER:
 		li_http_header_get_all(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
@@ -392,6 +396,7 @@ static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liConditio
 		val = con->wrk->tmp_str->str;
 		break;
 	default:
+		VR_ERROR(vr, "couldn't get string value for '%s'", li_cond_lvalue_to_string(cond->lvalue->type));
 		return LI_HANDLER_ERROR;
 	}
 
@@ -439,6 +444,9 @@ static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liConditio
 
 
 static liHandlerResult li_condition_check_eval_int(liVRequest *vr, liCondition *cond, gboolean *res) {
+	liHandlerResult r;
+	struct stat st;
+	int err;
 	gint64 val;
 	*res = FALSE;
 
@@ -447,24 +455,19 @@ static liHandlerResult li_condition_check_eval_int(liVRequest *vr, liCondition *
 		val = vr->request.content_length;
 		break;
 	case LI_COMP_PHYSICAL_SIZE:
-		if (!vr->physical.have_stat) {
-			if (vr->physical.have_errno || !li_vrequest_stat(vr)) {
-				switch (vr->physical.stat_errno) {
-				case EACCES: vr->response.http_status = 403; break;
-				case EBADF: vr->response.http_status = 500; break;
-				case EFAULT: vr->response.http_status = 500; break;
-				case ELOOP: vr->response.http_status = 500; break;
-				case ENAMETOOLONG: vr->response.http_status = 500; break;
-				case ENOENT: vr->response.http_status = 404; break;
-				case ENOMEM: vr->response.http_status = 500; break;
-				case ENOTDIR: vr->response.http_status = 404; break;
-				default: vr->response.http_status = 500;
-				}
-				li_vrequest_handle_direct(vr);
-				return LI_HANDLER_GO_ON;
-			}
+		if (vr->physical.path->len == 0) {
+			val = -1;
+			break;
 		}
-		val = (gint64)vr->physical.stat.st_size;
+
+		r = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
+		if (r == LI_HANDLER_WAIT_FOR_EVENT) return r;
+
+		if (r != LI_HANDLER_GO_ON) {
+			val = -1; /* not found -> size "-1" */
+		} else {
+			val = (gint64)st.st_size;
+		}
 		break;
 	default:
 		VR_ERROR(vr, "couldn't get int value for '%s'", li_cond_lvalue_to_string(cond->lvalue->type));
@@ -555,9 +558,8 @@ static liHandlerResult li_condition_check_eval_ip(liVRequest *vr, liCondition *c
 	case LI_COMP_REQUEST_METHOD:
 		VR_ERROR(vr, "%s", "Cannot parse request.method as ip");
 		return LI_HANDLER_ERROR;
-		break;
 	case LI_COMP_PHYSICAL_PATH:
-	case LI_COMP_PHYSICAL_PATH_EXISTS:
+	case LI_COMP_PHYSICAL_EXISTS:
 		VR_ERROR(vr, "%s", "Cannot parse physical.path(-exists) as ip");
 		return LI_HANDLER_ERROR;
 		break;
@@ -586,8 +588,10 @@ static liHandlerResult li_condition_check_eval_ip(liVRequest *vr, liCondition *c
 	switch (cond->op) {
 	case LI_CONFIG_COND_IP:
 		*res = ip_in_net(&ipval, &cond->rvalue);
+		break;
 	case LI_CONFIG_COND_NOTIP:
 		*res = !ip_in_net(&ipval, &cond->rvalue);
+		break;
 	case LI_CONFIG_COND_PREFIX:
 	case LI_CONFIG_COND_NOPREFIX:
 	case LI_CONFIG_COND_SUFFIX:

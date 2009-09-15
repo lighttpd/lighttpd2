@@ -143,7 +143,6 @@ static liHandlerResult vhost_simple(liVRequest *vr, gpointer param, gpointer *co
 	}
 
 	/* check if directory exists. if not, fall back to default host */
-	vr->physical.have_stat = FALSE; vr->physical.have_errno = FALSE;
 
 	switch (li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL)) {
 	case LI_HANDLER_GO_ON: break;
