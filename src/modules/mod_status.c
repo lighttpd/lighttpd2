@@ -582,7 +582,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 						bytes_in_5s->str,
 						bytes_out_5s->str,
 						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? li_http_method_string(cd->method, &len) : "",
-						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? req_len->str : "",
+						(cd->state >= LI_CON_STATE_HANDLE_MAINVR && cd->request_size != -1) ? req_len->str : "",
 						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? resp_len->str : ""
 					);
 
