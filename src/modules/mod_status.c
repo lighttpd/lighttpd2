@@ -203,13 +203,17 @@ static const gchar css_blue[] =
 	"		</style>\n";
 
 
-struct mod_status_wrk_data;
+typedef struct mod_status_param mod_status_param;
+
+struct mod_status_param {
+	liPlugin *p;
+	gboolean short_info; /* no connection details */
+};
+
 typedef struct mod_status_wrk_data mod_status_wrk_data;
 
-struct mod_status_con_data;
 typedef struct mod_status_con_data mod_status_con_data;
 
-struct mod_status_job;
 typedef struct mod_status_job mod_status_job;
 
 struct mod_status_con_data {
@@ -238,6 +242,7 @@ struct mod_status_job {
 	liVRequest *vr;
 	gpointer *context;
 	liPlugin *p;
+	gboolean short_info;
 };
 
 
@@ -281,10 +286,10 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 
 /* the CollectCallback */
 static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
-	mod_status_job *job = cbdata;
+	mod_status_job *job = fdata;
 	liVRequest *vr;
 	liPlugin *p;
-	UNUSED(fdata);
+	UNUSED(cbdata);
 
 	if (!complete) {
 		/* someone called li_collect_break, so we don't need any vrequest handling here. just free the result data */
@@ -536,7 +541,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		}
 
 		/* list connections */
-		{
+		if (!job->short_info) {
 			GString *ts, *bytes_in, *bytes_out, *bytes_in_5s, *bytes_out_5s;
 			GString *req_len, *resp_len;
 			guint len;
@@ -600,6 +605,21 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			g_string_free(bytes_out_5s, TRUE);
 			g_string_free(req_len, TRUE);
 			g_string_free(resp_len, TRUE);
+		} else {
+			for (i = 0; i < result->len; i++) {
+				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
+				for (j = 0; j < sd->connections->len; j++) {
+					mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
+
+					g_string_free(cd->remote_addr_str, TRUE);
+					g_string_free(cd->local_addr_str, TRUE);
+					g_string_free(cd->host, TRUE);
+					g_string_free(cd->path, TRUE);
+					g_string_free(cd->query, TRUE);
+				}
+
+				g_array_free(sd->connections, TRUE);
+			}
 		}
 
 		/* free stats */
@@ -630,7 +650,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 	}
 }
 
-static liHandlerResult status_info(liVRequest *vr, gpointer param, gpointer *context) {
+static liHandlerResult status_info(liVRequest *vr, gpointer _param, gpointer *context) {
+	mod_status_param *param = _param;
+
 	if (li_vrequest_handle_direct(vr)) {
 		gchar *val;
 		guint len;
@@ -641,20 +663,20 @@ static liHandlerResult status_info(liVRequest *vr, gpointer param, gpointer *con
 			mod_status_job *j = g_slice_new(mod_status_job);
 			j->vr = vr;
 			j->context = context;
-			j->p = (liPlugin*) param;
+			j->p = param->p;
+			j->short_info = param->short_info;
 
 			VR_DEBUG(vr, "%s", "collecting stats...");
 
-			ci = li_collect_start(vr->wrk, status_collect_func, NULL, status_collect_cb, j);
+			ci = li_collect_start(vr->wrk, status_collect_func, j, status_collect_cb, NULL);
 			*context = ci; /* may be NULL */
 			return (*context) ? LI_HANDLER_WAIT_FOR_EVENT : LI_HANDLER_GO_ON;
 		} else {
 			/* 'mode' parameter given */
-			if (strncmp(val, "runtime", len) == 0) {
-				return status_info_runtime(vr, param);
+			if (!param->short_info && strncmp(val, "runtime", len) == 0) {
+				return status_info_runtime(vr, param->p);
 			} else {
-				VR_ERROR(vr, "%s", "status: unknown mode parameter");
-				return LI_HANDLER_ERROR;
+				vr->response.http_status = 403;
 			}
 		}
 	}
@@ -673,11 +695,39 @@ static liHandlerResult status_info_cleanup(liVRequest *vr, gpointer param, gpoin
 	return LI_HANDLER_GO_ON;
 }
 
+static void status_info_free(liServer *srv, gpointer param) {
+	UNUSED(srv);
+
+	g_slice_free(mod_status_param, param);
+}
+
 static liAction* status_info_create(liServer *srv, liPlugin* p, liValue *val) {
+	mod_status_param *param = g_slice_new0(mod_status_param);
 	UNUSED(srv);
 	UNUSED(val);
 
-	return li_action_new_function(status_info, status_info_cleanup, NULL, p);
+	param->p = p;
+	param->short_info = FALSE;
+
+	if (val) {
+		if (val->type != LI_VALUE_STRING) {
+			ERROR(srv, "%s", "status.info expects either a string or nothing as parameter");
+			goto error_free_param;
+		}
+
+		if (0 == strcmp(val->data.string->str, "short")) {
+			param->short_info = TRUE;
+		} else {
+			ERROR(srv, "status.info: unexpected parameter '%s'", val->data.string->str);
+			goto error_free_param;
+		}
+	}
+
+	return li_action_new_function(status_info, status_info_cleanup, status_info_free, param);
+
+error_free_param:
+	g_slice_free(mod_status_param, param);
+	return NULL;
 }
 
 static gint str_comp(gconstpointer a, gconstpointer b) {
