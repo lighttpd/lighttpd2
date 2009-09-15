@@ -44,7 +44,6 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 	liLogTimestamp *ts = NULL;
 
 	if (vr != NULL) {
-
 		if (!srv) srv = vr->wrk->srv;
 		/* get log from connection */
 		log = g_array_index(CORE_OPTION(LI_CORE_OPTION_LOG).list, liLog*, log_level);
@@ -55,7 +54,9 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 			ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, 0);
 	}
 	else {
-		log = srv->logs.stderr;
+		log = g_array_index(g_array_index(srv->option_def_values, liOptionValue, 0 + LI_CORE_OPTION_LOG).list, liLog*, log_level);
+		if (log == NULL)
+			return TRUE;
 		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, 0);
 	}
 
