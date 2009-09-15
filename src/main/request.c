@@ -248,6 +248,8 @@ gboolean li_request_validate_header(liConnection *con) {
 		}
 		break;
 	default:
+		if (con->mainvr->request.content_length == -1)
+			con->mainvr->request.content_length = 0;
 		/* the may have a content-length */
 		break;
 	}

@@ -13,7 +13,8 @@ static void parse_request_body(liConnection *con) {
 		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_READ);
 		if (con->mainvr->request.content_length == -1) {
 			/* TODO: parse chunked encoded request body, filters */
-			li_chunkqueue_steal_all(con->in, con->raw_in);
+			/* li_chunkqueue_steal_all(con->in, con->raw_in); */
+			con->in->is_closed = TRUE;
 		} else {
 			if (con->in->bytes_in < con->mainvr->request.content_length) {
 				li_chunkqueue_steal_len(con->in, con->raw_in, con->mainvr->request.content_length - con->in->bytes_in);
@@ -587,24 +588,28 @@ void li_connection_reset(liConnection *con) {
 
 static void li_connection_reset_keep_alive(liConnection *con) {
 	liVRequest *vr = con->mainvr;
-	ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
-	{
-		con->keep_alive_data.max_idle = CORE_OPTION(LI_CORE_OPTION_MAX_KEEP_ALIVE_IDLE).number;
-		if (con->keep_alive_data.max_idle == 0) {
-			worker_con_put(con);
-			return;
-		}
-		if (con->keep_alive_data.max_idle >= con->srv->keep_alive_queue_timeout) {
-			/* queue is sorted by con->keep_alive_data.timeout */
-			gboolean need_start = (0 == con->wrk->keep_alive_queue.length);
-			con->keep_alive_data.timeout = ev_now(con->wrk->loop) + con->srv->keep_alive_queue_timeout;
-			g_queue_push_tail(&con->wrk->keep_alive_queue, con);
-			con->keep_alive_data.link = g_queue_peek_tail_link(&con->wrk->keep_alive_queue);
-			if (need_start)
-				li_worker_check_keepalive(con->wrk);
-		} else {
-			ev_timer_set(&con->keep_alive_data.watcher, con->keep_alive_data.max_idle, 0);
-			ev_timer_start(con->wrk->loop, &con->keep_alive_data.watcher);
+
+	/* only start keep alive watcher if there isn't more input data already */
+	if (con->raw_in->length == 0) {
+		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
+		{
+			con->keep_alive_data.max_idle = CORE_OPTION(LI_CORE_OPTION_MAX_KEEP_ALIVE_IDLE).number;
+			if (con->keep_alive_data.max_idle == 0) {
+				worker_con_put(con);
+				return;
+			}
+			if (con->keep_alive_data.max_idle >= con->srv->keep_alive_queue_timeout) {
+				/* queue is sorted by con->keep_alive_data.timeout */
+				gboolean need_start = (0 == con->wrk->keep_alive_queue.length);
+				con->keep_alive_data.timeout = ev_now(con->wrk->loop) + con->srv->keep_alive_queue_timeout;
+				g_queue_push_tail(&con->wrk->keep_alive_queue, con);
+				con->keep_alive_data.link = g_queue_peek_tail_link(&con->wrk->keep_alive_queue);
+				if (need_start)
+					li_worker_check_keepalive(con->wrk);
+			} else {
+				ev_timer_set(&con->keep_alive_data.watcher, con->keep_alive_data.max_idle, 0);
+				ev_timer_start(con->wrk->loop, &con->keep_alive_data.watcher);
+			}
 		}
 	}
 
@@ -669,6 +674,11 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 	con->throttle.ip.magazine = 0;
 	con->throttle.con.magazine = 0;
 	con->throttled = FALSE;
+
+	if (con->raw_in->length != 0) {
+		/* start handling next request if data is already available */
+		connection_handle_read(con);
+	}
 }
 
 void li_connection_free(liConnection *con) {

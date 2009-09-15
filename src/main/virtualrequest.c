@@ -416,8 +416,13 @@ void li_vrequest_state_machine(liVRequest *vr) {
 			switch (res) {
 			case LI_HANDLER_GO_ON:
 				if (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS) {
-					/* unhandled request */
-					vr->response.http_status = 404;
+					if (vr->request.http_method == LI_HTTP_METHOD_OPTIONS) {
+						vr->response.http_status = 200;
+						li_http_header_append(vr->response.headers, CONST_STR_LEN("Allow"), CONST_STR_LEN("OPTIONS, GET, HEAD, POST"));
+					} else {
+						/* unhandled request */
+						vr->response.http_status = 404;
+					}
 					li_vrequest_handle_direct(vr);
 				}
 				break;
