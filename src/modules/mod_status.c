@@ -39,13 +39,61 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p);
 static gint str_comp(gconstpointer a, gconstpointer b);
 
 /* html snippet constants */
-static const gchar header[] =
+static const gchar html_header[] =
 	"<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n"
 	"<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\"\n"
 	"         \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
 	"<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\" lang=\"en\">\n"
 	"	<head>\n"
 	"		<title>Lighttpd Status</title>\n";
+static const gchar html_js[] =
+	"		<script type=\"text/javascript\">\n"
+	"			// <!--\n"
+	"			var sort_dir = 'asc';\n"
+	"			var prev_arrow = null;\n"
+	"			var prev_elem = null;\n"
+	"			function sort(elem, index) {\n"
+	"				var table = elem.parentNode.parentNode.parentNode.parentNode;\n"
+	"				var arrow = elem.parentNode.childNodes[elem.parentNode.childNodes.length - 1];\n"
+	"				var column = elem.parentNode.cellIndex;\n"
+	"				var rows = new Array();\n"
+	"				if (prev_arrow != null)\n"
+	"					prev_arrow.innerHTML = '';\n"
+	"				if (prev_elem != null)\n"
+	"					prev_elem.style.fontWeight = 'normal';\n"
+	"				for (i=1; i < table.rows.length; i++)\n"
+	"					rows.push(table.rows[i]);\n"
+	"				if (elem.className.indexOf('string') != -1) {\n"
+	"					rows.sort(function (a, b) {\n"
+	"						var text_a = a.cells[column].childNodes[index].innerHTML.toLowerCase();\n"
+	"						var text_b = b.cells[column].childNodes[index].innerHTML.toLowerCase();\n"
+	"						if (text_a == text_b) return 0;\n"
+	"						return (text_a < text_b) ? -1 : 1;\n"
+	"					});\n"
+	"				} else {\n"
+	"					rows.sort(function (a, b) {\n"
+	"						var int_a = parseInt(a.cells[column].childNodes[index].getAttribute('value'));\n"
+	"						var int_b = parseInt(b.cells[column].childNodes[index].getAttribute('value'));\n"
+	"						return int_a - int_b;\n"
+	"					});\n"
+	"				}\n"
+	"				if (sort_dir == 'desc') {\n"
+	"					sort_dir = 'asc';\n"
+	"					rows.reverse();\n"
+	"					arrow.innerHTML = '&uarr;';\n"
+	"				} else {\n"
+	"					sort_dir = 'desc';\n"
+	"					arrow.innerHTML = '&darr;';\n"
+	"				}\n"
+	"				for (i=0; i < rows.length; i++)\n"
+	"					table.tBodies[0].appendChild(rows[i]);\n"
+	"				prev_arrow = arrow;\n"
+	"				prev_elem = elem;\n"
+	"				elem.style.fontWeight = 'bold';\n"
+	"			}\n"
+	"			// -->"
+	"		</script>";
+
 static const gchar html_top[] =
 	"		<div class=\"header\">Lighttpd Server Status | "
 	"			<span style=\"font-size: 12px;\"><a href=\"?\">main</a></strong> - <a href=\"?mode=runtime\">runtime</a></span>"
@@ -100,29 +148,29 @@ static const gchar html_worker_row_avg[] =
 static const gchar html_connections_th[] =
 	"		<table cellspacing=\"0\">\n"
 	"			<tr>\n"
-	"				<th class=\"left\" style=\"width: 200px;\">Client</th>\n"
-	"				<th style=\"width: 140px;\">State</th>\n"
-	"				<th style=\"width: 170px;\">Host</th>\n"
-	"				<th>Path+Querystring</th>\n"
-	"				<th>Duration</th>\n"
-	"				<th>Traffic in/out</th>\n"
-	"				<th>Traffic in/out / s</th>\n"
-	"				<th>Method</th>\n"
-	"				<th>Request Size</th>\n"
-	"				<th>Response Size</th>\n"
+	"				<th class=\"left\"><span class=\"string\" onclick=\"sort(this, 0); return false;\">Client</span><span></span></th>\n"
+	"				<th style=\"width: 140px;\"><span class=\"string\" onclick=\"sort(this, 0); return false;\">State</span><span></span></th>\n"
+	"				<th style=\"width: 170px;\"><span class=\"string\" onclick=\"sort(this, 0); return false;\">Host</span><span></span></th>\n"
+	"				<th><span class=\"string\" onclick=\"sort(this, 0); return false;\">Path+Querystring</span><span></span></th>\n"
+	"				<th><span class=\"int\" onclick=\"sort(this, 0); return false;\">Duration</span><span></span></th>\n"
+	"				<th>Traffic <span class=\"int\" onclick=\"sort(this, 0); return false;\">in</span><span>/</span><span class=\"int\" onclick=\"sort(this, 2); return false;\">out</span><span></span></th>\n"
+	"				<th>Traffic <span class=\"int\" onclick=\"sort(this, 0); return false;\">in</span><span>/</span><span class=\"int\" onclick=\"sort(this, 2); return false;\">out</span><span> / s</span><span></span></th>\n"
+	"				<th><span class=\"string\" onclick=\"sort(this, 0); return false;\">Method</span><span></span></th>\n"
+	"				<th><span class=\"int\" onclick=\"sort(this, 0); return false;\">Request Size</span><span></span></th>\n"
+	"				<th><span class=\"int\" onclick=\"sort(this, 0); return false;\">Response Size</span><span></span></th>\n"
 	"			</tr>\n";
 static const gchar html_connections_row[] =
 	"			<tr>\n"
-	"				<td  class=\"left\">%s</td>\n"
-	"				<td>%s</td>\n"
-	"				<td>%s</td>\n"
-	"				<td class=\"left\">%s%s%s</td>\n"
-	"				<td>%s</td>\n"
-	"				<td>%s / %s</td>\n"
-	"				<td>%s / %s</td>\n"
-	"				<td>%s</td>\n"
-	"				<td>%s</td>\n"
-	"				<td>%s</td>\n"
+	"				<td class=\"left\"><span>%s</span></td>\n"
+	"				<td><span>%s</span></td>\n"
+	"				<td><span>%s</span></td>\n"
+	"				<td class=\"left\"><span>%s%s%s</span></td>\n"
+	"				<td><span value=\"%"G_GUINT64_FORMAT"\">%s</span></td>\n"
+	"				<td><span value=\"%"G_GUINT64_FORMAT"\">%s</span><span> / </span><span value=\"%"G_GUINT64_FORMAT"\">%s</span></td>\n"
+	"				<td><span value=\"%"G_GUINT64_FORMAT"\">%s</span><span> / </span><span value=\"%"G_GUINT64_FORMAT"\">%s</span></td>\n"
+	"				<td><span>%s</span></td>\n"
+	"				<td><span value=\"%"G_GUINT64_FORMAT"\">%s</span></td>\n"
+	"				<td><span value=\"%"G_GUINT64_FORMAT"\">%s</span></td>\n"
 	"			</tr>\n";
 
 
@@ -374,7 +422,8 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			totals.active_cons_5s += sd->stats.active_cons_5s;
 		}
 
-		g_string_append_len(html, header, sizeof(header)-1);
+		g_string_append_len(html, CONST_STR_LEN(html_header));
+		g_string_append_len(html, CONST_STR_LEN(html_js));
 
 		/* auto refresh */
 		{
@@ -397,9 +446,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			GString *css = _OPTION(vr, p, 0).string;
 
 			if (!css || !css->len) /* default css */
-				g_string_append_len(html, css_default, sizeof(css_default)-1);
+				g_string_append_len(html, CONST_STR_LEN(css_default));
 			else if (g_str_equal(css->str, "blue")) /* blue css */
-				g_string_append_len(html, css_blue, sizeof(css_blue)-1);
+				g_string_append_len(html, CONST_STR_LEN(css_blue));
 			else /* external css */
 				g_string_append_printf(html, "		<link rel=\"stylesheet\" rev=\"stylesheet\" href=\"%s\" media=\"screen\" />\n", css->str);
 		}
@@ -422,7 +471,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		{
 			g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Absolute stats</strong></div>\n"));
 
-			g_string_append_len(html, html_worker_th, sizeof(html_worker_th)-1);
+			g_string_append_len(html, CONST_STR_LEN(html_worker_th));
 
 			#define PERCENTAGE(x, y) (y ? (x * 100 / y) : 0)
 			for (i = 0; i < result->len; i++) {
@@ -454,7 +503,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		{
 			g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (since start)</div>\n"));
 
-			g_string_append_len(html, html_worker_th_avg, sizeof(html_worker_th_avg)-1);
+			g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
 
 			#define PERCENTAGE(x) (sd->stat ## x ? (sd->stat ## x * 100 / total ## x) : 0)
 			for (i = 0; i < result->len; i++) {
@@ -490,7 +539,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		{
 			g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (5 seconds)</div>\n"));
 
-			g_string_append_len(html, html_worker_th_avg, sizeof(html_worker_th_avg)-1);
+			g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
 
 			#define PERCENTAGE(x) (sd->stat ## x ? (sd->stat ## x * 100 / total ## x) : 0)
 			for (i = 0; i < result->len; i++) {
@@ -563,7 +612,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			resp_len = g_string_sized_new(10);
 
 			g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong></div>\n"));
-			g_string_append_len(html, html_connections_th, sizeof(html_connections_th)-1);
+			g_string_append_len(html, CONST_STR_LEN(html_connections_th));
 			for (i = 0; i < result->len; i++) {
 				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 				for (j = 0; j < sd->connections->len; j++) {
@@ -584,14 +633,14 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 						cd->path->str,
 						cd->query->len ? "?":"",
 						cd->query->len ? cd->query->str : "",
-						ts->str,
-						bytes_in->str,
-						bytes_out->str,
-						bytes_in_5s->str,
-						bytes_out_5s->str,
+						(guint64)(CUR_TS(vr->wrk) - cd->ts), ts->str,
+						cd->bytes_in, bytes_in->str,
+						cd->bytes_out, bytes_out->str,
+						cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), bytes_in_5s->str,
+						cd->bytes_out_5s_diff / G_GUINT64_CONSTANT(5), bytes_out_5s->str,
 						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? li_http_method_string(cd->method, &len) : "",
-						(cd->state >= LI_CON_STATE_HANDLE_MAINVR && cd->request_size != -1) ? req_len->str : "",
-						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? resp_len->str : ""
+						cd->request_size != -1 ? cd->request_size : 0, (cd->state >= LI_CON_STATE_HANDLE_MAINVR && cd->request_size != -1) ? req_len->str : "",
+						cd->response_size, (cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? resp_len->str : ""
 					);
 
 					g_string_free(cd->remote_addr_str, TRUE);
@@ -756,7 +805,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 	html = g_string_sized_new(2047);
 
 
-	g_string_append_len(html, CONST_STR_LEN(header));
+	g_string_append_len(html, CONST_STR_LEN(html_header));
 
 	/* auto refresh */
 	{
