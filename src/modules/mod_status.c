@@ -56,6 +56,13 @@ static const gchar html_top[] =
 	"			<strong>Started at</strong>: <span>%s</span>\n"
 	"			<strong>Version</strong>: <span>" PACKAGE_VERSION " (" __DATE__ " " __TIME__ ")</span>\n"
 	"		</div>\n";
+static const gchar html_top_short[] =
+	"		<div class=\"header\">Lighttpd Server Status</div>\n"
+	"		<div class=\"spacer\">\n"
+	"			<strong>Hostname</strong>: <span>%s</span>"
+	"			<strong>Uptime</strong>: <span>%s</span>\n"
+	"			<strong>Started at</strong>: <span>%s</span>\n"
+	"		</div>\n";
 static const gchar html_worker_th[] =
 	"		<table cellspacing=\"0\">\n"
 	"			<tr>\n"
@@ -403,7 +410,8 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		));
 
 		li_counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, tmpstr);
-		g_string_append_printf(html, html_top,
+
+		g_string_append_printf(html, job->short_info ? html_top_short : html_top,
 			vr->request.uri.host->str,
 			tmpstr->str,
 			vr->wrk->srv->started_str->str
