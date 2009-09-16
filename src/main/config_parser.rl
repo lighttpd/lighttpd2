@@ -851,6 +851,10 @@
 				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_METHOD, NULL);
 			else if (g_str_equal(str, "scheme"))
 				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_SCHEME, NULL);
+			else if (g_str_equal(str, "remoteip"))
+				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_REMOTEIP, NULL);
+			else if (g_str_equal(str, "localip"))
+				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_LOCALIP, NULL);
 			else if (g_str_equal(str, "header")) {
 				if (k == NULL) {
 					WARNING(srv, "%s", "header conditional needs a key");
