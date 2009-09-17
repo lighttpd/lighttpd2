@@ -304,7 +304,7 @@ static liAction* core_index(liServer *srv, liPlugin* p, liValue *val) {
 
 
 static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpointer *context) {
-	int fd;
+	int fd = -1;
 	struct stat st;
 	int err;
 	liHandlerResult res;

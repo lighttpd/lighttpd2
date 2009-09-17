@@ -555,8 +555,11 @@ void li_chunkqueue_append_file(liChunkQueue *cq, GString *filename, off_t start,
 
 /* if you already opened the file, you can pass the fd here - do not close it */
 void li_chunkqueue_append_file_fd(liChunkQueue *cq, GString *filename, off_t start, off_t length, int fd) {
-	if (length)
+	if (length) {
 		__chunkqueue_append_file(cq, filename, start, length, fd, FALSE);
+	} else {
+		if (-1 != fd) close(fd);
+	}
 }
 
 /* temp files get deleted after usage */
@@ -570,6 +573,10 @@ void li_chunkqueue_append_tempfile(liChunkQueue *cq, GString *filename, off_t st
 void li_chunkqueue_append_tempfile_fd(liChunkQueue *cq, GString *filename, off_t start, off_t length, int fd) {
 	if (length)
 		__chunkqueue_append_file(cq, filename, start, length, fd, TRUE);
+	else {
+		if (-1 != fd) close(fd);
+		unlink(filename->str);
+	}
 }
 
 /* steal up to length bytes from in and put them into out, return number of bytes stolen */
