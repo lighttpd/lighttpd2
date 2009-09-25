@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([lighttpd], [2.0.0~alpha], [contact@lighttpd.net])
+AC_INIT([lighttpd], [2.0.0], [contact@lighttpd.net])
 AC_CONFIG_SRCDIR([src/main/lighttpd.c])
 AC_CONFIG_HEADER([include/lighttpd/config.h])
 AC_CONFIG_MACRO_DIR([m4])
