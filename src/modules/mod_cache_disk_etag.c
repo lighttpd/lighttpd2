@@ -328,6 +328,10 @@ static const liPluginSetup setups[] = {
 	{ NULL, NULL }
 };
 
+		/* Don't cache static files if filter list is empty */
+		if (0 == vr->filters_out.queue->len &&
+		    vr->out->is_closed &&
+			0 == vr->out->mem_usage) return LI_HANDLER_GO_ON;
 
 static void plugin_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);

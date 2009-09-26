@@ -27,7 +27,7 @@ static void filters_reset(liVRequest *vr, liFilters *fs) {
 	for (i = 0; i < fs->queue->len; i++) {
 		liFilter *f = (liFilter*) g_ptr_array_index(fs->queue, i);
 		if (f->handle_free && f->param) f->handle_free(vr, f);
-		if (i > 0) li_chunkqueue_free(fs->in);
+		if (i > 0) li_chunkqueue_free(f->in);
 		g_slice_free(liFilter, f);
 	}
 	g_ptr_array_set_size(fs->queue, 0);
