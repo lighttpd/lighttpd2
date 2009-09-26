@@ -237,6 +237,11 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 
 		if (vr->response.http_status != 200) return LI_HANDLER_GO_ON;
 
+		/* Don't cache static files if filter list is empty */
+		if (0 == vr->filters_out.queue->len &&
+		    vr->out->is_closed &&
+			0 == vr->out->mem_usage) return LI_HANDLER_GO_ON;
+
 		etag_entry = li_http_header_find_first(vr->response.headers, CONST_STR_LEN("etag"));
 		if (!etag_entry) return LI_HANDLER_GO_ON; /* no etag -> no caching */
 		if (li_http_header_find_next(etag_entry, CONST_STR_LEN("etag"))) {
@@ -327,11 +332,6 @@ static const liPluginAction actions[] = {
 static const liPluginSetup setups[] = {
 	{ NULL, NULL }
 };
-
-		/* Don't cache static files if filter list is empty */
-		if (0 == vr->filters_out.queue->len &&
-		    vr->out->is_closed &&
-			0 == vr->out->mem_usage) return LI_HANDLER_GO_ON;
 
 static void plugin_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
