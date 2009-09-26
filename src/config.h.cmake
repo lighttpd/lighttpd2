@@ -49,10 +49,6 @@
 
 #cmakedefine  HAVE_AIO_H
 
-/* BZip */
-#cmakedefine  HAVE_BZLIB_H
-#cmakedefine  HAVE_LIBBZ2
-
 /* FAM */
 #cmakedefine  HAVE_FAM_H
 
@@ -93,9 +89,11 @@
 #cmakedefine  HAVE_UUID_H
 #cmakedefine  HAVE_LIBUUID
 
+/* BZip */
+#cmakedefine  HAVE_BZIP
+
 /* ZLIB */
-#cmakedefine  HAVE_ZLIB_H
-#cmakedefine  HAVE_LIBZ
+#cmakedefine  HAVE_ZLIB
 
 /* GLIB */
 #cmakedefine  HAVE_GLIB_H
