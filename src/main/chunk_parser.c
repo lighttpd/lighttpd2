@@ -16,7 +16,7 @@ void li_chunk_parser_reset(liChunkParserCtx *ctx) {
 
 liHandlerResult li_chunk_parser_prepare(liChunkParserCtx *ctx) {
 	if (NULL == ctx->curi.element) {
-		ctx->curi = chunkqueue_iter(ctx->cq);
+		ctx->curi = li_chunkqueue_iter(ctx->cq);
 		if (NULL == ctx->curi.element) return LI_HANDLER_WAIT_FOR_EVENT;
 	}
 	return LI_HANDLER_GO_ON;
@@ -28,10 +28,10 @@ liHandlerResult li_chunk_parser_next(liVRequest *vr, liChunkParserCtx *ctx, char
 
 	if (NULL == ctx->curi.element) return LI_HANDLER_WAIT_FOR_EVENT;
 
-	while (ctx->start >= (l = chunkiter_length(ctx->curi))) {
+	while (ctx->start >= (l = li_chunkiter_length(ctx->curi))) {
 		liChunkIter i = ctx->curi;
 		 /* Wait at the end of the last chunk if it gets extended */
-		if (!chunkiter_next(&i)) return LI_HANDLER_WAIT_FOR_EVENT;
+		if (!li_chunkiter_next(&i)) return LI_HANDLER_WAIT_FOR_EVENT;
 		ctx->curi = i;
 		ctx->start -= l;
 	}
@@ -57,8 +57,8 @@ gboolean li_chunk_extract_to(liVRequest *vr, liChunkParserMark from, liChunkPars
 
 	g_string_set_size(dest, 0);
 
-	for ( i = from; i.ci.element != to.ci.element; chunkiter_next(&i.ci) ) {
-		goffset len = chunkiter_length(i.ci);
+	for ( i = from; i.ci.element != to.ci.element; li_chunkiter_next(&i.ci) ) {
+		goffset len = li_chunkiter_length(i.ci);
 		while (i.pos < len) {
 			char *buf;
 			off_t we_have;

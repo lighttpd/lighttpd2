@@ -154,7 +154,7 @@ static liHandlerResult cache_etag_filter_miss(liVRequest *vr, liFilter *f) {
 	ssize_t res;
 	gchar *buf;
 	off_t buflen;
-	liChunkIter citer = chunkqueue_iter(f->in);
+	liChunkIter citer = li_chunkqueue_iter(f->in);
 	UNUSED(vr);
 
 	if (0 == f->in->length) return LI_HANDLER_GO_ON;

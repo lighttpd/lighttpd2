@@ -161,9 +161,9 @@ static liNetworkStatus network_backend_sendfile(liVRequest *vr, int fd, liChunkQ
 	if (0 == cq->length) return LI_NETWORK_STATUS_FATAL_ERROR;
 
 	do {
-		ci = chunkqueue_iter(cq);
+		ci = li_chunkqueue_iter(cq);
 
-		if (FILE_CHUNK != (c = chunkiter_chunk(ci))->type) {
+		if (FILE_CHUNK != (c = li_chunkiter_chunk(ci))->type) {
 			return did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_FATAL_ERROR;
 		}
 
@@ -222,7 +222,7 @@ liNetworkStatus li_network_write_sendfile(liVRequest *vr, int fd, liChunkQueue *
 	if (cq->length == 0) return LI_NETWORK_STATUS_FATAL_ERROR;
 
 	do {
-		switch (chunkqueue_first_chunk(cq)->type) {
+		switch (li_chunkqueue_first_chunk(cq)->type) {
 		case MEM_CHUNK:
 		case STRING_CHUNK:
 			LI_NETWORK_FALLBACK(li_network_backend_writev, write_max);

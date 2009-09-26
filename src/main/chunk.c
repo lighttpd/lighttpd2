@@ -84,14 +84,14 @@ liHandlerResult li_chunkfile_open(liVRequest *vr, liChunkFile *cf) {
  * may return HANDLER_GO_ON, HANDLER_ERROR
  */
 liHandlerResult li_chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
-	liChunk *c = chunkiter_chunk(iter);
+	liChunk *c = li_chunkiter_chunk(iter);
 	off_t we_have, our_start;
 	liHandlerResult res = LI_HANDLER_GO_ON;
 
 	if (!c) return LI_HANDLER_ERROR;
 	if (!data_start || !data_len) return LI_HANDLER_ERROR;
 
-	we_have = chunk_length(c) - start;
+	we_have = li_chunk_length(c) - start;
 	if (length > we_have) length = we_have;
 	if (length <= 0) return LI_HANDLER_ERROR;
 
@@ -159,7 +159,7 @@ read_chunk:
  * as accessing mmap()-ed areas may result in SIGBUS, you have to handle that signal somehow.
  */
 liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
-	liChunk *c = chunkiter_chunk(iter);
+	liChunk *c = li_chunkiter_chunk(iter);
 	off_t we_want, we_have, our_start, our_offset;
 	liHandlerResult res = LI_HANDLER_GO_ON;
 	int mmap_errno = 0;
@@ -167,7 +167,7 @@ liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t s
 	if (!c) return LI_HANDLER_ERROR;
 	if (!data_start || !data_len) return LI_HANDLER_ERROR;
 
-	we_have = chunk_length(c) - start;
+	we_have = li_chunk_length(c) - start;
 	if (length > we_have) length = we_have;
 	if (length <= 0) return LI_HANDLER_ERROR;
 
@@ -586,8 +586,8 @@ goffset li_chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset len
 	goffset bytes = 0, meminbytes = 0, memoutbytes = 0;
 	goffset we_have;
 
-	while ( (NULL != (c = chunkqueue_first_chunk(in))) && length > 0 ) {
-		we_have = chunk_length(c);
+	while ( (NULL != (c = li_chunkqueue_first_chunk(in))) && length > 0 ) {
+		we_have = li_chunk_length(c);
 		if (!we_have) { /* remove empty chunks */
 			if (c->type == STRING_CHUNK) meminbytes -= c->str->len;
 			else if (c->type == MEM_CHUNK) meminbytes -= c->mem->len;
@@ -700,7 +700,7 @@ goffset li_chunkqueue_steal_chunk(liChunkQueue *out, liChunkQueue *in) {
 	g_queue_push_tail_link(out->queue, l);
 
 	c = (liChunk*) l->data;
-	length = chunk_length(c);
+	length = li_chunk_length(c);
 	in->bytes_out += length;
 	in->length -= length;
 	out->bytes_in += length;
@@ -723,7 +723,7 @@ goffset li_chunkqueue_skip(liChunkQueue *cq, goffset length) {
 	goffset bytes = 0;
 	goffset we_have;
 
-	while ( (NULL != (c = chunkqueue_first_chunk(cq))) && (0 == (we_have = chunk_length(c)) || length > 0) ) {
+	while ( (NULL != (c = li_chunkqueue_first_chunk(cq))) && (0 == (we_have = li_chunk_length(c)) || length > 0) ) {
 		if (we_have <= length) {
 			/* skip (delete) complete chunk */
 			if (c->type == STRING_CHUNK) cqlimit_update(cq, - (goffset)c->str->len);
@@ -762,11 +762,11 @@ gboolean li_chunkqueue_extract_to(liVRequest *vr, liChunkQueue *cq, goffset len,
 	g_string_set_size(dest, 0);
 	if (len > cq->length) return FALSE;
 
-	ci = chunkqueue_iter(cq);
+	ci = li_chunkqueue_iter(cq);
 
 	while (len > 0) {
 		coff = 0;
-		clen = chunkiter_length(ci);
+		clen = li_chunkiter_length(ci);
 		while (coff < clen) {
 			gchar *buf;
 			off_t we_have;
@@ -776,7 +776,7 @@ gboolean li_chunkqueue_extract_to(liVRequest *vr, liChunkQueue *cq, goffset len,
 			len -= we_have;
 			if (len <= 0) return TRUE;
 		}
-		chunkiter_next(&ci);
+		li_chunkiter_next(&ci);
 	}
 
 	return TRUE;
@@ -795,11 +795,11 @@ gboolean li_chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *cq, goff
 	g_byte_array_set_size(dest, len);
 	g_byte_array_set_size(dest, 0);
 
-	ci = chunkqueue_iter(cq);
+	ci = li_chunkqueue_iter(cq);
 
 	while (len > 0) {
 		coff = 0;
-		clen = chunkiter_length(ci);
+		clen = li_chunkiter_length(ci);
 		while (coff < clen) {
 			gchar *buf;
 			off_t we_have;
@@ -809,7 +809,7 @@ gboolean li_chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *cq, goff
 			len -= we_have;
 			if (len <= 0) return TRUE;
 		}
-		chunkiter_next(&ci);
+		li_chunkiter_next(&ci);
 	}
 
 	return TRUE;

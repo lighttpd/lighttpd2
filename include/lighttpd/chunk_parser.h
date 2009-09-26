@@ -34,19 +34,19 @@ LI_API void li_chunk_parser_done(liChunkParserCtx *ctx, goffset len);
 LI_API gboolean li_chunk_extract_to(liVRequest *vr, liChunkParserMark from, liChunkParserMark to, GString *dest);
 LI_API GString* li_chunk_extract(liVRequest *vr, liChunkParserMark from, liChunkParserMark to);
 
-INLINE liChunkParserMark chunk_parser_getmark(liChunkParserCtx *ctx, const char *fpc);
+INLINE liChunkParserMark li_chunk_parser_getmark(liChunkParserCtx *ctx, const char *fpc);
 
 /********************
  * Inline functions *
  ********************/
 
-INLINE liChunkParserMark chunk_parser_getmark(liChunkParserCtx *ctx, const char *fpc) {
+INLINE liChunkParserMark li_chunk_parser_getmark(liChunkParserCtx *ctx, const char *fpc) {
 	liChunkParserMark m;
 	m.ci = ctx->curi;
 	m.pos = ctx->start + fpc - ctx->buf;
 	return m;
 }
 
-#define GETMARK(FPC) (chunk_parser_getmark(&ctx->chunk_ctx, FPC))
+#define GETMARK(FPC) (li_chunk_parser_getmark(&ctx->chunk_ctx, FPC))
 
 #endif

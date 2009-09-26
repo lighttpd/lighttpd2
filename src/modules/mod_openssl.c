@@ -98,7 +98,7 @@ static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 		if (0 == cq->length)
 			return LI_NETWORK_STATUS_SUCCESS;
 
-		ci = chunkqueue_iter(cq);
+		ci = li_chunkqueue_iter(cq);
 		switch (li_chunkiter_read(con->mainvr, ci, 0, blocksize, &block_data, &block_len)) {
 		case LI_HANDLER_GO_ON:
 			break;

@@ -83,9 +83,9 @@ LI_API liHandlerResult li_chunkfile_open(liVRequest *vr, liChunkFile *cf);
  * chunk iterator *
  ******************/
 
-INLINE liChunk* chunkiter_chunk(liChunkIter iter);
-INLINE gboolean chunkiter_next(liChunkIter *iter);
-INLINE goffset chunkiter_length(liChunkIter iter);
+INLINE liChunk* li_chunkiter_chunk(liChunkIter iter);
+INLINE gboolean li_chunkiter_next(liChunkIter *iter);
+INLINE goffset li_chunkiter_length(liChunkIter iter);
 
 /* get the data from a chunk; easy in case of a STRING_CHUNK,
  * but needs to do io in case of FILE_CHUNK; the data is _not_ marked as "done"
@@ -102,7 +102,7 @@ LI_API liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, 
  *     chunk      *
  ******************/
 
-INLINE goffset chunk_length(liChunk *c);
+INLINE goffset li_chunk_length(liChunk *c);
 
 /******************
  *    cqlimit     *
@@ -172,9 +172,9 @@ LI_API goffset li_chunkqueue_skip_all(liChunkQueue *cq);
 /* if the chunk an iterator refers gets stolen/skipped/...,
  * the iterator isn't valid anymore
  */
-INLINE liChunkIter chunkqueue_iter(liChunkQueue *cq);
+INLINE liChunkIter li_chunkqueue_iter(liChunkQueue *cq);
 
-INLINE liChunk* chunkqueue_first_chunk(liChunkQueue *cq);
+INLINE liChunk* li_chunkqueue_first_chunk(liChunkQueue *cq);
 
 LI_API gboolean li_chunkqueue_extract_to(liVRequest *vr, liChunkQueue *cq, goffset len, GString *dest);
 LI_API gboolean li_chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *cq, goffset len, GByteArray *dest);
@@ -183,21 +183,21 @@ LI_API gboolean li_chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *c
  * Inline functions *
  ********************/
 
-INLINE liChunk* chunkiter_chunk(liChunkIter iter) {
+INLINE liChunk* li_chunkiter_chunk(liChunkIter iter) {
 	if (!iter.element) return NULL;
 	return (liChunk*) iter.element->data;
 }
 
-INLINE gboolean chunkiter_next(liChunkIter *iter) {
+INLINE gboolean li_chunkiter_next(liChunkIter *iter) {
 	if (!iter || !iter->element) return FALSE;
 	return NULL != (iter->element = g_list_next(iter->element));
 }
 
-INLINE goffset chunkiter_length(liChunkIter iter) {
-	return chunk_length(chunkiter_chunk(iter));
+INLINE goffset li_chunkiter_length(liChunkIter iter) {
+	return li_chunk_length(li_chunkiter_chunk(iter));
 }
 
-INLINE goffset chunk_length(liChunk *c) {
+INLINE goffset li_chunk_length(liChunk *c) {
 	if (!c) return 0;
 	switch (c->type) {
 	case UNUSED_CHUNK:
@@ -212,13 +212,13 @@ INLINE goffset chunk_length(liChunk *c) {
 	return 0;
 }
 
-INLINE liChunkIter chunkqueue_iter(liChunkQueue *cq) {
+INLINE liChunkIter li_chunkqueue_iter(liChunkQueue *cq) {
 	liChunkIter i;
 	i.element = g_queue_peek_head_link(cq->queue);
 	return i;
 }
 
-INLINE liChunk* chunkqueue_first_chunk(liChunkQueue *cq) {
+INLINE liChunk* li_chunkqueue_first_chunk(liChunkQueue *cq) {
 	return (liChunk*) g_queue_peek_head(cq->queue);
 }
 

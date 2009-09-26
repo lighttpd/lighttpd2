@@ -38,9 +38,9 @@ liNetworkStatus li_network_backend_writev(liVRequest *vr, int fd, liChunkQueue *
 	if (0 == cq->length) goto cleanup; /* FATAL ERROR */
 
 	do {
-		ci = chunkqueue_iter(cq);
+		ci = li_chunkqueue_iter(cq);
 
-		if (STRING_CHUNK != (c = chunkiter_chunk(ci))->type && MEM_CHUNK != c->type) {
+		if (STRING_CHUNK != (c = li_chunkiter_chunk(ci))->type && MEM_CHUNK != c->type) {
 			res = did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_FATAL_ERROR;
 			goto cleanup;
 		}
@@ -48,7 +48,7 @@ liNetworkStatus li_network_backend_writev(liVRequest *vr, int fd, liChunkQueue *
 		we_have = 0;
 		do {
 			guint i = chunks->len;
-			off_t len = chunk_length(c);
+			off_t len = li_chunk_length(c);
 			struct iovec *v;
 			g_array_set_size(chunks, i + 1);
 			v = &g_array_index(chunks, struct iovec, i);
@@ -60,8 +60,8 @@ liNetworkStatus li_network_backend_writev(liVRequest *vr, int fd, liChunkQueue *
 			v->iov_len = len;
 			we_have += len;
 		} while (we_have < *write_max &&
-		         chunkiter_next(&ci) &&
-		         (STRING_CHUNK == (c = chunkiter_chunk(ci))->type || MEM_CHUNK == c->type) &&
+		         li_chunkiter_next(&ci) &&
+		         (STRING_CHUNK == (c = li_chunkiter_chunk(ci))->type || MEM_CHUNK == c->type) &&
 		         chunks->len < UIO_MAXIOV);
 
 		while (-1 == (r = writev(fd, (struct iovec*) chunks->data, chunks->len))) {
@@ -114,7 +114,7 @@ cleanup:
 liNetworkStatus li_network_write_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
 	if (cq->length == 0) return LI_NETWORK_STATUS_FATAL_ERROR;
 	do {
-		switch (chunkqueue_first_chunk(cq)->type) {
+		switch (li_chunkqueue_first_chunk(cq)->type) {
 		case STRING_CHUNK:
 			LI_NETWORK_FALLBACK(li_network_backend_writev, write_max);
 			break;
