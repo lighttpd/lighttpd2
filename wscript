@@ -29,6 +29,8 @@ def set_options(opt):
 	# ./waf configure options
 	opt.add_option('--with-lua', action='store_true', help='with lua 5.1 for mod_magnet', dest = 'lua', default = False)
 	opt.add_option('--with-openssl', action='store_true', help='with openssl-support [default: off]', dest='openssl', default=False)
+	opt.add_option('--with-zlib', action='store_true', help='with deflate/gzip-support [default: off]', dest='zlib', default=False)
+	opt.add_option('--with-bzip', action='store_true', help='with bzip2-support [default: off]', dest='bzip', default=False)
 	opt.add_option('--with-all', action='store_true', help='Enable all features', dest = 'all', default = False)
 	opt.add_option('--static', action='store_true', help='build a static lighttpd with all modules added', dest = 'static', default = False)
 	opt.add_option('--append', action='store', help='Append string to binary names / library dir', dest = 'append', default = '')
@@ -84,6 +86,8 @@ def configure(conf):
 	if opts.all:
 		opts.lua = True
 		opts.openssl = True
+		opts.zlib = True
+		opts.bzip = True
 
 	if not opts.debug:
 		conf.env['CCFLAGS'] += ['-O2']
@@ -125,6 +129,18 @@ def configure(conf):
 			conf.check(function_name='BIO_f_base64', header_name=['openssl/bio.h','openssl/evp.h'], uselib='crypto', mandatory=True)
 			conf.check(function_name='SSL_new', header_name='openssl/ssl.h', uselib='ssl', mandatory=True)
 		conf.define('USE_OPENSSL', 1)
+
+	if opts.zlib:
+		conf.check(lib='z', uselib_store='z', mandatory=True)
+		conf.check(header_name='zlib.h', uselib='z', mandatory=True)
+		conf.check(function_name='deflate', header_name='zlib.h', uselib='z', mandatory=True)
+		conf.define('HAVE_ZLIB', 1)
+
+	if opts.bzip:
+		conf.check(lib='bz2', uselib_store='bz2', mandatory=True)
+		conf.check(header_name='bzlib.h', uselib='bz2', mandatory=True)
+		conf.check(function_name='BZ2_bzCompressInit', header_name='bzlib.h', uselib='bz2', mandatory=True)
+		conf.define('HAVE_BZIP', 1)
 
 	if not opts.static:
 		conf.check(lib='dl', uselib_store='dl')
@@ -176,7 +192,8 @@ def configure(conf):
 	print_summary(conf, 'Build static binary', 'yes' if opts.static else 'no', 'YELLOW' if opts.static else 'GREEN')
 	print_summary(conf, 'Build debug binary', 'yes' if opts.debug else 'no', 'YELLOW' if opts.debug else 'GREEN')
 	print_summary(conf, 'With lua support', 'yes' if opts.lua else 'no', 'GREEN' if opts.lua else 'YELLOW')
-	print_summary(conf, 'With ssl support', 'yes' if opts.openssl else 'no', 'GREEN' if opts.openssl else 'YELLOW')
+	print_summary(conf, 'With deflate/gzip support', 'yes' if opts.zlib else 'no', 'GREEN' if opts.zlib else 'YELLOW')
+	print_summary(conf, 'With bzip2 support', 'yes' if opts.bzip else 'no', 'GREEN' if opts.bzip else 'YELLOW')
 	
 
 def build(bld):

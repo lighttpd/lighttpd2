@@ -28,18 +28,28 @@ def configure(conf):
 
 
 def build(bld):
+	env = bld.env
+
 	lighty_mod(bld, 'mod_access', 'mod_access.c')
 	lighty_mod(bld, 'mod_accesslog', 'mod_accesslog.c')
 	lighty_mod(bld, 'mod_auth', 'mod_auth.c')
 	lighty_mod(bld, 'mod_balancer', 'mod_balancer.c')
 	lighty_mod(bld, 'mod_cache_disk_etag', 'mod_cache_disk_etag.c')
+	uselib = []
+	if env['HAVE_ZLIB'] == 1:
+		uselib += ['z']
+	if env['HAVE_BZIP'] == 1:
+		uselib += ['bz2']
+	if len(uselib) != 0:
+		lighty_mod(bld, 'mod_deflate', 'mod_deflate.c', uselib)
 	lighty_mod(bld, 'mod_debug', 'mod_debug.c')
 	lighty_mod(bld, 'mod_dirlist', 'mod_dirlist.c')
 	lighty_mod(bld, 'mod_expire', 'mod_expire.c')
 	lighty_mod(bld, 'mod_fastcgi', 'mod_fastcgi.c')
 	lighty_mod(bld, 'mod_fortune', 'mod_fortune.c')
-	if bld.env['USE_OPENSSL'] == 1:
-		lighty_mod(bld, 'mod_openssl', 'mod_openssl.c', uselib=['ssl','crypto'])
+	if env['USE_OPENSSL'] == 1:
+		uselib = ['ssl','crypto']
+		lighty_mod(bld, 'mod_openssl', 'mod_openssl.c', uselib)
 	lighty_mod(bld, 'mod_redirect', 'mod_redirect.c')
 	lighty_mod(bld, 'mod_rewrite', 'mod_rewrite.c')
 	lighty_mod(bld, 'mod_status', 'mod_status.c')
