@@ -59,7 +59,7 @@ typedef enum {
 } liCondLValue;
 
 #define LI_COND_LVALUE_FIRST_WITH_KEY LI_COMP_REQUEST_HEADER
-#define LI_COND_LVALUE_END            (1+LI_COMP_REQUEST_HEADER)
+#define LI_COND_LVALUE_END            (LI_COMP_UNKNOWN)
 
 struct liConditionLValue {
 	int refcount;
