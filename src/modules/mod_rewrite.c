@@ -344,12 +344,6 @@ static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context
 			g_string_truncate(vr->request.uri.path, 0);
 			g_string_append_len(vr->request.uri.path, GSTR_LEN(vr->wrk->tmp_str));
 
-			/* change physical path */
-			if (vr->physical.doc_root->len) {
-				g_string_truncate(vr->physical.path, vr->physical.doc_root->len);
-				g_string_append_len(vr->physical.path, GSTR_LEN(vr->wrk->tmp_str));
-			}
-
 			/* change request query */
 			if (rule->has_querystring) {
 				g_string_truncate(vr->request.uri.query, 0);
