@@ -517,7 +517,9 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		return LI_HANDLER_GO_ON;
 	}
 
-	li_http_header_append(vr->response.headers, CONST_STR_LEN("Content-Encoding"), encoding_names[i], strlen(encoding_names[i]));
+	li_http_header_insert(vr->response.headers, CONST_STR_LEN("Content-Encoding"), encoding_names[i], strlen(encoding_names[i]));
+	li_http_header_append(vr->response.headers, CONST_STR_LEN("Vary"), CONST_STR_LEN("Accept-Encoding"));
+	li_http_header_remove(vr->response.headers, CONST_STR_LEN("content-length"));
 	if (hh_etag) {
 		GString *s = vr->wrk->tmp_str;
 		g_string_truncate(s, 0);

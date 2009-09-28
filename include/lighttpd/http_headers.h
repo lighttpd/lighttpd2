@@ -28,11 +28,16 @@ LI_API void li_http_headers_free(liHttpHeaders* headers);
 
 /** If header does not exist, just insert normal header. If it exists, append (", %s", value) */
 LI_API void li_http_header_append(liHttpHeaders *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen);
-/** If header does not exist, just insert normal header. If it exists, add new entry to list ("%s: %s", key, value) */
+
+/** Add new entry to list ("%s: %s", key, value) */
 LI_API void li_http_header_insert(liHttpHeaders *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen);
+
 /** If header does not exist, just insert normal header. If it exists, overwrite the value */
 LI_API void li_http_header_overwrite(liHttpHeaders *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen);
+
+/** Remove all header entries with specified key */
 LI_API gboolean li_http_header_remove(liHttpHeaders *headers, const gchar *key, size_t keylen);
+
 LI_API void li_http_header_remove_link(liHttpHeaders *headers, GList *l);
 
 LI_API liHttpHeader* li_http_header_lookup(liHttpHeaders *headers, const gchar *key, size_t keylen);
