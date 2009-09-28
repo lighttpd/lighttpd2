@@ -319,7 +319,7 @@ gboolean li_vrequest_is_handled(liVRequest *vr) {
 	return vr->state >= LI_VRS_READ_CONTENT;
 }
 
-static gboolean vrequest_do_handle_actions(liVRequest *vr) {
+static liHandlerResult vrequest_do_handle_actions(liVRequest *vr) {
 	liHandlerResult res = li_action_execute(vr);
 	switch (res) {
 	case LI_HANDLER_GO_ON:
@@ -335,20 +335,20 @@ static gboolean vrequest_do_handle_actions(liVRequest *vr) {
 					VR_DEBUG(vr, "%s", "actions didn't handle request");
 				}
 			}
-			return TRUE;
+			return LI_HANDLER_GO_ON;
 		}
 		/* otherwise state already changed */
 		break;
 	case LI_HANDLER_COMEBACK:
 		li_vrequest_joblist_append(vr); /* come back later */
-		return FALSE;
+		return LI_HANDLER_COMEBACK;
 	case LI_HANDLER_WAIT_FOR_EVENT:
-		return FALSE;
+		return LI_HANDLER_WAIT_FOR_EVENT;
 	case LI_HANDLER_ERROR:
 		li_vrequest_error(vr);
-		return FALSE;
+		return LI_HANDLER_ERROR;
 	}
-	return TRUE;
+	return LI_HANDLER_GO_ON;
 }
 
 
@@ -411,7 +411,18 @@ void li_vrequest_state_machine(liVRequest *vr) {
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "%s", "handle request header");
 			}
-			if (!vrequest_do_handle_actions(vr)) return;
+			switch (vrequest_do_handle_actions(vr)) {
+			case LI_HANDLER_GO_ON:
+				break;
+			case LI_HANDLER_COMEBACK:
+				li_vrequest_joblist_append(vr); /* come back later */
+				return;
+			case LI_HANDLER_WAIT_FOR_EVENT:
+				if (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS) return;
+				break; /* go on to get post data/response headers if request is already handled */
+			case LI_HANDLER_ERROR:
+				return;
+			}
 			res = vr->handle_request_headers(vr);
 			switch (res) {
 			case LI_HANDLER_GO_ON:
@@ -445,7 +456,16 @@ void li_vrequest_state_machine(liVRequest *vr) {
 			break;
 
 		case LI_VRS_HANDLE_RESPONSE_HEADERS:
-			if (!vrequest_do_handle_actions(vr)) return;
+			switch (vrequest_do_handle_actions(vr)) {
+			case LI_HANDLER_GO_ON:
+				break;
+			case LI_HANDLER_COMEBACK:
+				return;
+			case LI_HANDLER_WAIT_FOR_EVENT:
+				return; /* wait to handle response headers */
+			case LI_HANDLER_ERROR:
+				return;
+			}
 			res = vr->handle_response_headers(vr);
 			switch (res) {
 			case LI_HANDLER_GO_ON:

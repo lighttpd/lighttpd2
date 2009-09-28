@@ -68,9 +68,10 @@ static void worker_closing_socket_cb(int revents, void* arg) {
 
 void li_worker_add_closing_socket(liWorker *wrk, int fd) {
 	worker_closing_socket *scs;
+	liServerState state = g_atomic_int_get(&wrk->srv->state);
 
 	shutdown(fd, SHUT_WR);
-	if (g_atomic_int_get(&wrk->srv->state) == LI_SERVER_STOPPING) {
+	if (LI_SERVER_RUNNING != state && LI_SERVER_WARMUP != state) {
 		shutdown(fd, SHUT_RD);
 		close(fd);
 		return;
@@ -571,6 +572,21 @@ void li_worker_suspend(liWorker *context, liWorker *wrk) {
 		}
 
 		li_worker_check_keepalive(wrk);
+
+		{ /* force closing sockets */
+			GList *iter;
+			for (iter = g_queue_peek_head_link(&wrk->closing_sockets); iter; iter = g_list_next(iter)) {
+				worker_rem_closing_socket(wrk, (worker_closing_socket*) iter->data);
+			}
+		}
+
+#if 0
+		ERROR(wrk->srv, "%i connections still active", (int) wrk->connections_active);
+		for (i = wrk->connections_active; i-- > 0;) {
+			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
+			ERROR(wrk->srv, "%i state: %s, %i", i, li_connection_state_str(con->state), con->mainvr->state);
+		}
+#endif
 	} else {
 		ev_async_send(wrk->loop, &wrk->li_worker_suspend_watcher);
 	}
