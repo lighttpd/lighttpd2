@@ -893,6 +893,31 @@
 				return FALSE;
 			}
 		}
+		else if (g_str_has_prefix(str, "resp")) {
+			str += 4;
+			if (g_str_has_prefix(str, "."))
+				str++;
+			else if (g_str_has_prefix(str, "onse."))
+				str += 5;
+			else {
+				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
+				return FALSE;
+			}
+
+			if (g_str_equal(str, "status"))
+				lvalue = li_condition_lvalue_new(LI_COMP_RESPONSE_STATUS, NULL);
+			else if (g_str_equal(str, "header")) {
+				if (k == NULL) {
+					WARNING(srv, "%s", "header conditional needs a key");
+					return FALSE;
+				}
+				lvalue = li_condition_lvalue_new(LI_COMP_RESPONSE_HEADER, li_value_extract(k).string);
+			}
+			else {
+				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
+				return FALSE;
+			}
+		}
 		else {
 			WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
 			return FALSE;
