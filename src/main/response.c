@@ -38,10 +38,6 @@ gboolean li_response_send_headers(liConnection *con) {
 		li_response_send_error_page(con);
 	}
 
-	if (con->mainvr->backend == NULL) {
-		con->out->is_closed = TRUE;
-	}
-
 	if ((vr->response.http_status >= 100 && vr->response.http_status < 200) ||
 	     vr->response.http_status == 204 ||
 	     vr->response.http_status == 205 ||
