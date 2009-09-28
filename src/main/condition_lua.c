@@ -148,6 +148,25 @@ static int lua_cond_lvalue_tostring(lua_State *L) {
 	return 1;
 }
 
+static int lua_cond_lvalue_bool(lua_State *L) {
+	liServer *srv;
+	liCondition *c;
+	liConditionLValue *lvalue;
+	liCompOperator cmpop;
+
+	lvalue = lua_get_condition_lvalue(L, 1);
+	srv = (liServer*) lua_touserdata(L, lua_upvalueindex(1));
+	cmpop = (liCompOperator) lua_tointeger(L, lua_upvalueindex(2));
+
+	c = li_condition_new_bool(srv, lvalue, cmpop == LI_CONFIG_COND_EQ);
+	if (c) {
+		li_condition_lvalue_acquire(lvalue);
+		lua_push_condition(srv, L, c);
+		return 1;
+	}
+	return 0;
+}
+
 static int lua_cond_lvalue_cmp(lua_State *L) {
 	liServer *srv;
 	GString *sval;
@@ -188,6 +207,9 @@ static void lua_push_cond_lvalue_metatable(liServer *srv, lua_State *L) {
 		lua_mt_register_cmp(srv, L, "ge", lua_cond_lvalue_cmp, LI_CONFIG_COND_GE);
 		lua_mt_register_cmp(srv, L, "lt", lua_cond_lvalue_cmp, LI_CONFIG_COND_LT);
 		lua_mt_register_cmp(srv, L, "le", lua_cond_lvalue_cmp, LI_CONFIG_COND_LE);
+
+		lua_mt_register_cmp(srv, L, "is", lua_cond_lvalue_bool, LI_CONFIG_COND_EQ);
+		lua_mt_register_cmp(srv, L, "isnot", lua_cond_lvalue_bool, LI_CONFIG_COND_NE);
 
 		lua_pushvalue(L, -1);
 		lua_setfield(L, -2, "__index");

@@ -50,7 +50,7 @@ static int lua_str_hash_index(lua_State *L) {
 	wrapper = (LuaWrapper)(intptr_t) lua_touserdata(L, -1); lua_pop(L, 1);
 	if (!lua_isstring(L, 2) || !ht || !wrapper) {
 		lua_pop(L, lua_gettop(L));
-		lua_pushstring(L, "lookup failed");
+		lua_pushstring(L, "lookup failed (lua_str_hash_index)");
 		lua_error(L);
 		return 0;
 	}
@@ -94,7 +94,7 @@ static int lua_str_hash_call(lua_State *L) {
 	lua_pushstring(L, "__key"); lua_rawget(L, 1);
 	key = luaL_checklstring(L, -1, NULL);
 
-	/* TRACE(srv, "str hash call: '%s'", key); */
+	/* DEBUG(srv, "str hash call: '%s'", key); */
 
 	if (key && NULL != (d = g_hash_table_lookup(ht, key))) {
 		lua_pop(L, 1);
@@ -102,7 +102,10 @@ static int lua_str_hash_call(lua_State *L) {
 	}
 
 	lua_pop(L, lua_gettop(L));
-	lua_pushstring(L, "lookup failed");
+	lua_pushstring(L, "lookup '");
+	lua_pushstring(L, key);
+	lua_pushstring(L, "' failed (lua_str_hash_call)");
+	lua_concat(L, 3);
 	lua_error(L);
 	return 0;
 }
