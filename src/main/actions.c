@@ -133,6 +133,7 @@ static void action_stack_element_release(liServer *srv, liVRequest *vr, action_s
 		if (a->data.condition.cond->rvalue.type == LI_COND_VALUE_REGEXP) {
 			/* pop regex stack */
 			GArray *rs = vr->action_stack.regex_stack;
+			/* cheap check to prevent segfault if condition errored without pushing onto stack; whole stack gets cleaned anyways */
 			if (rs->len) {
 				liActionRegexStackElement *arse = &g_array_index(rs, liActionRegexStackElement, rs->len - 1);
 				if (arse->string)
