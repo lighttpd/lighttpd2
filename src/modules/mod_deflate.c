@@ -103,6 +103,7 @@ static const unsigned char gzip_header[] = {
 
 typedef struct deflate_context_zlib deflate_context_zlib;
 struct deflate_context_zlib {
+	liPlugin *p;
 	z_stream z;
 	GByteArray *buf;
 	gboolean is_gzip, gzip_header;
@@ -121,12 +122,14 @@ static void deflate_context_zlib_free(deflate_context_zlib *ctx) {
 	g_slice_free(deflate_context_zlib, ctx);
 }
 
-static deflate_context_zlib* deflate_context_zlib_create(liVRequest *vr, gboolean is_gzip) {
+static deflate_context_zlib* deflate_context_zlib_create(liVRequest *vr, liPlugin *p, gboolean is_gzip) {
 	deflate_context_zlib *ctx = g_slice_new0(deflate_context_zlib);
 	z_stream *z = &ctx->z;
 	guint compression_level = Z_DEFAULT_COMPRESSION;
 	guint window_size = -MAX_WBITS; /* supress zlib-header */
 	guint mem_level = 8;
+
+	ctx->p = p;
 
 	z->zalloc = Z_NULL;
 	z->zfree = Z_NULL;
@@ -170,15 +173,24 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 	const off_t max_compress = 4 * blocksize;
 
 	deflate_context_zlib *ctx = (deflate_context_zlib*) f->param;
+	gboolean debug = _OPTION(vr, ctx->p, 0).boolean;
 	z_stream *z = &ctx->z;
 	off_t l = 0;
 	liHandlerResult res;
 	int rc;
 	UNUSED(vr);
 
+	if (f->in->is_closed && 0 == f->in->length && f->out->is_closed) {
+		/* nothing to do anymore */
+		return LI_HANDLER_GO_ON;
+	}
+
 	if (f->out->is_closed) {
 		li_chunkqueue_skip_all(f->in);
 		f->in->is_closed = TRUE;
+		if (debug) {
+			VR_DEBUG(vr, "deflate: %s", "connection closed by remote");
+		}
 		return LI_HANDLER_GO_ON;
 	}
 
@@ -188,6 +200,7 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 		/* as the buffer is unused it really should be big enough */
 		if (z->avail_out < sizeof(gzip_header)) {
 			f->out->is_closed = TRUE;
+			VR_ERROR(vr, "deflate error: %s", z->msg);
 			return LI_HANDLER_ERROR;
 		}
 
@@ -222,6 +235,7 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 		do {
 			if (Z_OK != deflate(z, Z_NO_FLUSH)) {
 				f->out->is_closed = TRUE;
+				VR_ERROR(vr, "deflate error: %s", z->msg);
 				return LI_HANDLER_ERROR;
 			}
 
@@ -241,6 +255,7 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 			rc = deflate(z, Z_FINISH);
 			if (rc != Z_OK && rc != Z_STREAM_END) {
 				f->out->is_closed = TRUE;
+				VR_ERROR(vr, "deflate error: %s", z->msg);
 				return LI_HANDLER_ERROR;
 			}
 
@@ -269,13 +284,18 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 			li_chunkqueue_append_mem(f->out, c, 8);
 		}
 
+		if (debug) {
+			VR_DEBUG(vr, "deflate finished: in: %i, out : %i", (int) z->total_in, (int) z->total_out);
+		}
+
 		f->out->is_closed = TRUE;
 	}
 
-	if (0 == f->in->length && !f->in->is_closed) { /* flush z_stream */
+	if (l > 0 && 0 == f->in->length && !f->in->is_closed) { /* flush z_stream */
 		rc = deflate(z, Z_SYNC_FLUSH);
 		if (rc != Z_OK && rc != Z_STREAM_END) {
 			f->out->is_closed = TRUE;
+			VR_ERROR(vr, "deflate error: %s", z->msg);
 			return LI_HANDLER_ERROR;
 		}
 	}
@@ -302,6 +322,7 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 
 typedef struct deflate_context_bzip2 deflate_context_bzip2;
 struct deflate_context_bzip2 {
+	liPlugin *p;
 	bz_stream bz;
 	GByteArray *buf;
 };
@@ -318,10 +339,12 @@ static void deflate_context_bzip2_free(deflate_context_bzip2 *ctx) {
 	g_slice_free(deflate_context_bzip2, ctx);
 }
 
-static deflate_context_bzip2* deflate_context_bzip2_create(liVRequest *vr) {
+static deflate_context_bzip2* deflate_context_bzip2_create(liVRequest *vr, liPlugin *p) {
 	deflate_context_bzip2 *ctx = g_slice_new0(deflate_context_bzip2);
 	bz_stream *bz = &ctx->bz;
 	guint compression_level = 9;
+
+	ctx->p = p;
 
 	bz->bzalloc = NULL;
 	bz->bzfree = NULL;
@@ -358,14 +381,24 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 	const off_t max_compress = 4 * blocksize;
 
 	deflate_context_bzip2 *ctx = (deflate_context_bzip2*) f->param;
+	gboolean debug = _OPTION(vr, ctx->p, 0).boolean;
 	bz_stream *bz = &ctx->bz;
 	off_t l = 0;
 	liHandlerResult res;
 	int rc;
 	UNUSED(vr);
 
+	if (f->in->is_closed && 0 == f->in->length && f->out->is_closed) {
+		/* nothing to do anymore */
+		return LI_HANDLER_GO_ON;
+	}
+
 	if (f->out->is_closed) {
+		li_chunkqueue_skip_all(f->in);
 		f->in->is_closed = TRUE;
+		if (debug) {
+			VR_DEBUG(vr, "deflate: %s", "connection closed by remote");
+		}
 		return LI_HANDLER_GO_ON;
 	}
 
@@ -388,6 +421,7 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 			rc = BZ2_bzCompress(bz, BZ_RUN);
 			if (rc != BZ_RUN_OK) {
 				f->out->is_closed = TRUE;
+				VR_ERROR(vr, "BZ2_bzCompress error: rc = %i", rc);
 				return LI_HANDLER_ERROR;
 			}
 
@@ -407,6 +441,7 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 			rc = BZ2_bzCompress(bz, BZ_FINISH);
 			if (rc != BZ_RUN_OK && rc != BZ_STREAM_END) {
 				f->out->is_closed = TRUE;
+				VR_ERROR(vr, "BZ2_bzCompress error: rc = %i", rc);
 				return LI_HANDLER_ERROR;
 			}
 
@@ -417,6 +452,11 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 				bz->avail_out = ctx->buf->len;
 			}
 		} while (rc != BZ_STREAM_END);
+
+		if (debug) {
+			VR_DEBUG(vr, "deflate finished: in: %i, out : %i", (int) bz->total_in_lo32, (int) bz->total_out_lo32);
+		}
+
 
 		f->out->is_closed = TRUE;
 	}
@@ -520,7 +560,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	case ENCODING_BZIP2:
 #ifdef HAVE_BZIP
 		{
-			deflate_context_bzip2 *ctx = deflate_context_bzip2_create(vr);
+			deflate_context_bzip2 *ctx = deflate_context_bzip2_create(vr, config->p);
 			if (!ctx) return LI_HANDLER_GO_ON;
 			li_vrequest_add_filter_out(vr, deflate_filter_bzip2, deflate_filter_bzip2_free, ctx);
 		}
@@ -530,7 +570,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	case ENCODING_GZIP:
 #ifdef HAVE_ZLIB
 		{
-			deflate_context_zlib *ctx = deflate_context_zlib_create(vr, TRUE);
+			deflate_context_zlib *ctx = deflate_context_zlib_create(vr, config->p, TRUE);
 			if (!ctx) return LI_HANDLER_GO_ON;
 			li_vrequest_add_filter_out(vr, deflate_filter_zlib, deflate_filter_zlib_free, ctx);
 		}
@@ -540,7 +580,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	case ENCODING_DEFLATE:
 #ifdef HAVE_ZLIB
 		{
-			deflate_context_zlib *ctx = deflate_context_zlib_create(vr, FALSE);
+			deflate_context_zlib *ctx = deflate_context_zlib_create(vr, config->p, FALSE);
 			if (!ctx) return LI_HANDLER_GO_ON;
 			li_vrequest_add_filter_out(vr, deflate_filter_zlib, deflate_filter_zlib_free, ctx);
 		}
