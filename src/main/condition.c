@@ -46,7 +46,7 @@ static gboolean condition_ip_from_socket(liConditionRValue *val, liSockAddr *add
 
 liConditionLValue* li_condition_lvalue_new(liCondLValue type, GString *key) {
 	liConditionLValue *lvalue = g_slice_new0(liConditionLValue);
-	if (type == LI_COMP_REQUEST_HEADER) g_string_ascii_down(key);
+	if (type == LI_COMP_REQUEST_HEADER || type == LI_COMP_RESPONSE_HEADER) g_string_ascii_down(key);
 	lvalue->type = type;
 	lvalue->key = key;
 	lvalue->refcount = 1;
@@ -258,7 +258,9 @@ const char* li_cond_lvalue_to_string(liCondLValue t) {
 	case LI_COMP_PHYSICAL_SIZE: return "physical.size";
 	case LI_COMP_PHYSICAL_ISDIR: return "physical.is_dir";
 	case LI_COMP_PHYSICAL_ISFILE: return "physical.is_file";
+	case LI_COMP_RESPONSE_STATUS: return "response.status";
 	case LI_COMP_REQUEST_HEADER: return "request.header";
+	case LI_COMP_RESPONSE_HEADER: return "response.header";
 	case LI_COMP_UNKNOWN: return "<unknown>";
 	}
 
@@ -290,7 +292,7 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 			return LI_COMP_REQUEST_CONTENT_LENGTH;
 		else if (strncmp(c, "header", len) == 0)
 			return LI_COMP_REQUEST_HEADER;
-	} else if (strncmp(c, "physical.", sizeof("physical.")-1) == 0) {
+	} else if (g_str_has_prefix(c, "physical.")) {
 		c += sizeof("physical.")-1;
 		len -= sizeof("physical.")-1;
 
@@ -304,6 +306,14 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 			return LI_COMP_PHYSICAL_ISFILE;
 		else if (strncmp(c, "is_dir", len) == 0)
 			return LI_COMP_PHYSICAL_ISDIR;
+	} else if (g_str_has_prefix(c, "response.")) {
+		c += sizeof("response.")-1;
+		len -= sizeof("response.")-1;
+
+		if (strncmp(c, "status", len) == 0)
+			return LI_COMP_RESPONSE_STATUS;
+		else if (strncmp(c, "header", len) == 0)
+			return LI_COMP_RESPONSE_HEADER;
 	}
 
 	return LI_COMP_UNKNOWN;
@@ -391,6 +401,11 @@ static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liConditio
 		li_http_header_get_all(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
 		break;
+	case LI_COMP_RESPONSE_HEADER:
+		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+		li_http_header_get_all(con->wrk->tmp_str, vr->response.headers, GSTR_LEN(cond->lvalue->key));
+		val = con->wrk->tmp_str->str;
+		break;
 	case LI_COMP_REQUEST_CONTENT_LENGTH:
 		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
 		val = con->wrk->tmp_str->str;
@@ -468,6 +483,10 @@ static liHandlerResult li_condition_check_eval_int(liVRequest *vr, liCondition *
 		} else {
 			val = (gint64)st.st_size;
 		}
+		break;
+	case LI_COMP_RESPONSE_STATUS:
+		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+		val = vr->response.http_status;
 		break;
 	default:
 		VR_ERROR(vr, "couldn't get int value for '%s'", li_cond_lvalue_to_string(cond->lvalue->type));
@@ -567,8 +586,14 @@ static liHandlerResult li_condition_check_eval_ip(liVRequest *vr, liCondition *c
 		li_http_header_get_all(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
 		break;
+	case LI_COMP_RESPONSE_HEADER:
+		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+		li_http_header_get_all(con->wrk->tmp_str, vr->response.headers, GSTR_LEN(cond->lvalue->key));
+		val = con->wrk->tmp_str->str;
+		break;
 	case LI_COMP_PHYSICAL_SIZE:
 	case LI_COMP_REQUEST_CONTENT_LENGTH:
+	case LI_COMP_RESPONSE_STATUS:
 		VR_ERROR(vr, "%s", "Cannot parse integers as ip");
 		return LI_HANDLER_ERROR;
 	case LI_COMP_PHYSICAL_ISDIR:

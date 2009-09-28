@@ -49,9 +49,11 @@ typedef enum {
 	LI_COMP_PHYSICAL_SIZE,
 	LI_COMP_PHYSICAL_ISDIR,
 	LI_COMP_PHYSICAL_ISFILE,
+	LI_COMP_RESPONSE_STATUS,
 
 /* needs a key */
 	LI_COMP_REQUEST_HEADER,         /**< needs lowercase key, enforced by li_condition_lvalue_new */
+	LI_COMP_RESPONSE_HEADER,         /**< needs lowercase key, enforced by li_condition_lvalue_new */
 
 	LI_COMP_UNKNOWN
 } liCondLValue;
