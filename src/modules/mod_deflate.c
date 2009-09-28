@@ -4,15 +4,35 @@
  * Description:
  *     compress content on the fly
  *
+ *     Does not compress:
+ *      - HEAD requests
+ *      - response status: 100, 101, 204, 205, 304
+ *      - already compressed content
+ *      - if more than one etag response header is sent
+ *      - if no common encoding is found
+ *
+ *     Supported encodings
+ *      - gzip, deflate (needs zlib)
+ *      - bzip2 (needs bzip2)
+ *
+ *     + Modifies etag response header (if present)
+ *     + Adds "Vary: Accept-Encoding" response header
+ *     + Resets Content-Length header
+ *
  * Setups:
  *     none
+ *
  * Options:
- *     none
+ *     deflate.debug <boolean>
+ *
  * Actions:
  *     deflate
  *
  * Example config:
- *     deflate
+ *     deflate;
+ *
+ * TODO:
+ *     - etag 304 handling
  *
  * Author:
  *     Copyright (c) 2009 Stefan Bühler
@@ -424,23 +444,32 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	UNUSED(context);
 
 	if (vr->request.http_method == LI_HTTP_METHOD_HEAD) {
-		if (debug)
+		if (debug) {
 			VR_DEBUG(vr, "%s", "deflate: method = HEAD => not compressing");
+		}
 		return LI_HANDLER_GO_ON;
 	}
 
 	VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 
-	if (vr->response.http_status != 200) {
-		if (debug)
-			VR_DEBUG(vr, "%s", "deflate: status != 200 => not compressing");
+	/* disable compression for some http status types. */
+	switch(vr->response.http_status) {
+	case 100:
+	case 101:
+	case 204:
+	case 205:
+	case 304:
+		/* disable compression as we have no response entity */
 		return LI_HANDLER_GO_ON;
+	default:
+		break;
 	}
 
 	/* response already encoded */
 	if (li_http_header_find_first(vr->response.headers, CONST_STR_LEN("content-encoding"))) {
-		if (debug)
+		if (debug) {
 			VR_DEBUG(vr, "%s", "deflate: Content-Encoding already set => not compressing");
+		}
 		return LI_HANDLER_GO_ON;
 	}
 
@@ -455,12 +484,16 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 
 		hh_encoding_entry = li_http_header_find_next(hh_encoding_entry, CONST_STR_LEN("accept-encoding"));
 	}
+
+	if (0 == encoding_mask)
+		return LI_HANDLER_GO_ON; /* no known encoding found */
+
 	encoding_mask &= encoding_available_mask;
 	if (0 == encoding_mask) {
-		/* no common encoding found */
-		if (debug)
-			VR_DEBUG(vr, "%s", "deflate: no common encoding found => not compressing");
-		return LI_HANDLER_GO_ON;
+		if (debug) {
+			VR_DEBUG(vr, "%s", "no common encoding found => not compressing");
+		}
+		return LI_HANDLER_GO_ON; /* no common encoding found */
 	}
 
 	/* find best encoding (first in list) */
@@ -469,16 +502,17 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	hh_etag_entry = li_http_header_find_first(vr->response.headers, CONST_STR_LEN("etag"));
 	if (hh_etag_entry) {
 		if (li_http_header_find_next(hh_etag_entry, CONST_STR_LEN("etag"))) {
-			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-				VR_ERROR(vr, "%s", "duplicate etag header in response, will not deflate it");
+			if (debug || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "%s", "duplicate etag header in response, will not deflate it");
 			}
 			return LI_HANDLER_GO_ON;
 		}
 		hh_etag = (liHttpHeader*) hh_etag_entry->data;
 	}
 
-	if (debug)
+	if (debug || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "deflate: compressing using %s encoding", encoding_names[i]);
+	}
 
 	switch ((encodings) i) {
 	case ENCODING_IDENTITY:
