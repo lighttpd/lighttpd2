@@ -211,6 +211,47 @@ fi
 
 AM_CONDITIONAL([USE_OPENSSL], [test "x$have_openssl" = "xyes"])
 
+# mod-deflate:
+
+use_mod_deflate=no
+
+# check for zlib
+AC_MSG_CHECKING(for zlib support)
+AC_ARG_WITH(zlib, AC_HELP_STRING([--with-zlib],[Enable zlib support for mod_deflate]),
+    [WITH_ZLIB=$withval],[WITH_ZLIB=yes])
+AC_MSG_RESULT([$WITH_ZLIB])
+
+if test "$WITH_BZIP2" != "no"; then
+  AC_CHECK_LIB(z, deflate, [
+    AC_CHECK_HEADERS([zlib.h],[
+      Z_LIB=-lz
+      use_mod_deflate=yes
+      AC_DEFINE([HAVE_ZLIB], [1], [with zlib])
+    ])
+  ])
+fi
+AC_SUBST(Z_LIB)
+
+
+# check for bzip2
+AC_MSG_CHECKING(for bzip2 support)
+AC_ARG_WITH(bzip2, AC_HELP_STRING([--with-bzip2],[Enable bzip2 support for mod_deflate]),
+    [WITH_BZIP2=$withval],[WITH_BZIP2=yes])
+AC_MSG_RESULT([$WITH_BZIP2])
+
+if test "$WITH_BZIP2" != "no"; then
+  AC_CHECK_LIB(bz2, BZ2_bzCompress, [
+    AC_CHECK_HEADERS([bzlib.h],[
+      BZ_LIB=-lbz2
+      use_mod_deflate=yes
+      AC_DEFINE([HAVE_BZIP], [1], [with bzip2])
+    ])
+  ])
+fi
+AC_SUBST(BZ_LIB)
+
+AM_CONDITIONAL([USE_MOD_DEFLATE], [test "x$use_mod_deflate" = "xyes"])
+
 # check for extra compiler options (warning options)
 if test "${GCC}" = "yes"; then
     CFLAGS="${CFLAGS} -Wall -W -Wshadow -pedantic -std=gnu99"

@@ -38,6 +38,13 @@ libmod_debug_la_SOURCES = mod_debug.c
 libmod_debug_la_LDFLAGS = $(common_ldflags)
 libmod_debug_la_LIBADD = $(common_libadd)
 
+if USE_MOD_DEFLATE
+install_libs += libmod_deflate.la
+libmod_deflate_la_SOURCES = mod_deflate.c
+libmod_deflate_la_LDFLAGS = $(common_ldflags) $(Z_LIB) $(BZ_LIB)
+libmod_deflate_la_LIBADD = $(common_libadd)
+endif
+
 install_libs += libmod_dirlist.la
 libmod_dirlist_la_SOURCES = mod_dirlist.c
 libmod_dirlist_la_LDFLAGS = $(common_ldflags)
