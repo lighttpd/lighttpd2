@@ -133,11 +133,13 @@ static void action_stack_element_release(liServer *srv, liVRequest *vr, action_s
 		if (a->data.condition.cond->rvalue.type == LI_COND_VALUE_REGEXP) {
 			/* pop regex stack */
 			GArray *rs = vr->action_stack.regex_stack;
-			liActionRegexStackElement *arse = &g_array_index(rs, liActionRegexStackElement, rs->len - 1);
-			if (arse->string)
-				g_string_free(arse->string, TRUE);
-			g_match_info_free(arse->match_info);
-			g_array_set_size(rs, rs->len - 1);
+			if (rs->len) {
+				liActionRegexStackElement *arse = &g_array_index(rs, liActionRegexStackElement, rs->len - 1);
+				if (arse->string)
+					g_string_free(arse->string, TRUE);
+				g_match_info_free(arse->match_info);
+				g_array_set_size(rs, rs->len - 1);
+			}
 		}
 		break;
 	case ACTION_TLIST:
