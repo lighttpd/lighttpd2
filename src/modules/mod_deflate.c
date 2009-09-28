@@ -59,7 +59,7 @@ static const guint encoding_available_mask = 0
 
 typedef struct deflate_config deflate_config;
 struct deflate_config {
-	int dummy;
+	liPlugin *p;
 };
 
 /**********************************************************************************/
@@ -419,18 +419,30 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	GList *hh_encoding_entry, *hh_etag_entry;
 	liHttpHeader *hh_encoding, *hh_etag = NULL;
 	guint encoding_mask = 0, i;
+	gboolean debug = _OPTION(vr, config->p, 0).boolean;
 
-	UNUSED(config);
 	UNUSED(context);
 
-	if (vr->request.http_method == LI_HTTP_METHOD_HEAD) return LI_HANDLER_GO_ON;
+	if (vr->request.http_method == LI_HTTP_METHOD_HEAD) {
+		if (debug)
+			VR_DEBUG(vr, "%s", "deflate: method = HEAD => not compressing");
+		return LI_HANDLER_GO_ON;
+	}
 
 	VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 
-	if (vr->response.http_status != 200) return LI_HANDLER_GO_ON;
+	if (vr->response.http_status != 200) {
+		if (debug)
+			VR_DEBUG(vr, "%s", "deflate: status != 200 => not compressing");
+		return LI_HANDLER_GO_ON;
+	}
 
 	/* response already encoded */
-	if (li_http_header_find_first(vr->response.headers, CONST_STR_LEN("content-encoding"))) return LI_HANDLER_GO_ON;
+	if (li_http_header_find_first(vr->response.headers, CONST_STR_LEN("content-encoding"))) {
+		if (debug)
+			VR_DEBUG(vr, "%s", "deflate: Content-Encoding already set => not compressing");
+		return LI_HANDLER_GO_ON;
+	}
 
 	hh_encoding_entry = li_http_header_find_first(vr->request.headers, CONST_STR_LEN("accept-encoding"));
 	while (hh_encoding_entry) {
@@ -444,8 +456,12 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		hh_encoding_entry = li_http_header_find_next(hh_encoding_entry, CONST_STR_LEN("accept-encoding"));
 	}
 	encoding_mask &= encoding_available_mask;
-	if (0 == encoding_mask)
-		return LI_HANDLER_GO_ON; /* no common encoding found */
+	if (0 == encoding_mask) {
+		/* no common encoding found */
+		if (debug)
+			VR_DEBUG(vr, "%s", "deflate: no common encoding found => not compressing");
+		return LI_HANDLER_GO_ON;
+	}
 
 	/* find best encoding (first in list) */
 	for (i = 1; 0 == (encoding_mask & (1 << i)) ; i++) ;
@@ -460,6 +476,9 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		}
 		hh_etag = (liHttpHeader*) hh_etag_entry->data;
 	}
+
+	if (debug)
+		VR_DEBUG(vr, "deflate: compressing using %s encoding", encoding_names[i]);
 
 	switch ((encodings) i) {
 	case ENCODING_IDENTITY:
@@ -527,11 +546,14 @@ static liAction* deflate_create(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(val);
 
 	conf = g_slice_new0(deflate_config);
+	conf->p = p;
 
 	return li_action_new_function(deflate_handle, NULL, deflate_free, conf);
 }
 
 static const liPluginOption options[] = {
+	{ "deflate.debug", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
+
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
