@@ -435,7 +435,7 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 	if (0 == f->in->length && f->in->is_closed) {
 		do {
 			rc = BZ2_bzCompress(bz, BZ_FINISH);
-			if (rc != BZ_RUN_OK && rc != BZ_STREAM_END) {
+			if (rc != BZ_RUN_OK && rc != BZ_STREAM_END && rc != BZ_FINISH_OK) {
 				f->out->is_closed = TRUE;
 				VR_ERROR(vr, "BZ2_bzCompress error: rc = %i", rc);
 				return LI_HANDLER_ERROR;
@@ -447,7 +447,7 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 				bz->next_out = (char*) ctx->buf->data;
 				bz->avail_out = ctx->buf->len;
 			}
-		} while (rc != BZ_STREAM_END);
+		} while (rc == BZ_RUN_OK);
 
 		if (debug) {
 			VR_DEBUG(vr, "deflate finished: in: %i, out : %i", (int) bz->total_in_lo32, (int) bz->total_out_lo32);
