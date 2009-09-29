@@ -704,6 +704,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		g_string_free(tmpstr, TRUE);
 
 		vr->response.http_status = 200;
+		li_vrequest_handle_direct(vr);
 
 		li_vrequest_joblist_append(vr);
 	} else {
@@ -715,6 +716,8 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 
 static liHandlerResult status_info(liVRequest *vr, gpointer _param, gpointer *context) {
 	mod_status_param *param = _param;
+	gchar *val;
+	guint len;
 
 	switch (vr->request.http_method) {
 	case LI_HTTP_METHOD_GET:
@@ -724,31 +727,29 @@ static liHandlerResult status_info(liVRequest *vr, gpointer _param, gpointer *co
 		return LI_HANDLER_GO_ON;
 	}
 
-	if (li_vrequest_handle_direct(vr)) {
-		gchar *val;
-		guint len;
+	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
 
-		if (!li_querystring_find(vr->request.uri.query, CONST_STR_LEN("mode"), &val, &len)) {
-			/* no 'mode' query parameter given */
-			liCollectInfo *ci;
-			mod_status_job *j = g_slice_new(mod_status_job);
-			j->vr = vr;
-			j->context = context;
-			j->p = param->p;
-			j->short_info = param->short_info;
+	if (!li_querystring_find(vr->request.uri.query, CONST_STR_LEN("mode"), &val, &len)) {
+		/* no 'mode' query parameter given */
+		liCollectInfo *ci;
+		mod_status_job *j = g_slice_new(mod_status_job);
+		j->vr = vr;
+		j->context = context;
+		j->p = param->p;
+		j->short_info = param->short_info;
 
-			VR_DEBUG(vr, "%s", "collecting stats...");
+		VR_DEBUG(vr, "%s", "collecting stats...");
 
-			ci = li_collect_start(vr->wrk, status_collect_func, j, status_collect_cb, NULL);
-			*context = ci; /* may be NULL */
-			return (*context) ? LI_HANDLER_WAIT_FOR_EVENT : LI_HANDLER_GO_ON;
+		ci = li_collect_start(vr->wrk, status_collect_func, j, status_collect_cb, NULL);
+		*context = ci; /* may be NULL */
+		return ci ? LI_HANDLER_WAIT_FOR_EVENT : LI_HANDLER_GO_ON;
+	} else {
+		/* 'mode' parameter given */
+		if (!param->short_info && strncmp(val, "runtime", len) == 0) {
+			return status_info_runtime(vr, param->p);
 		} else {
-			/* 'mode' parameter given */
-			if (!param->short_info && strncmp(val, "runtime", len) == 0) {
-				return status_info_runtime(vr, param->p);
-			} else {
-				vr->response.http_status = 403;
-			}
+			vr->response.http_status = 403;
+			li_vrequest_handle_direct(vr);
 		}
 	}
 
@@ -998,6 +999,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
 
 	vr->response.http_status = 200;
+	li_vrequest_handle_direct(vr);
 
 	return LI_HANDLER_GO_ON;
 }

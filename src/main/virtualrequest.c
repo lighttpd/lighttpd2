@@ -489,11 +489,17 @@ void li_vrequest_state_machine(liVRequest *vr) {
 			break;
 
 		case LI_VRS_READ_CONTENT:
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "%s", "read content");
+			}
 			done = !vrequest_do_handle_read(vr);
 			done = done || (vr->state == LI_VRS_READ_CONTENT);
 			break;
 
 		case LI_VRS_HANDLE_RESPONSE_HEADERS:
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "%s", "handle response header");
+			}
 			switch (vrequest_do_handle_actions(vr)) {
 			case LI_HANDLER_GO_ON:
 				break;
@@ -523,12 +529,18 @@ void li_vrequest_state_machine(liVRequest *vr) {
 			break;
 
 		case LI_VRS_WRITE_CONTENT:
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "%s", "write content");
+			}
 			vrequest_do_handle_read(vr);
 			vrequest_do_handle_write(vr);
 			done = TRUE;
 			break;
 
 		case LI_VRS_ERROR:
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "%s", "error");
+			}
 			/* this will probably reset the vrequest, so stop handling after it */
 			vr->handle_response_error(vr);
 			return;
