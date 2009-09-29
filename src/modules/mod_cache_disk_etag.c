@@ -228,6 +228,8 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 	struct stat st;
 	GString *tmp_str = vr->wrk->tmp_str;
 	liFilter *f;
+	liHandlerResult res;
+	int err, fd;
 
 	if (!cfile) {
 		if (vr->request.http_method != LI_HTTP_METHOD_GET) return LI_HANDLER_GO_ON;
@@ -253,19 +255,17 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 		*context = cfile;
 	}
 
-	/* TODO use async stat cache*/
-	if (0 == stat(cfile->filename->str, &st)) {
+	res = li_stat_cache_get(vr, cfile->filename, &st, &err, &fd);
+	if (res == LI_HANDLER_WAIT_FOR_EVENT)
+		return res;
+
+	if (res == LI_HANDLER_GO_ON) {
 		if (!S_ISREG(st.st_mode)) {
 			VR_ERROR(vr, "Unexpected file type for cache file '%s' (mode %o)", cfile->filename->str, (unsigned int) st.st_mode);
+			close(fd);
 			return LI_HANDLER_GO_ON; /* no caching */
 		}
-		if (-1 == (cfile->hit_fd = open(cfile->filename->str, O_RDONLY))) {
-			if (EMFILE == errno) {
-				li_server_out_of_fds(vr->wrk->srv);
-			}
-			VR_ERROR(vr, "Couldn't open cache file '%s': %s", cfile->filename->str, g_strerror(errno));
-			return LI_HANDLER_GO_ON; /* no caching */
-		}
+		cfile->hit_fd = fd;
 #ifdef FD_CLOEXEC
 		fcntl(cfile->hit_fd, F_SETFD, FD_CLOEXEC);
 #endif
