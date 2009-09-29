@@ -96,6 +96,26 @@ tristate_t li_http_response_handle_cachable_modified(liVRequest *vr, GString *la
 	}
 }
 
+gboolean li_http_response_handle_cachable(liVRequest *vr) {
+	tristate_t c_able = TRI_MAYBE;
+	if (c_able != TRI_FALSE) {
+		switch (li_http_response_handle_cachable_etag(vr, NULL)) {
+		case TRI_FALSE: c_able = TRI_FALSE; break;
+		case TRI_MAYBE: break;
+		case TRI_TRUE : c_able = TRI_TRUE; break;
+		}
+	}
+	if (c_able != TRI_FALSE) {
+		switch (li_http_response_handle_cachable_modified(vr, NULL)) {
+		case TRI_FALSE: c_able = TRI_FALSE; break;
+		case TRI_MAYBE: break;
+		case TRI_TRUE : c_able = TRI_TRUE; break;
+		}
+	}
+
+	return c_able == TRI_TRUE;
+}
+
 void li_etag_mutate(GString *mut, GString *etag) {
 	guint i;
 	guint32 h;

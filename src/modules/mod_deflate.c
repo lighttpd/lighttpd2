@@ -5,7 +5,6 @@
  *     compress content on the fly
  *
  *     Does not compress:
- *      - HEAD requests
  *      - response status: 100, 101, 204, 205, 304
  *      - already compressed content
  *      - if more than one etag response header is sent
@@ -30,9 +29,6 @@
  *
  * Example config:
  *     deflate;
- *
- * TODO:
- *     - etag 304 handling
  *
  * Author:
  *     Copyright (c) 2009 Stefan Bühler
@@ -474,21 +470,39 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 
 /**********************************************************************************/
 
+/* returns TRUE if handled with 304, FALSE otherwise */
+static gboolean cached_handle_etag(liVRequest *vr, gboolean debug, liHttpHeader *hh_etag, const char* enc_name) {
+	GString *s = vr->wrk->tmp_str;
+
+	if (!hh_etag) return FALSE;
+
+	g_string_truncate(s, 0);
+	g_string_append_len(s, HEADER_VALUE_LEN(hh_etag));
+	g_string_append_len(s, CONST_STR_LEN("-"));
+	g_string_append_len(s, enc_name, strlen(enc_name));
+	li_etag_mutate(s, s);
+	g_string_truncate(hh_etag->data, hh_etag->keylen + 2);
+	g_string_append_len(hh_etag->data, GSTR_LEN(s));
+
+	if (200 == vr->response.http_status && li_http_response_handle_cachable(vr)) {
+		if (debug || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "%s", "deflate: etag handling => 304 Not Modified");
+		}
+		vr->response.http_status = 304;
+		return TRUE;
+	}
+	return FALSE;
+}
+
 static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *context) {
 	deflate_config *config = (deflate_config*) param;
 	GList *hh_encoding_entry, *hh_etag_entry;
 	liHttpHeader *hh_encoding, *hh_etag = NULL;
 	guint encoding_mask = 0, i;
 	gboolean debug = _OPTION(vr, config->p, 0).boolean;
+	gboolean is_head_request = (vr->request.http_method == LI_HTTP_METHOD_HEAD);
 
 	UNUSED(context);
-
-	if (vr->request.http_method == LI_HTTP_METHOD_HEAD) {
-		if (debug) {
-			VR_DEBUG(vr, "%s", "deflate: method = HEAD => not compressing");
-		}
-		return LI_HANDLER_GO_ON;
-	}
 
 	VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 
@@ -559,8 +573,10 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		return LI_HANDLER_GO_ON;
 	case ENCODING_BZIP2:
 #ifdef HAVE_BZIP
-		{
-			deflate_context_bzip2 *ctx = deflate_context_bzip2_create(vr, config->p);
+		if (cached_handle_etag(vr, debug, hh_etag, encoding_names[i])) return LI_HANDLER_GO_ON;
+		if (!is_head_request) {
+			deflate_context_bzip2 *ctx;
+			ctx = deflate_context_bzip2_create(vr, config->p);
 			if (!ctx) return LI_HANDLER_GO_ON;
 			li_vrequest_add_filter_out(vr, deflate_filter_bzip2, deflate_filter_bzip2_free, ctx);
 		}
@@ -569,8 +585,10 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		return LI_HANDLER_GO_ON;
 	case ENCODING_GZIP:
 #ifdef HAVE_ZLIB
-		{
-			deflate_context_zlib *ctx = deflate_context_zlib_create(vr, config->p, TRUE);
+		if (cached_handle_etag(vr, debug, hh_etag, encoding_names[i])) return LI_HANDLER_GO_ON;
+		if (!is_head_request) {
+			deflate_context_zlib *ctx;
+			ctx = deflate_context_zlib_create(vr, config->p, TRUE);
 			if (!ctx) return LI_HANDLER_GO_ON;
 			li_vrequest_add_filter_out(vr, deflate_filter_zlib, deflate_filter_zlib_free, ctx);
 		}
@@ -579,8 +597,10 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		return LI_HANDLER_GO_ON;
 	case ENCODING_DEFLATE:
 #ifdef HAVE_ZLIB
-		{
-			deflate_context_zlib *ctx = deflate_context_zlib_create(vr, config->p, FALSE);
+		if (cached_handle_etag(vr, debug, hh_etag, encoding_names[i])) return LI_HANDLER_GO_ON;
+		if (!is_head_request) {
+			deflate_context_zlib *ctx;
+			ctx = deflate_context_zlib_create(vr, config->p, FALSE);
 			if (!ctx) return LI_HANDLER_GO_ON;
 			li_vrequest_add_filter_out(vr, deflate_filter_zlib, deflate_filter_zlib_free, ctx);
 		}
@@ -594,16 +614,6 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	li_http_header_insert(vr->response.headers, CONST_STR_LEN("Content-Encoding"), encoding_names[i], strlen(encoding_names[i]));
 	li_http_header_append(vr->response.headers, CONST_STR_LEN("Vary"), CONST_STR_LEN("Accept-Encoding"));
 	li_http_header_remove(vr->response.headers, CONST_STR_LEN("content-length"));
-	if (hh_etag) {
-		GString *s = vr->wrk->tmp_str;
-		g_string_truncate(s, 0);
-		g_string_append_len(s, HEADER_VALUE_LEN(hh_etag));
-		g_string_append_len(s, CONST_STR_LEN("-"));
-		g_string_append_len(s, encoding_names[i], strlen(encoding_names[i]));
-		li_etag_mutate(s, s);
-		g_string_truncate(hh_etag->data, hh_etag->keylen + 2);
-		g_string_append_len(hh_etag->data, GSTR_LEN(s));
-	}
 
 	return LI_HANDLER_GO_ON;
 }
