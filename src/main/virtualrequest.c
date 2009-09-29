@@ -23,7 +23,6 @@ static void filters_clean(liVRequest *vr, liFilters *fs) {
 
 static void filters_reset(liVRequest *vr, liFilters *fs) {
 	guint i;
-	fs->skip_ndx = 0;
 	for (i = 0; i < fs->queue->len; i++) {
 		liFilter *f = (liFilter*) g_ptr_array_index(fs->queue, i);
 		if (f->handle_free && f->param) f->handle_free(vr, f);
@@ -33,6 +32,32 @@ static void filters_reset(liVRequest *vr, liFilters *fs) {
 	g_ptr_array_set_size(fs->queue, 0);
 	li_chunkqueue_reset(fs->in);
 	li_chunkqueue_reset(fs->out);
+}
+
+static gboolean filters_handle_out_close(liVRequest *vr, liFilters *fs) {
+	guint i;
+	if (0 == fs->queue->len) {
+		if (fs->out->is_closed) fs->in->is_closed = TRUE;
+		return TRUE;
+	}
+	for (i = fs->queue->len; i-- > 0; ) {
+		liFilter *f = (liFilter*) g_ptr_array_index(fs->queue, i);
+		if (f->out->is_closed && !f->knows_out_is_closed) {
+			f->knows_out_is_closed = TRUE;
+			switch (f->handle_data(vr, f)) {
+			case LI_HANDLER_GO_ON:
+				break;
+			case LI_HANDLER_COMEBACK:
+				li_vrequest_joblist_append(vr);
+				break;
+			case LI_HANDLER_WAIT_FOR_EVENT:
+				break; /* ignore - filter has to call li_vrequest_joblist_append(vr); */
+			case LI_HANDLER_ERROR:
+				return FALSE;
+			}
+		}
+	}
+	return TRUE;
 }
 
 static gboolean filters_run(liVRequest *vr, liFilters *fs) {
@@ -55,26 +80,32 @@ static gboolean filters_run(liVRequest *vr, liFilters *fs) {
 		case LI_HANDLER_ERROR:
 			return FALSE;
 		}
-	}
-	if (fs->out->is_closed) {
-		liFilter *f = (liFilter*) g_ptr_array_index(fs->queue, fs->queue->len - 1);
-		f->in->is_closed = TRUE;
-	}
-	for (i = fs->queue->len; i-- > fs->skip_ndx; ) {
-		liFilter *f = (liFilter*) g_ptr_array_index(fs->queue, i);
-		if (f->in->is_closed) {
-			guint j = i;
-			while (j-- > fs->skip_ndx) {
-				liFilter *ff = (liFilter*) g_ptr_array_index(fs->queue, j);
-				ff->in->is_closed = TRUE;
+		f->knows_out_is_closed = f->out->is_closed;
+		if (f->in->is_closed && i > 0) {
+			guint j;
+			for (j = i; j-- > 0; ) {
+				liFilter *g = (liFilter*) g_ptr_array_index(fs->queue, j);
+				if (g->knows_out_is_closed) break;
+				g->knows_out_is_closed = TRUE;
+				switch (f->handle_data(vr, f)) {
+				case LI_HANDLER_GO_ON:
+					break;
+				case LI_HANDLER_COMEBACK:
+					li_vrequest_joblist_append(vr);
+					break;
+				case LI_HANDLER_WAIT_FOR_EVENT:
+					break; /* ignore - filter has to call li_vrequest_joblist_append(vr); */
+				case LI_HANDLER_ERROR:
+					return FALSE;
+				}
+				if (!g->in->is_closed) break;
 			}
-			fs->skip_ndx = i;
 		}
 	}
 	return TRUE;
 }
 
-static void filters_add(liFilters *fs, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param) {
+static liFilter* filters_add(liFilters *fs, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param) {
 	liFilter *f = g_slice_new0(liFilter);
 	f->out = fs->out;
 	f->param = param;
@@ -88,14 +119,15 @@ static void filters_add(liFilters *fs, liFilterHandlerCB handle_data, liFilterFr
 		li_chunkqueue_set_limit(f->in, fs->in->limit);
 	}
 	g_ptr_array_add(fs->queue, f);
+	return f;
 }
 
-void li_vrequest_add_filter_in(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param) {
-	filters_add(&vr->filters_in, handle_data, handle_free, param);
+liFilter* li_vrequest_add_filter_in(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param) {
+	return filters_add(&vr->filters_in, handle_data, handle_free, param);
 }
 
-void li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param) {
-	filters_add(&vr->filters_out, handle_data, handle_free, param);
+liFilter* li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param) {
+	return filters_add(&vr->filters_out, handle_data, handle_free, param);
 }
 
 liVRequest* li_vrequest_new(liConnection *con, liVRequestHandlerCB handle_response_headers, liVRequestHandlerCB handle_response_body, liVRequestHandlerCB handle_response_error, liVRequestHandlerCB handle_request_headers) {
@@ -354,6 +386,9 @@ static liHandlerResult vrequest_do_handle_actions(liVRequest *vr) {
 
 static gboolean vrequest_do_handle_read(liVRequest *vr) {
 	if (vr->backend && vr->backend->handle_request_body) {
+		if (!filters_handle_out_close(vr, &vr->filters_in)) {
+			li_vrequest_error(vr);
+		}
 		if (!filters_run(vr, &vr->filters_in)) {
 			li_vrequest_error(vr);
 		}
@@ -379,6 +414,9 @@ static gboolean vrequest_do_handle_read(liVRequest *vr) {
 }
 
 static gboolean vrequest_do_handle_write(liVRequest *vr) {
+	if (!filters_handle_out_close(vr, &vr->filters_out)) {
+		li_vrequest_error(vr);
+	}
 	if (!filters_run(vr, &vr->filters_out)) {
 		li_vrequest_error(vr);
 	}

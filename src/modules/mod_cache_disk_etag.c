@@ -137,9 +137,7 @@ static liHandlerResult cache_etag_filter_hit(liVRequest *vr, liFilter *f) {
 
 	if (!cfile) return LI_HANDLER_GO_ON;
 
-	f->in->is_closed = TRUE;
-
-	li_chunkqueue_append_file_fd(f->out, NULL, 0, cfile->hit_length, cfile->hit_fd);
+	if (!f->out->is_closed) li_chunkqueue_append_file_fd(f->out, NULL, 0, cfile->hit_length, cfile->hit_fd);
 	cfile->hit_fd = -1;
 	cache_etag_file_free(cfile);
 	f->param = NULL;
@@ -229,6 +227,7 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 	liHttpHeader *etag;
 	struct stat st;
 	GString *tmp_str = vr->wrk->tmp_str;
+	liFilter *f;
 
 	if (!cfile) {
 		if (vr->request.http_method != LI_HTTP_METHOD_GET) return LI_HANDLER_GO_ON;
@@ -277,7 +276,8 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 		g_string_truncate(tmp_str, 0);
 		li_string_append_int(tmp_str, st.st_size);
 		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(tmp_str));
-		li_vrequest_add_filter_out(vr, cache_etag_filter_hit, cache_etag_filter_free, cfile);
+		f = li_vrequest_add_filter_out(vr, cache_etag_filter_hit, cache_etag_filter_free, cfile);
+		f->in->is_closed = TRUE;
 		*context = NULL;
 		return LI_HANDLER_GO_ON;
 	}

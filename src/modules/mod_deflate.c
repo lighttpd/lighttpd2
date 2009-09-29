@@ -189,7 +189,7 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 		li_chunkqueue_skip_all(f->in);
 		f->in->is_closed = TRUE;
 		if (debug) {
-			VR_DEBUG(vr, "deflate: %s", "connection closed by remote");
+			VR_DEBUG(vr, "deflate out stream closed: in: %i, out : %i", (int) z->total_in, (int) z->total_out);
 		}
 		return LI_HANDLER_GO_ON;
 	}
@@ -397,7 +397,7 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 		li_chunkqueue_skip_all(f->in);
 		f->in->is_closed = TRUE;
 		if (debug) {
-			VR_DEBUG(vr, "deflate: %s", "connection closed by remote");
+			VR_DEBUG(vr, "deflate out stream closed: in: %i, out : %i", (int) bz->total_in_lo32, (int) bz->total_out_lo32);
 		}
 		return LI_HANDLER_GO_ON;
 	}

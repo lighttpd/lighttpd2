@@ -42,12 +42,13 @@ struct liFilter {
 	liFilterHandlerCB handle_data;
 	liFilterFreeCB handle_free;
 	gpointer param;
+	/* do not modify these yourself: */
+	gboolean knows_out_is_closed, done;
 };
 
 struct liFilters {
 	GPtrArray *queue;
 	liChunkQueue *in, *out;
-	guint skip_ndx;
 };
 
 struct liVRequestRef {
@@ -111,8 +112,8 @@ LI_API void li_vrequest_reset(liVRequest *vr);
 LI_API liVRequestRef* li_vrequest_acquire_ref(liVRequest *vr);
 LI_API liVRequest* li_vrequest_release_ref(liVRequestRef *vr_ref);
 
-LI_API void li_vrequest_add_filter_in(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
-LI_API void li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
+LI_API liFilter* li_vrequest_add_filter_in(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
+LI_API liFilter* li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
 
 /* Signals an internal error; handles the error in the _next_ loop */
 LI_API void li_vrequest_error(liVRequest *vr);
