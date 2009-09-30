@@ -167,41 +167,68 @@ static liAction* expire_create(liServer *srv, liPlugin* p, liValue *val) {
 	if (g_str_has_prefix(str, "plus "))
 		str += sizeof("plus ") - 1;
 
-	/* parse <num> */
 	rule->num = 0;
 
-	for (; *str; str++) {
-		if (*str < '0' || *str > '9')
-			break;
+	/* parse (<num> <type>)+ */
+	while (*str) {
+		guint num;
+		/* parse <num> */
+		num = 0;
 
-		rule->num += (*str) - '0';
-	}
+		for (; *str; str++) {
+			if (*str < '0' || *str > '9')
+				break;
 
-	if (!rule->num) {
-		g_slice_free(expire_rule, rule);
-		ERROR(srv, "expire: error parsing rule \"%s\", <num> must be a positive integer", val->data.string->str);
-		return NULL;
-	}
+			num *= 10;
+			num += (*str) - '0';
+		}
 
-	/* parse <type> */
-	if (g_str_equal(str, " second") || g_str_equal(str, " seconds"))
-		rule->num *= 1;
-	else if (g_str_equal(str, " minute") || g_str_equal(str, " minutes"))
-		rule->num *= 60;
-	else if (g_str_equal(str, " hour") || g_str_equal(str, " hours"))
-		rule->num *= 3600;
-	else if (g_str_equal(str, " day") || g_str_equal(str, " days"))
-		rule->num *= 3600*24;
-	else if (g_str_equal(str, " week") || g_str_equal(str, " weeks"))
-		rule->num *= 3600*24*7;
-	else if (g_str_equal(str, " month") || g_str_equal(str, " months"))
-		rule->num *= 3600*24*30;
-	else if (g_str_equal(str, " year") || g_str_equal(str, " years"))
-		rule->num *= 3600*24*365;
-	else {
-		g_slice_free(expire_rule, rule);
-		ERROR(srv, "expire: error parsing rule \"%s\", <type> must be one of 'seconds', 'minutes', 'hours', 'days', 'weeks', 'months' or 'years'", val->data.string->str);
-		return NULL;
+		if (!num) {
+			g_slice_free(expire_rule, rule);
+			ERROR(srv, "expire: error parsing rule \"%s\", <num> must be a positive integer", val->data.string->str);
+			return NULL;
+		}
+
+		/* parse <type> */
+		if (g_str_has_prefix(str, " second")) {
+			num *= 1;
+			str += sizeof(" second") - 1;
+		} else if (g_str_has_prefix(str, " minute")) {
+			num *= 60;
+			str += sizeof(" minute") - 1;
+		} else if (g_str_has_prefix(str, " hour")) {
+			num *= 3600;
+			str += sizeof(" hour") - 1;
+		} else if (g_str_has_prefix(str, " day")) {
+			num *= 3600*24;
+			str += sizeof(" day") - 1;
+		} else if (g_str_has_prefix(str, " week")) {
+			num *= 3600*24*7;
+			str += sizeof(" week") - 1;
+		} else if (g_str_has_prefix(str, " month")) {
+			num *= 3600*24*30;
+			str += sizeof(" month") - 1;
+		} else if (g_str_has_prefix(str, " year")) {
+			num *= 3600*24*365;
+			str += sizeof(" year") - 1;
+		} else {
+			g_slice_free(expire_rule, rule);
+			ERROR(srv, "expire: error parsing rule \"%s\", <type> must be one of 'seconds', 'minutes', 'hours', 'days', 'weeks', 'months' or 'years'", val->data.string->str);
+			return NULL;
+		}
+
+		rule->num += num;
+
+		if (*str == 's')
+			str++;
+
+		if (*str == ' ')
+			str++;
+		else if (*str) {
+			g_slice_free(expire_rule, rule);
+			ERROR(srv, "expire: error parsing rule \"%s\", <type> must be one of 'seconds', 'minutes', 'hours', 'days', 'weeks', 'months' or 'years'", val->data.string->str);
+			return NULL;
+		}
 	}
 
 	return li_action_new_function(expire, NULL, expire_free, rule);
