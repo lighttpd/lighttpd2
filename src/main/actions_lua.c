@@ -88,6 +88,19 @@ static liHandlerResult lua_action_func(liVRequest *vr, gpointer param, gpointer 
 		lua_pop(L, 1);
 		res = LI_HANDLER_ERROR;
 	} else {
+		if (!lua_isnil(L, -1)) {
+			int rc = lua_tointeger(L, -1);
+			switch (rc) {
+			case LI_HANDLER_GO_ON:
+			case LI_HANDLER_COMEBACK:
+			case LI_HANDLER_WAIT_FOR_EVENT:
+			case LI_HANDLER_ERROR:
+				res = rc;
+				break;
+			default:
+				res = LI_HANDLER_ERROR;
+			}
+		}
 		lua_pop(L, 1);
 	}
 	lua_remove(L, errfunc);

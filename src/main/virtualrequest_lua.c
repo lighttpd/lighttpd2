@@ -43,6 +43,17 @@ static int lua_vrequest_attr_read_phys(liVRequest *vr, lua_State *L) {
 	return 1;
 }
 
+static int lua_vrequest_attr_read_is_handled(liVRequest *vr, lua_State *L) {
+	lua_pushboolean(L, li_vrequest_is_handled(vr));
+	return 1;
+}
+
+static int lua_vrequest_attr_read_has_response(liVRequest *vr, lua_State *L) {
+	lua_pushboolean(L, vr->state >= LI_VRS_HANDLE_RESPONSE_HEADERS);
+	return 1;
+}
+
+
 #define AR(m) { #m, lua_vrequest_attr_read_##m, NULL }
 #define AW(m) { #m, NULL, lua_vrequest_attr_write_##m }
 #define ARW(m) { #m, lua_vrequest_attr_read_##m, lua_vrequest_attr_write_##m }
@@ -58,6 +69,8 @@ static const struct {
 	AR(req),
 	AR(resp),
 	AR(phys),
+	AR(is_handled),
+	AR(has_response),
 
 	{ NULL, NULL, NULL }
 };
@@ -197,15 +210,6 @@ static int lua_vrequest_handle_direct(lua_State *L) {
 	return 1;
 }
 
-static int lua_vrequest_is_handled(lua_State *L) {
-	liVRequest *vr;
-	vr = lua_get_vrequest(L, 1);
-
-	lua_pushboolean(L, li_vrequest_is_handled(vr));
-
-	return 1;
-}
-
 static const luaL_Reg vrequest_mt[] = {
 	{ "__index", lua_vrequest_index },
 	{ "__newindex", lua_vrequest_newindex },
@@ -216,7 +220,6 @@ static const luaL_Reg vrequest_mt[] = {
 	{ "debug", lua_vrequest_debug },
 
 	{ "handle_direct", lua_vrequest_handle_direct },
-	{ "is_handled", lua_vrequest_is_handled },
 
 	{ NULL, NULL }
 };

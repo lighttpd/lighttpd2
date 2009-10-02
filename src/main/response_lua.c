@@ -19,7 +19,7 @@ static int lua_response_attr_read_status(liResponse *resp, lua_State *L) {
 }
 
 static int lua_response_attr_write_status(liResponse *resp, lua_State *L) {
-	int status = luaL_checkinteger(L, 3);
+	int status = luaL_checkint(L, 3);
 	if (status < 200 || status > 999) {
 		lua_pushliteral(L, "Invalid http response status: ");
 		lua_pushinteger(L, status);

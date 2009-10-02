@@ -126,6 +126,16 @@ static int li_lua_debug(lua_State *L) {
 	return 0;
 }
 
+static void lua_push_constants(lua_State *L, int ndx) {
+	lua_pushinteger(L, LI_HANDLER_GO_ON);
+	lua_setfield(L, ndx, "HANDLER_GO_ON");
+	lua_pushinteger(L, LI_HANDLER_COMEBACK);
+	lua_setfield(L, ndx, "HANDLER_COMEBACK");
+	lua_pushinteger(L, LI_HANDLER_WAIT_FOR_EVENT);
+	lua_setfield(L, ndx, "HANDLER_WAIT_FOR_EVENT");
+	lua_pushinteger(L, LI_HANDLER_ERROR);
+	lua_setfield(L, ndx, "HANDLER_ERROR");
+}
 
 void li_lua_init(liServer *srv, lua_State *L) {
 	lua_init_chunk_mt(L);
@@ -155,6 +165,8 @@ void li_lua_init(liServer *srv, lua_State *L) {
 	lua_pushlightuserdata(L, srv);
 	lua_pushcclosure(L, li_lua_debug, 1);
 	lua_setfield(L, LUA_GLOBALSINDEX, "debug");
+
+	lua_push_constants(L, LUA_GLOBALSINDEX);
 
 	li_lua_store_globals(L);
 }
