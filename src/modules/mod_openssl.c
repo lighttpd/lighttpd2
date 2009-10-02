@@ -139,7 +139,8 @@ static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 				/* perhaps we have error waiting in our error-queue */
 				if (0 != (err = ERR_get_error())) {
 					do {
-						VR_ERROR(con->mainvr, "SSL_write: %s",
+						VR_ERROR(con->mainvr, "SSL_write(%i): %s",
+							con->sock_watcher.fd,
 							ERR_error_string(err, NULL));
 					} while (0 != (err = ERR_get_error()));
 				} else if (r == -1) {
@@ -149,13 +150,15 @@ static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 					case ECONNRESET:
 						return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 					default:
-						VR_ERROR(con->mainvr, "SSL_write: %s",
+						VR_ERROR(con->mainvr, "SSL_write(%i): %s",
+							con->sock_watcher.fd,
 							g_strerror(errno));
 						break;
 					}
 				} else {
 					/* neither error-queue nor errno ? */
-					VR_ERROR(con->mainvr, "SSL_write: %s",
+					VR_ERROR(con->mainvr, "SSL_write(%i): %s",
+						con->sock_watcher.fd,
 						"Unexpected eof");
 					return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 				}
@@ -166,7 +169,8 @@ static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 				return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
 				while (0 != (err = ERR_get_error())) {
-					VR_ERROR(con->mainvr, "SSL_write: %s",
+					VR_ERROR(con->mainvr, "SSL_write(%i): %s",
+						con->sock_watcher.fd,
 						ERR_error_string(err, NULL));
 				}
 
@@ -196,7 +200,8 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 			max_read = cq->limit->limit - cq->limit->current;
 			if (max_read <= 0) {
 				max_read = 0; /* we still have to read something */
-				VR_ERROR(con->mainvr, "%s", "li_network_read: fd should be disabled as chunkqueue is already full");
+				VR_ERROR(con->mainvr, "li_network_read: fd %i should be disabled as chunkqueue is already full",
+					con->sock_watcher.fd);
 			}
 		}
 	}
@@ -241,7 +246,8 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 				 *
 				 */
 				while (0 != (err = ERR_get_error())) {
-					VR_ERROR(con->mainvr, "SSL_read: %s",
+					VR_ERROR(con->mainvr, "SSL_read(%i): %s",
+						con->sock_watcher.fd,
 						ERR_error_string(err, NULL));
 				}
 
@@ -251,7 +257,9 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 					return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 				}
 
-				VR_ERROR(con->mainvr, "SSL_read: %s", g_strerror(oerrno));
+				VR_ERROR(con->mainvr, "SSL_read(%i): %s",
+					con->sock_watcher.fd,
+					g_strerror(oerrno));
 
 				break;
 			case SSL_ERROR_ZERO_RETURN:
@@ -273,7 +281,8 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 						break;
 					}
 					/* get all errors from the error-queue */
-					VR_ERROR(con->mainvr, "SSL_read: %s",
+					VR_ERROR(con->mainvr, "SSL_read(%i): %s",
+						con->sock_watcher.fd,
 						ERR_error_string(err, NULL));
 				}
 				if (!was_fatal) return LI_NETWORK_STATUS_CONNECTION_CLOSE;
