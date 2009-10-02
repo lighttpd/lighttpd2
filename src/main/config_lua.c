@@ -227,12 +227,11 @@ gboolean li_config_lua_load(liServer *srv, const gchar *filename, liAction **pac
 		act = lua_get_action(L, -1);
 		if (NULL == act && lua_isfunction(L, -1)) {
 			act = lua_make_action(srv, L, -1);
+		} else {
+			li_action_acquire(act);
 		}
 
-		if (act != NULL) {
-			li_action_acquire(act);
-			*pact = act;
-		}
+		*pact = act;
 	}
 	lua_pop(L, 1);
 

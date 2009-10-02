@@ -349,12 +349,6 @@ static void li_server_start_listen(liServer *srv) {
 		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
 		ev_io_start(srv->main_worker->loop, &sock->watcher);
 	}
-
-	{
-		GString *str = li_worker_current_timestamp(srv->main_worker, LI_LOCALTIME, LI_TS_FORMAT_DEFAULT);
-		srv->started = ev_now(srv->main_worker->loop);
-		srv->started_str = g_string_new_len(GSTR_LEN(str));
-	}
 }
 
 static void li_server_stop_listen(liServer *srv) {

@@ -48,6 +48,8 @@ static gboolean openssl_con_new(liConnection *con) {
 	openssl_context *ctx = con->srv_sock->data;
 	openssl_connection_ctx *conctx = g_slice_new0(openssl_connection_ctx);
 
+	con->srv_sock_data = NULL;
+
 	if (NULL == (conctx->ssl = SSL_new(ctx->ssl_ctx))) {
 		ERROR(srv, "SSL_new: %s", ERR_error_string(ERR_get_error(), NULL));
 		goto fail;
@@ -87,6 +89,8 @@ static void openssl_con_close(liConnection *con) {
 	}
 
 	con->srv_sock_data = NULL;
+	con->is_ssl = FALSE;
+
 	g_slice_free(openssl_connection_ctx, conctx);
 }
 
@@ -494,6 +498,8 @@ gboolean mod_openssl_init(liModules *mods, liModule *mod) {
 gboolean mod_openssl_free(liModules *mods, liModule *mod) {
 	if (mod->config)
 		li_plugin_free(mods->main, mod->config);
+
+	ERR_free_strings();
 
 	return TRUE;
 }
