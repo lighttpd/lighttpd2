@@ -78,11 +78,16 @@ fail:
 static void openssl_con_close(liConnection *con) {
 	openssl_connection_ctx *conctx = con->srv_sock_data;
 
+	if (!conctx) return;
+
 	if (conctx->ssl) {
 		SSL_shutdown(conctx->ssl); /* TODO: wait for something??? */
 		SSL_free(conctx->ssl);
 		conctx->ssl = FALSE;
 	}
+
+	con->srv_sock_data = NULL;
+	g_slice_free(openssl_connection_ctx, conctx);
 }
 
 static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
