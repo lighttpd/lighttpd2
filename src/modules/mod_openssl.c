@@ -50,7 +50,9 @@ static gboolean openssl_con_new(liConnection *con) {
 
 	con->srv_sock_data = NULL;
 
-	if (NULL == (conctx->ssl = SSL_new(ctx->ssl_ctx))) {
+	conctx->ssl = SSL_new(ctx->ssl_ctx);
+
+	if (NULL == conctx->ssl) {
 		ERROR(srv, "SSL_new: %s", ERR_error_string(ERR_get_error(), NULL));
 		goto fail;
 	}
@@ -488,8 +490,50 @@ static void plugin_init(liServer *srv, liPlugin *p) {
 	p->setups = setups;
 }
 
+static GMutex** ssl_locks;
+
+static void ssl_lock_cb(int mode, int n, const char *file, int line) {
+	UNUSED(file);
+	UNUSED(line);
+
+	if (mode & CRYPTO_LOCK) {
+		g_mutex_lock(ssl_locks[n]);
+	} else if (mode & CRYPTO_UNLOCK) {
+		g_mutex_unlock(ssl_locks[n]);
+	}
+}
+
+static unsigned long ssl_id_cb(void) {
+	return (intptr_t) g_thread_self();
+}
+
+static void sslthread_init() {
+	int n = CRYPTO_num_locks(), i;
+
+	ssl_locks = g_slice_alloc0(sizeof(GMutex*) * n);
+
+	for (i = 0; i < n; i++) {
+		ssl_locks[i] = g_mutex_new();
+	}
+
+	CRYPTO_set_locking_callback(ssl_lock_cb);
+	CRYPTO_set_id_callback(ssl_id_cb);
+}
+
+static void sslthread_free() {
+	int n = CRYPTO_num_locks(), i;
+
+	for (i = 0; i < n; i++) {
+		g_mutex_free(ssl_locks[i]);
+	}
+
+	g_slice_free1(sizeof(GMutex*) * n, ssl_locks);
+}
+
 gboolean mod_openssl_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
+
+	sslthread_init();
 
 	SSL_load_error_strings();
 	SSL_library_init();
@@ -509,6 +553,8 @@ gboolean mod_openssl_free(liModules *mods, liModule *mod) {
 		li_plugin_free(mods->main, mod->config);
 
 	ERR_free_strings();
+
+	sslthread_free();
 
 	return TRUE;
 }
