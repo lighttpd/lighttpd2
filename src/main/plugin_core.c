@@ -156,7 +156,9 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 	g_string_truncate(vr->physical.doc_root, 0);
 	g_string_append_len(vr->physical.doc_root, GSTR_LEN((GString*) param));
 
-	VR_DEBUG(vr, "docroot: %s", vr->physical.doc_root->str);
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		VR_DEBUG(vr, "docroot: %s", vr->physical.doc_root->str);
+	}
 
 	/* build physical path: docroot + uri.path */
 	g_string_truncate(vr->physical.path, 0);
@@ -165,7 +167,9 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 		li_path_append_slash(vr->physical.path);
 	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
 
-	VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
+	}
 
 	return LI_HANDLER_GO_ON;
 }

@@ -320,8 +320,10 @@ static void worker_stats_watcher_cb(struct ev_loop *loop, ev_timer *w, int reven
 	if (wrk->stats.last_update && now != wrk->stats.last_update) {
 		wrk->stats.requests_per_sec =
 			(wrk->stats.requests - wrk->stats.last_requests) / (now - wrk->stats.last_update);
-		if (wrk->stats.requests_per_sec > 0)
+#if 0
+			if (wrk->stats.requests_per_sec > 0)
 			DEBUG(wrk->srv, "worker %u: %.2f requests per second", wrk->ndx, wrk->stats.requests_per_sec);
+#endif
 	}
 
 	/* 5s averages */
