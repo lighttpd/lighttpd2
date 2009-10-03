@@ -317,8 +317,6 @@ static liAction* vhost_map_create(liServer *srv, liPlugin* p, liValue *val) {
 			vhost_map_free(srv, md);
 			return NULL;
 		}
-
-		li_action_acquire(val->data.val_action.action);
 	}
 
 	return li_action_new_function(vhost_map, NULL, vhost_map_free, md);
