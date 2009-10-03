@@ -381,6 +381,10 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 					con->throttle.pool.queued = TRUE;
 				}
 			}
+
+			if (0 == con->raw_out->length) {
+				li_ev_io_rem_events(loop, w, EV_WRITE);
+			}
 		} else {
 			_DEBUG(con->srv, con->mainvr, "%s", "write event for empty queue");
 			li_ev_io_rem_events(loop, w, EV_WRITE);
