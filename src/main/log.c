@@ -2,6 +2,7 @@
 	todo:
 	- write out logs at startup directly
 	- scheme:// prefix
+	- LI_LOG_LEVEL_ABORT: write message immediately, as the log write is followed by an abort()
 
 */
 
@@ -13,19 +14,6 @@
 
 void li_log_write(liServer *srv, liLog *log, GString *msg) {
 	liLogEntry *log_entry;
-
-	switch (g_atomic_int_get(&srv->state)) {
-	case LI_SERVER_INIT:
-	case LI_SERVER_LOADING:
-	case LI_SERVER_SUSPENDED:
-	case LI_SERVER_WARMUP:
-	case LI_SERVER_STOPPING:
-	case LI_SERVER_DOWN:
-		li_angel_log(srv, msg);
-		return;
-	default:
-		break;
-	}
 
 	log_ref(srv, log);
 
@@ -69,6 +57,10 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 	if (!(flags & LOG_FLAG_NOLOCK))
 		log_lock(log);
 
+#if 0
+/* - needs extra handling for switching between server state (angel log/normal log)
+ * - needs an option to turn it off, as it is bad for debugging (you expect to see error messages immediately
+ */
 	if (!(flags & LOG_FLAG_ALLOW_REPEAT)) {
 
 		/* check if last message for this log was the same */
@@ -90,6 +82,7 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 	}
 
 	g_string_assign(log->lastmsg, log_line->str);
+#endif
 
 	/* for normal error messages, we prepend a timestamp */
 	if (flags & LOG_FLAG_TIMESTAMP) {
@@ -156,6 +149,7 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 	g_async_queue_push(srv->logs.queue, log_entry);
 
 	/* on critical error, exit */
+	/* TODO: write message immediately, as the log write is followed by an abort() */
 	if (log_level == LI_LOG_LEVEL_ABORT) {
 		log_thread_stop(srv);
 		g_atomic_int_set(&srv->exiting, TRUE);
@@ -315,12 +309,12 @@ liLogLevel log_level_from_string(GString *str) {
 
 gchar* log_level_str(liLogLevel log_level) {
 	switch (log_level) {
-		case LI_LOG_LEVEL_DEBUG:	return "debug";
-		case LI_LOG_LEVEL_INFO:	return "info";
-		case LI_LOG_LEVEL_WARNING:	return "warning";
-		case LI_LOG_LEVEL_ERROR:	return "error";
-		case LI_LOG_LEVEL_BACKEND:	return "backend";
-		default:				return "unknown";
+		case LI_LOG_LEVEL_DEBUG:   return "debug";
+		case LI_LOG_LEVEL_INFO:    return "info";
+		case LI_LOG_LEVEL_WARNING: return "warning";
+		case LI_LOG_LEVEL_ERROR:   return "error";
+		case LI_LOG_LEVEL_BACKEND: return "backend";
+		default:                   return "unknown";
 	}
 }
 
