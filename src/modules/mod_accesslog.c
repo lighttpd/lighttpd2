@@ -218,9 +218,8 @@ static GArray *al_parse_format(liServer *srv, GString *formatstr) {
 	return arr;
 }
 
-static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
+static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 	GString *str = g_string_sized_new(255);
-	liVRequest *vr = con->mainvr;
 	liResponse *resp = &vr->response;
 	liRequest *req = &vr->request;
 	liPhysical *phys = &vr->physical;
@@ -237,10 +236,10 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 				g_string_append_c(str, '%');
 				break;
 			case AL_FORMAT_REMOTE_ADDR:
-				g_string_append_len(str, GSTR_LEN(con->remote_addr_str));
+				g_string_append_len(str, GSTR_LEN(vr->con->remote_addr_str));
 				break;
 			case AL_FORMAT_LOCAL_ADDR:
-				g_string_append_len(str, GSTR_LEN(con->local_addr_str));
+				g_string_append_len(str, GSTR_LEN(vr->con->local_addr_str));
 				break;
 			case AL_FORMAT_BYTES_RESPONSE:
 				g_string_append_printf(str, "%jd", vr->out->bytes_out);
@@ -304,7 +303,7 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 				break;
 			case AL_FORMAT_TIME:
 				/* todo: implement format string */
-				tmp_gstr2 = li_worker_current_timestamp(con->wrk, LI_LOCALTIME, ald->ts_ndx);
+				tmp_gstr2 = li_worker_current_timestamp(vr->wrk, LI_LOCALTIME, ald->ts_ndx);
 				g_string_append_len(str, GSTR_LEN(tmp_gstr2));
 				break;
 			case AL_FORMAT_AUTHED_USER:
@@ -328,16 +327,16 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 				break;
 			case AL_FORMAT_CONNECTION_STATUS:
 				/* was request completed? */
-				if (con->in->is_closed && con->raw_out->is_closed && 0 == con->raw_out->length)
+				if (vr->con->in->is_closed && vr->con->raw_out->is_closed && 0 == vr->con->raw_out->length)
 					g_string_append_c(str, 'X');
 				else
-					g_string_append_c(str, con->keep_alive ? '+' : '-');
+					g_string_append_c(str, vr->con->keep_alive ? '+' : '-');
 				break;
 			case AL_FORMAT_BYTES_IN:
-				g_string_append_printf(str, "%"G_GUINT64_FORMAT, con->stats.bytes_in);
+				g_string_append_printf(str, "%"G_GUINT64_FORMAT, vr->con->stats.bytes_in);
 				break;
 			case AL_FORMAT_BYTES_OUT:
-				g_string_append_printf(str, "%"G_GUINT64_FORMAT, con->stats.bytes_out);
+				g_string_append_printf(str, "%"G_GUINT64_FORMAT, vr->con->stats.bytes_out);
 				break;
 			default:
 				/* not implemented:
@@ -361,12 +360,12 @@ static GString *al_format_log(liConnection *con, al_data *ald, GArray *format) {
 	return str;
 }
 
-static void al_handle_close(liConnection *con, liPlugin *p) {
-	/* connection closed, log it */
+static void al_handle_vrclose(liVRequest *vr, liPlugin *p) {
+	/* VRequest closed, log it */
 	GString *msg;
-	liResponse *resp = &con->mainvr->response;
-	liLog *log = _OPTION(con->mainvr, p, AL_OPTION_ACCESSLOG).ptr;
-	GArray *format = _OPTION(con->mainvr, p, AL_OPTION_ACCESSLOG_FORMAT).list;
+	liResponse *resp = &vr->response;
+	liLog *log = OPTION(AL_OPTION_ACCESSLOG).ptr;
+	GArray *format = OPTION(AL_OPTION_ACCESSLOG_FORMAT).list;
 
 	UNUSED(p);
 
@@ -374,10 +373,10 @@ static void al_handle_close(liConnection *con, liPlugin *p) {
 		/* if status code is zero, it means the connection was closed while in keep alive state or similar and no logging is needed */
 		return;
 
-	msg = al_format_log(con, p->data, format);
+	msg = al_format_log(vr, p->data, format);
 
 	g_string_append_len(msg, CONST_STR_LEN("\r\n"));
-	li_log_write(con->srv, log, msg);
+	li_log_write(vr->con->srv, log, msg);
 }
 
 
@@ -484,7 +483,7 @@ static void plugin_accesslog_init(liServer *srv, liPlugin *p) {
 	p->options = options;
 	p->actions = actions;
 	p->setups = setups;
-	p->handle_close = al_handle_close;
+	p->handle_vrclose = al_handle_vrclose;
 
 	ald = g_slice_new0(al_data);
 	ald->ts_ndx = li_server_ts_format_add(srv, g_string_new_len(CONST_STR_LEN("[%d/%b/%Y:%H:%M:%S %z]")));
