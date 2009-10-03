@@ -177,7 +177,7 @@ static void instance_spawn(liInstance *i) {
 	li_fd_no_block(confd[1]);
 
 	i->acon = li_angel_connection_new(i->srv->loop, confd[0], i, instance_angel_call_cb, instance_angel_close_cb);
-	i->proc = li_proc_new(i->srv, i->ic->cmd, NULL, i->ic->uid, i->ic->gid, i->ic->username->str, instance_spawn_setup, confd);
+	i->proc = li_proc_new(i->srv, i->ic->cmd, i->ic->env, i->ic->uid, i->ic->gid, i->ic->username->str, instance_spawn_setup, confd);
 
 	if (!i->proc) return;
 
@@ -350,10 +350,11 @@ void li_instance_acquire(liInstance *i) {
 	g_atomic_int_inc(&i->refcount);
 }
 
-liInstanceConf* li_instance_conf_new(gchar **cmd, GString *username, uid_t uid, gid_t gid) {
+liInstanceConf* li_instance_conf_new(gchar **cmd, gchar **env, GString *username, uid_t uid, gid_t gid) {
 	liInstanceConf *ic = g_slice_new0(liInstanceConf);
 	ic->refcount = 1;
 	ic->cmd = cmd;
+	ic->env = env;
 	if (username) {
 		ic->username = g_string_new_len(GSTR_LEN(username));
 	}
@@ -367,6 +368,7 @@ void li_instance_conf_release(liInstanceConf *ic) {
 	assert(g_atomic_int_get(&ic->refcount) > 0);
 	if (!g_atomic_int_dec_and_test(&ic->refcount)) return;
 	g_strfreev(ic->cmd);
+	g_strfreev(ic->env);
 	g_slice_free(liInstanceConf, ic);
 }
 

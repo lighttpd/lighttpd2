@@ -6,8 +6,8 @@
 #include <grp.h>
 
 static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
-	GPtrArray *cmd;
-	gchar **cmdarr;
+	GPtrArray *cmd, *env;
+	gchar **cmdarr, **envarr;
 	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 	uid_t uid = -1;
 	gid_t gid = -1;
@@ -56,10 +56,86 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 		return;
 	}
 
+	/* check types in lists */
+	if (options[6]) {
+		GPtrArray *wrapper_lst = options[6]->data.list;
+		guint i;
+		for (i = 0; i < wrapper_lst->len; i++) {
+			liValue *wi = g_ptr_array_index(wrapper_lst, i);
+			if (wi->type != LI_VALUE_STRING) {
+				ERROR(srv, "Entry %i in wrapper list is not a string", i);
+				config->load_failed = FALSE;
+				return;
+			}
+		}
+	}
+	if (options[7]) { /* env */
+		GPtrArray *env_lst = options[7]->data.list;
+		guint i;
+		for (i = 0; i < env_lst->len; i++) {
+			liValue *ei = g_ptr_array_index(env_lst, i);
+			if (ei->type != LI_VALUE_STRING) {
+				ERROR(srv, "Entry %i in env list is not a string", i);
+				config->load_failed = FALSE;
+				return;
+			}
+		}
+	}
+	if (options[8]) { /* copy-env */
+		GPtrArray *env_lst = options[8]->data.list;
+		guint i;
+		for (i = 0; i < env_lst->len; i++) {
+			liValue *ei = g_ptr_array_index(env_lst, i);
+			if (ei->type != LI_VALUE_STRING) {
+				ERROR(srv, "Entry %i in copy-env list is not a string", i);
+				config->load_failed = FALSE;
+				return;
+			}
+		}
+	}
+
+	env = g_ptr_array_new();
+
+	if (options[7]) { /* env */
+		GPtrArray *env_lst = options[7]->data.list;
+		guint i;
+		for (i = 0; i < env_lst->len; i++) {
+			liValue *ei = g_ptr_array_index(env_lst, i);
+			g_ptr_array_add(env, g_strndup(GSTR_LEN(ei->data.string)));
+		}
+	}
+	if (options[8]) { /* copy-env */
+		GPtrArray *env_lst = options[8]->data.list;
+		guint i;
+		for (i = 0; i < env_lst->len; i++) {
+			liValue *ei = g_ptr_array_index(env_lst, i);
+			const char *val = getenv(ei->data.string->str);
+			size_t vallen, keylen = ei->data.string->len;
+			gchar *entry;
+			if (!val) continue;
+
+			vallen = strlen(val);
+			entry = g_malloc(keylen + 1 /* "=" */ + vallen + 1 /* \0 */);
+			memcpy(entry, GSTR_LEN(ei->data.string));
+			entry[keylen] = '=';
+			memcpy(entry + keylen+1, val, vallen);
+			entry[keylen + vallen + 1] = '\0';
+			g_ptr_array_add(env, entry);
+		}
+	}
+
+
 	cmd = g_ptr_array_new();
-#if 0
-	g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("/usr/bin/valgrind")));
-#endif
+
+	if (options[6]) {
+		GPtrArray *wrapper_lst = options[6]->data.list;
+		guint i;
+		for (i = 0; i < wrapper_lst->len; i++) {
+			liValue *wi = g_ptr_array_index(wrapper_lst, i);
+			g_ptr_array_add(cmd, g_strndup(GSTR_LEN(wi->data.string)));
+		}
+	}
+
 	if (options[2]) {
 		g_ptr_array_add(cmd, g_strndup(GSTR_LEN(options[2]->data.string)));
 	} else {
@@ -86,16 +162,20 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 
 	g_ptr_array_add(cmd, NULL);
 	cmdarr = (gchar**) g_ptr_array_free(cmd, FALSE);
-	config->load_instconf = li_instance_conf_new(cmdarr, user, uid, gid);
+	envarr = (gchar**) g_ptr_array_free(env, FALSE);
+	config->load_instconf = li_instance_conf_new(cmdarr, envarr, user, uid, gid);
 }
 
 static const liPluginItemOption core_instance_options[] = {
-	{ "user", LI_VALUE_STRING, 0 },
-	{ "group", LI_VALUE_STRING, 0 },
-	{ "binary", LI_VALUE_STRING, 0 },
-	{ "config", LI_VALUE_STRING, 0 },
-	{ "luaconfig", LI_VALUE_STRING, 0 },
-	{ "modules", LI_VALUE_STRING, 0 },
+	/*  0 */ { "user", LI_VALUE_STRING, 0 },
+	/*  1 */ { "group", LI_VALUE_STRING, 0 },
+	/*  2 */ { "binary", LI_VALUE_STRING, 0 },
+	/*  3 */ { "config", LI_VALUE_STRING, 0 },
+	/*  4 */ { "luaconfig", LI_VALUE_STRING, 0 },
+	/*  5 */ { "modules", LI_VALUE_STRING, 0 },
+	/*  6 */ { "wrapper", LI_VALUE_LIST, 0 },
+	/*  7 */ { "env", LI_VALUE_LIST, 0 },
+	/*  8 */ { "copy-env", LI_VALUE_LIST, 0 },
 	{ NULL, 0, 0 }
 };
 
@@ -157,8 +237,8 @@ only_one_type:
 }
 
 static const liPluginItemOption core_listen_options[] = {
-	{ "ip", LI_VALUE_STRING, 0 },
-	{ "unix", LI_VALUE_STRING, 0 },
+	/*  0 */ { "ip", LI_VALUE_STRING, 0 },
+	/*  1 */ { "unix", LI_VALUE_STRING, 0 },
 	{ NULL, 0, 0 }
 };
 

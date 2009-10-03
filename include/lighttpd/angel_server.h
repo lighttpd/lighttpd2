@@ -22,6 +22,7 @@ struct liInstanceConf {
 	gint refcount;
 
 	gchar **cmd;
+	gchar **env;
 	GString *username;
 	uid_t uid;
 	gid_t gid;
@@ -67,7 +68,7 @@ LI_API void li_instance_replace(liInstance *oldi, liInstance *newi);
 LI_API void li_instance_set_state(liInstance *i, liInstanceState s);
 LI_API void li_instance_state_reached(liInstance *i, liInstanceState s);
 
-LI_API liInstanceConf* li_instance_conf_new(gchar **cmd, GString *username, uid_t uid, gid_t gid);
+LI_API liInstanceConf* li_instance_conf_new(gchar **cmd, gchar **env, GString *username, uid_t uid, gid_t gid);
 LI_API void li_instance_conf_release(liInstanceConf *ic);
 LI_API void li_instance_conf_acquire(liInstanceConf *ic);
 

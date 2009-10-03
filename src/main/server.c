@@ -167,6 +167,11 @@ void li_server_free(liServer* srv) {
 		g_array_free(srv->throttle_pools, TRUE);
 	}
 
+	if (srv->acon) {
+		li_angel_connection_free(srv->acon);
+		srv->acon = NULL;
+	}
+
 	/* free all workers */
 	{
 		guint i;

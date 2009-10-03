@@ -202,6 +202,7 @@ static gboolean angel_dispatch(liAngelConnection *acon, GError **err) {
 				call = (liAngelCall*) g_ptr_array_index(acon->call_table, id);
 				g_ptr_array_index(acon->call_table, id) = NULL;
 				if (call) {
+					call->id = -1;
 					ev_timer_stop(acon->loop, &call->timeout_watcher);
 					ctx = call->context;
 					if (NULL == (cb = call->callback)) {
@@ -456,6 +457,13 @@ void li_angel_connection_free(liAngelConnection *acon) {
 	}
 	g_queue_free(acon->out);
 	g_string_free(acon->in.data, TRUE);
+
+	g_string_free(acon->parse.mod, TRUE);
+	g_string_free(acon->parse.action, TRUE);
+	g_string_free(acon->parse.error, TRUE);
+	g_string_free(acon->parse.data, TRUE);
+	close_fd_array(acon->parse.fds);
+	g_array_free(acon->parse.fds, TRUE);
 	/* TODO */
 
 	g_slice_free(liAngelConnection, acon);
