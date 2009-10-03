@@ -109,6 +109,7 @@ static GHashTable *auth_file_load(liServer *srv, GString *path, gboolean has_rea
 				/* missing delimiter for realm:pass => bogus file */
 				ERROR(srv, "failed to parse auth file \"%s\", doesn't look like a htdigest file", path->str);
 				g_hash_table_destroy(users);
+				g_free(contents);
 				return NULL;
 			}
 		}
@@ -120,6 +121,7 @@ static GHashTable *auth_file_load(liServer *srv, GString *path, gboolean has_rea
 			/* missing \n */
 			ERROR(srv, "failed to parse auth file \"%s\"", path->str);
 			g_hash_table_destroy(users);
+			g_free(contents);
 			return NULL;
 		}
 
@@ -135,8 +137,11 @@ static GHashTable *auth_file_load(liServer *srv, GString *path, gboolean has_rea
 	if (*user_start) {
 		ERROR(srv, "failed to parse auth file \"%s\"", path->str);
 		g_hash_table_destroy(users);
+		g_free(contents);
 		return NULL;
 	}
+
+	g_free(contents);
 
 	return users;
 }
