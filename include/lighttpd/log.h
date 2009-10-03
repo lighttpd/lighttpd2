@@ -27,9 +27,9 @@
 	li_log_write_(srv, vr, LI_LOG_LEVEL_DEBUG, LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _BACKEND(srv, vr, fmt, ...) \
-	li_log_write_(srv, vr, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, "(backend) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	li_log_write_(srv, vr, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, fmt, __VA_ARGS__)
 #define _BACKEND_LINES(srv, vr, txt, fmt, ...) \
-	li_log_split_lines_(srv, vr, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, txt, "(backend) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	li_log_split_lines_(srv, vr, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, txt, fmt, __VA_ARGS__)
 
 #define _GERROR(srv, vr, error, fmt, ...) \
 	li_log_write_(srv, vr, LI_LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "(error) %s.%d: " fmt "\n  %s", LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__, error ? error->message : "Empty GError")

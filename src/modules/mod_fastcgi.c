@@ -85,6 +85,7 @@ struct fastcgi_connection {
 struct fastcgi_context {
 	gint refcount;
 	liSocketAddress socket;
+	GString *socket_str;
 	guint timeout;
 	liPlugin *plugin;
 };
@@ -141,6 +142,7 @@ static fastcgi_context* fastcgi_context_new(liServer *srv, liPlugin *p, GString 
 	ctx->socket = saddr;
 	ctx->timeout = 5;
 	ctx->plugin = p;
+	ctx->socket_str = g_string_new_len(GSTR_LEN(dest_socket));
 	return ctx;
 }
 
@@ -149,6 +151,7 @@ static void fastcgi_context_release(fastcgi_context *ctx) {
 	assert(g_atomic_int_get(&ctx->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
 		li_sockaddr_clear(&ctx->socket);
+		g_string_free(ctx->socket_str, TRUE);
 		g_slice_free(fastcgi_context, ctx);
 	}
 }
@@ -536,7 +539,7 @@ static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 			if (FASTCGI_OPTION(FASTCGI_OPTION_LOG_PLAIN_ERRORS).boolean) {
 				li_log_split_lines(vr->wrk->srv, vr, LI_LOG_LEVEL_BACKEND, 0, vr->wrk->tmp_str->str, "");
 			} else {
-				VR_BACKEND_LINES(vr, vr->wrk->tmp_str->str, "%s", "(fcgi-stderr) ");
+				VR_BACKEND_LINES(vr, vr->wrk->tmp_str->str, "(fcgi-stderr %s) ", fcon->ctx->socket_str->str);
 			}
 			li_chunkqueue_skip(fcon->fcgi_in, len);
 			break;
