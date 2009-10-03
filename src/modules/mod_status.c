@@ -350,8 +350,10 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 /* the CollectCallback */
 static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
 	mod_status_job *job = fdata;
-	liVRequest *vr;
-	liPlugin *p;
+	liVRequest *vr = job->vr;
+	liPlugin *p = job->p;
+	gboolean short_info = job->short_info;
+
 	UNUSED(cbdata);
 
 	if (!complete) {
@@ -378,8 +380,6 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		return;
 	}
 
-	vr = job->vr;
-	p = job->p;
 	/* clear context so it doesn't get cleaned up anymore */
 	*(job->context) = NULL;
 	g_slice_free(mod_status_job, job);
@@ -470,7 +470,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 
 		li_counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, tmpstr);
 
-		g_string_append_printf(html, job->short_info ? html_top_short : html_top,
+		g_string_append_printf(html, short_info ? html_top_short : html_top,
 			vr->request.uri.host->str,
 			tmpstr->str,
 			vr->wrk->srv->started_str->str
@@ -608,7 +608,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		}
 
 		/* list connections */
-		if (!job->short_info) {
+		if (!short_info) {
 			GString *ts, *bytes_in, *bytes_out, *bytes_in_5s, *bytes_out_5s;
 			GString *req_len, *resp_len;
 			guint len;
