@@ -116,7 +116,7 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 
 			vallen = strlen(val);
 			entry = g_malloc(keylen + 1 /* "=" */ + vallen + 1 /* \0 */);
-			memcpy(entry, GSTR_LEN(ei->data.string));
+			memcpy(entry, ei->data.string->str, keylen);
 			entry[keylen] = '=';
 			memcpy(entry + keylen+1, val, vallen);
 			entry[keylen + vallen + 1] = '\0';
