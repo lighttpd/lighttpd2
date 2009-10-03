@@ -30,7 +30,7 @@ static void worker_closing_socket_cb(int revents, void* arg) {
 	worker_closing_socket *scs = (worker_closing_socket*) arg;
 	liWorker *wrk = scs->wrk;
 	ssize_t r;
-	UNUSED(revents);
+	ev_tstamp remaining = scs->close_timeout - ev_now(wrk->loop);
 
 	/* empty the input buffer, wait for EOF or timeout or a socket error to close it */
 	g_string_set_size(wrk->tmp_str, 1024);
@@ -47,9 +47,9 @@ static void worker_closing_socket_cb(int revents, void* arg) {
 			case EWOULDBLOCK:
 #endif
 				/* check timeout: */
-				if (!(revents & EV_TIMEOUT)) {
+				if (remaining > 0 && !(revents & EV_TIMEOUT)) {
 					/* wait again */
-					ev_once(wrk->loop, scs->fd, EV_READ, scs->close_timeout - ev_now(wrk->loop), worker_closing_socket_cb, scs);
+					ev_once(wrk->loop, scs->fd, EV_READ, remaining, worker_closing_socket_cb, scs);
 					return;
 				}
 				/* timeout reached, break switch and loop */
@@ -89,7 +89,8 @@ void li_worker_add_closing_socket(liWorker *wrk, int fd) {
 
 /* Kill it - frees fd */
 static void worker_rem_closing_socket(liWorker *wrk, worker_closing_socket *scs) {
-	ev_feed_fd_event(wrk->loop, scs->fd, EV_TIMEOUT);
+	scs->close_timeout = ev_now(wrk->loop);
+	ev_feed_fd_event(wrk->loop, scs->fd, EV_READ);
 }
 
 /* Keep alive */
@@ -545,8 +546,9 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 		/* close keep alive connections */
 		for (i = wrk->connections_active; i-- > 0;) {
 			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
-			if (con->state == LI_CON_STATE_KEEP_ALIVE)
+			if (con->state == LI_CON_STATE_KEEP_ALIVE) {
 				worker_con_put(con);
+			}
 		}
 
 		li_worker_check_keepalive(wrk);
@@ -569,8 +571,9 @@ void li_worker_suspend(liWorker *context, liWorker *wrk) {
 		/* close keep alive connections */
 		for (i = wrk->connections_active; i-- > 0;) {
 			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
-			if (con->state == LI_CON_STATE_KEEP_ALIVE)
+			if (con->state == LI_CON_STATE_KEEP_ALIVE) {
 				worker_con_put(con);
+			}
 		}
 
 		li_worker_check_keepalive(wrk);
