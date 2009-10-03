@@ -149,9 +149,13 @@ static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents)
 	UNUSED(revents);
 
 	while ((wqe = li_waitqueue_pop(&wrk->io_timeout_queue)) != NULL) {
+		liVRequest *vr;
 		/* connection has timed out */
 		con = wqe->data;
-		_DEBUG(con->srv, con->mainvr, "connection io-timeout from %s after %.2f seconds", con->remote_addr_str->str, now - wqe->ts);
+		vr = con->mainvr;
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "connection io-timeout from %s after %.2f seconds", con->remote_addr_str->str, now - wqe->ts);
+		}
 		li_plugins_handle_close(con);
 		worker_con_put(con);
 	}
