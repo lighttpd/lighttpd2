@@ -146,27 +146,35 @@ void li_lua_init(liServer *srv, lua_State *L) {
 	lua_init_response_mt(L);
 	lua_init_vrequest_mt(L);
 
+	li_lua_init_stat_mt(L);
+
 	/* prefer closure, but just in case */
 	lua_pushlightuserdata(L, srv);
 	lua_setfield(L, LUA_REGISTRYINDEX, "lighty.srv");
 
+	lua_newtable(L); /* lighty. */
+
 	lua_pushlightuserdata(L, srv);
 	lua_pushcclosure(L, li_lua_error, 1);
-	lua_setfield(L, LUA_GLOBALSINDEX, "print");
+		lua_pushvalue(L, -1); /* overwrite global print too */
+		lua_setfield(L, LUA_GLOBALSINDEX, "print");
+	lua_setfield(L, -2, "print");
 
 	lua_pushlightuserdata(L, srv);
 	lua_pushcclosure(L, li_lua_warning, 1);
-	lua_setfield(L, LUA_GLOBALSINDEX, "warning");
+	lua_setfield(L, -2, "warning");
 
 	lua_pushlightuserdata(L, srv);
 	lua_pushcclosure(L, li_lua_info, 1);
-	lua_setfield(L, LUA_GLOBALSINDEX, "info");
+	lua_setfield(L, -2, "info");
 
 	lua_pushlightuserdata(L, srv);
 	lua_pushcclosure(L, li_lua_debug, 1);
-	lua_setfield(L, LUA_GLOBALSINDEX, "debug");
+	lua_setfield(L, -2, "debug");
 
-	lua_push_constants(L, LUA_GLOBALSINDEX);
+	lua_push_constants(L, -2);
+
+	lua_setfield(L, LUA_GLOBALSINDEX, "lighty");
 
 	li_lua_store_globals(L);
 }

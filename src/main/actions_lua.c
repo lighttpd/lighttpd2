@@ -48,6 +48,7 @@ int lua_push_action(liServer *srv, lua_State *L, liAction *a) {
 typedef struct lua_action_param lua_action_param;
 struct lua_action_param {
 	int func_ref;
+	lua_State *L;
 };
 
 typedef struct lua_action_ctx lua_action_ctx;
@@ -59,11 +60,12 @@ static liHandlerResult lua_action_func(liVRequest *vr, gpointer param, gpointer 
 	lua_action_param *par = param;
 	lua_action_ctx *ctx = *context;
 	liServer *srv = vr->wrk->srv;
-	lua_State *L = srv->L;
+	lua_State *L = par->L;
+	gboolean dolock = (L == srv->L);
 	liHandlerResult res = LI_HANDLER_GO_ON;
 	int errfunc;
 
-	li_lua_lock(srv);
+	if (dolock) li_lua_lock(srv);
 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, par->func_ref);
 	lua_pushvalue(L, -1);
@@ -110,20 +112,21 @@ static liHandlerResult lua_action_func(liVRequest *vr, gpointer param, gpointer 
 	lua_setfield(L, -2, "_G");
 	lua_pop(L, 2);
 
-	li_lua_unlock(srv);
+	if (dolock) li_lua_unlock(srv);
 
 	return res;
 }
 
 static liHandlerResult lua_action_cleanup(liVRequest *vr, gpointer param, gpointer context) {
+	lua_action_param *par = param;
 	lua_action_ctx *ctx = context;
 	liServer *srv = vr->wrk->srv;
-	lua_State *L = srv->L;
-	UNUSED(param);
+	lua_State *L = par->L;
+	gboolean dolock = (L == srv->L);
 
-	li_lua_lock(srv);
+	if (dolock) li_lua_lock(srv);
 	luaL_unref(L, LUA_REGISTRYINDEX, ctx->g_ref);
-	li_lua_unlock(srv);
+	if (dolock) li_lua_unlock(srv);
 
 	g_slice_free(lua_action_ctx, ctx);
 
@@ -132,22 +135,22 @@ static liHandlerResult lua_action_cleanup(liVRequest *vr, gpointer param, gpoint
 
 static void lua_action_free(liServer *srv, gpointer param) {
 	lua_action_param *par = param;
-	lua_State *L = srv->L;
+	lua_State *L = par->L;
+	gboolean dolock = (L == srv->L);
 
-	li_lua_lock(srv);
+	if (dolock) li_lua_lock(srv);
 	luaL_unref(L, LUA_REGISTRYINDEX, par->func_ref);
-	li_lua_unlock(srv);
+	if (dolock) li_lua_unlock(srv);
 
 	g_slice_free(lua_action_param, par);
 }
 
-liAction* lua_make_action(liServer *srv, lua_State *L, int ndx) {
+liAction* lua_make_action(lua_State *L, int ndx) {
 	lua_action_param *par = g_slice_new0(lua_action_param);
-
-	g_assert(L == srv->L);
 
 	lua_pushvalue(L, ndx); /* +1 */
 	par->func_ref = luaL_ref(L, LUA_REGISTRYINDEX); /* -1 */
+	par->L = L;
 
 	/* new environment for function */
 	lua_pushvalue(L, ndx); /* +1 */

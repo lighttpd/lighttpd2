@@ -201,6 +201,50 @@ static int lua_vrequest_debug(lua_State *L) {
 	return 0;
 }
 
+static int lua_vrequest_stat(lua_State *L) {
+	liVRequest *vr;
+	GString *path;
+	const char *filename;
+	size_t filename_len;
+	liHandlerResult res;
+	int err = 0;
+	struct stat st;
+
+	if (lua_gettop(L) != 2) {
+		lua_pushstring(L, "vr:stat(filename): incorrect number of arguments");
+		lua_error(L);
+	}
+
+	vr = lua_get_vrequest(L, 1);
+	if (!vr || !lua_isstring(L, 2)) {
+		lua_pushstring(L, "vr:stat(filename): wrong argument types");
+		lua_error(L);
+	}
+
+	filename = lua_tolstring(L, 2, &filename_len);
+	path = g_string_new_len(filename, filename_len);
+
+	res = li_stat_cache_get(vr, path, &st, &err, NULL);
+	switch (res) {
+	case LI_HANDLER_GO_ON:
+		return li_lua_push_stat(L, &st);
+	case LI_HANDLER_WAIT_FOR_EVENT:
+		lua_pushinteger(L, res);
+		return 1;
+	case LI_HANDLER_ERROR:
+		lua_pushinteger(L, res);
+		lua_pushinteger(L, err);
+		lua_pushstring(L, g_strerror(err));
+		return 3;
+	case LI_HANDLER_COMEBACK:
+		VR_ERROR(vr, "%s", "Unexpected return value from li_stat_cache_get: LI_HANDLER_COMEBACK");
+		lua_pushinteger(L, LI_HANDLER_ERROR);
+		return 1;
+	}
+
+	return 0;
+}
+
 static int lua_vrequest_handle_direct(lua_State *L) {
 	liVRequest *vr;
 	vr = lua_get_vrequest(L, 1);
@@ -218,6 +262,8 @@ static const luaL_Reg vrequest_mt[] = {
 	{ "warning", lua_vrequest_warning },
 	{ "info", lua_vrequest_info },
 	{ "debug", lua_vrequest_debug },
+
+	{ "stat", lua_vrequest_stat },
 
 	{ "handle_direct", lua_vrequest_handle_direct },
 

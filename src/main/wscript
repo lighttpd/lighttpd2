@@ -1,5 +1,5 @@
-
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # encoding: utf-8
 
 """
@@ -71,6 +71,7 @@ def build(bld):
 			physical_lua.c
 			request_lua.c
 			response_lua.c
+			stat_lua.c
 			virtualrequest_lua.c
 		'''
 

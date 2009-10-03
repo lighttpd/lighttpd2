@@ -213,6 +213,7 @@ SET(LIGHTTPD_SHARED_SRC ${LIGHTTPD_SHARED_SRC}
 	physical_lua.c
 	request_lua.c
 	response_lua.c
+	stat_lua.c
 	virtualrequest_lua.c
 )
 ENDIF(WITH_LUA)

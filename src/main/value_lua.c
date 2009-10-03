@@ -130,7 +130,7 @@ liValue* li_value_from_lua(liServer *srv, lua_State *L) {
 		return NULL;
 
 	case LUA_TFUNCTION: {
-			liAction *a = lua_make_action(srv, L, -1);
+			liAction *a = lua_make_action(L, -1);
 			lua_pop(L, 1);
 			return li_value_new_action(srv, a);
 		}
