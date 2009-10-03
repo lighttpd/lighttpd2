@@ -1,6 +1,8 @@
 
 #include <lighttpd/base.h>
 
+#include <lighttpd/plugin_core.h>
+
 #include <sched.h>
 
 static liConnection* worker_con_get(liWorker *wrk);
