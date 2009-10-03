@@ -253,6 +253,7 @@ const char* li_cond_lvalue_to_string(liCondLValue t) {
 	case LI_COMP_REQUEST_QUERY_STRING: return "request.query";
 	case LI_COMP_REQUEST_METHOD: return "request.method";
 	case LI_COMP_REQUEST_CONTENT_LENGTH: return "request.length";
+	case LI_COMP_REQUEST_IS_HANDLED: return "request.is_handled";
 	case LI_COMP_PHYSICAL_PATH: return "physical.path";
 	case LI_COMP_PHYSICAL_EXISTS: return "physical.exist";
 	case LI_COMP_PHYSICAL_SIZE: return "physical.size";
@@ -292,6 +293,8 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 			return LI_COMP_REQUEST_CONTENT_LENGTH;
 		else if (strncmp(c, "header", len) == 0)
 			return LI_COMP_REQUEST_HEADER;
+		else if (strncmp(c, "is_handled", len) == 0)
+			return LI_COMP_REQUEST_IS_HANDLED;
 	} else if (g_str_has_prefix(c, "physical.")) {
 		c += sizeof("physical.")-1;
 		len -= sizeof("physical.")-1;
@@ -347,6 +350,9 @@ static liHandlerResult li_condition_check_eval_bool(liVRequest *vr, liCondition 
 	}
 
 	switch (cond->lvalue->type) {
+	case LI_COMP_REQUEST_IS_HANDLED:
+		*res = li_vrequest_is_handled(vr);
+		break;
 	case LI_COMP_PHYSICAL_ISDIR:
 		*res = S_ISDIR(st.st_mode);
 		break;
@@ -576,6 +582,9 @@ static liHandlerResult li_condition_check_eval_ip(liVRequest *vr, liCondition *c
 		break;
 	case LI_COMP_REQUEST_METHOD:
 		VR_ERROR(vr, "%s", "Cannot parse request.method as ip");
+		return LI_HANDLER_ERROR;
+	case LI_COMP_REQUEST_IS_HANDLED:
+		VR_ERROR(vr, "%s", "Cannot parse request.is_handled as ip");
 		return LI_HANDLER_ERROR;
 	case LI_COMP_PHYSICAL_PATH:
 	case LI_COMP_PHYSICAL_EXISTS:

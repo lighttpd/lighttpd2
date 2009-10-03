@@ -855,6 +855,8 @@
 				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_REMOTEIP, NULL);
 			else if (g_str_equal(str, "localip"))
 				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_LOCALIP, NULL);
+			else if (g_str_equal(str, "is_handled"))
+				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_IS_HANDLED, NULL);
 			else if (g_str_equal(str, "header")) {
 				if (k == NULL) {
 					WARNING(srv, "%s", "header conditional needs a key");
