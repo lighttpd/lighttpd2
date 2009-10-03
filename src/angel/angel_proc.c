@@ -4,7 +4,7 @@
 #include <grp.h>
 
 static void read_pipe(liServer *srv, liErrorPipe *epipe, gboolean flush) {
-	const ssize_t max_read = 1024;
+	const ssize_t max_read = 8192;
 	ssize_t r, toread;
 	GString *buf;
 	int count = 10;
