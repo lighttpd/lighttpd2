@@ -32,6 +32,8 @@
 #include <lighttpd/collect.h>
 #include <lighttpd/encoding.h>
 
+#include <lighttpd/plugin_core.h>
+
 LI_API gboolean mod_status_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_status_free(liModules *mods, liModule *mod);
 
@@ -409,7 +411,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		count_bout = g_string_sized_new(10);
 		tmpstr = g_string_sized_new(10);
 
-		VR_DEBUG(vr, "finished collecting data: %s", complete ? "complete" : "not complete");
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "finished collecting data: %s", complete ? "complete" : "not complete");
+		}
 
 		/* calculate total stats over all workers */
 		for (i = 0; i < result->len; i++) {
@@ -738,7 +742,9 @@ static liHandlerResult status_info(liVRequest *vr, gpointer _param, gpointer *co
 		j->p = param->p;
 		j->short_info = param->short_info;
 
-		VR_DEBUG(vr, "%s", "collecting stats...");
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "%s", "collecting stats...");
+		}
 
 		ci = li_collect_start(vr->wrk, status_collect_func, j, status_collect_cb, NULL);
 		*context = ci; /* may be NULL */
