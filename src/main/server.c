@@ -146,7 +146,6 @@ liServer* li_server_new(const gchar *module_dir) {
 				rlim.rlim_cur = rlim.rlim_max;
 				if (0 != setrlimit(RLIMIT_NOFILE, &rlim)) {
 					ERROR(srv, "couldn't set 'max filedescriptors': %s", g_strerror(errno));
-					return -1;
 				} else {
 					max_fds = rlim.rlim_cur;
 				}
