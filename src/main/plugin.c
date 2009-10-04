@@ -89,6 +89,8 @@ void li_server_plugins_free(liServer *srv) {
 		li_plugin_free_options(srv, p);
 		li_plugin_free_actions(srv, p);
 		li_plugin_free_setups(srv, p);
+		if (p->free)
+			p->free(srv, p);
 
 		g_slice_free(liPlugin, p);
 	}
