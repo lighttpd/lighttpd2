@@ -8,10 +8,12 @@
  * Setups:
  *     none
  * Options:
- *     accesslog <file> - log target
+ *     accesslog = <file>;           - log target
  *         type: string
- *     accesslog.format <format> - log target
+ *         default: none
+ *     accesslog.format = <format>;  - log format
  *         type: string
+ *         default: "%h %V %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
  * Actions:
  *     none
  *
@@ -387,7 +389,7 @@ static void al_option_accesslog_free(liServer *srv, liPlugin *p, size_t ndx, liO
 
 	if (!oval.ptr) return;
 
-	log_free(srv, oval.ptr);
+	log_unref(srv, oval.ptr);
 }
 
 static gboolean al_option_accesslog_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
@@ -401,6 +403,11 @@ static gboolean al_option_accesslog_parse(liServer *srv, liPlugin *p, size_t ndx
 		return TRUE;
 	}
 
+	if (val->type != LI_VALUE_STRING) {
+		ERROR(srv, "accesslog option expects a string as parameter, %s given", li_value_type_string(val->type));
+		return FALSE;
+	}
+
 	log = log_new(srv, log_type_from_path(val->data.string), val->data.string);
 
 	oval->ptr = log;
@@ -410,6 +417,7 @@ static gboolean al_option_accesslog_parse(liServer *srv, liPlugin *p, size_t ndx
 
 static void al_option_accesslog_format_free(liServer *srv, liPlugin *p, size_t ndx, liOptionValue oval) {
 	GArray *arr;
+	guint i;
 
 	UNUSED(srv);
 	UNUSED(p);
@@ -419,7 +427,7 @@ static void al_option_accesslog_format_free(liServer *srv, liPlugin *p, size_t n
 
 	arr = oval.list;
 
-	for (guint i = 0; i < arr->len; i++) {
+	for (i = 0; i < arr->len; i++) {
 		al_format_entry *afe = &g_array_index(arr, al_format_entry, i);
 		if (afe->key)
 			g_string_free(afe->key, TRUE);
@@ -437,6 +445,11 @@ static gboolean al_option_accesslog_format_parse(liServer *srv, liPlugin *p, siz
 	if (!val) {
 		/* default */
 		return TRUE;
+	}
+
+	if (val->type != LI_VALUE_STRING) {
+		ERROR(srv, "accesslog.format option expects a string as parameter, %s given", li_value_type_string(val->type));
+		return FALSE;
 	}
 
 	arr = al_parse_format(srv, val->data.string);
@@ -491,11 +504,18 @@ static void plugin_accesslog_init(liServer *srv, liPlugin *p) {
 }
 
 LI_API gboolean mod_accesslog_init(liModules *mods, liModule *mod) {
-	UNUSED(mod);
+	liValue *val;
+	GString *str;
 
 	MODULE_VERSION_CHECK(mods);
 
 	mod->config = li_plugin_register(mods->main, "mod_accesslog", plugin_accesslog_init);
+
+	/* set default accesslog format */
+	str = g_string_new_len(CONST_STR_LEN("%h %V %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""));
+	val = li_value_new_string(str);
+	li_plugin_set_default_option(mods->main, "accesslog.format", val);
+	li_value_free(val);
 
 	return mod->config != NULL;
 }
