@@ -12,6 +12,7 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 	uid_t uid = -1;
 	gid_t gid = -1;
 	GString *user = NULL;
+	gint64 rlim_core = -1, rlim_nofile = -1;
 
 	if (config->load_instconf) {
 		ERROR(srv, "%s", "Already configure the instance");
@@ -160,10 +161,13 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("/usr/lib/lighttpd2/")));
 	}
 
+	if (options[9]) rlim_core = options[9]->data.number;
+	if (options[10]) rlim_nofile = options[10]->data.number;
+
 	g_ptr_array_add(cmd, NULL);
 	cmdarr = (gchar**) g_ptr_array_free(cmd, FALSE);
 	envarr = (gchar**) g_ptr_array_free(env, FALSE);
-	config->load_instconf = li_instance_conf_new(cmdarr, envarr, user, uid, gid);
+	config->load_instconf = li_instance_conf_new(cmdarr, envarr, user, uid, gid, -1, -1);
 }
 
 static const liPluginItemOption core_instance_options[] = {
@@ -176,6 +180,8 @@ static const liPluginItemOption core_instance_options[] = {
 	/*  6 */ { "wrapper", LI_VALUE_LIST, 0 },
 	/*  7 */ { "env", LI_VALUE_LIST, 0 },
 	/*  8 */ { "copy-env", LI_VALUE_LIST, 0 },
+	/*  9 */ { "max-core-file-size", LI_VALUE_NUMBER, 0 },
+	/* 10 */ { "max-open-files", LI_VALUE_NUMBER, 0 },
 	{ NULL, 0, 0 }
 };
 

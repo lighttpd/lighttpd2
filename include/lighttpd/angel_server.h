@@ -26,6 +26,8 @@ struct liInstanceConf {
 	GString *username;
 	uid_t uid;
 	gid_t gid;
+
+	gint64 rlim_core, rlim_nofile; /* < 0: don't change, G_MAXINT64: unlimited */
 };
 
 struct liInstance {
@@ -68,7 +70,7 @@ LI_API void li_instance_replace(liInstance *oldi, liInstance *newi);
 LI_API void li_instance_set_state(liInstance *i, liInstanceState s);
 LI_API void li_instance_state_reached(liInstance *i, liInstanceState s);
 
-LI_API liInstanceConf* li_instance_conf_new(gchar **cmd, gchar **env, GString *username, uid_t uid, gid_t gid);
+LI_API liInstanceConf* li_instance_conf_new(gchar **cmd, gchar **env, GString *username, uid_t uid, gid_t gid, gint64 rlim_core, gint64 rlim_nofile);
 LI_API void li_instance_conf_release(liInstanceConf *ic);
 LI_API void li_instance_conf_acquire(liInstanceConf *ic);
 

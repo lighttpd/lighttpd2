@@ -3,6 +3,10 @@
 
 #include <grp.h>
 
+#ifdef HAVE_SYS_RESOURCE_H
+# include <sys/resource.h>
+#endif
+
 static void read_pipe(liServer *srv, liErrorPipe *epipe, gboolean flush) {
 	const ssize_t max_read = 8192;
 	ssize_t r, toread;
@@ -137,7 +141,7 @@ static void proc_epipe_cb(liServer *srv, liErrorPipe *epipe, GString *msg) {
 	BACKEND_LINES(srv, msg->str, "%s[%i]: ", proc->appname, proc->child_pid);
 }
 
-liProc* li_proc_new(liServer *srv, gchar **args, gchar **env, uid_t uid, gid_t gid, gchar *username, liProcSetupCB cb, gpointer ctx) {
+liProc* li_proc_new(liServer *srv, gchar **args, gchar **env, uid_t uid, gid_t gid, gchar *username, gint64 rlim_core, gint64 rlim_nofile, liProcSetupCB cb, gpointer ctx) {
 	liProc *proc;
 	pid_t pid;
 
@@ -179,6 +183,23 @@ liProc* li_proc_new(liServer *srv, gchar **args, gchar **env, uid_t uid, gid_t g
 		li_proc_free(proc);
 		return NULL;
 	default:
+#ifdef HAVE_GETRLIMIT
+		{
+			struct rlimit rlim;
+			if (rlim_core >= 0) {
+				rlim.rlim_cur = rlim.rlim_max = ((guint64) rlim_core >= RLIM_INFINITY) ? RLIM_INFINITY : (guint64) rlim_core;
+				if (0 != setrlimit(RLIMIT_CORE, &rlim)) {
+					ERROR(srv, "couldn't set 'max core file size': %s", g_strerror(errno));
+				}
+			}
+			if (rlim_nofile >= 0) {
+				rlim.rlim_cur = rlim.rlim_max = ((guint64) rlim_nofile >= RLIM_INFINITY) ? RLIM_INFINITY : (guint64) rlim_nofile;
+				if (0 != setrlimit(RLIMIT_NOFILE, &rlim)) {
+					ERROR(srv, "couldn't set 'max filedescriptors': %s", g_strerror(errno));
+				}
+			}
+		}
+#endif
 		proc->child_pid = pid;
 		li_error_pipe_activate(proc->epipe);
 		break;

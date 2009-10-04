@@ -39,7 +39,7 @@ LI_API void li_error_pipe_use(liErrorPipe *epipe, int dest_fd);
 /** read remaining data from in-fd */
 LI_API void li_error_pipe_flush(liErrorPipe *epipe);
 
-LI_API liProc* li_proc_new(liServer *srv, gchar **args, gchar **env, uid_t uid, gid_t gid, gchar *username, liProcSetupCB cb, gpointer ctx);
+LI_API liProc* li_proc_new(liServer *srv, gchar **args, gchar **env, uid_t uid, gid_t gid, gchar *username, gint64 rlim_core, gint64 rlim_nofile, liProcSetupCB cb, gpointer ctx);
 LI_API void li_proc_free(liProc *proc);
 
 #endif
