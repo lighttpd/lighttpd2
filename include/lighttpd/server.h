@@ -61,8 +61,7 @@ struct liServer {
 		sig_w_INT,
 		sig_w_TERM,
 		sig_w_PIPE;
-	ev_prepare srv_prepare;
-	ev_check srv_check;
+	ev_timer srv_1sec_timer;
 
 	GPtrArray *sockets;          /** array of (server_socket*) */
 
@@ -98,6 +97,9 @@ struct liServer {
 
 	ev_tstamp started;
 	GString *started_str;
+
+	guint connection_load, max_connections;
+	gboolean connection_limit_hit; /** true if limit was hit and the sockets are disabled */
 
 	/* keep alive timeout */
 	guint keep_alive_queue_timeout;

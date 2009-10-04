@@ -635,6 +635,7 @@ void worker_con_put(liConnection *con) {
 		/* already disconnected */
 		return;
 
+	g_atomic_int_add((gint*) &wrk->srv->connection_load, -1);
 	g_atomic_int_add((gint*) &wrk->connection_load, -1);
 	g_atomic_int_add((gint*) &wrk->connections_active, -1);
 

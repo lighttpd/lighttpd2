@@ -30,6 +30,7 @@ AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS([ \
 	stddef.h \
 	sys/mman.h \
+	sys/resource.h \
 	sys/sendfile.h \
 	sys/types.h \
 	sys/uio.h \
@@ -114,6 +115,7 @@ AC_SEARCH_LIBS([inet_addr],[nsl socket])
 # Checks for library functions.
 AC_CHECK_FUNCS([ \
 	chroot \
+	getrlimit \
 	gmtime_r \
 	inet_aton \
 	inet_ntop \

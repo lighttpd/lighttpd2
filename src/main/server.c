@@ -8,6 +8,9 @@
 # include <lauxlib.h>
 #endif
 
+#ifdef HAVE_SYS_RESOURCE_H
+# include <sys/resource.h>
+#endif
 
 static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents);
 static void li_server_stop(liServer *srv);
@@ -127,6 +130,36 @@ liServer* li_server_new(const gchar *module_dir) {
 
 	log_init(srv);
 
+	srv->connection_load = 0;
+	srv->max_connections = 256; /* assume max-fds = 1024 */
+	srv->connection_limit_hit = FALSE;
+#ifdef HAVE_GETRLIMIT
+	{
+		struct rlimit rlim;
+		rlim_t max_fds = 1024;
+		if (0 != getrlimit(RLIMIT_NOFILE, &rlim)) {
+			ERROR(srv, "couldn't get 'max filedescriptors': %s", g_strerror(errno));
+		} else {
+			max_fds = rlim.rlim_cur;
+			if (rlim.rlim_cur < rlim.rlim_max) {
+				/* go for maximum */
+				rlim.rlim_cur = rlim.rlim_max;
+				if (0 != setrlimit(RLIMIT_NOFILE, &rlim)) {
+					ERROR(srv, "couldn't set 'max filedescriptors': %s", g_strerror(errno));
+					return -1;
+				} else {
+					max_fds = rlim.rlim_cur;
+				}
+			}
+		}
+		if (max_fds / 4 > G_MAXUINT32) {
+			srv->max_connections = G_MAXUINT32;
+		} else {
+			srv->max_connections = max_fds / 4;
+		}
+	}
+#endif
+
 	srv->io_timeout = 300; /* default I/O timeout */
 	srv->keep_alive_queue_timeout = 5;
 
@@ -241,6 +274,26 @@ gboolean li_server_loop_init(liServer *srv) {
 	return TRUE;
 }
 
+static void li_server_1sec_timer(struct ev_loop *loop, ev_timer *w, int revents) {
+	liServer *srv = w->data;
+	UNUSED(loop);
+	UNUSED(revents);
+
+	if (srv->connection_limit_hit) {
+		guint srv_cur_load = g_atomic_int_get(&srv->connection_load);
+		guint srv_max_load = g_atomic_int_get(&srv->max_connections);
+		if (srv_cur_load <= (srv_max_load - srv_max_load/8)) { /* cur_load <= 7/8 * max_load */
+			guint i;
+
+			for (i = 0; i < srv->sockets->len; i++) {
+				liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
+				ev_io_start(srv->main_worker->loop, &sock->watcher);
+			}
+			srv->connection_limit_hit = FALSE;
+		}
+	}
+}
+
 gboolean li_server_worker_init(liServer *srv) {
 	struct ev_loop *loop = srv->loop;
 	guint i;
@@ -248,6 +301,11 @@ gboolean li_server_worker_init(liServer *srv) {
 	CATCH_SIGNAL(loop, sigint_cb, INT);
 	CATCH_SIGNAL(loop, sigint_cb, TERM);
 	CATCH_SIGNAL(loop, sigpipe_cb, PIPE);
+
+	ev_timer_init(&srv->srv_1sec_timer, li_server_1sec_timer, 1.0, 1.0);
+	srv->srv_1sec_timer.data = srv;
+	ev_timer_start(loop, &srv->srv_1sec_timer);
+	ev_unref(loop); /* don't keep loop alive */
 
 	if (srv->worker_count < 1) srv->worker_count = 1;
 	g_array_set_size(srv->workers, srv->worker_count);
@@ -271,6 +329,17 @@ gboolean li_server_worker_init(liServer *srv) {
 	return TRUE;
 }
 
+static void server_connection_limit_hit(liServer *srv) {
+	guint i;
+
+	for (i = 0; i < srv->sockets->len; i++) {
+		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
+		ev_io_stop(srv->main_worker->loop, &sock->watcher);
+	}
+
+	srv->connection_limit_hit = TRUE;
+}
+
 static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	liServerSocket *sock = (liServerSocket*) w->data;
 	liServer *srv = sock->srv;
@@ -281,9 +350,21 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	UNUSED(loop);
 	UNUSED(revents);
 
-	while (-1 != (s = accept(w->fd, &sa, &l))) {
-		liWorker *wrk = srv->main_worker;
-		guint i, min_load = g_atomic_int_get(&wrk->connection_load);
+	for ( ;; ) {
+		liWorker *wrk;
+		guint i, min_load, srv_cur_load, srv_max_load;
+
+		srv_cur_load = g_atomic_int_get(&srv->connection_load);
+		srv_max_load = g_atomic_int_get(&srv->max_connections);
+		if (srv_cur_load >= srv_max_load) {
+			server_connection_limit_hit(srv);
+			return;
+		}
+
+		if (-1 == (s = accept(w->fd, &sa, &l))) break;
+
+		wrk = srv->main_worker;
+		min_load = g_atomic_int_get(&wrk->connection_load);
 
 		if (l <= sizeof(sa)) {
 			remote_addr.addr = g_slice_alloc(l);
@@ -306,6 +387,7 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		}
 
 		g_atomic_int_inc((gint*) &wrk->connection_load);
+		g_atomic_int_inc((gint*) &srv->connection_load);
 		li_server_socket_acquire(sock);
 		li_worker_new_con(srv->main_worker, wrk, remote_addr, s, sock);
 	}
@@ -363,6 +445,7 @@ static void li_server_stop_listen(liServer *srv) {
 		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
 		ev_io_stop(srv->main_worker->loop, &sock->watcher);
 	}
+	srv->connection_limit_hit = FALSE; /* reset flag */
 
 	/* suspend all workers (close keep-alive connections) */
 	for (i = 0; i < srv->worker_count; i++) {
@@ -379,6 +462,7 @@ static void li_server_stop(liServer *srv) {
 		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
 		ev_io_stop(srv->main_worker->loop, &sock->watcher);
 	}
+	srv->connection_limit_hit = FALSE; /* reset flag */
 
 	/* stop all workers */
 	for (i = 0; i < srv->worker_count; i++) {
