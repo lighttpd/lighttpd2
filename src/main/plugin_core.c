@@ -545,7 +545,6 @@ static gboolean core_workers(liServer *srv, liPlugin* p, liValue *val) {
 }
 
 static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val) {
-	GString *name;
 	liValue *mods = li_value_new_list();
 
 	UNUSED(p);
@@ -579,7 +578,7 @@ static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val) {
 
 	/* parameter types ok, load modules */
 	for (guint i = 0; i < mods->data.list->len; i++) {
-		name = g_array_index(mods->data.list, liValue*, i)->data.string;
+		GString *name = g_array_index(mods->data.list, liValue*, i)->data.string;
 		if (li_module_lookup(srv->modules, name->str)) {
 			DEBUG(srv, "module_load: module '%s' already loaded", name->str);
 			continue;
