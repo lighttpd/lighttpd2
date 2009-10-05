@@ -1,5 +1,6 @@
 
 #include <lighttpd/core_lua.h>
+#include <lighttpd/actions_lua.h>
 
 #include <lualib.h>
 #include <lauxlib.h>
@@ -254,6 +255,27 @@ static int lua_vrequest_handle_direct(lua_State *L) {
 	return 1;
 }
 
+static int lua_vrequest_enter_action(lua_State *L) {
+	liVRequest *vr;
+	liAction *act;
+
+	if (lua_gettop(L) != 2) {
+		lua_pushstring(L, "incorrect number of arguments");
+		lua_error(L);
+	}
+
+	vr = lua_get_vrequest(L, 1);
+	act = lua_get_action(L, 2);
+	if (!vr || !act) {
+		lua_pushstring(L, "wrong arguments");
+		lua_error(L);
+	}
+
+	li_action_enter(vr, act);
+
+	return 0;
+}
+
 static const luaL_Reg vrequest_mt[] = {
 	{ "__index", lua_vrequest_index },
 	{ "__newindex", lua_vrequest_newindex },
@@ -266,6 +288,8 @@ static const luaL_Reg vrequest_mt[] = {
 	{ "stat", lua_vrequest_stat },
 
 	{ "handle_direct", lua_vrequest_handle_direct },
+
+	{ "enter_action", lua_vrequest_enter_action },
 
 	{ NULL, NULL }
 };
