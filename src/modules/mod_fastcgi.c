@@ -515,7 +515,7 @@ static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 	gint len;
 	while (fastcgi_get_packet(fcon)) {
 		if (fcon->fcgi_in_record.version != FCGI_VERSION_1) {
-			VR_ERROR(vr, "Unknown fastcgi protocol version %i", (gint) fcon->fcgi_in_record.version);
+			VR_ERROR(vr, "(%s) Unknown fastcgi protocol version %i", fcon->ctx->socket_str->str, (gint) fcon->fcgi_in_record.version);
 			close(fcon->fd);
 			fcon->fd = -1;
 			li_vrequest_error(vr);
@@ -544,7 +544,7 @@ static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 			li_chunkqueue_skip(fcon->fcgi_in, len);
 			break;
 		default:
-			if (fcon->fcgi_in_record.first) VR_WARNING(vr, "Unhandled fastcgi record type %i", (gint) fcon->fcgi_in_record.type);
+			if (fcon->fcgi_in_record.first) VR_WARNING(vr, "(%s) Unhandled fastcgi record type %i", fcon->ctx->socket_str->str, (gint) fcon->fcgi_in_record.type);
 			li_chunkqueue_skip(fcon->fcgi_in, fastcgi_available(fcon));
 			break;
 		}
@@ -575,7 +575,7 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:
-				VR_ERROR(fcon->vr, "%s", "network read fatal error");
+				VR_ERROR(fcon->vr, "(%s) network read fatal error", fcon->ctx->socket_str->str);
 				li_vrequest_error(fcon->vr);
 				return;
 			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
@@ -600,7 +600,7 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:
-				VR_ERROR(fcon->vr, "%s", "network write fatal error");
+				VR_ERROR(fcon->vr, "(%s) network write fatal error", fcon->ctx->socket_str->str);
 				li_vrequest_error(fcon->vr);
 				return;
 			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
@@ -636,7 +636,7 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	}
 
 	if (fcon->fcgi_in->is_closed && !fcon->vr->out->is_closed) {
-		VR_ERROR(fcon->vr, "%s", "unexpected end-of-file (perhaps the fastcgi process died)");
+		VR_ERROR(fcon->vr, "(%s) unexpected end-of-file (perhaps the fastcgi process died)", fcon->ctx->socket_str->str);
 		li_vrequest_error(fcon->vr);
 	}
 }
