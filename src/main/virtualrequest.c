@@ -172,8 +172,6 @@ liVRequest* li_vrequest_new(liConnection *con, liVRequestHandlerCB handle_respon
 }
 
 void li_vrequest_free(liVRequest* vr) {
-	guint i;
-
 	li_action_stack_clear(vr, &vr->action_stack);
 	li_plugins_handle_vrclose(vr);
 	g_ptr_array_free(vr->plugin_ctx, TRUE);
@@ -194,8 +192,8 @@ void li_vrequest_free(liVRequest* vr) {
 	g_slice_free1(vr->wrk->srv->option_def_values->len * sizeof(liOptionValue), vr->options);
 
 
-	for (i = 0; i < vr->stat_cache_entries->len; i++) {
-		liStatCacheEntry *sce = g_ptr_array_index(vr->stat_cache_entries, i);
+	while (vr->stat_cache_entries->len > 0 ) {
+		liStatCacheEntry *sce = g_ptr_array_index(vr->stat_cache_entries, 0);
 		li_stat_cache_entry_release(vr, sce);
 	}
 	g_ptr_array_free(vr->stat_cache_entries, TRUE);
@@ -209,8 +207,6 @@ void li_vrequest_free(liVRequest* vr) {
 }
 
 void li_vrequest_reset(liVRequest *vr) {
-	guint i;
-
 	li_action_stack_reset(vr, &vr->action_stack);
 	li_plugins_handle_vrclose(vr);
 	{
@@ -236,8 +232,8 @@ void li_vrequest_reset(liVRequest *vr) {
 		g_atomic_int_set(&vr->queued, 0);
 	}
 
-	for (i = 0; i < vr->stat_cache_entries->len; i++) {
-		liStatCacheEntry *sce = g_ptr_array_index(vr->stat_cache_entries, i);
+	while (vr->stat_cache_entries->len > 0 ) {
+		liStatCacheEntry *sce = g_ptr_array_index(vr->stat_cache_entries, 0);
 		li_stat_cache_entry_release(vr, sce);
 	}
 

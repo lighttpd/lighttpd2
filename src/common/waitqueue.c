@@ -94,6 +94,25 @@ liWaitQueueElem *li_waitqueue_pop(liWaitQueue *queue) {
 	return elem;
 }
 
+liWaitQueueElem *li_waitqueue_pop_force(liWaitQueue *queue) {
+	liWaitQueueElem *elem = queue->head;
+
+	if (!elem) {
+		return NULL;
+	}
+
+	if (elem == queue->tail)
+		queue->tail = NULL;
+	else
+		elem->next->prev = NULL;
+
+	queue->head = elem->next;
+
+	elem->queued = FALSE;
+
+	return elem;
+}
+
 void li_waitqueue_remove(liWaitQueue *queue, liWaitQueueElem *elem) {
 	if (!elem->queued)
 		return;

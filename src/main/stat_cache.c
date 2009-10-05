@@ -40,25 +40,30 @@ void stat_cache_new(liWorker *wrk, gdouble ttl) {
 }
 
 void stat_cache_free(liStatCache *sc) {
-	GHashTableIter iter;
-	gpointer k, v;
-	liStatCacheEntry *dummy;
+	liStatCacheEntry *sce;
+	liWaitQueueElem *wqe;
 
 	/* wake up thread */
-	dummy = g_slice_new0(liStatCacheEntry);
-	g_async_queue_push(sc->job_queue_out, dummy);
+	sce = g_slice_new0(liStatCacheEntry);
+	g_async_queue_push(sc->job_queue_out, sce);
 	g_thread_join(sc->thread);
-	g_slice_free(liStatCacheEntry, dummy);
+	g_slice_free(liStatCacheEntry, sce);
+
+	li_waitqueue_stop(&sc->delete_queue);
+	while (NULL != (wqe = li_waitqueue_pop_force(&sc->delete_queue))) {
+		sce = wqe->data;
+		if (sce->cached) {
+			if (sce->type == STAT_CACHE_ENTRY_SINGLE)
+				g_hash_table_remove(sc->entries, sce->data.path);
+			else
+				g_hash_table_remove(sc->dirlists, sce->data.path);
+			sce->cached = FALSE;
+		}
+		stat_cache_entry_free(sce);
+	}
 
 	li_ev_safe_ref_and_stop(ev_async_stop, sc->delete_queue.loop, &sc->job_watcher);
 
-	/* clear cache */
-	g_hash_table_iter_init(&iter, sc->entries);
-	while (g_hash_table_iter_next(&iter, &k, &v)) {
-		stat_cache_entry_free(v);
-	}
-
-	li_waitqueue_stop(&sc->delete_queue);
 	g_async_queue_unref(sc->job_queue_in);
 	g_async_queue_unref(sc->job_queue_out);
 	g_hash_table_destroy(sc->entries);
@@ -117,10 +122,6 @@ static void stat_cache_job_cb(struct ev_loop *loop, ev_async *w, int revents) {
 		for (i = 0; i < sce->vrequests->len; i++) {
 			vr = g_ptr_array_index(sce->vrequests, i);
 			li_vrequest_joblist_append(vr);
-			if (sce->type == STAT_CACHE_ENTRY_SINGLE) {
-				sce->refcount--;
-				g_ptr_array_remove_fast(vr->stat_cache_entries, sce);
-			}
 		}
 
 		g_ptr_array_set_size(sce->vrequests, 0);
@@ -267,10 +268,13 @@ liHandlerResult li_stat_cache_get_dirlist(liVRequest *vr, GString *path, liStatC
 			return LI_HANDLER_WAIT_FOR_EVENT;
 		}
 
-		sce->refcount++;
-		g_ptr_array_add(vr->stat_cache_entries, sce);
 		sc->hits++;
 		*result = sce;
+		for (i = 0; i < vr->stat_cache_entries->len; i++) {
+			if (g_ptr_array_index(vr->stat_cache_entries, i) == sce)
+				return LI_HANDLER_GO_ON;
+		}
+		li_stat_cache_entry_acquire(vr, sce);
 		return LI_HANDLER_GO_ON;
 	} else {
 		/* cache miss, allocate new entry */
