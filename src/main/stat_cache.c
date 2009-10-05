@@ -138,7 +138,7 @@ static void stat_cache_entry_free(liStatCacheEntry *sce) {
 	g_string_free(sce->data.path, TRUE);
 	g_ptr_array_free(sce->vrequests, TRUE);
 
-	if (sce->type == STAT_CACHE_ENTRY_DIR) {
+	if (NULL != sce->dirlist) {
 		for (i = 0; i < sce->dirlist->len; i++) {
 			g_string_free(g_array_index(sce->dirlist, liStatCacheEntryData, i).path, TRUE);
 		}
@@ -185,6 +185,8 @@ static gpointer stat_cache_thread(gpointer data) {
 				size = li_dirent_buf_size(dirp);
 				assert(size != (gsize)-1);
 				entry = g_slice_alloc(size);
+
+				sce->dirlist = g_array_sized_new(FALSE, FALSE, sizeof(liStatCacheEntryData), 32);
 
 				str = g_string_sized_new(sce->data.path->len + 64);
 				g_string_append_len(str, GSTR_LEN(sce->data.path));
@@ -280,7 +282,6 @@ liHandlerResult li_stat_cache_get_dirlist(liVRequest *vr, GString *path, liStatC
 		/* cache miss, allocate new entry */
 		sce = stat_cache_entry_new(path);
 		sce->type = STAT_CACHE_ENTRY_DIR;
-		sce->dirlist = g_array_sized_new(FALSE, FALSE, sizeof(liStatCacheEntryData), 32);
 		li_stat_cache_entry_acquire(vr, sce);
 		li_waitqueue_push(&sc->delete_queue, &sce->queue_elem);
 		g_hash_table_insert(sc->dirlists, sce->data.path, sce);
