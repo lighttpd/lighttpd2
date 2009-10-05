@@ -244,11 +244,11 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(vr->con->local_addr_str));
 				break;
 			case AL_FORMAT_BYTES_RESPONSE:
-				g_string_append_printf(str, "%jd", vr->out->bytes_out);
+				g_string_append_printf(str, "%jd", vr->vr_out->bytes_out);
 				break;
 			case AL_FORMAT_BYTES_RESPONSE_CLF:
-				if (vr->out->bytes_out)
-					g_string_append_printf(str, "%jd", vr->out->bytes_out);
+				if (vr->vr_out->bytes_out)
+					g_string_append_printf(str, "%jd", vr->vr_out->bytes_out);
 				else
 					g_string_append_c(str, '-');
 				break;
@@ -423,7 +423,7 @@ static void al_option_accesslog_format_free(liServer *srv, liPlugin *p, size_t n
 	UNUSED(p);
 	UNUSED(ndx);
 
-	if (!oval.ptr) return;
+	if (!oval.list) return;
 
 	arr = oval.list;
 
