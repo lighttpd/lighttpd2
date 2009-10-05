@@ -28,6 +28,8 @@
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
 
+#include <sys/resource.h>
+
 #include <lighttpd/base.h>
 #include <lighttpd/collect.h>
 #include <lighttpd/encoding.h>
@@ -185,15 +187,25 @@ static const gchar html_connections_row[] =
 static const gchar html_server_info[] =
 	"		<table cellspacing=\"0\">\n"
 	"			<tr>\n"
-	"				<td  class=\"left\" style=\"width: 100px;\">Hostname</td>\n"
+	"				<td  class=\"left\" style=\"width: 125px;\">Hostname</td>\n"
 	"				<td class=\"left\">%s</td>\n"
 	"			</tr>\n"
 	"			<tr>\n"
 	"				<td class=\"left\">User</td>\n"
 	"				<td class=\"left\">%s (%u)</td>\n"
 	"			</tr>\n"
+	"			<tr>\n"
 	"				<td class=\"left\">Event handler</td>\n"
 	"				<td class=\"left\">%s</td>\n"
+	"			</tr>\n"
+	"			<tr>\n"
+	"				<td class=\"left\">File descriptor limit</td>\n"
+	"				<td class=\"left\">%"G_GUINT64_FORMAT"</td>\n"
+	"			</tr>\n"
+	"			<tr>\n"
+	"				<td class=\"left\">Core size limit</td>\n"
+	"				<td class=\"left\">%s</td>\n"
+	"			</tr>\n"
 	"		</table>\n";
 static const gchar html_libinfo_th[] =
 	"		<table cellspacing=\"0\">\n"
@@ -863,9 +875,17 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 
 	/* general info */
 	{
+		struct rlimit lim_fd, lim_core;
+
+		getrlimit(RLIMIT_NOFILE, &lim_fd);
+		getrlimit(RLIMIT_CORE, &lim_core);
+
+		li_counter_format(lim_core.rlim_cur, COUNTER_BYTES, vr->wrk->tmp_str);
+
 		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Server info</strong></div>\n"));
 		g_string_append_printf(html, html_server_info,
-			g_get_host_name(), g_get_user_name(), getuid(), li_ev_backend_string(ev_backend(vr->wrk->loop))
+			g_get_host_name(), g_get_user_name(), getuid(), li_ev_backend_string(ev_backend(vr->wrk->loop)),
+			(guint64)lim_fd.rlim_cur, lim_core.rlim_cur == 0 ? "disabled" : vr->wrk->tmp_str->str
 		);
 	}
 
