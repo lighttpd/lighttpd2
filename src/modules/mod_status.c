@@ -311,6 +311,7 @@ struct mod_status_wrk_data {
 	guint worker_ndx;
 	liStatistics stats;
 	GArray *connections;
+	guint connection_count[6];
 };
 
 struct mod_status_job {
@@ -321,14 +322,9 @@ struct mod_status_job {
 };
 
 
-static gchar status_state_c(liConnectionState state) {
-	static const gchar states[] = "dksrhw";
-	return states[state];
-}
-
 /* the CollectFunc */
 static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
-	mod_status_wrk_data *sd = g_slice_new(mod_status_wrk_data);
+	mod_status_wrk_data *sd = g_slice_new0(mod_status_wrk_data);
 	UNUSED(fdata);
 
 	sd->stats = wrk->stats;
@@ -355,6 +351,8 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->bytes_out = c->stats.bytes_out;
 		cd->bytes_in_5s_diff = c->stats.bytes_in_5s_diff;
 		cd->bytes_out_5s_diff = c->stats.bytes_out_5s_diff;
+
+		sd->connection_count[c->state]++;
 	}
 	return sd;
 }
@@ -390,20 +388,15 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		g_slice_free(mod_status_job, job);
 
 		return;
-	}
-
-	/* clear context so it doesn't get cleaned up anymore */
-	*(job->context) = NULL;
-	g_slice_free(mod_status_job, job);
-
-	if (complete) {
-		GString *html;
-		GString *tmpstr;
-		GString *count_req, *count_bin, *count_bout;
-		guint uptime;
+	} else {
+		GString *html, *tmpstr, *count_req, *count_bin, *count_bout;
+		guint uptime, i, j;
 		guint total_connections = 0;
-		guint i;
-		guint j;
+		guint connection_count[6] = {0,0,0,0,0,0};
+
+		/* clear context so it doesn't get cleaned up anymore */
+		*(job->context) = NULL;
+		g_slice_free(mod_status_job, job);
 
 		/* we got everything */
 		liStatistics totals = {
@@ -442,6 +435,13 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			totals.bytes_out_5s_diff += sd->stats.bytes_out_5s_diff;
 			totals.active_cons_cum += sd->stats.active_cons_cum;
 			totals.active_cons_5s += sd->stats.active_cons_5s;
+
+			connection_count[0] += sd->connection_count[0];
+			connection_count[1] += sd->connection_count[1];
+			connection_count[2] += sd->connection_count[2];
+			connection_count[3] += sd->connection_count[3];
+			connection_count[4] += sd->connection_count[4];
+			connection_count[5] += sd->connection_count[5];
 		}
 
 		g_string_append_len(html, CONST_STR_LEN(html_header));
@@ -592,32 +592,13 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 		}
 
-		/* scoreboard */
-		{
-			guint k = 0;
-
-			g_string_append_printf(html, "<div class=\"title\"><strong>%u connections</strong></div>\n<div class=\"text\">", total_connections);
-
-			for (i = 0; i < result->len; i++) {
-				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
-				for (j = 0; j < sd->connections->len; j++) {
-					mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
-
-					k++;
-
-					if (k == 100) {
-						g_string_append_len(html, CONST_STR_LEN("<br />\n"));
-						k = 0;
-					}
-
-					g_string_append_c(html, status_state_c(cd->state));
-				}
-			}
-
-			g_string_append_len(html, CONST_STR_LEN("</div>\n<div class=\"title\" style=\"margin-top: 10px;\"><strong>legend</strong></div>\n<div class=\"text\">"
-				"d = dead, k = keep-alive, s = request start, r = read request header, h = handle main vrequest, w = write"
-				"</div>\n"));
-		}
+		/* connection counts */
+		g_string_append_printf(html,
+			"<div class=\"title\"><strong>%u connections</strong></div>\n<div class=\"text\">"
+			"dead: %u keep-alive: %u request start: %u read request header: %u handle main vrequest: %u write: %u</div>\n",
+			total_connections, connection_count[0], connection_count[1], connection_count[2],
+			connection_count[3], connection_count[4], connection_count[5]
+		);
 
 		/* list connections */
 		if (!short_info) {
@@ -723,10 +704,6 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		li_vrequest_handle_direct(vr);
 
 		li_vrequest_joblist_append(vr);
-	} else {
-		/* something went wrong, client may have dropped the connection */
-		VR_ERROR(vr, "%s", "collect request didn't end up complete");
-		li_vrequest_error(vr);
 	}
 }
 
