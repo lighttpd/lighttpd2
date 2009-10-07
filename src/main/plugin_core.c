@@ -470,7 +470,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 		if (!ranged_response) {
 			vr->response.http_status = 200;
 			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
-			li_chunkqueue_append_chunkfile(vr->out, cf, st.st_size, fd);
+			li_chunkqueue_append_chunkfile(vr->out, cf, 0, st.st_size);
 		}
 
 		li_chunkfile_release(cf);
