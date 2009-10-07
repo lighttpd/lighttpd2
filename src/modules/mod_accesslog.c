@@ -371,7 +371,7 @@ static void al_handle_vrclose(liVRequest *vr, liPlugin *p) {
 
 	UNUSED(p);
 
-	if (resp->http_status == 0 || !log || !format)
+	if (LI_VRS_CLEAN == vr->state || resp->http_status == 0 || !log || !format)
 		/* if status code is zero, it means the connection was closed while in keep alive state or similar and no logging is needed */
 		return;
 
