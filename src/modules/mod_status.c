@@ -617,8 +617,8 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 
 		/* connection counts */
 		g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong> (states, sum)</div>\n"));
-		g_string_append_printf(html, html_connections_sum, connection_count[1],
-			connection_count[2], connection_count[3], connection_count[4], connection_count[5]
+		g_string_append_printf(html, html_connections_sum, connection_count[2],
+			connection_count[3], connection_count[4], connection_count[5], connection_count[1]
 		);
 
 		/* list connections */
