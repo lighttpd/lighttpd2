@@ -423,7 +423,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 						if (!is_multipart && !rs.last_range) {
 							is_multipart = TRUE;
 						}
-						g_string_printf(vr->wrk->tmp_str, "bytes %"G_GOFFSET_FORMAT"-%"G_GOFFSET_FORMAT"/%"G_GOFFSET_FORMAT, rs.range_start, rs.range_end, (goffset) st.st_size);
+						g_string_printf(vr->wrk->tmp_str, "bytes %"G_GINT64_FORMAT"-%"G_GINT64_FORMAT"/%"G_GINT64_FORMAT, rs.range_start, rs.range_end, (goffset) st.st_size);
 						if (is_multipart) {
 							GString *subheader = g_string_sized_new(1023);
 							g_string_append_printf(subheader, "\r\n--%s\r\nContent-Type: %s\r\nContent-Range: %s\r\n\r\n", boundary, mime_str->str, vr->wrk->tmp_str->str);
@@ -457,7 +457,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 						ranged_response = TRUE;
 						done = TRUE;
 						li_chunkqueue_reset(vr->out); vr->out->is_closed = TRUE;
-						g_string_printf(vr->wrk->tmp_str, "bytes */%"G_GOFFSET_FORMAT, (goffset) st.st_size);
+						g_string_printf(vr->wrk->tmp_str, "bytes */%"G_GINT64_FORMAT, (goffset) st.st_size);
 						li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Range"), GSTR_LEN(vr->wrk->tmp_str));
 						vr->response.http_status = 416;
 						break;
