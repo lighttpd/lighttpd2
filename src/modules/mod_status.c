@@ -157,6 +157,23 @@ static const gchar html_worker_row_avg[] =
 	"				<td>%s</td>\n"
 	"				<td>%u</td>\n"
 	"			</tr>\n";
+static const gchar html_connections_sum[] =
+	"		<table cellspacing=\"0\">\n"
+	"			<tr>\n"
+	"				<th style=\"width: 100px;\">request start</th>\n"
+	"				<th style=\"width: 175px;\">read request header</th>\n"
+	"				<th style=\"width: 175px;\">handle request</th>\n"
+	"				<th style=\"width: 175px;\">write response</th>\n"
+	"				<th style=\"width: 175px;\">keep-alive</th>\n"
+	"			</tr>\n"
+	"			<tr>\n"
+	"				<td>%u</td>\n"
+	"				<td>%u</td>\n"
+	"				<td>%u</td>\n"
+	"				<td>%u</td>\n"
+	"				<td>%u</td>\n"
+	"			</tr>\n"
+	"		</table>\n";
 static const gchar html_connections_th[] =
 	"		<table cellspacing=\"0\">\n"
 	"			<tr>\n"
@@ -599,11 +616,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		}
 
 		/* connection counts */
-		g_string_append_printf(html,
-			"<div class=\"title\"><strong>%u connections</strong></div>\n<div class=\"text\">"
-			"dead: %u keep-alive: %u request start: %u read request header: %u handle main vrequest: %u write: %u</div>\n",
-			total_connections, connection_count[0], connection_count[1], connection_count[2],
-			connection_count[3], connection_count[4], connection_count[5]
+		g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong> (states, sum)</div>\n"));
+		g_string_append_printf(html, html_connections_sum, connection_count[1],
+			connection_count[2], connection_count[3], connection_count[4], connection_count[5]
 		);
 
 		/* list connections */
