@@ -206,7 +206,7 @@ void li_vrequest_free(liVRequest* vr) {
 	g_slice_free(liVRequest, vr);
 }
 
-void li_vrequest_reset(liVRequest *vr) {
+void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 	li_action_stack_reset(vr, &vr->action_stack);
 	li_plugins_handle_vrclose(vr);
 	{
@@ -219,7 +219,8 @@ void li_vrequest_reset(liVRequest *vr) {
 
 	vr->backend = NULL;
 
-	li_request_reset(&vr->request);
+	/* don't reset request for keep-alive tracking */
+	if (!keepalive) li_request_reset(&vr->request);
 	li_physical_reset(&vr->physical);
 	li_response_reset(&vr->response);
 	li_environment_reset(&vr->env);
@@ -289,6 +290,13 @@ void li_vrequest_backend_dead(liVRequest *vr) {
 	li_vrequest_backend_error(vr, BACKEND_DEAD);
 }
 
+
+/* resets fields which weren't reset in favor of keep-alive tracking */
+void li_vrequest_start(liVRequest *vr) {
+	if (LI_VRS_CLEAN == vr->state) {
+		li_request_reset(&vr->request);
+	}
+}
 
 /* received all request headers */
 void li_vrequest_handle_request_headers(liVRequest *vr) {

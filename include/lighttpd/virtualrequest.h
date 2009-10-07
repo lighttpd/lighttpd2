@@ -107,7 +107,10 @@ struct liVRequest {
 
 LI_API liVRequest* li_vrequest_new(liConnection *con, liVRequestHandlerCB handle_response_headers, liVRequestHandlerCB handle_response_body, liVRequestHandlerCB handle_response_error, liVRequestHandlerCB handle_request_headers);
 LI_API void li_vrequest_free(liVRequest *vr);
-LI_API void li_vrequest_reset(liVRequest *vr);
+/* if keepalive = TRUE, you either have to reset it later again with FALSE or call li_vrequest_start before reusing the vr;
+ * keepalive = TRUE doesn't reset the vr->request fields, so mod_status can show the last request data in the keep-alive state
+ */
+LI_API void li_vrequest_reset(liVRequest *vr, gboolean keepalive);
 
 LI_API liVRequestRef* li_vrequest_acquire_ref(liVRequest *vr);
 LI_API liVRequest* li_vrequest_release_ref(liVRequestRef *vr_ref);
@@ -122,6 +125,8 @@ LI_API void li_vrequest_backend_overloaded(liVRequest *vr);
 LI_API void li_vrequest_backend_dead(liVRequest *vr);
 LI_API void li_vrequest_backend_error(liVRequest *vr, liBackendError berror);
 
+/* resets fields which weren't reset in favor of keep-alive tracking */
+LI_API void li_vrequest_start(liVRequest *vr);
 /* received all request headers */
 LI_API void li_vrequest_handle_request_headers(liVRequest *vr);
 /* received (partial) request content */

@@ -117,15 +117,12 @@ static void li_connection_internal_error(liConnection *con) {
 		}
 		li_connection_error(con);
 	} else {
-		liHttpVersion v;
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "%s", "internal error");
 		}
 
-		/* We only need the http version from the http request */
-		v = con->mainvr->request.http_version;
-		li_vrequest_reset(con->mainvr);
-		con->mainvr->request.http_version = v;
+		/* We only need the http version from the http request, "keep-alive" reset doesn't reset it */
+		li_vrequest_reset(con->mainvr, TRUE);
 
 		con->keep_alive = FALSE;
 		con->mainvr->response.http_status = 500;
@@ -160,6 +157,7 @@ static gboolean connection_handle_read(liConnection *con) {
 		con->state = LI_CON_STATE_READ_REQUEST_HEADER;
 		con->ts = CUR_TS(con->wrk);
 
+		li_vrequest_start(con->mainvr);
 	} else {
 		if (con->state == LI_CON_STATE_REQUEST_START)
 			con->state = LI_CON_STATE_READ_REQUEST_HEADER;
@@ -517,7 +515,7 @@ void li_connection_reset(liConnection *con) {
 	}
 	ev_io_set(&con->sock_watcher, -1, 0);
 
-	li_vrequest_reset(con->mainvr);
+	li_vrequest_reset(con->mainvr, FALSE);
 	li_http_request_parser_reset(&con->req_parser_ctx);
 
 	g_string_truncate(con->remote_addr_str, 0);
@@ -626,7 +624,7 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 
 	con->raw_out->is_closed = FALSE;
 
-	li_vrequest_reset(con->mainvr);
+	li_vrequest_reset(con->mainvr, TRUE);
 	li_http_request_parser_reset(&con->req_parser_ctx);
 
 	con->ts = CUR_TS(con->wrk);
