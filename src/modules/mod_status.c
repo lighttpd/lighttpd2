@@ -46,7 +46,7 @@ static gint str_comp(gconstpointer a, gconstpointer b);
 
 /* html snippet constants */
 static const gchar html_header[] =
-	"<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n"
+	"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
 	"<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\"\n"
 	"         \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
 	"<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\" lang=\"en\">\n"
@@ -699,7 +699,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			"</html>\n"
 		));
 		li_chunkqueue_append_string(vr->out, html);
-		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
+		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html; charset=utf-8"));
 
 		g_string_free(count_req, TRUE);
 		g_string_free(count_bin, TRUE);
@@ -1030,7 +1030,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 	));
 
 	li_chunkqueue_append_string(vr->out, html);
-	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
+	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html; charset=utf-8"));
 
 	vr->response.http_status = 200;
 	li_vrequest_handle_direct(vr);
