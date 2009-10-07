@@ -431,7 +431,7 @@ static liAction* core_status(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(p);
 
 	if (!val || val->type != LI_VALUE_NUMBER) {
-		ERROR(srv, "%s", "status action expects a number as parameter");
+		ERROR(srv, "%s", "set_status action expects a number as parameter");
 		return NULL;
 	}
 
@@ -602,7 +602,7 @@ static gboolean core_io_timeout(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(p);
 
 	if (!val || val->type != LI_VALUE_NUMBER || val->data.number < 1) {
-		ERROR(srv, "%s", "io_timeout expects a positive number as parameter");
+		ERROR(srv, "%s", "io.timeout expects a positive number as parameter");
 		return FALSE;
 	}
 
@@ -832,19 +832,19 @@ static liAction* core_header_add(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(p);
 
 	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "'core_header_add' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
+		ERROR(srv, "'header.add' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
 		return NULL;
 	}
 
 	l = val->data.list;
 
 	if (l->len != 2) {
-		ERROR(srv, "'core_header_add' action expects a string tuple as parameter, list has %u entries", l->len);
+		ERROR(srv, "'header.add' action expects a string tuple as parameter, list has %u entries", l->len);
 		return NULL;
 	}
 
 	if (g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING || g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING) {
-		ERROR(srv, "%s", "'core_header_add' action expects a string tuple as parameter");
+		ERROR(srv, "%s", "'header.add' action expects a string tuple as parameter");
 		return NULL;
 	}
 
@@ -869,19 +869,19 @@ static liAction* core_header_append(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(p);
 
 	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "'core_header_append' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
+		ERROR(srv, "'header.append' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
 		return NULL;
 	}
 
 	l = val->data.list;
 
 	if (l->len != 2) {
-		ERROR(srv, "'core_header_append' action expects a string tuple as parameter, list has %u entries", l->len);
+		ERROR(srv, "'header.append' action expects a string tuple as parameter, list has %u entries", l->len);
 		return NULL;
 	}
 
 	if (g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING || g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING) {
-		ERROR(srv, "%s", "'core_header_append' action expects a string tuple as parameter");
+		ERROR(srv, "%s", "'header.append' action expects a string tuple as parameter");
 		return NULL;
 	}
 
@@ -906,23 +906,49 @@ static liAction* core_header_overwrite(liServer *srv, liPlugin* p, liValue *val)
 	UNUSED(p);
 
 	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "'core_header_overwrite' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
+		ERROR(srv, "'header.overwrite' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
 		return NULL;
 	}
 
 	l = val->data.list;
 
 	if (l->len != 2) {
-		ERROR(srv, "'core_header_overwrite' action expects a string tuple as parameter, list has %u entries", l->len);
+		ERROR(srv, "'header.overwrite' action expects a string tuple as parameter, list has %u entries", l->len);
 		return NULL;
 	}
 
 	if (g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING || g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING) {
-		ERROR(srv, "%s", "'core_header_overwrite' action expects a string tuple as parameter");
+		ERROR(srv, "%s", "'header.overwrite' action expects a string tuple as parameter");
 		return NULL;
 	}
 
 	return li_action_new_function(core_handle_header_overwrite, NULL, core_header_free, li_value_extract(val).list);
+}
+
+static void core_header_remove_free(liServer *srv, gpointer param) {
+	UNUSED(srv);
+
+	g_string_free(param, TRUE);
+}
+
+static liHandlerResult core_handle_header_remove(liVRequest *vr, gpointer param, gpointer *context) {
+	GString *str = param;
+	UNUSED(context);
+
+	li_http_header_remove(vr->response.headers, GSTR_LEN(str));
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_header_remove(liServer *srv, liPlugin* p, liValue *val) {
+	UNUSED(p);
+
+	if (val->type != LI_VALUE_STRING) {
+		ERROR(srv, "'header.remove' action expects a string as parameter, %s given", li_value_type_string(val->type));
+		return NULL;
+	}
+
+	return li_action_new_function(core_handle_header_remove, NULL, core_header_remove_free, li_value_extract(val).string);
 }
 
 /* chunkqueue memory limits */
@@ -940,7 +966,7 @@ static liAction* core_buffer_out(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(p);
 
 	if (val->type != LI_VALUE_NUMBER) {
-		ERROR(srv, "'buffer.out' action expects an integer as parameter, %s given", li_value_type_string(val->type));
+		ERROR(srv, "'io.buffer_out' action expects an integer as parameter, %s given", li_value_type_string(val->type));
 		return NULL;
 	}
 
@@ -973,7 +999,7 @@ static liAction* core_buffer_in(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(p);
 
 	if (val->type != LI_VALUE_NUMBER) {
-		ERROR(srv, "'buffer.in' action expects an integer as parameter, %s given", li_value_type_string(val->type));
+		ERROR(srv, "'io.buffer_in' action expects an integer as parameter, %s given", li_value_type_string(val->type));
 		return NULL;
 	}
 
@@ -1032,7 +1058,7 @@ static liAction* core_throttle_pool(liServer *srv, liPlugin* p, liValue *val) {
 	UNUSED(p);
 
 	if (val->type != LI_VALUE_STRING && val->type != LI_VALUE_LIST) {
-		ERROR(srv, "'throttle_pool' action expects a string or a string-number tuple as parameter, %s given", li_value_type_string(val->type));
+		ERROR(srv, "'io.throttle_pool' action expects a string or a string-number tuple as parameter, %s given", li_value_type_string(val->type));
 		return NULL;
 	}
 
@@ -1041,7 +1067,7 @@ static liAction* core_throttle_pool(liServer *srv, liPlugin* p, liValue *val) {
 			|| g_array_index(val->data.list, liValue*, 0)->type != LI_VALUE_STRING
 			|| g_array_index(val->data.list, liValue*, 1)->type != LI_VALUE_NUMBER) {
 
-			ERROR(srv, "%s", "'throttle_pool' action expects a string or a string-number tuple as parameter");
+			ERROR(srv, "%s", "'io.throttle_pool' action expects a string or a string-number tuple as parameter");
 			return NULL;
 		}
 
@@ -1049,12 +1075,12 @@ static liAction* core_throttle_pool(liServer *srv, liPlugin* p, liValue *val) {
 		rate = g_array_index(val->data.list, liValue*, 1)->data.number;
 
 		if (rate && rate < (32*1024)) {
-			ERROR(srv, "throttle_pool: rate %"G_GINT64_FORMAT" is too low (32kbyte/s minimum or 0 for unlimited)", rate);
+			ERROR(srv, "io.throttle_pool: rate %"G_GINT64_FORMAT" is too low (32kbyte/s minimum or 0 for unlimited)", rate);
 			return NULL;
 		}
 
 		if (rate > (0xFFFFFFFF)) {
-			ERROR(srv, "throttle_pool: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", rate);
+			ERROR(srv, "io.throttle_pool: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", rate);
 			return NULL;
 		}
 	} else {
@@ -1066,7 +1092,7 @@ static liAction* core_throttle_pool(liServer *srv, liPlugin* p, liValue *val) {
 		if (g_string_equal(g_array_index(srv->throttle_pools, liThrottlePool*, i)->name, name)) {
 			/* pool already defined */
 			if (val->type == LI_VALUE_LIST && g_array_index(srv->throttle_pools, liThrottlePool*, i)->rate != (guint)rate) {
-				ERROR(srv, "throttle_pool: pool '%s' already defined but with different rate (%ukbyte/s)", name->str,
+				ERROR(srv, "io.throttle_pool: pool '%s' already defined but with different rate (%ukbyte/s)", name->str,
 					g_array_index(srv->throttle_pools, liThrottlePool*, i)->rate);
 				return NULL;
 			}
@@ -1079,7 +1105,7 @@ static liAction* core_throttle_pool(liServer *srv, liPlugin* p, liValue *val) {
 	if (!pool) {
 		/* pool not yet defined */
 		if (val->type == LI_VALUE_STRING) {
-			ERROR(srv, "throttle_pool: rate for pool '%s' hasn't been defined", name->str);
+			ERROR(srv, "io.throttle_pool: rate for pool '%s' hasn't been defined", name->str);
 			return NULL;
 		}
 
@@ -1115,7 +1141,7 @@ static liAction* core_throttle_connection(liServer *srv, liPlugin* p, liValue *v
 	UNUSED(p);
 
 	if (val->type != LI_VALUE_NUMBER) {
-		ERROR(srv, "'throttle_connection' action expects a positiv integer as parameter, %s given", li_value_type_string(val->type));
+		ERROR(srv, "'io.throttle' action expects a positiv integer as parameter, %s given", li_value_type_string(val->type));
 		return NULL;
 	}
 
@@ -1126,12 +1152,12 @@ static liAction* core_throttle_connection(liServer *srv, liPlugin* p, liValue *v
 	}
 
 	if (rate && rate < (32*1024)) {
-		ERROR(srv, "throttle_connection: rate %"G_GUINT64_FORMAT" is too low (32kbyte/s minimum or 0 for unlimited)", rate);
+		ERROR(srv, "io.throttle: rate %"G_GUINT64_FORMAT" is too low (32kbyte/s minimum or 0 for unlimited)", rate);
 		return NULL;
 	}
 
 	if (rate > (0xFFFFFFFF)) {
-		ERROR(srv, "throttle_connection: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", rate);
+		ERROR(srv, "io.throttle: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", rate);
 		return NULL;
 	}
 
@@ -1201,6 +1227,7 @@ static const liPluginAction actions[] = {
 	{ "header.add", core_header_add },
 	{ "header.append", core_header_append },
 	{ "header.overwrite", core_header_overwrite },
+	{ "header.remove", core_header_remove },
 
 	{ "io.buffer_out", core_buffer_out },
 	{ "io.buffer_in", core_buffer_in },
