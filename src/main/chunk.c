@@ -8,7 +8,7 @@
  *   chunkfile    *
  ******************/
 
-static liChunkFile *chunkfile_new(GString *name, int fd, gboolean is_temp) {
+liChunkFile *li_chunkfile_new(GString *name, int fd, gboolean is_temp) {
 	liChunkFile *cf = g_slice_new(liChunkFile);
 	cf->refcount = 1;
 	if (name) {
@@ -21,12 +21,12 @@ static liChunkFile *chunkfile_new(GString *name, int fd, gboolean is_temp) {
 	return cf;
 }
 
-static void chunkfile_acquire(liChunkFile *cf) {
+void li_chunkfile_acquire(liChunkFile *cf) {
 	assert(g_atomic_int_get(&cf->refcount) > 0);
 	g_atomic_int_inc(&cf->refcount);
 }
 
-static void chunkfile_release(liChunkFile *cf) {
+void li_chunkfile_release(liChunkFile *cf) {
 	if (!cf) return;
 	assert(g_atomic_int_get(&cf->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&cf->refcount)) {
@@ -314,7 +314,7 @@ static void chunk_free(liChunk *c) {
 		c->mem = NULL;
 	}
 	if (c->file.file) {
-		chunkfile_release(c->file.file);
+		li_chunkfile_release(c->file.file);
 		c->file.file = NULL;
 	}
 	if (c->file.mmap.data != MAP_FAILED) {
@@ -536,10 +536,27 @@ void li_chunkqueue_append_mem(liChunkQueue *cq, const void *mem, gssize len) {
 	cqlimit_update(cq, c->mem->len);
 }
 
+/* increases reference for cf (if length > 0) */
+void li_chunkqueue_append_chunkfile(liChunkQueue *cq, liChunkFile *cf, off_t start, off_t length) {
+	if (length) {
+		liChunk *c = chunk_new();
+		li_chunkfile_acquire(cf);
+
+		c->type = FILE_CHUNK;
+		c->file.file = cf;
+		c->file.start = start;
+		c->file.length = length;
+
+		g_queue_push_tail(cq->queue, c);
+		cq->length += length;
+		cq->bytes_in += length;
+	}
+}
+
 static void __chunkqueue_append_file(liChunkQueue *cq, GString *filename, off_t start, off_t length, int fd, gboolean is_temp) {
 	liChunk *c = chunk_new();
 	c->type = FILE_CHUNK;
-	c->file.file = chunkfile_new(filename, fd, is_temp);
+	c->file.file = li_chunkfile_new(filename, fd, is_temp);
 	c->file.start = start;
 	c->file.length = length;
 
@@ -630,7 +647,7 @@ goffset li_chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset len
 				break;
 			case FILE_CHUNK:
 				cnew->type = FILE_CHUNK;
-				chunkfile_acquire(c->file.file);
+				li_chunkfile_acquire(c->file.file);
 				cnew->file.file = c->file.file;
 				cnew->file.start = c->file.start + c->offset;
 				cnew->file.length = length;

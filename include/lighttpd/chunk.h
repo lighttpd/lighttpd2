@@ -74,6 +74,10 @@ struct liChunkIter {
  *   chunkfile    *
  ******************/
 
+liChunkFile *li_chunkfile_new(GString *name, int fd, gboolean is_temp);
+void li_chunkfile_acquire(liChunkFile *cf);
+void li_chunkfile_release(liChunkFile *cf);
+
 /* open the file cf->name if it is not already opened for reading
  * may return HANDLER_GO_ON, HANDLER_ERROR
  */
@@ -141,6 +145,9 @@ LI_API void li_chunkqueue_append_bytearr(liChunkQueue *cq, GByteArray *mem);
 
 /* memory gets copied */
 LI_API void li_chunkqueue_append_mem(liChunkQueue *cq, const void *mem, gssize len);
+
+/* increases reference for cf (if length > 0) */
+LI_API void li_chunkqueue_append_chunkfile(liChunkQueue *cq, liChunkFile *cf, off_t start, off_t length);
 
 /* pass ownership of filename, do not free it */
 LI_API void li_chunkqueue_append_file(liChunkQueue *cq, GString *filename, off_t start, off_t length);
