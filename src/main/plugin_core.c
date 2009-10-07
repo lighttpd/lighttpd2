@@ -1168,16 +1168,14 @@ static const liPluginOption options[] = {
 	{ "log.timestamp", LI_VALUE_STRING, NULL, core_option_log_timestamp_parse, core_option_log_timestamp_free },
 	{ "log", LI_VALUE_HASH, NULL, core_option_log_parse, core_option_log_free },
 
-	{ "static-file.exclude", LI_VALUE_LIST, NULL, NULL, NULL }, /* TODO: not used right now */
+	{ "static.exclude", LI_VALUE_LIST, NULL, NULL, NULL }, /* TODO: not used right now */
 
 	{ "server.name", LI_VALUE_STRING, NULL, NULL, NULL },
 	{ "server.tag", LI_VALUE_STRING, PACKAGE_DESC, NULL, NULL },
-	{ "server.max_keep_alive_idle", LI_VALUE_NUMBER, GINT_TO_POINTER(5), NULL, NULL },
-	{ "server.max_keep_alive_requests", LI_VALUE_NUMBER, GINT_TO_POINTER(15), NULL, NULL },
+	{ "keepalive.timeout", LI_VALUE_NUMBER, GINT_TO_POINTER(5), NULL, NULL },
+	{ "keepalive.requests", LI_VALUE_NUMBER, GINT_TO_POINTER(15), NULL, NULL },
 
 	{ "mime_types", LI_VALUE_LIST, NULL, core_option_mime_types_parse, core_option_mime_types_free },
-
-	{ "throttle", LI_VALUE_NUMBER, GINT_TO_POINTER(0), NULL, NULL },
 
 	{ "etag.use", LI_VALUE_NONE, NULL, core_option_etag_use_parse, NULL }, /* type in config is list, internal type is number for flags */
 
@@ -1193,23 +1191,22 @@ static const liPluginAction actions[] = {
 	{ "index", core_index },
 	{ "static", core_static },
 
-	{ "status", core_status },
+	{ "set_status", core_status },
 
 	{ "log.write", core_log_write },
 
 	{ "blank", core_blank },
 	{ "profile_mem", core_profile_mem },
 
-	{ "header_add", core_header_add },
-	{ "header_append", core_header_append },
-	{ "header_overwrite", core_header_overwrite },
+	{ "header.add", core_header_add },
+	{ "header.append", core_header_append },
+	{ "header.overwrite", core_header_overwrite },
 
-	{ "buffer.out", core_buffer_out },
-	{ "buffer.in", core_buffer_in },
-
-	{ "throttle_pool", core_throttle_pool },
-	/*{ "throttle.ip", core_throttle_ip },*/
-	{ "throttle_connection", core_throttle_connection },
+	{ "io.buffer_out", core_buffer_out },
+	{ "io.buffer_in", core_buffer_in },
+	{ "io.throttle", core_throttle_connection },
+	{ "io.throttle_pool", core_throttle_pool },
+	/*{ "io.throttle_ip", core_throttle_ip },*/
 
 	{ NULL, NULL }
 };
@@ -1219,7 +1216,7 @@ static const liPluginSetup setups[] = {
 	{ "listen", core_listen },
 	{ "workers", core_workers },
 	{ "module_load", core_module_load },
-	{ "io_timeout", core_io_timeout },
+	{ "io.timeout", core_io_timeout },
 	{ "stat_cache.ttl", core_stat_cache_ttl },
 
 	{ NULL, NULL }
