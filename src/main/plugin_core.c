@@ -5,6 +5,8 @@
 
 #include <lighttpd/version.h>
 
+#include <lighttpd/http_range_parser.h>
+
 #include <sys/stat.h>
 #include <fcntl.h>
 
@@ -312,6 +314,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 	struct stat st;
 	int err;
 	liHandlerResult res;
+	static const gchar boundary[] = "fkj49sn38dcn3";
 
 	UNUSED(param);
 	UNUSED(context);
@@ -375,8 +378,13 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 		}
 		vr->response.http_status = 403;
 	} else {
-		GString *mime_str;
+		const GString *mime_str;
 		gboolean cachable;
+		gboolean ranged_response = FALSE;
+		liHttpHeader *hh_range;
+		liChunkFile *cf;
+		static const GString default_mime_str = { CONST_STR_LEN("application/octet-stream"), 0 };
+
 #ifdef FD_CLOEXEC
 		fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
@@ -393,13 +401,79 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 			return LI_HANDLER_GO_ON;
 		}
 
+		cf = li_chunkfile_new(NULL, fd, FALSE);
+
 		mime_str = li_mimetype_get(vr, vr->physical.path);
-		vr->response.http_status = 200;
-		if (mime_str)
+		if (!mime_str) mime_str = &default_mime_str;
+
+		if (CORE_OPTION(LI_CORE_OPTION_STATIC_RANGE_REQUESTS).boolean) {
+			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Accept-Ranges"), CONST_STR_LEN("bytes"));
+
+			hh_range = li_http_header_lookup(vr->request.headers, CONST_STR_LEN("range"));
+			if (hh_range) {
+				/* TODO: Check If-Range: header */
+				GString range_str = { HEADER_VALUE_LEN(hh_range), 0 };
+				liParseHttpRangeState rs;
+				gboolean is_multipart = FALSE, done = FALSE;
+
+				li_parse_http_range_init(&rs, &range_str, st.st_size);
+				do {
+					switch (li_parse_http_range_next(&rs)) {
+					case LI_PARSE_HTTP_RANGE_OK:
+						if (!is_multipart && !rs.last_range) {
+							is_multipart = TRUE;
+						}
+						g_string_printf(vr->wrk->tmp_str, "bytes %"G_GOFFSET_FORMAT"-%"G_GOFFSET_FORMAT"/%"G_GOFFSET_FORMAT, rs.range_start, rs.range_end, (goffset) st.st_size);
+						if (is_multipart) {
+							GString *subheader = g_string_sized_new(1023);
+							g_string_append_printf(subheader, "\r\n--%s\r\nContent-Type: %s\r\nContent-Range: %s\r\n\r\n", boundary, mime_str->str, vr->wrk->tmp_str->str);
+							li_chunkqueue_append_string(vr->out, subheader);
+							li_chunkqueue_append_chunkfile(vr->out, cf, rs.range_start, rs.range_length);
+						} else {
+							li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Range"), GSTR_LEN(vr->wrk->tmp_str));
+							li_chunkqueue_append_chunkfile(vr->out, cf, rs.range_start, rs.range_length);
+						}
+						break;
+					case LI_PARSE_HTTP_RANGE_DONE:
+						ranged_response = TRUE;
+						done = TRUE;
+						vr->response.http_status = 206;
+						if (is_multipart) {
+							GString *subheader = g_string_sized_new(1023);
+							g_string_append_printf(subheader, "\r\n--%s--\r\n", boundary);
+							li_chunkqueue_append_string(vr->out, subheader);
+
+							g_string_printf(vr->wrk->tmp_str, "multipart/byteranges; boundary=%s", boundary);
+							li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(vr->wrk->tmp_str));
+						} else {
+							li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
+						}
+						break;
+					case LI_PARSE_HTTP_RANGE_INVALID:
+						done = TRUE;
+						li_chunkqueue_reset(vr->out);
+						break;
+					case LI_PARSE_HTTP_RANGE_NOT_SATISFIABLE:
+						ranged_response = TRUE;
+						done = TRUE;
+						li_chunkqueue_reset(vr->out); vr->out->is_closed = TRUE;
+						g_string_printf(vr->wrk->tmp_str, "bytes */%"G_GOFFSET_FORMAT, (goffset) st.st_size);
+						li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Range"), GSTR_LEN(vr->wrk->tmp_str));
+						vr->response.http_status = 416;
+						break;
+					}
+				} while (!done);
+				li_parse_http_range_clear(&rs);
+			}
+		}
+
+		if (!ranged_response) {
+			vr->response.http_status = 200;
 			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
-		else
-			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("application/octet-stream"));
-		li_chunkqueue_append_file_fd(vr->out, NULL, 0, st.st_size, fd);
+			li_chunkqueue_append_chunkfile(vr->out, cf, st.st_size, fd);
+		}
+
+		li_chunkfile_release(cf);
 	}
 
 	return LI_HANDLER_GO_ON;
@@ -1195,6 +1269,7 @@ static const liPluginOption options[] = {
 	{ "log", LI_VALUE_HASH, NULL, core_option_log_parse, core_option_log_free },
 
 	{ "static.exclude", LI_VALUE_LIST, NULL, NULL, NULL }, /* TODO: not used right now */
+	{ "static.range-requests", LI_VALUE_BOOLEAN, GINT_TO_POINTER(TRUE), NULL, NULL },
 
 	{ "server.name", LI_VALUE_STRING, NULL, NULL, NULL },
 	{ "server.tag", LI_VALUE_STRING, PACKAGE_DESC, NULL, NULL },

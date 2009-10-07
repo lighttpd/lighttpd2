@@ -31,6 +31,7 @@ def build(bld):
 		etag.c
 		filter_chunked.c
 		http_headers.c
+		http_range_parser.rl
 		http_request_parser.rl
 		http_response_parser.rl
 		lighttpd-glue.c

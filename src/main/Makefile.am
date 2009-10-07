@@ -16,6 +16,7 @@ lighttpd_shared_src= \
 	etag.c \
 	filter_chunked.c \
 	http_headers.c \
+	http_range_parser.c \
 	http_request_parser.c \
 	http_response_parser.c \
 	lighttpd-glue.c \
@@ -61,7 +62,7 @@ lighttpd_shared_src+=$(lua_src)
 endif
 EXTRA_lighttpd_SOURCES=$(lua_src)
 
-BUILT_SOURCES=config_parser.c http_request_parser.c http_response_parser.c url_parser.c
+BUILT_SOURCES=config_parser.c http_range_parser.rl http_request_parser.c http_response_parser.c url_parser.c
 
 config_parser.c: config_parser.rl
 	ragel -C -T0 -o $@ $<

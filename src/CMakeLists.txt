@@ -177,6 +177,7 @@ SET(LIGHTTPD_SHARED_SRC
 	etag.c
 	filter_chunked.c
 	http_headers.c
+	http_range_parser.c
 	http_request_parser.c
 	http_response_parser.c
 	lighttpd-glue.c
@@ -235,6 +236,7 @@ ADD_PREFIX(ANGEL_SHARED_SRC angel/)
 
 ## Build parsers by using ragel...
 RAGEL_PARSER(main/config_parser.rl -T0)
+RAGEL_PARSER(main/http_range_parser.rl)
 RAGEL_PARSER(main/http_request_parser.rl)
 RAGEL_PARSER(main/http_response_parser.rl)
 RAGEL_PARSER(common/ip_parsers.rl)
