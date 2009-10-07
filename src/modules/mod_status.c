@@ -28,13 +28,15 @@
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
 
-#include <sys/resource.h>
-
 #include <lighttpd/base.h>
 #include <lighttpd/collect.h>
 #include <lighttpd/encoding.h>
 
 #include <lighttpd/plugin_core.h>
+
+#ifdef HAVE_SYS_RESOURCE_H
+# include <sys/resource.h>
+#endif
 
 LI_API gboolean mod_status_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_status_free(liModules *mods, liModule *mod);
@@ -200,7 +202,11 @@ static const gchar html_server_info[] =
 	"			</tr>\n"
 	"			<tr>\n"
 	"				<td class=\"left\">File descriptor limit</td>\n"
-	"				<td class=\"left\">%"G_GUINT64_FORMAT"</td>\n"
+	"				<td class=\"left\">%s</td>\n"
+	"			</tr>\n"
+	"			<tr>\n"
+	"				<td class=\"left\">Connection limit</td>\n"
+	"				<td class=\"left\">%u</td>\n"
 	"			</tr>\n"
 	"			<tr>\n"
 	"				<td class=\"left\">Core size limit</td>\n"
@@ -394,11 +400,6 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		guint total_connections = 0;
 		guint connection_count[6] = {0,0,0,0,0,0};
 
-		/* clear context so it doesn't get cleaned up anymore */
-		*(job->context) = NULL;
-		g_slice_free(mod_status_job, job);
-
-		/* we got everything */
 		liStatistics totals = {
 			G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0),
 			G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0),
@@ -406,6 +407,11 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			0, 0, G_GUINT64_CONSTANT(0), 0, 0
 		};
 
+		/* clear context so it doesn't get cleaned up anymore */
+		*(job->context) = NULL;
+		g_slice_free(mod_status_job, job);
+
+		/* we got everything */
 		uptime = CUR_TS(vr->wrk) - vr->wrk->srv->started;
 		if (!uptime)
 			uptime = 1;
@@ -804,7 +810,7 @@ static gint str_comp(gconstpointer a, gconstpointer b) {
 static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 	GString *html;
 
-	html = g_string_sized_new(2047);
+	html = g_string_sized_new(8*1024-1);
 
 
 	g_string_append_len(html, CONST_STR_LEN(html_header));
@@ -852,18 +858,43 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 
 	/* general info */
 	{
-		struct rlimit lim_fd, lim_core;
+		const gchar *slim_fd = NULL, *slim_core = NULL;
+#ifdef HAVE_GETRLIMIT
+		GString *tmps = g_string_sized_new(15);
+		{
+			struct rlimit rlim;
 
-		getrlimit(RLIMIT_NOFILE, &lim_fd);
-		getrlimit(RLIMIT_CORE, &lim_core);
+			getrlimit(RLIMIT_NOFILE, &rlim);
+			if (RLIM_INFINITY == rlim.rlim_cur || (guint64) rlim.rlim_cur > G_MAXUINT64) {
+				slim_fd = "unlimited";
+			} else {
+				g_string_printf(tmps, "%"G_GUINT64_FORMAT, (guint64) rlim.rlim_cur);
+				slim_fd = tmps->str;
+			}
 
-		li_counter_format(lim_core.rlim_cur, COUNTER_BYTES, vr->wrk->tmp_str);
+			getrlimit(RLIMIT_CORE, &rlim);
+			if (RLIM_INFINITY == rlim.rlim_cur || (guint64) rlim.rlim_cur > G_MAXUINT64) {
+				slim_core = "unlimited";
+			} else if (0 == rlim.rlim_cur) {
+				slim_core = "disabled";
+			} else {
+				li_counter_format(rlim.rlim_cur, COUNTER_BYTES, vr->wrk->tmp_str);
+				slim_core = vr->wrk->tmp_str->str;
+			}
+		}
+#else
+		slim_fd = slim_core = "unknown";
+#endif
 
 		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Server info</strong></div>\n"));
 		g_string_append_printf(html, html_server_info,
 			g_get_host_name(), g_get_user_name(), getuid(), li_ev_backend_string(ev_backend(vr->wrk->loop)),
-			(guint64)lim_fd.rlim_cur, lim_core.rlim_cur == 0 ? "disabled" : vr->wrk->tmp_str->str
+			slim_fd, g_atomic_int_get(&vr->wrk->srv->max_connections), slim_core
 		);
+
+#ifdef HAVE_GETRLIMIT
+		g_string_free(tmps, TRUE);
+#endif
 	}
 
 	/* library info */
