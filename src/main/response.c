@@ -33,8 +33,6 @@ gboolean li_response_send_headers(liConnection *con) {
 
 	if (0 == con->out->length && con->mainvr->backend == NULL
 		&& vr->response.http_status >= 400 && vr->response.http_status < 600) {
-
-		/*li_chunkqueue_append_mem(con->out, CONST_STR_LEN("Custom error\r\n"));*/
 		li_response_send_error_page(con);
 	}
 
@@ -45,7 +43,8 @@ gboolean li_response_send_headers(liConnection *con) {
 		/* They never have a content-body/length */
 		li_chunkqueue_reset(con->out);
 		con->out->is_closed = TRUE;
-	} else if (con->out->is_closed) {
+	} else if (con->out->is_closed && (vr->request.http_method != LI_HTTP_METHOD_HEAD || con->out->length > 0)) {
+		/* do not send content-length: 0 if backend already skipped content generation for HEAD */
 		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, con->out->length);
 		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(con->wrk->tmp_str));
 	} else if (con->keep_alive && vr->request.http_version == LI_HTTP_VERSION_1_1) {

@@ -5,7 +5,7 @@
  *     compress content on the fly
  *
  *     Does not compress:
- *      - response status: 100, 101, 204, 205, 304
+ *      - response status: 100, 101, 204, 205, 206, 304
  *      - already compressed content
  *      - if more than one etag response header is sent
  *      - if no common encoding is found
@@ -468,6 +468,13 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 }
 #endif /* HAVE_BZIP */
 
+static liHandlerResult deflate_filter_null(liVRequest *vr, liFilter *f) {
+	UNUSED(vr);
+	li_chunkqueue_skip_all(f->in);
+	f->out->is_closed = f->in->is_closed = TRUE;
+	return LI_HANDLER_GO_ON;
+}
+
 /**********************************************************************************/
 
 /* returns TRUE if handled with 304, FALSE otherwise */
@@ -512,6 +519,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	case 101:
 	case 204:
 	case 205:
+	case 206:
 	case 304:
 		/* disable compression as we have no response entity */
 		return LI_HANDLER_GO_ON;
@@ -526,6 +534,9 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		}
 		return LI_HANDLER_GO_ON;
 	}
+
+	/* announce that we have looked for accept-encoding */
+	li_http_header_append(vr->response.headers, CONST_STR_LEN("Vary"), CONST_STR_LEN("Accept-Encoding"));
 
 	hh_encoding_entry = li_http_header_find_first(vr->request.headers, CONST_STR_LEN("accept-encoding"));
 	while (hh_encoding_entry) {
@@ -611,8 +622,13 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		return LI_HANDLER_GO_ON;
 	}
 
+	if (is_head_request) {
+		/* kill content so response.c doesn't send wrong content-length */
+		liFilter *f = li_vrequest_add_filter_out(vr, deflate_filter_null, NULL, NULL);
+		f->out->is_closed = f->in->is_closed = TRUE;
+	}
+
 	li_http_header_insert(vr->response.headers, CONST_STR_LEN("Content-Encoding"), encoding_names[i], strlen(encoding_names[i]));
-	li_http_header_append(vr->response.headers, CONST_STR_LEN("Vary"), CONST_STR_LEN("Accept-Encoding"));
 	li_http_header_remove(vr->response.headers, CONST_STR_LEN("content-length"));
 
 	return LI_HANDLER_GO_ON;
