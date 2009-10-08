@@ -314,6 +314,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 	struct stat st;
 	int err;
 	liHandlerResult res;
+	GArray *exclude_arr = CORE_OPTION(LI_CORE_OPTION_STATIC_FILE_EXCLUDE_EXTENSIONS).list;
 	static const gchar boundary[] = "fkj49sn38dcn3";
 
 	UNUSED(param);
@@ -330,6 +331,24 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
 
 	if (vr->physical.path->len == 0) return LI_HANDLER_GO_ON;
+
+	if (exclude_arr) {
+		const gchar *basep = g_basename(vr->physical.path->str);
+		GString base = { (gchar*) basep, vr->physical.path->len - (basep - vr->physical.path->str), 0 };
+		guint i;
+
+		for (i = 0; i < exclude_arr->len; i++) {
+			liValue *v = g_array_index(exclude_arr, liValue*, i);
+			if (li_string_suffix(&base, GSTR_LEN(v->data.string))) {
+				if (!li_vrequest_handle_direct(vr)) {
+					return LI_HANDLER_ERROR;
+				}
+
+				vr->response.http_status = 403;
+				return LI_HANDLER_GO_ON;
+			}
+		}
+	}
 
 	res = li_stat_cache_get(vr, vr->physical.path, &st, &err, &fd);
 	if (res == LI_HANDLER_WAIT_FOR_EVENT)
@@ -790,6 +809,30 @@ static void core_option_log_timestamp_free(liServer *srv, liPlugin *p, size_t nd
 	if (!oval.ptr) return;
 	li_log_timestamp_free(srv, oval.ptr);
 }
+
+static gboolean core_option_static_exclude_exts_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
+	GArray *arr;
+	UNUSED(srv);
+	UNUSED(p);
+	UNUSED(ndx);
+
+	if (!val) return TRUE;
+
+	arr = val->data.list;
+	for (guint i = 0; i < arr->len; i++) {
+		liValue *v = g_array_index(arr, liValue*, i);
+		if (v->type != LI_VALUE_STRING) {
+			ERROR(srv, "static.exclude_extensions option expects a list of strings, entry #%u is of type %s", i, li_value_type_string(v->type));
+			return FALSE;
+		}
+	}
+
+	/* everything ok */
+	oval->list = li_value_extract(val).list;
+
+	return TRUE;
+}
+
 
 static gboolean core_option_mime_types_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
 	GArray *arr;
@@ -1268,8 +1311,8 @@ static const liPluginOption options[] = {
 	{ "log.timestamp", LI_VALUE_STRING, NULL, core_option_log_timestamp_parse, core_option_log_timestamp_free },
 	{ "log", LI_VALUE_HASH, NULL, core_option_log_parse, core_option_log_free },
 
-	{ "static.exclude", LI_VALUE_LIST, NULL, NULL, NULL }, /* TODO: not used right now */
-	{ "static.range-requests", LI_VALUE_BOOLEAN, GINT_TO_POINTER(TRUE), NULL, NULL },
+	{ "static.exclude_extensions", LI_VALUE_LIST, NULL, core_option_static_exclude_exts_parse, NULL },
+	{ "static.range_requests", LI_VALUE_BOOLEAN, GINT_TO_POINTER(TRUE), NULL, NULL },
 
 	{ "server.name", LI_VALUE_STRING, NULL, NULL, NULL },
 	{ "server.tag", LI_VALUE_STRING, PACKAGE_DESC, NULL, NULL },
