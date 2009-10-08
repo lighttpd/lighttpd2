@@ -431,7 +431,7 @@ static void fastcgi_send_env(liVRequest *vr, fastcgi_connection *fcon) {
 
 		for (i = vr->request.headers->entries.head; NULL != i; i = i->next) {
 			liHttpHeader *h = (liHttpHeader*) i->data;
-			GString hkey = { h->data->str, h->keylen, 0 };
+			const GString hkey = li_const_gstring(h->data->str, h->keylen);
 			g_string_truncate(tmp, 0);
 			if (!li_strncase_equal(&hkey, CONST_STR_LEN("CONTENT-TYPE"))) {
 				g_string_append_len(tmp, CONST_STR_LEN("HTTP_"));

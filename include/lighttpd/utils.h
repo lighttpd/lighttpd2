@@ -45,7 +45,7 @@ LI_API void li_path_simplify(GString *path);
 INLINE void li_path_append_slash(GString *path);
 
 /* finds the first value for a given key in the querystring. works with '&' as well as ';' delimiters */
-LI_API gboolean li_querystring_find(GString *querystring, const gchar *key, const guint key_len, gchar **val, guint *val_len);
+LI_API gboolean li_querystring_find(const GString *querystring, const gchar *key, const guint key_len, gchar **val, guint *val_len);
 
 /* formats a given guint64 for output. if dest is NULL, a new string is allocated */
 LI_API GString *li_counter_format(guint64 count, liCounterType t, GString *dest);
@@ -62,7 +62,7 @@ LI_API guint li_hash_ipv6(gconstpointer key);
 /* converts a sock_addr to a human readable string. ipv4 and ipv6 supported. if dest is NULL, a new string will be allocated */
 LI_API GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean showport);
 
-LI_API liSocketAddress li_sockaddr_from_string(GString *str, guint tcp_default_port);
+LI_API liSocketAddress li_sockaddr_from_string(const GString *str, guint tcp_default_port);
 LI_API liSocketAddress li_sockaddr_local_from_socket(gint fd);
 LI_API liSocketAddress li_sockaddr_remote_from_socket(gint fd);
 LI_API void li_sockaddr_clear(liSocketAddress *saddr);
@@ -74,12 +74,14 @@ LI_API gboolean ipv4_in_ipv6_net(guint32 target, const guint8 *match, guint netw
 
 LI_API void li_gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, guint len);
 
-LI_API gboolean li_strncase_equal(GString *str, const gchar *s, guint len);
+INLINE GString li_const_gstring(const gchar *str, gsize len);
+
+LI_API gboolean li_strncase_equal(const GString *str, const gchar *s, guint len);
 
 LI_API GString *li_string_assign_len(GString *string, const gchar *val, gssize len);
 
-LI_API gboolean li_string_prefix(GString *str, const gchar *s, gsize len);
-LI_API gboolean li_string_suffix(GString *str, const gchar *s, gsize len);
+LI_API gboolean li_string_prefix(const GString *str, const gchar *s, gsize len);
+LI_API gboolean li_string_suffix(const GString *str, const gchar *s, gsize len);
 
 LI_API void li_string_append_int(GString *dest, gint64 val);
 
@@ -105,7 +107,15 @@ LI_API gboolean _li_set_sys_error(GError **error, const gchar *msg, const gchar 
 
 #endif
 
+/* inline implementations */
+
 INLINE void li_path_append_slash(GString *path) {
 	if (path->len == 0 || path->str[path->len-1] != '/')
 		g_string_append_len(path, "/", 1);
+}
+
+/** warning: This "GString" does not make sure that there is a terminating '\0', and you shouldn't modify the GString */
+INLINE GString li_const_gstring(const gchar *str, gsize len) {
+	GString gs = { (gchar*) str, len, 0 };
+	return gs;
 }

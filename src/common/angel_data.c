@@ -1,6 +1,7 @@
 
 #include <lighttpd/settings.h>
 #include <lighttpd/angel_data.h>
+#include <lighttpd/utils.h>
 
 /* error handling */
 GQuark li_angel_data_error_quark() {
@@ -50,7 +51,7 @@ gboolean li_angel_data_write_str  (GString *buf, const GString *str, GError **er
 }
 
 gboolean li_angel_data_write_cstr (GString *buf, const gchar *str, gsize len, GError **err) {
-	const GString tmps = { (gchar*) str, len, 0 }; /* fake const GString */
+	const GString tmps = li_const_gstring(str, len); /* fake const GString */
 	return li_angel_data_write_str(buf, &tmps, err);
 }
 

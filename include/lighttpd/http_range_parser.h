@@ -24,7 +24,7 @@ typedef enum {
 	LI_PARSE_HTTP_RANGE_NOT_SATISFIABLE
 } liParseHttpRangeResult;
 
-LI_API void li_parse_http_range_init(liParseHttpRangeState* s, GString *range_str, goffset limit);
+LI_API void li_parse_http_range_init(liParseHttpRangeState* s, const GString *range_str, goffset limit);
 LI_API liParseHttpRangeResult li_parse_http_range_next(liParseHttpRangeState* s);
 LI_API void li_parse_http_range_clear(liParseHttpRangeState* s);
 

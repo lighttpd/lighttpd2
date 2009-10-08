@@ -166,9 +166,7 @@ static gboolean auth_backend_plain(liVRequest *vr, const gchar *auth_info, gpoin
 		return FALSE;
 	}
 
-	user.str = decoded;
-	user.len = c - decoded;
-	user.allocated_len = 0;
+	user = li_const_gstring(decoded, c - decoded);
 
 	/* unknown user? */
 	if (!(pass = g_hash_table_lookup(ad->data, &user))) {
@@ -252,15 +250,11 @@ static liAction* auth_plain_create(liServer *srv, liPlugin* p, liValue *val) {
 		return NULL;
 	}
 
-	str.allocated_len = 0;
-	str.str = "method";
-	str.len = sizeof("method") - 1;
+	str = li_const_gstring(CONST_STR_LEN("method"));
 	method = g_hash_table_lookup(val->data.hash, &str);
-	str.str = "realm";
-	str.len = sizeof("realm") - 1;
+	str = li_const_gstring(CONST_STR_LEN("realm"));
 	realm = g_hash_table_lookup(val->data.hash, &str);
-	str.str = "file";
-	str.len = sizeof("file") - 1;
+	str = li_const_gstring(CONST_STR_LEN("file"));
 	file = g_hash_table_lookup(val->data.hash, &str);
 
 	if (!method || method->type != LI_VALUE_STRING || !realm || realm->type != LI_VALUE_STRING || !file || file->type != LI_VALUE_STRING) {

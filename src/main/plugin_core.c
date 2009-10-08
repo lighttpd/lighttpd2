@@ -334,7 +334,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 
 	if (exclude_arr) {
 		const gchar *basep = g_basename(vr->physical.path->str);
-		GString base = { (gchar*) basep, vr->physical.path->len - (basep - vr->physical.path->str), 0 };
+		const GString base = li_const_gstring((gchar*) basep, vr->physical.path->len - (basep - vr->physical.path->str));
 		guint i;
 
 		for (i = 0; i < exclude_arr->len; i++) {
@@ -431,7 +431,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 			hh_range = li_http_header_lookup(vr->request.headers, CONST_STR_LEN("range"));
 			if (hh_range) {
 				/* TODO: Check If-Range: header */
-				GString range_str = { HEADER_VALUE_LEN(hh_range), 0 };
+				const GString range_str = li_const_gstring(HEADER_VALUE_LEN(hh_range));
 				liParseHttpRangeState rs;
 				gboolean is_multipart = FALSE, done = FALSE;
 

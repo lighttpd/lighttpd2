@@ -374,7 +374,7 @@ void li_path_simplify(GString *path) {
 }
 
 
-gboolean li_querystring_find(GString *querystring, const gchar *key, const guint key_len, gchar **val, guint *val_len) {
+gboolean li_querystring_find(const GString *querystring, const gchar *key, const guint key_len, gchar **val, guint *val_len) {
 	gchar delim = '\0';
 	gchar *end = querystring->str + querystring->len;
 	gchar *start = querystring->str;
@@ -578,7 +578,7 @@ GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean sho
 	return dest;
 }
 
-liSocketAddress li_sockaddr_from_string(GString *str, guint tcp_default_port) {
+liSocketAddress li_sockaddr_from_string(const GString *str, guint tcp_default_port) {
 	guint32 ipv4;
 #ifdef HAVE_IPV6
 	guint8 ipv6[16];
@@ -690,19 +690,19 @@ void li_gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, gu
 	}
 }
 
-gboolean li_strncase_equal(GString *str, const gchar *s, guint len) {
+gboolean li_strncase_equal(const GString *str, const gchar *s, guint len) {
 	if (str->len != len) return FALSE;
 	return 0 == g_ascii_strncasecmp(str->str, s, len);
 }
 
-gboolean li_string_suffix(GString *str, const gchar *s, gsize len) {
+gboolean li_string_suffix(const GString *str, const gchar *s, gsize len) {
 	if (str->len < len)
 		return FALSE;
 
 	return (strcmp(str->str + str->len - len, s) == 0);
 }
 
-gboolean li_string_prefix(GString *str, const gchar *s, gsize len) {
+gboolean li_string_prefix(const GString *str, const gchar *s, gsize len) {
 	if (str->len < len)
 		return FALSE;
 

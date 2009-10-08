@@ -83,7 +83,7 @@ liParseHttpRangeResult li_parse_http_range_next(liParseHttpRangeState* s) {
 	}
 }
 
-void li_parse_http_range_init(liParseHttpRangeState* s, GString *range_str, goffset limit) {
+void li_parse_http_range_init(liParseHttpRangeState* s, const GString *range_str, goffset limit) {
 	s->data = g_string_new_len(GSTR_LEN(range_str));
 	s->data_pos = s->data->str;
 	s->limit = limit;
