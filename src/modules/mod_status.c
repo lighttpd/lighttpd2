@@ -20,7 +20,7 @@
  *     }
  *
  * Todo:
- *     - add querystring parameter format=plain
+ *     -
  *
  * Author:
  *     Copyright (c) 2008-2009 Thomas Porzelt
@@ -41,6 +41,8 @@
 LI_API gboolean mod_status_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_status_free(liModules *mods, liModule *mod);
 
+static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_info, GPtrArray *result, guint uptime, liStatistics *totals, guint total_connections, guint *connection_count);
+static GString *status_info_plain(liVRequest *vr, guint uptime, liStatistics *totals, guint total_connections, guint *connection_count);
 static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p);
 static gint str_comp(gconstpointer a, gconstpointer b);
 
@@ -382,6 +384,7 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 
 /* the CollectCallback */
 static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
+	guint i, j;
 	mod_status_job *job = fdata;
 	liVRequest *vr = job->vr;
 	liPlugin *p = job->p;
@@ -391,8 +394,6 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 
 	if (!complete) {
 		/* someone called li_collect_break, so we don't need any vrequest handling here. just free the result data */
-		guint i, j;
-
 		for (i = 0; i < result->len; i++) {
 			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 			for (j = 0; j < sd->connections->len; j++) {
@@ -412,8 +413,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 
 		return;
 	} else {
-		GString *html, *tmpstr, *count_req, *count_bin, *count_bout;
-		guint uptime, i, j;
+		GString *html;
+		gchar *val;
+		guint uptime, len;
 		guint total_connections = 0;
 		guint connection_count[6] = {0,0,0,0,0,0};
 
@@ -428,16 +430,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		*(job->context) = NULL;
 		g_slice_free(mod_status_job, job);
 
-		/* we got everything */
 		uptime = CUR_TS(vr->wrk) - vr->wrk->srv->started;
 		if (!uptime)
 			uptime = 1;
-		
-		html = g_string_sized_new(8 * 1024 - 1);
-		count_req = g_string_sized_new(10);
-		count_bin = g_string_sized_new(10);
-		count_bout = g_string_sized_new(10);
-		tmpstr = g_string_sized_new(10);
 
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "finished collecting data: %s", complete ? "complete" : "not complete");
@@ -467,271 +462,327 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			connection_count[5] += sd->connection_count[5];
 		}
 
-		g_string_append_len(html, CONST_STR_LEN(html_header));
-		g_string_append_len(html, CONST_STR_LEN(html_js));
-
-		/* auto refresh */
-		{
-			gchar *val;
-			guint len;
-			gchar c;
-
-			if (li_querystring_find(vr->request.uri.query, CONST_STR_LEN("refresh"), &val, &len)) {
-				g_string_append_len(html, CONST_STR_LEN("<meta http-equiv=\"refresh\" content=\""));
-				/* temp char swap */
-				c = val[len]; val[len] = '\0';
-				li_string_encode_append(val, html, LI_ENCODING_HTML);
-				val[len] = c;
-				g_string_append_len(html, CONST_STR_LEN("\">\n"));
-			}
-		}
-
-		/* css */
-		{
-			GString *css = _OPTION(vr, p, 0).string;
-
-			if (!css || !css->len) /* default css */
-				g_string_append_len(html, CONST_STR_LEN(css_default));
-			else if (g_str_equal(css->str, "blue")) /* blue css */
-				g_string_append_len(html, CONST_STR_LEN(css_blue));
-			else /* external css */
-				g_string_append_printf(html, "		<link rel=\"stylesheet\" rev=\"stylesheet\" href=\"%s\" media=\"screen\" />\n", css->str);
-		}
-
-		g_string_append_len(html, CONST_STR_LEN(
-			"	</head>\n"
-			"	<body>\n"
-		));
-
-		li_counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, tmpstr);
-
-		g_string_append_printf(html, short_info ? html_top_short : html_top,
-			vr->request.uri.host->str,
-			tmpstr->str,
-			vr->wrk->srv->started_str->str
-		);
-
-
-		/* worker information, absolute values */
-		{
-			g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Absolute stats</strong></div>\n"));
-
-			g_string_append_len(html, CONST_STR_LEN(html_worker_th));
-
-			#define PERCENTAGE(x, y) (y ? (x * 100 / y) : 0)
-			for (i = 0; i < result->len; i++) {
-				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
-				li_counter_format(sd->stats.requests, COUNTER_UNITS, count_req);
-				li_counter_format(sd->stats.bytes_in, COUNTER_BYTES, count_bin);
-				li_counter_format(sd->stats.bytes_out, COUNTER_BYTES, count_bout);
-				g_string_printf(tmpstr, "Worker #%u", i+1);
-				g_string_append_printf(html, html_worker_row, "", tmpstr->str,
-					count_req->str, PERCENTAGE(sd->stats.requests, totals.requests),
-					count_bin->str, PERCENTAGE(sd->stats.bytes_in, totals.bytes_in),
-					count_bout->str, PERCENTAGE(sd->stats.bytes_out, totals.bytes_out),
-					sd->connections->len, PERCENTAGE(sd->connections->len, total_connections));
-			}
-			#undef PERCENTAGE
-
-			li_counter_format(totals.requests, COUNTER_UNITS, count_req);
-			li_counter_format(totals.bytes_in, COUNTER_BYTES, count_bin);
-			li_counter_format(totals.bytes_out, COUNTER_BYTES, count_bout);
-			g_string_append_printf(html, html_worker_row, "totals", "Total",
-				count_req->str, G_GUINT64_CONSTANT(100),
-				count_bin->str, G_GUINT64_CONSTANT(100),
-				count_bout->str, G_GUINT64_CONSTANT(100),
-				total_connections, 100);
-			g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
-		}
-
-		/* worker information, avg values */
-		{
-			g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (since start)</div>\n"));
-
-			g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
-
-			#define PERCENTAGE(x) (sd->stat ## x ? (sd->stat ## x * 100 / total ## x) : 0)
-			for (i = 0; i < result->len; i++) {
-				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
-
-				li_counter_format(sd->stats.requests / uptime, COUNTER_UNITS, count_req);
-				li_counter_format(sd->stats.bytes_in / uptime, COUNTER_BYTES, count_bin);
-				li_counter_format(sd->stats.bytes_out / uptime, COUNTER_BYTES, count_bout);
-				g_string_printf(tmpstr, "Worker #%u", i+1);
-				g_string_append_printf(html, html_worker_row_avg, "", tmpstr->str,
-					count_req->str,
-					count_bin->str,
-					count_bout->str,
-					(guint)(sd->stats.active_cons_cum / uptime)
-				);
-			}
-			#undef PERCENTAGE
-
-			li_counter_format(totals.requests / uptime, COUNTER_UNITS, count_req);
-			li_counter_format(totals.bytes_in / uptime, COUNTER_BYTES, count_bin);
-			li_counter_format(totals.bytes_out / uptime, COUNTER_BYTES, count_bout);
-			g_string_append_printf(html, html_worker_row_avg, "totals", "Total",
-				count_req->str,
-				count_bin->str,
-				count_bout->str,
-				(guint)(totals.active_cons_cum / uptime)
-			);
-			g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
-		}
-
-
-		/* worker information, 5 seconds avg values */
-		{
-			g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (5 seconds)</div>\n"));
-
-			g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
-
-			#define PERCENTAGE(x) (sd->stat ## x ? (sd->stat ## x * 100 / total ## x) : 0)
-			for (i = 0; i < result->len; i++) {
-				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
-
-				li_counter_format(sd->stats.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, count_req);
-				li_counter_format(sd->stats.bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bin);
-				li_counter_format(sd->stats.bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bout);
-				g_string_printf(tmpstr, "Worker #%u", i+1);
-				g_string_append_printf(html, html_worker_row_avg, "", tmpstr->str,
-					count_req->str,
-					count_bin->str,
-					count_bout->str,
-					sd->stats.active_cons_5s
-				);
-			}
-			#undef PERCENTAGE
-
-			li_counter_format(totals.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, count_req);
-			li_counter_format(totals.bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bin);
-			li_counter_format(totals.bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bout);
-			g_string_append_printf(html, html_worker_row_avg, "totals", "Total",
-				count_req->str,
-				count_bin->str,
-				count_bout->str,
-				totals.active_cons_5s
-			);
-			g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
-		}
-
-		/* connection counts */
-		g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong> (states, sum)</div>\n"));
-		g_string_append_printf(html, html_connections_sum, connection_count[2],
-			connection_count[3], connection_count[4], connection_count[5], connection_count[1]
-		);
-
-		/* list connections */
-		if (!short_info) {
-			GString *ts, *bytes_in, *bytes_out, *bytes_in_5s, *bytes_out_5s;
-			GString *req_len, *resp_len;
-			guint len;
-
-			ts = g_string_sized_new(15);
-			bytes_in = g_string_sized_new(10);
-			bytes_out = g_string_sized_new(10);
-			bytes_in_5s = g_string_sized_new(10);
-			bytes_out_5s = g_string_sized_new(10);
-			req_len = g_string_sized_new(10);
-			resp_len = g_string_sized_new(10);
-
-			g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong></div>\n"));
-			g_string_append_len(html, CONST_STR_LEN(html_connections_th));
-			for (i = 0; i < result->len; i++) {
-				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
-				for (j = 0; j < sd->connections->len; j++) {
-					mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
-
-					li_counter_format((guint64)(CUR_TS(vr->wrk) - cd->ts), COUNTER_TIME, ts);
-					li_counter_format(cd->bytes_in, COUNTER_BYTES, bytes_in);
-					li_counter_format(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_in_5s);
-					li_counter_format(cd->bytes_out, COUNTER_BYTES, bytes_out);
-					li_counter_format(cd->bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_out_5s);
-					li_counter_format(cd->request_size, COUNTER_BYTES, req_len);
-					li_counter_format(cd->response_size, COUNTER_BYTES, resp_len);
-
-					g_string_append_printf(html, html_connections_row,
-						cd->remote_addr_str->str,
-						li_connection_state_str(cd->state),
-						cd->host->str,
-						cd->path->str,
-						cd->query->len ? "?":"",
-						cd->query->len ? cd->query->str : "",
-						(guint64)(CUR_TS(vr->wrk) - cd->ts), ts->str,
-						cd->bytes_in, bytes_in->str,
-						cd->bytes_out, bytes_out->str,
-						cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), bytes_in_5s->str,
-						cd->bytes_out_5s_diff / G_GUINT64_CONSTANT(5), bytes_out_5s->str,
-						(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? li_http_method_string(cd->method, &len) : "",
-						cd->request_size != -1 ? cd->request_size : 0, (cd->state >= LI_CON_STATE_HANDLE_MAINVR && cd->request_size != -1) ? req_len->str : "",
-						cd->response_size, (cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? resp_len->str : ""
-					);
-
-					g_string_free(cd->remote_addr_str, TRUE);
-					g_string_free(cd->local_addr_str, TRUE);
-					g_string_free(cd->host, TRUE);
-					g_string_free(cd->path, TRUE);
-					g_string_free(cd->query, TRUE);
-				}
-
-				g_array_free(sd->connections, TRUE);
-			}
-
-			g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
-
-			g_string_free(ts, TRUE);
-			g_string_free(bytes_in, TRUE);
-			g_string_free(bytes_in_5s, TRUE);
-			g_string_free(bytes_out, TRUE);
-			g_string_free(bytes_out_5s, TRUE);
-			g_string_free(req_len, TRUE);
-			g_string_free(resp_len, TRUE);
+		if (li_querystring_find(vr->request.uri.query, CONST_STR_LEN("format"), &val, &len) && strncmp(val, "plain", len) == 0) {
+			/* show plain text page */
+			html = status_info_plain(vr, uptime, &totals, total_connections, &connection_count[0]);
 		} else {
-			for (i = 0; i < result->len; i++) {
-				mod_status_wrk_data *sd = g_ptr_array_index(result, i);
-				for (j = 0; j < sd->connections->len; j++) {
-					mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
-
-					g_string_free(cd->remote_addr_str, TRUE);
-					g_string_free(cd->local_addr_str, TRUE);
-					g_string_free(cd->host, TRUE);
-					g_string_free(cd->path, TRUE);
-					g_string_free(cd->query, TRUE);
-				}
-
-				g_array_free(sd->connections, TRUE);
-			}
+			/* show full html page */
+			html = status_info_full(vr, p, short_info, result, uptime, &totals, total_connections, &connection_count[0]);
 		}
+
+		li_chunkqueue_append_string(vr->out, html);
+		vr->response.http_status = 200;
+		li_vrequest_handle_direct(vr);
+		li_vrequest_joblist_append(vr);
 
 		/* free stats */
 		for (i = 0; i < result->len; i++) {
 			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 			g_slice_free(mod_status_wrk_data, sd);
 		}
-
-		g_string_append_len(html, CONST_STR_LEN(
-			" </body>\n"
-			"</html>\n"
-		));
-		li_chunkqueue_append_string(vr->out, html);
-		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html; charset=utf-8"));
-
-		g_string_free(count_req, TRUE);
-		g_string_free(count_bin, TRUE);
-		g_string_free(count_bout, TRUE);
-		g_string_free(tmpstr, TRUE);
-
-		vr->response.http_status = 200;
-		li_vrequest_handle_direct(vr);
-
-		li_vrequest_joblist_append(vr);
 	}
 }
 
+static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_info, GPtrArray *result, guint uptime, liStatistics *totals, guint total_connections, guint *connection_count) {
+	GString *html, *css, *count_req, *count_bin, *count_bout, *tmpstr;
+	gchar *val;
+	guint i, j, len;
+	gchar c;
+
+	html = g_string_sized_new(8 * 1024 - 1);
+	count_req = g_string_sized_new(10);
+	count_bin = g_string_sized_new(10);
+	count_bout = g_string_sized_new(10);
+	tmpstr = vr->wrk->tmp_str;
+
+	g_string_append_len(html, CONST_STR_LEN(html_header));
+	g_string_append_len(html, CONST_STR_LEN(html_js));
+
+	/* auto refresh */
+	if (li_querystring_find(vr->request.uri.query, CONST_STR_LEN("refresh"), &val, &len)) {
+		g_string_append_len(html, CONST_STR_LEN("<meta http-equiv=\"refresh\" content=\""));
+		/* temp char swap */
+		c = val[len]; val[len] = '\0';
+		li_string_encode_append(val, html, LI_ENCODING_HTML);
+		val[len] = c;
+		g_string_append_len(html, CONST_STR_LEN("\">\n"));
+	}
+
+	/* css */
+	css = _OPTION(vr, p, 0).string;
+
+	if (!css || !css->len) /* default css */
+		g_string_append_len(html, CONST_STR_LEN(css_default));
+	else if (g_str_equal(css->str, "blue")) /* blue css */
+		g_string_append_len(html, CONST_STR_LEN(css_blue));
+	else /* external css */
+		g_string_append_printf(html, "		<link rel=\"stylesheet\" rev=\"stylesheet\" href=\"%s\" media=\"screen\" />\n", css->str);
+
+	g_string_append_len(html, CONST_STR_LEN(
+		"	</head>\n"
+		"	<body>\n"
+	));
+
+	li_counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, tmpstr);
+	g_string_append_printf(html, short_info ? html_top_short : html_top,
+		vr->request.uri.host->str,
+		tmpstr->str,
+		vr->wrk->srv->started_str->str
+	);
+
+
+	/* worker information, absolute values */
+	g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Absolute stats</strong></div>\n"));
+	g_string_append_len(html, CONST_STR_LEN(html_worker_th));
+
+	#define PERCENTAGE(x, y) (y ? (x * 100 / y) : 0)
+	for (i = 0; i < result->len; i++) {
+		mod_status_wrk_data *sd = g_ptr_array_index(result, i);
+		li_counter_format(sd->stats.requests, COUNTER_UNITS, count_req);
+		li_counter_format(sd->stats.bytes_in, COUNTER_BYTES, count_bin);
+		li_counter_format(sd->stats.bytes_out, COUNTER_BYTES, count_bout);
+		g_string_printf(tmpstr, "Worker #%u", i+1);
+		g_string_append_printf(html, html_worker_row, "", tmpstr->str,
+			count_req->str, PERCENTAGE(sd->stats.requests, totals->requests),
+			count_bin->str, PERCENTAGE(sd->stats.bytes_in, totals->bytes_in),
+			count_bout->str, PERCENTAGE(sd->stats.bytes_out, totals->bytes_out),
+			sd->connections->len, PERCENTAGE(sd->connections->len, total_connections));
+	}
+	#undef PERCENTAGE
+
+	li_counter_format(totals->requests, COUNTER_UNITS, count_req);
+	li_counter_format(totals->bytes_in, COUNTER_BYTES, count_bin);
+	li_counter_format(totals->bytes_out, COUNTER_BYTES, count_bout);
+	g_string_append_printf(html, html_worker_row, "totals", "Total",
+		count_req->str, G_GUINT64_CONSTANT(100),
+		count_bin->str, G_GUINT64_CONSTANT(100),
+		count_bout->str, G_GUINT64_CONSTANT(100),
+		total_connections, 100);
+	g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+
+	/* worker information, avg values */
+	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (since start)</div>\n"));
+
+	g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
+
+	#define PERCENTAGE(x) (sd->stat ## x ? (sd->stat ## x * 100 / total ## x) : 0)
+	for (i = 0; i < result->len; i++) {
+		mod_status_wrk_data *sd = g_ptr_array_index(result, i);
+
+		li_counter_format(sd->stats.requests / uptime, COUNTER_UNITS, count_req);
+		li_counter_format(sd->stats.bytes_in / uptime, COUNTER_BYTES, count_bin);
+		li_counter_format(sd->stats.bytes_out / uptime, COUNTER_BYTES, count_bout);
+		g_string_printf(tmpstr, "Worker #%u", i+1);
+		g_string_append_printf(html, html_worker_row_avg, "", tmpstr->str,
+			count_req->str,
+			count_bin->str,
+			count_bout->str,
+			(guint)(sd->stats.active_cons_cum / uptime)
+		);
+	}
+	#undef PERCENTAGE
+
+	li_counter_format(totals->requests / uptime, COUNTER_UNITS, count_req);
+	li_counter_format(totals->bytes_in / uptime, COUNTER_BYTES, count_bin);
+	li_counter_format(totals->bytes_out / uptime, COUNTER_BYTES, count_bout);
+	g_string_append_printf(html, html_worker_row_avg, "totals", "Total",
+		count_req->str,
+		count_bin->str,
+		count_bout->str,
+		(guint)(totals->active_cons_cum / uptime)
+	);
+	g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+
+
+	/* worker information, 5 seconds avg values */
+	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (5 seconds)</div>\n"));
+	g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
+
+	#define PERCENTAGE(x) (sd->stat ## x ? (sd->stat ## x * 100 / total ## x) : 0)
+	for (i = 0; i < result->len; i++) {
+		mod_status_wrk_data *sd = g_ptr_array_index(result, i);
+
+		li_counter_format(sd->stats.requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, count_req);
+		li_counter_format(sd->stats.bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bin);
+		li_counter_format(sd->stats.bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bout);
+		g_string_printf(tmpstr, "Worker #%u", i+1);
+		g_string_append_printf(html, html_worker_row_avg, "", tmpstr->str,
+			count_req->str,
+			count_bin->str,
+			count_bout->str,
+			sd->stats.active_cons_5s
+		);
+	}
+	#undef PERCENTAGE
+
+	li_counter_format(totals->requests_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_UNITS, count_req);
+	li_counter_format(totals->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bin);
+	li_counter_format(totals->bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, count_bout);
+	g_string_append_printf(html, html_worker_row_avg, "totals", "Total",
+		count_req->str,
+		count_bin->str,
+		count_bout->str,
+		totals->active_cons_5s
+	);
+	g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+
+	/* connection counts */
+	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong> (states, sum)</div>\n"));
+	g_string_append_printf(html, html_connections_sum, connection_count[2],
+		connection_count[3], connection_count[4], connection_count[5], connection_count[1]
+	);
+
+	/* list connections */
+	if (!short_info) {
+		GString *ts, *bytes_in, *bytes_out, *bytes_in_5s, *bytes_out_5s;
+		GString *req_len, *resp_len;
+
+		ts = g_string_sized_new(15);
+		bytes_in = g_string_sized_new(10);
+		bytes_out = g_string_sized_new(10);
+		bytes_in_5s = g_string_sized_new(10);
+		bytes_out_5s = g_string_sized_new(10);
+		req_len = g_string_sized_new(10);
+		resp_len = g_string_sized_new(10);
+
+		g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong></div>\n"));
+		g_string_append_len(html, CONST_STR_LEN(html_connections_th));
+		for (i = 0; i < result->len; i++) {
+			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
+			for (j = 0; j < sd->connections->len; j++) {
+				mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
+
+				li_counter_format((guint64)(CUR_TS(vr->wrk) - cd->ts), COUNTER_TIME, ts);
+				li_counter_format(cd->bytes_in, COUNTER_BYTES, bytes_in);
+				li_counter_format(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_in_5s);
+				li_counter_format(cd->bytes_out, COUNTER_BYTES, bytes_out);
+				li_counter_format(cd->bytes_out_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_out_5s);
+				li_counter_format(cd->request_size, COUNTER_BYTES, req_len);
+				li_counter_format(cd->response_size, COUNTER_BYTES, resp_len);
+
+				g_string_append_printf(html, html_connections_row,
+					cd->remote_addr_str->str,
+					li_connection_state_str(cd->state),
+					cd->host->str,
+					cd->path->str,
+					cd->query->len ? "?":"",
+					cd->query->len ? cd->query->str : "",
+					(guint64)(CUR_TS(vr->wrk) - cd->ts), ts->str,
+					cd->bytes_in, bytes_in->str,
+					cd->bytes_out, bytes_out->str,
+					cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), bytes_in_5s->str,
+					cd->bytes_out_5s_diff / G_GUINT64_CONSTANT(5), bytes_out_5s->str,
+					(cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? li_http_method_string(cd->method, &len) : "",
+					cd->request_size != -1 ? cd->request_size : 0, (cd->state >= LI_CON_STATE_HANDLE_MAINVR && cd->request_size != -1) ? req_len->str : "",
+					cd->response_size, (cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? resp_len->str : ""
+				);
+
+				g_string_free(cd->remote_addr_str, TRUE);
+				g_string_free(cd->local_addr_str, TRUE);
+				g_string_free(cd->host, TRUE);
+				g_string_free(cd->path, TRUE);
+				g_string_free(cd->query, TRUE);
+			}
+
+			g_array_free(sd->connections, TRUE);
+		}
+
+		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+
+		g_string_free(ts, TRUE);
+		g_string_free(bytes_in, TRUE);
+		g_string_free(bytes_in_5s, TRUE);
+		g_string_free(bytes_out, TRUE);
+		g_string_free(bytes_out_5s, TRUE);
+		g_string_free(req_len, TRUE);
+		g_string_free(resp_len, TRUE);
+	} else {
+		for (i = 0; i < result->len; i++) {
+			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
+			for (j = 0; j < sd->connections->len; j++) {
+				mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
+
+				g_string_free(cd->remote_addr_str, TRUE);
+				g_string_free(cd->local_addr_str, TRUE);
+				g_string_free(cd->host, TRUE);
+				g_string_free(cd->path, TRUE);
+				g_string_free(cd->query, TRUE);
+			}
+
+			g_array_free(sd->connections, TRUE);
+		}
+	}
+
+	g_string_append_len(html, CONST_STR_LEN(
+		" </body>\n"
+		"</html>\n"
+	));
+
+	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html; charset=utf-8"));
+
+	g_string_free(count_req, TRUE);
+	g_string_free(count_bin, TRUE);
+	g_string_free(count_bout, TRUE);
+
+	return html;
+}
+
+static GString *status_info_plain(liVRequest *vr, guint uptime, liStatistics *totals, guint total_connections, guint *connection_count) {
+	GString *html;
+
+	html = g_string_sized_new(1024 - 1);
+
+	/* absolute values */
+	g_string_append_len(html, CONST_STR_LEN("# Absolute Values\nuptime: "));
+	li_string_append_int(html, (gint64)uptime);
+	g_string_append_len(html, CONST_STR_LEN("\nrequests_abs: "));
+	li_string_append_int(html, totals->requests);
+	g_string_append_len(html, CONST_STR_LEN("\ntraffic_out_abs: "));
+	li_string_append_int(html, totals->bytes_out);
+	g_string_append_len(html, CONST_STR_LEN("\ntraffic_in_abs: "));
+	li_string_append_int(html, totals->bytes_in);
+	g_string_append_len(html, CONST_STR_LEN("\nconnections_abs: "));
+	li_string_append_int(html, total_connections);
+	/* average since start */
+	g_string_append_len(html, CONST_STR_LEN("\n\n# Average Values (since start)\nrequests_avg: "));
+	li_string_append_int(html, totals->requests / uptime);
+	g_string_append_len(html, CONST_STR_LEN("\ntraffic_out_avg: "));
+	li_string_append_int(html, totals->bytes_out / uptime);
+	g_string_append_len(html, CONST_STR_LEN("\ntraffic_in_avg: "));
+	li_string_append_int(html, totals->bytes_in / uptime);
+	g_string_append_len(html, CONST_STR_LEN("\nconnections_avg: "));
+	li_string_append_int(html, totals->active_cons_cum / uptime);
+	/* average last 5 seconds */
+	g_string_append_len(html, CONST_STR_LEN("\n\n# Average Values (5 seconds)\nrequests_avg_5sec: "));
+	li_string_append_int(html, totals->requests_5s_diff / 5);
+	g_string_append_len(html, CONST_STR_LEN("\ntraffic_out_avg_5sec: "));
+	li_string_append_int(html, totals->bytes_out_5s_diff / 5);
+	g_string_append_len(html, CONST_STR_LEN("\ntraffic_in_avg_5sec: "));
+	li_string_append_int(html, totals->bytes_in_5s_diff / 5);
+	g_string_append_len(html, CONST_STR_LEN("\nconnections_avg_5sec: "));
+	li_string_append_int(html, totals->active_cons_5s / 5);
+	/* connection states */
+	g_string_append_len(html, CONST_STR_LEN("\n\n# Connection States\nconnection_state_start: "));
+	li_string_append_int(html, connection_count[2]);
+	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_read_header: "));
+	li_string_append_int(html, connection_count[3]);
+	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_handle_request: "));
+	li_string_append_int(html, connection_count[4]);
+	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_write_response: "));
+	li_string_append_int(html, connection_count[5]);
+	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_keep_alive: "));
+	li_string_append_int(html, connection_count[1]);
+
+	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/plain"));
+
+	return html;
+}
+
 static liHandlerResult status_info(liVRequest *vr, gpointer _param, gpointer *context) {
-	mod_status_param *param = _param;
 	gchar *val;
 	guint len;
+	gboolean have_mode;
+	mod_status_param *param = _param;
 
 	switch (vr->request.http_method) {
 	case LI_HTTP_METHOD_GET:
@@ -743,7 +794,9 @@ static liHandlerResult status_info(liVRequest *vr, gpointer _param, gpointer *co
 
 	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
 
-	if (!li_querystring_find(vr->request.uri.query, CONST_STR_LEN("mode"), &val, &len)) {
+	have_mode = li_querystring_find(vr->request.uri.query, CONST_STR_LEN("mode"), &val, &len);
+
+	if (!have_mode || strncmp(val, "plain", len)) {
 		/* no 'mode' query parameter given */
 		liCollectInfo *ci;
 		mod_status_job *j = g_slice_new(mod_status_job);
