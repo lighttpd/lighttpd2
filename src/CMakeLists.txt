@@ -249,19 +249,27 @@ ADD_LIBRARY(lighttpd-common SHARED
 	${COMMON_SRC}
 )
 
-ADD_EXECUTABLE(lighttpd
-	main/lighttpd.c
+ADD_LIBRARY(lighttpd-shared SHARED
 	${LIGHTTPD_SHARED_SRC}
 )
-TARGET_LINK_LIBRARIES(lighttpd lighttpd-common)
-SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd)
+TARGET_LINK_LIBRARIES(lighttpd-shared lighttpd-common)
+
+ADD_LIBRARY(lighttpd-sharedangel SHARED
+	${ANGEL_SHARED_SRC}
+)
+TARGET_LINK_LIBRARIES(lighttpd-sharedangel lighttpd-common)
+
+ADD_EXECUTABLE(lighttpd
+	main/lighttpd.c
+)
+TARGET_LINK_LIBRARIES(lighttpd lighttpd-common lighttpd-shared)
 
 ADD_EXECUTABLE(lighttpd-angel
 	angel/angel_main.c
-	${ANGEL_SHARED_SRC}
 )
-TARGET_LINK_LIBRARIES(lighttpd-angel lighttpd-common)
-SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd-angel)
+TARGET_LINK_LIBRARIES(lighttpd-angel lighttpd-common lighttpd-sharedangel)
+
+SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd lighttpd-angel lighttpd-common lighttpd-shared lighttpd-sharedangel)
 
 IF(BUILD_EXTRA_WARNINGS)
 	SET(WARN_CFLAGS "-g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wcast-align -Wsign-compare -Wnested-externs -Wpointer-arith")
@@ -307,6 +315,12 @@ ENDIF(HAVE_LIBSSL AND HAVE_LIBCRYPTO)
 
 ADD_TARGET_PROPERTIES(lighttpd-common LINK_FLAGS ${COMMON_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd-common COMPILE_FLAGS ${COMMON_CFLAGS})
+
+ADD_TARGET_PROPERTIES(lighttpd-shared LINK_FLAGS ${COMMON_LDFLAGS})
+ADD_TARGET_PROPERTIES(lighttpd-shared COMPILE_FLAGS ${COMMON_CFLAGS})
+
+ADD_TARGET_PROPERTIES(lighttpd-sharedangel LINK_FLAGS ${COMMON_LDFLAGS})
+ADD_TARGET_PROPERTIES(lighttpd-sharedangel COMPILE_FLAGS ${COMMON_CFLAGS})
 
 ADD_TARGET_PROPERTIES(lighttpd LINK_FLAGS ${COMMON_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd COMPILE_FLAGS ${COMMON_CFLAGS})
