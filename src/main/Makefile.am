@@ -62,10 +62,12 @@ lighttpd_shared_src+=$(lua_src)
 endif
 EXTRA_lighttpd_SOURCES=$(lua_src)
 
-BUILT_SOURCES=config_parser.c http_range_parser.rl http_request_parser.c http_response_parser.c url_parser.c
+BUILT_SOURCES=config_parser.c http_range_parser.c http_request_parser.c http_response_parser.c url_parser.c
 
 config_parser.c: config_parser.rl
 	ragel -C -T0 -o $@ $<
+http_range_parser.c: http_range_parser.rl
+	ragel -C -T1 -o $@ $<
 http_request_parser.c: http_request_parser.rl
 	ragel -C -T1 -o $@ $<
 http_response_parser.c: http_response_parser.rl
