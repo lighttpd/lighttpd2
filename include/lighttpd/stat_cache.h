@@ -83,8 +83,8 @@ struct liStatCache {
 	guint64 errors;
 };
 
-void stat_cache_new(liWorker *wrk, gdouble ttl);
-void stat_cache_free(liStatCache *sc);
+LI_API void li_stat_cache_new(liWorker *wrk, gdouble ttl);
+LI_API void li_stat_cache_free(liStatCache *sc);
 
 /*
  gets a stat_cache_entry for a specified path

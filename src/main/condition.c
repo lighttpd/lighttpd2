@@ -536,15 +536,15 @@ static liHandlerResult li_condition_check_eval_int(liVRequest *vr, liCondition *
 static gboolean ip_in_net(liConditionRValue *target, liConditionRValue *network) {
 	if (target->type == LI_COND_VALUE_SOCKET_IPV4) {
 		if (network->type == LI_COND_VALUE_SOCKET_IPV4) {
-			return ipv4_in_ipv4_net(target->ipv4.addr, network->ipv4.addr, network->ipv4.networkmask);
+			return li_ipv4_in_ipv4_net(target->ipv4.addr, network->ipv4.addr, network->ipv4.networkmask);
 		} else if (network->type == LI_COND_VALUE_SOCKET_IPV6) {
-			return ipv4_in_ipv6_net(target->ipv4.addr, network->ipv6.addr, network->ipv6.network);
+			return li_ipv4_in_ipv6_net(target->ipv4.addr, network->ipv6.addr, network->ipv6.network);
 		}
 	} else if (target->type == LI_COND_VALUE_SOCKET_IPV6) {
 		if (network->type == LI_COND_VALUE_SOCKET_IPV4) {
-			return ipv6_in_ipv4_net(target->ipv6.addr, network->ipv4.addr, network->ipv4.networkmask);
+			return li_ipv6_in_ipv4_net(target->ipv6.addr, network->ipv4.addr, network->ipv4.networkmask);
 		} else if (network->type == LI_COND_VALUE_SOCKET_IPV6) {
-			return ipv6_in_ipv6_net(target->ipv6.addr, network->ipv6.addr, network->ipv6.network);
+			return li_ipv6_in_ipv6_net(target->ipv6.addr, network->ipv6.addr, network->ipv6.network);
 		}
 	}
 	return FALSE;

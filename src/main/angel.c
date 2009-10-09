@@ -56,8 +56,6 @@ static void li_angel_listen_cb(liAngelCall *acall, gpointer pctx, gboolean timeo
 	li_angel_call_free(acall);
 	g_slice_free(angel_listen_cb_ctx, pctx);
 
-	ERROR(srv, "%s", "listen_cb");
-
 	if (timeout) {
 		ERROR(srv, "listen failed: %s", "time out");
 		return;
@@ -101,7 +99,7 @@ void li_angel_listen(liServer *srv, GString *str, liAngelListenCB cb, gpointer d
 			g_error_free(err);
 		}
 	} else {
-		int fd = angel_fake_listen(srv, str);
+		int fd = li_angel_fake_listen(srv, str);
 		if (-1 == fd) {
 			ERROR(srv, "listen('%s') failed", str->str);
 			/* TODO: exit? */
@@ -117,5 +115,5 @@ void li_angel_listen(liServer *srv, GString *str, liAngelListenCB cb, gpointer d
 
 /* send log messages while startup to angel */
 void li_angel_log(liServer *srv, GString *str) {
-	angel_fake_log(srv, str);
+	li_angel_fake_log(srv, str);
 }

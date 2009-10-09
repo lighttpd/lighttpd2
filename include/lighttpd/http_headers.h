@@ -5,11 +5,14 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-#define HEADER_VALUE(h) \
-	(&(h)->data->str[h->keylen + 2])
+#define LI_HEADER_VALUE(h) \
+	(&(h)->data->str[(h)->keylen + 2])
 
-#define HEADER_VALUE_LEN(h) \
-	(&(h)->data->str[h->keylen + 2]), ((h)->data->len - (h->keylen + 2))
+#define LI_HEADER_VALUE_LEN(h) \
+	(&(h)->data->str[(h)->keylen + 2]), ((h)->data->len - ((h)->keylen + 2))
+
+#define LI_HEADER_KEY_LEN(h) \
+	((h)->data->str), ((h)->keylen)
 
 struct liHttpHeader {
 	guint keylen;     /** length of "headername" in data */
@@ -52,7 +55,7 @@ LI_API gboolean li_http_header_is(liHttpHeaders *headers, const gchar *key, size
 /** concats all headers with key with ', ' - empty if no header exists */
 LI_API void li_http_header_get_all(GString *dest, liHttpHeaders *headers, const gchar *key, size_t keylen);
 
-INLINE gboolean http_header_key_is(liHttpHeader *h, const gchar *key, size_t keylen) {
+INLINE gboolean li_http_header_key_is(liHttpHeader *h, const gchar *key, size_t keylen) {
 	return (h->keylen == keylen && 0 == g_ascii_strncasecmp(key, h->data->str, keylen));
 }
 

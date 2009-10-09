@@ -8,7 +8,7 @@ static void stat_cache_delete_cb(struct ev_loop *loop, ev_timer *w, int revents)
 static gpointer stat_cache_thread(gpointer data);
 static void stat_cache_entry_free(liStatCacheEntry *sce);
 
-void stat_cache_new(liWorker *wrk, gdouble ttl) {
+void li_stat_cache_new(liWorker *wrk, gdouble ttl) {
 	liStatCache *sc;
 	GError *err;
 
@@ -39,7 +39,7 @@ void stat_cache_new(liWorker *wrk, gdouble ttl) {
 	}
 }
 
-void stat_cache_free(liStatCache *sc) {
+void li_stat_cache_free(liStatCache *sc) {
 	liStatCacheEntry *sce;
 	liWaitQueueElem *wqe;
 

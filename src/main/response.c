@@ -96,8 +96,8 @@ gboolean li_response_send_headers(liConnection *con) {
 			header = (liHttpHeader*) iter->data;
 			g_string_append_len(head, GSTR_LEN(header->data));
 			g_string_append_len(head, CONST_STR_LEN("\r\n"));
-			if (!have_date && http_header_key_is(header, CONST_STR_LEN("date"))) have_date = TRUE;
-			if (!have_server && http_header_key_is(header, CONST_STR_LEN("server"))) have_server = TRUE;
+			if (!have_date && li_http_header_key_is(header, CONST_STR_LEN("date"))) have_date = TRUE;
+			if (!have_server && li_http_header_key_is(header, CONST_STR_LEN("server"))) have_server = TRUE;
 		}
 
 		if (!have_date) {

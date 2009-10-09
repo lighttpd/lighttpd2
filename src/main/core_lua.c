@@ -50,7 +50,7 @@ static void li_lua_store_globals(lua_State *L) {
 	lua_setfield(L, LUA_REGISTRYINDEX, "li_globals"); /* -1 */
 }
 
-GString* lua_print_get_string(lua_State *L, int from, int to) {
+GString* li_lua_print_get_string(lua_State *L, int from, int to) {
 	int i, n = lua_gettop(L);
 	GString *buf = g_string_sized_new(0);
 
@@ -84,7 +84,7 @@ GString* lua_print_get_string(lua_State *L, int from, int to) {
 
 static int li_lua_error(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
-	GString *buf = lua_print_get_string(L, 1, lua_gettop(L));
+	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
 
 	ERROR(srv, "(lua): %s", buf->str);
 
@@ -95,7 +95,7 @@ static int li_lua_error(lua_State *L) {
 
 static int li_lua_warning(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
-	GString *buf = lua_print_get_string(L, 1, lua_gettop(L));
+	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
 
 	WARNING(srv, "(lua): %s", buf->str);
 
@@ -106,7 +106,7 @@ static int li_lua_warning(lua_State *L) {
 
 static int li_lua_info(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
-	GString *buf = lua_print_get_string(L, 1, lua_gettop(L));
+	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
 
 	INFO(srv, "(lua): %s", buf->str);
 
@@ -117,7 +117,7 @@ static int li_lua_info(lua_State *L) {
 
 static int li_lua_debug(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
-	GString *buf = lua_print_get_string(L, 1, lua_gettop(L));
+	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
 
 	DEBUG(srv, "(lua): %s", buf->str);
 
@@ -138,13 +138,13 @@ static void lua_push_constants(lua_State *L, int ndx) {
 }
 
 void li_lua_init(liServer *srv, lua_State *L) {
-	lua_init_chunk_mt(L);
-	lua_init_connection_mt(L);
-	lua_init_environment_mt(L);
-	lua_init_physical_mt(L);
-	lua_init_request_mt(L);
-	lua_init_response_mt(L);
-	lua_init_vrequest_mt(L);
+	li_lua_init_chunk_mt(L);
+	li_lua_init_connection_mt(L);
+	li_lua_init_environment_mt(L);
+	li_lua_init_physical_mt(L);
+	li_lua_init_request_mt(L);
+	li_lua_init_response_mt(L);
+	li_lua_init_vrequest_mt(L);
 
 	li_lua_init_stat_mt(L);
 

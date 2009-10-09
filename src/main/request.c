@@ -129,7 +129,7 @@ gboolean li_request_validate_header(liConnection *con) {
 		}
 
 		hh = (liHttpHeader*) l->data;
-		g_string_append_len(req->uri.authority, HEADER_VALUE_LEN(hh));
+		g_string_append_len(req->uri.authority, LI_HEADER_VALUE_LEN(hh));
 		/* check header after we parsed the url, as it may override uri.authority */
 	}
 
@@ -162,7 +162,7 @@ gboolean li_request_validate_header(liConnection *con) {
 	/* content-length */
 	hh = li_http_header_lookup(req->headers, CONST_STR_LEN("content-length"));
 	if (hh) {
-		const gchar *val = HEADER_VALUE(hh);
+		const gchar *val = LI_HEADER_VALUE(hh);
 		gint64 r;
 		char *err;
 
@@ -202,7 +202,7 @@ gboolean li_request_validate_header(liConnection *con) {
 
 		for ( ; l ; l = li_http_header_find_next(l, CONST_STR_LEN("expect")) ) {
 			hh = (liHttpHeader*) l->data;
-			if (0 == g_strcasecmp( HEADER_VALUE(hh), "100-continue" )) {
+			if (0 == g_strcasecmp( LI_HEADER_VALUE(hh), "100-continue" )) {
 				expect_100_cont = TRUE;
 			} else {
 				/* we only support 100-continue */

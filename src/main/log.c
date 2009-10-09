@@ -12,10 +12,22 @@
 #include <fcntl.h>
 #include <stdarg.h>
 
+static void log_free_unlocked(liServer *srv, liLog *log);
+static void log_thread_stop(liServer *srv);
+static void log_thread_finish(liServer *srv);
+
+static void log_lock(liLog *log) {
+	g_mutex_lock(log->mutex);
+}
+
+static void log_unlock(liLog *log) {
+	g_mutex_unlock(log->mutex);
+}
+
 void li_log_write(liServer *srv, liLog *log, GString *msg) {
 	liLogEntry *log_entry;
 
-	log_ref(srv, log);
+	li_log_ref(srv, log);
 
 	log_entry = g_slice_new(liLogEntry);
 	log_entry->log = log;
@@ -48,7 +60,7 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, 0);
 	}
 
-	log_ref(srv, log);
+	li_log_ref(srv, log);
 	log_line = g_string_sized_new(0);
 	va_start(ap, fmt);
 	g_string_vprintf(log_line, fmt, ap);
@@ -135,7 +147,7 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 	case LI_SERVER_WARMUP:
 	case LI_SERVER_STOPPING:
 	case LI_SERVER_DOWN:
-		log_unref(srv, log);
+		li_log_unref(srv, log);
 		li_angel_log(srv, log_line);
 		return TRUE;
 	default:
@@ -150,16 +162,12 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 
 	/* on critical error, exit */
 	/* TODO: write message immediately, as the log write is followed by an abort() */
-	if (log_level == LI_LOG_LEVEL_ABORT) {
-		log_thread_stop(srv);
-		g_atomic_int_set(&srv->exiting, TRUE);
-	}
 
 	return TRUE;
 }
 
 
-gpointer log_thread(liServer *srv) {
+static gpointer log_thread(liServer *srv) {
 	liLog *log;
 	liLogEntry *log_entry;
 	GString *msg;
@@ -208,13 +216,13 @@ gpointer log_thread(liServer *srv) {
 
 		g_string_free(msg, TRUE);
 		g_slice_free(liLogEntry, log_entry);
-		log_unref(srv, log);
+		li_log_unref(srv, log);
 	}
 
 	return NULL;
 }
 
-void log_rotate(gchar * path, liLog *log, liServer * UNUSED_PARAM(srv)) {
+static void log_rotate(gchar * path, liLog *log, liServer * UNUSED_PARAM(srv)) {
 
 	switch (log->type) {
 		case LI_LOG_TYPE_FILE:
@@ -238,19 +246,12 @@ void log_rotate(gchar * path, liLog *log, liServer * UNUSED_PARAM(srv)) {
 	log->lastmsg_count = 0;
 }
 
-void log_rotate_logs(liServer *srv) {
-	UNUSED(srv);
-
-	/*g_atomic_int_set(&srv->rotate_logs, TRUE);*/
-}
-
-
-void log_ref(liServer *srv, liLog *log) {
+void li_log_ref(liServer *srv, liLog *log) {
 	UNUSED(srv);
 	g_atomic_int_inc(&log->refcount);
 }
 
-void log_unref(liServer *srv, liLog *log) {
+void li_log_unref(liServer *srv, liLog *log) {
 	g_mutex_lock(srv->logs.mutex);
 
 	if (g_atomic_int_dec_and_test(&log->refcount))
@@ -259,7 +260,7 @@ void log_unref(liServer *srv, liLog *log) {
 	g_mutex_unlock(srv->logs.mutex);
 }
 
-liLogType log_type_from_path(GString *path) {
+liLogType li_log_type_from_path(GString *path) {
 	if (path->len == 0)
 		return LI_LOG_TYPE_NONE;
 
@@ -291,7 +292,7 @@ liLogType log_type_from_path(GString *path) {
 	return LI_LOG_TYPE_STDERR;
 }
 
-liLogLevel log_level_from_string(GString *str) {
+liLogLevel li_log_level_from_string(GString *str) {
 	if (g_str_equal(str->str, "debug"))
 		return LI_LOG_LEVEL_DEBUG;
 	if (g_str_equal(str->str, "info"))
@@ -307,7 +308,7 @@ liLogLevel log_level_from_string(GString *str) {
 	return LI_LOG_LEVEL_DEBUG;
 }
 
-gchar* log_level_str(liLogLevel log_level) {
+gchar* li_log_level_str(liLogLevel log_level) {
 	switch (log_level) {
 		case LI_LOG_LEVEL_DEBUG:   return "debug";
 		case LI_LOG_LEVEL_INFO:    return "info";
@@ -319,7 +320,7 @@ gchar* log_level_str(liLogLevel log_level) {
 }
 
 
-liLog *log_new(liServer *srv, liLogType type, GString *path) {
+liLog *li_log_new(liServer *srv, liLogType type, GString *path) {
 	liLog *log;
 	gint fd = -1;
 
@@ -372,14 +373,14 @@ liLog *log_new(liServer *srv, liLogType type, GString *path) {
 }
 
 /* only call this if srv->logs.mutex is NOT locked */
-void log_free(liServer *srv, liLog *log) {
+static void log_free(liServer *srv, liLog *log) {
 	g_mutex_lock(srv->logs.mutex);
 	log_free_unlocked(srv, log);
 	g_mutex_unlock(srv->logs.mutex);
 }
 
 /* only call this if srv->log_mutex IS locked */
-void log_free_unlocked(liServer *srv, liLog *log) {
+static void log_free_unlocked(liServer *srv, liLog *log) {
 	if (log->type == LI_LOG_TYPE_FILE || log->type == LI_LOG_TYPE_PIPE)
 		close(log->fd);
 
@@ -392,7 +393,7 @@ void log_free_unlocked(liServer *srv, liLog *log) {
 	g_slice_free(liLog, log);
 }
 
-void log_init(liServer *srv) {
+void li_log_init(liServer *srv) {
 	GString *str;
 
 	srv->logs.targets = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
@@ -406,11 +407,11 @@ void log_init(liServer *srv) {
 
 	/* first entry in srv->logs.targets is the plain good old stderr */
 	str = g_string_new_len(CONST_STR_LEN("stderr"));
-	srv->logs.stderr = log_new(srv, LI_LOG_TYPE_STDERR, str);
+	srv->logs.stderr = li_log_new(srv, LI_LOG_TYPE_STDERR, str);
 	g_string_free(str, TRUE);
 }
 
-void log_cleanup(liServer *srv) {
+void li_log_cleanup(liServer *srv) {
 	guint i;
 	liLogTimestamp *ts;
 
@@ -444,7 +445,7 @@ void log_cleanup(liServer *srv) {
 	g_array_free(srv->logs.timestamps, TRUE);
 }
 
-void log_thread_start(liServer *srv) {
+void li_log_thread_start(liServer *srv) {
 	GError *err = NULL;
 
 	srv->logs.thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
@@ -457,39 +458,31 @@ void log_thread_start(liServer *srv) {
 	}
 }
 
-void log_thread_stop(liServer *srv) {
+static void log_thread_stop(liServer *srv) {
 	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE) {
 		g_atomic_int_set(&srv->logs.thread_stop, TRUE);
-		log_thread_wakeup(srv);
+		li_log_thread_wakeup(srv);
 	}
 }
 
-void log_thread_finish(liServer *srv) {
+static void log_thread_finish(liServer *srv) {
 	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE) {
 		g_atomic_int_set(&srv->logs.thread_finish, TRUE);
-		log_thread_wakeup(srv);
+		li_log_thread_wakeup(srv);
 	}
 }
 
-void log_thread_wakeup(liServer *srv) {
+void li_log_thread_wakeup(liServer *srv) {
 	liLogEntry *e;
 
 	if (!g_atomic_int_get(&srv->logs.thread_alive))
-		log_thread_start(srv);
+		li_log_thread_start(srv);
 
 	e = g_slice_new0(liLogEntry);
 
 	g_async_queue_push(srv->logs.queue, e);
 }
 
-
-void log_lock(liLog *log) {
-	g_mutex_lock(log->mutex);
-}
-
-void log_unlock(liLog *log) {
-	g_mutex_unlock(log->mutex);
-}
 
 liLogTimestamp *li_log_timestamp_new(liServer *srv, GString *format) {
 	liLogTimestamp *ts;

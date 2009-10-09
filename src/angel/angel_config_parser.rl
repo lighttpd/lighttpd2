@@ -102,7 +102,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	}
 
 	action enditem {
-		plugins_handle_item(srv, ctx->itemname, ctx->itemvalue);
+		li_plugins_handle_item(srv, ctx->itemname, ctx->itemvalue);
 		g_string_free(ctx->itemname, TRUE);
 		ctx->itemname = NULL;
 		li_value_free(ctx->itemvalue);

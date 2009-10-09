@@ -7,7 +7,7 @@
 
 #define LUA_ACTION "liAction*"
 
-liAction* lua_get_action(lua_State *L, int ndx) {
+liAction* li_lua_get_action(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_ACTION);
@@ -29,7 +29,7 @@ static int lua_action_gc(lua_State *L) {
 	return 0;
 }
 
-int lua_push_action(liServer *srv, lua_State *L, liAction *a) {
+int li_lua_push_action(liServer *srv, lua_State *L, liAction *a) {
 	liAction **pa;
 
 	pa = (liAction**) lua_newuserdata(L, sizeof(liAction*));
@@ -82,7 +82,7 @@ static liHandlerResult lua_action_func(liVRequest *vr, gpointer param, gpointer 
 	lua_setfield(L, -2, "_G");
 	lua_pop(L, 1);
 
-	lua_push_vrequest(L, vr);
+	li_lua_push_vrequest(L, vr);
 
 	errfunc = li_lua_push_traceback(L, 1);
 	if (lua_pcall(L, 1, 1, errfunc)) {
@@ -145,7 +145,7 @@ static void lua_action_free(liServer *srv, gpointer param) {
 	g_slice_free(lua_action_param, par);
 }
 
-liAction* lua_make_action(lua_State *L, int ndx) {
+liAction* li_lua_make_action(lua_State *L, int ndx) {
 	lua_action_param *par = g_slice_new0(lua_action_param);
 
 	lua_pushvalue(L, ndx); /* +1 */

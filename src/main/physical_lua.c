@@ -61,7 +61,7 @@ static int lua_physical_index(lua_State *L) {
 
 	if (li_lua_metatable_index(L)) return 1;
 
-	phys = lua_get_physical(L, 1);
+	phys = li_lua_get_physical(L, 1);
 	if (!phys) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -95,7 +95,7 @@ static int lua_physical_newindex(lua_State *L) {
 		lua_error(L);
 	}
 
-	phys = lua_get_physical(L, 1);
+	phys = li_lua_get_physical(L, 1);
 	if (!phys) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -131,14 +131,14 @@ static void init_physical_mt(lua_State *L) {
 	luaL_register(L, NULL, physical_mt);
 }
 
-void lua_init_physical_mt(lua_State *L) {
+void li_lua_init_physical_mt(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_PHYSICAL)) {
 		init_physical_mt(L);
 	}
 	lua_pop(L, 1);
 }
 
-liPhysical* lua_get_physical(lua_State *L, int ndx) {
+liPhysical* li_lua_get_physical(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_PHYSICAL);
@@ -150,7 +150,7 @@ liPhysical* lua_get_physical(lua_State *L, int ndx) {
 	return *(liPhysical**) lua_touserdata(L, ndx);
 }
 
-int lua_push_physical(lua_State *L, liPhysical *phys) {
+int li_lua_push_physical(lua_State *L, liPhysical *phys) {
 	liPhysical **pphys;
 
 	pphys = (liPhysical**) lua_newuserdata(L, sizeof(liPhysical*));

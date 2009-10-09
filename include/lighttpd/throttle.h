@@ -17,9 +17,9 @@ struct liThrottlePool {
 	ev_tstamp *last_con_rearm;
 };
 
-void throttle_cb(struct ev_loop *loop, ev_timer *w, int revents);
+LI_API void li_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents);
 
-liThrottlePool *throttle_pool_new(liServer *srv, GString *name, guint rate);
-void throttle_pool_free(liServer *srv, liThrottlePool *pool);
+LI_API liThrottlePool *li_throttle_pool_new(liServer *srv, GString *name, guint rate);
+LI_API void li_throttle_pool_free(liServer *srv, liThrottlePool *pool);
 
 #endif

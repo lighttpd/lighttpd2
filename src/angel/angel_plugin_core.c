@@ -276,11 +276,11 @@ static int do_listen(liServer *srv, liPluginCoreConfig *config, GString *str) {
 				mask = g_ptr_array_index(config->listen_masks, i);
 				switch (mask->type) {
 				case LI_PLUGIN_CORE_LISTEN_MASK_IPV4:
-					if (!ipv4_in_ipv4_net(ipv4, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
+					if (!li_ipv4_in_ipv4_net(ipv4, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
 					if ((mask->value.ipv4.port != port) && (mask->value.ipv4.port != 0 || (port != 80 && port != 443))) continue;
 					break;
 				case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
-					if (!ipv4_in_ipv6_net(ipv4, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
+					if (!li_ipv4_in_ipv6_net(ipv4, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
 					if ((mask->value.ipv6.port != port) && (mask->value.ipv6.port != 0 || (port != 80 && port != 443))) continue;
 					break;
 				case LI_PLUGIN_CORE_LISTEN_MASK_UNIX:
@@ -332,11 +332,11 @@ static int do_listen(liServer *srv, liPluginCoreConfig *config, GString *str) {
 				mask = g_ptr_array_index(config->listen_masks, i);
 				switch (mask->type) {
 				case LI_PLUGIN_CORE_LISTEN_MASK_IPV4:
-					if (!ipv6_in_ipv4_net(ipv6, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
+					if (!li_ipv6_in_ipv4_net(ipv6, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
 					if ((mask->value.ipv4.port != port) && (mask->value.ipv4.port != 0 || (port != 80 && port != 443))) continue;
 					break;
 				case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
-					if (!ipv6_in_ipv6_net(ipv6, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
+					if (!li_ipv6_in_ipv6_net(ipv6, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
 					if ((mask->value.ipv6.port != port) && (mask->value.ipv6.port != 0 || (port != 80 && port != 443))) continue;
 					break;
 				case LI_PLUGIN_CORE_LISTEN_MASK_UNIX:
@@ -547,7 +547,7 @@ static gboolean core_init(liServer *srv, liPlugin *p) {
 	return TRUE;
 }
 
-gboolean plugin_core_init(liServer *srv) {
+gboolean li_plugin_core_init(liServer *srv) {
 	/* load core plugins */
 	return NULL != li_angel_plugin_register(srv, NULL, "core", core_init);
 }

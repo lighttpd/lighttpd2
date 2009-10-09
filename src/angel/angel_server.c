@@ -34,15 +34,15 @@ liServer* li_server_new(const gchar *module_dir) {
 	CATCH_SIGNAL(srv->loop, sigint_cb, TERM);
 	CATCH_SIGNAL(srv->loop, sigpipe_cb, PIPE);
 
-	log_init(srv);
-	plugins_init(srv, module_dir);
+	li_log_init(srv);
+	li_plugins_init(srv, module_dir);
 	return srv;
 }
 
 void li_server_free(liServer* srv) {
-	plugins_clear(srv);
+	li_plugins_clear(srv);
 
-	log_clean(srv);
+	li_log_clean(srv);
 
 	UNCATCH_SIGNAL(srv->loop, INT);
 	UNCATCH_SIGNAL(srv->loop, TERM);
@@ -55,7 +55,7 @@ void li_server_stop(liServer *srv) {
 	UNCATCH_SIGNAL(srv->loop, INT);
 	UNCATCH_SIGNAL(srv->loop, TERM);
 
-	plugins_config_load(srv, NULL);
+	li_plugins_config_load(srv, NULL);
 }
 
 static void instance_angel_call_cb(liAngelConnection *acon,

@@ -705,7 +705,7 @@
 
 				g_string_append(path, filename);
 
-				if (!config_parser_file(srv, ctx_stack, path->str)) {
+				if (!li_config_parser_file(srv, ctx_stack, path->str)) {
 					g_string_free(path, TRUE);
 					g_pattern_spec_free(pattern);
 					g_dir_close(dir);
@@ -1175,61 +1175,7 @@
 %% write data;
 
 
-GList *config_parser_init(liServer* srv) {
-	liConfigParserContext *ctx = config_parser_context_new(srv, NULL);
-
-	srv->mainaction = li_action_new_list();
-	g_queue_push_head(ctx->action_list_stack, srv->mainaction);
-
-	return g_list_append(NULL, ctx);
-}
-
-void config_parser_finish(liServer *srv, GList *ctx_stack, gboolean free_all) {
-	liConfigParserContext *ctx;
-	GHashTableIter iter;
-	gpointer key, val;
-	GList *l;
-
-	_printf("ctx_stack size: %u\n", g_list_length(ctx_stack));
-
-	/* clear all contexts from the stack */
-	l = g_list_nth(ctx_stack, 1);
-	while (l) {
-		ctx = l->data;
-		config_parser_context_free(srv, ctx, FALSE);
-		l = l->next;
-	}
-
-	if (free_all) {
-		ctx = (liConfigParserContext*) ctx_stack->data;
-
-		g_hash_table_iter_init(&iter, ctx->action_blocks);
-
-		while (g_hash_table_iter_next(&iter, &key, &val)) {
-			li_action_release(srv, val);
-			g_string_free(key, TRUE);
-		}
-
-		g_hash_table_destroy(ctx->action_blocks);
-
-		g_hash_table_iter_init(&iter, ctx->uservars);
-
-		while (g_hash_table_iter_next(&iter, &key, &val)) {
-			li_value_free(val);
-			g_string_free(key, TRUE);
-		}
-
-		g_hash_table_destroy(ctx->uservars);
-
-
-
-		config_parser_context_free(srv, ctx, TRUE);
-
-		g_list_free(ctx_stack);
-	}
-}
-
-liConfigParserContext *config_parser_context_new(liServer *srv, GList *ctx_stack) {
+static liConfigParserContext *config_parser_context_new(liServer *srv, GList *ctx_stack) {
 	liConfigParserContext *ctx;
 
 	UNUSED(srv);
@@ -1282,8 +1228,7 @@ liConfigParserContext *config_parser_context_new(liServer *srv, GList *ctx_stack
 	return ctx;
 }
 
-void config_parser_context_free(liServer *srv, liConfigParserContext *ctx, gboolean free_queues)
-{
+static void config_parser_context_free(liServer *srv, liConfigParserContext *ctx, gboolean free_queues) {
 	g_free(ctx->stack);
 
 	if (free_queues) {
@@ -1307,7 +1252,63 @@ void config_parser_context_free(liServer *srv, liConfigParserContext *ctx, gbool
 	g_slice_free(liConfigParserContext, ctx);
 }
 
-gboolean config_parser_file(liServer *srv, GList *ctx_stack, const gchar *path) {
+GList* li_config_parser_init(liServer* srv) {
+	liConfigParserContext *ctx = config_parser_context_new(srv, NULL);
+
+	srv->mainaction = li_action_new_list();
+	g_queue_push_head(ctx->action_list_stack, srv->mainaction);
+
+	return g_list_append(NULL, ctx);
+}
+
+void li_config_parser_finish(liServer *srv, GList *ctx_stack, gboolean free_all) {
+	liConfigParserContext *ctx;
+	GHashTableIter iter;
+	gpointer key, val;
+	GList *l;
+
+	_printf("ctx_stack size: %u\n", g_list_length(ctx_stack));
+
+	/* clear all contexts from the stack */
+	l = g_list_nth(ctx_stack, 1);
+	while (l) {
+		ctx = l->data;
+		config_parser_context_free(srv, ctx, FALSE);
+		l = l->next;
+	}
+
+	if (free_all) {
+		ctx = (liConfigParserContext*) ctx_stack->data;
+
+		g_hash_table_iter_init(&iter, ctx->action_blocks);
+
+		while (g_hash_table_iter_next(&iter, &key, &val)) {
+			li_action_release(srv, val);
+			g_string_free(key, TRUE);
+		}
+
+		g_hash_table_destroy(ctx->action_blocks);
+
+		g_hash_table_iter_init(&iter, ctx->uservars);
+
+		while (g_hash_table_iter_next(&iter, &key, &val)) {
+			li_value_free(val);
+			g_string_free(key, TRUE);
+		}
+
+		g_hash_table_destroy(ctx->uservars);
+
+
+
+		config_parser_context_free(srv, ctx, TRUE);
+
+		g_list_free(ctx_stack);
+	}
+}
+
+static gboolean config_parser_buffer(liServer *srv, GList *ctx_stack);
+
+gboolean li_config_parser_file(liServer *srv, GList *ctx_stack, const gchar *path) {
 	liConfigParserContext *ctx;
 	gboolean res;
 	GError *err = NULL;
@@ -1315,8 +1316,7 @@ gboolean config_parser_file(liServer *srv, GList *ctx_stack, const gchar *path) 
 	ctx = config_parser_context_new(srv, ctx_stack);
 	ctx->filename = (gchar*) path;
 
-	if (!g_file_get_contents(path, &ctx->ptr, &ctx->len, &err))
-	{
+	if (!g_file_get_contents(path, &ctx->ptr, &ctx->len, &err)) {
 		/* could not read file */
 		WARNING(srv, "could not read config file \"%s\". reason: \"%s\" (%d)", path, err->message, err->code);
 		config_parser_context_free(srv, ctx, FALSE);
@@ -1342,8 +1342,7 @@ gboolean config_parser_file(liServer *srv, GList *ctx_stack, const gchar *path) 
 	return res;
 }
 
-gboolean config_parser_shell(liServer *srv, GList *ctx_stack, const gchar *command)
-{
+static gboolean config_parser_shell(liServer *srv, GList *ctx_stack, const gchar *command) {
 	gboolean res;
 	gchar* _stdout;
 	gchar* _stderr;
@@ -1354,16 +1353,14 @@ gboolean config_parser_shell(liServer *srv, GList *ctx_stack, const gchar *comma
 	ctx = config_parser_context_new(srv, ctx_stack);
 	ctx->filename = (gchar*) command;
 
-	if (!g_spawn_command_line_sync(command, &_stdout, &_stderr, &status, &err))
-	{
+	if (!g_spawn_command_line_sync(command, &_stdout, &_stderr, &status, &err)) {
 		WARNING(srv, "error launching shell command \"%s\": %s (%d)", command, err->message, err->code);
 		config_parser_context_free(srv, ctx, FALSE);
 		g_error_free(err);
 		return FALSE;
 	}
 
-	if (status != 0)
-	{
+	if (status != 0) {
 		WARNING(srv, "shell command \"%s\" exited with status %d", command, status);
 		DEBUG(srv, "stdout:\n-----\n%s\n-----\nstderr:\n-----\n%s\n-----", _stdout, _stderr);
 		g_free(_stdout);
@@ -1391,8 +1388,7 @@ gboolean config_parser_shell(liServer *srv, GList *ctx_stack, const gchar *comma
 	return res;
 }
 
-gboolean config_parser_buffer(liServer *srv, GList *ctx_stack)
-{
+static gboolean config_parser_buffer(liServer *srv, GList *ctx_stack) {
 	liConfigParserContext *ctx;
 
 	/* get top of stack */
@@ -1405,8 +1401,7 @@ gboolean config_parser_buffer(liServer *srv, GList *ctx_stack)
 
 	%% write exec;
 
-	if (ctx->cs == config_parser_error || ctx->cs == config_parser_first_final)
-	{
+	if (ctx->cs == config_parser_error || ctx->cs == config_parser_first_final) {
 		/* parse error */
 		WARNING(srv, "parse error in line %zd of \"%s\" at character '%c' (0x%.2x)", ctx->line, ctx->filename, *ctx->p, *ctx->p);
 		return FALSE;

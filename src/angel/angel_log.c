@@ -1,7 +1,7 @@
 
 #include <lighttpd/angel_base.h>
 
-void log_init(liServer *srv) {
+void li_log_init(liServer *srv) {
 	srv->log.type = LI_LOG_TYPE_STDERR;
 
 	srv->log.levels[LI_LOG_LEVEL_ABORT] = TRUE;
@@ -16,7 +16,7 @@ void log_init(liServer *srv) {
 	srv->log.log_line = g_string_sized_new(0);
 }
 
-void log_clean(liServer *srv) {
+void li_log_clean(liServer *srv) {
 	g_string_free(srv->log.ts_cache, TRUE);
 	g_string_free(srv->log.log_line, TRUE);
 }

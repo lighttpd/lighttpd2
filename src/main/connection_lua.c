@@ -10,14 +10,14 @@ static void init_con_mt(lua_State *L) {
 	/* TODO */
 }
 
-void lua_init_connection_mt(lua_State *L) {
+void li_lua_init_connection_mt(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_CONNECTION)) {
 		init_con_mt(L);
 	}
 	lua_pop(L, 1);
 }
 
-liConnection* lua_get_connection(lua_State *L, int ndx) {
+liConnection* li_lua_get_connection(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_CONNECTION);
@@ -29,7 +29,7 @@ liConnection* lua_get_connection(lua_State *L, int ndx) {
 	return *(liConnection**) lua_touserdata(L, ndx);
 }
 
-int lua_push_connection(lua_State *L, liConnection *con) {
+int li_lua_push_connection(lua_State *L, liConnection *con) {
 	liConnection **pcon;
 
 	pcon = (liConnection**) lua_newuserdata(L, sizeof(liConnection*));

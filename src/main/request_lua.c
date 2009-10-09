@@ -10,7 +10,7 @@
 typedef int (*lua_Request_Attrib)(liRequest *req, lua_State *L);
 
 static int lua_request_attr_read_headers(liRequest *req, lua_State *L) {
-	lua_push_http_headers(L, req->headers);
+	li_lua_push_http_headers(L, req->headers);
 	return 1;
 }
 
@@ -40,7 +40,7 @@ static int lua_request_attr_read_content_length(liRequest *req, lua_State *L) {
 }
 
 static int lua_request_attr_read_uri(liRequest *req, lua_State *L) {
-	lua_push_requesturi(L, &req->uri);
+	li_lua_push_requesturi(L, &req->uri);
 	return 1;
 }
 
@@ -78,7 +78,7 @@ static int lua_request_index(lua_State *L) {
 
 	if (li_lua_metatable_index(L)) return 1;
 
-	req = lua_get_request(L, 1);
+	req = li_lua_get_request(L, 1);
 	if (!req) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -112,7 +112,7 @@ static int lua_request_newindex(lua_State *L) {
 		lua_error(L);
 	}
 
-	req = lua_get_request(L, 1);
+	req = li_lua_get_request(L, 1);
 	if (!req) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -212,7 +212,7 @@ static int lua_requesturi_index(lua_State *L) {
 
 	if (li_lua_metatable_index(L)) return 1;
 
-	uri = lua_get_requesturi(L, 1);
+	uri = li_lua_get_requesturi(L, 1);
 	if (!uri) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -246,7 +246,7 @@ static int lua_requesturi_newindex(lua_State *L) {
 		lua_error(L);
 	}
 
-	uri = lua_get_requesturi(L, 1);
+	uri = li_lua_get_requesturi(L, 1);
 	if (!uri) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -282,7 +282,7 @@ static void init_requesturi_mt(lua_State *L) {
 	luaL_register(L, NULL, requesturi_mt);
 }
 
-void lua_init_request_mt(lua_State *L) {
+void li_lua_init_request_mt(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_REQUEST)) {
 		init_request_mt(L);
 	}
@@ -294,7 +294,7 @@ void lua_init_request_mt(lua_State *L) {
 	lua_pop(L, 1);
 }
 
-liRequest* lua_get_request(lua_State *L, int ndx) {
+liRequest* li_lua_get_request(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_REQUEST);
@@ -306,7 +306,7 @@ liRequest* lua_get_request(lua_State *L, int ndx) {
 	return *(liRequest**) lua_touserdata(L, ndx);
 }
 
-int lua_push_request(lua_State *L, liRequest *req) {
+int li_lua_push_request(lua_State *L, liRequest *req) {
 	liRequest **preq;
 
 	preq = (liRequest**) lua_newuserdata(L, sizeof(liRequest*));
@@ -320,7 +320,7 @@ int lua_push_request(lua_State *L, liRequest *req) {
 	return 1;
 }
 
-liRequestUri* lua_get_requesturi(lua_State *L, int ndx) {
+liRequestUri* li_lua_get_requesturi(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_REQUESTURI);
@@ -332,7 +332,7 @@ liRequestUri* lua_get_requesturi(lua_State *L, int ndx) {
 	return *(liRequestUri**) lua_touserdata(L, ndx);
 }
 
-int lua_push_requesturi(lua_State *L, liRequestUri *uri) {
+int li_lua_push_requesturi(lua_State *L, liRequestUri *uri) {
 	liRequestUri **puri;
 
 	puri = (liRequestUri**) lua_newuserdata(L, sizeof(liRequestUri*));

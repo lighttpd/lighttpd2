@@ -9,7 +9,7 @@
 typedef int (*lua_Response_Attrib)(liResponse *resp, lua_State *L);
 
 static int lua_response_attr_read_headers(liResponse *resp, lua_State *L) {
-	lua_push_http_headers(L, resp->headers);
+	li_lua_push_http_headers(L, resp->headers);
 	return 1;
 }
 
@@ -57,7 +57,7 @@ static int lua_response_index(lua_State *L) {
 
 	if (li_lua_metatable_index(L)) return 1;
 
-	resp = lua_get_response(L, 1);
+	resp = li_lua_get_response(L, 1);
 	if (!resp) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -91,7 +91,7 @@ static int lua_response_newindex(lua_State *L) {
 		lua_error(L);
 	}
 
-	resp = lua_get_response(L, 1);
+	resp = li_lua_get_response(L, 1);
 	if (!resp) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -126,14 +126,14 @@ static void init_response_mt(lua_State *L) {
 	luaL_register(L, NULL, response_mt);
 }
 
-void lua_init_response_mt(lua_State *L) {
+void li_lua_init_response_mt(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_RESPONSE)) {
 		init_response_mt(L);
 	}
 	lua_pop(L, 1);
 }
 
-liResponse* lua_get_response(lua_State *L, int ndx) {
+liResponse* li_lua_get_response(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_RESPONSE);
@@ -145,7 +145,7 @@ liResponse* lua_get_response(lua_State *L, int ndx) {
 	return *(liResponse**) lua_touserdata(L, ndx);
 }
 
-int lua_push_response(lua_State *L, liResponse *resp) {
+int li_lua_push_response(lua_State *L, liResponse *resp) {
 	liResponse **presp;
 
 	presp = (liResponse**) lua_newuserdata(L, sizeof(liResponse*));

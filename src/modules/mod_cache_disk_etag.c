@@ -202,7 +202,7 @@ static liHandlerResult cache_etag_filter_miss(liVRequest *vr, liFilter *f) {
 
 static GString* createFileName(liVRequest *vr, GString *path, liHttpHeader *etagheader) {
 	GString *file = g_string_sized_new(255);
-	gchar* etag_base64 = g_base64_encode((guchar*) HEADER_VALUE_LEN(etagheader));
+	gchar* etag_base64 = g_base64_encode((guchar*) LI_HEADER_VALUE_LEN(etagheader));
 	g_string_append_len(file, GSTR_LEN(path));
 	g_string_append_len(file, GSTR_LEN(vr->request.uri.path));
 	g_string_append_len(file, CONST_STR_LEN("-"));

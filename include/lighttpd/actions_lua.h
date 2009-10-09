@@ -4,10 +4,10 @@
 #include <lighttpd/base.h>
 #include <lua.h>
 
-LI_API liAction* lua_get_action(lua_State *L, int ndx);
-LI_API int lua_push_action(liServer *srv, lua_State *L, liAction *a);
+LI_API liAction* li_lua_get_action(lua_State *L, int ndx);
+LI_API int li_lua_push_action(liServer *srv, lua_State *L, liAction *a);
 
 /* create new action from lua function */
-LI_API liAction* lua_make_action(lua_State *L, int ndx);
+LI_API liAction* li_lua_make_action(lua_State *L, int ndx);
 
 #endif

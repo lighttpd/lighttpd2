@@ -14,7 +14,7 @@ LI_API void li_angel_log(liServer *srv, GString *str);
 
 
 /* angle_fake definitions, only for internal use */
-int angel_fake_listen(liServer *srv, GString *str);
-gboolean angel_fake_log(liServer *srv, GString *str);
+int li_angel_fake_listen(liServer *srv, GString *str);
+gboolean li_angel_fake_log(liServer *srv, GString *str);
 
 #endif

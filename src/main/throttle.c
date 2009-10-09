@@ -7,7 +7,7 @@
 #include <lighttpd/base.h>
 
 
-liThrottlePool *throttle_pool_new(liServer *srv, GString *name, guint rate) {
+liThrottlePool *li_throttle_pool_new(liServer *srv, GString *name, guint rate) {
 	liThrottlePool *pool;
 	guint i;
 	guint worker_count;
@@ -36,7 +36,7 @@ liThrottlePool *throttle_pool_new(liServer *srv, GString *name, guint rate) {
 	return pool;
 }
 
-void throttle_pool_free(liServer *srv, liThrottlePool *pool) {
+void li_throttle_pool_free(liServer *srv, liThrottlePool *pool) {
 	guint i;
 	guint worker_count;
 
@@ -57,7 +57,7 @@ void throttle_pool_free(liServer *srv, liThrottlePool *pool) {
 }
 
 
-void throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
+void li_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	liWaitQueueElem *wqe;
 	liThrottlePool *pool;
 	liConnection *con;

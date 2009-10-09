@@ -2,9 +2,6 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
-/* only call it from the worker context the con belongs to */
-void worker_con_put(liConnection *con); /* worker.c */
-
 static void li_connection_reset_keep_alive(liConnection *con);
 static void li_connection_internal_error(liConnection *con);
 
@@ -75,7 +72,7 @@ static void connection_request_done(liConnection *con) {
 	if (con->keep_alive &&  (LI_SERVER_RUNNING == s || LI_SERVER_WARMUP == s)) {
 		li_connection_reset_keep_alive(con);
 	} else {
-		worker_con_put(con);
+		li_worker_con_put(con);
 	}
 }
 
@@ -95,7 +92,7 @@ static void connection_close(liConnection *con) {
 
 	li_plugins_handle_close(con);
 
-	worker_con_put(con);
+	li_worker_con_put(con);
 }
 
 void li_connection_error(liConnection *con) {
@@ -106,7 +103,7 @@ void li_connection_error(liConnection *con) {
 
 	li_plugins_handle_close(con);
 
-	worker_con_put(con);
+	li_worker_con_put(con);
 }
 
 static void li_connection_internal_error(liConnection *con) {
@@ -398,7 +395,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 static void connection_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	liConnection *con = (liConnection*) w->data;
 	UNUSED(loop); UNUSED(revents);
-	worker_con_put(con);
+	li_worker_con_put(con);
 }
 
 static liHandlerResult mainvr_handle_response_headers(liVRequest *vr) {
@@ -597,7 +594,7 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 		{
 			con->keep_alive_data.max_idle = CORE_OPTION(LI_CORE_OPTION_MAX_KEEP_ALIVE_IDLE).number;
 			if (con->keep_alive_data.max_idle == 0) {
-				worker_con_put(con);
+				li_worker_con_put(con);
 				return;
 			}
 			if (con->keep_alive_data.max_idle >= con->srv->keep_alive_queue_timeout) {

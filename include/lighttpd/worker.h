@@ -117,4 +117,7 @@ LI_API GString* li_worker_current_timestamp(liWorker *wrk, liTimeFunc, guint for
 /* shutdown write and wait for eof before shutdown read and close */
 LI_API void li_worker_add_closing_socket(liWorker *wrk, int fd);
 
+/* internal function to recycle connection */
+LI_API void li_worker_con_put(liConnection *con);
+
 #endif

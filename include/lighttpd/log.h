@@ -83,36 +83,22 @@ struct liLogEntry {
 };
 
 /* determines the type of a log target by the path given. /absolute/path = file; |app = pipe; stderr = stderr; syslog = syslog */
-liLogType log_type_from_path(GString *path);
+LI_API liLogType li_log_type_from_path(GString *path);
 
-liLogLevel log_level_from_string(GString *str);
-gchar* log_level_str(liLogLevel log_level);
+LI_API liLogLevel li_log_level_from_string(GString *str);
+LI_API gchar* li_log_level_str(liLogLevel log_level);
 
 /* log_new is used to create a new log target, if a log with the same path already exists, it is referenced instead */
-liLog *log_new(liServer *srv, liLogType type, GString *path);
-/* avoid calling log_free directly. instead use log_unref which calls log_free if refcount has reached zero */
-void log_free(liServer *srv, liLog *log);
-void log_free_unlocked(liServer *srv, liLog *log);
+LI_API liLog *li_log_new(liServer *srv, liLogType type, GString *path);
 
-void log_ref(liServer *srv, liLog *log);
-void log_unref(liServer *srv, liLog *log);
+LI_API void li_log_ref(liServer *srv, liLog *log);
+LI_API void li_log_unref(liServer *srv, liLog *log);
 
-void log_lock(liLog *log);
-void log_unlock(liLog *log);
+LI_API void li_log_thread_start(liServer *srv);
+LI_API void li_log_thread_wakeup(liServer *srv);
 
-/* do not call directly, use log_rotate_logs instead */
-void log_rotate(gchar *path, liLog *log, liServer *srv);
-
-void log_rotate_logs(liServer *srv);
-
-gpointer log_thread(liServer *srv);
-void log_thread_start(liServer *srv);
-void log_thread_stop(liServer *srv);
-void log_thread_finish(liServer *srv);
-void log_thread_wakeup(liServer *srv);
-
-void log_init(liServer *srv);
-void log_cleanup(liServer *srv);
+LI_API void li_log_init(liServer *srv);
+LI_API void li_log_cleanup(liServer *srv);
 
 /* li_log_write is used to directly write a message to a log target */
 LI_API void li_log_write(liServer *srv, liLog *log, GString *msg);

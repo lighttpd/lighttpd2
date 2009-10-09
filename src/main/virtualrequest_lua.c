@@ -10,37 +10,37 @@
 typedef int (*lua_VRequest_Attrib)(liVRequest *vr, lua_State *L);
 
 static int lua_vrequest_attr_read_in(liVRequest *vr, lua_State *L) {
-	lua_push_chunkqueue(L, vr->in);
+	li_lua_push_chunkqueue(L, vr->in);
 	return 1;
 }
 
 static int lua_vrequest_attr_read_out(liVRequest *vr, lua_State *L) {
-	lua_push_chunkqueue(L, vr->out);
+	li_lua_push_chunkqueue(L, vr->out);
 	return 1;
 }
 
 static int lua_vrequest_attr_read_con(liVRequest *vr, lua_State *L) {
-	lua_push_connection(L, vr->con);
+	li_lua_push_connection(L, vr->con);
 	return 1;
 }
 
 static int lua_vrequest_attr_read_env(liVRequest *vr, lua_State *L) {
-	lua_push_environment(L, &vr->env);
+	li_lua_push_environment(L, &vr->env);
 	return 1;
 }
 
 static int lua_vrequest_attr_read_req(liVRequest *vr, lua_State *L) {
-	lua_push_request(L, &vr->request);
+	li_lua_push_request(L, &vr->request);
 	return 1;
 }
 
 static int lua_vrequest_attr_read_resp(liVRequest *vr, lua_State *L) {
-	lua_push_response(L, &vr->response);
+	li_lua_push_response(L, &vr->response);
 	return 1;
 }
 
 static int lua_vrequest_attr_read_phys(liVRequest *vr, lua_State *L) {
-	lua_push_physical(L, &vr->physical);
+	li_lua_push_physical(L, &vr->physical);
 	return 1;
 }
 
@@ -88,7 +88,7 @@ static int lua_vrequest_index(lua_State *L) {
 
 	if (li_lua_metatable_index(L)) return 1;
 
-	vr = lua_get_vrequest(L, 1);
+	vr = li_lua_get_vrequest(L, 1);
 	if (!vr) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -122,7 +122,7 @@ static int lua_vrequest_newindex(lua_State *L) {
 		lua_error(L);
 	}
 
-	vr = lua_get_vrequest(L, 1);
+	vr = li_lua_get_vrequest(L, 1);
 	if (!vr) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -149,9 +149,9 @@ static int lua_vrequest_newindex(lua_State *L) {
 static int lua_vrequest_error(lua_State *L) {
 	liVRequest *vr;
 	GString *buf;
-	vr = lua_get_vrequest(L, 1);
+	vr = li_lua_get_vrequest(L, 1);
 
-	buf = lua_print_get_string(L, 2, lua_gettop(L));
+	buf = li_lua_print_get_string(L, 2, lua_gettop(L));
 
 	VR_ERROR(vr, "(lua): %s", buf->str);
 
@@ -163,9 +163,9 @@ static int lua_vrequest_error(lua_State *L) {
 static int lua_vrequest_warning(lua_State *L) {
 	liVRequest *vr;
 	GString *buf;
-	vr = lua_get_vrequest(L, 1);
+	vr = li_lua_get_vrequest(L, 1);
 
-	buf = lua_print_get_string(L, 2, lua_gettop(L));
+	buf = li_lua_print_get_string(L, 2, lua_gettop(L));
 
 	VR_WARNING(vr, "(lua): %s", buf->str);
 
@@ -177,9 +177,9 @@ static int lua_vrequest_warning(lua_State *L) {
 static int lua_vrequest_info(lua_State *L) {
 	liVRequest *vr;
 	GString *buf;
-	vr = lua_get_vrequest(L, 1);
+	vr = li_lua_get_vrequest(L, 1);
 
-	buf = lua_print_get_string(L, 2, lua_gettop(L));
+	buf = li_lua_print_get_string(L, 2, lua_gettop(L));
 
 	VR_INFO(vr, "(lua): %s", buf->str);
 
@@ -191,9 +191,9 @@ static int lua_vrequest_info(lua_State *L) {
 static int lua_vrequest_debug(lua_State *L) {
 	liVRequest *vr;
 	GString *buf;
-	vr = lua_get_vrequest(L, 1);
+	vr = li_lua_get_vrequest(L, 1);
 
-	buf = lua_print_get_string(L, 2, lua_gettop(L));
+	buf = li_lua_print_get_string(L, 2, lua_gettop(L));
 
 	VR_DEBUG(vr, "(lua): %s", buf->str);
 
@@ -216,7 +216,7 @@ static int lua_vrequest_stat(lua_State *L) {
 		lua_error(L);
 	}
 
-	vr = lua_get_vrequest(L, 1);
+	vr = li_lua_get_vrequest(L, 1);
 	if (!vr || !lua_isstring(L, 2)) {
 		lua_pushstring(L, "vr:stat(filename): wrong argument types");
 		lua_error(L);
@@ -248,7 +248,7 @@ static int lua_vrequest_stat(lua_State *L) {
 
 static int lua_vrequest_handle_direct(lua_State *L) {
 	liVRequest *vr;
-	vr = lua_get_vrequest(L, 1);
+	vr = li_lua_get_vrequest(L, 1);
 
 	lua_pushboolean(L, li_vrequest_handle_direct(vr));
 
@@ -264,8 +264,8 @@ static int lua_vrequest_enter_action(lua_State *L) {
 		lua_error(L);
 	}
 
-	vr = lua_get_vrequest(L, 1);
-	act = lua_get_action(L, 2);
+	vr = li_lua_get_vrequest(L, 1);
+	act = li_lua_get_action(L, 2);
 	if (!vr || !act) {
 		lua_pushstring(L, "wrong arguments");
 		lua_error(L);
@@ -298,14 +298,14 @@ static void init_vrequest_mt(lua_State *L) {
 	luaL_register(L, NULL, vrequest_mt);
 }
 
-void lua_init_vrequest_mt(lua_State *L) {
+void li_lua_init_vrequest_mt(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_VREQUEST)) {
 		init_vrequest_mt(L);
 	}
 	lua_pop(L, 1);
 }
 
-liVRequest* lua_get_vrequest(lua_State *L, int ndx) {
+liVRequest* li_lua_get_vrequest(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_VREQUEST);
@@ -317,7 +317,7 @@ liVRequest* lua_get_vrequest(lua_State *L, int ndx) {
 	return *(liVRequest**) lua_touserdata(L, ndx);
 }
 
-int lua_push_vrequest(lua_State *L, liVRequest *vr) {
+int li_lua_push_vrequest(lua_State *L, liVRequest *vr) {
 	liVRequest **pvr;
 
 	pvr = (liVRequest**) lua_newuserdata(L, sizeof(liVRequest*));

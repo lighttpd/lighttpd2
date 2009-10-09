@@ -13,7 +13,7 @@ static int lua_environment_get(lua_State *L) {
 	GString *val;
 
 	luaL_checkany(L, 2);
-	if (NULL == (env = lua_get_environment(L, 1))) return 0;
+	if (NULL == (env = li_lua_get_environment(L, 1))) return 0;
 	if (NULL == (ckey = lua_tolstring(L, 2, &keylen))) return 0;
 
 	val = li_environment_get(env, ckey, keylen);
@@ -38,7 +38,7 @@ static int lua_environment_set(lua_State *L) {
 	size_t keylen, vallen;
 
 	luaL_checkany(L, 3);
-	if (NULL == (env = lua_get_environment(L, 1))) return 0;
+	if (NULL == (env = li_lua_get_environment(L, 1))) return 0;
 	if (NULL == (ckey = lua_tolstring(L, 2, &keylen))) return 0;
 	if (lua_isnil(L, 3)) {
 		li_environment_remove(env, ckey, keylen);
@@ -57,7 +57,7 @@ static int lua_environment_unset(lua_State *L) {
 	size_t keylen;
 
 	luaL_checkany(L, 2);
-	if (NULL == (env = lua_get_environment(L, 1))) return 0;
+	if (NULL == (env = li_lua_get_environment(L, 1))) return 0;
 	if (NULL == (ckey = lua_tolstring(L, 2, &keylen))) return 0;
 	li_environment_remove(env, ckey, keylen);
 
@@ -70,7 +70,7 @@ static int lua_environment_weak_set(lua_State *L) {
 	size_t keylen, vallen;
 
 	luaL_checkany(L, 3);
-	if (NULL == (env = lua_get_environment(L, 1))) return 0;
+	if (NULL == (env = li_lua_get_environment(L, 1))) return 0;
 	if (NULL == (ckey = lua_tolstring(L, 2, &keylen))) return 0;
 	if (NULL == (cval = lua_tolstring(L, 3, &vallen))) return 0;
 
@@ -82,7 +82,7 @@ static int lua_environment_clear(lua_State *L) {
 	liEnvironment *env;
 
 	luaL_checkany(L, 1);
-	if (NULL == (env = lua_get_environment(L, 1))) return 0;
+	if (NULL == (env = li_lua_get_environment(L, 1))) return 0;
 
 	li_environment_reset(env);
 
@@ -93,7 +93,7 @@ static int lua_environment_pairs(lua_State *L) {
 	liEnvironment *env;
 
 	luaL_checkany(L, 1);
-	env = lua_get_environment(L, 1);
+	env = li_lua_get_environment(L, 1);
 
 	if (!env) return 0;
 	return li_lua_ghashtable_gstring_pairs(L, env->table);
@@ -117,14 +117,14 @@ static void init_env_mt(lua_State *L) {
 	luaL_register(L, NULL, environment_mt);
 }
 
-void lua_init_environment_mt(lua_State *L) {
+void li_lua_init_environment_mt(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_ENVIRONMENT)) {
 		init_env_mt(L);
 	}
 	lua_pop(L, 1);
 }
 
-liEnvironment* lua_get_environment(lua_State *L, int ndx) {
+liEnvironment* li_lua_get_environment(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_ENVIRONMENT);
@@ -136,7 +136,7 @@ liEnvironment* lua_get_environment(lua_State *L, int ndx) {
 	return *(liEnvironment**) lua_touserdata(L, ndx);
 }
 
-int lua_push_environment(lua_State *L, liEnvironment *env) {
+int li_lua_push_environment(lua_State *L, liEnvironment *env) {
 	liEnvironment **penv;
 
 	penv = (liEnvironment**) lua_newuserdata(L, sizeof(liEnvironment*));

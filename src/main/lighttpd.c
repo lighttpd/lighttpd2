@@ -2,6 +2,7 @@
 #include <lighttpd/base.h>
 #include <lighttpd/config_parser.h>
 #include <lighttpd/profiler.h>
+#include <lighttpd/plugin_core.h>
 
 #include <lighttpd/version.h>
 
@@ -12,8 +13,6 @@
 #ifndef DEFAULT_LIBDIR
 # define DEFAULT_LIBDIR "/usr/local/lib/lighttpd"
 #endif
-
-void plugin_core_init(liServer *srv, liPlugin *p);
 
 int main(int argc, char *argv[]) {
 	GError *error = NULL;
@@ -46,9 +45,9 @@ int main(int argc, char *argv[]) {
 	gchar *profile_mem = getenv("LIGHTY_PROFILE_MEM");
 	if (profile_mem != NULL && g_str_equal(profile_mem, "true")) {
 		/*g_mem_set_vtable(glib_mem_profiler_table);*/
-		profiler_enable();
-		atexit(profiler_finish);
-		atexit(profiler_dump);
+		li_profiler_enable();
+		atexit(li_profiler_finish);
+		atexit(li_profiler_dump);
 		/*atexit(profiler_dump_table);*/
 	}
 
@@ -83,7 +82,7 @@ int main(int argc, char *argv[]) {
 	li_server_loop_init(srv);
 
 	/* load core plugin */
-	srv->core_plugin = li_plugin_register(srv, "core", plugin_core_init);
+	srv->core_plugin = li_plugin_register(srv, "core", li_plugin_core_init);
 	if (use_angel) {
 		li_angel_setup(srv);
 	}
@@ -106,10 +105,10 @@ int main(int argc, char *argv[]) {
 		g_get_current_time(&start);
 
 		/* standard config frontend */
-		ctx_stack = config_parser_init(srv);
+		ctx_stack = li_config_parser_init(srv);
 		ctx = (liConfigParserContext*) ctx_stack->data;
-		if (!config_parser_file(srv, ctx_stack, config_path)) {
-			config_parser_finish(srv, ctx_stack, TRUE);
+		if (!li_config_parser_file(srv, ctx_stack, config_path)) {
+			li_config_parser_finish(srv, ctx_stack, TRUE);
 			return 1; /* no cleanup on config error, same as config test */
 		}
 
@@ -129,7 +128,7 @@ int main(int argc, char *argv[]) {
 		if (g_queue_get_length(ctx->option_stack) != 0 || g_queue_get_length(ctx->action_list_stack) != 1)
 			DEBUG(srv, "option_stack: %u action_list_stack: %u (should be 0:1)", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
 
-		config_parser_finish(srv, ctx_stack, FALSE);
+		li_config_parser_finish(srv, ctx_stack, FALSE);
 	}
 	else {
 #ifdef HAVE_LUA_H
@@ -157,7 +156,7 @@ int main(int argc, char *argv[]) {
 	li_server_reached_state(srv, LI_SERVER_DOWN);
 
 	if (!luaconfig)
-		config_parser_finish(srv, ctx_stack, TRUE);
+		li_config_parser_finish(srv, ctx_stack, TRUE);
 
 	INFO(srv, "%s", "going down");
 

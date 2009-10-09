@@ -50,7 +50,7 @@ static int lua_chunkqueue_index(lua_State *L) {
 
 	if (li_lua_metatable_index(L)) return 1;
 
-	cq = lua_get_chunkqueue(L, 1);
+	cq = li_lua_get_chunkqueue(L, 1);
 	if (!cq) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -84,7 +84,7 @@ static int lua_chunkqueue_newindex(lua_State *L) {
 		lua_error(L);
 	}
 
-	cq = lua_get_chunkqueue(L, 1);
+	cq = li_lua_get_chunkqueue(L, 1);
 	if (!cq) return 0;
 
 	if (lua_isnumber(L, 2)) return 0;
@@ -114,7 +114,7 @@ static int lua_chunkqueue_add(lua_State *L) {
 	size_t len;
 
 	luaL_checkany(L, 2);
-	cq = lua_get_chunkqueue(L, 1);
+	cq = li_lua_get_chunkqueue(L, 1);
 	if (cq == NULL) return 0;
 	if (lua_isstring(L, 2)) {
 		s = lua_tolstring(L, 2, &len);
@@ -155,7 +155,7 @@ fail:
 static int lua_chunkqueue_reset(lua_State *L) {
 	liChunkQueue *cq;
 
-	cq = lua_get_chunkqueue(L, 1);
+	cq = li_lua_get_chunkqueue(L, 1);
 	li_chunkqueue_reset(cq);
 
 	return 0;
@@ -178,7 +178,7 @@ static void init_chunkqueue_mt(lua_State *L) {
 	lua_setfield(L, -2, "__index");
 }
 
-void lua_init_chunk_mt(lua_State *L) {
+void li_lua_init_chunk_mt(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_CHUNK)) {
 		init_chunk_mt(L);
 	}
@@ -190,7 +190,7 @@ void lua_init_chunk_mt(lua_State *L) {
 	lua_pop(L, 1);
 }
 
-liChunk* lua_get_chunk(lua_State *L, int ndx) {
+liChunk* li_lua_get_chunk(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_CHUNK);
@@ -202,7 +202,7 @@ liChunk* lua_get_chunk(lua_State *L, int ndx) {
 	return *(liChunk**) lua_touserdata(L, ndx);
 }
 
-int lua_push_chunk(lua_State *L, liChunk *c) {
+int li_lua_push_chunk(lua_State *L, liChunk *c) {
 	liChunk **pc;
 
 	pc = (liChunk**) lua_newuserdata(L, sizeof(liChunk*));
@@ -216,7 +216,7 @@ int lua_push_chunk(lua_State *L, liChunk *c) {
 	return 1;
 }
 
-liChunkQueue* lua_get_chunkqueue(lua_State *L, int ndx) {
+liChunkQueue* li_lua_get_chunkqueue(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_CHUNKQUEUE);
@@ -228,7 +228,7 @@ liChunkQueue* lua_get_chunkqueue(lua_State *L, int ndx) {
 	return *(liChunkQueue**) lua_touserdata(L, ndx);
 }
 
-int lua_push_chunkqueue(lua_State *L, liChunkQueue *cq) {
+int li_lua_push_chunkqueue(lua_State *L, liChunkQueue *cq) {
 	liChunkQueue **pcq;
 
 	pcq = (liChunkQueue**) lua_newuserdata(L, sizeof(liChunkQueue*));

@@ -128,7 +128,7 @@ liServer* li_server_new(const gchar *module_dir) {
 
 	srv->throttle_pools = g_array_new(FALSE, TRUE, sizeof(liThrottlePool*));
 
-	log_init(srv);
+	li_log_init(srv);
 
 	srv->connection_load = 0;
 	srv->max_connections = 256; /* assume max-fds = 1024 */
@@ -194,7 +194,7 @@ void li_server_free(liServer* srv) {
 	{
 		guint i;
 		for (i = 0; i < srv->throttle_pools->len; i++) {
-			throttle_pool_free(srv, g_array_index(srv->throttle_pools, liThrottlePool*, i));
+			li_throttle_pool_free(srv, g_array_index(srv->throttle_pools, liThrottlePool*, i));
 		}
 		g_array_free(srv->throttle_pools, TRUE);
 	}
@@ -236,7 +236,7 @@ void li_server_free(liServer* srv) {
 
 	li_plugin_free(srv, srv->core_plugin);
 
-	log_cleanup(srv);
+	li_log_cleanup(srv);
 
 	{
 		guint i;
@@ -655,7 +655,7 @@ static void li_server_start_transition(liServer *srv, liServerState state) {
 			li_worker_stop(srv->main_worker, wrk);
 		}
 
-		log_thread_wakeup(srv);
+		li_log_thread_wakeup(srv);
 		li_server_reached_state(srv, LI_SERVER_STOPPING);
 		break;
 	case LI_SERVER_DOWN:
@@ -711,7 +711,7 @@ void li_server_reached_state(liServer *srv, liServerState state) {
 			srv->started_str = g_string_new_len(GSTR_LEN(str));
 		}
 
-		log_thread_start(srv);
+		li_log_thread_start(srv);
 
 		li_plugins_prepare(srv);
 		/* wait for plugins to report success */

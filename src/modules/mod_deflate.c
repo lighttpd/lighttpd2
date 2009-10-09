@@ -484,7 +484,7 @@ static gboolean cached_handle_etag(liVRequest *vr, gboolean debug, liHttpHeader 
 	if (!hh_etag) return FALSE;
 
 	g_string_truncate(s, 0);
-	g_string_append_len(s, HEADER_VALUE_LEN(hh_etag));
+	g_string_append_len(s, LI_HEADER_VALUE_LEN(hh_etag));
 	g_string_append_len(s, CONST_STR_LEN("-"));
 	g_string_append_len(s, enc_name, strlen(enc_name));
 	li_etag_mutate(s, s);
@@ -542,7 +542,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	while (hh_encoding_entry) {
 		hh_encoding = (liHttpHeader*) hh_encoding_entry->data;
 		for (i = 1; encoding_names[i]; i++) {
-			if (strstr(HEADER_VALUE(hh_encoding), encoding_names[i])) {
+			if (strstr(LI_HEADER_VALUE(hh_encoding), encoding_names[i])) {
 				encoding_mask |= 1 << i;
 			}
 		}

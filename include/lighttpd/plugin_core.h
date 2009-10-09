@@ -30,4 +30,6 @@ enum liCoreOptions {
 #define CORE_OPTION(idx) _CORE_OPTION(vr, idx)
 #define _CORE_OPTION(vr, idx) _OPTION_ABS(vr, idx)
 
+LI_API void li_plugin_core_init(liServer *srv, liPlugin *p);
+
 #endif

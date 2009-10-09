@@ -6,7 +6,6 @@
 #include <sched.h>
 
 static liConnection* worker_con_get(liWorker *wrk);
-void worker_con_put(liConnection *con);
 
 /* closing sockets - wait for proper shutdown */
 
@@ -128,7 +127,7 @@ static void worker_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 			ev_timer_start(wrk->loop, &con->keep_alive_data.watcher);
 		} else {
 			/* close it */
-			worker_con_put(con);
+			li_worker_con_put(con);
 		}
 	}
 
@@ -159,7 +158,7 @@ static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents)
 			VR_DEBUG(vr, "connection io-timeout from %s after %.2f seconds", con->remote_addr_str->str, now - wqe->ts);
 		}
 		li_plugins_handle_close(con);
-		worker_con_put(con);
+		li_worker_con_put(con);
 	}
 
 	li_waitqueue_update(&wrk->io_timeout_queue);
@@ -423,7 +422,7 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	li_waitqueue_init(&wrk->io_timeout_queue, wrk->loop, worker_io_timeout_cb, srv->io_timeout, wrk);
 
 	/* throttling */
-	li_waitqueue_init(&wrk->throttle_queue, wrk->loop, throttle_cb, THROTTLE_GRANULARITY, wrk);
+	li_waitqueue_init(&wrk->throttle_queue, wrk->loop, li_throttle_cb, THROTTLE_GRANULARITY, wrk);
 
 	/* job queue */
 	g_queue_init(&wrk->job_queue);
@@ -436,7 +435,7 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	ev_async_start(wrk->loop, &wrk->job_async_queue_watcher);
 	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
-	stat_cache_new(wrk, srv->stat_cache_ttl);
+	li_stat_cache_new(wrk, srv->stat_cache_ttl);
 
 	return wrk;
 }
@@ -507,7 +506,7 @@ void li_worker_free(liWorker *wrk) {
 
 	g_string_free(wrk->tmp_str, TRUE);
 
-	stat_cache_free(wrk->stat_cache);
+	li_stat_cache_free(wrk->stat_cache);
 
 	g_slice_free(liWorker, wrk);
 }
@@ -553,7 +552,7 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 		for (i = wrk->connections_active; i-- > 0;) {
 			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
 			if (con->state == LI_CON_STATE_KEEP_ALIVE) {
-				worker_con_put(con);
+				li_worker_con_put(con);
 			}
 		}
 
@@ -578,7 +577,7 @@ void li_worker_suspend(liWorker *context, liWorker *wrk) {
 		for (i = wrk->connections_active; i-- > 0;) {
 			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
 			if (con->state == LI_CON_STATE_KEEP_ALIVE) {
-				worker_con_put(con);
+				li_worker_con_put(con);
 			}
 		}
 
@@ -626,7 +625,7 @@ static liConnection* worker_con_get(liWorker *wrk) {
 	return con;
 }
 
-void worker_con_put(liConnection *con) {
+void li_worker_con_put(liConnection *con) {
 	guint threshold;
 	liWorker *wrk = con->wrk;
 	ev_tstamp now = CUR_TS(wrk);

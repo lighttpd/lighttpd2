@@ -389,7 +389,7 @@ static void al_option_accesslog_free(liServer *srv, liPlugin *p, size_t ndx, liO
 
 	if (!oval.ptr) return;
 
-	log_unref(srv, oval.ptr);
+	li_log_unref(srv, oval.ptr);
 }
 
 static gboolean al_option_accesslog_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
@@ -408,7 +408,7 @@ static gboolean al_option_accesslog_parse(liServer *srv, liPlugin *p, size_t ndx
 		return FALSE;
 	}
 
-	log = log_new(srv, log_type_from_path(val->data.string), val->data.string);
+	log = li_log_new(srv, li_log_type_from_path(val->data.string), val->data.string);
 
 	oval->ptr = log;
 

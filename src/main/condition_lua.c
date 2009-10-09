@@ -55,7 +55,7 @@ static void lua_settop_in_dicts(lua_State *L, const gchar *path) {
 
 /* Get objects from lua */
 
-liCondition* lua_get_condition(lua_State *L, int ndx) {
+liCondition* li_lua_get_condition(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_CONDITION);
@@ -119,7 +119,7 @@ static void lua_push_condition_metatable(liServer *srv, lua_State *L) {
 	}
 }
 
-int lua_push_condition(liServer *srv, lua_State *L, liCondition *c) {
+int li_lua_push_condition(liServer *srv, lua_State *L, liCondition *c) {
 	liCondition **pc;
 
 	pc = (liCondition**) lua_newuserdata(L, sizeof(liCondition*));
@@ -161,7 +161,7 @@ static int lua_cond_lvalue_bool(lua_State *L) {
 	c = li_condition_new_bool(srv, lvalue, cmpop == LI_CONFIG_COND_EQ);
 	if (c) {
 		li_condition_lvalue_acquire(lvalue);
-		lua_push_condition(srv, L, c);
+		li_lua_push_condition(srv, L, c);
 		return 1;
 	}
 	return 0;
@@ -182,7 +182,7 @@ static int lua_cond_lvalue_cmp(lua_State *L) {
 	c = li_condition_new_string(srv, cmpop, lvalue, sval);
 	if (c) {
 		li_condition_lvalue_acquire(lvalue);
-		lua_push_condition(srv, L, c);
+		li_lua_push_condition(srv, L, c);
 		return 1;
 	}
 	return 0;
@@ -271,7 +271,7 @@ static int lua_push_cond_lvalue_t(liServer *srv, lua_State *L, liCondLValue t) {
 
 
 
-void lua_push_lvalues_dict(liServer *srv, lua_State *L) {
+void li_lua_push_lvalues_dict(liServer *srv, lua_State *L) {
 	size_t i;
 
 	for (i = 0; i < LI_COND_LVALUE_FIRST_WITH_KEY; i++) {

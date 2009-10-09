@@ -431,7 +431,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 			hh_range = li_http_header_lookup(vr->request.headers, CONST_STR_LEN("range"));
 			if (hh_range) {
 				/* TODO: Check If-Range: header */
-				const GString range_str = li_const_gstring(HEADER_VALUE_LEN(hh_range));
+				const GString range_str = li_const_gstring(LI_HEADER_VALUE_LEN(hh_range));
 				liParseHttpRangeState rs;
 				gboolean is_multipart = FALSE, done = FALSE;
 
@@ -588,7 +588,7 @@ static liHandlerResult core_handle_profile_mem(liVRequest *vr, gpointer param, g
 	UNUSED(context);
 
 	/*g_mem_profile();*/
-	profiler_dump();
+	li_profiler_dump();
 
 	return LI_HANDLER_GO_ON;
 }
@@ -738,11 +738,11 @@ static gboolean core_option_log_parse(liServer *srv, liPlugin *p, size_t ndx, li
 	if (!val) {
 		/* default: log LI_LOG_LEVEL_WARNING, LI_LOG_LEVEL_ERROR and LI_LOG_LEVEL_BACKEND to stderr */
 		liLog *log = srv->logs.stderr;
-		log_ref(srv, log);
+		li_log_ref(srv, log);
 		g_array_index(arr, liLog*, LI_LOG_LEVEL_WARNING) = log;
-		log_ref(srv, log);
+		li_log_ref(srv, log);
 		g_array_index(arr, liLog*, LI_LOG_LEVEL_ERROR) = log;
-		log_ref(srv, log);
+		li_log_ref(srv, log);
 		g_array_index(arr, liLog*, LI_LOG_LEVEL_BACKEND) = log;
 		return TRUE;
 	}
@@ -764,13 +764,13 @@ static gboolean core_option_log_parse(liServer *srv, liPlugin *p, size_t ndx, li
 
 				if (NULL != g_array_index(arr, liLog*, i))
 					continue;
-				log = log_new(srv, log_type_from_path(path), path);
+				log = li_log_new(srv, li_log_type_from_path(path), path);
 				g_array_index(arr, liLog*, i) = log;
 			}
 		}
 		else {
-			liLog *log = log_new(srv, log_type_from_path(path), path);
-			level = log_level_from_string(level_str);
+			liLog *log = li_log_new(srv, li_log_type_from_path(path), path);
+			level = li_log_level_from_string(level_str);
 			g_array_index(arr, liLog*, level) = log;
 		}
 	}
@@ -787,7 +787,7 @@ static void core_option_log_free(liServer *srv, liPlugin *p, size_t ndx, liOptio
 
 	for (guint i = 0; i < arr->len; i++) {
 		if (NULL != g_array_index(arr, liLog*, i))
-			log_unref(srv, g_array_index(arr, liLog*, i));
+			li_log_unref(srv, g_array_index(arr, liLog*, i));
 	}
 	g_array_free(arr, TRUE);
 }
@@ -1226,7 +1226,7 @@ static liAction* core_throttle_pool(liServer *srv, liPlugin* p, liValue *val) {
 			return NULL;
 		}
 
-		pool = throttle_pool_new(srv, li_value_extract(g_array_index(val->data.list, liValue*, 0)).string, (guint)rate);
+		pool = li_throttle_pool_new(srv, li_value_extract(g_array_index(val->data.list, liValue*, 0)).string, (guint)rate);
 		g_array_append_val(srv->throttle_pools, pool);
 	}
 
@@ -1375,8 +1375,7 @@ static const liPluginAngel angelcbs[] = {
 	{ NULL, NULL }
 };
 
-void plugin_core_init(liServer *srv, liPlugin *p);
-void plugin_core_init(liServer *srv, liPlugin *p) {
+void li_plugin_core_init(liServer *srv, liPlugin *p) {
 	UNUSED(srv);
 
 	p->options = options;

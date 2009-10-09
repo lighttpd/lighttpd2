@@ -157,7 +157,7 @@ static int handle_server_action(liServer *srv, lua_State *L, gpointer _sa) {
 		lua_error(L);
 	}
 
-	return lua_push_action(srv, L, a);
+	return li_lua_push_action(srv, L, a);
 }
 
 static int handle_server_setup(liServer *srv, lua_State *L, gpointer _ss) {
@@ -209,7 +209,7 @@ gboolean li_config_lua_load(liServer *srv, const gchar *filename, liAction **pac
 	publish_str_hash(srv, L, srv->actions, handle_server_action);
 	lua_setfield(L, LUA_GLOBALSINDEX, "action");
 
-	lua_push_lvalues_dict(srv, L);
+	li_lua_push_lvalues_dict(srv, L);
 
 	errfunc = li_lua_push_traceback(L, 0);
 	if (lua_pcall(L, 0, 1, errfunc)) {
@@ -224,9 +224,9 @@ gboolean li_config_lua_load(liServer *srv, const gchar *filename, liAction **pac
 		liAction *act;
 		lua_getfield(L, LUA_GLOBALSINDEX, "actions");
 
-		act = lua_get_action(L, -1);
+		act = li_lua_get_action(L, -1);
 		if (NULL == act && lua_isfunction(L, -1)) {
-			act = lua_make_action(L, -1);
+			act = li_lua_make_action(L, -1);
 		} else {
 			li_action_acquire(act);
 		}

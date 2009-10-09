@@ -15,9 +15,9 @@ struct liProfilerMem {
 	guint64 free_bytes;
 };
 
-void profiler_enable(); /* enables the profiler */
-void profiler_finish();
-void profiler_dump(); /* dumps memory statistics to stdout */
-void profiler_dump_table();
+LI_API void li_profiler_enable(); /* enables the profiler */
+LI_API void li_profiler_finish();
+LI_API void li_profiler_dump(); /* dumps memory statistics to stdout */
+LI_API void li_profiler_dump_table();
 
 #endif

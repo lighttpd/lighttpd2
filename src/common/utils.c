@@ -653,11 +653,11 @@ void li_sockaddr_clear(liSocketAddress *saddr) {
 	saddr->len = 0;
 }
 
-gboolean ipv4_in_ipv4_net(guint32 target, guint32 match, guint32 networkmask) {
+gboolean li_ipv4_in_ipv4_net(guint32 target, guint32 match, guint32 networkmask) {
 	return (target & networkmask) == (match & networkmask);
 }
 
-gboolean ipv6_in_ipv6_net(const unsigned char *target, const guint8 *match, guint network) {
+gboolean li_ipv6_in_ipv6_net(const unsigned char *target, const guint8 *match, guint network) {
 	guint8 mask = network % 8;
 	if (0 != memcmp(target, match, network / 8)) return FALSE;
 	if (!mask) return TRUE;
@@ -665,16 +665,16 @@ gboolean ipv6_in_ipv6_net(const unsigned char *target, const guint8 *match, guin
 	return (target[network / 8] & mask) == (match[network / 8] & mask);
 }
 
-gboolean ipv6_in_ipv4_net(const unsigned char *target, guint32 match, guint32 networkmask) {
+gboolean li_ipv6_in_ipv4_net(const unsigned char *target, guint32 match, guint32 networkmask) {
 	static const guint8 ipv6match[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0, 0 };
-	if (!ipv6_in_ipv6_net(target, ipv6match, 96)) return  FALSE;
-	return ipv4_in_ipv4_net(*(guint32*)(target+12), match, networkmask);
+	if (!li_ipv6_in_ipv6_net(target, ipv6match, 96)) return  FALSE;
+	return li_ipv4_in_ipv4_net(*(guint32*)(target+12), match, networkmask);
 }
 
-gboolean ipv4_in_ipv6_net(guint32 target, const guint8 *match, guint network) {
+gboolean li_ipv4_in_ipv6_net(guint32 target, const guint8 *match, guint network) {
 	guint8 ipv6[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0, 0 };
 	*(guint32*) (ipv6+12) = target;
-	return ipv6_in_ipv6_net(ipv6, match, network);
+	return li_ipv6_in_ipv6_net(ipv6, match, network);
 }
 
 /* unused */

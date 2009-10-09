@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
 
 	srv = li_server_new(module_dir);
 
-	if (!plugins_config_load(srv, config_path)) {
+	if (!li_plugins_config_load(srv, config_path)) {
 		result = -1;
 		goto cleanup;
 	}

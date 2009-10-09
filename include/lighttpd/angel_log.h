@@ -71,8 +71,8 @@ struct liLog {
 	GString *log_line;
 };
 
-void log_init(liServer *srv);
-void log_clean(liServer *srv);
+LI_API void li_log_init(liServer *srv);
+LI_API void li_log_clean(liServer *srv);
 
 LI_API void li_log_write(liServer *srv, liLogLevel log_level, guint flags, const gchar *fmt, ...) G_GNUC_PRINTF(4, 5);
 

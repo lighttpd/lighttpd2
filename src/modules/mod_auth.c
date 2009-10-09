@@ -196,12 +196,12 @@ static liHandlerResult auth_basic(liVRequest *vr, gpointer param, gpointer *cont
 	/* check for Authorization header */
 	hdr = li_http_header_lookup(vr->request.headers, CONST_STR_LEN("Authorization"));
 
-	if (!hdr || !g_str_has_prefix(HEADER_VALUE(hdr), "Basic ")) {
+	if (!hdr || !g_str_has_prefix(LI_HEADER_VALUE(hdr), "Basic ")) {
 		auth_ok = FALSE;
 
 		if (debug)
 			VR_DEBUG(vr, "requesting authorization from client for realm \"%s\"", ad->realm->str);
-	} else if (!ad->backend(vr, HEADER_VALUE(hdr) + sizeof("Basic ") - 1, ad)) {
+	} else if (!ad->backend(vr, LI_HEADER_VALUE(hdr) + sizeof("Basic ") - 1, ad)) {
 		auth_ok = FALSE;
 
 		if (debug)

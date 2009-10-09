@@ -80,7 +80,7 @@ static server_module* server_module_new(liServer *srv, const gchar *name) { /* m
 	return sm;
 }
 
-void plugins_init(liServer *srv, const gchar *module_dir) {
+void li_plugins_init(liServer *srv, const gchar *module_dir) {
 	liPlugins *ps = &srv->plugins;
 
 	ps->modules = li_modules_new(srv, module_dir);
@@ -98,10 +98,10 @@ void plugins_init(liServer *srv, const gchar *module_dir) {
 	ps->load_plugins = g_ptr_array_new();
 }
 
-void plugins_clear(liServer *srv) {
+void li_plugins_clear(liServer *srv) {
 	liPlugins *ps = &srv->plugins;
 
-	plugins_config_clean(srv);
+	li_plugins_config_clean(srv);
 
 	g_hash_table_destroy(ps->items);
 	g_hash_table_destroy(ps->load_items);
@@ -120,7 +120,7 @@ void plugins_clear(liServer *srv) {
 	li_modules_free(ps->modules);
 }
 
-void plugins_config_clean(liServer *srv) {
+void li_plugins_config_clean(liServer *srv) {
 	liPlugins *ps = &srv->plugins;
 	guint i;
 
@@ -135,21 +135,21 @@ void plugins_config_clean(liServer *srv) {
 	g_ptr_array_set_size(ps->load_plugins, 0);
 }
 
-gboolean plugins_config_load(liServer *srv, const gchar *filename) {
+gboolean li_plugins_config_load(liServer *srv, const gchar *filename) {
 	liPlugins *ps = &srv->plugins;
 	GError *error = NULL;
 	guint i;
 
-	if (!plugins_load_module(srv, NULL)) {
+	if (!li_plugins_load_module(srv, NULL)) {
 		ERROR(srv, "%s", "failed loading core plugins");
-		plugins_config_clean(srv);
+		li_plugins_config_clean(srv);
 		return FALSE;
 	}
 
 	if (filename && !li_angel_config_parse_file(srv, filename, &error)) {
 		ERROR(srv, "failed to parse config file: %s", error->message);
 		g_error_free(error);
-		plugins_config_clean(srv);
+		li_plugins_config_clean(srv);
 		return FALSE;
 	}
 
@@ -159,7 +159,7 @@ gboolean plugins_config_load(liServer *srv, const gchar *filename) {
 		if (p->handle_check_config) {
 			if (!p->handle_check_config(srv, p)) {
 				ERROR(srv, "%s", "config check failed");
-				plugins_config_clean(srv);
+				li_plugins_config_clean(srv);
 				return FALSE;
 			}
 		}
@@ -201,7 +201,7 @@ gboolean plugins_config_load(liServer *srv, const gchar *filename) {
 	return TRUE;
 }
 
-void plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
+void li_plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
 	liPlugins *ps = &srv->plugins;
 	server_item *si;
 
@@ -312,7 +312,7 @@ item_collission:
 	return FALSE;
 }
 
-gboolean plugins_load_module(liServer *srv, const gchar *name) {
+gboolean li_plugins_load_module(liServer *srv, const gchar *name) {
 	liPlugins *ps = &srv->plugins;
 	server_module *sm;
 	const gchar* modname = name ? name : "core";
@@ -336,7 +336,7 @@ gboolean plugins_load_module(liServer *srv, const gchar *name) {
 			}
 			sm->mod = mod;
 		} else {
-			if (!plugin_core_init(srv)) {
+			if (!li_plugin_core_init(srv)) {
 				_server_module_release(sm);
 				return FALSE;
 			}

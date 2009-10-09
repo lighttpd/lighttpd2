@@ -110,7 +110,7 @@ liValue* li_value_from_lua(liServer *srv, lua_State *L) {
 
 	case LUA_TUSERDATA:
 		{ /* check for action */
-			liAction *a = lua_get_action(L, -1);
+			liAction *a = li_lua_get_action(L, -1);
 			if (a) {
 				li_action_acquire(a);
 				lua_pop(L, 1);
@@ -118,7 +118,7 @@ liValue* li_value_from_lua(liServer *srv, lua_State *L) {
 			}
 		}
 		{ /* check for condition */
-			liCondition *c = lua_get_condition(L, -1);
+			liCondition *c = li_lua_get_condition(L, -1);
 			if (c) {
 				li_condition_acquire(c);
 				lua_pop(L, 1);
@@ -130,7 +130,7 @@ liValue* li_value_from_lua(liServer *srv, lua_State *L) {
 		return NULL;
 
 	case LUA_TFUNCTION: {
-			liAction *a = lua_make_action(L, -1);
+			liAction *a = li_lua_make_action(L, -1);
 			lua_pop(L, 1);
 			return li_value_new_action(srv, a);
 		}

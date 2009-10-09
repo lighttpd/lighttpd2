@@ -41,6 +41,6 @@ struct liPluginCoreListenMask {
 	} value;
 };
 
-gboolean plugin_core_init(liServer *srv);
+LI_API gboolean li_plugin_core_init(liServer *srv);
 
 #endif

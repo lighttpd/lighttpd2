@@ -210,7 +210,7 @@ static void profiler_free(gpointer mem) {
 }
 
 /* public functions */
-void profiler_enable() {
+void li_profiler_enable() {
 	GMemVTable t;
 
 	if (profiler_enabled)
@@ -240,7 +240,7 @@ void profiler_enable() {
 	g_mem_set_vtable(&t);
 }
 
-void profiler_finish() {
+void li_profiler_finish() {
 	for (profiler_entry *e = free_list; e != NULL;) {
 		profiler_entry *prev = e;
 		e = e->next;
@@ -248,7 +248,7 @@ void profiler_finish() {
 	}
 }
 
-void profiler_dump() {
+void li_profiler_dump() {
 	liProfilerMem s;
 
 	if (!profiler_enabled)
@@ -266,7 +266,7 @@ void profiler_dump() {
 	g_print("memory remaining: %" G_GUINT64_FORMAT " bytes, %" G_GUINT64_FORMAT " calls to free()\n", s.inuse_bytes, s.alloc_times + s.calloc_times - s.free_times);
 }
 
-void profiler_dump_table() {
+void li_profiler_dump_table() {
 	for (guint i = 0; i < PROFILER_HASHTABLE_SIZE; i++) {
 		guint n = 1;
 		for (profiler_entry *e = profiler_hashtable.nodes[i]; e; e = e->next) {
