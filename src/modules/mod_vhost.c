@@ -545,8 +545,8 @@ static liHandlerResult vhost_pattern(liVRequest *vr, gpointer param, gpointer *c
 		case VHOST_PATTERN_RANGE:
 			if (p->data.range.n > parts->len)
 				continue;
-			for (j = p->data.range.n; j < MIN(p->data.range.m, parts->len); j++) {
-				if (j > p->data.range.n)
+			for (j = MIN(p->data.range.m, parts->len); j >= p->data.range.n; j--) {
+				if (j < MIN(p->data.range.m, parts->len))
 					g_string_append_c(vr->physical.doc_root, '.');
 				g_string_append_len(vr->physical.doc_root, g_array_index(parts, vhost_pattern_hostpart, j-1).str, g_array_index(parts, vhost_pattern_hostpart, j-1).len);
 			}
@@ -648,10 +648,10 @@ static liAction* vhost_pattern_create(liServer *srv, liPlugin* p, liValue *val) 
 				if (*(c+2) == '}') {
 					/* ${n-} */
 					part.data.range.n = *c - '0';
-					part.data.range.m = 0;
+					part.data.range.m = 9;
 					c_last += 3;
-					pd->max_idx = 99;
-				} else if (*(c+2) > '0' && *(c+2) <= '9' && *c < *(c+2)) {
+					pd->max_idx = 9;
+				} else if (*(c+2) > '0' && *(c+2) <= '9' && *c < *(c+2) && *(c+3) == '}') {
 					/* ${n-m} */
 					part.data.range.n = *c - '0';
 					part.data.range.m = *(c+2) - '0';
