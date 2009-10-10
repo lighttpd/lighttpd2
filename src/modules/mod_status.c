@@ -796,7 +796,7 @@ static liHandlerResult status_info(liVRequest *vr, gpointer _param, gpointer *co
 
 	have_mode = li_querystring_find(vr->request.uri.query, CONST_STR_LEN("mode"), &val, &len);
 
-	if (!have_mode || strncmp(val, "plain", len)) {
+	if (!have_mode) {
 		/* no 'mode' query parameter given */
 		liCollectInfo *ci;
 		mod_status_job *j = g_slice_new(mod_status_job);
