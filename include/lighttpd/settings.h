@@ -32,6 +32,7 @@
 # warning "unknown OS, please report this"
 #endif
 
+#define _XOPEN_SOURCE
 
 #ifdef HAVE_CONFIG_H
 # include <lighttpd/config.h>
@@ -49,9 +50,11 @@
 #define L_GOFFSET_FORMAT G_GINT64_FORMAT
 #define L_GOFFSET_MODIFIER G_GINT64_MODIFIER
 
-#define CONST_STR_LEN(x) (x), sizeof(x) - 1
+#define CONST_STR_LEN(x) (x), (sizeof(x) - 1)
+#define CONST_USTR_LEN(x) ((const guchar*) (x)), (sizeof(x) - 1)
 
-#define GSTR_LEN(x) (x) ? (x)->str : "", (x) ? (x)->len : 0
+#define GSTR_LEN(x) ((x) ? (x)->str : ""), ((x) ? (x)->len : 0)
+#define GUSTR_LEN(x) (const guchar*) ((x) ? (x)->str : ""), (x) ? (x)->len : 0
 #define GSTR_SAFE_STR(x) ((x && x->str) ? x->str : "(null)")
 
 #include <assert.h>

@@ -254,6 +254,22 @@ AC_SUBST(BZ_LIB)
 
 AM_CONDITIONAL([USE_MOD_DEFLATE], [test "x$use_mod_deflate" = "xyes"])
 
+save_LIBS=$LIBS
+AC_SEARCH_LIBS(crypt_r,crypt,[
+  AC_DEFINE([HAVE_CRYPT_R], [1], [crypt_r])
+  AC_CHECK_HEADERS([crypt.h],[
+    AC_DEFINE([HAVE_CRYPT_H], [1], [crypt.h])
+  ])
+
+  AC_DEFINE([HAVE_LIBCRYPT], [1], [libcrypt])
+  if test "$ac_cv_search_crypt" != no; then
+    test "$ac_cv_search_crypt" = "none required" || CRYPT_LIB="$ac_cv_search_crypt"
+  fi
+])
+LIBS=$save_LIBS
+AC_SUBST(CRYPT_LIB)
+
+
 # check for extra compiler options (warning options)
 if test "${GCC}" = "yes"; then
     CFLAGS="${CFLAGS} -Wall -W -Wshadow -pedantic -std=gnu99"

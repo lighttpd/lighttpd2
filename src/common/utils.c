@@ -801,3 +801,22 @@ gboolean _li_set_sys_error(GError **error, const gchar *msg, const gchar *file, 
 	g_set_error(error, LI_SYS_ERROR, code, "(%s:%d): %s: %s", file, lineno, msg, g_strerror(code));
 	return FALSE;
 }
+
+void li_apr_sha1_base64(GString *dest, const GString *passwd) {
+	GChecksum *sha1sum;
+	gsize digestlen = g_checksum_type_get_length(G_CHECKSUM_SHA1);
+	guint8 digest[digestlen+1];
+	gchar *digest_base64;
+
+	sha1sum = g_checksum_new(G_CHECKSUM_SHA1);
+	g_checksum_update(sha1sum, GUSTR_LEN(passwd));
+	g_checksum_get_digest(sha1sum, digest, &digestlen);
+	g_checksum_free(sha1sum);
+
+	digest_base64 = g_base64_encode(digest, digestlen);
+
+	li_string_assign_len(dest, CONST_STR_LEN("{SHA}"));
+	g_string_append(dest, digest_base64);
+
+	g_free(digest_base64);
+}

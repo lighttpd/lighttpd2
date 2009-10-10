@@ -21,7 +21,7 @@ libmod_accesslog_la_LIBADD = $(common_libadd)
 install_libs += libmod_auth.la
 libmod_auth_la_SOURCES = mod_auth.c
 libmod_auth_la_LDFLAGS = $(common_ldflags)
-libmod_auth_la_LIBADD = $(common_libadd)
+libmod_auth_la_LIBADD = $(CRYPT_LIB) $(common_libadd)
 
 install_libs += libmod_balancer.la
 libmod_balancer_la_SOURCES = mod_balancer.c

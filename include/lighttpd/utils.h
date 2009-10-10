@@ -87,6 +87,8 @@ LI_API void li_string_append_int(GString *dest, gint64 val);
 
 LI_API gsize li_dirent_buf_size(DIR * dirp);
 
+LI_API void li_apr_sha1_base64(GString *dest, const GString *passwd);
+
 /* error log helper functions */
 #define LI_REMOVE_PATH_FROM_FILE 1
 LI_API const char *li_remove_path(const char *path);
