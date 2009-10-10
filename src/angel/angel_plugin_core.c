@@ -167,7 +167,7 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 	g_ptr_array_add(cmd, NULL);
 	cmdarr = (gchar**) g_ptr_array_free(cmd, FALSE);
 	envarr = (gchar**) g_ptr_array_free(env, FALSE);
-	config->load_instconf = li_instance_conf_new(cmdarr, envarr, user, uid, gid, -1, -1);
+	config->load_instconf = li_instance_conf_new(cmdarr, envarr, user, uid, gid, rlim_core, rlim_nofile);
 }
 
 static const liPluginItemOption core_instance_options[] = {
