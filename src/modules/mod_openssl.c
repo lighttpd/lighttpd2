@@ -90,6 +90,10 @@ static void openssl_con_close(liConnection *con) {
 		conctx->ssl = FALSE;
 	}
 
+	if (conctx->reuse_read_buffer) {
+		g_byte_array_free(conctx->reuse_read_buffer, TRUE);
+	}
+
 	con->srv_sock_data = NULL;
 	con->is_ssl = FALSE;
 
