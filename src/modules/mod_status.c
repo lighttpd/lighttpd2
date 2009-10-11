@@ -784,6 +784,9 @@ static liHandlerResult status_info(liVRequest *vr, gpointer _param, gpointer *co
 	gboolean have_mode;
 	mod_status_param *param = _param;
 
+	if (*context)
+		return LI_HANDLER_WAIT_FOR_EVENT;
+
 	switch (vr->request.http_method) {
 	case LI_HTTP_METHOD_GET:
 	case LI_HTTP_METHOD_HEAD:
