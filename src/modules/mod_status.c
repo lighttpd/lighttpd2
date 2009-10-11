@@ -403,6 +403,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 				g_string_free(cd->local_addr_str, TRUE);
 				g_string_free(cd->host, TRUE);
 				g_string_free(cd->path, TRUE);
+				g_string_free(cd->query, TRUE);
 			}
 
 			g_array_free(sd->connections, TRUE);
@@ -478,6 +479,18 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		/* free stats */
 		for (i = 0; i < result->len; i++) {
 			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
+
+			for (j = 0; j < sd->connections->len; j++) {
+				mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
+
+				g_string_free(cd->remote_addr_str, TRUE);
+				g_string_free(cd->local_addr_str, TRUE);
+				g_string_free(cd->host, TRUE);
+				g_string_free(cd->path, TRUE);
+				g_string_free(cd->query, TRUE);
+			}
+
+			g_array_free(sd->connections, TRUE);
 			g_slice_free(mod_status_wrk_data, sd);
 		}
 	}
@@ -676,15 +689,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 					cd->request_size != -1 ? cd->request_size : 0, (cd->state >= LI_CON_STATE_HANDLE_MAINVR && cd->request_size != -1) ? req_len->str : "",
 					cd->response_size, (cd->state >= LI_CON_STATE_HANDLE_MAINVR) ? resp_len->str : ""
 				);
-
-				g_string_free(cd->remote_addr_str, TRUE);
-				g_string_free(cd->local_addr_str, TRUE);
-				g_string_free(cd->host, TRUE);
-				g_string_free(cd->path, TRUE);
-				g_string_free(cd->query, TRUE);
 			}
-
-			g_array_free(sd->connections, TRUE);
 		}
 
 		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
@@ -696,21 +701,6 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 		g_string_free(bytes_out_5s, TRUE);
 		g_string_free(req_len, TRUE);
 		g_string_free(resp_len, TRUE);
-	} else {
-		for (i = 0; i < result->len; i++) {
-			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
-			for (j = 0; j < sd->connections->len; j++) {
-				mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
-
-				g_string_free(cd->remote_addr_str, TRUE);
-				g_string_free(cd->local_addr_str, TRUE);
-				g_string_free(cd->host, TRUE);
-				g_string_free(cd->path, TRUE);
-				g_string_free(cd->query, TRUE);
-			}
-
-			g_array_free(sd->connections, TRUE);
-		}
 	}
 
 	g_string_append_len(html, CONST_STR_LEN(
