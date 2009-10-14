@@ -83,7 +83,7 @@
 
 gboolean li_parse_raw_url(liRequestUri *uri) {
 	const char *p, *pe, *eof;
-	const char *mark = NULL, *host_mark = NULL, *url_mark = NULL;
+	const char *mark = NULL, *host_mark = NULL;
 	int cs;
 
 	p = uri->raw->str;
@@ -99,7 +99,7 @@ gboolean li_parse_raw_url(liRequestUri *uri) {
 
 gboolean li_parse_hostname(liRequestUri *uri) {
 	const char *p, *pe, *eof;
-	const char *mark = NULL, *host_mark = NULL, *url_mark = NULL;
+	const char *mark = NULL, *host_mark = NULL;
 	int cs;
 
 	g_string_ascii_down(uri->authority);
