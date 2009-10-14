@@ -9,15 +9,11 @@
 
 	action mark { mark = fpc; }
 	action mark_host { host_mark = fpc; }
-	action mark_url { url_mark = fpc; }
 
 	action save_host {
 		g_string_truncate(uri->host, 0);
 		g_string_append_len(uri->host, host_mark, fpc - host_mark);
 		g_string_ascii_down(uri->host);
-	}
-	action save_url {
-		g_string_append_len(uri->raw_path, url_mark, fpc - url_mark);
 	}
 	action save_authority {
 		g_string_truncate(uri->authority, 0);
@@ -26,6 +22,7 @@
 	}
 	action save_path {
 		g_string_append_len(uri->path, mark, fpc - mark);
+		g_string_append_len(uri->raw_path, mark, fpc - mark);
 	}
 	action save_query {
 		g_string_append_len(uri->query, mark, fpc - mark);
@@ -74,7 +71,7 @@
 	query = ( pchar | "/" | "?" )* >mark %save_query;
 	fragment = ( pchar | "/" | "?" )*;
 
-	URI_path = (path >mark_url ( "?" query )?) %save_url ( "#" fragment )?;
+	URI_path = (path ( "?" query )?) ( "#" fragment )?;
 
 	URI = (scheme >mark %save_scheme) "://" (authority >mark %save_authority) URI_path;
 
