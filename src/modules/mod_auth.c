@@ -322,6 +322,7 @@ static liHandlerResult auth_basic(liVRequest *vr, gpointer param, gpointer *cont
 					VR_DEBUG(vr, "wrong authorization info from client for realm \"%s\"", bdata->realm->str);
 				}
 			}
+			g_free(decoded);
 		}
 	}
 
