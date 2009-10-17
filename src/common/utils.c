@@ -481,13 +481,13 @@ GString *li_counter_format(guint64 count, liCounterType t, GString *dest) {
 
 gchar *li_ev_backend_string(guint backend) {
 	switch (backend) {
-		case EVBACKEND_SELECT:	return "select";
-		case EVBACKEND_POLL:	return "poll";
-		case EVBACKEND_EPOLL:	return "epoll";
-		case EVBACKEND_KQUEUE:	return "kqueue";
-		case EVBACKEND_DEVPOLL:	return "devpoll";
-		case EVBACKEND_PORT:	return "port";
-		default:				return "unknown";
+		case EVBACKEND_SELECT:  return "select";
+		case EVBACKEND_POLL:    return "poll";
+		case EVBACKEND_EPOLL:   return "epoll";
+		case EVBACKEND_KQUEUE:  return "kqueue";
+		case EVBACKEND_DEVPOLL: return "devpoll";
+		case EVBACKEND_PORT:    return "port";
+		default:                return "unknown";
 	}
 }
 
@@ -496,16 +496,30 @@ void li_string_destroy_notify(gpointer str) {
 	g_string_free((GString*)str, TRUE);
 }
 
+guint li_hash_binary_len(gconstpointer data, gsize len) {
+	GString str = li_const_gstring(data, len);
+	return g_string_hash(&str);
+}
 
 guint li_hash_ipv4(gconstpointer key) {
 	return *((guint*)key) * 2654435761;
 }
 
 guint li_hash_ipv6(gconstpointer key) {
-	guint *i = ((guint*)key);
-	return (i[0] ^ i[1] ^ i[2] ^ i[3]) * 2654435761;
+	return li_hash_binary_len(key, 16);
 }
 
+guint li_hash_sockaddr(gconstpointer key) {
+	const liSocketAddress *addr = key;
+	return li_hash_binary_len(addr->addr, addr->len);
+}
+gboolean li_equal_sockaddr(gconstpointer key1, gconstpointer key2) {
+	const liSocketAddress *addr1 = key1, *addr2 = key2;
+	if (addr1->len != addr2->len) return FALSE;
+	if (addr1->addr == addr2->addr) return TRUE;
+	if (!addr1->addr || !addr2->addr) return FALSE;
+	return 0 == memcmp(addr1->addr, addr2->addr, addr1->len);
+}
 
 GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean showport) {
 	gchar *p;

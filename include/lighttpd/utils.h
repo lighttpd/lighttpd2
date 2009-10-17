@@ -54,10 +54,14 @@ LI_API gchar *li_ev_backend_string(guint backend);
 
 LI_API void li_string_destroy_notify(gpointer str);
 
+LI_API guint li_hash_binary_len(gconstpointer data, gsize len);
 /* expects a pointer to a 32bit value */
 LI_API guint li_hash_ipv4(gconstpointer key);
 /* expects a pointer to a 128bit value */
 LI_API guint li_hash_ipv6(gconstpointer key);
+/* expects liSocketAddress*  */
+LI_API guint li_hash_sockaddr(gconstpointer key);
+LI_API gboolean li_equal_sockaddr(gconstpointer key1, gconstpointer key2);
 
 /* converts a sock_addr to a human readable string. ipv4 and ipv6 supported. if dest is NULL, a new string will be allocated */
 LI_API GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean showport);
