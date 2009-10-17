@@ -109,8 +109,8 @@ void li_plugins_clear(liServer *srv) {
 	g_hash_table_destroy(ps->module_refs);
 	g_hash_table_destroy(ps->load_module_refs);
 
-	g_hash_table_remove_all(ps->ht_plugins);
-	g_hash_table_remove_all(ps->load_ht_plugins);
+	g_hash_table_destroy(ps->ht_plugins);
+	g_hash_table_destroy(ps->load_ht_plugins);
 
 	g_ptr_array_free(ps->plugins, TRUE);
 	g_ptr_array_free(ps->load_plugins, TRUE);
@@ -373,4 +373,24 @@ liPlugin *li_angel_plugin_register(liServer *srv, liModule *mod, const gchar *na
 	g_ptr_array_add(sm->plugins, p);
 
 	return p;
+}
+
+void li_angel_plugin_replaced_instance(liServer *srv, liInstance *oldi, liInstance *newi) {
+	liPlugins *ps = &srv->plugins;
+	guint i;
+
+	for (i = 0; i < ps->plugins->len; i++) {
+		liPlugin *p = g_ptr_array_index(ps->plugins, i);
+		if (p->handle_instance_replaced) p->handle_instance_replaced(srv, p, oldi, newi);
+	}
+}
+
+void li_angel_plugin_instance_reached_state(liServer *srv, liInstance *inst, liInstanceState s) {
+	liPlugins *ps = &srv->plugins;
+	guint i;
+
+	for (i = 0; i < ps->plugins->len; i++) {
+		liPlugin *p = g_ptr_array_index(ps->plugins, i);
+		if (p->handle_instance_reached_state) p->handle_instance_reached_state(srv, p, inst, s);
+	}
 }

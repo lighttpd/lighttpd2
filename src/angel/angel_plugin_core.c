@@ -2,6 +2,22 @@
 #include <lighttpd/angel_plugin_core.h>
 #include <lighttpd/ip_parsers.h>
 
+typedef struct listen_socket listen_socket;
+typedef struct listen_ref_resource listen_ref_resource;
+
+struct listen_socket {
+	gint refcount;
+
+	liSocketAddress addr;
+	int fd;
+};
+
+struct listen_ref_resource {
+	liInstanceResource ires;
+
+	listen_socket *sock;
+};
+
 #include <pwd.h>
 #include <grp.h>
 
@@ -255,48 +271,134 @@ static const liPluginItem core_items[] = {
 	{ NULL, NULL, NULL }
 };
 
-static int do_listen(liServer *srv, liPluginCoreConfig *config, GString *str) {
-	guint32 ipv4;
-#ifdef HAVE_IPV6
-	guint8 ipv6[16];
-#endif
-	guint16 port;
+static listen_socket* listen_new_socket(liSocketAddress *addr, int fd) {
+	listen_socket *sock = g_slice_new0(listen_socket);
+
+	sock->refcount = 0;
+
+	sock->addr = *addr;
+	sock->fd = fd;
+
+	return sock;
+}
+
+static void listen_socket_acquire(listen_socket *sock) {
+	g_atomic_int_inc(&sock->refcount);
+}
+
+static void listen_ref_release(liServer *srv, liInstance *i, liPlugin *p, liInstanceResource *res) {
+	listen_ref_resource *ref = res->data;
+	listen_socket *sock = ref->sock;
+	UNUSED(i);
+	UNUSED(srv);
+
+	assert(g_atomic_int_get(&sock->refcount) > 0);
+	if (g_atomic_int_dec_and_test(&sock->refcount)) {
+		liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+
+		g_hash_table_remove(config->listen_sockets, &sock->addr);
+	}
+
+	g_slice_free(listen_ref_resource, ref);
+}
+
+static void _listen_socket_free(gpointer ptr) {
+	listen_socket *sock = ptr;
+
+	li_sockaddr_clear(&sock->addr);
+	close(sock->fd);
+
+	g_slice_free(listen_socket, sock);
+}
+
+static void listen_socket_add(liInstance *i, liPlugin *p, listen_socket *sock) {
+	listen_ref_resource *ref = g_slice_new0(listen_ref_resource);
+
+	listen_socket_acquire(sock);
+	ref->sock = sock;
+
+	li_instance_add_resource(i, &ref->ires, listen_ref_release, p, ref);
+}
+
+static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSocketAddress *addr) {
 	guint i;
 	liPluginCoreListenMask *mask;
 
-	if (li_parse_ipv4(str->str, &ipv4, NULL, &port)) {
-		int s, v;
-		struct sockaddr_in addr;
-		memset(&addr, 0, sizeof(addr));
-
-		if (!port) port = 80;
+	switch (addr->addr->plain.sa_family) {
+	case AF_INET: {
+		struct sockaddr_in *ipv4 = &addr->addr->ipv4;
+		guint port = ntohs(ipv4->sin_port);
 
 		if (config->listen_masks->len) {
 			for (i = 0; i < config->listen_masks->len; i++) {
 				mask = g_ptr_array_index(config->listen_masks, i);
 				switch (mask->type) {
 				case LI_PLUGIN_CORE_LISTEN_MASK_IPV4:
-					if (!li_ipv4_in_ipv4_net(ipv4, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
+					if (!li_ipv4_in_ipv4_net(ipv4->sin_addr.s_addr, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
 					if ((mask->value.ipv4.port != port) && (mask->value.ipv4.port != 0 || (port != 80 && port != 443))) continue;
-					break;
+					return TRUE;
 				case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
-					if (!li_ipv4_in_ipv6_net(ipv4, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
+					if (!li_ipv4_in_ipv6_net(ipv4->sin_addr.s_addr, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
 					if ((mask->value.ipv6.port != port) && (mask->value.ipv6.port != 0 || (port != 80 && port != 443))) continue;
-					break;
-				case LI_PLUGIN_CORE_LISTEN_MASK_UNIX:
+					return TRUE;
+				default:
 					continue;
 				}
-				break;
 			}
-			if (i == config->listen_masks->len) {
-				ERROR(srv, "listen to socket '%s' not allowed", str->str);
-				return -1;
-			}
+			return FALSE;
+		} else {
+			return (ipv4->sin_port == 80 || ipv4->sin_port == 443);
 		}
+	} break;
+#ifdef HAVE_IPV6
+	case AF_INET6: {
+		struct sockaddr_in6 *ipv6 = &addr->addr->ipv6;
+		guint port = ntohs(ipv6->sin6_port);
 
-		addr.sin_family = AF_INET;
-		addr.sin_addr.s_addr = ipv4;
-		addr.sin_port = htons(port);
+		if (config->listen_masks->len) {
+			for (i = 0; i < config->listen_masks->len; i++) {
+				mask = g_ptr_array_index(config->listen_masks, i);
+				switch (mask->type) {
+				case LI_PLUGIN_CORE_LISTEN_MASK_IPV4:
+					if (!li_ipv6_in_ipv4_net(ipv6->sin6_addr.s6_addr, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
+					if ((mask->value.ipv4.port != port) && (mask->value.ipv4.port != 0 || (port != 80 && port != 443))) continue;
+					return TRUE;
+				case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
+					if (!li_ipv6_in_ipv6_net(ipv6->sin6_addr.s6_addr, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
+					if ((mask->value.ipv6.port != port) && (mask->value.ipv6.port != 0 || (port != 80 && port != 443))) continue;
+					return TRUE;
+				default:
+					continue;
+				}
+			}
+			return FALSE;
+		} else {
+			return (ipv6->sin6_port == 80 || ipv6->sin6_port == 443);
+		}
+	} break;
+#endif
+#ifdef HAVE_SYS_UN_H
+	case AF_UNIX: {
+		if (config->listen_masks->len) {
+			/* TODO: support unix addresses */
+		} else {
+			return FALSE; /* don't allow unix by default */
+		}
+	} break;
+#endif
+	default:
+		ERROR(srv, "Address family %i not supported", addr->addr->plain.sa_family);
+		break;
+	}
+	return FALSE;
+}
+
+static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
+	int s, v;
+	GString *ipv6_str;
+
+	switch (addr->addr->plain.sa_family) {
+	case AF_INET:
 		if (-1 == (s = socket(AF_INET, SOCK_STREAM, 0))) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
 			return -1;
@@ -307,7 +409,7 @@ static int do_listen(liServer *srv, liPluginCoreConfig *config, GString *str) {
 			ERROR(srv, "Couldn't setsockopt(SO_REUSEADDR): %s", g_strerror(errno));
 			return -1;
 		}
-		if (-1 == bind(s, (struct sockaddr*)&addr, sizeof(addr))) {
+		if (-1 == bind(s, &addr->addr->plain, addr->len)) {
 			close(s);
 			ERROR(srv, "Couldn't bind socket to '%s': %s", str->str, g_strerror(errno));
 			return -1;
@@ -317,43 +419,13 @@ static int do_listen(liServer *srv, liPluginCoreConfig *config, GString *str) {
 			ERROR(srv, "Couldn't listen on '%s': %s", str->str, g_strerror(errno));
 			return -1;
 		}
-		DEBUG(srv, "listen to ipv4: '%s' port: %d", str->str, port);
+		DEBUG(srv, "listen to ipv4: '%s' port: %d", str->str, addr->addr->ipv4.sin_port);
 		return s;
 #ifdef HAVE_IPV6
-	} else if (li_parse_ipv6(str->str, ipv6, NULL, &port)) {
-		GString *ipv6_str = g_string_sized_new(0);
-		int s, v;
-		struct sockaddr_in6 addr;
-		li_ipv6_tostring(ipv6_str, ipv6);
-		if (!port) port = 80;
+	case AF_INET6:
+		ipv6_str = g_string_sized_new(0);
+		li_ipv6_tostring(ipv6_str, addr->addr->ipv6.sin6_addr.s6_addr);
 
-		if (config->listen_masks->len) {
-			for (i = 0; i < config->listen_masks->len; i++) {
-				mask = g_ptr_array_index(config->listen_masks, i);
-				switch (mask->type) {
-				case LI_PLUGIN_CORE_LISTEN_MASK_IPV4:
-					if (!li_ipv6_in_ipv4_net(ipv6, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
-					if ((mask->value.ipv4.port != port) && (mask->value.ipv4.port != 0 || (port != 80 && port != 443))) continue;
-					break;
-				case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
-					if (!li_ipv6_in_ipv6_net(ipv6, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
-					if ((mask->value.ipv6.port != port) && (mask->value.ipv6.port != 0 || (port != 80 && port != 443))) continue;
-					break;
-				case LI_PLUGIN_CORE_LISTEN_MASK_UNIX:
-					continue;
-				}
-				break;
-			}
-			if (i == config->listen_masks->len) {
-				ERROR(srv, "listen to socket '%s' not allowed", str->str);
-				return -1;
-			}
-		}
-
-		memset(&addr, 0, sizeof(addr));
-		addr.sin6_family = AF_INET6;
-		memcpy(&addr.sin6_addr, ipv6, 16);
-		addr.sin6_port = htons(port);
 		if (-1 == (s = socket(AF_INET6, SOCK_STREAM, 0))) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
 			g_string_free(ipv6_str, TRUE);
@@ -372,7 +444,7 @@ static int do_listen(liServer *srv, liPluginCoreConfig *config, GString *str) {
 			g_string_free(ipv6_str, TRUE);
 			return -1;
 		}
-		if (-1 == bind(s, (struct sockaddr*)&addr, sizeof(addr))) {
+		if (-1 == bind(s, &addr->addr->plain, addr->len)) {
 			close(s);
 			ERROR(srv, "Couldn't bind socket to '%s': %s", ipv6_str->str, g_strerror(errno));
 			g_string_free(ipv6_str, TRUE);
@@ -384,32 +456,86 @@ static int do_listen(liServer *srv, liPluginCoreConfig *config, GString *str) {
 			g_string_free(ipv6_str, TRUE);
 			return -1;
 		}
-		DEBUG(srv, "listen to ipv6: '%s' port: %d", ipv6_str->str, port);
+		DEBUG(srv, "listen to ipv6: '%s' port: %d", ipv6_str->str, addr->addr->ipv6.sin6_port);
 		g_string_free(ipv6_str, TRUE);
 		return s;
 #endif
-/* TODO: listen unix socket */
-	} else {
-		ERROR(srv, "Invalid ip: '%s'", str->str);
-		return -1;
+#ifdef HAVE_SYS_UN_H
+	case AF_UNIX:
+		ERROR(srv, "Unix sockets not supported: %s", str->str);
+		/* TODO: support unix addresses */
+		break;
+#endif
+	default:
+		ERROR(srv, "Address family %i not supported", addr->addr->plain.sa_family);
+		break;
 	}
+	return -1;
 }
 
-static void core_listen(liServer *srv, liInstance *i, liPlugin *p, gint32 id, GString *data) {
+static void core_listen(liServer *srv, liPlugin *p, liInstance *i, gint32 id, GString *data) {
 	GError *err = NULL;
 	gint fd;
 	GArray *fds;
 	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+	liSocketAddress addr;
+	listen_socket *sock;
 
 	DEBUG(srv, "core_listen(%i) '%s'", id, data->str);
 
 	if (-1 == id) return; /* ignore simple calls */
 
-	fd = do_listen(srv, config, data);
+	addr = li_sockaddr_from_string(data, 80);
+	if (!addr.addr) {
+		GString *error = g_string_sized_new(0);
+		g_string_printf(error, "Invalid socket address: '%s'", data->str);
+		if (!li_angel_send_result(i->acon, id, error, NULL, NULL, &err)) {
+			ERROR(srv, "Couldn't send result: %s", err->message);
+			g_error_free(err);
+		}
+		return;
+	}
+
+	if (!listen_check_acl(srv, config, &addr)) {
+		GString *error = g_string_sized_new(0);
+		li_sockaddr_clear(&addr);
+		g_string_printf(error, "Socket address not allowed: '%s'", data->str);
+		if (!li_angel_send_result(i->acon, id, error, NULL, NULL, &err)) {
+			ERROR(srv, "Couldn't send result: %s", err->message);
+			g_error_free(err);
+		}
+		return;
+	}
+
+	if (NULL == (sock = g_hash_table_lookup(config->listen_sockets, &addr))) {
+		fd = do_listen(srv, &addr, data);
+
+		if (-1 == fd) {
+			GString *error = g_string_sized_new(0);
+			li_sockaddr_clear(&addr);
+			g_string_printf(error, "Couldn't listen to '%s'", data->str);
+			if (!li_angel_send_result(i->acon, id, error, NULL, NULL, &err)) {
+				ERROR(srv, "Couldn't send result: %s", err->message);
+				g_error_free(err);
+			}
+			return;
+		}
+
+		li_fd_init(fd);
+		sock = listen_new_socket(&addr, fd);
+		g_hash_table_insert(config->listen_sockets, &sock->addr, sock);
+	} else {
+		li_sockaddr_clear(&addr);
+	}
+
+	listen_socket_add(i, p, sock);
+
+	fd = dup(sock->fd);
 
 	if (-1 == fd) {
+		/* socket ref will be released when instance is released */
 		GString *error = g_string_sized_new(0);
-		g_string_printf(error, "Couldn't listen to '%s'", data->str);
+		g_string_printf(error, "Couldn't duplicate fd");
 		if (!li_angel_send_result(i->acon, id, error, NULL, NULL, &err)) {
 			ERROR(srv, "Couldn't send result: %s", err->message);
 			g_error_free(err);
@@ -427,7 +553,7 @@ static void core_listen(liServer *srv, liInstance *i, liPlugin *p, gint32 id, GS
 	}
 }
 
-static void core_reached_state(liServer *srv, liInstance *i, liPlugin *p, gint32 id, GString *data) {
+static void core_reached_state(liServer *srv, liPlugin *p, liInstance *i, gint32 id, GString *data) {
 	UNUSED(srv);
 	UNUSED(p);
 	UNUSED(id);
@@ -448,6 +574,8 @@ static void core_free(liServer *srv, liPlugin *p) {
 	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 	guint i;
 
+	li_ev_safe_ref_and_stop(ev_signal_stop, srv->loop, &config->sig_hup);
+
 	core_clean(srv, p);
 
 	if (config->instconf) {
@@ -456,7 +584,7 @@ static void core_free(liServer *srv, liPlugin *p) {
 	}
 
 	if (config->inst) {
-		li_instance_set_state(config->inst, LI_INSTANCE_DOWN);
+		li_instance_set_state(config->inst, LI_INSTANCE_FINISHED);
 		li_instance_release(config->inst);
 		config->inst = NULL;
 	}
@@ -466,8 +594,11 @@ static void core_free(liServer *srv, liPlugin *p) {
 	}
 	g_ptr_array_free(config->listen_masks, TRUE);
 	g_ptr_array_free(config->load_listen_masks, TRUE);
+	g_hash_table_destroy(config->listen_sockets);
 	config->listen_masks = NULL;
 	config->load_listen_masks = NULL;
+
+	g_slice_free(liPluginCoreConfig, config);
 }
 
 static void core_clean(liServer *srv, liPlugin *p) {
@@ -527,6 +658,31 @@ static void core_activate(liServer *srv, liPlugin *p) {
 	}
 }
 
+static void core_instance_replaced(liServer *srv, liPlugin *p, liInstance *oldi, liInstance *newi) {
+	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+	UNUSED(srv);
+
+	if (oldi == config->inst && LI_INSTANCE_FINISHED == oldi->s_cur) {
+		li_instance_acquire(newi);
+		config->inst = newi;
+		li_instance_release(oldi);
+	}
+}
+
+static void core_handle_sig_hup(struct ev_loop *loop, ev_signal *w, int revents) {
+	liPluginCoreConfig *config = w->data;
+	liInstance *oldi, *newi;
+	UNUSED(loop);
+	UNUSED(revents);
+
+	if (NULL == (oldi = config->inst)) return;
+
+	if (oldi->replace_by) return;
+	newi = li_server_new_instance(oldi->srv, config->instconf);
+	li_instance_replace(oldi, newi);
+	li_instance_release(newi);
+}
+
 static gboolean core_init(liServer *srv, liPlugin *p) {
 	liPluginCoreConfig *config;
 	UNUSED(srv);
@@ -537,12 +693,19 @@ static gboolean core_init(liServer *srv, liPlugin *p) {
 	p->handle_clean_config = core_clean;
 	p->handle_check_config = core_check;
 	p->handle_activate_config = core_activate;
+	p->handle_instance_replaced = core_instance_replaced;
 
 	config->listen_masks = g_ptr_array_new();
 	config->load_listen_masks = g_ptr_array_new();
+	config->listen_sockets = g_hash_table_new_full(li_hash_sockaddr, li_equal_sockaddr, NULL, _listen_socket_free);
 
-	g_hash_table_insert(p->angel_callbacks, "listen", (gpointer)(intptr_t)core_listen);
-	g_hash_table_insert(p->angel_callbacks, "reached-state", (gpointer)(intptr_t)core_reached_state);
+	li_angel_plugin_add_angel_cb(p, "listen", core_listen);
+	li_angel_plugin_add_angel_cb(p, "reached-state", core_reached_state);
+
+	ev_signal_init(&config->sig_hup, core_handle_sig_hup, SIGHUP);
+	config->sig_hup.data = config;
+	ev_signal_start(srv->loop, &config->sig_hup);
+	ev_unref(srv->loop);
 
 	return TRUE;
 }

@@ -101,11 +101,14 @@ gint li_send_fd(gint s, gint fd) { /* write fd to unix socket s */
 	struct iovec  iov;
 #ifdef CMSG_FIRSTHDR
 	struct cmsghdr *cmsg;
-#ifndef CMSG_SPACE
-#define CMSG_SPACE(x) x+100
-#endif
+# ifndef CMSG_SPACE
+#  define CMSG_SPACE(x) x+100
+# endif
 	gchar buf[CMSG_SPACE(sizeof(gint))];
 #endif
+
+	memset(&msg, 0, sizeof(msg));
+	memset(&iov, 0, sizeof(iov));
 
 	iov.iov_len = 1;
 	iov.iov_base = "x";
@@ -160,6 +163,9 @@ gint li_receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
 #endif
 	gchar x[100];
 	gchar name[100];
+
+	memset(&msg, 0, sizeof(msg));
+	memset(&iov, 0, sizeof(iov));
 
 	iov.iov_base = x;
 	iov.iov_len = 100;

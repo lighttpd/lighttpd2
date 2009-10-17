@@ -95,7 +95,7 @@ static void instance_angel_call_cb(liAngelConnection *acon,
 		return;
 	}
 
-	cb(srv, i, p, id, data);
+	cb(srv, p, i, id, data);
 }
 
 static void instance_angel_close_cb(liAngelConnection *acon, GError *err) {
@@ -200,12 +200,31 @@ liInstance* li_server_new_instance(liServer *srv, liInstanceConf *ic) {
 	i->s_cur = i->s_dest = LI_INSTANCE_DOWN;
 	ev_child_init(&i->child_watcher, instance_child_cb, -1, 0);
 	i->child_watcher.data = i;
+	i->resources = g_ptr_array_new();
 
 	return i;
 }
 
-void li_instance_replace(liInstance *oldi, liInstance *newi) {
-	/* TODO ??? */
+gboolean li_instance_replace(liInstance *oldi, liInstance *newi) {
+	if (oldi->replace_by || newi->replace) return FALSE;
+	oldi->replace_by = newi;
+	newi->replace = oldi;
+	li_instance_acquire(oldi);
+	li_instance_acquire(newi);
+
+	li_instance_set_state(newi, LI_INSTANCE_WARMUP);
+
+	return TRUE;
+}
+
+static void li_instance_unset_replace(liInstance *oldi, liInstance *newi) {
+	g_assert(newi == oldi->replace_by); oldi->replace_by = NULL;
+	g_assert(oldi == newi->replace); newi->replace = NULL;
+
+	li_angel_plugin_replaced_instance(oldi->srv, oldi, newi);
+
+	li_instance_release(oldi);
+	li_instance_release(newi);
 }
 
 void li_instance_set_state(liInstance *i, liInstanceState s) {
@@ -275,6 +294,9 @@ void li_instance_state_reached(liInstance *i, liInstanceState s) {
 		}
 		break;
 	case LI_INSTANCE_SUSPENDED:
+		if (i->replace_by && i->replace_by->s_dest == LI_INSTANCE_WARMUP) {
+			li_instance_set_state(i->replace_by, LI_INSTANCE_RUNNING);
+		}
 		switch (i->s_dest) {
 		case LI_INSTANCE_DOWN:
 			break; /* impossible */
@@ -294,7 +316,10 @@ void li_instance_state_reached(liInstance *i, liInstanceState s) {
 		}
 		break;
 	case LI_INSTANCE_WARMUP:
-		/* TODO: replace another instance? */
+		if (i->replace) {
+			/* stop old instance */
+			li_instance_set_state(i->replace, LI_INSTANCE_FINISHED);
+		}
 		break;
 	case LI_INSTANCE_RUNNING:
 		/* nothing to do, instance should already know what to do */
@@ -304,7 +329,19 @@ void li_instance_state_reached(liInstance *i, liInstanceState s) {
 		break;
 	case LI_INSTANCE_FINISHED:
 		if (i->s_dest != LI_INSTANCE_FINISHED) {
-			/* TODO: replacing another instance failed? */
+			if (i->replace) {
+				ERROR(i->srv, "%s", "Replacing instance failed, continue old instance");
+				li_instance_set_state(i->replace, LI_INSTANCE_RUNNING);
+
+				li_instance_unset_replace(i->replace, i);
+			}
+		} else {
+			if (i->replace_by) {
+				if (i->replace_by->s_dest == LI_INSTANCE_WARMUP) {
+					li_instance_set_state(i->replace_by, LI_INSTANCE_RUNNING);
+				}
+				li_instance_unset_replace(i, i->replace_by);
+			}
 		}
 		break;
 	}
@@ -317,12 +354,16 @@ void li_instance_state_reached(liInstance *i, liInstanceState s) {
 		} else {
 			li_instance_state_reached(i, LI_INSTANCE_FINISHED);
 		}
+	} else {
+		li_angel_plugin_instance_reached_state(i->srv, i, s);
 	}
 }
 
 void li_instance_release(liInstance *i) {
 	liServer *srv;
 	liInstance *t;
+	guint j;
+
 	if (!i) return;
 	srv = i->srv;
 
@@ -341,6 +382,14 @@ void li_instance_release(liInstance *i) {
 
 	t = i->replace_by; i->replace_by = NULL;
 	li_instance_release(t);
+
+	for (j = 0; j < i->resources->len; j++) {
+		liInstanceResource *res = g_ptr_array_index(i->resources, j);
+		res->ndx = -1;
+		res->free_cb(srv, i, res->plugin, res);
+	}
+
+	g_ptr_array_free(i->resources, TRUE);
 
 	g_slice_free(liInstance, i);
 }
@@ -369,6 +418,8 @@ void li_instance_conf_release(liInstanceConf *ic) {
 	if (!ic) return;
 	assert(g_atomic_int_get(&ic->refcount) > 0);
 	if (!g_atomic_int_dec_and_test(&ic->refcount)) return;
+
+	if (ic->username) g_string_free(ic->username, TRUE);
 	g_strfreev(ic->cmd);
 	g_strfreev(ic->env);
 	g_slice_free(liInstanceConf, ic);
@@ -377,4 +428,22 @@ void li_instance_conf_release(liInstanceConf *ic) {
 void li_instance_conf_acquire(liInstanceConf *ic) {
 	assert(g_atomic_int_get(&ic->refcount) > 0);
 	g_atomic_int_inc(&ic->refcount);
+}
+
+void li_instance_add_resource(liInstance *i, liInstanceResource *res, liInstanceResourceFreeCB free_cb, liPlugin *p, gpointer data) {
+	res->free_cb = free_cb;
+	res->data = data;
+	res->plugin = p;
+	res->ndx = i->resources->len;
+
+	g_ptr_array_add(i->resources, res);
+}
+
+void li_instance_rem_resource(liInstance *i, liInstanceResource *res) {
+	liInstanceResource *res2;
+	g_assert(res == g_ptr_array_index(i->resources, res->ndx));
+
+	g_ptr_array_remove_index_fast(i->resources, res->ndx);
+	res2 = g_ptr_array_index(i->resources, res->ndx);
+	res2->ndx = res->ndx;
 }

@@ -10,15 +10,18 @@ typedef struct liPluginItemOption liPluginItemOption;
 typedef struct liPlugin liPlugin;
 typedef struct liPlugins liPlugins;
 
-typedef gboolean (*liPluginInitCB)          (liServer *srv, liPlugin *p);
-typedef void     (*liPluginFreeCB)          (liServer *srv, liPlugin *p);
+typedef gboolean (*liPluginInitCB)                (liServer *srv, liPlugin *p);
+typedef void     (*liPluginFreeCB)                (liServer *srv, liPlugin *p);
 
-typedef void     (*liPluginCleanConfigCB)   (liServer *srv, liPlugin *p);
-typedef gboolean (*liPluginCheckConfigCB)   (liServer *srv, liPlugin *p);
-typedef void     (*liPluginActivateConfigCB)(liServer *srv, liPlugin *p);
-typedef void     (*liPluginParseItemCB)     (liServer *srv, liPlugin *p, liValue **options);
+typedef void     (*liPluginCleanConfigCB)         (liServer *srv, liPlugin *p);
+typedef gboolean (*liPluginCheckConfigCB)         (liServer *srv, liPlugin *p);
+typedef void     (*liPluginActivateConfigCB)      (liServer *srv, liPlugin *p);
+typedef void     (*liPluginParseItemCB)           (liServer *srv, liPlugin *p, liValue **options);
 
-typedef void     (*liPluginHandleCallCB)    (liServer *srv, liInstance *i, liPlugin *p, gint32 id, GString *data);
+typedef void     (*liPluginHandleCallCB)          (liServer *srv, liPlugin *p, liInstance *i, gint32 id, GString *data);
+
+typedef void     (*liPluginInstanceReplacedCB)    (liServer *srv, liPlugin *p, liInstance *oldi, liInstance *newi);
+typedef void     (*liPluginInstanceReachedStateCB)(liServer *srv, liPlugin *p, liInstance *i, liInstanceState s);
 
 typedef enum {
 	LI_PLUGIN_ITEM_OPTION_MANDATORY = 1
@@ -51,6 +54,9 @@ struct liPlugin {
 	liPluginCleanConfigCB handle_clean_config;        /**< called before the reloading of the config is started or after the reloading failed */
 	liPluginCheckConfigCB handle_check_config;        /**< called before activating a config to ensure everything works */
 	liPluginActivateConfigCB handle_activate_config;  /**< called to activate a config after successful loading it. this cannot fail */
+
+	liPluginInstanceReplacedCB handle_instance_replaced;
+	liPluginInstanceReachedStateCB handle_instance_reached_state;
 };
 
 struct liPlugins {
@@ -78,5 +84,16 @@ LI_API void li_plugins_handle_item(liServer *srv, GString *itemname, liValue *ha
 LI_API gboolean li_plugins_load_module(liServer *srv, const gchar *name);
 /* Needed by modules to register their plugin(s) */
 LI_API liPlugin *li_angel_plugin_register(liServer *srv, liModule *mod, const gchar *name, liPluginInitCB init);
+INLINE void li_angel_plugin_add_angel_cb(liPlugin *p, const gchar *name, liPluginHandleCallCB cb);
+
+/* called when replace was successful or failed - check states to find out */
+LI_API void li_angel_plugin_replaced_instance(liServer *srv, liInstance *oldi, liInstance *newi);
+LI_API void li_angel_plugin_instance_reached_state(liServer *srv, liInstance *i, liInstanceState s);
+
+/* inline implementations */
+
+INLINE void li_angel_plugin_add_angel_cb(liPlugin *p, const gchar *name, liPluginHandleCallCB cb) {
+	g_hash_table_insert(p->angel_callbacks, (gchar*) name, (gpointer)(intptr_t) cb);
+}
 
 #endif

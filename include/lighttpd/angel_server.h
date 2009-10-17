@@ -9,14 +9,7 @@
 #define LIGHTTPD_ANGEL_MAGIC ((guint)0x3e14ac65)
 #endif
 
-typedef enum {
-	LI_INSTANCE_DOWN,       /* not started yet */
-	LI_INSTANCE_SUSPENDED,  /* inactive, neither accept nor logs, handle remaining connections */
-	LI_INSTANCE_WARMUP,     /* only accept(), no logging: waiting for another instance to suspend */
-	LI_INSTANCE_RUNNING,    /* everything running */
-	LI_INSTANCE_SUSPENDING, /* suspended accept(), still logging, handle remaining connections  */
-	LI_INSTANCE_FINISHED    /* not running */
-} liInstanceState;
+typedef void (*liInstanceResourceFreeCB)    (liServer *srv, liInstance *i, liPlugin *p, liInstanceResource *res);
 
 struct liInstanceConf {
 	gint refcount;
@@ -44,6 +37,8 @@ struct liInstance {
 	liInstance *replace, *replace_by;
 
 	liAngelConnection *acon;
+
+	GPtrArray *resources;
 };
 
 struct liServer {
@@ -60,13 +55,21 @@ struct liServer {
 	liLog log;
 };
 
+struct liInstanceResource {
+	liInstanceResourceFreeCB free_cb;
+	liPlugin *plugin; /* may be NULL - we don't care about that */
+	guint ndx; /* internal array index */
+
+	gpointer data;
+};
+
 LI_API liServer* li_server_new(const gchar *module_dir);
 LI_API void li_server_free(liServer* srv);
 
 LI_API void li_server_stop(liServer *srv);
 
 LI_API liInstance* li_server_new_instance(liServer *srv, liInstanceConf *ic);
-LI_API void li_instance_replace(liInstance *oldi, liInstance *newi);
+LI_API gboolean li_instance_replace(liInstance *oldi, liInstance *newi);
 LI_API void li_instance_set_state(liInstance *i, liInstanceState s);
 LI_API void li_instance_state_reached(liInstance *i, liInstanceState s);
 
@@ -76,5 +79,8 @@ LI_API void li_instance_conf_acquire(liInstanceConf *ic);
 
 LI_API void li_instance_release(liInstance *i);
 LI_API void li_instance_acquire(liInstance *i);
+
+LI_API void li_instance_add_resource(liInstance *i, liInstanceResource *res, liInstanceResourceFreeCB free_cb, liPlugin *p, gpointer data);
+LI_API void li_instance_rem_resource(liInstance *i, liInstanceResource *res);
 
 #endif

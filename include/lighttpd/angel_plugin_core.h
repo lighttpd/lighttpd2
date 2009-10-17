@@ -6,14 +6,18 @@
 typedef struct liPluginCoreConfig liPluginCoreConfig;
 struct liPluginCoreConfig {
 	/* Load */
-	liInstanceConf *load_instconf;
 	gboolean load_failed;
+	liInstanceConf *load_instconf;
 	GPtrArray *load_listen_masks;
 
 	/* Running */
 	liInstanceConf *instconf;
-	liInstance *inst;
 	GPtrArray *listen_masks;
+
+	liInstance *inst;
+	GHashTable *listen_sockets;
+
+	ev_signal sig_hup;
 };
 
 typedef struct liPluginCoreListenMask liPluginCoreListenMask;

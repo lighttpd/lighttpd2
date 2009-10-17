@@ -9,7 +9,7 @@
 
 static void read_pipe(liServer *srv, liErrorPipe *epipe, gboolean flush) {
 	const ssize_t max_read = 8192;
-	ssize_t r, toread;
+	ssize_t r, toread = 0;
 	GString *buf;
 	int count = 10;
 
@@ -104,8 +104,8 @@ void li_error_pipe_free(liErrorPipe *epipe) {
 
 	ev_io_stop(srv->loop, &epipe->fd_watcher);
 	li_error_pipe_flush(epipe);
-	if (-1 != epipe->fds[0]) close(epipe->fds[0]);
-	if (-1 != epipe->fds[1]) close(epipe->fds[1]);
+	if (-1 != epipe->fds[0]) { close(epipe->fds[0]); epipe->fds[0] = -1; }
+	if (-1 != epipe->fds[1]) { close(epipe->fds[1]); epipe->fds[1] = -1; }
 
 	g_slice_free(liErrorPipe, epipe);
 }
@@ -114,7 +114,7 @@ void li_error_pipe_free(liErrorPipe *epipe) {
 void li_error_pipe_activate(liErrorPipe *epipe) {
 	liServer *srv = epipe->srv;
 
-	if (-1 != epipe->fds[1]) close(epipe->fds[1]);
+	if (-1 != epipe->fds[1]) { close(epipe->fds[1]); epipe->fds[1] = -1; }
 	ev_io_start(srv->loop, &epipe->fd_watcher);
 }
 
