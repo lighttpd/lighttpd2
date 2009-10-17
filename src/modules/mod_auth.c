@@ -317,6 +317,9 @@ static liHandlerResult auth_basic(liVRequest *vr, gpointer param, gpointer *cont
 			GString pass = li_const_gstring(password, len - (password - username));
 			if (bdata->backend(vr, &user, &pass, bdata)) {
 				auth_ok = TRUE;
+
+				li_environment_set(&vr->env, CONST_STR_LEN("REMOTE_USER"), username, password - username - 1);
+				li_environment_set(&vr->env, CONST_STR_LEN("AUTH_TYPE"), CONST_STR_LEN("Basic"));
 			} else {
 				if (debug) {
 					VR_DEBUG(vr, "wrong authorization info from client for realm \"%s\"", bdata->realm->str);
@@ -339,7 +342,9 @@ static liHandlerResult auth_basic(liVRequest *vr, gpointer param, gpointer *cont
 		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("WWW-Authenticate"), GSTR_LEN(vr->wrk->tmp_str));
 
 		return LI_HANDLER_GO_ON;
-	} else if (debug) {
+	}
+
+	if (debug) {
 		VR_DEBUG(vr, "client authorization successful for realm \"%s\"", bdata->realm->str);
 	}
 
