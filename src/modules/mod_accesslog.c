@@ -334,9 +334,9 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				break;
 			case AL_FORMAT_SERVER_NAME:
 				if (CORE_OPTION(LI_CORE_OPTION_SERVER_NAME).string)
-					g_string_append_len(str, GSTR_LEN(req->uri.host));
-				else
 					g_string_append_len(str, GSTR_LEN(CORE_OPTION(LI_CORE_OPTION_SERVER_NAME).string));
+				else
+					g_string_append_len(str, GSTR_LEN(req->uri.host));
 				break;
 			case AL_FORMAT_HOSTNAME:
 				if (req->uri.host->len)
