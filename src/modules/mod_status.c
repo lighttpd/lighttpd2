@@ -12,6 +12,11 @@
  *         type: string; values: "default", "blue" or a url to an external css file
  * Actions:
  *     status.info           - returns the status info page to the client
+ *     status.info "short"   - returns only "non-sensitive" data; no connection details, no runtime section
+ *
+ *  The status page accepts parameters in the query-string:
+ *   - mode=runtimes : show runtime information
+ *   - format=plain : returns "short" information in plain text format, easy to parse
  *
  * Example config:
  *     req.path == "/srv-status" {
