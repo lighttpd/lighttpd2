@@ -300,6 +300,7 @@ ADD_AND_INSTALL_LIBRARY(mod_fastcgi "modules/mod_fastcgi.c")
 ADD_AND_INSTALL_LIBRARY(mod_fortune "modules/mod_fortune.c")
 ADD_AND_INSTALL_LIBRARY(mod_redirect "modules/mod_redirect.c")
 ADD_AND_INSTALL_LIBRARY(mod_rewrite "modules/mod_rewrite.c")
+ADD_AND_INSTALL_LIBRARY(mod_scgi "modules/mod_scgi.c")
 ADD_AND_INSTALL_LIBRARY(mod_status "modules/mod_status.c")
 ADD_AND_INSTALL_LIBRARY(mod_vhost "modules/mod_vhost.c")
 

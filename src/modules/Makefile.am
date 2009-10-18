@@ -82,6 +82,11 @@ libmod_rewrite_la_SOURCES = mod_rewrite.c
 libmod_rewrite_la_LDFLAGS = $(common_ldflags)
 libmod_rewrite_la_LIBADD = $(common_libadd)
 
+install_libs += libmod_scgi.la
+libmod_scgi_la_SOURCES = mod_scgi.c
+libmod_scgi_la_LDFLAGS = $(common_ldflags)
+libmod_scgi_la_LIBADD = $(common_libadd)
+
 install_libs += libmod_status.la
 libmod_status_la_SOURCES = mod_status.c
 libmod_status_la_LDFLAGS = $(common_ldflags)

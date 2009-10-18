@@ -19,7 +19,6 @@
  *
  * Todo:
  *     - reuse fastcgi connections (keepalive)
- *     - send more infos to backend (http headers, auth info)
  *     - option for alternative doc-root?
  *
  * Author:
@@ -360,10 +359,6 @@ static void fastcgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteAr
 		}
 	}
 	fastcgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_ADDR"), GSTR_LEN(con->remote_addr_str));
-
-	/* TODO? auth vars; i think it would be easier if the auth mod sets them:
-	 * REMOTE_USER, AUTH_TYPE
-	 */
 
 	if (vr->request.content_length > 0) {
 		g_string_printf(tmp, "%" L_GOFFSET_MODIFIER "i", vr->request.content_length);

@@ -52,5 +52,6 @@ def build(bld):
 		lighty_mod(bld, 'mod_openssl', 'mod_openssl.c', uselib)
 	lighty_mod(bld, 'mod_redirect', 'mod_redirect.c')
 	lighty_mod(bld, 'mod_rewrite', 'mod_rewrite.c')
+	lighty_mod(bld, 'mod_scgi', 'mod_scgi.c')
 	lighty_mod(bld, 'mod_status', 'mod_status.c')
 	lighty_mod(bld, 'mod_vhost', 'mod_vhost.c')
