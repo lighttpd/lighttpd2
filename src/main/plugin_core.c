@@ -1234,52 +1234,75 @@ static liAction* core_throttle_pool(liServer *srv, liPlugin* p, liValue *val) {
 	return li_action_new_function(core_handle_throttle_pool, NULL, NULL, pool);
 }
 
+static void core_throttle_connection_free(liServer *srv, gpointer param) {
+	UNUSED(srv);
+
+	g_slice_free(liThrottleParam, param);
+}
+
 
 static liHandlerResult core_handle_throttle_connection(liVRequest *vr, gpointer param, gpointer *context) {
-	gint supply;
 	liConnection *con = vr->con;
-	guint rate = GPOINTER_TO_UINT(param);
+	liThrottleParam *throttle_param = param;
 
 	UNUSED(context);
 
-	con->throttle.con.rate = rate;
+	con->throttle.con.rate = throttle_param->rate;
 	con->throttled = TRUE;
 
 	if (con->throttle.pool.magazine) {
-		supply = MAX(con->throttle.pool.magazine, rate * THROTTLE_GRANULARITY);
+		guint supply = MAX(con->throttle.pool.magazine, throttle_param->rate * THROTTLE_GRANULARITY);
 		con->throttle.con.magazine += supply;
 		con->throttle.pool.magazine -= supply;
+	} else {
+		con->throttle.con.magazine += throttle_param->burst;
 	}
 
 	return LI_HANDLER_GO_ON;
 }
 
 static liAction* core_throttle_connection(liServer *srv, liPlugin* p, liValue *val) {
-	gint64 rate;
+	liThrottleParam *param;
 	UNUSED(p);
 
-	if (val->type != LI_VALUE_NUMBER) {
-		ERROR(srv, "'io.throttle' action expects a positiv integer as parameter, %s given", li_value_type_string(val->type));
+	if (val->type == LI_VALUE_LIST && val->data.list->len == 2) {
+		liValue *v1 = g_array_index(val->data.list, liValue*, 0);
+		liValue *v2 = g_array_index(val->data.list, liValue*, 1);
+
+		if (v1->type != LI_VALUE_NUMBER || v2->type != LI_VALUE_NUMBER) {
+			ERROR(srv, "%s", "'io.throttle' action expects a positiv integer or a pair of those as parameter");
+			return NULL;
+		}
+
+		if (v1->data.number > (0xFFFFFFFF) || v2->data.number > (0xFFFFFFFF)) {
+			ERROR(srv, "%s", "io.throttle: rate or burst limit is too high (4gbyte/s maximum)");
+			return NULL;
+		}
+
+		param = g_slice_new(liThrottleParam);
+		param->rate = (guint)v2->data.number;
+		param->burst = (guint)v1->data.number;
+	} else if (val->type == LI_VALUE_NUMBER) {
+		if (val->data.number > (0xFFFFFFFF)) {
+			ERROR(srv, "io.throttle: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", val->data.number);
+			return NULL;
+		}
+
+		param = g_slice_new(liThrottleParam);
+		param->rate = (guint)val->data.number;
+		param->burst = 0;
+	} else {
+		ERROR(srv, "'io.throttle' action expects a positiv integer or a pair of those as parameter, %s given", li_value_type_string(val->type));
 		return NULL;
 	}
 
-	rate = val->data.number;
-
-	if (rate < 0) {
-		rate = 0; /* no limit */
-	}
-
-	if (rate && rate < (32*1024)) {
-		ERROR(srv, "io.throttle: rate %"G_GUINT64_FORMAT" is too low (32kbyte/s minimum or 0 for unlimited)", rate);
+	if (param->rate && param->rate < (32*1024)) {
+		g_slice_free(liThrottleParam, param);
+		ERROR(srv, "io.throttle: rate %u is too low (32kbyte/s minimum or 0 for unlimited)", param->rate);
 		return NULL;
 	}
 
-	if (rate > (0xFFFFFFFF)) {
-		ERROR(srv, "io.throttle: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", rate);
-		return NULL;
-	}
-
-	return li_action_new_function(core_handle_throttle_connection, NULL, NULL, GUINT_TO_POINTER((guint) rate));
+	return li_action_new_function(core_handle_throttle_connection, NULL, core_throttle_connection_free, param);
 }
 
 static void core_warmup(liServer *srv, liPlugin *p, gint32 id, GString *data) {
