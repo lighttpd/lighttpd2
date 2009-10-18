@@ -258,9 +258,9 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_ENV:
-				tmp_str = getenv(e->key->str);
-				if (tmp_str)
-					g_string_append(str, tmp_str);
+				tmp_gstr2 = li_environment_get(&vr->env, GSTR_LEN(e->key));
+				if (tmp_gstr2)
+					al_append_escaped(str, tmp_gstr);
 				else
 					g_string_append_c(str, '-');
 				break;
@@ -286,6 +286,15 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 					al_append_escaped(str, tmp_gstr);
 				else
 					g_string_append_c(str, '-');
+				break;
+			case AL_FORMAT_LOCAL_PORT:
+				switch (vr->con->local_addr.addr->plain.sa_family) {
+				case AF_INET: li_string_append_int(str, ntohs(vr->con->local_addr.addr->ipv4.sin_port)); break;
+				#ifdef HAVE_IPV6
+				case AF_INET6: li_string_append_int(str, ntohs(vr->con->local_addr.addr->ipv6.sin6_port)); break;
+				#endif
+				default: g_string_append_c(str, '-'); break;
+				}
 				break;
 			case AL_FORMAT_QUERY_STRING:
 				if (req->uri.query->len)
@@ -314,8 +323,11 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(tmp_gstr2));
 				break;
 			case AL_FORMAT_AUTHED_USER:
-				/* TODO: implement ;) */
-				g_string_append_c(str, '-');
+				tmp_gstr2 = li_environment_get(&vr->env, CONST_STR_LEN("REMOTE_USER"));
+				if (tmp_gstr2)
+					g_string_append_len(str, GSTR_LEN(tmp_gstr));
+				else
+					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_PATH:
 				g_string_append_len(str, GSTR_LEN(req->uri.path));
@@ -349,7 +361,6 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				/* not implemented:
 				{ 'C', FALSE, AL_FORMAT_COOKIE }
 				{ 'D', FALSE, AL_FORMAT_DURATION_MICROSECONDS }
-				{ 'p', FALSE, AL_FORMAT_LOCAL_PORT },
 				{ 't', FALSE, AL_FORMAT_TIME },
 				{ 'T', FALSE, AL_FORMAT_DURATION_SECONDS },
 				*/
