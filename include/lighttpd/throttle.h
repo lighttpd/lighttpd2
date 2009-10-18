@@ -17,6 +17,12 @@ struct liThrottlePool {
 	ev_tstamp *last_con_rearm;
 };
 
+typedef struct liThrottleParam liThrottleParam;
+struct liThrottleParam {
+	guint rate;
+	guint burst;
+};
+
 LI_API void li_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents);
 
 LI_API liThrottlePool *li_throttle_pool_new(liServer *srv, GString *name, guint rate);
