@@ -43,7 +43,7 @@ static void forward_response_body(liConnection *con) {
 		}
 
 		if (vr->response.transfer_encoding & LI_HTTP_TRANSFER_ENCODING_CHUNKED) {
-			li_filter_chunked_encode(con, con->raw_out, con->out);
+			li_filter_chunked_encode(vr, con->raw_out, con->out);
 		} else {
 			li_chunkqueue_steal_all(con->raw_out, con->out);
 		}

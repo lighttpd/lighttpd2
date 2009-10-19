@@ -3,7 +3,13 @@
 
 #include <lighttpd/base.h>
 
-LI_API liHandlerResult li_filter_chunked_encode(liConnection *con, liChunkQueue *out, liChunkQueue *in);
-LI_API liHandlerResult li_filter_chunked_decode(liConnection *con, liChunkQueue *out, liChunkQueue *in);
+/* initialize with zero */
+typedef struct {
+	int parse_state;
+	goffset cur_chunklen;
+} liFilterDecodeState;
+
+LI_API liHandlerResult li_filter_chunked_encode(liVRequest *vr, liChunkQueue *out, liChunkQueue *in);
+LI_API liHandlerResult li_filter_chunked_decode(liVRequest *vr, liChunkQueue *out, liChunkQueue *in, liFilterDecodeState *state);
 
 #endif

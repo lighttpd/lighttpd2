@@ -388,5 +388,6 @@ IF(BUILD_UNIT_TESTS)
 	ENDMACRO(ADD_TEST_BINARY)
 
 	ADD_TEST_BINARY(Utils-UnitTest test-utils unittests/test-utils.c)
+	ADD_TEST_BINARY(Chunk-UnitTest test-chunk unittests/test-chunk.c)
 
 ENDIF(BUILD_UNIT_TESTS)
