@@ -72,6 +72,11 @@ libmod_openssl_la_LDFLAGS = $(common_ldflags) $(OPENSSL_LIBS)
 libmod_openssl_la_LIBADD = $(common_libadd)
 endif
 
+install_libs += libmod_proxy.la
+libmod_proxy_la_SOURCES = mod_proxy.c
+libmod_proxy_la_LDFLAGS = $(common_ldflags)
+libmod_proxy_la_LIBADD = $(common_libadd)
+
 install_libs += libmod_redirect.la
 libmod_redirect_la_SOURCES = mod_redirect.c
 libmod_redirect_la_LDFLAGS = $(common_ldflags)
