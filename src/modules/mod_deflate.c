@@ -25,7 +25,8 @@
  *     deflate.debug <boolean>
  *
  * Actions:
- *     deflate
+ *     deflate [ "encodings": "deflate,gzip,bzip2", "blocksize": 4096, "output-buffer": 4096 ];
+ *       - options are all optional, default values shown in line above :)
  *
  * Example config:
  *     deflate;
@@ -76,6 +77,8 @@ static const guint encoding_available_mask = 0
 typedef struct deflate_config deflate_config;
 struct deflate_config {
 	liPlugin *p;
+	guint allowed_encodings;
+	guint blocksize, output_buffer;
 };
 
 /**********************************************************************************/
@@ -99,7 +102,8 @@ static const unsigned char gzip_header[] = {
 
 typedef struct deflate_context_zlib deflate_context_zlib;
 struct deflate_context_zlib {
-	liPlugin *p;
+	deflate_config conf;
+
 	z_stream z;
 	GByteArray *buf;
 	gboolean is_gzip, gzip_header;
@@ -118,14 +122,14 @@ static void deflate_context_zlib_free(deflate_context_zlib *ctx) {
 	g_slice_free(deflate_context_zlib, ctx);
 }
 
-static deflate_context_zlib* deflate_context_zlib_create(liVRequest *vr, liPlugin *p, gboolean is_gzip) {
+static deflate_context_zlib* deflate_context_zlib_create(liVRequest *vr, deflate_config *conf, gboolean is_gzip) {
 	deflate_context_zlib *ctx = g_slice_new0(deflate_context_zlib);
 	z_stream *z = &ctx->z;
 	guint compression_level = Z_DEFAULT_COMPRESSION;
 	guint window_size = -MAX_WBITS; /* supress zlib-header */
 	guint mem_level = 8;
 
-	ctx->p = p;
+	ctx->conf = *conf;
 
 	z->zalloc = Z_NULL;
 	z->zfree = Z_NULL;
@@ -147,7 +151,7 @@ static deflate_context_zlib* deflate_context_zlib_create(liVRequest *vr, liPlugi
 	}
 
 	ctx->buf = g_byte_array_new();
-	g_byte_array_set_size(ctx->buf, 64*1024);
+	g_byte_array_set_size(ctx->buf, conf->output_buffer);
 
 	ctx->is_gzip = is_gzip;
 
@@ -165,11 +169,10 @@ static void deflate_filter_zlib_free(liVRequest *vr, liFilter *f) {
 }
 
 static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
-	const off_t blocksize = 64*1024;
-	const off_t max_compress = 4 * blocksize;
-
 	deflate_context_zlib *ctx = (deflate_context_zlib*) f->param;
-	gboolean debug = _OPTION(vr, ctx->p, 0).boolean;
+	const off_t blocksize = ctx->conf.blocksize;
+	const off_t max_compress = 4 * blocksize;
+	gboolean debug = _OPTION(vr, ctx->conf.p, 0).boolean;
 	z_stream *z = &ctx->z;
 	off_t l = 0;
 	liHandlerResult res;
@@ -318,7 +321,8 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 
 typedef struct deflate_context_bzip2 deflate_context_bzip2;
 struct deflate_context_bzip2 {
-	liPlugin *p;
+	deflate_config conf;
+
 	bz_stream bz;
 	GByteArray *buf;
 };
@@ -335,12 +339,12 @@ static void deflate_context_bzip2_free(deflate_context_bzip2 *ctx) {
 	g_slice_free(deflate_context_bzip2, ctx);
 }
 
-static deflate_context_bzip2* deflate_context_bzip2_create(liVRequest *vr, liPlugin *p) {
+static deflate_context_bzip2* deflate_context_bzip2_create(liVRequest *vr, deflate_config *conf) {
 	deflate_context_bzip2 *ctx = g_slice_new0(deflate_context_bzip2);
 	bz_stream *bz = &ctx->bz;
 	guint compression_level = 9;
 
-	ctx->p = p;
+	ctx->conf = *conf;
 
 	bz->bzalloc = NULL;
 	bz->bzfree = NULL;
@@ -357,7 +361,7 @@ static deflate_context_bzip2* deflate_context_bzip2_create(liVRequest *vr, liPlu
 	}
 
 	ctx->buf = g_byte_array_new();
-	g_byte_array_set_size(ctx->buf, 64*1024);
+	g_byte_array_set_size(ctx->buf, conf->output_buffer);
 
 	bz->next_out = (char*) ctx->buf->data;
 	bz->avail_out = ctx->buf->len;
@@ -373,11 +377,10 @@ static void deflate_filter_bzip2_free(liVRequest *vr, liFilter *f) {
 }
 
 static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
-	const off_t blocksize = 64*1024;
-	const off_t max_compress = 4 * blocksize;
-
 	deflate_context_bzip2 *ctx = (deflate_context_bzip2*) f->param;
-	gboolean debug = _OPTION(vr, ctx->p, 0).boolean;
+	const off_t blocksize = ctx->conf.blocksize;
+	const off_t max_compress = 4 * blocksize;
+	gboolean debug = _OPTION(vr, ctx->conf.p, 0).boolean;
 	bz_stream *bz = &ctx->bz;
 	off_t l = 0;
 	liHandlerResult res;
@@ -501,6 +504,18 @@ static gboolean cached_handle_etag(liVRequest *vr, gboolean debug, liHttpHeader 
 	return FALSE;
 }
 
+static guint header_to_endocing_mask(const gchar *s) {
+	guint encoding_mask, i;
+
+	for (i = 1; encoding_names[i]; i++) {
+		if (strstr(s, encoding_names[i])) {
+			encoding_mask |= 1 << i;
+		}
+	}
+
+	return encoding_mask;
+}
+
 static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *context) {
 	deflate_config *config = (deflate_config*) param;
 	GList *hh_encoding_entry, *hh_etag_entry;
@@ -541,19 +556,14 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	hh_encoding_entry = li_http_header_find_first(vr->request.headers, CONST_STR_LEN("accept-encoding"));
 	while (hh_encoding_entry) {
 		hh_encoding = (liHttpHeader*) hh_encoding_entry->data;
-		for (i = 1; encoding_names[i]; i++) {
-			if (strstr(LI_HEADER_VALUE(hh_encoding), encoding_names[i])) {
-				encoding_mask |= 1 << i;
-			}
-		}
-
+		encoding_mask |= header_to_endocing_mask(LI_HEADER_VALUE(hh_encoding));
 		hh_encoding_entry = li_http_header_find_next(hh_encoding_entry, CONST_STR_LEN("accept-encoding"));
 	}
 
 	if (0 == encoding_mask)
 		return LI_HANDLER_GO_ON; /* no known encoding found */
 
-	encoding_mask &= encoding_available_mask;
+	encoding_mask &= encoding_available_mask & config->allowed_encodings;
 	if (0 == encoding_mask) {
 		if (debug) {
 			VR_DEBUG(vr, "%s", "no common encoding found => not compressing");
@@ -587,7 +597,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		if (cached_handle_etag(vr, debug, hh_etag, encoding_names[i])) return LI_HANDLER_GO_ON;
 		if (!is_head_request) {
 			deflate_context_bzip2 *ctx;
-			ctx = deflate_context_bzip2_create(vr, config->p);
+			ctx = deflate_context_bzip2_create(vr, config);
 			if (!ctx) return LI_HANDLER_GO_ON;
 			li_vrequest_add_filter_out(vr, deflate_filter_bzip2, deflate_filter_bzip2_free, ctx);
 		}
@@ -599,7 +609,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		if (cached_handle_etag(vr, debug, hh_etag, encoding_names[i])) return LI_HANDLER_GO_ON;
 		if (!is_head_request) {
 			deflate_context_zlib *ctx;
-			ctx = deflate_context_zlib_create(vr, config->p, TRUE);
+			ctx = deflate_context_zlib_create(vr, config, TRUE);
 			if (!ctx) return LI_HANDLER_GO_ON;
 			li_vrequest_add_filter_out(vr, deflate_filter_zlib, deflate_filter_zlib_free, ctx);
 		}
@@ -611,7 +621,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		if (cached_handle_etag(vr, debug, hh_etag, encoding_names[i])) return LI_HANDLER_GO_ON;
 		if (!is_head_request) {
 			deflate_context_zlib *ctx;
-			ctx = deflate_context_zlib_create(vr, config->p, FALSE);
+			ctx = deflate_context_zlib_create(vr, config, FALSE);
 			if (!ctx) return LI_HANDLER_GO_ON;
 			li_vrequest_add_filter_out(vr, deflate_filter_zlib, deflate_filter_zlib_free, ctx);
 		}
@@ -641,16 +651,70 @@ static void deflate_free(liServer *srv, gpointer param) {
 	g_slice_free(deflate_config, conf);
 }
 
+/* deflate optio names */
+static const GString
+	don_encodings = { CONST_STR_LEN("encodings"), 0 },
+	don_blocksize = { CONST_STR_LEN("blocksize"), 0 },
+	don_outputbuffer = { CONST_STR_LEN("output-buffer"), 0 }
+;
+
 static liAction* deflate_create(liServer *srv, liPlugin* p, liValue *val) {
 	deflate_config *conf;
 	UNUSED(srv);
 	UNUSED(p);
 	UNUSED(val);
 
+	if (val && val->type != LI_VALUE_HASH) {
+		ERROR(srv, "%s", "deflate expects an optional hash of options");
+		return NULL;
+	}
+
 	conf = g_slice_new0(deflate_config);
 	conf->p = p;
+	conf->allowed_encodings = encoding_available_mask;
+	conf->blocksize = 16*1024;
+	conf->output_buffer = 4*1024;
+
+	if (val) {
+		GHashTable *ht = val->data.hash;
+		GHashTableIter it;
+		gpointer pkey, pvalue;
+
+		g_hash_table_iter_init(&it, ht);
+		while (g_hash_table_iter_next(&it, &pkey, &pvalue)) {
+			GString *key = pkey;
+			liValue *value = pvalue;
+
+			if (g_string_equal(key, &don_encodings)) {
+				if (value->type != LI_VALUE_STRING) {
+					ERROR(srv, "deflate option '%s' expects string as parameter", don_encodings.str);
+					goto option_failed;
+				}
+				conf->allowed_encodings = header_to_endocing_mask(value->data.string->str);
+			} else if (g_string_equal(key, &don_blocksize)) {
+				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0) {
+					ERROR(srv, "deflate option '%s' expects positive integer as parameter", don_blocksize.str);
+					goto option_failed;
+				}
+				conf->blocksize = value->data.number;
+			} else if (g_string_equal(key, &don_outputbuffer)) {
+				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0) {
+					ERROR(srv, "deflate option '%s' expects positive integer as parameter", don_outputbuffer.str);
+					goto option_failed;
+				}
+				conf->output_buffer = value->data.number;
+			} else {
+				ERROR(srv, "unknown option for deflate '%s'", key->str);
+				goto option_failed;
+			}
+		}
+	}
 
 	return li_action_new_function(deflate_handle, NULL, deflate_free, conf);
+
+option_failed:
+	g_slice_free(deflate_config, conf);
+	return NULL;
 }
 
 static const liPluginOption options[] = {
