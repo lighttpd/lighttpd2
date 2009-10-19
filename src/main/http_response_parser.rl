@@ -22,6 +22,9 @@
 	action status {
 		getStringTo(fpc, ctx->h_value);
 		ctx->response->http_status = atoi(ctx->h_value->str);
+		if (ctx->response->http_status >= 100 && ctx->response->http_status < 200) {
+			ctx->drop_header = TRUE;
+		}
 	}
 
 	action header_key {
@@ -46,7 +49,7 @@
 	action header {
 		if (ctx->accept_cgi && li_strncase_equal(ctx->h_key, CONST_STR_LEN("Status"))) {
 			ctx->response->http_status = atoi(ctx->h_value->str);
-		} else {
+		} else if (!ctx->drop_header) {
 			li_http_header_insert(ctx->response->headers, GSTR_LEN(ctx->h_key), GSTR_LEN(ctx->h_value));
 		}
 	}
@@ -115,6 +118,7 @@ void li_http_response_parser_init(liHttpResponseCtx* ctx, liResponse *req, liChu
 	ctx->response = req;
 	ctx->accept_cgi = accept_cgi;
 	ctx->accept_nph = accept_nph;
+	ctx->drop_header = FALSE;
 	ctx->h_key = g_string_sized_new(0);
 	ctx->h_value = g_string_sized_new(0);
 
@@ -125,6 +129,7 @@ void li_http_response_parser_reset(liHttpResponseCtx* ctx) {
 	li_chunk_parser_reset(&ctx->chunk_ctx);
 	g_string_truncate(ctx->h_key, 0);
 	g_string_truncate(ctx->h_value, 0);
+	ctx->drop_header = FALSE;
 
 	%% write init;
 }
@@ -134,14 +139,27 @@ void li_http_response_parser_clear(liHttpResponseCtx *ctx) {
 	g_string_free(ctx->h_value, TRUE);
 }
 
+static gboolean li_http_response_handle_finished(liHttpResponseCtx *ctx) {
+	if (!li_http_response_parser_is_finished(ctx)) return FALSE;
+
+	li_chunkqueue_skip(ctx->chunk_ctx.cq, ctx->chunk_ctx.bytes_in);
+	if (ctx->drop_header) {
+		li_http_response_parser_reset(ctx);
+		return FALSE;
+	} else {
+		if (ctx->response->http_status == 0) ctx->response->http_status = 200;
+		return TRUE;
+	}
+}
+
 liHandlerResult li_http_response_parse(liVRequest *vr, liHttpResponseCtx *ctx) {
 	liHandlerResult res;
 
-	if (li_http_response_parser_is_finished(ctx)) return LI_HANDLER_GO_ON;
+	if (li_http_response_handle_finished(ctx)) return LI_HANDLER_GO_ON;
 
 	if (LI_HANDLER_GO_ON != (res = li_chunk_parser_prepare(&ctx->chunk_ctx))) return res;
 
-	while (!li_http_response_parser_has_error(ctx) && !li_http_response_parser_is_finished(ctx)) {
+	while (!li_http_response_parser_has_error(ctx)) {
 		char *p, *pe;
 
 		if (LI_HANDLER_GO_ON != (res = li_chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
@@ -149,13 +167,9 @@ liHandlerResult li_http_response_parse(liVRequest *vr, liHttpResponseCtx *ctx) {
 		%% write exec;
 
 		li_chunk_parser_done(&ctx->chunk_ctx, p - ctx->chunk_ctx.buf);
+
+		if (li_http_response_handle_finished(ctx)) return LI_HANDLER_GO_ON;
 	}
 
-	if (li_http_response_parser_has_error(ctx)) return LI_HANDLER_ERROR;
-	if (li_http_response_parser_is_finished(ctx)) {
-		li_chunkqueue_skip(ctx->chunk_ctx.cq, ctx->chunk_ctx.bytes_in);
-		if (ctx->response->http_status == 0) ctx->response->http_status = 200;
-		return LI_HANDLER_GO_ON;
-	}
 	return LI_HANDLER_ERROR;
 }
