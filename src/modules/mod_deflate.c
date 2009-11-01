@@ -651,7 +651,7 @@ static void deflate_free(liServer *srv, gpointer param) {
 	g_slice_free(deflate_config, conf);
 }
 
-/* deflate optio names */
+/* deflate option names */
 static const GString
 	don_encodings = { CONST_STR_LEN("encodings"), 0 },
 	don_blocksize = { CONST_STR_LEN("blocksize"), 0 },

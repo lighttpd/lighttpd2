@@ -1341,7 +1341,7 @@ static const liPluginOption options[] = {
 	{ "server.name", LI_VALUE_STRING, NULL, NULL, NULL },
 	{ "server.tag", LI_VALUE_STRING, PACKAGE_DESC, NULL, NULL },
 	{ "keepalive.timeout", LI_VALUE_NUMBER, GINT_TO_POINTER(5), NULL, NULL },
-	{ "keepalive.requests", LI_VALUE_NUMBER, GINT_TO_POINTER(15), NULL, NULL },
+	{ "keepalive.requests", LI_VALUE_NUMBER, GINT_TO_POINTER(0), NULL, NULL },
 
 	{ "mime_types", LI_VALUE_LIST, NULL, core_option_mime_types_parse, core_option_mime_types_free },
 
