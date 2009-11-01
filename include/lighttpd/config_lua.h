@@ -3,6 +3,8 @@
 
 #include <lighttpd/base.h>
 
-LI_API gboolean li_config_lua_load(liServer *srv, const gchar *filename, liAction **pact);
+#include <lualib.h>
+
+LI_API gboolean li_config_lua_load(lua_State *L, liServer *srv, const gchar *filename, liAction **pact, gboolean allow_setup);
 
 #endif

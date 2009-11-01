@@ -93,7 +93,7 @@ liServer* li_server_new(const gchar *module_dir) {
 #ifdef HAVE_LUA_H
 	srv->L = luaL_newstate();
 	luaL_openlibs(srv->L);
-	li_lua_init(srv, srv->L);
+	li_lua_init(srv->L, srv, NULL);
 
 	srv->lualock = g_mutex_new();
 #else

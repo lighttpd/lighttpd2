@@ -53,7 +53,7 @@ LI_API int li_lua_push_vrequest(lua_State *L, liVRequest *vr);
  */
 LI_API int li_lua_metatable_index(lua_State *L);
 
-LI_API void li_lua_init(liServer *srv, lua_State *L);
+LI_API void li_lua_init(lua_State* L, liServer* srv, liWorker* wrk);
 
 LI_API int li_lua_push_traceback(lua_State *L, int narg);
 

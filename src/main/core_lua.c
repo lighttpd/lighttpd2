@@ -137,7 +137,7 @@ static void lua_push_constants(lua_State *L, int ndx) {
 	lua_setfield(L, ndx, "HANDLER_ERROR");
 }
 
-void li_lua_init(liServer *srv, lua_State *L) {
+void li_lua_init(lua_State *L, liServer *srv, liWorker *wrk) {
 	li_lua_init_chunk_mt(L);
 	li_lua_init_connection_mt(L);
 	li_lua_init_environment_mt(L);
@@ -151,6 +151,10 @@ void li_lua_init(liServer *srv, lua_State *L) {
 	/* prefer closure, but just in case */
 	lua_pushlightuserdata(L, srv);
 	lua_setfield(L, LUA_REGISTRYINDEX, "lighty.srv");
+	if (NULL != wrk) {
+		lua_pushlightuserdata(L, wrk);
+		lua_setfield(L, LUA_REGISTRYINDEX, "lighty.wrk");
+	}
 
 	lua_newtable(L); /* lighty. */
 

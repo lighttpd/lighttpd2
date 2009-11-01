@@ -4,7 +4,7 @@
 #include <lighttpd/value_lua.h>
 #include <lighttpd/actions_lua.h>
 
-# include <lighttpd/core_lua.h>
+#include <lighttpd/core_lua.h>
 
 #include <lualib.h>
 #include <lauxlib.h>
@@ -183,14 +183,14 @@ static int handle_server_setup(liServer *srv, lua_State *L, gpointer _ss) {
 	return 0;
 }
 
-gboolean li_config_lua_load(liServer *srv, const gchar *filename, liAction **pact) {
-	lua_State *L = srv->L;
+gboolean li_config_lua_load(lua_State *L, liServer *srv, const gchar *filename, liAction **pact, gboolean allow_setup) {
 	int errfunc;
 	int lua_stack_top;
+	gboolean dolock = (L == srv->L);
 
 	*pact = NULL;
 
-	li_lua_lock(srv);
+	if (dolock) li_lua_lock(srv);
 
 	lua_stack_top = lua_gettop(L);
 
@@ -203,8 +203,10 @@ gboolean li_config_lua_load(liServer *srv, const gchar *filename, liAction **pac
 
 	DEBUG(srv, "Loaded config script '%s'", filename);
 
-	publish_str_hash(srv, L, srv->setups, handle_server_setup);
-	lua_setfield(L, LUA_GLOBALSINDEX, "setup");
+	if (allow_setup) {
+		publish_str_hash(srv, L, srv->setups, handle_server_setup);
+		lua_setfield(L, LUA_GLOBALSINDEX, "setup");
+	}
 
 	publish_str_hash(srv, L, srv->actions, handle_server_action);
 	lua_setfield(L, LUA_GLOBALSINDEX, "action");
@@ -214,6 +216,16 @@ gboolean li_config_lua_load(liServer *srv, const gchar *filename, liAction **pac
 	errfunc = li_lua_push_traceback(L, 0);
 	if (lua_pcall(L, 0, 1, errfunc)) {
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
+
+		/* cleanup stack */
+		if (lua_stack_top > lua_gettop(L)) {
+			lua_pop(L, lua_gettop(L) - lua_stack_top);
+		}
+
+		li_lua_restore_globals(L);
+
+		if (dolock) li_lua_unlock(srv);
+
 		return FALSE;
 	}
 	lua_remove(L, errfunc);
@@ -239,7 +251,7 @@ gboolean li_config_lua_load(liServer *srv, const gchar *filename, liAction **pac
 
 	li_lua_restore_globals(L);
 
-	li_lua_unlock(srv);
+	if (dolock) li_lua_unlock(srv);
 
 	return TRUE;
 }

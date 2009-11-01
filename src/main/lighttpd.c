@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
 	}
 	else {
 #ifdef HAVE_LUA_H
-		li_config_lua_load(srv, config_path, &srv->mainaction);
+		li_config_lua_load(srv->L, srv, config_path, &srv->mainaction, TRUE);
 		/* lua config frontend */
 #else
 		g_print("lua config frontend not available\n");

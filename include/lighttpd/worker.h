@@ -5,6 +5,8 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
+struct lua_State;
+
 typedef struct liStatistics liStatistics;
 struct liStatistics {
 	guint64 bytes_out;        /** bytes transfered, outgoing */
@@ -50,6 +52,8 @@ struct liWorker {
 
 	GThread *thread; /* managed by server.c */
 	guint ndx;       /* worker index */
+
+	struct lua_State *L;     /** NULL if compiled without Lua */
 
 	struct ev_loop *loop;
 	ev_prepare loop_prepare;

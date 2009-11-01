@@ -3,6 +3,12 @@
 
 #include <lighttpd/plugin_core.h>
 
+#ifdef HAVE_LUA_H
+# include <lighttpd/core_lua.h>
+# include <lualib.h>
+# include <lauxlib.h>
+#endif
+
 #include <sched.h>
 
 static liConnection* worker_con_get(liWorker *wrk);
@@ -365,6 +371,14 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	wrk->srv = srv;
 	wrk->loop = loop;
 
+#ifdef HAVE_LUA_H
+	wrk->L = luaL_newstate();
+	luaL_openlibs(wrk->L);
+	li_lua_init(wrk->L, srv, wrk);
+#else
+	wrk->L = NULL;
+#endif
+
 	g_queue_init(&wrk->keep_alive_queue);
 	ev_init(&wrk->keep_alive_timer, worker_keepalive_cb);
 	wrk->keep_alive_timer.data = wrk;
@@ -507,6 +521,11 @@ void li_worker_free(liWorker *wrk) {
 	g_string_free(wrk->tmp_str, TRUE);
 
 	li_stat_cache_free(wrk->stat_cache);
+
+#ifdef HAVE_LUA_H
+	lua_close(wrk->L);
+	wrk->L = NULL;
+#endif
 
 	g_slice_free(liWorker, wrk);
 }
