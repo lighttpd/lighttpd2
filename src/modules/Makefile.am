@@ -65,6 +65,13 @@ libmod_fortune_la_SOURCES = mod_fortune.c
 libmod_fortune_la_LDFLAGS = $(common_ldflags)
 libmod_fortune_la_LIBADD = $(common_libadd)
 
+if USE_LUA
+install_libs += libmod_lua.la
+libmod_lua_la_SOURCES = mod_lua.c
+libmod_lua_la_LDFLAGS = $(common_ldflags)
+libmod_lua_la_LIBADD = $(common_libadd)
+endif
+
 if USE_OPENSSL
 install_libs += libmod_openssl.la
 libmod_openssl_la_SOURCES = mod_openssl.c
