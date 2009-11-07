@@ -673,12 +673,13 @@ void li_worker_con_put(liConnection *con) {
 	/* realloc wrk->connections if it makes sense (too many allocated, only every 60sec) */
 	/* if (active < allocated*0.70) { allocated *= 0.85 } */
 	threshold = (wrk->connections->len * 7) / 10;
-	if (wrk->connections_active < threshold && (now - wrk->connections_gc_ts) < 60.0 && wrk->connections->len > 10) {
+	if (wrk->connections_active < threshold && (now - wrk->connections_gc_ts) > 60.0 && wrk->connections->len > 10) {
 		/* realloc */
 		guint i;
 		threshold = (wrk->connections->len * 85) / 100;
 		for (i = wrk->connections->len; i > threshold; i--) {
 			li_connection_free(g_array_index(wrk->connections, liConnection*, i-1));
+			g_array_index(wrk->connections, liConnection*, i-1) = NULL;
 		}
 		wrk->connections->len = threshold;
 		wrk->connections_gc_ts = now;
