@@ -429,7 +429,8 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0),
 			G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0),
 			G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0),
-			0, 0, G_GUINT64_CONSTANT(0), 0, 0
+			0, 0, {G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0)},
+			G_GUINT64_CONSTANT(0), 0, 0
 		};
 
 		/* clear context so it doesn't get cleaned up anymore */
@@ -459,6 +460,11 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			totals.bytes_out_5s_diff += sd->stats.bytes_out_5s_diff;
 			totals.active_cons_cum += sd->stats.active_cons_cum;
 			totals.active_cons_5s += sd->stats.active_cons_5s;
+
+			totals.peak.bytes_out += sd->stats.peak.bytes_out;
+			totals.peak.bytes_in += sd->stats.peak.bytes_in;
+			totals.peak.requests += sd->stats.peak.requests;
+			totals.peak.active_cons += sd->stats.peak.active_cons;
 
 			connection_count[0] += sd->connection_count[0];
 			connection_count[1] += sd->connection_count[1];
@@ -643,6 +649,38 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 		totals->active_cons_5s
 	);
 	g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+
+
+	/* worker information, peak values */
+	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Peak stats</strong></div>\n"));
+	g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
+
+	for (i = 0; i < result->len; i++) {
+		mod_status_wrk_data *sd = g_ptr_array_index(result, i);
+
+		li_counter_format(sd->stats.peak.requests, COUNTER_UNITS, count_req);
+		li_counter_format(sd->stats.peak.bytes_in, COUNTER_BYTES, count_bin);
+		li_counter_format(sd->stats.peak.bytes_out, COUNTER_BYTES, count_bout);
+		g_string_printf(tmpstr, "Worker #%u", i+1);
+		g_string_append_printf(html, html_worker_row_avg, "", tmpstr->str,
+			count_req->str,
+			count_bin->str,
+			count_bout->str,
+			sd->stats.peak.active_cons
+		);
+	}
+
+	li_counter_format(totals->peak.requests, COUNTER_UNITS, count_req);
+	li_counter_format(totals->peak.bytes_in, COUNTER_BYTES, count_bin);
+	li_counter_format(totals->peak.bytes_out, COUNTER_BYTES, count_bout);
+	g_string_append_printf(html, html_worker_row_avg, "totals", "Total",
+		count_req->str,
+		count_bin->str,
+		count_bout->str,
+		totals->peak.active_cons
+	);
+	g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+
 
 	/* connection counts */
 	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong> (states, sum)</div>\n"));
