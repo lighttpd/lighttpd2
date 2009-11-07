@@ -326,7 +326,10 @@ liHandlerResult li_stat_cache_get(liVRequest *vr, GString *path, struct stat *st
 
 	if (fd) {
 		/* open + fstat */
-		if (-1 == (*fd = open(path->str, O_RDONLY))) {
+		while (-1 == (*fd = open(path->str, O_RDONLY))) {
+			if (errno == EINTR)
+				continue;
+
 			*err = errno;
 			return LI_HANDLER_ERROR;
 		}
