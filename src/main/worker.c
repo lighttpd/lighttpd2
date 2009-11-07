@@ -338,22 +338,26 @@ static void worker_stats_watcher_cb(struct ev_loop *loop, ev_timer *w, int reven
 #endif
 	}
 
-	/* 5s averages */
+	/* 5s averages and peak values */
 	if ((now - wrk->stats.last_avg) > 5) {
 		/* bytes in */
 		wrk->stats.bytes_in_5s_diff = wrk->stats.bytes_in - wrk->stats.bytes_in_5s;
 		wrk->stats.bytes_in_5s = wrk->stats.bytes_in;
+		wrk->stats.peak.bytes_in = MAX(wrk->stats.peak.bytes_in, wrk->stats.bytes_in_5s_diff / 5);
 
 		/* bytes out */
 		wrk->stats.bytes_out_5s_diff = wrk->stats.bytes_out - wrk->stats.bytes_out_5s;
 		wrk->stats.bytes_out_5s = wrk->stats.bytes_out;
+		wrk->stats.peak.bytes_out = MAX(wrk->stats.peak.bytes_out, wrk->stats.bytes_out_5s_diff / 5);
 
 		/* requests */
 		wrk->stats.requests_5s_diff = wrk->stats.requests - wrk->stats.requests_5s;
 		wrk->stats.requests_5s = wrk->stats.requests;
+		wrk->stats.peak.requests = MAX(wrk->stats.peak.requests, wrk->stats.requests_5s_diff / 5);
 
 		/* active connections */
 		wrk->stats.active_cons_5s = wrk->connections_active;
+		wrk->stats.peak.active_cons = MAX(wrk->stats.peak.active_cons, wrk->connections_active);
 
 		wrk->stats.last_avg = now;
 	}

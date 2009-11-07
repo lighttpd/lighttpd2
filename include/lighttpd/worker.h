@@ -27,6 +27,14 @@ struct liStatistics {
 	guint active_cons_5s;
 	ev_tstamp last_avg;
 
+	/* peak values from 5s avg */
+	struct {
+		guint64 requests;
+		guint64 bytes_out;
+		guint64 bytes_in;
+		guint active_cons;
+	} peak;
+
 	/* updated in timer */
 	guint64 last_requests;
 	double requests_per_sec;
