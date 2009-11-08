@@ -47,7 +47,7 @@ liNetworkStatus li_network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffs
 	/* Linux: put a cork into the socket as we want to combine the write() calls
 	 * but only if we really have multiple chunks
 	 */
-	if (cq->queue->length > 1) {
+	if (cq->queue.length > 1) {
 		corked = 1;
 		setsockopt(fd, IPPROTO_TCP, TCP_CORK, &corked, sizeof(corked));
 	}

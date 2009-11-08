@@ -39,6 +39,9 @@ struct liChunk {
 			off_t  offset; /* start is <n> octets away from the start of the file */
 		} mmap;
 	} file;
+
+	/* a chunk can only be in one queue, so we just reserve the memory for the link in it */
+	GList cq_link;
 };
 
 typedef void (*liCQLimitNnotifyCB)(liVRequest *vr, gpointer context, gboolean locked);
@@ -62,7 +65,7 @@ struct liChunkQueue {
 	goffset bytes_in, bytes_out, length, mem_usage;
 	liCQLimit *limit; /* limit is the sum of all { c->mem->len | c->type == STRING_CHUNK } */
 /* private */
-	GQueue *queue;
+	GQueue queue;
 };
 
 struct liChunkIter {
@@ -221,12 +224,12 @@ INLINE goffset li_chunk_length(liChunk *c) {
 
 INLINE liChunkIter li_chunkqueue_iter(liChunkQueue *cq) {
 	liChunkIter i;
-	i.element = g_queue_peek_head_link(cq->queue);
+	i.element = g_queue_peek_head_link(&cq->queue);
 	return i;
 }
 
 INLINE liChunk* li_chunkqueue_first_chunk(liChunkQueue *cq) {
-	return (liChunk*) g_queue_peek_head(cq->queue);
+	return (liChunk*) g_queue_peek_head(&cq->queue);
 }
 
 #endif

@@ -281,6 +281,7 @@ read_chunk:
 static liChunk* chunk_new() {
 	liChunk *c = g_slice_new0(liChunk);
 	c->file.mmap.data = MAP_FAILED;
+	c->cq_link.data = c;
 	return c;
 }
 
@@ -302,8 +303,11 @@ static void chunk_reset(chunk *c) {
 }
 */
 
-static void chunk_free(liChunk *c) {
+static void chunk_free(liChunkQueue *cq, liChunk *c) {
 	if (!c) return;
+	if (cq) {
+		g_queue_unlink(&cq->queue, &c->cq_link);
+	}
 	c->type = UNUSED_CHUNK;
 	if (c->str) {
 		g_string_free(c->str, TRUE);
@@ -424,7 +428,7 @@ void li_cqlimit_set_limit(liCQLimit *cql, goffset limit) {
 
 liChunkQueue* li_chunkqueue_new() {
 	liChunkQueue *cq = g_slice_new0(liChunkQueue);
-	cq->queue = g_queue_new();
+	g_queue_init(&cq->queue);
 	return cq;
 }
 
@@ -433,24 +437,22 @@ static void __chunk_free(gpointer _c, gpointer userdata) {
 	liChunkQueue *cq = (liChunkQueue*) userdata;
 	if (c->type == STRING_CHUNK) cqlimit_update(cq, - (goffset)c->str->len);
 	else if (c->type == MEM_CHUNK) cqlimit_update(cq, - (goffset)c->mem->len);
-	chunk_free(c);
+	chunk_free(cq, c);
 }
 
 void li_chunkqueue_reset(liChunkQueue *cq) {
 	if (!cq) return;
 	cq->is_closed = FALSE;
 	cq->bytes_in = cq->bytes_out = cq->length = 0;
-	g_queue_foreach(cq->queue, __chunk_free, cq);
+	g_queue_foreach(&cq->queue, __chunk_free, cq);
 	assert(cq->mem_usage == 0);
 	cq->mem_usage = 0;
-	g_queue_clear(cq->queue);
+	g_queue_init(&cq->queue); /* should be empty now */
 }
 
 void li_chunkqueue_free(liChunkQueue *cq) {
 	if (!cq) return;
-	g_queue_foreach(cq->queue, __chunk_free, cq);
-	g_queue_free(cq->queue);
-	cq->queue = NULL;
+	g_queue_foreach(&cq->queue, __chunk_free, cq);
 	li_cqlimit_release(cq->limit);
 	cq->limit = NULL;
 	assert(cq->mem_usage == 0);
@@ -497,7 +499,7 @@ void li_chunkqueue_append_string(liChunkQueue *cq, GString *str) {
 	c = chunk_new();
 	c->type = STRING_CHUNK;
 	c->str = str;
-	g_queue_push_tail(cq->queue, c);
+	g_queue_push_tail_link(&cq->queue, &c->cq_link);
 	cq->length += str->len;
 	cq->bytes_in += str->len;
 	cqlimit_update(cq, str->len);
@@ -516,7 +518,7 @@ void li_chunkqueue_append_bytearr(liChunkQueue *cq, GByteArray *mem) {
 	c = chunk_new();
 	c->type = MEM_CHUNK;
 	c->mem = mem;
-	g_queue_push_tail(cq->queue, c);
+	g_queue_push_tail_link(&cq->queue, &c->cq_link);
 	cq->length += mem->len;
 	cq->bytes_in += mem->len;
 	cqlimit_update(cq, mem->len);
@@ -530,7 +532,7 @@ void li_chunkqueue_append_mem(liChunkQueue *cq, const void *mem, gssize len) {
 	c->type = MEM_CHUNK;
 	c->mem = g_byte_array_sized_new(len);
 	g_byte_array_append(c->mem, mem, len);
-	g_queue_push_tail(cq->queue, c);
+	g_queue_push_tail_link(&cq->queue, &c->cq_link);
 	cq->length += c->mem->len;
 	cq->bytes_in += c->mem->len;
 	cqlimit_update(cq, c->mem->len);
@@ -547,7 +549,7 @@ void li_chunkqueue_append_chunkfile(liChunkQueue *cq, liChunkFile *cf, off_t sta
 		c->file.start = start;
 		c->file.length = length;
 
-		g_queue_push_tail(cq->queue, c);
+		g_queue_push_tail_link(&cq->queue, &c->cq_link);
 		cq->length += length;
 		cq->bytes_in += length;
 	}
@@ -560,7 +562,7 @@ static void __chunkqueue_append_file(liChunkQueue *cq, GString *filename, off_t 
 	c->file.start = start;
 	c->file.length = length;
 
-	g_queue_push_tail(cq->queue, c);
+	g_queue_push_tail_link(&cq->queue, &c->cq_link);
 	cq->length += length;
 	cq->bytes_in += length;
 }
@@ -608,13 +610,12 @@ goffset li_chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset len
 		if (!we_have) { /* remove empty chunks */
 			if (c->type == STRING_CHUNK) meminbytes -= c->str->len;
 			else if (c->type == MEM_CHUNK) meminbytes -= c->mem->len;
-			chunk_free(c);
-			g_queue_pop_head(in->queue);
+			chunk_free(in, c);
 			continue;
 		}
 		if (we_have <= length) { /* move complete chunk */
-			l = g_queue_pop_head_link(in->queue);
-			g_queue_push_tail_link(out->queue, l);
+			l = g_queue_pop_head_link(&in->queue);
+			g_queue_push_tail_link(&out->queue, l);
 			bytes += we_have;
 			if (c->type == STRING_CHUNK) {
 				meminbytes -= c->str->len;
@@ -629,9 +630,8 @@ goffset li_chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset len
 			switch (c->type) {
 			case UNUSED_CHUNK: /* impossible, has length 0 */
 				/* remove "empty" chunks */
-				chunk_free(c);
-				chunk_free(cnew);
-				g_queue_pop_head(in->queue);
+				chunk_free(in, c);
+				chunk_free(NULL, cnew);
 				continue;
 			case STRING_CHUNK: /* change type to MEM_CHUNK, as we copy it anyway */
 				cnew->type = MEM_CHUNK;
@@ -656,7 +656,7 @@ goffset li_chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset len
 			c->offset += length;
 			bytes += length;
 			length = 0;
-			g_queue_push_tail(out->queue, cnew);
+			g_queue_push_tail_link(&out->queue, &cnew->cq_link);
 		}
 	}
 
@@ -686,17 +686,17 @@ goffset li_chunkqueue_steal_all(liChunkQueue *out, liChunkQueue *in) {
 	}
 
 	/* if out->queue is empty, just swap in->queue/out->queue */
-	if (g_queue_is_empty(out->queue)) {
-		GQueue *tmp = in->queue; in->queue = out->queue; out->queue = tmp;
+	if (g_queue_is_empty(&out->queue)) {
+		GQueue tmp = in->queue; in->queue = out->queue; out->queue = tmp;
 	} else {
 		/* link the two "lists", neither of them is empty */
-		out->queue->tail->next = in->queue->head;
-		in->queue->head->prev = out->queue->tail;
+		out->queue.tail->next = in->queue.head;
+		in->queue.head->prev = out->queue.tail;
 		/* update the queue tail and length */
-		out->queue->tail = in->queue->tail;
-		out->queue->length += in->queue->length;
+		out->queue.tail = in->queue.tail;
+		out->queue.length += in->queue.length;
 		/* reset in->queue */
-		g_queue_init(in->queue);
+		g_queue_init(&in->queue);
 	}
 	/* count bytes in chunkqueues */
 	len = in->length;
@@ -712,9 +712,9 @@ goffset li_chunkqueue_steal_all(liChunkQueue *out, liChunkQueue *in) {
 goffset li_chunkqueue_steal_chunk(liChunkQueue *out, liChunkQueue *in) {
 	liChunk *c;
 	goffset length;
-	GList *l = g_queue_pop_head_link(in->queue);
+	GList *l = g_queue_pop_head_link(&in->queue);
 	if (!l) return 0;
-	g_queue_push_tail_link(out->queue, l);
+	g_queue_push_tail_link(&out->queue, l);
 
 	c = (liChunk*) l->data;
 	length = li_chunk_length(c);
@@ -745,8 +745,7 @@ goffset li_chunkqueue_skip(liChunkQueue *cq, goffset length) {
 			/* skip (delete) complete chunk */
 			if (c->type == STRING_CHUNK) cqlimit_update(cq, - (goffset)c->str->len);
 			else if (c->type == MEM_CHUNK) cqlimit_update(cq, - (goffset)c->mem->len);
-			chunk_free(c);
-			g_queue_pop_head(cq->queue);
+			chunk_free(cq, c);
 			bytes += we_have;
 			length -= we_have;
 		} else { /* skip first part of a chunk */
@@ -764,8 +763,8 @@ goffset li_chunkqueue_skip(liChunkQueue *cq, goffset length) {
 goffset li_chunkqueue_skip_all(liChunkQueue *cq) {
 	goffset bytes = cq->length;
 
-	g_queue_foreach(cq->queue, __chunk_free, cq);
-	g_queue_clear(cq->queue);
+	g_queue_foreach(&cq->queue, __chunk_free, cq);
+	g_queue_init(&cq->queue);
 
 	cq->bytes_out += bytes;
 	cq->length = 0;
