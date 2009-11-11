@@ -619,9 +619,19 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	if (!fastcgi_parse_response(fcon)) return;
 
-	if (!fcon->response_headers_finished && LI_HANDLER_GO_ON == li_http_response_parse(fcon->vr, &fcon->parse_response_ctx)) {
-		fcon->response_headers_finished = TRUE;
-		li_vrequest_handle_response_headers(fcon->vr);
+	if (!fcon->response_headers_finished) {
+		switch (li_http_response_parse(fcon->vr, &fcon->parse_response_ctx)) {
+		case LI_HANDLER_GO_ON:
+			fcon->response_headers_finished = TRUE;
+			li_vrequest_handle_response_headers(fcon->vr);
+			break;
+		case LI_HANDLER_ERROR:
+			VR_ERROR(fcon->vr, "Parsing response header failed for: %s", fcon->ctx->socket_str->str);
+			li_vrequest_error(fcon->vr);
+			break;
+		default:
+			break;
+		}
 	}
 
 	if (fcon->response_headers_finished) {
