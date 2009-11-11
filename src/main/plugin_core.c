@@ -612,6 +612,59 @@ static liAction* core_static(liServer *srv, liPlugin* p, liValue *val) {
 }
 
 
+static liHandlerResult core_handle_pathinfo(liVRequest *vr, gpointer param, gpointer *context) {
+	struct stat st;
+	int err;
+	liHandlerResult res;
+	gchar *slash;
+	UNUSED(param);
+	UNUSED(context);
+
+	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
+
+next_round:
+	if (vr->physical.path->len <= vr->physical.doc_root->len) return LI_HANDLER_GO_ON;
+
+	VR_DEBUG(vr, "stat: physical path: %s", vr->physical.path->str);
+	res = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
+	if (res == LI_HANDLER_WAIT_FOR_EVENT || res == LI_HANDLER_GO_ON)
+		return res;
+
+	/* stat failed. why? */
+	VR_DEBUG(vr, "stat failed %i: physical path: %s", err, vr->physical.path->str);
+	switch (err) {
+	case ENOTDIR:
+		slash = strrchr(vr->physical.path->str, '/');
+		if (!slash) {
+			VR_DEBUG(vr, "no slash: %s", vr->physical.path->str);
+			return LI_HANDLER_GO_ON;
+		}
+		g_string_prepend(vr->physical.pathinfo, slash);
+		g_string_set_size(vr->physical.path, slash - vr->physical.path->str);
+		VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
+		goto next_round;
+	case ENOENT:
+		return LI_HANDLER_GO_ON;
+	case EACCES:
+		return LI_HANDLER_GO_ON;
+	default:
+		VR_ERROR(vr, "stat() or open() for '%s' failed: %s", vr->physical.path->str, g_strerror(err));
+		return LI_HANDLER_ERROR;
+	}
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_pathinfo(liServer *srv, liPlugin* p, liValue *val) {
+	UNUSED(p);
+	if (val) {
+		ERROR(srv, "%s", "pathinfo action doesn't have parameters");
+		return NULL;
+	}
+
+	return li_action_new_function(core_handle_pathinfo, NULL, NULL, NULL);
+}
+
 static liHandlerResult core_handle_status(liVRequest *vr, gpointer param, gpointer *context) {
 	UNUSED(param);
 	UNUSED(context);
@@ -1462,6 +1515,7 @@ static const liPluginAction actions[] = {
 	{ "alias", core_alias },
 	{ "index", core_index },
 	{ "static", core_static },
+	{ "pathinfo", core_pathinfo },
 
 	{ "set_status", core_status },
 
