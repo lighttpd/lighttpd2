@@ -191,6 +191,109 @@ static liAction* core_docroot(liServer *srv, liPlugin* p, liValue *val) {
 	return li_action_new_function(core_handle_docroot, NULL, core_docroot_free, li_value_extract(val).string);
 }
 
+typedef struct {
+	GString *prefix, *path;
+} core_alias_config;
+
+static liHandlerResult core_handle_alias(liVRequest *vr, gpointer _param, gpointer *context) {
+	GArray *param = _param;
+	guint i;
+	UNUSED(context);
+
+	for (i = 0; i < param->len; i++) {
+		core_alias_config ac = g_array_index(param, core_alias_config, i);
+		gsize preflen = ac.prefix->len;
+		gboolean isdir = FALSE;
+
+		if (preflen > 0 && ac.prefix->str[preflen-1] == '/') {
+			preflen--;
+			isdir = TRUE;
+		}
+
+		if (li_string_prefix(vr->request.uri.path, ac.prefix->str, preflen)) {
+			/* check if url has the form "prefix" or "prefix/.*" */
+			if (isdir && vr->request.uri.path->str[preflen] != '\0' && vr->request.uri.path->str[preflen] != '/') continue;
+
+			/* prefix matched */
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "alias path: %s", ac.path->str);
+			}
+
+			g_string_truncate(vr->physical.doc_root, 0);
+			g_string_append_len(vr->physical.doc_root, GSTR_LEN(ac.path));
+
+			/* build physical path: docroot + uri.path */
+			g_string_truncate(vr->physical.path, 0);
+			g_string_append_len(vr->physical.path, GSTR_LEN(ac.path));
+			g_string_append_len(vr->physical.path, vr->request.uri.path->str + preflen, vr->request.uri.path->len - preflen);
+
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "alias physical path: %s", vr->physical.path->str);
+			}
+
+			return LI_HANDLER_GO_ON;
+		}
+	}
+
+	return LI_HANDLER_GO_ON;
+}
+
+static void core_alias_free(liServer *srv, gpointer _param) {
+	GArray *param = _param;
+	guint i;
+	UNUSED(srv);
+
+	for (i = 0; i < param->len; i++) {
+		core_alias_config ac = g_array_index(param, core_alias_config, i);
+		g_string_free(ac.prefix, TRUE);
+		g_string_free(ac.path, TRUE);
+	}
+	g_array_free(param, TRUE);
+}
+
+static liAction* core_alias(liServer *srv, liPlugin* p, liValue *val) {
+	GArray *a = NULL;
+	GArray *vl, *vl1;
+	core_alias_config ac;
+	UNUSED(p);
+
+	if (!val || val->type != LI_VALUE_LIST) {
+		ERROR(srv, "%s", "unexpected or no parameter for alias action");
+		return NULL;
+	}
+	vl = val->data.list;
+	if (g_array_index(vl, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(vl, liValue*, 1)->type == LI_VALUE_STRING) {
+		a = g_array_sized_new(FALSE, TRUE, sizeof(core_alias_config), 1);
+		ac.prefix = li_value_extract_ptr(g_array_index(vl, liValue*, 0));
+		ac.path = li_value_extract_ptr(g_array_index(vl, liValue*, 1));
+		g_array_append_val(a, ac);
+	} else {
+		guint i;
+		a = g_array_sized_new(FALSE, TRUE, sizeof(core_alias_config), vl->len);
+		for (i = 0; i < vl->len; i++) {
+			if (g_array_index(vl, liValue*, i)->type != LI_VALUE_LIST) {
+				ERROR(srv, "%s", "unexpected entry in parameter for alias action");
+				goto error_free;
+			}
+			vl1 = g_array_index(vl, liValue*, i)->data.list;
+			if (g_array_index(vl1, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(vl1, liValue*, 1)->type == LI_VALUE_STRING) {
+				ac.prefix = li_value_extract_ptr(g_array_index(vl1, liValue*, 0));
+				ac.path = li_value_extract_ptr(g_array_index(vl1, liValue*, 1));
+				g_array_append_val(a, ac);
+			} else {
+				ERROR(srv, "%s", "unexpected entry in parameter for alias action");
+				goto error_free;
+			}
+		}
+	}
+
+	return li_action_new_function(core_handle_alias, NULL, core_alias_free, a);
+
+error_free:
+	core_alias_free(srv, a);
+	return NULL;
+}
+
 
 static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointer *context) {
 	liHandlerResult res;
@@ -1356,6 +1459,7 @@ static const liPluginAction actions[] = {
 	{ "set", core_set },
 
 	{ "docroot", core_docroot },
+	{ "alias", core_alias },
 	{ "index", core_index },
 	{ "static", core_static },
 
