@@ -262,7 +262,7 @@ static liAction* core_alias(liServer *srv, liPlugin* p, liValue *val) {
 		return NULL;
 	}
 	vl = val->data.list;
-	if (g_array_index(vl, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(vl, liValue*, 1)->type == LI_VALUE_STRING) {
+	if (vl->len == 2 && g_array_index(vl, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(vl, liValue*, 1)->type == LI_VALUE_STRING) {
 		a = g_array_sized_new(FALSE, TRUE, sizeof(core_alias_config), 1);
 		ac.prefix = li_value_extract_ptr(g_array_index(vl, liValue*, 0));
 		ac.path = li_value_extract_ptr(g_array_index(vl, liValue*, 1));
