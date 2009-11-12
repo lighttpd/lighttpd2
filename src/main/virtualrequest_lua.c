@@ -202,6 +202,12 @@ static int lua_vrequest_debug(lua_State *L) {
 	return 0;
 }
 
+/* st, res, errno, msg = vr:stat(filename)
+ *  st: stat data (nil if not available (yet))
+ *  res: error code (HANDLE_GO_ON if successful)
+ *  errno: errno returned by stat() (only for HANDLER_ERROR)
+ *  msg: error message for errno
+ */
 static int lua_vrequest_stat(lua_State *L) {
 	liVRequest *vr;
 	GString *path;
@@ -228,19 +234,24 @@ static int lua_vrequest_stat(lua_State *L) {
 	res = li_stat_cache_get(vr, path, &st, &err, NULL);
 	switch (res) {
 	case LI_HANDLER_GO_ON:
-		return li_lua_push_stat(L, &st);
-	case LI_HANDLER_WAIT_FOR_EVENT:
+		li_lua_push_stat(L, &st);
 		lua_pushinteger(L, res);
-		return 1;
+		return 2;
+	case LI_HANDLER_WAIT_FOR_EVENT:
+		lua_pushnil(L);
+		lua_pushinteger(L, res);
+		return 2;
 	case LI_HANDLER_ERROR:
+		lua_pushnil(L);
 		lua_pushinteger(L, res);
 		lua_pushinteger(L, err);
 		lua_pushstring(L, g_strerror(err));
-		return 3;
+		return 4;
 	case LI_HANDLER_COMEBACK:
 		VR_ERROR(vr, "%s", "Unexpected return value from li_stat_cache_get: LI_HANDLER_COMEBACK");
+		lua_pushnil(L);
 		lua_pushinteger(L, LI_HANDLER_ERROR);
-		return 1;
+		return 2;
 	}
 
 	return 0;
