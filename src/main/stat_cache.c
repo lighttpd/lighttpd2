@@ -335,6 +335,8 @@ liHandlerResult li_stat_cache_get(liVRequest *vr, GString *path, struct stat *st
 		}
 		if (-1 == fstat(*fd, st)) {
 			*err = errno;
+			close(*fd);
+			*fd = -1;
 			return LI_HANDLER_ERROR;
 		}
 	} else {
