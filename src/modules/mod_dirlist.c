@@ -14,15 +14,22 @@
  *         options: optional (not required), array, can contain any of the following string => value pairs:
  *             "sort" => criterium             - string, one of "name", "size" or "type"
  *             "css" => url                    - string, external css to use for styling, default: use internal css
+ *
  *             "hide-dotfiles" => bool         - hide entries beginning with a dot, default: true
  *             "hide-tildefiles" => bool       - hide entries ending with a tilde (~), often used for backups, default: true
+ *             "hide-directories" => bool      - hide directories from the directory listing, default: false
+ *
  *             "include-header" => bool        - include HEADER.txt above the directory listing, default: false
  *             "hide-header" => bool           - hide HEADER.txt from the directory listing, default: false
- *             "include-readme" => bool        - include README.txt below the directory listing, default: false
- *             "hide-header" => bool           - hide README.txt from the directory listing, default: false
- *             "hide-directories" => bool      - hide directories from the directory listing, default: false
+ *             "encode-header" => bool         - html-encode HEADER.txt (if included), set to false if it contains real HTML, default: true
+ *
+ *             "include-readme" => bool        - include README.txt below the directory listing, default: true
+ *             "hide-readme" => bool           - hide README.txt from the directory listing, default: false
+ *             "encode-readme" => bool         - html-encode README.txt (if included), set to false if it contains real HTML, default: true
+ *
  *             "exclude-suffix" => suffixlist  - list of strings, filter entries that end with one of the strings supplied
  *             "exclude-prefix" => prefixlist  - list of strings, filter entries that begin with one of the strings supplied
+ *
  *             "debug" => bool                 - outout debug information to log, default: false
  *
  * Example config:
@@ -53,11 +60,17 @@
 #include <lighttpd/plugin_core.h>
 #include <lighttpd/encoding.h>
 
+#include <sys/stat.h>
+#include <fcntl.h>
+
+/* maximum filesize for HEADER.txt and README.txt to have them included */
+#define MAX_INCLUDE_FILE_SIZE (64*1024)
+
 LI_API gboolean mod_dirlist_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_dirlist_free(liModules *mods, liModule *mod);
 
 /* html snippet constants */
-static const gchar html_header[] =
+static const gchar html_header_start[] =
 	"<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n"
 	"<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\"\n"
 	"         \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
@@ -65,9 +78,11 @@ static const gchar html_header[] =
 	"	<head>\n"
 	"		<title>Index of %s</title>\n";
 	
-static const gchar html_table_start[] =
+static const gchar html_header_end[] =
 	"	</head>\n"
-	"	<body>\n"
+	"	<body>\n";
+
+static const gchar html_table_start[] =
 	"		<h2 id=\"title\">Index of %s</h2>\n"
 	"		<div id=\"dirlist\">\n"
 	"			<table summary=\"Directory Listing\" cellpadding=\"0\" cellspacing=\"0\">\n"
@@ -111,6 +126,8 @@ struct dirlist_data {
 	GString *css;
 	gboolean hide_dotfiles;
 	gboolean hide_tildefiles;
+	gboolean include_header, hide_header, encode_header;
+	gboolean include_readme, hide_readme, encode_readme;
 	gboolean hide_directories;
 	gboolean debug;
 	GPtrArray *exclude_suffix;
@@ -123,6 +140,57 @@ struct dirlist_plugin_data {
 	void *unused;
 };
 typedef struct dirlist_plugin_data dirlist_plugin_data;
+
+/** uses/modifies wrk->tmp_str */
+static void try_append_file(liVRequest *vr, GString **curbuf, const gchar *filename, gboolean encode_html) {
+	GString *f = vr->wrk->tmp_str;
+	g_string_truncate(f, 0);
+	g_string_append_len(f, GSTR_LEN(vr->physical.path));
+	li_path_append_slash(f);
+	g_string_append(f, filename);
+
+	if (!encode_html) {
+		int fd;
+		struct stat st;
+
+		while (-1 == (fd = open(f->str, O_RDONLY))) {
+			if (errno == EINTR)
+				continue;
+			return; /* failed to open, ignore */
+		}
+		if (-1 == fstat(fd, &st)) {
+			close(fd);
+			return; /* failed to open, ignore */
+		}
+		if (st.st_size > MAX_INCLUDE_FILE_SIZE) {
+			close(fd);
+			return; /* file too big, ignore */
+		}
+
+		/* flush current buffer and append file */
+		li_chunkqueue_append_string(vr->out, *curbuf);
+		*curbuf = g_string_sized_new(4*1024-1);
+		li_chunkqueue_append_file_fd(vr->out, NULL, 0, st.st_size, fd);
+	} else {
+		GError *error = NULL;
+		gchar *contents;
+		gsize length;
+
+		if (!g_file_get_contents(f->str, &contents, &length, &error)) {
+			g_error_free(error);
+			return; /* ignore errors */
+		}
+		if (length > MAX_INCLUDE_FILE_SIZE) {
+			g_free(contents);
+			return; /* file too big, ignore */
+		}
+
+		g_string_append_len(*curbuf, CONST_STR_LEN("<pre>"));
+		li_string_encode_append(contents, *curbuf, LI_ENCODING_HTML);
+		g_string_append_len(*curbuf, CONST_STR_LEN("</pre>"));
+		g_free(contents);
+	}
+}
 
 static void dirlist_format_size(gchar *buf, goffset size) {
 	const gchar unit[] = "BKMGTPE"; /* Kilo, Mega, Tera, Peta, Exa */
@@ -193,8 +261,11 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 	if (sce->data.failed) {
 		/* stat failed */
+		int e = sce->data.err;
+
 		li_stat_cache_entry_release(vr, sce);
-		switch (sce->data.err) {
+
+		switch (e) {
 		case ENOENT:
 		case ENOTDIR:
 			return LI_HANDLER_GO_ON;
@@ -209,36 +280,9 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 	} else if (!S_ISDIR(sce->data.st.st_mode)) {
 		li_stat_cache_entry_release(vr, sce);
 		return LI_HANDLER_GO_ON;
-	} else if (vr->request.uri.path->str[vr->request.uri.path->len-1] != G_DIR_SEPARATOR) {
-		GString *host, *uri;
-		if (!li_vrequest_handle_direct(vr)) {
-			li_stat_cache_entry_release(vr, sce);
-			return LI_HANDLER_ERROR;
-		}
-		/* redirect to scheme + host + path + / + querystring if directory without trailing slash */
-		/* TODO: local addr if HTTP 1.0 without host header, url encoding */
-		host = vr->request.uri.authority->len ? vr->request.uri.authority : vr->con->local_addr_str;
-		uri = g_string_sized_new(
-			8 /* https:// */ + host->len +
-			vr->request.uri.raw_orig_path->len + 2 /* /? */ + vr->request.uri.query->len
-		);
-
-		if (vr->con->is_ssl)
-			g_string_append_len(uri, CONST_STR_LEN("https://"));
-		else
-			g_string_append_len(uri, CONST_STR_LEN("http://"));
-		g_string_append_len(uri, GSTR_LEN(host));
-		g_string_append_len(uri, GSTR_LEN(vr->request.uri.raw_orig_path));
-		g_string_append_c(uri, '/');
-		if (vr->request.uri.query->len) {
-			g_string_append_c(uri, '?');
-			g_string_append_len(uri, GSTR_LEN(vr->request.uri.query));
-		}
-
-		vr->response.http_status = 301;
-		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(uri));
-		g_string_free(uri, TRUE);
+	} else if (vr->request.uri.path->len == 0 || vr->request.uri.path->str[vr->request.uri.path->len-1] != '/') {
 		li_stat_cache_entry_release(vr, sce);
+		li_vrequest_redirect_directory(vr);
 		return LI_HANDLER_GO_ON;
 	} else {
 		/* everything ok, we have the directory listing */
@@ -252,6 +296,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 		guint datebuflen;
 		struct tm tm;
 		gboolean hide;
+		gboolean have_header = FALSE, have_readme = FALSE;
 
 		if (!li_vrequest_handle_direct(vr)) {
 			li_stat_cache_entry_release(vr, sce);
@@ -310,15 +355,23 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 			if (hide)
 				continue;
 
-			if (S_ISDIR(sced->st.st_mode))
+			if (S_ISDIR(sced->st.st_mode)) {
+				if (dd->hide_directories) continue;
 				g_array_append_val(directories, i);
-			else
+			} else {
+				if ((dd->include_header || dd->hide_header) && g_str_equal(sced->path, "HEADER.txt")) {
+					if (dd->include_header && sced->st.st_size > 0 && sced->st.st_size < MAX_INCLUDE_FILE_SIZE) have_header = TRUE;
+					if (dd->hide_header) continue;
+				} else if ((dd->include_readme || dd->hide_readme) && g_str_equal(sced->path, "README.txt")) {
+					if (dd->include_readme && sced->st.st_size > 0 && sced->st.st_size < MAX_INCLUDE_FILE_SIZE) have_readme = TRUE;
+					if (dd->hide_readme) continue;
+				}
 				g_array_append_val(files, i);
-				
+			}
 		}
 
 		listing = g_string_sized_new(4*1024-1);
-		g_string_append_printf(listing, html_header, vr->request.uri.path->str);
+		g_string_append_printf(listing, html_header_start, vr->request.uri.path->str);
 
 		if (dd->css) {
 			/* custom css */
@@ -329,6 +382,9 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 			/* default css */
 			g_string_append_len(listing, CONST_STR_LEN(html_css));
 		}
+		g_string_append_len(listing, CONST_STR_LEN(html_header_end));
+
+		try_append_file(vr, &listing, "HEADER.txt", dd->encode_header);
 
 		g_string_append_printf(listing, html_table_start, vr->request.uri.path->str);
 
@@ -408,6 +464,8 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 		g_string_append_len(listing, CONST_STR_LEN(html_table_end));
 
+		try_append_file(vr, &listing, "README.txt", dd->encode_header);
+
 		g_string_append_printf(listing, html_footer, CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string->str);
 
 		li_chunkqueue_append_string(vr->out, listing);
@@ -459,6 +517,7 @@ static liAction* dirlist_create(liServer *srv, liPlugin* p, liValue *val) {
 	data->plugin = p;
 	data->hide_dotfiles = TRUE;
 	data->hide_tildefiles = TRUE;
+	data->include_readme = TRUE;
 	data->exclude_suffix = g_ptr_array_new();
 	data->exclude_prefix = g_ptr_array_new();
 	data->content_type = g_string_new("text/html; charset=utf-8");
@@ -476,7 +535,15 @@ static liAction* dirlist_create(liServer *srv, liPlugin* p, liValue *val) {
 			k = g_array_index(tmpval->data.list, liValue*, 0)->data.string;
 			v = g_array_index(tmpval->data.list, liValue*, 1);
 
-			if (g_str_equal(k->str, "css")) {
+			if (g_str_equal(k->str, "sort")) { /* "name", "size" or "type" */
+				if (v->type != LI_VALUE_STRING) {
+					ERROR(srv, "%s", "dirlist: sort parameter must be a string");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				/* TODO */
+				WARNING(srv, "%s", "dirlist: sort parameter not supported yet!");
+			} else if (g_str_equal(k->str, "css")) {
 				if (v->type != LI_VALUE_STRING) {
 					ERROR(srv, "%s", "dirlist: css parameter must be a string");
 					dirlist_free(srv, data);
@@ -504,6 +571,48 @@ static liAction* dirlist_create(liServer *srv, liPlugin* p, liValue *val) {
 					return NULL;
 				}
 				data->hide_directories = v->data.boolean;
+			} else if (g_str_equal(k->str, "include-header")) {
+				if (v->type != LI_VALUE_BOOLEAN) {
+					ERROR(srv, "%s", "dirlist: include-header parameter must be a boolean (true or false)");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				data->include_header = v->data.boolean;
+			} else if (g_str_equal(k->str, "hide-header")) {
+				if (v->type != LI_VALUE_BOOLEAN) {
+					ERROR(srv, "%s", "dirlist: hide-header parameter must be a boolean (true or false)");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				data->hide_header = v->data.boolean;
+			} else if (g_str_equal(k->str, "encode-header")) {
+				if (v->type != LI_VALUE_BOOLEAN) {
+					ERROR(srv, "%s", "dirlist: encode-header parameter must be a boolean (true or false)");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				data->encode_header = v->data.boolean;
+			} else if (g_str_equal(k->str, "include-readme")) {
+				if (v->type != LI_VALUE_BOOLEAN) {
+					ERROR(srv, "%s", "dirlist: include-readme parameter must be a boolean (true or false)");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				data->include_readme = v->data.boolean;
+			} else if (g_str_equal(k->str, "hide-readme")) {
+				if (v->type != LI_VALUE_BOOLEAN) {
+					ERROR(srv, "%s", "dirlist: hide-readme parameter must be a boolean (true or false)");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				data->hide_readme = v->data.boolean;
+			} else if (g_str_equal(k->str, "encode-readme")) {
+				if (v->type != LI_VALUE_BOOLEAN) {
+					ERROR(srv, "%s", "dirlist: encode-readme parameter must be a boolean (true or false)");
+					dirlist_free(srv, data);
+					return NULL;
+				}
+				data->encode_readme = v->data.boolean;
 			} else if (g_str_equal(k->str, "exclude-suffix")) {
 				if (v->type != LI_VALUE_LIST) {
 					ERROR(srv, "%s", "dirlist: exclude-suffix parameter must be a list of strings");

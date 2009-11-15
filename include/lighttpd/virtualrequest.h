@@ -148,4 +148,6 @@ LI_API void li_vrequest_joblist_append_async(liVRequest *vr);
 
 LI_API gboolean li_vrequest_redirect(liVRequest *vr, GString *uri);
 
+LI_API gboolean li_vrequest_redirect_directory(liVRequest *vr);
+
 #endif

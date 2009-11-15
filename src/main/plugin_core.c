@@ -310,9 +310,6 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 		return LI_HANDLER_ERROR;
 	}
 
-	/* need trailing slash */
-	if (vr->request.uri.path->len == 0 || vr->request.uri.path->str[vr->request.uri.path->len - 1] != '/') return LI_HANDLER_GO_ON;
-
 	res = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
 	if (res == LI_HANDLER_WAIT_FOR_EVENT)
 		return LI_HANDLER_WAIT_FOR_EVENT;
@@ -324,6 +321,12 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 
 	if (!S_ISDIR(st.st_mode))
 		return LI_HANDLER_GO_ON;
+
+	/* need trailing slash */
+	if (vr->request.uri.path->len == 0 || vr->request.uri.path->str[vr->request.uri.path->len-1] != '/') {
+		li_vrequest_redirect_directory(vr);
+		return LI_HANDLER_GO_ON;
+	}
 
 	/* we use two temporary strings here, one to append to docroot and one to append to physical path */
 	tmp_docroot = vr->wrk->tmp_str;
