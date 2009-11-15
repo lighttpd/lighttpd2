@@ -28,7 +28,7 @@ static int lua_stat_attr_read_is_file(struct stat *st, lua_State *L) {
 }
 
 static int lua_stat_attr_read_is_dir(struct stat *st, lua_State *L) {
-	lua_pushboolean(L, S_ISREG(st->st_mode));
+	lua_pushboolean(L, S_ISDIR(st->st_mode));
 	return 1;
 }
 
