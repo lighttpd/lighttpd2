@@ -518,6 +518,8 @@ static liAction* dirlist_create(liServer *srv, liPlugin* p, liValue *val) {
 	data->hide_dotfiles = TRUE;
 	data->hide_tildefiles = TRUE;
 	data->include_readme = TRUE;
+	data->encode_header = TRUE;
+	data->encode_readme = TRUE;
 	data->exclude_suffix = g_ptr_array_new();
 	data->exclude_prefix = g_ptr_array_new();
 	data->content_type = g_string_new("text/html; charset=utf-8");
