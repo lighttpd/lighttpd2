@@ -210,7 +210,7 @@ static int lua_vrequest_debug(lua_State *L) {
  */
 static int lua_vrequest_stat(lua_State *L) {
 	liVRequest *vr;
-	GString *path;
+	GString path;
 	const char *filename;
 	size_t filename_len;
 	liHandlerResult res;
@@ -229,9 +229,9 @@ static int lua_vrequest_stat(lua_State *L) {
 	}
 
 	filename = lua_tolstring(L, 2, &filename_len);
-	path = g_string_new_len(filename, filename_len);
+	path = li_const_gstring(filename, filename_len);
 
-	res = li_stat_cache_get(vr, path, &st, &err, NULL);
+	res = li_stat_cache_get(vr, &path, &st, &err, NULL);
 	switch (res) {
 	case LI_HANDLER_GO_ON:
 		li_lua_push_stat(L, &st);
