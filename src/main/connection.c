@@ -42,12 +42,17 @@ static void forward_response_body(liConnection *con) {
 			}
 		}
 
-		if (vr->response.transfer_encoding & LI_HTTP_TRANSFER_ENCODING_CHUNKED) {
-			li_filter_chunked_encode(vr, con->raw_out, con->out);
+		if (con->raw_out->is_closed) {
+			li_chunkqueue_skip_all(con->out);
+			con->out->is_closed = TRUE;
 		} else {
-			li_chunkqueue_steal_all(con->raw_out, con->out);
+			if (vr->response.transfer_encoding & LI_HTTP_TRANSFER_ENCODING_CHUNKED) {
+				li_filter_chunked_encode(vr, con->raw_out, con->out);
+			} else {
+				li_chunkqueue_steal_all(con->raw_out, con->out);
+			}
+			if (con->out->is_closed) con->raw_out->is_closed = TRUE;
 		}
-		if (con->out->is_closed) con->raw_out->is_closed = TRUE;
 		if (con->raw_out->length > 0) {
 			li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
 		} else {

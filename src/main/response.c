@@ -43,6 +43,7 @@ gboolean li_response_send_headers(liConnection *con) {
 		/* They never have a content-body/length */
 		li_chunkqueue_reset(con->out);
 		con->out->is_closed = TRUE;
+		con->raw_out->is_closed = TRUE;
 	} else if (con->out->is_closed) {
 		if (vr->request.http_method != LI_HTTP_METHOD_HEAD || con->out->length > 0) {
 			/* do not send content-length: 0 if backend already skipped content generation for HEAD */
@@ -64,6 +65,7 @@ gboolean li_response_send_headers(liConnection *con) {
 		/* content-length is set, but no body */
 		li_chunkqueue_reset(con->out);
 		con->out->is_closed = TRUE;
+		con->raw_out->is_closed = TRUE;
 	}
 
 	/* Status line */
