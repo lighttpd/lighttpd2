@@ -181,6 +181,7 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 	if (options[10]) rlim_nofile = options[10]->data.number;
 
 	g_ptr_array_add(cmd, NULL);
+	g_ptr_array_add(env, NULL);
 	cmdarr = (gchar**) g_ptr_array_free(cmd, FALSE);
 	envarr = (gchar**) g_ptr_array_free(env, FALSE);
 	config->load_instconf = li_instance_conf_new(cmdarr, envarr, user, uid, gid, rlim_core, rlim_nofile);
