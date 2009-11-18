@@ -49,6 +49,7 @@
  *     - javascript for sorting
  *     - sort parameter
  *     - parameter to chose if dirs should be seperated from other files (listed first)
+ *     - etag/last-modified handling when including HEADER.txt/README.txt
  *
  * Author:
  *     Copyright (c) 2009 Thomas Porzelt
