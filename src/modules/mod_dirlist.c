@@ -465,7 +465,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 		g_string_append_len(listing, CONST_STR_LEN(html_table_end));
 
-		try_append_file(vr, &listing, "README.txt", dd->encode_header);
+		try_append_file(vr, &listing, "README.txt", dd->encode_readme);
 
 		g_string_append_printf(listing, html_footer, CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string->str);
 
