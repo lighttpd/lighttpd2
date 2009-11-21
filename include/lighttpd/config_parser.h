@@ -28,7 +28,6 @@ struct liConfigParserContext {
 	gboolean condition_negated;
 
 	liCompOperator op;
-	gchar value_op;
 
 	liCastType cast;
 
@@ -38,6 +37,7 @@ struct liConfigParserContext {
 	GQueue *action_list_stack; /* first entry is current action list */
 	GQueue *option_stack; /* stack of liValue* */
 	GQueue *condition_stack; /* stack of condition* */
+	GQueue *value_op_stack; /* stack of gchar* */
 
 	/* information about currenty parsed file */
 	gchar *filename;

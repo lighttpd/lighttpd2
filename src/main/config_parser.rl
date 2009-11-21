@@ -317,7 +317,7 @@
 	}
 
 	action value_statement_op {
-		ctx->value_op = *ctx->mark;
+		g_queue_push_head(ctx->value_op_stack, ctx->mark);
 	}
 
 	action value_statement {
@@ -325,6 +325,7 @@
 		/* compute new value out of the two */
 		liValue *l, *r, *o;
 		gboolean free_l, free_r;
+		gchar op;
 
 		free_l = free_r = TRUE;
 
@@ -332,8 +333,9 @@
 		l = g_queue_pop_head(ctx->option_stack);
 		o = NULL;
 
+		op = *(gchar*)g_queue_pop_head(ctx->value_op_stack);
 
-		if (ctx->value_op == '=') {
+		if (op == '=') {
 			/* value => value */
 			free_l = FALSE;
 			free_r = FALSE;
@@ -342,7 +344,7 @@
 			g_array_append_val(o->data.list, r);
 		}
 		else if (l->type == LI_VALUE_NUMBER && r->type == LI_VALUE_NUMBER) {
-			switch (ctx->value_op) {
+			switch (op) {
 				case '+': o = li_value_new_number(l->data.number + r->data.number); break;
 				case '-': o = li_value_new_number(l->data.number - r->data.number); break;
 				case '*': o = li_value_new_number(l->data.number * r->data.number); break;
@@ -353,15 +355,15 @@
 			o = l;
 			free_l = FALSE;
 
-			if (r->type == LI_VALUE_STRING && ctx->value_op == '+') {
+			if (r->type == LI_VALUE_STRING && op == '+') {
 				/* str + str */
 				o->data.string = g_string_append_len(o->data.string, GSTR_LEN(r->data.string));
 			}
-			else if (r->type == LI_VALUE_NUMBER && ctx->value_op == '+') {
+			else if (r->type == LI_VALUE_NUMBER && op == '+') {
 				/* str + int */
 				g_string_append_printf(o->data.string, "%" G_GINT64_FORMAT, r->data.number);
 			}
-			else if (r->type == LI_VALUE_NUMBER && ctx->value_op == '*') {
+			else if (r->type == LI_VALUE_NUMBER && op == '*') {
 				/* str * int */
 				if (r->data.number < 0) {
 					ERROR(srv, "string multiplication with negative number (%" G_GINT64_FORMAT ")?", r->data.number);
@@ -382,7 +384,7 @@
 				o = NULL;
 		}
 		else if (l->type == LI_VALUE_LIST) {
-			if (ctx->value_op == '+') {
+			if (op == '+') {
 				/* append r to the end of l */
 				free_l = FALSE; /* use l as the new o */
 				free_r = FALSE; /* r gets appended to o */
@@ -390,7 +392,7 @@
 
 				g_array_append_val(l->data.list, r);
 			}
-			else if (ctx->value_op == '*') {
+			else if (op == '*') {
 				/* merge l and r */
 				if (r->type == LI_VALUE_LIST) {
 					/* merge lists */
@@ -401,7 +403,7 @@
 				}
 			}
 		}
-		else if (l->type == LI_VALUE_HASH && r->type == LI_VALUE_HASH && ctx->value_op == '+') {
+		else if (l->type == LI_VALUE_HASH && r->type == LI_VALUE_HASH && op == '+') {
 			/* merge hashtables */
 			GHashTableIter iter;
 			gpointer key, val;
@@ -417,15 +419,15 @@
 
 		if (o == NULL) {
 			WARNING(srv, "erronous value statement: %s %c %s in line %zd\n",
-				li_value_type_string(l->type), ctx->value_op,
+				li_value_type_string(l->type), op,
 				li_value_type_string(r->type), ctx->line);
 			return FALSE;
 		}
 
 		_printf("value statement: %s %c%s %s => %s in line %zd\n",
 			li_value_type_string(l->type),
-			ctx->value_op,
-			ctx->value_op == '=' ?  ">" : "",
+			op,
+			op == '=' ?  ">" : "",
 			li_value_type_string(r->type),
 			li_value_type_string(o->type),
 			ctx->line);
@@ -1193,6 +1195,7 @@ static liConfigParserContext *config_parser_context_new(liServer *srv, GList *ct
 		ctx->action_list_stack = ((liConfigParserContext*) ctx_stack->data)->action_list_stack;
 		ctx->option_stack = ((liConfigParserContext*) ctx_stack->data)->option_stack;
 		ctx->condition_stack = ((liConfigParserContext*) ctx_stack->data)->condition_stack;
+		ctx->value_op_stack = ((liConfigParserContext*) ctx_stack->data)->value_op_stack;
 
 		ctx->action_blocks = ((liConfigParserContext*) ctx_stack->data)->action_blocks;
 		ctx->uservars = ((liConfigParserContext*) ctx_stack->data)->uservars;
@@ -1223,6 +1226,7 @@ static liConfigParserContext *config_parser_context_new(liServer *srv, GList *ct
 		ctx->action_list_stack = g_queue_new();
 		ctx->option_stack = g_queue_new();
 		ctx->condition_stack = g_queue_new();
+		ctx->value_op_stack = g_queue_new();
 	}
 
 	return ctx;
@@ -1247,6 +1251,7 @@ static void config_parser_context_free(liServer *srv, liConfigParserContext *ctx
 		g_queue_free(ctx->action_list_stack);
 		g_queue_free(ctx->option_stack);
 		g_queue_free(ctx->condition_stack);
+		g_queue_free(ctx->value_op_stack);
 	}
 
 	g_slice_free(liConfigParserContext, ctx);
