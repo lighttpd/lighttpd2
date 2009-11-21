@@ -44,8 +44,6 @@
  *
  * Todo:
  *     - method: digest
- *     - auth.htdigest
- *     - auth.htpasswd
  *     - anti bruteforce protection
  *
  * Author:
