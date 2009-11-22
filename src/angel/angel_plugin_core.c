@@ -420,7 +420,7 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 			ERROR(srv, "Couldn't listen on '%s': %s", str->str, g_strerror(errno));
 			return -1;
 		}
-		DEBUG(srv, "listen to ipv4: '%s' port: %d", str->str, addr->addr->ipv4.sin_port);
+		DEBUG(srv, "listen to ipv4: '%s' (port: %d)", str->str, ntohs(addr->addr->ipv4.sin_port));
 		return s;
 #ifdef HAVE_IPV6
 	case AF_INET6:
@@ -457,7 +457,7 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 			g_string_free(ipv6_str, TRUE);
 			return -1;
 		}
-		DEBUG(srv, "listen to ipv6: '%s' port: %d", ipv6_str->str, addr->addr->ipv6.sin6_port);
+		DEBUG(srv, "listen to ipv6: '%s' (port: %d)", ipv6_str->str, ntohs(addr->addr->ipv6.sin6_port));
 		g_string_free(ipv6_str, TRUE);
 		return s;
 #endif
