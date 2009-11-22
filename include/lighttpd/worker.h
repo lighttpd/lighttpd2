@@ -110,6 +110,8 @@ struct liWorker {
 	ev_async job_async_queue_watcher;
 
 	liStatCache *stat_cache;
+
+	GByteArray *network_read_buf; /** internal temporary buffer for network.c */
 };
 
 LI_API liWorker* li_worker_new(liServer *srv, struct ev_loop *loop);

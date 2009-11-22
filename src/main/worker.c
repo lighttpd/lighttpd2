@@ -455,6 +455,8 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 
 	li_stat_cache_new(wrk, srv->stat_cache_ttl);
 
+	wrk->network_read_buf = g_byte_array_sized_new(0);
+
 	return wrk;
 }
 
@@ -530,6 +532,8 @@ void li_worker_free(liWorker *wrk) {
 	lua_close(wrk->L);
 	wrk->L = NULL;
 #endif
+
+	g_byte_array_free(wrk->network_read_buf, TRUE);
 
 	g_slice_free(liWorker, wrk);
 }
