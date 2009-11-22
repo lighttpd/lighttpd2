@@ -127,7 +127,7 @@ static void instance_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 				ERROR(i->srv, "child %i died with exit status %i", i->proc->child_pid, WEXITSTATUS(w->rstatus));
 			} /* exit status 0 is ok, no message */
 		} else if (WIFSIGNALED(w->rstatus)) {
-			ERROR(i->srv, "child %i died: killed by %s", i->proc->child_pid, g_strsignal(WTERMSIG(w->rstatus)));
+			ERROR(i->srv, "child %i died: killed by '%s' (%i)", i->proc->child_pid, g_strsignal(WTERMSIG(w->rstatus)), WTERMSIG(w->rstatus));
 		} else {
 			ERROR(i->srv, "child %i died with unexpected stat_val %i", i->proc->child_pid, w->rstatus);
 		}
