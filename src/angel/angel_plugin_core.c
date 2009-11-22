@@ -679,6 +679,8 @@ static void core_handle_sig_hup(struct ev_loop *loop, ev_signal *w, int revents)
 	if (NULL == (oldi = config->inst)) return;
 
 	if (oldi->replace_by) return;
+
+	INFO(oldi->srv, "%s", "Received SIGHUP: graceful instance restart");
 	newi = li_server_new_instance(oldi->srv, config->instconf);
 	li_instance_replace(oldi, newi);
 	li_instance_release(newi);
