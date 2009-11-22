@@ -56,6 +56,7 @@ struct liAngelCall {
 	gint32 id; /* id is -1 if there is no call pending (the callback may still be running) */
 	liAngelConnection *acon;
 	ev_timer timeout_watcher;
+	ev_tstamp timeout;
 };
 
 /* error handling */

@@ -492,7 +492,8 @@ liAngelCall *li_angel_call_new(liAngelCallCB callback, ev_tstamp timeout) {
 
 	g_assert(NULL != callback);
 	call->callback = callback;
-	ev_timer_init(&call->timeout_watcher, angel_call_timeout_cb, timeout, 0);
+	call->timeout = timeout;
+	ev_init(&call->timeout_watcher, angel_call_timeout_cb);
 	call->timeout_watcher.data = call;
 	call->id = -1;
 
@@ -632,6 +633,7 @@ gboolean li_angel_send_call(
 
 	if (!prepare_call_header(&buf, ANGEL_CALL_SEND_CALL, call->id, mod, mod_len, action, action_len, 0, data ? data->len : 0, 0, err)) goto error;
 
+	ev_timer_set(&call->timeout_watcher, call->timeout + ev_now(acon->loop) - ev_time(), 0);
 	ev_timer_start(acon->loop, &call->timeout_watcher);
 
 	g_mutex_lock(acon->mutex);
