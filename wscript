@@ -164,7 +164,6 @@ def configure(conf):
 	conf.check(function_name='getrlimit', header_name='sys/resource.h', define_name='HAVE_GETRLIMIT')
 	conf.check(function_name='writev', header_name='sys/uio.h', define_name='HAVE_WRITEV')
 	conf.check(function_name='inet_aton', header_name='arpa/inet.h', define_name='HAVE_INET_ATON')
-	conf.check(function_name='inet_atop', define_name='HAVE_IPV6')
 	conf.check(function_name='posix_fadvise', header_name='fcntl.h', define_name='HAVE_POSIX_FADVISE')
 	conf.check(function_name='mmap', header_name='sys/mman.h', define_name='HAVE_MMAP')
 	conf.check(function_name='fpathconf', header_name='unistd.h', define_name='HAVE_FPATHCONF')
@@ -172,6 +171,17 @@ def configure(conf):
 	conf.check(function_name='dirfd', header_name=['sys/types.h', 'dirent.h'], define_name='HAVE_DIRFD')
 	conf.check(function_name='localtime_r', header_name=['time.h'], define_name='HAVE_LOCALTIME_R')
 	conf.check(function_name='gmtime_r', header_name=['time.h'], define_name='HAVE_GMTIME_R')
+
+	conf.check(
+		fragment='''
+			#include <sys/types.h>
+			#include <sys/socket.h>
+			#include <netinet/in.h>
+			int main() {struct sockaddr_in6 s; struct in6_addr t=in6addr_any; int i=AF_INET6; s; t.s6_addr[0] = 0; return 0;}
+		''',
+		msg='Checking for ipv6 support',
+		define_name='HAVE_IPV6'
+	)
 
 	conf.sub_config('src/common')
 	conf.sub_config('src/angel')
@@ -193,6 +203,7 @@ def configure(conf):
 	print_summary(conf, 'With library directory', opts.libdir)
 	print_summary(conf, 'Build static binary', 'yes' if opts.static else 'no', 'YELLOW' if opts.static else 'GREEN')
 	print_summary(conf, 'Build debug binary', 'yes' if opts.debug else 'no', 'YELLOW' if opts.debug else 'GREEN')
+	print_summary(conf, 'With ipv6 support', 'yes' if conf.env['HAVE_IPV6'] else 'no', 'GREEN' if conf.env['HAVE_IPV6'] else 'YELLOW')
 	print_summary(conf, 'With lua support', 'yes' if opts.lua else 'no', 'GREEN' if opts.lua else 'YELLOW')
 	print_summary(conf, 'With deflate/gzip support', 'yes' if opts.zlib else 'no', 'GREEN' if opts.zlib else 'YELLOW')
 	print_summary(conf, 'With bzip2 support', 'yes' if opts.bzip else 'no', 'GREEN' if opts.bzip else 'YELLOW')
