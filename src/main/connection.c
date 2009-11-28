@@ -473,6 +473,7 @@ liConnection* li_connection_new(liWorker *wrk) {
 
 	li_chunkqueue_use_limit(con->raw_in, con->mainvr);
 	li_chunkqueue_use_limit(con->raw_out, con->mainvr);
+	li_cqlimit_set_limit(con->raw_out->limit, 512*1024);
 	li_chunkqueue_set_limit(con->mainvr->vr_in, con->raw_in->limit);
 	li_chunkqueue_set_limit(con->mainvr->vr_out, con->raw_out->limit);
 	li_chunkqueue_set_limit(con->mainvr->in, con->raw_in->limit);
@@ -530,6 +531,7 @@ void li_connection_reset(liConnection *con) {
 	li_chunkqueue_reset(con->raw_out);
 	li_cqlimit_reset(con->raw_in->limit);
 	li_cqlimit_reset(con->raw_out->limit);
+	li_cqlimit_set_limit(con->raw_out->limit, 512*1024);
 
 	if (con->keep_alive_data.link) {
 		g_queue_delete_link(&con->wrk->keep_alive_queue, con->keep_alive_data.link);
