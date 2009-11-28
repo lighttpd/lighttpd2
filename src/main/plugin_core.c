@@ -1266,7 +1266,7 @@ static liHandlerResult core_handle_buffer_in(liVRequest *vr, gpointer param, gpo
 	gint limit = GPOINTER_TO_INT(param);
 	UNUSED(context);
 
-	li_cqlimit_set_limit(vr-in->limit, limit);
+	li_cqlimit_set_limit(vr->in->limit, limit);
 
 	return LI_HANDLER_GO_ON;
 }
