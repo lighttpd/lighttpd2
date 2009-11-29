@@ -98,7 +98,7 @@ liHandlerResult li_chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start,
 	switch (c->type) {
 	case UNUSED_CHUNK: return LI_HANDLER_ERROR;
 	case STRING_CHUNK:
-		*data_start = c->str->str + c->offset + start;
+		*data_start = c->data.str->str + c->offset + start;
 		*data_len = length;
 		break;
 	case MEM_CHUNK:
@@ -106,7 +106,7 @@ liHandlerResult li_chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start,
 		*data_len = length;
 		break;
 	case FILE_CHUNK:
-		if (LI_HANDLER_GO_ON != (res = li_chunkfile_open(vr, c->file.file))) return res;
+		if (LI_HANDLER_GO_ON != (res = li_chunkfile_open(vr, c->data.file.file))) return res;
 
 		if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
 
@@ -116,21 +116,21 @@ liHandlerResult li_chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start,
 			g_byte_array_set_size(c->mem, length);
 		}
 
-		our_start = start + c->offset + c->file.start;
+		our_start = start + c->offset + c->data.file.start;
 
-		if (-1 == lseek(c->file.file->fd, our_start, SEEK_SET)) {
+		if (-1 == lseek(c->data.file.file->fd, our_start, SEEK_SET)) {
 			VR_ERROR(vr, "lseek failed for '%s' (fd = %i): %s",
-				GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+				GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 				g_strerror(errno));
 			g_byte_array_free(c->mem, TRUE);
 			c->mem = NULL;
 			return LI_HANDLER_ERROR;
 		}
 read_chunk:
-		if (-1 == (we_have = read(c->file.file->fd, c->mem->data, length))) {
+		if (-1 == (we_have = read(c->data.file.file->fd, c->mem->data, length))) {
 			if (EINTR == errno) goto read_chunk;
 			VR_ERROR(vr, "read failed for '%s' (fd = %i): %s",
-				GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+				GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 				g_strerror(errno));
 			g_byte_array_free(c->mem, TRUE);
 			c->mem = NULL;
@@ -140,7 +140,7 @@ read_chunk:
 			/* CON_TRACE(srv, "read return unexpected number of bytes"); */
 			if (we_have == 0) {
 				VR_ERROR(vr, "read returned 0 bytes for '%s' (fd = %i): unexpected end of file?",
-					GSTR_SAFE_STR(c->file.file->name), c->file.file->fd);
+					GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd);
 				g_byte_array_free(c->mem, TRUE);
 				c->mem = NULL;
 				return LI_HANDLER_ERROR;
@@ -149,6 +149,10 @@ read_chunk:
 			g_byte_array_set_size(c->mem, length);
 		}
 		*data_start = (char*) c->mem->data;
+		*data_len = length;
+		break;
+	case BUFFER_CHUNK:
+		*data_start = (char*) c->data.buffer.buffer->addr + c->data.buffer.offset + c->offset + start;
 		*data_len = length;
 		break;
 	}
@@ -174,7 +178,7 @@ liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t s
 	switch (c->type) {
 	case UNUSED_CHUNK: return LI_HANDLER_ERROR;
 	case STRING_CHUNK:
-		*data_start = c->str->str + c->offset + start;
+		*data_start = c->data.str->str + c->offset + start;
 		*data_len = length;
 		break;
 	case MEM_CHUNK:
@@ -182,16 +186,16 @@ liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t s
 		*data_len = length;
 		break;
 	case FILE_CHUNK:
-		if (LI_HANDLER_GO_ON != (res = li_chunkfile_open(vr, c->file.file))) return res;
+		if (LI_HANDLER_GO_ON != (res = li_chunkfile_open(vr, c->data.file.file))) return res;
 
 		if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
 
-		if ( !(c->file.mmap.data != MAP_FAILED || c->mem) /* no data present */
+		if ( !(c->data.file.mmap.data != MAP_FAILED || c->mem) /* no data present */
 			|| !( /* or in the wrong range */
-				(start + c->offset + c->file.start >= c->file.mmap.offset)
-				&& (start + c->offset + c->file.start + length <= c->file.mmap.offset + (ssize_t) c->file.mmap.length)) ) {
+				(start + c->offset + c->data.file.start >= c->data.file.mmap.offset)
+				&& (start + c->offset + c->data.file.start + length <= c->data.file.mmap.offset + (ssize_t) c->data.file.mmap.length)) ) {
 			/* then find new range */
-			our_start = start + c->offset + c->file.start;  /* "start" maps to this offset in the file */
+			our_start = start + c->offset + c->data.file.start;  /* "start" maps to this offset in the file */
 			our_offset = our_start % MMAP_CHUNK_ALIGN;      /* offset for "start" in new mmap block */
 			our_start -= our_offset;                 /* file offset for mmap */
 
@@ -199,32 +203,32 @@ liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t s
 			if (we_want > we_have) we_want = we_have;
 			we_want += our_offset;
 
-			if (MAP_FAILED != c->file.mmap.data) {
-				munmap(c->file.mmap.data, c->file.mmap.length);
-				c->file.mmap.data = MAP_FAILED;
+			if (MAP_FAILED != c->data.file.mmap.data) {
+				munmap(c->data.file.mmap.data, c->data.file.mmap.length);
+				c->data.file.mmap.data = MAP_FAILED;
 			}
-			c->file.mmap.offset = our_start;
-			c->file.mmap.length = we_want;
+			c->data.file.mmap.offset = our_start;
+			c->data.file.mmap.length = we_want;
 			if (!c->mem) { /* mmap did not fail till now */
-				c->file.mmap.data = mmap(0, we_want, PROT_READ, MAP_SHARED, c->file.file->fd, our_start);
+				c->data.file.mmap.data = mmap(0, we_want, PROT_READ, MAP_SHARED, c->data.file.file->fd, our_start);
 				mmap_errno = errno;
 			}
-			if (MAP_FAILED == c->file.mmap.data) {
+			if (MAP_FAILED == c->data.file.mmap.data) {
 				/* fallback to read(...) */
 				if (!c->mem) {
 					c->mem = g_byte_array_sized_new(we_want);
 				} else {
 					g_byte_array_set_size(c->mem, we_want);
 				}
-				if (-1 == lseek(c->file.file->fd, our_start, SEEK_SET)) {
+				if (-1 == lseek(c->data.file.file->fd, our_start, SEEK_SET)) {
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
 						VR_ERROR(vr, "mmap failed for '%s' (fd = %i): %s",
-							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+							GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 							g_strerror(mmap_errno));
 					} else {
 						VR_ERROR(vr, "lseek failed for '%s' (fd = %i): %s",
-							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+							GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 							g_strerror(errno));
 					}
 					g_byte_array_free(c->mem, TRUE);
@@ -232,16 +236,16 @@ liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t s
 					return LI_HANDLER_ERROR;
 				}
 read_chunk:
-				if (-1 == (we_have = read(c->file.file->fd, c->mem->data, we_want))) {
+				if (-1 == (we_have = read(c->data.file.file->fd, c->mem->data, we_want))) {
 					if (EINTR == errno) goto read_chunk;
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
 						VR_ERROR(vr, "mmap failed for '%s' (fd = %i): %s",
-							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+							GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 							g_strerror(mmap_errno));
 					} else {
 						VR_ERROR(vr, "read failed for '%s' (fd = %i): %s",
-							GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+							GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 							g_strerror(errno));
 					}
 					g_byte_array_free(c->mem, TRUE);
@@ -252,22 +256,26 @@ read_chunk:
 					/* CON_TRACE(srv, "read return unexpected number of bytes"); */
 					we_want = we_have;
 					if (length > we_have) length = we_have;
-					c->file.mmap.length = we_want;
+					c->data.file.mmap.length = we_want;
 					g_byte_array_set_size(c->mem, we_want);
 				}
 			} else {
 #ifdef HAVE_MADVISE
 				/* don't advise files < 64Kb */
-				if (c->file.mmap.length > (64*1024) &&
-					0 != madvise(c->file.mmap.data, c->file.mmap.length, MADV_WILLNEED)) {
+				if (c->data.file.mmap.length > (64*1024) &&
+					0 != madvise(c->data.file.mmap.data, c->data.file.mmap.length, MADV_WILLNEED)) {
 					VR_ERROR(vr, "madvise failed for '%s' (fd = %i): %s",
-						GSTR_SAFE_STR(c->file.file->name), c->file.file->fd,
+						GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 						g_strerror(errno));
 				}
 #endif
 			}
 		}
-		*data_start = (c->mem ? (char*) c->mem->data : c->file.mmap.data) + start + c->offset + c->file.start - c->file.mmap.offset;
+		*data_start = (c->mem ? (char*) c->mem->data : c->data.file.mmap.data) + start + c->offset + c->data.file.start - c->data.file.mmap.offset;
+		*data_len = length;
+		break;
+	case BUFFER_CHUNK:
+		*data_start = (char*) c->data.buffer.buffer->addr + c->data.buffer.offset + c->offset + start;
 		*data_len = length;
 		break;
 	}
@@ -280,7 +288,7 @@ read_chunk:
 
 static liChunk* chunk_new() {
 	liChunk *c = g_slice_new0(liChunk);
-	c->file.mmap.data = MAP_FAILED;
+	c->data.file.mmap.data = MAP_FAILED;
 	c->cq_link.data = c;
 	return c;
 }
@@ -290,16 +298,16 @@ static void chunk_reset(chunk *c) {
 	if (!c) return;
 	c->type = UNUSED_CHUNK;
 	c->offset = 0;
-	if (c->str) g_string_free(c->str, TRUE);
-	c->str = NULL;
-	if (c->file.file) chunkfile_release(c->file.file);
-	c->file.file = NULL;
-	c->file.start = 0;
-	c->file.length = 0;
-	if (MAP_FAILED != c->file.mmap.data) munmap(c->file.mmap.data, c->file.mmap.length);
-	c->file.mmap.data = MAP_FAILED;
-	c->file.mmap.length = 0;
-	c->file.mmap.offset = 0;
+	if (c->data.str) g_string_free(c->data.str, TRUE);
+	c->data.str = NULL;
+	if (c->data.file.file) chunkfile_release(c->data.file.file);
+	c->data.file.file = NULL;
+	c->data.file.start = 0;
+	c->data.file.length = 0;
+	if (MAP_FAILED != c->data.file.mmap.data) munmap(c->data.file.mmap.data, c->data.file.mmap.length);
+	c->data.file.mmap.data = MAP_FAILED;
+	c->data.file.mmap.length = 0;
+	c->data.file.mmap.offset = 0;
 }
 */
 
@@ -308,22 +316,34 @@ static void chunk_free(liChunkQueue *cq, liChunk *c) {
 	if (cq) {
 		g_queue_unlink(&cq->queue, &c->cq_link);
 	}
-	c->type = UNUSED_CHUNK;
-	if (c->str) {
-		g_string_free(c->str, TRUE);
-		c->str = NULL;
+	switch (c->type) {
+	case UNUSED_CHUNK:
+		break;
+	case STRING_CHUNK:
+		g_string_free(c->data.str, TRUE);
+		c->data.str = NULL;
+		break;
+	case MEM_CHUNK:
+		/* mem is handled extra below */
+		break;
+	case FILE_CHUNK:
+		if (c->data.file.file) {
+			li_chunkfile_release(c->data.file.file);
+			c->data.file.file = NULL;
+		}
+		if (c->data.file.mmap.data != MAP_FAILED) {
+			munmap(c->data.file.mmap.data, c->data.file.mmap.length);
+			c->data.file.mmap.data = MAP_FAILED;
+		}
+		break;
+	case BUFFER_CHUNK:
+		li_buffer_release(c->data.buffer.buffer);
+		break;
 	}
+	c->type = UNUSED_CHUNK;
 	if (c->mem) {
 		g_byte_array_free(c->mem, TRUE);
 		c->mem = NULL;
-	}
-	if (c->file.file) {
-		li_chunkfile_release(c->file.file);
-		c->file.file = NULL;
-	}
-	if (c->file.mmap.data != MAP_FAILED) {
-		munmap(c->file.mmap.data, c->file.mmap.length);
-		c->file.mmap.data = MAP_FAILED;
 	}
 	g_slice_free(liChunk, c);
 }
@@ -435,8 +455,9 @@ liChunkQueue* li_chunkqueue_new() {
 static void __chunk_free(gpointer _c, gpointer userdata) {
 	liChunk *c = (liChunk *)_c;
 	liChunkQueue *cq = (liChunkQueue*) userdata;
-	if (c->type == STRING_CHUNK) cqlimit_update(cq, - (goffset)c->str->len);
+	if (c->type == STRING_CHUNK) cqlimit_update(cq, - (goffset)c->data.str->len);
 	else if (c->type == MEM_CHUNK) cqlimit_update(cq, - (goffset)c->mem->len);
+	else if (c->type == BUFFER_CHUNK) cqlimit_update(cq, - (goffset)c->data.buffer.length);
 	chunk_free(cq, c);
 }
 
@@ -498,7 +519,7 @@ void li_chunkqueue_append_string(liChunkQueue *cq, GString *str) {
 	}
 	c = chunk_new();
 	c->type = STRING_CHUNK;
-	c->str = str;
+	c->data.str = str;
 	g_queue_push_tail_link(&cq->queue, &c->cq_link);
 	cq->length += str->len;
 	cq->bytes_in += str->len;
@@ -524,6 +545,27 @@ void li_chunkqueue_append_bytearr(liChunkQueue *cq, GByteArray *mem) {
 	cqlimit_update(cq, mem->len);
 }
 
+ /* pass ownership of buffer to chunkqueue, do not free/modify it afterwards
+  * you may modify the data (not the length) if you are sure it isn't sent before.
+  * if the length is NULL, buffer is destroyed immediately
+  */
+void li_chunkqueue_append_buffer(liChunkQueue *cq, liBuffer *buffer) {
+	liChunk *c;
+	if (!buffer->used) {
+		li_buffer_release(buffer);
+		return;
+	}
+	c = chunk_new();
+	c->type = BUFFER_CHUNK;
+	c->data.buffer.buffer = buffer;
+	c->data.buffer.offset = 0;
+	c->data.buffer.length = buffer->used;
+	g_queue_push_tail_link(&cq->queue, &c->cq_link);
+	cq->length += buffer->used;
+	cq->bytes_in += buffer->used;
+	cqlimit_update(cq, buffer->used);
+}
+
 /* memory gets copied */
 void li_chunkqueue_append_mem(liChunkQueue *cq, const void *mem, gssize len) {
 	liChunk *c;
@@ -545,9 +587,9 @@ void li_chunkqueue_append_chunkfile(liChunkQueue *cq, liChunkFile *cf, off_t sta
 		li_chunkfile_acquire(cf);
 
 		c->type = FILE_CHUNK;
-		c->file.file = cf;
-		c->file.start = start;
-		c->file.length = length;
+		c->data.file.file = cf;
+		c->data.file.start = start;
+		c->data.file.length = length;
 
 		g_queue_push_tail_link(&cq->queue, &c->cq_link);
 		cq->length += length;
@@ -558,9 +600,9 @@ void li_chunkqueue_append_chunkfile(liChunkQueue *cq, liChunkFile *cf, off_t sta
 static void __chunkqueue_append_file(liChunkQueue *cq, GString *filename, off_t start, off_t length, int fd, gboolean is_temp) {
 	liChunk *c = chunk_new();
 	c->type = FILE_CHUNK;
-	c->file.file = li_chunkfile_new(filename, fd, is_temp);
-	c->file.start = start;
-	c->file.length = length;
+	c->data.file.file = li_chunkfile_new(filename, fd, is_temp);
+	c->data.file.start = start;
+	c->data.file.length = length;
 
 	g_queue_push_tail_link(&cq->queue, &c->cq_link);
 	cq->length += length;
@@ -608,8 +650,9 @@ goffset li_chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset len
 	while ( (NULL != (c = li_chunkqueue_first_chunk(in))) && length > 0 ) {
 		we_have = li_chunk_length(c);
 		if (!we_have) { /* remove empty chunks */
-			if (c->type == STRING_CHUNK) meminbytes -= c->str->len;
+			if (c->type == STRING_CHUNK) meminbytes -= c->data.str->len;
 			else if (c->type == MEM_CHUNK) meminbytes -= c->mem->len;
+			else if (c->type == BUFFER_CHUNK) meminbytes -= c->data.buffer.length;
 			chunk_free(in, c);
 			continue;
 		}
@@ -618,11 +661,14 @@ goffset li_chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset len
 			g_queue_push_tail_link(&out->queue, l);
 			bytes += we_have;
 			if (c->type == STRING_CHUNK) {
-				meminbytes -= c->str->len;
-				memoutbytes += c->str->len;
+				meminbytes -= c->data.str->len;
+				memoutbytes += c->data.str->len;
 			} else if (c->type == MEM_CHUNK) {
 				meminbytes -= c->mem->len;
 				memoutbytes += c->mem->len;
+			} else if (c->type == BUFFER_CHUNK) {
+				meminbytes -= c->data.buffer.length;
+				memoutbytes += c->data.buffer.length;
 			}
 			length -= we_have;
 		} else { /* copy first part of a chunk */
@@ -636,7 +682,7 @@ goffset li_chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset len
 			case STRING_CHUNK: /* change type to MEM_CHUNK, as we copy it anyway */
 				cnew->type = MEM_CHUNK;
 				cnew->mem = g_byte_array_sized_new(length);
-				g_byte_array_append(cnew->mem, (guint8*) c->str->str + c->offset, length);
+				g_byte_array_append(cnew->mem, (guint8*) c->data.str->str + c->offset, length);
 				memoutbytes += length;
 				break;
 			case MEM_CHUNK:
@@ -647,10 +693,18 @@ goffset li_chunkqueue_steal_len(liChunkQueue *out, liChunkQueue *in, goffset len
 				break;
 			case FILE_CHUNK:
 				cnew->type = FILE_CHUNK;
-				li_chunkfile_acquire(c->file.file);
-				cnew->file.file = c->file.file;
-				cnew->file.start = c->file.start + c->offset;
-				cnew->file.length = length;
+				li_chunkfile_acquire(c->data.file.file);
+				cnew->data.file.file = c->data.file.file;
+				cnew->data.file.start = c->data.file.start + c->offset;
+				cnew->data.file.length = length;
+				break;
+			case BUFFER_CHUNK:
+				cnew->type = BUFFER_CHUNK;
+				li_buffer_acquire(c->data.buffer.buffer);
+				cnew->data.buffer.buffer = c->data.buffer.buffer;
+				cnew->data.buffer.offset = c->data.buffer.offset + c->offset;
+				cnew->data.buffer.length = length;
+				memoutbytes += length;
 				break;
 			}
 			c->offset += length;
@@ -724,11 +778,14 @@ goffset li_chunkqueue_steal_chunk(liChunkQueue *out, liChunkQueue *in) {
 	out->length += length;
 	if (in->limit != out->limit) {
 		if (c->type == STRING_CHUNK) {
-			cqlimit_update(out, c->str->len);
-			cqlimit_update(in, - (goffset)c->str->len);
+			cqlimit_update(out, c->data.str->len);
+			cqlimit_update(in, - (goffset)c->data.str->len);
 		} else if (c->type == MEM_CHUNK) {
 			cqlimit_update(out, c->mem->len);
 			cqlimit_update(in, - (goffset)c->mem->len);
+		} else if (c->type == BUFFER_CHUNK) {
+			cqlimit_update(out, c->data.buffer.length);
+			cqlimit_update(in, - (goffset)c->data.buffer.length);
 		}
 	}
 	return length;
@@ -743,8 +800,9 @@ goffset li_chunkqueue_skip(liChunkQueue *cq, goffset length) {
 	while ( (NULL != (c = li_chunkqueue_first_chunk(cq))) && (0 == (we_have = li_chunk_length(c)) || length > 0) ) {
 		if (we_have <= length) {
 			/* skip (delete) complete chunk */
-			if (c->type == STRING_CHUNK) cqlimit_update(cq, - (goffset)c->str->len);
+			if (c->type == STRING_CHUNK) cqlimit_update(cq, - (goffset)c->data.str->len);
 			else if (c->type == MEM_CHUNK) cqlimit_update(cq, - (goffset)c->mem->len);
+			else if (c->type == BUFFER_CHUNK) cqlimit_update(cq, - (goffset)c->data.buffer.length);
 			chunk_free(cq, c);
 			bytes += we_have;
 			length -= we_have;

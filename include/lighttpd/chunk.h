@@ -18,27 +18,33 @@ struct liChunkFile {
 };
 
 struct liChunk {
-	enum { UNUSED_CHUNK, STRING_CHUNK, MEM_CHUNK, FILE_CHUNK } type;
+	enum { UNUSED_CHUNK, STRING_CHUNK, MEM_CHUNK, FILE_CHUNK, BUFFER_CHUNK } type;
 
 	goffset offset;
 	/* if type == FILE_CHUNK and mem != NULL,
 	 * mem contains the data [file.mmap.offset .. file.mmap.offset + file.mmap.length)
 	 * from the file, and file.mmap.start is NULL as mmap failed and read(...) was used.
 	 */
-	GString *str;
 	GByteArray *mem;
 
-	struct {
-		liChunkFile *file;
-		off_t start; /* starting offset in the file */
-		off_t length; /* octets to send from the starting offset */
-
+	union {
+		GString *str;
 		struct {
-			char   *data; /* the pointer of the mmap'ed area */
-			size_t length; /* size of the mmap'ed area */
-			off_t  offset; /* start is <n> octets away from the start of the file */
-		} mmap;
-	} file;
+			liChunkFile *file;
+			off_t start; /* starting offset in the file */
+			off_t length; /* octets to send from the starting offset */
+
+			struct {
+				char   *data; /* the pointer of the mmap'ed area */
+				size_t length; /* size of the mmap'ed area */
+				off_t  offset; /* start is <n> octets away from the start of the file */
+			} mmap;
+		} file;
+		struct {
+			liBuffer *buffer;
+			gsize offset, length;
+		} buffer;
+	} data;
 
 	/* a chunk can only be in one queue, so we just reserve the memory for the link in it */
 	GList cq_link;
@@ -146,6 +152,12 @@ LI_API void li_chunkqueue_append_string(liChunkQueue *cq, GString *str);
   */
 LI_API void li_chunkqueue_append_bytearr(liChunkQueue *cq, GByteArray *mem);
 
+ /* pass ownership of buffer to chunkqueue, do not free/modify it afterwards
+  * you may modify the data (not the length) if you are sure it isn't sent before.
+  * if the length is NULL, buffer is destroyed immediately
+  */
+LI_API void li_chunkqueue_append_buffer(liChunkQueue *cq, liBuffer *buffer);
+
 /* memory gets copied */
 LI_API void li_chunkqueue_append_mem(liChunkQueue *cq, const void *mem, gssize len);
 
@@ -213,11 +225,13 @@ INLINE goffset li_chunk_length(liChunk *c) {
 	case UNUSED_CHUNK:
 		return 0;
 	case STRING_CHUNK:
-		return c->str->len - c->offset;
+		return c->data.str->len - c->offset;
 	case MEM_CHUNK:
 		return c->mem->len - c->offset;
 	case FILE_CHUNK:
-		return c->file.length - c->offset;
+		return c->data.file.length - c->offset;
+	case BUFFER_CHUNK:
+		return c->data.buffer.length - c->offset;
 	}
 	return 0;
 }

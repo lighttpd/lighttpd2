@@ -30,6 +30,7 @@
 #include <lighttpd/angel_data.h>
 #include <lighttpd/angel_connection.h>
 
+#include <lighttpd/buffer.h>
 #include <lighttpd/chunk.h>
 #include <lighttpd/chunk_parser.h>
 

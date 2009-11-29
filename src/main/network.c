@@ -78,8 +78,6 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 	off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
 	off_t len = 0;
-	liWorker *wrk = vr->wrk;
-	GByteArray *buf = wrk->network_read_buf;
 
 	if (cq->limit && cq->limit->limit > 0) {
 		if (max_read > cq->limit->limit - cq->limit->current) {
@@ -92,8 +90,9 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 	}
 
 	do {
-		g_byte_array_set_size(buf, blocksize);
-		if (-1 == (r = li_net_read(fd, buf->data, blocksize))) {
+		liBuffer *buf = li_buffer_new(blocksize);
+		if (-1 == (r = li_net_read(fd, buf->addr, buf->alloc_size))) {
+			li_buffer_release(buf);
 			switch (errno) {
 			case EAGAIN:
 #if EWOULDBLOCK != EAGAIN
@@ -107,11 +106,11 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {
+			li_buffer_release(buf);
 			return len ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_CONNECTION_CLOSE;
 		}
-		g_byte_array_set_size(buf, r);
-		li_chunkqueue_append_bytearr(cq, buf);
-		wrk->network_read_buf = buf = g_byte_array_sized_new(blocksize);
+		buf->used = r;
+		li_chunkqueue_append_buffer(cq, buf);
 		len += r;
 	} while (r == blocksize && len < max_read);
 

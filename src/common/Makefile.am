@@ -5,6 +5,7 @@ common_cflags=-I$(top_srcdir)/include -I$(top_builddir)/include
 common_src= \
 	angel_connection.c \
 	angel_data.c \
+	buffer.c \
 	encoding.c \
 	idlist.c \
 	ip_parsers.c \

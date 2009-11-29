@@ -154,6 +154,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${CM
 SET(COMMON_SRC
 	angel_connection.c
 	angel_data.c
+	buffer.c
 	encoding.c
 	idlist.c
 	ip_parsers.c

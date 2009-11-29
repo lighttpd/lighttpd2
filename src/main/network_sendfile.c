@@ -167,19 +167,19 @@ static liNetworkStatus network_backend_sendfile(liVRequest *vr, int fd, liChunkQ
 			return did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_FATAL_ERROR;
 		}
 
-		switch (li_chunkfile_open(vr, c->file.file)) {
+		switch (li_chunkfile_open(vr, c->data.file.file)) {
 		case LI_HANDLER_GO_ON:
 			break;
 		default:
 			return LI_NETWORK_STATUS_FATAL_ERROR;
 		}
 
-		file_offset = c->offset + c->file.start;
-		toSend = c->file.length - c->offset;
+		file_offset = c->offset + c->data.file.start;
+		toSend = c->data.file.length - c->offset;
 		if (toSend > *write_max) toSend = *write_max;
 
 		r = 0;
-		switch (lighty_sendfile(vr, fd, c->file.file->fd, file_offset, toSend, &r)) {
+		switch (lighty_sendfile(vr, fd, c->data.file.file->fd, file_offset, toSend, &r)) {
 		case NSR_SUCCESS:
 			li_chunkqueue_skip(cq, r);
 			*write_max -= r;
@@ -225,6 +225,7 @@ liNetworkStatus li_network_write_sendfile(liVRequest *vr, int fd, liChunkQueue *
 		switch (li_chunkqueue_first_chunk(cq)->type) {
 		case MEM_CHUNK:
 		case STRING_CHUNK:
+		case BUFFER_CHUNK:
 			LI_NETWORK_FALLBACK(li_network_backend_writev, write_max);
 			break;
 		case FILE_CHUNK:

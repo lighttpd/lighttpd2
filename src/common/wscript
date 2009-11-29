@@ -17,6 +17,7 @@ def build(bld):
 	source = '''
 		angel_connection.c
 		angel_data.c
+		buffer.c
 		encoding.c
 		idlist.c
 		ip_parsers.rl
