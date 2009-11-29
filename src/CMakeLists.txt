@@ -157,6 +157,7 @@ SET(COMMON_SRC
 	encoding.c
 	idlist.c
 	ip_parsers.c
+	mempool.c
 	module.c
 	radix.c
 	sys-files.c
