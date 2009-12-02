@@ -118,18 +118,10 @@ liHandlerResult li_chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start,
 
 		our_start = start + c->offset + c->data.file.start;
 
-		if (-1 == lseek(c->data.file.file->fd, our_start, SEEK_SET)) {
-			VR_ERROR(vr, "lseek failed for '%s' (fd = %i): %s",
-				GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
-				g_strerror(errno));
-			g_byte_array_free(c->mem, TRUE);
-			c->mem = NULL;
-			return LI_HANDLER_ERROR;
-		}
 read_chunk:
-		if (-1 == (we_have = read(c->data.file.file->fd, c->mem->data, length))) {
+		if (-1 == (we_have = pread(c->data.file.file->fd, c->mem->data, length, our_start))) {
 			if (EINTR == errno) goto read_chunk;
-			VR_ERROR(vr, "read failed for '%s' (fd = %i): %s",
+			VR_ERROR(vr, "pread failed for '%s' (fd = %i): %s",
 				GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 				g_strerror(errno));
 			g_byte_array_free(c->mem, TRUE);
@@ -139,7 +131,7 @@ read_chunk:
 			/* may return less than requested bytes due to signals */
 			/* CON_TRACE(srv, "read return unexpected number of bytes"); */
 			if (we_have == 0) {
-				VR_ERROR(vr, "read returned 0 bytes for '%s' (fd = %i): unexpected end of file?",
+				VR_ERROR(vr, "pread returned 0 bytes for '%s' (fd = %i): unexpected end of file?",
 					GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd);
 				g_byte_array_free(c->mem, TRUE);
 				c->mem = NULL;
@@ -159,7 +151,7 @@ read_chunk:
 	return LI_HANDLER_GO_ON;
 }
 
-/* same as li_chunkiter_read, but tries mmap() first and falls back to read();
+/* same as li_chunkiter_read, but tries mmap() first and falls back to pread();
  * as accessing mmap()-ed areas may result in SIGBUS, you have to handle that signal somehow.
  */
 liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
@@ -214,29 +206,14 @@ liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t s
 				mmap_errno = errno;
 			}
 			if (MAP_FAILED == c->data.file.mmap.data) {
-				/* fallback to read(...) */
+				/* fallback to pread(...) */
 				if (!c->mem) {
 					c->mem = g_byte_array_sized_new(we_want);
 				} else {
 					g_byte_array_set_size(c->mem, we_want);
 				}
-				if (-1 == lseek(c->data.file.file->fd, our_start, SEEK_SET)) {
-					/* prefer the error of the first syscall */
-					if (0 != mmap_errno) {
-						VR_ERROR(vr, "mmap failed for '%s' (fd = %i): %s",
-							GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
-							g_strerror(mmap_errno));
-					} else {
-						VR_ERROR(vr, "lseek failed for '%s' (fd = %i): %s",
-							GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
-							g_strerror(errno));
-					}
-					g_byte_array_free(c->mem, TRUE);
-					c->mem = NULL;
-					return LI_HANDLER_ERROR;
-				}
 read_chunk:
-				if (-1 == (we_have = read(c->data.file.file->fd, c->mem->data, we_want))) {
+				if (-1 == (we_have = pread(c->data.file.file->fd, c->mem->data, we_want, our_start))) {
 					if (EINTR == errno) goto read_chunk;
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
@@ -244,7 +221,7 @@ read_chunk:
 							GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 							g_strerror(mmap_errno));
 					} else {
-						VR_ERROR(vr, "read failed for '%s' (fd = %i): %s",
+						VR_ERROR(vr, "pread failed for '%s' (fd = %i): %s",
 							GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 							g_strerror(errno));
 					}
