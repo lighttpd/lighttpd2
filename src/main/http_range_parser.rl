@@ -33,18 +33,24 @@
 	}
 	action last_byte {
 		s->range_end = tmp;
+		found = TRUE;
 	}
 	action last_byte_empty {
-		s->range_end = s->limit;
+		s->range_end = s->limit - 1;
+		found = TRUE;
 	}
 	action suffix_range {
 		s->range_end = s->limit - 1;
 		s->range_start = s->limit - tmp;
+		found = TRUE;
+	}
+	action range_complete {
+		fbreak;
 	}
 
-	range = (int %first_byte "-" (int %last_byte | "" %last_byte_empty) | "-" int %suffix_range);
+	range = (int %first_byte ws* "-" ws** (int %last_byte | "" %last_byte_empty) | "-" ws* int %suffix_range) ;
 
-	main := ws* "bytes" "=" range ("," >{fbreak;} range)**;
+	main := ws* "bytes" ws* "=" (ws | ",")* range ( ws* "," >range_complete (ws | ",")* range)** (ws | ",")*;
 
 	write data;
 }%%
@@ -53,19 +59,31 @@ liParseHttpRangeResult li_parse_http_range_next(liParseHttpRangeState* s) {
 	const char *pe, *eof;
 	goffset tmp = 0;
 
+	if (s->cs == http_range_parser_error) {
+		return LI_PARSE_HTTP_RANGE_INVALID;
+	}
+
 	eof = pe = s->data->str + s->data->len;
 
 	for ( ;; ) {
-		if (s->cs >= http_range_parser_first_final) {
+		gboolean found = FALSE;
+
+		if (s->data_pos >= eof) {
 			return s->found_valid_range ? LI_PARSE_HTTP_RANGE_DONE : LI_PARSE_HTTP_RANGE_NOT_SATISFIABLE;
 		}
 
 		%% write exec;
 
-		if (s->cs >= http_range_parser_first_final) {
-			s->last_range = TRUE;
-		} else if (s->cs == http_range_parser_error) {
+		if (s->cs == http_range_parser_error) {
 			return LI_PARSE_HTTP_RANGE_INVALID;
+		}
+
+		if (s->data_pos >= eof) {
+			s->last_range = TRUE;
+		}
+
+		if (!found) {
+			return s->found_valid_range ? LI_PARSE_HTTP_RANGE_DONE : LI_PARSE_HTTP_RANGE_NOT_SATISFIABLE;
 		}
 
 		if (s->range_end >= s->limit) {
