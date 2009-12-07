@@ -72,10 +72,9 @@ LI_API gboolean mod_dirlist_free(liModules *mods, liModule *mod);
 
 /* html snippet constants */
 static const gchar html_header_start[] =
-	"<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n"
-	"<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\"\n"
-	"         \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
-	"<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\" lang=\"en\">\n"
+	"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n"
+	"         \"http://www.w3.org/TR/html4/loose.dtd\">\n"
+	"<html>\n"
 	"	<head>\n"
 	"		<title>Index of %s</title>\n";
 	
@@ -86,12 +85,12 @@ static const gchar html_header_end[] =
 static const gchar html_table_start[] =
 	"		<h2 id=\"title\">Index of %s</h2>\n"
 	"		<div id=\"dirlist\">\n"
-	"			<table summary=\"Directory Listing\" cellpadding=\"0\" cellspacing=\"0\">\n"
-	"				<thead><tr><th id=\"name\">Name</th><th id=\"modified\">Last Modified</th><th id=\"size\">Size</th><th id=\"type\">Type</th></tr></thead>\n"
+	"			<table summary=\"Directory Listing\" cellpadding=\"0\" cellspacing=\"0\" class=\"sort\">\n"
+	"				<thead><tr group=\"-1\"><th id=\"name\">Name:</th><th id=\"modified\" class=\"int\">Last Modified:</th><th id=\"size\" class=\"int\">Size:</th><th id=\"type\">Type:</th></tr></thead>\n"
 	"				<tbody>\n";
 
 static const gchar html_table_row[] =
-	"				<tr><td><a href=\"%s\">%s</a></td>"
+	"				<tr group=\"%c\"><td><a href=\"%s\">%s</a></td>"
 	"<td class=\"modified\" val=\"%"G_GINT64_FORMAT"\">%s</td>"
 	"<td class=\"size\" val=\"%"G_GINT64_FORMAT"\">%s</td>"
 	"<td class=\"type\">%s</td></tr>\n";
@@ -120,7 +119,108 @@ static const gchar html_css[] =
 	"	td.size, th#size { text-align: right; }\n"
 	"	#dirlist { background-color: white; border-top: 1px solid #646464; border-bottom: 1px solid #646464; padding-top: 10px; padding-bottom: 14px; }\n"
 	"	div#footer { font: 90% monospace; color: #787878; padding-top: 4px; }\n"
+	"	a.sortheader { color: black; text-decoration: none; display: block; }\n"
+	"	span.sortarrow { text-decoration: none; }\n"
 	"</style>\n";
+
+static const gchar javascript_sort[] =
+	"<script type=\"text/javascript\">\n"
+	"// <!--\n"
+	"var sort_column;\n"
+	"var prev_span = null;\n"
+	"var sort_numeric, sort_reverse;\n"
+
+	"function get_inner_text(el) {\n"
+	" if(el.getAttribute(\"val\")) return el.getAttribute(\"val\");\n"
+	" if((typeof el == 'string')||(typeof el == 'undefined'))\n"
+	"  return el;\n"
+	" if(el.innerText)\n"
+	"  return el.innerText;\n"
+	" else {\n"
+	"  var str = \"\";\n"
+	"  var cs = el.childNodes;\n"
+	"  var l = cs.length;\n"
+	"  for (var i=0;i<l;i++) {\n"
+	"   if (cs[i].nodeType==1) str += get_inner_text(cs[i]);\n"
+	"   else if (cs[i].nodeType==3) str += cs[i].nodeValue;\n"
+	"  }\n"
+	" }\n"
+	" return str;\n"
+	"}\n"
+
+	"function sortfn(a,b) {\n"
+	" var ag = parseInt(a.getAttribute('group'));\n"
+	" var bg = parseInt(b.getAttribute('group'));\n"
+	" if (ag != bg) return (ag - bg);\n"
+	" var at = get_inner_text(a.cells[sort_column]);\n"
+	" var bt = get_inner_text(b.cells[sort_column]);\n"
+	" if (sort_numeric) {\n"
+	"  return sort_reverse*(parseInt(at)-parseInt(bt));\n"
+	" } else {\n"
+	"  var aa = at.toLowerCase();\n"
+	"  var bb = bt.toLowerCase();\n"
+	"  if (aa==bb) return 0;\n"
+	"  else if (aa<bb) return -1*sort_reverse;\n"
+	"  else return sort_reverse;\n"
+	" }\n"
+	"}\n"
+
+	"function resort(lnk) {\n"
+	" var span = lnk.childNodes[1];\n"
+	" var table = lnk.parentNode.parentNode.parentNode.parentNode;\n"
+	" var rows = new Array();\n"
+	" for (var j=1;j<table.rows.length;j++)\n"
+	"  rows[j-1] = table.rows[j];\n"
+	" sort_column = lnk.parentNode.cellIndex;\n"
+	" sort_numeric = (lnk.parentNode.className == 'int');\n"
+	" sort_reverse = (span.getAttribute('sortdir')=='down') ? -1 : 1;\n"
+	" rows.sort(sortfn);\n"
+
+	" if (prev_span != null) prev_span.innerHTML = ':';\n"
+	" if (span.getAttribute('sortdir')=='down') {\n"
+	"  span.innerHTML = '&uarr;';\n"
+	"  span.setAttribute('sortdir','up');\n"
+	" } else {\n"
+	"  span.innerHTML = '&darr;';\n"
+	"  span.setAttribute('sortdir','down');\n"
+	" }\n"
+	" for (var i=0;i<rows.length;i++)\n"
+	"  table.tBodies[0].appendChild(rows[i]);\n"
+	" prev_span = span;\n"
+	"}\n"
+
+	"function init_sort() {\n"
+	" var tables = document.getElementsByTagName(\"table\");\n"
+	" for (var i = 0; i < tables.length; i++) {\n"
+	"  var table = tables[i];\n"
+	"  var c = table.getAttribute(\"class\")\n"
+	"  if (-1 != c.split(\" \").indexOf(\"sort\")) {\n"
+	"   var row = table.rows[0].cells;\n"
+	"   for (var j = 0; j < row.length; j++) {\n"
+	"    var n = row[j];\n"
+	"    if (n.childNodes.length == 1 && n.childNodes[0].nodeType == 3) {\n"
+	"     var link = document.createElement(\"a\");\n"
+	"     var title = n.childNodes[0].nodeValue.replace(/:$/, \"\");\n"
+	"     link.appendChild(document.createTextNode(title));\n"
+	"     link.setAttribute(\"href\", \"#\");\n"
+	"     link.setAttribute(\"class\", \"sortheader\");\n"
+    "     link.setAttribute(\"onclick\", \"resort(this);return false;\");\n"
+	"     var arrow = document.createElement(\"span\");\n"
+	"     arrow.setAttribute(\"class\", \"sortarrow\");\n"
+	"     arrow.appendChild(document.createTextNode(\":\"));\n"
+	"     link.appendChild(arrow)\n"
+	"     n.replaceChild(link, n.firstChild);\n"
+	"    }\n"
+	"   }\n"
+	"   resort(row[0].firstChild);\n"
+	"  }\n"
+    " }\n"
+	"}\n"
+
+	"init_sort();\n"
+	"// -->\n"
+	"</script>\n";
+
 
 struct dirlist_data {
 	liPlugin *plugin;
@@ -129,6 +229,7 @@ struct dirlist_data {
 	gboolean hide_tildefiles;
 	gboolean include_header, hide_header, encode_header;
 	gboolean include_readme, hide_readme, encode_readme;
+	gboolean include_sort;
 	gboolean hide_directories;
 	gboolean debug;
 	GPtrArray *exclude_suffix;
@@ -389,8 +490,10 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 		g_string_append_printf(listing, html_table_start, vr->request.uri.path->str);
 
-		g_string_append_printf(listing, html_table_row, "../",
-			"Parent Directory", (gint64)0, "", (gint64)0, "-", "Directory");
+		if (0 != strcmp("/", vr->request.uri.path->str)) {
+			g_string_append_printf(listing, html_table_row, '0', "../",
+				"Parent Directory", (gint64)0, "", (gint64)0, "-", "Directory");
+		}
 
 		/* list directories */
 		if (!dd->hide_directories) {
@@ -401,7 +504,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 				datebuflen = strftime(datebuf, sizeof(datebuf), "%Y-%b-%d %H:%M:%S", &tm);
 				datebuf[datebuflen] = '\0';
 
-				g_string_append_len(listing, CONST_STR_LEN("				<tr><td><a href=\""));
+				g_string_append_len(listing, CONST_STR_LEN("				<tr group=\"1\"><td><a href=\""));
 				li_string_encode(sced->path->str, encoded, LI_ENCODING_URI);
 				g_string_append_len(listing, GSTR_LEN(encoded));
 				g_string_append_len(listing, CONST_STR_LEN("/\">"));
@@ -430,7 +533,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 			dirlist_format_size(sizebuf, sced->st.st_size);
 
-			g_string_append_len(listing, CONST_STR_LEN("				<tr><td><a href=\""));
+			g_string_append_len(listing, CONST_STR_LEN("				<tr group=\"2\"><td><a href=\""));
 			li_string_encode(sced->path->str, encoded, LI_ENCODING_URI);
 			g_string_append_len(listing, GSTR_LEN(encoded));
 			g_string_append_len(listing, CONST_STR_LEN("\">"));
@@ -466,6 +569,10 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 		g_string_append_len(listing, CONST_STR_LEN(html_table_end));
 
 		try_append_file(vr, &listing, "README.txt", dd->encode_readme);
+
+		if (dd->include_sort) {
+			g_string_append_len(listing, CONST_STR_LEN(javascript_sort));
+		}
 
 		g_string_append_printf(listing, html_footer, CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string->str);
 
@@ -521,6 +628,7 @@ static liAction* dirlist_create(liServer *srv, liPlugin* p, liValue *val) {
 	data->include_readme = TRUE;
 	data->encode_header = TRUE;
 	data->encode_readme = TRUE;
+	data->include_sort = TRUE;
 	data->exclude_suffix = g_ptr_array_new();
 	data->exclude_prefix = g_ptr_array_new();
 	data->content_type = g_string_new("text/html; charset=utf-8");
