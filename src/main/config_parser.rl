@@ -866,6 +866,13 @@
 				}
 				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_HEADER, li_value_extract(k).string);
 			}
+			else if (g_str_equal(str, "environment") || g_str_equal(str, "env")) {
+				if (k == NULL) {
+					WARNING(srv, "%s", "environment conditional needs a key");
+					return FALSE;
+				}
+				lvalue = li_condition_lvalue_new(LI_COMP_ENVIRONMENT, li_value_extract(k).string);
+			}
 			else {
 				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
 				return FALSE;

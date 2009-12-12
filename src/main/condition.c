@@ -262,6 +262,7 @@ const char* li_cond_lvalue_to_string(liCondLValue t) {
 	case LI_COMP_RESPONSE_STATUS: return "response.status";
 	case LI_COMP_REQUEST_HEADER: return "request.header";
 	case LI_COMP_RESPONSE_HEADER: return "response.header";
+	case LI_COMP_ENVIRONMENT: return "request.environment";
 	case LI_COMP_UNKNOWN: return "<unknown>";
 	}
 
@@ -293,6 +294,8 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 			return LI_COMP_REQUEST_CONTENT_LENGTH;
 		else if (strncmp(c, "header", len) == 0)
 			return LI_COMP_REQUEST_HEADER;
+		else if (strncmp(c, "environment", len) == 0 || strncmp(c, "env", len) == 0)
+			return LI_COMP_ENVIRONMENT;
 		else if (strncmp(c, "is_handled", len) == 0)
 			return LI_COMP_REQUEST_IS_HANDLED;
 	} else if (g_str_has_prefix(c, "physical.")) {
@@ -411,6 +414,9 @@ static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liConditio
 		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 		li_http_header_get_all(con->wrk->tmp_str, vr->response.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
+		break;
+	case LI_COMP_ENVIRONMENT:
+		val = li_environment_get(&vr->env, GSTR_LEN(cond->lvalue->key));
 		break;
 	case LI_COMP_REQUEST_CONTENT_LENGTH:
 		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
@@ -599,6 +605,9 @@ static liHandlerResult li_condition_check_eval_ip(liVRequest *vr, liCondition *c
 		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 		li_http_header_get_all(con->wrk->tmp_str, vr->response.headers, GSTR_LEN(cond->lvalue->key));
 		val = con->wrk->tmp_str->str;
+		break;
+	case LI_COMP_ENVIRONMENT:
+		val = li_environment_get(&vr->env, GSTR_LEN(cond->lvalue->key))->str;
 		break;
 	case LI_COMP_PHYSICAL_SIZE:
 	case LI_COMP_REQUEST_CONTENT_LENGTH:

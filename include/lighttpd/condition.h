@@ -54,7 +54,8 @@ typedef enum {
 
 /* needs a key */
 	LI_COMP_REQUEST_HEADER,         /**< needs lowercase key, enforced by li_condition_lvalue_new */
-	LI_COMP_RESPONSE_HEADER,         /**< needs lowercase key, enforced by li_condition_lvalue_new */
+	LI_COMP_RESPONSE_HEADER,        /**< needs lowercase key, enforced by li_condition_lvalue_new */
+	LI_COMP_ENVIRONMENT,
 
 	LI_COMP_UNKNOWN
 } liCondLValue;
