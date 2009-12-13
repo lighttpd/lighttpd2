@@ -328,15 +328,14 @@ void li_instance_state_reached(liInstance *i, liInstanceState s) {
 		/* nothing to do, instance should already know what to do */
 		break;
 	case LI_INSTANCE_FINISHED:
-		if (i->s_dest != LI_INSTANCE_FINISHED) {
-			if (i->replace) {
-				ERROR(i->srv, "%s", "Replacing instance failed, continue old instance");
-				li_instance_set_state(i->replace, LI_INSTANCE_RUNNING);
+		if (i->replace) {
+			ERROR(i->srv, "%s", "Replacing instance failed, continue old instance");
+			li_instance_set_state(i->replace, LI_INSTANCE_RUNNING);
 
-				li_instance_unset_replace(i->replace, i);
-			}
-		} else {
+			li_instance_unset_replace(i->replace, i);
+		} else if (i->s_dest == LI_INSTANCE_FINISHED) {
 			if (i->replace_by) {
+				INFO(i->srv, "%s", "Instance replaced");
 				if (i->replace_by->s_dest == LI_INSTANCE_WARMUP) {
 					li_instance_set_state(i->replace_by, LI_INSTANCE_RUNNING);
 				}
