@@ -19,6 +19,7 @@ ADD_DEFINITIONS(-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGE_FILES)
 
 # OPTION(WITH_OPENSSL "with openssl-support [default: on]" ON)
 OPTION(WITH_LUA "with lua 5.1 for lua-configfile [default: on]" ON)
+OPTION(WITHOUT_CONFIG_PARSER "without standard config parser [default: off]" OFF)
 OPTION(WITH_OPENSSL "with openssl-support [default: off]")
 OPTION(BUILD_STATIC "build a static lighttpd with all modules added")
 OPTION(BUILD_EXTRA_WARNINGS "extra warnings")
@@ -177,7 +178,6 @@ SET(LIGHTTPD_SHARED_SRC
 	chunk_parser.c
 	collect.c
 	condition.c
-	config_parser.c
 	connection.c
 	environment.c
 	etag.c
@@ -206,6 +206,12 @@ SET(LIGHTTPD_SHARED_SRC
 
 	plugin_core.c
 )
+
+IF(NOT WITHOUT_CONFIG_PARSER)
+SET(LIGHTTPD_SHARED_SRC ${LIGHTTPD_SHARED_SRC}
+	config_parser.c
+)
+ENDIF(NOT WITHOUT_CONFIG_PARSER)
 
 IF(WITH_LUA)
 SET(LIGHTTPD_SHARED_SRC ${LIGHTTPD_SHARED_SRC}

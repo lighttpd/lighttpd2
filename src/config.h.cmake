@@ -153,4 +153,6 @@
 #cmakedefine HAVE_FASTCGI_H
 #cmakedefine HAVE_FASTCGI_FASTCGI_H
 
+/* features */
+#cmakedefine WITHOUT_CONFIG_PARSER
 #cmakedefine LIGHTTPD_STATIC

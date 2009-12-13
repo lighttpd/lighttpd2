@@ -1421,3 +1421,44 @@ static gboolean config_parser_buffer(liServer *srv, GList *ctx_stack) {
 
 	return TRUE;
 }
+
+gboolean li_config_parse(liServer *srv, const gchar *config_path) {
+	GTimeVal start, end;
+	gulong s, millis, micros;
+	guint64 d;
+	liAction *a;
+	liConfigParserContext *ctx;
+	GList *ctx_stack = NULL;
+
+	g_get_current_time(&start);
+
+	/* standard config frontend */
+	ctx_stack = li_config_parser_init(srv);
+	ctx = (liConfigParserContext*) ctx_stack->data;
+	if (!li_config_parser_file(srv, ctx_stack, config_path)) {
+		li_config_parser_finish(srv, ctx_stack, TRUE);
+		return FALSE; /* no cleanup on config error, same as config test */
+	}
+
+	/* append fallback "static" action */
+	a = li_create_action(srv, "static", NULL);
+	g_array_append_val(srv->mainaction->data.list, a);
+
+	g_get_current_time(&end);
+	d = end.tv_sec - start.tv_sec;
+	d *= 1000000;
+	d += end.tv_usec - start.tv_usec;
+	s = d / 1000000;
+	millis = (d - s) / 1000;
+	micros = (d - s - millis) %1000;
+	DEBUG(srv, "parsed config file in %lu seconds, %lu milliseconds, %lu microseconds", s, millis, micros);
+
+	if (g_queue_get_length(ctx->option_stack) != 0 || g_queue_get_length(ctx->action_list_stack) != 1)
+		DEBUG(srv, "option_stack: %u action_list_stack: %u (should be 0:1)", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
+
+	li_config_parser_finish(srv, ctx_stack, FALSE);
+
+	li_config_parser_finish(srv, ctx_stack, TRUE);
+
+	return TRUE;
+}

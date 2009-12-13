@@ -46,6 +46,8 @@ struct liConfigParserContext {
 	gsize line; /* holds current line */
 };
 
+LI_API gboolean li_config_parse(liServer *srv, const gchar *config_path);
+
 /* returns a new config parser stack with the first context in it */
 LI_API GList* li_config_parser_init(liServer *srv);
 LI_API void li_config_parser_finish(liServer *srv, GList *ctx_stack, gboolean free_all);

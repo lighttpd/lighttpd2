@@ -1,6 +1,5 @@
 
 #include <lighttpd/base.h>
-#include <lighttpd/config_parser.h>
 #include <lighttpd/profiler.h>
 #include <lighttpd/plugin_core.h>
 
@@ -8,6 +7,10 @@
 
 #ifdef HAVE_LUA_H
 # include <lighttpd/config_lua.h>
+#endif
+
+#ifndef WITHOUT_CONFIG_PARSER
+# include <lighttpd/config_parser.h>
 #endif
 
 #ifndef DEFAULT_LIBDIR
@@ -28,8 +31,6 @@ int main(int argc, char *argv[]) {
 	gboolean test_config = FALSE;
 	gboolean show_version = FALSE;
 	gboolean use_angel = FALSE;
-
-	GList *ctx_stack = NULL;
 
 	GOptionEntry entries[] = {
 		{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_path, "filename/path of the config", "PATH" },
@@ -96,39 +97,13 @@ int main(int argc, char *argv[]) {
 	DEBUG(srv, "config path: %s", config_path);
 
 	if (!luaconfig) {
-		GTimeVal start, end;
-		gulong s, millis, micros;
-		guint64 d;
-		liAction *a;
-		liConfigParserContext *ctx;
-
-		g_get_current_time(&start);
-
-		/* standard config frontend */
-		ctx_stack = li_config_parser_init(srv);
-		ctx = (liConfigParserContext*) ctx_stack->data;
-		if (!li_config_parser_file(srv, ctx_stack, config_path)) {
-			li_config_parser_finish(srv, ctx_stack, TRUE);
-			return 1; /* no cleanup on config error, same as config test */
-		}
-
-		/* append fallback "static" action */
-		a = li_create_action(srv, "static", NULL);
-		g_array_append_val(srv->mainaction->data.list, a);
-
-		g_get_current_time(&end);
-		d = end.tv_sec - start.tv_sec;
-		d *= 1000000;
-		d += end.tv_usec - start.tv_usec;
-		s = d / 1000000;
-		millis = (d - s) / 1000;
-		micros = (d - s - millis) %1000;
-		DEBUG(srv, "parsed config file in %lu seconds, %lu milliseconds, %lu microseconds", s, millis, micros);
-
-		if (g_queue_get_length(ctx->option_stack) != 0 || g_queue_get_length(ctx->action_list_stack) != 1)
-			DEBUG(srv, "option_stack: %u action_list_stack: %u (should be 0:1)", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
-
-		li_config_parser_finish(srv, ctx_stack, FALSE);
+#ifndef WITHOUT_CONFIG_PARSER
+		if (!li_config_parse(srv, config_path))
+			return 1;
+#else
+		g_print("standard config frontend not available\n");
+		return 1;
+#endif
 	}
 	else {
 #ifdef HAVE_LUA_H
@@ -154,9 +129,6 @@ int main(int argc, char *argv[]) {
 	li_server_reached_state(srv, LI_SERVER_LOADING);
 	li_worker_run(srv->main_worker);
 	li_server_reached_state(srv, LI_SERVER_DOWN);
-
-	if (!luaconfig)
-		li_config_parser_finish(srv, ctx_stack, TRUE);
 
 	INFO(srv, "%s", "going down");
 
