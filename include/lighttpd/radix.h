@@ -3,68 +3,16 @@
 
 #include <lighttpd/settings.h>
 
-/*
- * Radix tree with 32bit key, lookup, insert and remove in O(32).
- * This is where the bit magic happens.
- */
+typedef struct liRadixTree liRadixTree;
 
-typedef struct liRadixNode32 liRadixNode32;
-struct liRadixNode32 {
-	guint32 key;
-	guint32 mask;
-	gpointer data;
-	liRadixNode32 *parent;
-	liRadixNode32 *right;
-	liRadixNode32 *left;
-};
+LI_API liRadixTree* li_radixtree_new();
+LI_API void li_radixtree_free(liRadixTree *tree, GFunc free_func, gpointer free_userdata);
 
-typedef struct liRadixTree32 liRadixTree32;
-struct liRadixTree32 {
-	liRadixNode32 **root;
-	guint32 size;
-	guint32 root_width;
-	guint32 root_mask;
-};
+LI_API gpointer li_radixtree_insert(liRadixTree *tree, const void *key, guint32 bits, gpointer data); /* returns old data after overwrite */
+LI_API gpointer li_radixtree_remove(liRadixTree *tree, const void *key, guint32 bits); /* returns data from removed node */
+LI_API gpointer li_radixtree_lookup(liRadixTree *tree, const void *key, guint32 bits); /* longest matching prefix */
+LI_API gpointer li_radixtree_lookup_exact(liRadixTree *tree, const void *key, guint32 bits);
 
+LI_API void li_radixtree_foreach(liRadixTree *tree, GFunc func, gpointer userdata);
 
-LI_API liRadixTree32 *li_radixtree32_new(guint32 root_width);
-LI_API guint32 li_radixtree32_free(liRadixTree32 *tree);
-
-LI_API void li_radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpointer data);
-LI_API gboolean li_radixtree32_remove(liRadixTree32 *tree, guint32 key, guint32 mask);
-
-/* lookup tree node (best match) */
-LI_API liRadixNode32 *li_radixtree32_lookup_node(liRadixTree32 *tree, guint32 key);
-
-/* lookup data pointer (best match) */
-LI_API gpointer li_radixtree32_lookup(liRadixTree32 *tree, guint32 key);
-/* lookup data pointer (exact match) */
-LI_API gpointer li_radixtree32_lookup_exact(liRadixTree32 *tree, guint32 key);
-
-/*
-typedef struct liRadixNode128 liRadixNode128;
-struct liRadixNode128 {
-	guint32 key[4];
-	guint32 mask[3];
-	gpointer data;
-	liRadixNode128 *parent;
-	liRadixNode128 *right;
-	liRadixNode128 *left;
-};
-
-
-struct liRadixTree128 {
-	liRadixNode128 **root;
-	guint64 size;
-	guint32 root_width;
-	guint32 root_mask;
-}
-
-LI_api liRadixTree128 *radixtree128_new(guint32 root_width);
-LI_API guint li_radixtree128_free(liRadixTree128 *tree);
-
-LI_API void li_radixtree128_insert(liRadixTree128 *tree, guint32 *key, guint32 *mask, gpointer data);
-LI_API gboolean li_radixtree128_remove(liRadixTree128 *tree, guint32 *key, guint32 *mask);
-LI_API gpointer li_radixtree128_lookup(liRadixTree128 *tree, guint32 *key);
-*/
 #endif

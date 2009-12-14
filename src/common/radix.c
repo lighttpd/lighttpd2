@@ -1,254 +1,318 @@
 
 #include <lighttpd/radix.h>
 
-liRadixTree32 *li_radixtree32_new(guint32 root_width) {
-	guint32 i;
-	liRadixTree32 *tree = g_slice_new(liRadixTree32);
+/* internal data is saved in "host"-order; search from high to low bit */
+typedef guint32 rdxBase;
+#define HTON_RDX(x) ((rdxBase) (htonl(x)))
 
-	if (root_width == 0)
-		root_width = 1;
-	else if (root_width > 8)
-		root_width = 8;
+#define RDXBITS (sizeof(rdxBase)*8)
 
-	tree->root = g_new0(liRadixNode32*, 1 << root_width);
-	tree->size = 0;
-	tree->root_width = root_width;
-	tree->root_mask = 0;
+/* 1^(width) 0^(RDXBITS-width): "1..10..0" */
+#define RDX_MASK(width) ( bits ? ~(  (((rdxBase)1) << (RDXBITS - width)) - 1  ) : 0 )
 
-	for (i = 0; i < root_width; i++)
-		tree->root_mask = ~(~tree->root_mask >> 1);
+#define INPUT_SIZE(bits) ( bits ? (bits+RDXBITS-1) / RDXBITS : 1 )
+#define INPUT_CHARS(bits) ( (bits+7) / 8 )
+
+typedef struct liRadixNode liRadixNode;
+struct liRadixNode{
+	rdxBase key;
+	guint32 width;
+	gpointer data;
+	liRadixNode *right;
+	liRadixNode *left;
+};
+
+struct liRadixTree {
+	liRadixNode *zero;
+};
+
+liRadixTree* li_radixtree_new() {
+	liRadixTree *tree;
+
+	tree = g_slice_new0(liRadixTree);
 
 	return tree;
 }
 
-guint li_radixtree32_free(liRadixTree32 *tree) {
-	guint32 i;
-	liRadixNode32 *node, *parent;
-	guint32 n = 0;
+/* node != NULL */
+static void li_radixtree_free_node(liRadixNode *node, GFunc free_func, gpointer free_userdata) {
+	if (node->right) {
+		li_radixtree_free_node(node->right, free_func, free_userdata);
+	}
+	if (node->left) {
+		li_radixtree_free_node(node->left, free_func, free_userdata);
+	}
 
-	/* walk the tree and free every node */
-	for (i = 0; i < ((guint32)1 << tree->root_width); i++) {
-		node = tree->root[i];
+	if (free_func && node->data) free_func(node->data, free_userdata);
 
-		while (node) {
-			if (node->left)
-				node = node->left;
-			else if (node->right)
-				node = node->right;
-			else {
-				parent = node->parent;
+	g_slice_free(liRadixNode, node);
+}
 
-				if (parent) {
-					if (parent->left == node)
-						parent->left = NULL;
-					else
-						parent->right = NULL;
-				}
+void li_radixtree_free(liRadixTree *tree, GFunc free_func, gpointer free_userdata) {
+	if (tree->zero) li_radixtree_free_node(tree->zero, free_func, free_userdata);
 
-				g_slice_free(liRadixNode32, node);
-				node = parent;
-				n++;
+	g_slice_free(liRadixTree, tree);
+}
+
+static void rdx_get_input(rdxBase *dest, const void *key, guint32 bits) {
+	guint32 entries = INPUT_SIZE(bits), chars = INPUT_CHARS(bits), padding = entries*sizeof(rdxBase) - chars, i;
+
+	memcpy(dest, key, chars);
+	memset(((char*)dest) + chars, 0, padding);
+
+	for (i = 0; i < entries; i++) {
+		dest[i] = HTON_RDX(dest[i]);
+	}
+}
+
+gpointer li_radixtree_insert(liRadixTree *tree, const void *key, guint32 bits, gpointer data) {
+	liRadixNode *node, **nodeloc;
+	rdxBase input[INPUT_SIZE(bits)], current;
+	guint32 pos = 0;
+	rdx_get_input(input, key, bits);
+
+	if (!data) return NULL;
+
+	pos = 0;
+	current = input[0];
+
+	nodeloc = &tree->zero;
+
+	while (NULL != (node = *nodeloc)) {
+		rdxBase mask = RDX_MASK(node->width);
+
+		if (node->width > bits || (current & mask) != node->key) { /* prefix longer than key or key doesn't match */
+			/* split node */
+			liRadixNode *newnode;
+			guint32 width = (node->width > bits) ? bits : node->width;
+			mask = RDX_MASK(width);
+			while ((current & mask) != (node->key & mask)) {
+				width--;
+				mask <<= 1;
 			}
+			newnode = g_slice_new0(liRadixNode);
+			newnode->width = width;
+			newnode->key = current & mask;
+			if (node->key & (1 << (RDXBITS-width-1))) { /* current may not have a "next" bit */
+				newnode->right = node;
+				*nodeloc = newnode;
+				nodeloc = &newnode->left;
+			} else {
+				newnode->left = node;
+				*nodeloc = newnode;
+				nodeloc = &newnode->right;
+			}
+			if (width == bits) {
+				newnode->data = data;
+				return NULL;
+			} else {
+				/* NULL == *nodeloc */
+				break;
+			}
+		}
+
+		if (node->width == bits) { /* exact match */
+			gpointer olddata = node->data;
+			node->data = data;
+			return olddata;
+		}
+
+		if (mask & 0x1) {
+			/* next "layer" */
+			current = input[++pos];
+			bits -= RDXBITS;
+			nodeloc = (current & (1 << (RDXBITS-1))) ? &node->right : &node->left;
+		} else {
+			nodeloc = (current & (1 << (RDXBITS-node->width-1))) ? &node->right : &node->left;
 		}
 	}
 
-	g_free(tree->root);
-	g_slice_free(liRadixTree32, tree);
+	while (bits > RDXBITS) {
+		node = g_slice_new0(liRadixNode);
+		node->width = RDXBITS;
+		node->key = current;
+		*nodeloc = node;
 
-	return n;
+		/* next "layer" */
+		current = input[++pos];
+		bits -= RDXBITS;
+		nodeloc = (current & (1 << (RDXBITS-1))) ? &node->right : &node->left;
+	}
+
+	node = g_slice_new0(liRadixNode);
+	node->width = bits;
+	node->key = current & RDX_MASK(bits);
+	node->data = data;
+	*nodeloc = node;
+
+	return NULL;
 }
 
-void li_radixtree32_insert(liRadixTree32 *tree, guint32 key, guint32 mask, gpointer data) {
-	liRadixNode32 *last_node, *leaf;
-	liRadixNode32 *node = tree->root[(key & tree->root_mask) >> (32 - tree->root_width)];
+/* *nodeptr == node is the only pointer to node from the parent! */
+static void node_compact(liRadixNode **nodeptr, liRadixNode *node) {
+	liRadixNode *child;
 
-	if (!node) {
-		/* no root node yet */
-		node = g_slice_new(liRadixNode32);
-		node->key = key & mask;
-		node->mask = mask;
-		node->data = data;
-		node->parent = NULL;
-		node->left = NULL;
-		node->right = NULL;
-		tree->root[(key & tree->root_mask) >> (32 - tree->root_width)] = node;
-		tree->size++;
+	/* can't remove nodes with data: */
+	if (NULL != node->data) return;
 
+	if (NULL == node->left && NULL == node->right) {
+		/* delete node */
+		*nodeptr = NULL;
+		g_slice_free(liRadixNode, node);
 		return;
 	}
+	/* else: at least one child */
 
-	do {
-		if ((key & mask & node->mask) != node->key) {
-			/* node key differs, split tree */
-			liRadixNode32 *new_node;
-
-			/* the new internal node */
-			new_node = g_slice_new(liRadixNode32);
-			new_node->data = NULL;
-			new_node->parent = node->parent;
-			new_node->mask = node->mask;
-			new_node->key = node->key;
-
-			node->parent = new_node;
-
-			/* the new leaf */
-			leaf = g_slice_new(liRadixNode32);
-			leaf->key = key & mask;
-			leaf->mask = mask;
-			leaf->data = data;
-			leaf->parent = new_node;
-			leaf->left = NULL;
-			leaf->right = NULL;
-
-			do {
-				new_node->mask <<= 1;
-				new_node->key &= new_node->mask;
-			} while ((key & mask & new_node->mask) != new_node->key);
-
-			if ((key & new_node->mask) > (key & (~ (~ new_node->mask >> 1)))) {
-				new_node->left = node;
-				new_node->right = leaf;
-			} else {
-				new_node->left = leaf;
-				new_node->right = node;
-			}
-
-			if (new_node->parent) {
-				if (new_node->parent->left == node)
-					new_node->parent->left = new_node;
-				else
-					new_node->parent->right = new_node;
-			} else {
-				tree->root[(key & tree->root_mask) >> (32 - tree->root_width)] = new_node;
-			}
-
-			tree->size++;
-
-			return;
-		} else if ((key & mask) == node->key) {
-			node->data = data;
-
-			return;
-		}
-
-		last_node = node;
-
-		/* compare next bit */
-		if ((key & node->mask) > (key & (~ (~ node->mask >> 1))))
-			node = node->right;
-		else
-			node = node->left;
-	} while (node);
-
-	/* new leaf at end of tree */
-	leaf = g_slice_new0(liRadixNode32);
-	leaf->data = data;
-	leaf->key = key & mask;
-	leaf->mask = mask;
-	leaf->parent = last_node;
-
-	if ((key & last_node->mask) > (key & (~ (~ last_node->mask >> 1))))
-		last_node->right = leaf;
-	else
-		last_node->left = leaf;
-
-	tree->size++;
-}
-
-gboolean li_radixtree32_remove(liRadixTree32 *tree, guint32 key, guint32 mask) {
-	liRadixNode32 *node = tree->root[(key & tree->root_mask) >> (32 - tree->root_width)];
-
-	while (node) {
-		if (!node->data || (key & mask) != node->key) {
-			/* compare next bit */
-			if ((key & node->mask) > (key & (~ (~ node->mask >> 1))))
-				node = node->right;
-			else
-				node = node->left;
-
-			continue;
-		}
-
-		if (!node->left && !node->right) {
-			/* leaf */
-			if (node->parent) {
-				if (node->parent->data) {
-					/* set current node to parent */
-					node->data = node->parent->data;
-					node->key = node->parent->key;
-					node->mask = node->parent->mask;
-					node->parent->data = NULL;
-
-					return TRUE;
-				} else {
-					/* the parent internal node has no data, we can set our sibling as the new internal node */
-					liRadixNode32 *sibling = (node->parent->left == node) ? node->parent->right : node->parent->left;
-					if (node->parent->parent) {
-						if (node->parent->parent->left == node->parent)
-							node->parent->parent->left = sibling;
-						else
-							node->parent->parent->right = sibling;
-					} else {
-						/* the parent is the tree root, set root to our sibling */
-						tree->root[(key & tree->root_mask) >> (32 - tree->root_width)] = sibling;
-					}
-
-					/* old internal node not needed anymore */
-					tree->size--;
-					g_slice_free(liRadixNode32, node->parent);
-				}
-			} else {
-				/* tree root */
-				tree->root[(key & tree->root_mask) >> (32 - tree->root_width)] = NULL;
-			}
+	/* childs in the same layer? */
+	if (node->width != RDXBITS) {
+		/* exactly one child? (we have at least one!) */
+		if (NULL == node->left) {
+			child = node->right;
+		} else if (NULL == node->right) {
+			child = node->left;
 		} else {
-			/* internal node */
-			node->data = NULL;
-
-			return TRUE;
+			return; /* two childs */
 		}
 
-		tree->size--;
-		g_slice_free(liRadixNode32, node);
-
-		return TRUE;
+		/* replace our own node with child */
+		*nodeptr = child;
+		g_slice_free(liRadixNode, node);
+		return;
 	}
-
-	return FALSE;
 }
 
-liRadixNode32 *li_radixtree32_lookup_node(liRadixTree32 *tree, guint32 key) {
-	liRadixNode32 *node = tree->root[(key & tree->root_mask) >> (32 - tree->root_width)];
-	liRadixNode32 *result = NULL;
+/* *nodeptr == node is the only pointer to the node from the parent! */
+static gpointer radixtree_remove(liRadixNode **nodeptr, rdxBase *input, guint32 bits) {
+	liRadixNode **nextnode;
+	gpointer data;
+	rdxBase current, mask;
+	liRadixNode *node = *nodeptr;
+
+	if (!node) return NULL;
+
+	current = *input;
+	mask = RDX_MASK(node->width);
+
+	if (node->width > bits) return NULL; /* prefix longer than key */
+
+	if ((current & mask) != node->key) return NULL; /* doesn't match */
+
+	if (node->width == bits) { /* exact match */
+		data = node->data;
+		node->data = NULL;
+		node_compact(nodeptr, node);
+		return data;
+	}
+
+	if (mask & 0x1) {
+		/* next "layer" */
+		input++;
+		bits -= RDXBITS;
+		nextnode = (current & (1 << (RDXBITS-1))) ? &node->right : &node->left;
+	} else {
+		nextnode = (current & (1 << (RDXBITS-node->width-1))) ? &node->right : &node->left;
+	}
+
+	data = radixtree_remove(nextnode, input, bits);
+
+	if (data == NULL) return NULL; /* nothing deleted */
+
+	node_compact(nodeptr, node);
+
+	return data;
+}
+
+gpointer li_radixtree_remove(liRadixTree *tree, const void *key, guint32 bits) {
+	rdxBase input[INPUT_SIZE(bits)];
+	gpointer data;
+	rdx_get_input(input, key, bits);
+
+	data = radixtree_remove(&tree->zero, input, bits);
+
+	return data;
+}
+
+gpointer li_radixtree_lookup(liRadixTree *tree, const void *key, guint32 bits) { /* longest matching prefix */
+	liRadixNode *node;
+	rdxBase input[INPUT_SIZE(bits)], current;
+	guint32 pos = 0;
+	gpointer data = NULL;
+
+	rdx_get_input(input, key, bits);
+
+	pos = 0;
+	current = input[0];
+
+	node = tree->zero;
 
 	while (node) {
-		if ((key & node->mask) != node->key)
-			return result;
+		rdxBase mask = RDX_MASK(node->width);
 
-		if (node->data)
-			result = node;
+		if (node->width > bits) break; /* prefix longer than key */
 
-		/* compare next bit */
-		if ((key & node->mask) > (key & (~ (~ node->mask >> 1))))
-			node = node->right;
-		else
-			node = node->left;
+		if ((current & mask) != node->key) break; /* doesn't match */
+
+		if (node->data) data = node->data; /* longest matching prefix */
+
+		if (node->width == bits) break; /* "end of key" */
+
+		if (mask & 0x1) {
+			/* next "layer" */
+			current = input[++pos];
+			bits -= RDXBITS;
+			node = (current & (1 << (RDXBITS-1))) ? node->right : node->left;
+		} else {
+			node = (current & (1 << (RDXBITS-node->width-1))) ? node->right : node->left;
+		}
 	}
 
-	return result;
+	return data;
 }
 
-gpointer li_radixtree32_lookup(liRadixTree32 *tree, guint32 key) {
-	liRadixNode32 *node = li_radixtree32_lookup_node(tree, key);
 
-	return node ? node->data : NULL;
+gpointer li_radixtree_lookup_exact(liRadixTree *tree, const void *key, guint32 bits) {
+	liRadixNode *node;
+	rdxBase input[INPUT_SIZE(bits)], current;
+	guint32 pos = 0;
+
+	rdx_get_input(input, key, bits);
+
+	pos = 0;
+	current = input[0];
+
+	node = tree->zero;
+
+	while (node) {
+		rdxBase mask = RDX_MASK(node->width);
+
+		if (node->width > bits) break; /* prefix longer than key */
+
+		if ((current & mask) != node->key) break; /* doesn't match */
+
+		if (node->width == bits) return node->data; /* exact match */
+
+		if (mask & 0x1) {
+			/* next "layer" */
+			current = input[++pos];
+			bits -= RDXBITS;
+			node = (current & (1 << (RDXBITS-1))) ? node->right : node->left;
+		} else {
+			node = (current & (1 << (RDXBITS-node->width-1))) ? node->right : node->left;
+		}
+	}
+
+	return NULL;
 }
 
-gpointer li_radixtree32_lookup_exact(liRadixTree32 *tree, guint32 key) {
-	liRadixNode32 *node = li_radixtree32_lookup_node(tree, key);
+/* node != NULL */
+static void radixtree_foreach(liRadixNode *node, GFunc func, gpointer userdata) {
+	if (node->data) {
+		func(node->data, userdata);
+	}
+	if (node->right) radixtree_foreach(node->right, func, userdata);
+	if (node->left) radixtree_foreach(node->left, func, userdata);
+}
 
-	if (!node)
-		return NULL;
-
-	return (node->key == key) ? node->data : NULL;
+void li_radixtree_foreach(liRadixTree *tree, GFunc func, gpointer userdata) {
+	if (tree->zero) radixtree_foreach(tree->zero, func, userdata);
 }

@@ -22,8 +22,8 @@
  * Example config:
  *     access.redirect_url = "http://www.example.tld/denied.html";
  *     access.check (
- *         "allow" => ("127.0.0.0/24", "192.168.0.0/16"),
- *         "deny" => "all"
+ *         "allow" => ("127.0.0.0/24", "192.168.0.0/16", "::1"),
+ *         "deny" => ( "all" )
  *     );
  *     if req.path =$ ".inc" { access.deny; }
  *
@@ -36,7 +36,6 @@
  *
  * Todo:
  *     - access.redirect_url
- *     - ipv6 support
  *
  * Author:
  *     Copyright (c) 2009 Thomas Porzelt
@@ -52,9 +51,11 @@ LI_API gboolean mod_access_free(liModules *mods, liModule *mod);
 
 struct access_check_data {
 	liPlugin *p;
-	liRadixTree32 *ipv4;
+	liRadixTree *ipv4, *ipv6;
 };
 typedef struct access_check_data access_check_data;
+
+enum { ACCESS_DENY = 1, ACCESS_ALLOW = 2 } access_values;
 
 
 static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *context) {
@@ -67,7 +68,7 @@ static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *co
 	UNUSED(redirect_url);
 
 	if (addr->plain.sa_family == AF_INET) {
-		if (li_radixtree32_lookup(acd->ipv4, htonl(addr->ipv4.sin_addr.s_addr))) {
+		if (GINT_TO_POINTER(ACCESS_DENY) == li_radixtree_lookup(acd->ipv4, &addr->ipv4.sin_addr.s_addr, 32)) {
 			if (!li_vrequest_handle_direct(vr))
 				return LI_HANDLER_GO_ON;
 
@@ -76,9 +77,18 @@ static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *co
 			if (log_blocked)
 				VR_INFO(vr, "access.check: blocked %s", vr->con->remote_addr_str->str);
 		}
+#ifdef HAVE_IPV6
 	} else if (addr->plain.sa_family == AF_INET6) {
-		VR_ERROR(vr, "%s", "access.check doesn't support ipv6 clients yet");
-		return LI_HANDLER_ERROR;
+		if (GINT_TO_POINTER(ACCESS_DENY) == li_radixtree_lookup(acd->ipv6, &addr->ipv6.sin6_addr.s6_addr, 128)) {
+			if (!li_vrequest_handle_direct(vr))
+				return LI_HANDLER_GO_ON;
+
+			vr->response.http_status = 403;
+
+			if (log_blocked)
+				VR_INFO(vr, "access.check: blocked %s", vr->con->remote_addr_str->str);
+		}
+#endif
 	} else {
 		VR_ERROR(vr, "%s", "access.check only supports ipv4 or ipv6 clients");
 		return LI_HANDLER_ERROR;
@@ -92,7 +102,8 @@ static void access_check_free(liServer *srv, gpointer param) {
 
 	UNUSED(srv);
 
-	li_radixtree32_free(acd->ipv4);
+	li_radixtree_free(acd->ipv4, NULL, NULL);
+	li_radixtree_free(acd->ipv6, NULL, NULL);
 	g_slice_free(access_check_data, acd);
 }
 
@@ -102,7 +113,6 @@ static liAction* access_check_create(liServer *srv, liPlugin* p, liValue *val) {
 	guint i, j;
 	guint32 ipv4, netmaskv4;
 	gboolean deny = FALSE;
-	gboolean got_deny = FALSE;
 	access_check_data *acd = NULL;
 
 	UNUSED(srv);
@@ -116,77 +126,77 @@ static liAction* access_check_create(liServer *srv, liPlugin* p, liValue *val) {
 
 	acd = g_slice_new0(access_check_data);
 	acd->p = p;
-	acd->ipv4 = li_radixtree32_new(2);
+	acd->ipv4 = li_radixtree_new(2);
+	acd->ipv6 = li_radixtree_new(2);
+	li_radixtree_insert(acd->ipv4, NULL, 0, GINT_TO_POINTER(ACCESS_DENY));
+	li_radixtree_insert(acd->ipv6, NULL, 0, GINT_TO_POINTER(ACCESS_DENY));
 
 	for (i = 0; i < arr->len; i++) {
 		v = g_array_index(arr, liValue*, i);
 
 		if (v->type != LI_VALUE_LIST || v->data.list->len != 2) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
-			li_radixtree32_free(acd->ipv4);
-			g_slice_free(access_check_data, acd);
-			return NULL;
+			goto failed_free_acd;
 		}
 
 		v = g_array_index(v->data.list, liValue*, 0);
 
 		if (v->type != LI_VALUE_STRING) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
-			li_radixtree32_free(acd->ipv4);
-			g_slice_free(access_check_data, acd);
-			return NULL;
+			goto failed_free_acd;
 		}
 
 		if (g_str_equal(v->data.string->str, "allow")) {
 			deny = FALSE;
 		} else if (g_str_equal(v->data.string->str, "deny")) {
 			deny = TRUE;
-			got_deny = TRUE;
 		} else {
 			ERROR(srv, "access_check: invalid option \"%s\"", v->data.string->str);
-			li_radixtree32_free(acd->ipv4);
-			g_slice_free(access_check_data, acd);
-			return NULL;
+			goto failed_free_acd;
 		}
 
 		v = g_array_index(g_array_index(arr, liValue*, i)->data.list, liValue*, 1);
 
 		if (v->type != LI_VALUE_LIST) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
-			li_radixtree32_free(acd->ipv4);
-			g_slice_free(access_check_data, acd);
-			return NULL;
+			goto failed_free_acd;
 		}
 
 		for (j = 0; j < v->data.list->len; j++) {
+			guint8 ipv6_addr[16];
+			guint ipv6_network;
 			ip = g_array_index(v->data.list, liValue*, j);
 
 			if (ip->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
-				li_radixtree32_free(acd->ipv4);
-				g_slice_free(access_check_data, acd);
-				return NULL;
+				goto failed_free_acd;
 			}
 
 			if (g_str_equal(ip->data.string->str, "all")) {
-				li_radixtree32_insert(acd->ipv4, 0, 0x00000000, GINT_TO_POINTER(deny));
+				li_radixtree_insert(acd->ipv4, NULL, 0, GINT_TO_POINTER(deny ? ACCESS_DENY : ACCESS_ALLOW));
+				li_radixtree_insert(acd->ipv6, NULL, 0, GINT_TO_POINTER(deny ? ACCESS_DENY : ACCESS_ALLOW));
 			} else if (li_parse_ipv4(ip->data.string->str, &ipv4, &netmaskv4, NULL)) {
-				li_radixtree32_insert(acd->ipv4, htonl(ipv4), htonl(netmaskv4), GINT_TO_POINTER(deny));
-			/*} else if (li_parse_ipv6(v->data.string->str, ..., NULL) {
-				li_radixtree128_insert(acd->ipv6, ipv6, netmaskv6, (gpointer)allow;*/
+				gint prefixlen;
+				netmaskv4 = ntohl(netmaskv4);
+				prefixlen = 32 - g_bit_nth_lsf(netmaskv4, -1);
+				if (prefixlen < 0 || prefixlen > 32) prefixlen = 0;
+				li_radixtree_insert(acd->ipv4, &ipv4, prefixlen, GINT_TO_POINTER(deny ? ACCESS_DENY : ACCESS_ALLOW));
+			} else if (li_parse_ipv6(ip->data.string->str, ipv6_addr, &ipv6_network, NULL)) {
+				li_radixtree_insert(acd->ipv6, ipv6_addr, ipv6_network, GINT_TO_POINTER(deny ? ACCESS_DENY : ACCESS_ALLOW));
 			} else {
 				ERROR(srv, "access_check: error parsing ip: %s", ip->data.string->str);
-				li_radixtree32_free(acd->ipv4);
-				g_slice_free(access_check_data, acd);
-				return NULL;
+				goto failed_free_acd;
 			}
 		}
 	}
 
-	if (!got_deny)
-		li_radixtree32_insert(acd->ipv4, 0, 0x00000000, GINT_TO_POINTER(TRUE));
-
 	return li_action_new_function(access_check, NULL, access_check_free, acd);
+
+failed_free_acd:
+	li_radixtree_free(acd->ipv4, NULL, NULL);
+	li_radixtree_free(acd->ipv6, NULL, NULL);
+	g_slice_free(access_check_data, acd);
+	return NULL;
 }
 
 
