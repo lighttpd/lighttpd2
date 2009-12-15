@@ -15,6 +15,7 @@ lighttpd_shared_src= \
 	environment.c \
 	etag.c \
 	filter_chunked.c \
+	filter_buffer_on_disk.c \
 	http_headers.c \
 	http_range_parser.c \
 	http_request_parser.c \

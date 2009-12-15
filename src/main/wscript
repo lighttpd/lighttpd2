@@ -30,6 +30,7 @@ def build(bld):
 		environment.c
 		etag.c
 		filter_chunked.c
+		filter_buffer_on_disk.c
 		http_headers.c
 		http_range_parser.rl
 		http_request_parser.rl
