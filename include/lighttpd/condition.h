@@ -22,6 +22,7 @@ typedef enum {
 	LI_CONFIG_COND_MATCH,   /** =~ */
 	LI_CONFIG_COND_NOMATCH, /** !~ */
 
+/* only with ip */
 	LI_CONFIG_COND_IP,
 	LI_CONFIG_COND_NOTIP,
 
@@ -123,5 +124,30 @@ LI_API const char* li_cond_lvalue_to_string(liCondLValue t);
 LI_API liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len);
 
 LI_API liHandlerResult li_condition_check(liVRequest *vr, liCondition *cond, gboolean *result);
+
+/* condition values */
+
+typedef enum {
+	LI_COND_VALUE_HINT_ANY, /* given as string */
+	LI_COND_VALUE_HINT_STRING, /* use only string matching, don't parse as int/ip */
+	LI_COND_VALUE_HINT_BOOL, /* value is a boolean, should not be converted to string for matching (but possible for debug: FALSE and TRUE) */
+	LI_COND_VALUE_HINT_NUMBER, /* value is a number, can be converted to string for matching */
+	LI_COND_VALUE_HINT_SOCKADDR /* value is a socket address, can be converted to string for matching (especially for unix sockets */
+} liConditionValueType;
+
+/* boolean matches: for ANY/STRING: value != "", for NUMBER: value != 0, IP: always true */
+
+typedef struct {
+	liConditionValueType match_type;
+	union {
+		const gchar *str;
+		gint64 number;
+		gboolean bool;
+		liSocketAddress addr;
+	} data;
+} liConditionValue;
+
+LI_API liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue, liConditionValue *res, liConditionValueType prefer);
+LI_API gchar const* li_condition_value_to_string(liVRequest *vr, liConditionValue *value);
 
 #endif

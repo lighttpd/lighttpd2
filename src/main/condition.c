@@ -1,5 +1,171 @@
 #include <lighttpd/base.h>
 
+#if 0
+static const liConditionValueType cond_value_hints[] = {
+	/* LI_COMP_REQUEST_LOCALIP: */ LI_COND_VALUE_HINT_SOCKADDR,
+	/* LI_COMP_REQUEST_REMOTEIP: */ LI_COND_VALUE_HINT_SOCKADDR,
+	/* LI_COMP_REQUEST_PATH: */ LI_COND_VALUE_HINT_STRING,
+	/* LI_COMP_REQUEST_HOST: */ LI_COND_VALUE_HINT_ANY,
+	/* LI_COMP_REQUEST_SCHEME: */ LI_COND_VALUE_HINT_STRING,
+	/* LI_COMP_REQUEST_QUERY_STRING: */ LI_COND_VALUE_HINT_ANY,
+	/* LI_COMP_REQUEST_METHOD: */ LI_COND_VALUE_HINT_STRING,
+	/* LI_COMP_REQUEST_CONTENT_LENGTH: */ LI_COND_VALUE_HINT_NUMBER,
+	/* LI_COMP_REQUEST_IS_HANDLED: */ LI_COND_VALUE_HINT_BOOL,
+	/* LI_COMP_PHYSICAL_PATH: */ LI_COND_VALUE_HINT_STRING,
+	/* LI_COMP_PHYSICAL_EXISTS: */ LI_COND_VALUE_HINT_BOOL,
+	/* LI_COMP_PHYSICAL_SIZE: */ LI_COND_VALUE_HINT_NUMBER,
+	/* LI_COMP_PHYSICAL_ISDIR: */ LI_COND_VALUE_HINT_BOOL,
+	/* LI_COMP_PHYSICAL_ISFILE: */ LI_COND_VALUE_HINT_BOOL,
+	/* LI_COMP_RESPONSE_STATUS: */ LI_COND_VALUE_HINT_NUMBER,
+
+	/* LI_COMP_REQUEST_HEADER: */ LI_COND_VALUE_HINT_ANY,
+	/* LI_COMP_RESPONSE_HEADER: */ LI_COND_VALUE_HINT_ANY,
+	/* LI_COMP_ENVIRONMENT: */ LI_COND_VALUE_HINT_ANY,
+
+	/* LI_COMP_UNKNOWN: */ LI_COND_VALUE_HINT_ANY
+};
+#endif
+
+/* uses wrk->tmp_str for temporary (and returned) strings */
+liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue, liConditionValue *res, liConditionValueType prefer) {
+	liConnection *con = vr->con;
+	liHandlerResult r;
+	struct stat st;
+	int err;
+
+	res->match_type = LI_COND_VALUE_HINT_ANY;
+	res->data.str = "";
+
+	switch (lvalue->type) {
+	case LI_COMP_REQUEST_LOCALIP:
+		if (prefer == LI_COND_VALUE_HINT_STRING) {
+			res->match_type = LI_COND_VALUE_HINT_STRING;
+			res->data.str = con->local_addr_str->str;
+		} else {
+			res->match_type = LI_COND_VALUE_HINT_SOCKADDR;
+			res->data.addr = con->local_addr;
+		}
+		break;
+	case LI_COMP_REQUEST_REMOTEIP:
+		if (prefer == LI_COND_VALUE_HINT_STRING) {
+			res->match_type = LI_COND_VALUE_HINT_STRING;
+			res->data.str = con->remote_addr_str->str;
+		} else {
+			res->match_type = LI_COND_VALUE_HINT_SOCKADDR;
+			res->data.addr = con->remote_addr;
+		}
+		break;
+	case LI_COMP_REQUEST_PATH:
+		res->match_type = LI_COND_VALUE_HINT_STRING;
+		res->data.str = vr->request.uri.path->str;
+		break;
+	case LI_COMP_REQUEST_HOST:
+		res->data.str = vr->request.uri.host->str;
+		break;
+	case LI_COMP_REQUEST_SCHEME:
+		res->match_type = LI_COND_VALUE_HINT_STRING;
+		res->data.str = con->is_ssl ? "https" : "http";
+		break;
+	case LI_COMP_REQUEST_QUERY_STRING:
+		res->data.str = vr->request.uri.query->str;
+		break;
+	case LI_COMP_REQUEST_METHOD:
+		res->match_type = LI_COND_VALUE_HINT_STRING;
+		res->data.str = vr->request.http_method_str->str;
+		break;
+	case LI_COMP_REQUEST_CONTENT_LENGTH:
+		res->match_type = LI_COND_VALUE_HINT_NUMBER;
+		res->data.number = vr->request.content_length;
+		break;
+	case LI_COMP_REQUEST_IS_HANDLED:
+		res->match_type = LI_COND_VALUE_HINT_BOOL;
+		res->data.bool = li_vrequest_is_handled(vr);
+		break;
+	case LI_COMP_PHYSICAL_PATH:
+		res->data.str = vr->physical.path->str;
+		break;
+	case LI_COMP_PHYSICAL_EXISTS:
+	case LI_COMP_PHYSICAL_ISDIR:
+	case LI_COMP_PHYSICAL_ISFILE:
+		res->match_type = LI_COND_VALUE_HINT_BOOL;
+		res->data.bool = FALSE;
+		if (vr->physical.path->len == 0) {
+			/* no file, return FALSE */
+			break;
+		}
+
+		r = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
+		if (r == LI_HANDLER_WAIT_FOR_EVENT) return r;
+
+		/* not found, return FALSE */
+		if (r != LI_HANDLER_GO_ON) break;
+		if (lvalue->type == LI_COMP_PHYSICAL_ISFILE) {
+			res->data.bool = S_ISREG(st.st_mode);
+		} else if (lvalue->type == LI_COMP_PHYSICAL_ISDIR) {
+			res->data.bool = S_ISDIR(st.st_mode);
+		} else {
+			res->data.bool = TRUE;
+		}
+		break;
+	case LI_COMP_PHYSICAL_SIZE:
+		res->match_type = LI_COND_VALUE_HINT_NUMBER;
+		res->data.number = -1;
+		if (vr->physical.path->len == 0) {
+			break;
+		}
+
+		r = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
+		if (r == LI_HANDLER_WAIT_FOR_EVENT) return r;
+
+		if (r == LI_HANDLER_GO_ON) { /* not found -> size "-1" */
+			res->data.number = (gint64) st.st_size;
+		}
+		break;
+	case LI_COMP_RESPONSE_STATUS:
+		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+		res->match_type = LI_COND_VALUE_HINT_NUMBER;
+		res->data.number = vr->response.http_status;
+		break;
+	case LI_COMP_REQUEST_HEADER:
+		li_http_header_get_all(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(lvalue->key));
+		res->data.str = con->wrk->tmp_str->str;
+		break;
+	case LI_COMP_RESPONSE_HEADER:
+		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+		li_http_header_get_all(con->wrk->tmp_str, vr->response.headers, GSTR_LEN(lvalue->key));
+		res->data.str = con->wrk->tmp_str->str;
+		break;
+	case LI_COMP_ENVIRONMENT:
+		{
+			GString *eval = li_environment_get(&vr->env, GSTR_LEN(lvalue->key));
+			if (eval) res->data.str = eval->str;
+		}
+		break;
+	default:
+		VR_ERROR(vr, "couldn't get value for '%s'", li_cond_lvalue_to_string(lvalue->type));
+		return LI_HANDLER_ERROR;
+	}
+
+	return LI_HANDLER_GO_ON;
+}
+
+gchar const* li_condition_value_to_string(liVRequest *vr, liConditionValue *value) {
+	switch (value->match_type) {
+	case LI_COND_VALUE_HINT_ANY:
+	case LI_COND_VALUE_HINT_STRING:
+		return value->data.str;
+	case LI_COND_VALUE_HINT_BOOL:
+		return value->data.bool ? "TRUE" : "FALSE";
+	case LI_COND_VALUE_HINT_NUMBER:
+		g_string_printf(vr->wrk->tmp_str, "%"L_GOFFSET_FORMAT, value->data.number);
+		return vr->wrk->tmp_str->str;
+	case LI_COND_VALUE_HINT_SOCKADDR:
+		li_sockaddr_to_string(value->data.addr, vr->wrk->tmp_str, TRUE);
+		return vr->wrk->tmp_str->str;
+	}
+	return "";
+}
+
 static gboolean condition_parse_ip(liConditionRValue *val, const char *txt) {
 	if (li_parse_ipv4(txt, &val->ipv4.addr, NULL, NULL)) {
 		val->type = LI_COND_VALUE_SOCKET_IPV4;
@@ -326,50 +492,31 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 }
 
 static liHandlerResult li_condition_check_eval_bool(liVRequest *vr, liCondition *cond, gboolean *res) {
+	gboolean val;
+	liConditionValue match_val;
 	liHandlerResult r;
-	struct stat st;
-	int err;
+	*res = FALSE;
 
-	*res = !cond->rvalue.b; /* "FALSE" is "not (expected result)" */
+	r = li_condition_get_value(vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_BOOL);
+	if (r != LI_HANDLER_GO_ON) return r;
 
-	switch (cond->lvalue->type) {
-	case LI_COMP_PHYSICAL_ISDIR:
-	case LI_COMP_PHYSICAL_ISFILE:
-	case LI_COMP_PHYSICAL_EXISTS:
-		if (vr->physical.path->len == 0) {
-			/* no file, return FALSE */
-			return LI_HANDLER_GO_ON;
-		}
-
-		r = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
-		if (r == LI_HANDLER_WAIT_FOR_EVENT) return r;
-
-		/* not found, return FALSE */
-		if (r != LI_HANDLER_GO_ON) return LI_HANDLER_GO_ON;
+	switch (match_val.match_type) {
+	case LI_COND_VALUE_HINT_ANY:
+	case LI_COND_VALUE_HINT_STRING:
+		val = ('\0' != match_val.data.str[0]);
 		break;
-	default:
-		memset(&st, 0, sizeof(st));
+	case LI_COND_VALUE_HINT_BOOL:
+		val = match_val.data.bool;
+		break;
+	case LI_COND_VALUE_HINT_NUMBER:
+		val = match_val.data.number != 0;
+		break;
+	case LI_COND_VALUE_HINT_SOCKADDR:
+		val = TRUE; /* just.. don't do this. */
 		break;
 	}
 
-	switch (cond->lvalue->type) {
-	case LI_COMP_REQUEST_IS_HANDLED:
-		*res = li_vrequest_is_handled(vr);
-		break;
-	case LI_COMP_PHYSICAL_ISDIR:
-		*res = S_ISDIR(st.st_mode);
-		break;
-	case LI_COMP_PHYSICAL_ISFILE:
-		*res = S_ISREG(st.st_mode);
-		break;
-	case LI_COMP_PHYSICAL_EXISTS:
-		*res = TRUE;
-		break;
-	default:
-		VR_ERROR(vr, "invalid lvalue \"%s\" for boolean comparison", li_cond_lvalue_to_string(cond->lvalue->type));
-		return LI_HANDLER_ERROR;
-	}
-	if (!cond->rvalue.b) *res = !*res;
+	*res = !cond->rvalue.b ^ val;
 
 	return LI_HANDLER_GO_ON;
 }
@@ -377,55 +524,15 @@ static liHandlerResult li_condition_check_eval_bool(liVRequest *vr, liCondition 
 /* LI_COND_VALUE_STRING and LI_COND_VALUE_REGEXP only */
 static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liCondition *cond, gboolean *res) {
 	liActionRegexStackElement arse;
-	liConnection *con = vr->con;
+	liConditionValue match_val;
+	liHandlerResult r;
 	const char *val = "";
 	*res = FALSE;
 
-	switch (cond->lvalue->type) {
-	case LI_COMP_REQUEST_LOCALIP:
-		val = con->local_addr_str->str;
-		break;
-	case LI_COMP_REQUEST_REMOTEIP:
-		val = con->remote_addr_str->str;
-		break;
-	case LI_COMP_REQUEST_PATH:
-		val = vr->request.uri.path->str;
-		break;
-	case LI_COMP_REQUEST_HOST:
-		val = vr->request.uri.host->str;
-		break;
-	case LI_COMP_REQUEST_SCHEME:
-		val = con->is_ssl ? "https" : "http";
-		break;
-	case LI_COMP_REQUEST_QUERY_STRING:
-		val = vr->request.uri.query->str;
-		break;
-	case LI_COMP_REQUEST_METHOD:
-		val = vr->request.http_method_str->str;
-		break;
-	case LI_COMP_PHYSICAL_PATH:
-		val = vr->physical.path->str;
-		break;
-	case LI_COMP_REQUEST_HEADER:
-		li_http_header_get_all(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
-		val = con->wrk->tmp_str->str;
-		break;
-	case LI_COMP_RESPONSE_HEADER:
-		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
-		li_http_header_get_all(con->wrk->tmp_str, vr->response.headers, GSTR_LEN(cond->lvalue->key));
-		val = con->wrk->tmp_str->str;
-		break;
-	case LI_COMP_ENVIRONMENT:
-		val = li_environment_get(&vr->env, GSTR_LEN(cond->lvalue->key));
-		break;
-	case LI_COMP_REQUEST_CONTENT_LENGTH:
-		g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
-		val = con->wrk->tmp_str->str;
-		break;
-	default:
-		VR_ERROR(vr, "couldn't get string value for '%s'", li_cond_lvalue_to_string(cond->lvalue->type));
-		return LI_HANDLER_ERROR;
-	}
+	r = li_condition_get_value(vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_STRING);
+	if (r != LI_HANDLER_GO_ON) return r;
+
+	val = li_condition_value_to_string(vr, &match_val);
 
 	switch (cond->op) {
 	case LI_CONFIG_COND_EQ:
@@ -471,34 +578,21 @@ static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liConditio
 
 
 static liHandlerResult li_condition_check_eval_int(liVRequest *vr, liCondition *cond, gboolean *res) {
-	liHandlerResult r;
-	struct stat st;
-	int err;
 	gint64 val;
+	liConditionValue match_val;
+	liHandlerResult r;
 	*res = FALSE;
 
-	switch (cond->lvalue->type) {
-	case LI_COMP_REQUEST_CONTENT_LENGTH:
-		val = vr->request.content_length;
-		break;
-	case LI_COMP_PHYSICAL_SIZE:
-		if (vr->physical.path->len == 0) {
-			val = -1;
-			break;
-		}
+	r = li_condition_get_value(vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_NUMBER);
+	if (r != LI_HANDLER_GO_ON) return r;
 
-		r = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
-		if (r == LI_HANDLER_WAIT_FOR_EVENT) return r;
-
-		if (r != LI_HANDLER_GO_ON) {
-			val = -1; /* not found -> size "-1" */
-		} else {
-			val = (gint64)st.st_size;
-		}
+	switch (match_val.match_type) {
+	case LI_COND_VALUE_HINT_ANY:
+		val = g_ascii_strtoll(match_val.data.str, NULL, 10);
+		errno = 0; /* ignore errors */
 		break;
-	case LI_COMP_RESPONSE_STATUS:
-		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
-		val = vr->response.http_status;
+	case LI_COND_VALUE_HINT_NUMBER:
+		val = match_val.data.number;
 		break;
 	default:
 		VR_ERROR(vr, "couldn't get int value for '%s'", li_cond_lvalue_to_string(cond->lvalue->type));
@@ -558,74 +652,27 @@ static gboolean ip_in_net(liConditionRValue *target, liConditionRValue *network)
 
 /* LI_CONFIG_COND_IP and LI_CONFIG_COND_NOTIP only */
 static liHandlerResult li_condition_check_eval_ip(liVRequest *vr, liCondition *cond, gboolean *res) {
-	liConnection *con = vr->con;
+	liConditionValue match_val;
+	liHandlerResult r;
 	liConditionRValue ipval;
-	const char *val = NULL;
+
+	r = li_condition_get_value(vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_SOCKADDR);
+	if (r != LI_HANDLER_GO_ON) return r;
+
 	*res = (cond->op == LI_CONFIG_COND_NOTIP);
 
-	ipval.type = LI_COND_VALUE_NUMBER;
-
-	switch (cond->lvalue->type) {
-	case LI_COMP_REQUEST_LOCALIP:
-		if (!condition_ip_from_socket(&ipval, con->local_addr.addr))
+	switch (match_val.match_type) {
+	case LI_COND_VALUE_HINT_ANY:
+		if (!condition_parse_ip(&ipval, match_val.data.str))
 			return LI_HANDLER_GO_ON;
 		break;
-	case LI_COMP_REQUEST_REMOTEIP:
-		if (!condition_ip_from_socket(&ipval, con->remote_addr.addr))
+	case LI_COND_VALUE_HINT_SOCKADDR:
+		if (!condition_ip_from_socket(&ipval, match_val.data.addr.addr))
 			return LI_HANDLER_GO_ON;
 		break;
-	case LI_COMP_REQUEST_PATH:
-		VR_ERROR(vr, "%s", "Cannot parse request.path as ip");
+	default:
+		VR_ERROR(vr, "couldn't get int value for '%s'", li_cond_lvalue_to_string(cond->lvalue->type));
 		return LI_HANDLER_ERROR;
-	case LI_COMP_REQUEST_HOST:
-		val = vr->request.uri.host->str;
-		break;
-	case LI_COMP_REQUEST_SCHEME:
-		VR_ERROR(vr, "%s", "Cannot parse request.scheme as ip");
-		return LI_HANDLER_ERROR;
-	case LI_COMP_REQUEST_QUERY_STRING:
-		val = vr->request.uri.query->str;
-		break;
-	case LI_COMP_REQUEST_METHOD:
-		VR_ERROR(vr, "%s", "Cannot parse request.method as ip");
-		return LI_HANDLER_ERROR;
-	case LI_COMP_REQUEST_IS_HANDLED:
-		VR_ERROR(vr, "%s", "Cannot parse request.is_handled as ip");
-		return LI_HANDLER_ERROR;
-	case LI_COMP_PHYSICAL_PATH:
-	case LI_COMP_PHYSICAL_EXISTS:
-		VR_ERROR(vr, "%s", "Cannot parse physical.path(-exists) as ip");
-		return LI_HANDLER_ERROR;
-		break;
-	case LI_COMP_REQUEST_HEADER:
-		li_http_header_get_all(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(cond->lvalue->key));
-		val = con->wrk->tmp_str->str;
-		break;
-	case LI_COMP_RESPONSE_HEADER:
-		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
-		li_http_header_get_all(con->wrk->tmp_str, vr->response.headers, GSTR_LEN(cond->lvalue->key));
-		val = con->wrk->tmp_str->str;
-		break;
-	case LI_COMP_ENVIRONMENT:
-		val = li_environment_get(&vr->env, GSTR_LEN(cond->lvalue->key))->str;
-		break;
-	case LI_COMP_PHYSICAL_SIZE:
-	case LI_COMP_REQUEST_CONTENT_LENGTH:
-	case LI_COMP_RESPONSE_STATUS:
-		VR_ERROR(vr, "%s", "Cannot parse integers as ip");
-		return LI_HANDLER_ERROR;
-	case LI_COMP_PHYSICAL_ISDIR:
-	case LI_COMP_PHYSICAL_ISFILE:
-		VR_ERROR(vr, "%s", "phys.is_dir and phys.is_file are boolean conditionals");
-		return LI_HANDLER_ERROR;
-	case LI_COMP_UNKNOWN:
-		VR_ERROR(vr, "%s", "Cannot parse unknown condition value");
-		return LI_HANDLER_ERROR;
-	}
-
-	if (ipval.type == LI_COND_VALUE_NUMBER) {
-		if (!val || !condition_parse_ip(&ipval, val))
-			return LI_HANDLER_GO_ON;
 	}
 
 	switch (cond->op) {
