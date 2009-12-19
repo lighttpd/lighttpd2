@@ -35,19 +35,24 @@
  *         - passwords are saved as (modified) md5 hashes:
  *             md5hex(username + ":" + realm + ":" + password)
  *
+ *     auth.deny;
+ *         - handles request with "401 Unauthorized"
+ *
  * Example config:
  *     # /members/ is for known users only
  *     if request.path =^ "/members/" {
- *         auth ["method": "basic", "realm": "members only", "file": "/etc/lighttpd/users.txt"];
+ *         auth.plain ["method": "basic", "realm": "members only", "file": "/etc/lighttpd/users.txt"];
  *     }
+ *     if req.env["REMOTE_USER"] !~ "^(admin1|user2|user3)$" { auth.deny; }
  *
  *
  * Tip:
- *     The digest method is broken in Internet Explorer < 7. Use basic instead if this is a problem for you.
+ *     The digest method is broken in Internet Explorer < 7. Use basic instead if this is a problem for you. (not supported for now anyway)
  *
  * Todo:
  *     - method: digest
  *     - anti bruteforce protection
+ *     - auth.deny ( using env[] "REMOTE_METHOD"/"REMOTE_REALM"/...? )
  *
  * Author:
  *     Copyright (c) 2009 Thomas Porzelt
@@ -287,6 +292,21 @@ static liHandlerResult auth_basic(liVRequest *vr, gpointer param, gpointer *cont
 
 	UNUSED(context);
 
+	if (!li_vrequest_is_handled(vr)) {
+		/* only allow access restrictions as previous handlers */
+		switch (vr->response.http_status) { /* use same list as in auth_handle_deny */
+		case 401: /* Unauthorized */
+		case 402: /* Payment Required */
+		case 403: /* Forbidden */
+		case 405: /* Method Not Allowed */
+		case 407: /* Proxy Authentication Required */
+		case 500: /* Internal Server Error */
+			return LI_HANDLER_GO_ON;
+		default:
+			return LI_HANDLER_ERROR;
+		}
+	}
+
 	/* check for Authorization header */
 	hdr = li_http_header_lookup(vr->request.headers, CONST_STR_LEN("Authorization"));
 
@@ -330,19 +350,26 @@ static liHandlerResult auth_basic(liVRequest *vr, gpointer param, gpointer *cont
 		}
 	}
 
-	if (!auth_ok) {
-		/* if the request already has a handler like mod_access, we assume everything is ok */
-		if (!li_vrequest_handle_direct(vr))
-			return LI_HANDLER_GO_ON;
+	g_string_truncate(vr->wrk->tmp_str, 0);
+	g_string_append_len(vr->wrk->tmp_str, CONST_STR_LEN("Basic realm=\""));
+	g_string_append_len(vr->wrk->tmp_str, GSTR_LEN(bdata->realm));
+	g_string_append_c(vr->wrk->tmp_str, '"');
+	/* generate header always */
 
-		vr->response.http_status = 401;
-		g_string_truncate(vr->wrk->tmp_str, 0);
-		g_string_append_len(vr->wrk->tmp_str, CONST_STR_LEN("Basic realm=\""));
-		g_string_append_len(vr->wrk->tmp_str, GSTR_LEN(bdata->realm));
-		g_string_append_c(vr->wrk->tmp_str, '"');
+	if (!auth_ok) {
 		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("WWW-Authenticate"), GSTR_LEN(vr->wrk->tmp_str));
 
+		/* we already checked for handled */
+		if (!li_vrequest_handle_direct(vr))
+			return LI_HANDLER_ERROR;
+
+		vr->response.http_status = 401;
 		return LI_HANDLER_GO_ON;
+	} else {
+		/* lets hope browser just ignore the header if status is not 401
+		 * but this way it is easier to use a later "auth.deny;"
+		 */
+		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("WWW-Authenticate"), GSTR_LEN(vr->wrk->tmp_str));
 	}
 
 	if (debug) {
@@ -432,6 +459,42 @@ static liAction* auth_htdigest_create(liServer *srv, liPlugin* p, liValue *val) 
 	return auth_generic_create(srv, p, val, "auth.htdigest", auth_backend_htdigest, TRUE);
 }
 
+static liHandlerResult auth_handle_deny(liVRequest *vr, gpointer param, gpointer *context) {
+	UNUSED(param);
+	UNUSED(context);
+
+	if (!li_vrequest_handle_direct(vr)) {
+		/* only allow access restrictions as previous handlers */
+		switch (vr->response.http_status) { /* use same list as in auth_basic */
+		case 401: /* Unauthorized */
+		case 402: /* Payment Required */
+		case 403: /* Forbidden */
+		case 405: /* Method Not Allowed */
+		case 407: /* Proxy Authentication Required */
+		case 500: /* Internal Server Error */
+			return LI_HANDLER_GO_ON;
+		default:
+			return LI_HANDLER_ERROR;
+		}
+	}
+
+	vr->response.http_status = 401;
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* auth_deny(liServer *srv, liPlugin* p, liValue *val) {
+	UNUSED(srv);
+	UNUSED(p);
+
+	if (val) {
+		ERROR(srv, "%s", "'auth.deny' action doesn't have parameters");
+		return NULL;
+	}
+
+	return li_action_new_function(auth_handle_deny, NULL, NULL, NULL);
+}
+
 static const liPluginOption options[] = {
 	{ "auth.debug", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
 
@@ -442,6 +505,8 @@ static const liPluginAction actions[] = {
 	{ "auth.plain", auth_plain_create },
 	{ "auth.htpasswd", auth_htpasswd_create },
 	{ "auth.htdigest", auth_htdigest_create },
+
+	{ "auth.deny", auth_deny },
 
 	{ NULL, NULL }
 };
