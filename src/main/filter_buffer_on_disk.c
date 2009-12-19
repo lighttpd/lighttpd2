@@ -1,5 +1,5 @@
 
-#include <lighttpd/filter_buffer_on_disk.h>
+#include <lighttpd/base.h>
 
 typedef liFilterBufferOnDiskState bod_state;
 

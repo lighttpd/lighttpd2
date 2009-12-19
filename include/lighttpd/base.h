@@ -51,6 +51,7 @@
 #include <lighttpd/request.h>
 #include <lighttpd/response.h>
 #include <lighttpd/environment.h>
+#include <lighttpd/filter_buffer_on_disk.h>
 #include <lighttpd/virtualrequest.h>
 #include <lighttpd/log.h>
 #include <lighttpd/stat_cache.h>

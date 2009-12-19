@@ -80,11 +80,12 @@ struct liVRequest {
 	/* environment entries will be passed to the backends */
 	liEnvironment env;
 
-	/* -> vr_in -> filters_in -> in -> handle -> out -> filters_out -> vr_out -> */
+	/* -> vr_in -> filters_in -> in_memory ->(buffer_on_disk) -> in -> handle -> out -> filters_out -> vr_out -> */
 	gboolean cq_memory_limit_hit; /* stop feeding chunkqueues with memory chunks */
 	liFilters filters_in, filters_out;
-	liChunkQueue *vr_in, *vr_out;
+	liChunkQueue *vr_in, *vr_out, *in_memory;
 	liChunkQueue *in, *out;
+	liFilterBufferOnDiskState in_buffer_state;
 
 	liActionStack action_stack;
 	gboolean actions_wait_for_response;

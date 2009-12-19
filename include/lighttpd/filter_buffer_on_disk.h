@@ -1,7 +1,9 @@
 #ifndef _LIGHTTPD_FILTER_BUFFER_ON_DISK_H_
 #define _LIGHTTPD_FILTER_BUFFER_ON_DISK_H_
 
-#include <lighttpd/base.h>
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include <lighttpd/base.h> instead of this file
+#endif
 
 /* initialize with zero */
 typedef struct {
