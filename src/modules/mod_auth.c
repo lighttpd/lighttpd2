@@ -292,7 +292,7 @@ static liHandlerResult auth_basic(liVRequest *vr, gpointer param, gpointer *cont
 
 	UNUSED(context);
 
-	if (!li_vrequest_is_handled(vr)) {
+	if (li_vrequest_is_handled(vr)) {
 		/* only allow access restrictions as previous handlers */
 		switch (vr->response.http_status) { /* use same list as in auth_handle_deny */
 		case 401: /* Unauthorized */
