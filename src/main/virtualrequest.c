@@ -168,8 +168,6 @@ liVRequest* li_vrequest_new(liConnection *con, liVRequestHandlerCB handle_respon
 	li_chunkqueue_set_limit(vr->in_memory, vr->in->limit);
 	li_chunkqueue_use_limit(vr->out, vr);
 	li_chunkqueue_set_limit(vr->vr_out, vr->out->limit);
-	li_cqlimit_set_limit(vr->in->limit, 512*1024);
-	li_cqlimit_set_limit(vr->out->limit, 512*1024);
 
 	vr->in_buffer_state.flush_limit = -1; /* wait until upload is complete */
 	vr->in_buffer_state.split_on_file_chunks = FALSE;
@@ -246,17 +244,11 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 	vr->in_buffer_state.flush_limit = -1; /* wait until upload is complete */
 	vr->in_buffer_state.split_on_file_chunks = FALSE;
 
-	/* restore chunkqueue limits */
-	li_cqlimit_reset(vr->in->limit);
-	li_cqlimit_reset(vr->out->limit);
-
 	li_chunkqueue_use_limit(vr->in, vr);
 	li_chunkqueue_set_limit(vr->vr_in, vr->in->limit);
 	li_chunkqueue_set_limit(vr->in_memory, vr->in->limit);
 	li_chunkqueue_use_limit(vr->out, vr);
 	li_chunkqueue_set_limit(vr->vr_out, vr->out->limit);
-	li_cqlimit_set_limit(vr->in->limit, 512*1024);
-	li_cqlimit_set_limit(vr->out->limit, 512*1024);
 
 	if (g_atomic_int_get(&vr->queued)) { /* atomic access shouldn't be needed here; no one else can access vr here... */
 		g_queue_unlink(&vr->wrk->job_queue, &vr->job_queue_link);

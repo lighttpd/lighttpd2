@@ -471,8 +471,10 @@ liConnection* li_connection_new(liWorker *wrk) {
 	con->in      = con->mainvr->vr_in;
 	con->out     = con->mainvr->vr_out;
 
-	li_chunkqueue_set_limit(con->raw_in, con->mainvr->vr_in->limit);
-	li_chunkqueue_set_limit(con->raw_out, con->mainvr->vr_out->limit);
+	li_chunkqueue_set_limit(con->raw_in, con->in->limit);
+	li_chunkqueue_set_limit(con->raw_out, con->out->limit);
+	li_cqlimit_set_limit(con->raw_in->limit, 512*1024);
+	li_cqlimit_set_limit(con->raw_out->limit, 512*1024);
 
 	con->keep_alive_data.link = NULL;
 	con->keep_alive_data.timeout = 0;
@@ -517,6 +519,15 @@ void li_connection_reset(liConnection *con) {
 	li_chunkqueue_reset(con->raw_out);
 
 	li_vrequest_reset(con->mainvr, FALSE);
+
+	/* restore chunkqueue limits */
+	li_chunkqueue_set_limit(con->raw_in, con->in->limit);
+	li_chunkqueue_set_limit(con->raw_out, con->out->limit);
+	li_cqlimit_reset(con->raw_in->limit);
+	li_cqlimit_reset(con->raw_out->limit);
+	li_cqlimit_set_limit(con->raw_in->limit, 512*1024);
+	li_cqlimit_set_limit(con->raw_out->limit, 512*1024);
+
 	li_http_request_parser_reset(&con->req_parser_ctx);
 
 	g_string_truncate(con->remote_addr_str, 0);
@@ -622,6 +633,12 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 
 	li_vrequest_reset(con->mainvr, TRUE);
 	li_http_request_parser_reset(&con->req_parser_ctx);
+
+	/* restore chunkqueue limits (don't reset, we might still have some data in raw_in) */
+	li_chunkqueue_set_limit(con->raw_in, con->in->limit);
+	li_chunkqueue_set_limit(con->raw_out, con->out->limit);
+	li_cqlimit_set_limit(con->raw_in->limit, 512*1024);
+	li_cqlimit_set_limit(con->raw_out->limit, 512*1024);
 
 	con->ts = CUR_TS(con->wrk);
 
