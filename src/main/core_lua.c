@@ -23,11 +23,41 @@ static int traceback (lua_State *L) {
 	return 1;
 }
 
-int li_lua_push_traceback(lua_State *L, int narg) {
-	int base = lua_gettop(L) - narg;  /* function index */
+int li_lua_push_traceback(lua_State *L, int nargs) {
+	int base = lua_gettop(L) - nargs;  /* function index */
 	lua_pushcfunction(L, traceback);
 	lua_insert(L, base);
 	return base;
+}
+
+gboolean li_lua_call_object(liServer *srv, liVRequest *vr, lua_State *L, const char* method, int nargs, int nresults, gboolean optional) {
+	int errfunc;
+	gboolean result;
+
+	lua_getfield(L, -nargs, method); /* +1 "function" */
+
+	if (!lua_isfunction(L, -1)) {
+		if (!optional) {
+			_ERROR(srv, vr, "li_lua_call_object: method '%s' not found", method);
+		}
+		lua_pop(L, 1 + nargs);
+		return FALSE;
+	}
+
+	lua_insert(L, lua_gettop(L) - nargs); /* move function before arguments */
+
+	errfunc = li_lua_push_traceback(L, nargs); /* +1 "errfunc" */
+	if (lua_pcall(L, nargs, nresults, errfunc)) { /* pops func and arguments, push result */
+		_ERROR(srv, vr, "lua_pcall(): %s", lua_tostring(L, -1));
+		lua_pop(L, 1); /* -1 */
+		result = FALSE;
+	} else {
+		result = TRUE;
+	}
+	lua_remove(L, errfunc); /* -1 "errfunc" */
+
+	/* "errfunc", "function" and args have been popped - only results remain (and nothing if lua_pcall failed) */
+	return result;
 }
 
 int li_lua_metatable_index(lua_State *L) {
@@ -141,6 +171,7 @@ void li_lua_init(lua_State *L, liServer *srv, liWorker *wrk) {
 	li_lua_init_chunk_mt(L);
 	li_lua_init_connection_mt(L);
 	li_lua_init_environment_mt(L);
+	li_lua_init_filter_mt(L);
 	li_lua_init_physical_mt(L);
 	li_lua_init_request_mt(L);
 	li_lua_init_response_mt(L);
@@ -157,6 +188,7 @@ void li_lua_init(lua_State *L, liServer *srv, liWorker *wrk) {
 	}
 
 	lua_newtable(L); /* lighty. */
+	li_lua_init_filters(L, srv);
 
 	lua_pushlightuserdata(L, srv);
 	lua_pushcclosure(L, li_lua_error, 1);

@@ -287,6 +287,32 @@ static int lua_vrequest_enter_action(lua_State *L) {
 	return 0;
 }
 
+static int lua_vrequest_add_filter_in(lua_State *L) {
+	liVRequest *vr;
+
+	if (lua_gettop(L) != 2) {
+		lua_pushstring(L, "incorrect number of arguments");
+		lua_error(L);
+	}
+
+	vr = li_lua_get_vrequest(L, 1);
+
+	return li_lua_push_filter(L, li_lua_vrequest_add_filter_in(L, vr, 2));
+}
+
+static int lua_vrequest_add_filter_out(lua_State *L) {
+	liVRequest *vr;
+
+	if (lua_gettop(L) != 2) {
+		lua_pushstring(L, "incorrect number of arguments");
+		lua_error(L);
+	}
+
+	vr = li_lua_get_vrequest(L, 1);
+
+	return li_lua_push_filter(L, li_lua_vrequest_add_filter_out(L, vr, 2));
+}
+
 static const luaL_Reg vrequest_mt[] = {
 	{ "__index", lua_vrequest_index },
 	{ "__newindex", lua_vrequest_newindex },
@@ -301,6 +327,9 @@ static const luaL_Reg vrequest_mt[] = {
 	{ "handle_direct", lua_vrequest_handle_direct },
 
 	{ "enter_action", lua_vrequest_enter_action },
+
+	{ "add_filter_in", lua_vrequest_add_filter_in },
+	{ "add_filter_out", lua_vrequest_add_filter_out },
 
 	{ NULL, NULL }
 };

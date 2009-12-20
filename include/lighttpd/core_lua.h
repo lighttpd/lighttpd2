@@ -21,6 +21,13 @@ LI_API void li_lua_init_environment_mt(lua_State *L);
 LI_API liEnvironment* li_lua_get_environment(lua_State *L, int ndx);
 LI_API int li_lua_push_environment(lua_State *L, liEnvironment *env);
 
+LI_API void li_lua_init_filter_mt(lua_State *L);
+LI_API liFilter* li_lua_get_filter(lua_State *L, int ndx);
+LI_API int li_lua_push_filter(lua_State *L, liFilter *f);
+LI_API void li_lua_init_filters(lua_State *L, liServer* srv);
+LI_API liFilter* li_lua_vrequest_add_filter_in(lua_State *L, liVRequest *vr, int state_ndx);
+LI_API liFilter* li_lua_vrequest_add_filter_out(lua_State *L, liVRequest *vr, int state_ndx);
+
 LI_API void li_lua_init_http_headers_mt(lua_State *L);
 LI_API liHttpHeaders* li_lua_get_http_headers(lua_State *L, int ndx);
 LI_API int li_lua_push_http_headers(lua_State *L, liHttpHeaders *headers);
@@ -55,7 +62,15 @@ LI_API int li_lua_metatable_index(lua_State *L);
 
 LI_API void li_lua_init(lua_State* L, liServer* srv, liWorker* wrk);
 
-LI_API int li_lua_push_traceback(lua_State *L, int narg);
+LI_API int li_lua_push_traceback(lua_State *L, int nargs);
+
+/* nargs: number of arguments *with* object; object must be the first of the arguments
+ * returns: FALSE: an error occured. stack balance -nargs (i.e. popped args)
+ *          TRUE: stack balance nresp-narg; popped args, pushed results
+ * srv/vr are only needed for error logging
+ * if optional is TRUE don't log an error if the method doesn't exist
+ */
+LI_API gboolean li_lua_call_object(liServer *srv, liVRequest *vr, lua_State *L, const char* method, int nargs, int nresults, gboolean optional);
 
 LI_API void li_lua_restore_globals(lua_State *L);
 LI_API void li_lua_new_globals(lua_State *L);

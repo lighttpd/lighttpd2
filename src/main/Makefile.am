@@ -50,6 +50,7 @@ lua_src= \
 	connection_lua.c \
 	core_lua.c \
 	environment_lua.c \
+	filters_lua.c \
 	http_headers_lua.c \
 	physical_lua.c \
 	request_lua.c \

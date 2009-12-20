@@ -225,6 +225,7 @@ SET(LIGHTTPD_SHARED_SRC ${LIGHTTPD_SHARED_SRC}
 	core_lua.c
 	connection_lua.c
 	environment_lua.c
+	filters_lua.c
 	http_headers_lua.c
 	physical_lua.c
 	request_lua.c

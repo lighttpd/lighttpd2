@@ -161,21 +161,45 @@ static int lua_chunkqueue_reset(lua_State *L) {
 	return 0;
 }
 
+static int lua_chunkqueue_steal_all(lua_State *L) {
+	liChunkQueue *cq, *cq_from;
+
+	cq = li_lua_get_chunkqueue(L, 1);
+	cq_from = li_lua_get_chunkqueue(L, 2);
+	if (!cq_from) {
+		lua_pushliteral(L, "Expected source chunkqueue to steal from");
+		return lua_error(L);
+	}
+
+	li_chunkqueue_steal_all(cq, cq_from);
+
+	return 0;
+}
+
+static int lua_chunkqueue_skip_all(lua_State *L) {
+	liChunkQueue *cq;
+
+	cq = li_lua_get_chunkqueue(L, 1);
+	li_chunkqueue_skip_all(cq);
+
+	return 0;
+}
+
+
 static const luaL_Reg chunkqueue_mt[] = {
 	{ "__index", lua_chunkqueue_index },
 	{ "__newindex", lua_chunkqueue_newindex },
 
 	{ "add", lua_chunkqueue_add },
 	{ "reset", lua_chunkqueue_reset },
+	{ "steal_all", lua_chunkqueue_steal_all },
+	{ "skip_all", lua_chunkqueue_skip_all },
 
 	{ NULL, NULL }
 };
 
 static void init_chunkqueue_mt(lua_State *L) {
 	luaL_register(L, NULL, chunkqueue_mt);
-
-	lua_pushvalue(L, -1);
-	lua_setfield(L, -2, "__index");
 }
 
 void li_lua_init_chunk_mt(lua_State *L) {
