@@ -7,7 +7,7 @@ AC_CONFIG_SRCDIR([src/main/lighttpd.c])
 AC_CONFIG_HEADER([include/lighttpd/config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
-AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AM_INIT_AUTOMAKE([-Wall -Wportability -Wno-override -Werror foreign dist-bzip2 tar-ustar])
 
 dnl check environment
 AC_USE_SYSTEM_EXTENSIONS
@@ -287,5 +287,14 @@ if test x$extrawarnings = xtrue; then
     CFLAGS="${CFLAGS} -g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wno-pointer-sign -Wcast-align -Winline -Wsign-compare -Wnested-externs -Wpointer-arith -Wl,--as-needed -Wformat-security"
 fi
 
-AC_CONFIG_FILES([Makefile src/Makefile src/common/Makefile src/main/Makefile src/angel/Makefile src/modules/Makefile])
+AC_CONFIG_FILES([Makefile \
+	include/Makefile \
+	include/lighttpd/Makefile \
+	src/Makefile \
+	src/common/Makefile \
+	src/main/Makefile \
+	src/angel/Makefile \
+	src/modules/Makefile \
+	src/unittests/Makefile \
+])
 AC_OUTPUT

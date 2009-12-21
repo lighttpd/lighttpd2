@@ -22,6 +22,8 @@ BUILT_SOURCES=ip_parsers.c
 ip_parsers.c: ip_parsers.rl
 	ragel -C -T1 -o $@ $<
 
+EXTRA_DIST=ip_parsers.rl
+
 liblighttpd_common_la_SOURCES=$(common_src)
 liblighttpd_common_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS)
 liblighttpd_common_la_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS)

@@ -1,5 +1,7 @@
 
 bin_PROGRAMS=lighttpd
+lib_LTLIBRARIES=liblighttpd-shared.la
+
 common_cflags=-I$(top_srcdir)/include -I$(top_builddir)/include
 
 lighttpd_shared_src= \
@@ -77,8 +79,14 @@ http_response_parser.c: http_response_parser.rl
 url_parser.c: url_parser.rl
 	ragel -C -T1 -o $@ $<
 
-lighttpd_SOURCES=lighttpd.c $(lighttpd_shared_src)
+EXTRA_DIST=config_parser.rl http_range_parser.rl http_request_parser.rl  http_response_parser.rl url_parser.rl
+
+liblighttpd_shared_la_SOURCES=$(lighttpd_shared_src)
+liblighttpd_shared_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS)
+liblighttpd_shared_la_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS)
+
+lighttpd_SOURCES=lighttpd.c
 
 lighttpd_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) -DDEFAULT_LIBDIR='"$(pkglibdir)"'
 lighttpd_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
-lighttpd_LDADD=../common/liblighttpd-common.la
+lighttpd_LDADD=../common/liblighttpd-common.la ../main/liblighttpd-shared.la
