@@ -55,6 +55,9 @@ LI_API void li_lua_init_vrequest_mt(lua_State *L);
 LI_API liVRequest* li_lua_get_vrequest(lua_State *L, int ndx);
 LI_API int li_lua_push_vrequest(lua_State *L, liVRequest *vr);
 
+
+LI_API int li_lua_fixindex(lua_State *L, int ndx);
+
 /* return 1 if value is found in mt (on top of the stack), 0 if it is not found (stack balance = 0)
  * table, key on stack at pos 0 and 1 (i.e. __index metho)
  */

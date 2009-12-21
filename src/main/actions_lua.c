@@ -165,3 +165,18 @@ liAction* li_lua_make_action(lua_State *L, int ndx) {
 
 	return li_action_new_function(lua_action_func, lua_action_cleanup, lua_action_free, par);
 }
+
+liAction* li_lua_get_action_ref(lua_State *L, int ndx) {
+	liAction *act;
+
+	act = li_lua_get_action(L, ndx);
+	if (NULL == act) {
+		if (lua_isfunction(L, ndx)) {
+			act = li_lua_make_action(L, ndx);
+		}
+	} else {
+		li_action_acquire(act);
+	}
+
+	return act;
+}

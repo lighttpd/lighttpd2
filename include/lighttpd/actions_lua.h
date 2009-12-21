@@ -10,4 +10,7 @@ LI_API int li_lua_push_action(liServer *srv, lua_State *L, liAction *a);
 /* create new action from lua function */
 LI_API liAction* li_lua_make_action(lua_State *L, int ndx);
 
+/* either acquire a action ref or makes a new action from a lua function */
+LI_API liAction* li_lua_get_action_ref(lua_State *L, int ndx);
+
 #endif

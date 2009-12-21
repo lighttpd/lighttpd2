@@ -123,7 +123,7 @@ static void lua_push_publish_hash_metatable(liServer *srv, lua_State *L) {
 	}
 }
 
-static gboolean publish_str_hash(liServer *srv, lua_State *L, GHashTable *ht, LuaWrapper wrapper) {
+gboolean li_lua_config_publish_str_hash(liServer *srv, lua_State *L, GHashTable *ht, LuaWrapper wrapper) {
 	lua_newtable(L);                   /* { } */
 	lua_pushlightuserdata(L, ht);
 	lua_setfield(L, -2, "__ht");
@@ -136,7 +136,7 @@ static gboolean publish_str_hash(liServer *srv, lua_State *L, GHashTable *ht, Lu
 }
 
 
-static int handle_server_action(liServer *srv, lua_State *L, gpointer _sa) {
+int li_lua_config_handle_server_action(liServer *srv, lua_State *L, gpointer _sa) {
 	liServerAction *sa = (liServerAction*) _sa;
 	liValue *val;
 	liAction *a;
@@ -147,7 +147,7 @@ static int handle_server_action(liServer *srv, lua_State *L, gpointer _sa) {
 	li_lua_unlock(srv);
 
 	/* TRACE(srv, "%s", "Creating action"); */
-	a = sa->li_create_action(srv, sa->p, val, sa->userdata);
+	a = sa->create_action(srv, sa->p, val, sa->userdata);
 	li_value_free(val);
 
 	li_lua_lock(srv);
@@ -160,7 +160,7 @@ static int handle_server_action(liServer *srv, lua_State *L, gpointer _sa) {
 	return li_lua_push_action(srv, L, a);
 }
 
-static int handle_server_setup(liServer *srv, lua_State *L, gpointer _ss) {
+int li_lua_config_handle_server_setup(liServer *srv, lua_State *L, gpointer _ss) {
 	liServerSetup *ss = (liServerSetup*) _ss;
 	liValue *val;
 	gboolean res;
@@ -204,11 +204,11 @@ gboolean li_config_lua_load(lua_State *L, liServer *srv, const gchar *filename, 
 	DEBUG(srv, "Loaded config script '%s'", filename);
 
 	if (allow_setup) {
-		publish_str_hash(srv, L, srv->setups, handle_server_setup);
+		li_lua_config_publish_str_hash(srv, L, srv->setups, li_lua_config_handle_server_setup);
 		lua_setfield(L, LUA_GLOBALSINDEX, "setup");
 	}
 
-	publish_str_hash(srv, L, srv->actions, handle_server_action);
+	li_lua_config_publish_str_hash(srv, L, srv->actions, li_lua_config_handle_server_action);
 	lua_setfield(L, LUA_GLOBALSINDEX, "action");
 
 	li_lua_push_lvalues_dict(srv, L);
@@ -232,19 +232,8 @@ gboolean li_config_lua_load(lua_State *L, liServer *srv, const gchar *filename, 
 
 	lua_pop(L, 1); /* pop the ret-value */
 
-	{
-		liAction *act;
-		lua_getfield(L, LUA_GLOBALSINDEX, "actions");
-
-		act = li_lua_get_action(L, -1);
-		if (NULL == act && lua_isfunction(L, -1)) {
-			act = li_lua_make_action(L, -1);
-		} else {
-			li_action_acquire(act);
-		}
-
-		*pact = act;
-	}
+	lua_getfield(L, LUA_GLOBALSINDEX, "actions");
+	*pact = li_lua_get_action_ref(L, -1);
 	lua_pop(L, 1);
 
 	assert(lua_gettop(L) == lua_stack_top);

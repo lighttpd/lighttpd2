@@ -58,13 +58,13 @@ struct liPluginOption {
 	liValueType type;
 
 	gpointer default_value;
-	liPluginParseOptionCB li_parse_option;
+	liPluginParseOptionCB parse_option;
 	liPluginFreeOptionCB free_option;
 };
 
 struct liPluginAction {
 	const gchar *name;
-	liPluginCreateActionCB li_create_action;
+	liPluginCreateActionCB create_action;
 	gpointer userdata;
 };
 
@@ -90,7 +90,7 @@ struct liServerOption {
 	  *
 	  * Default behaviour (NULL) is to extract the inner value from val
 	  */
-	liPluginParseOptionCB li_parse_option;
+	liPluginParseOptionCB parse_option;
 
 	/** the free_option handler has to free all allocated resources;
 	  * it may get called with 0 initialized options, so you have to
@@ -112,7 +112,7 @@ struct liServerOption {
 
 struct liServerAction {
 	liPlugin *p;
-	liPluginCreateActionCB li_create_action;
+	liPluginCreateActionCB create_action;
 	gpointer userdata;
 };
 

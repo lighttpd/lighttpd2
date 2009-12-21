@@ -4,6 +4,16 @@
 #include <lualib.h>
 #include <lauxlib.h>
 
+/* replace a negative stack index with a positive one,
+ * so that you don't need to care about push/pop
+ */
+int li_lua_fixindex(lua_State *L, int ndx) {
+	int top;
+	if (ndx < 0 && ndx >= -(top = lua_gettop(L)))
+		ndx = top + ndx + 1;
+	return ndx;
+}
+
 static int traceback (lua_State *L) {
 	if (!lua_isstring(L, 1))  /* 'message' not a string? */
 		return 1;  /* keep it intact */

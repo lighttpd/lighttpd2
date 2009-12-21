@@ -2,16 +2,7 @@
 #include <lighttpd/value_lua.h>
 #include <lighttpd/condition_lua.h>
 #include <lighttpd/actions_lua.h>
-
-/* replace a negative stack index with a positive one,
- * so that you don't need to care about push/pop
- */
-static int lua_fixindex(lua_State *L, int ndx) {
-	int top;
-	if (ndx < 0 && ndx >= -(top = lua_gettop(L)))
-		ndx = top + ndx + 1;
-	return ndx;
-}
+#include <lighttpd/core_lua.h>
 
 static liValue* li_value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 	liValue *val = NULL, *sub_option;
@@ -20,7 +11,7 @@ static liValue* li_value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 	int ikey;
 	GString *skey;
 
-	ndx = lua_fixindex(L, ndx);
+	ndx = li_lua_fixindex(L, ndx);
 	lua_pushnil(L);
 	while (lua_next(L, ndx) != 0) {
 		switch (lua_type(L, -2)) {
@@ -161,4 +152,57 @@ GString* li_lua_togstring(lua_State *L, int ndx) {
 	}
 
 	return str;
+}
+
+int li_lua_push_value(lua_State *L, liValue *value) {
+	switch (value->type) {
+	case LI_VALUE_NONE:
+		lua_pushnil(L);
+		break;
+	case LI_VALUE_BOOLEAN:
+		lua_pushboolean(L, value->data.boolean);
+		break;
+	case LI_VALUE_NUMBER:
+		lua_pushinteger(L, value->data.number);
+		break;
+	case LI_VALUE_STRING:
+		lua_pushlstring(L, GSTR_LEN(value->data.string));
+		break;
+	case LI_VALUE_LIST: {
+		GArray *list = value->data.list;
+		guint i;
+		lua_newtable(L);
+		for (i = 0; i < list->len; i++) {
+			liValue *subval = g_array_index(list, liValue*, i);
+			li_lua_push_value(L, subval);
+			lua_rawseti(L, -2, i);
+		}
+	} break;
+	case LI_VALUE_HASH: {
+		GHashTableIter it;
+		gpointer pkey, pvalue;
+		lua_newtable(L);
+
+		g_hash_table_iter_init(&it, value->data.hash);
+		while (g_hash_table_iter_next(&it, &pkey, &pvalue)) {
+			GString *key = pkey;
+			liValue *subval = pvalue;
+			lua_pushlstring(L, GSTR_LEN(key));
+			li_lua_push_value(L, subval);
+			lua_rawset(L, -3);
+		}
+	} break;
+	case LI_VALUE_ACTION:
+		li_action_acquire(value->data.val_action.action);
+		li_lua_push_action(value->data.val_action.srv, L, value->data.val_action.action);
+		break;
+	case LI_VALUE_CONDITION:
+		li_condition_acquire(value->data.val_cond.cond);
+		li_lua_push_condition(value->data.val_cond.srv, L, value->data.val_cond.cond);
+		break;
+	default: /* ignore error and push nil */
+		lua_pushnil(L);
+		break;
+	}
+	return 1;
 }

@@ -143,7 +143,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 			}
 			so = g_slice_new0(liServerOption);
 			so->type = po->type;
-			so->li_parse_option = po->li_parse_option;
+			so->parse_option = po->parse_option;
 			so->free_option = po->free_option;
 			so->index = g_hash_table_size(srv->options);
 			so->module_index = i;
@@ -169,7 +169,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 				return NULL;
 			}
 			sa = g_slice_new0(liServerAction);
-			sa->li_create_action = pa->li_create_action;
+			sa->create_action = pa->create_action;
 			sa->p = p;
 			sa->userdata = pa->userdata;
 			g_hash_table_insert(srv->actions, (gchar*) pa->name, sa);
@@ -223,10 +223,10 @@ gboolean li_parse_option(liServer *srv, const char *name, liValue *val, liOption
 		return FALSE;
 	}
 
-	if (!sopt->li_parse_option) {
+	if (!sopt->parse_option) {
 		mark->value = li_value_extract(val);
 	} else {
-		if (!sopt->li_parse_option(srv, sopt->p, sopt->module_index, val, &mark->value)) {
+		if (!sopt->parse_option(srv, sopt->p, sopt->module_index, val, &mark->value)) {
 			/* errors should be logged by parse function */
 			return FALSE;
 		}
@@ -300,7 +300,7 @@ liAction* li_create_action(liServer *srv, const gchar *name, liValue *val) {
 		return NULL;
 	}
 
-	if (NULL == (a = sa->li_create_action(srv, sa->p, val, sa->userdata))) {
+	if (NULL == (a = sa->create_action(srv, sa->p, val, sa->userdata))) {
 		ERROR(srv, "Action '%s' creation failed", name);
 		return NULL;
 	}
@@ -393,7 +393,7 @@ static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt) 
 	if (!sopt)
 		return FALSE;
 
-	if (!sopt->li_parse_option) {
+	if (!sopt->parse_option) {
 		switch (sopt->type) {
 		case LI_VALUE_NONE:
 			break;
@@ -409,7 +409,7 @@ static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt) 
 			oval.ptr = NULL;
 		}
 	} else {
-		if (!sopt->li_parse_option(srv, sopt->p, sopt->module_index, NULL, &oval)) {
+		if (!sopt->parse_option(srv, sopt->p, sopt->module_index, NULL, &oval)) {
 			/* errors should be logged by parse function */
 			return FALSE;
 		}

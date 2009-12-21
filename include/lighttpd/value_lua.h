@@ -10,6 +10,9 @@
  */
 LI_API liValue* li_value_from_lua(liServer *srv, lua_State *L);
 
+/* always returns 1, pushes nil on error */
+LI_API int li_lua_push_value(lua_State *L, liValue *value);
+
 LI_API GString* li_lua_togstring(lua_State *L, int ndx);
 
 #endif
