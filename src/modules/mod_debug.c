@@ -295,8 +295,8 @@ static liHandlerResult debug_show_connections(liVRequest *vr, gpointer param, gp
 	return (*context) ? LI_HANDLER_WAIT_FOR_EVENT : LI_HANDLER_GO_ON;
 }
 
-static liAction* debug_show_connections_create(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(srv); UNUSED(p);
+static liAction* debug_show_connections_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(srv); UNUSED(p); UNUSED(userdata);
 
 	if (val) {
 		ERROR(srv, "%s", "debug.show_connections doesn't expect any parameters");
@@ -312,18 +312,18 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "debug.show_connections", debug_show_connections_create },
+	{ "debug.show_connections", debug_show_connections_create, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
-static void plugin_debug_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_debug_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -336,7 +336,7 @@ gboolean mod_debug_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_debug", plugin_debug_init);
+	mod->config = li_plugin_register(mods->main, "mod_debug", plugin_debug_init, NULL);
 
 	return mod->config != NULL;
 }

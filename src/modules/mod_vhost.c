@@ -183,14 +183,14 @@ static void vhost_simple_free(liServer *srv, gpointer param) {
 	g_slice_free(vhost_simple_data, sd);
 }
 
-static liAction* vhost_simple_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* vhost_simple_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	guint i;
 	GArray *arr;
 	liValue *k, *v;
 	vhost_simple_data *sd;
 	GString **setting;
 
-	UNUSED(srv); UNUSED(p);
+	UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_LIST) {
 		ERROR(srv, "%s", "vhost.simple expects a list if string tuples as parameter");
@@ -289,11 +289,12 @@ static void vhost_map_free(liServer *srv, gpointer param) {
 	g_slice_free(vhost_map_data, md);
 }
 
-static liAction* vhost_map_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* vhost_map_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GHashTableIter iter;
 	gpointer k, v;
 	vhost_map_data *md;
 	GString *str;
+	UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_HASH) {
 		ERROR(srv, "%s", "vhost.map expects a hashtable as parameter");
@@ -420,7 +421,7 @@ static void vhost_map_regex_free(liServer *srv, gpointer param) {
 	g_slice_free(vhost_map_regex_data, mrd);
 }
 
-static liAction* vhost_map_regex_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* vhost_map_regex_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GHashTable *hash;
 	GHashTableIter iter;
 	gpointer k, v;
@@ -429,6 +430,7 @@ static liAction* vhost_map_regex_create(liServer *srv, liPlugin* p, liValue *val
 	GArray *list;
 	guint i;
 	GError *err = NULL;
+	UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_HASH) {
 		ERROR(srv, "%s", "vhost.map_regex expects a hashtable as parameter");
@@ -584,11 +586,12 @@ static void vhost_pattern_free(liServer *srv, gpointer param) {
 	g_slice_free(vhost_pattern_data, pd);
 }
 
-static liAction* vhost_pattern_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* vhost_pattern_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	vhost_pattern_data *pd;
 	GString *str;
 	gchar *c, *c_last;
 	vhost_pattern_part part;
+	UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "vhost.map expects a hashtable as parameter");
@@ -689,21 +692,21 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "vhost.simple", vhost_simple_create },
-	{ "vhost.map", vhost_map_create },
-	{ "vhost.map_regex", vhost_map_regex_create },
-	{ "vhost.pattern", vhost_pattern_create },
+	{ "vhost.simple", vhost_simple_create, NULL },
+	{ "vhost.map", vhost_map_create, NULL },
+	{ "vhost.map_regex", vhost_map_regex_create, NULL },
+	{ "vhost.pattern", vhost_pattern_create, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
-static void plugin_vhost_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_vhost_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -716,7 +719,7 @@ gboolean mod_vhost_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_vhost", plugin_vhost_init);
+	mod->config = li_plugin_register(mods->main, "mod_vhost", plugin_vhost_init, NULL);
 
 	return mod->config != NULL;
 }

@@ -377,7 +377,7 @@ static void rewrite_free(liServer *srv, gpointer param) {
 	g_slice_free(rewrite_data, rd);
 }
 
-static liAction* rewrite_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* rewrite_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GArray *arr;
 	liValue *v;
 	guint i;
@@ -386,8 +386,7 @@ static liAction* rewrite_create(liServer *srv, liPlugin* p, liValue *val) {
 	rewrite_plugin_data *rpd = p->data;
 	GError *err = NULL;
 
-	UNUSED(srv);
-	UNUSED(p);
+	UNUSED(userdata);
 
 	if (!val || !(val->type == LI_VALUE_STRING || val->type == LI_VALUE_LIST)) {
 		ERROR(srv, "%s", "rewrite expects a either a string, a tuple of strings or a list of string tuples");
@@ -490,13 +489,13 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "rewrite", rewrite_create },
+	{ "rewrite", rewrite_create, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
@@ -513,8 +512,8 @@ static void plugin_rewrite_free(liServer *srv, liPlugin *p) {
 	g_slice_free(rewrite_plugin_data, data);
 }
 
-static void plugin_rewrite_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_rewrite_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -532,7 +531,7 @@ gboolean mod_rewrite_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_rewrite", plugin_rewrite_init);
+	mod->config = li_plugin_register(mods->main, "mod_rewrite", plugin_rewrite_init, NULL);
 
 	return mod->config != NULL;
 }

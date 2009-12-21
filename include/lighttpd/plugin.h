@@ -12,12 +12,12 @@
 	size_t id; \
 	ssize_t option_base_ndx
 
-typedef void     (*liPluginInitCB)          (liServer *srv, liPlugin *p);
+typedef void     (*liPluginInitCB)          (liServer *srv, liPlugin *p, gpointer userdata);
 typedef void     (*liPluginFreeCB)          (liServer *srv, liPlugin *p);
 typedef gboolean (*liPluginParseOptionCB)   (liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval);
 typedef void     (*liPluginFreeOptionCB)    (liServer *srv, liPlugin *p, size_t ndx, liOptionValue oval);
-typedef liAction*(*liPluginCreateActionCB)  (liServer *srv, liPlugin *p, liValue *val);
-typedef gboolean (*liPluginSetupCB)         (liServer *srv, liPlugin *p, liValue *val);
+typedef liAction*(*liPluginCreateActionCB)  (liServer *srv, liPlugin *p, liValue *val, gpointer userdata);
+typedef gboolean (*liPluginSetupCB)         (liServer *srv, liPlugin *p, liValue *val, gpointer userdata);
 typedef void     (*liPluginAngelCB)         (liServer *srv, liPlugin *p, gint32 id, GString *data);
 
 typedef void     (*liPluginHandleCloseCB)   (liConnection *con, liPlugin *p);
@@ -65,11 +65,13 @@ struct liPluginOption {
 struct liPluginAction {
 	const gchar *name;
 	liPluginCreateActionCB li_create_action;
+	gpointer userdata;
 };
 
 struct liPluginSetup {
 	const gchar *name;
 	liPluginSetupCB setup;
+	gpointer userdata;
 };
 
 struct liPluginAngel {
@@ -111,15 +113,17 @@ struct liServerOption {
 struct liServerAction {
 	liPlugin *p;
 	liPluginCreateActionCB li_create_action;
+	gpointer userdata;
 };
 
 struct liServerSetup {
 	liPlugin *p;
 	liPluginSetupCB setup;
+	gpointer userdata;
 };
 
 /* Needed by modules to register their plugin(s) */
-LI_API liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB init);
+LI_API liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB init, gpointer userdata);
 
 /* Internal needed functions */
 LI_API void li_plugin_free(liServer *srv, liPlugin *p);

@@ -10,10 +10,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-static liAction* core_list(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_list(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	liAction *a;
 	guint i;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (!val) {
 		ERROR(srv, "%s", "need parameter");
@@ -46,10 +46,10 @@ static liAction* core_list(liServer *srv, liPlugin* p, liValue *val) {
 	return a;
 }
 
-static liAction* core_when(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_when(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	liValue *val_cond, *val_act, *val_act_else;
 	liAction *a, *act = NULL, *act_else = NULL;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (!val) {
 		ERROR(srv, "%s", "need parameter");
@@ -100,10 +100,10 @@ static liAction* core_when(liServer *srv, liPlugin* p, liValue *val) {
 	return a;
 }
 
-static liAction* core_set(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_set(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	liValue *val_val, *val_name;
 	liAction *a;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (!val) {
 		ERROR(srv, "%s", "need parameter");
@@ -127,9 +127,9 @@ static liAction* core_set(liServer *srv, liPlugin* p, liValue *val) {
 	return a;
 }
 
-static gboolean core_setup_set(liServer *srv, liPlugin* p, liValue *val) {
+static gboolean core_setup_set(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	liValue *val_val, *val_name;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (!val) {
 		ERROR(srv, "%s", "need parameter");
@@ -181,8 +181,8 @@ static void core_docroot_free(liServer *srv, gpointer param) {
 	g_string_free(param, TRUE);
 }
 
-static liAction* core_docroot(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(p);
+static liAction* core_docroot(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(p); UNUSED(userdata);
 	if (!val || val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "docroot action expects a string parameter");
 		return NULL;
@@ -251,11 +251,11 @@ static void core_alias_free(liServer *srv, gpointer _param) {
 	g_array_free(param, TRUE);
 }
 
-static liAction* core_alias(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_alias(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GArray *a = NULL;
 	GArray *vl, *vl1;
 	core_alias_config ac;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_LIST) {
 		ERROR(srv, "%s", "unexpected or no parameter for alias action");
@@ -391,11 +391,11 @@ static void core_index_free(liServer *srv, gpointer param) {
 	g_array_free(files, TRUE);
 }
 
-static liAction* core_index(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_index(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GArray *files;
 	guint i;
 
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_LIST) {
 		ERROR(srv, "%s", "index action expects a list of strings as parameter");
@@ -604,8 +604,8 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_static(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(p);
+static liAction* core_static(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(p); UNUSED(userdata);
 	if (val) {
 		ERROR(srv, "%s", "static action doesn't have parameters");
 		return NULL;
@@ -658,8 +658,8 @@ next_round:
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_pathinfo(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(p);
+static liAction* core_pathinfo(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(p); UNUSED(userdata);
 	if (val) {
 		ERROR(srv, "%s", "pathinfo action doesn't have parameters");
 		return NULL;
@@ -677,10 +677,10 @@ static liHandlerResult core_handle_status(liVRequest *vr, gpointer param, gpoint
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_status(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_status(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	gpointer ptr;
 
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_NUMBER) {
 		ERROR(srv, "%s", "set_status action expects a number as parameter");
@@ -708,8 +708,8 @@ static liHandlerResult core_handle_log_write(liVRequest *vr, gpointer param, gpo
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_log_write(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(p);
+static liAction* core_log_write(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(p); UNUSED(userdata);
 	if (!val || val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "log.write expects a string parameter");
 		return NULL;
@@ -730,8 +730,8 @@ static liHandlerResult core_handle_blank(liVRequest *vr, gpointer param, gpointe
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_blank(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(p);
+static liAction* core_blank(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(p); UNUSED(userdata);
 
 	if (val) {
 		ERROR(srv, "%s", "'blank' action doesn't have parameters");
@@ -752,8 +752,8 @@ static liHandlerResult core_handle_profile_mem(liVRequest *vr, gpointer param, g
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_profile_mem(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(p);
+static liAction* core_profile_mem(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(p); UNUSED(userdata);
 
 	if (val) {
 		ERROR(srv, "%s", "'profile_mem' action doesn't have parameters");
@@ -763,9 +763,9 @@ static liAction* core_profile_mem(liServer *srv, liPlugin* p, liValue *val) {
 	return li_action_new_function(core_handle_profile_mem, NULL, NULL, NULL);
 }
 
-static gboolean core_listen(liServer *srv, liPlugin* p, liValue *val) {
+static gboolean core_listen(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GString *ipstr;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "listen expects a string as parameter");
@@ -779,9 +779,9 @@ static gboolean core_listen(liServer *srv, liPlugin* p, liValue *val) {
 }
 
 
-static gboolean core_workers(liServer *srv, liPlugin* p, liValue *val) {
+static gboolean core_workers(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	gint workers;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	workers = val->data.number;
 	if (val->type != LI_VALUE_NUMBER || workers < 1) {
@@ -796,10 +796,10 @@ static gboolean core_workers(liServer *srv, liPlugin* p, liValue *val) {
 	return TRUE;
 }
 
-static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val) {
+static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	liValue *mods = li_value_new_list();
 
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (!g_module_supported()) {
 		ERROR(srv, "%s", "module loading not supported on this platform");
@@ -850,8 +850,8 @@ static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val) {
 	return TRUE;
 }
 
-static gboolean core_io_timeout(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(p);
+static gboolean core_io_timeout(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(p); UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_NUMBER || val->data.number < 1) {
 		ERROR(srv, "%s", "io.timeout expects a positive number as parameter");
@@ -863,8 +863,8 @@ static gboolean core_io_timeout(liServer *srv, liPlugin* p, liValue *val) {
 	return TRUE;
 }
 
-static gboolean core_stat_cache_ttl(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(p);
+static gboolean core_stat_cache_ttl(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(p); UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_NUMBER || val->data.number < 1) {
 		ERROR(srv, "%s", "stat_cache.ttl expects a positive number as parameter");
@@ -1104,9 +1104,9 @@ static void core_header_free(liServer *srv, gpointer param) {
 	li_value_list_free(param);
 }
 
-static liAction* core_header_add(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_header_add(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GArray *l;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_LIST) {
 		ERROR(srv, "'header.add' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
@@ -1141,9 +1141,9 @@ static liHandlerResult core_handle_header_append(liVRequest *vr, gpointer param,
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_header_append(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_header_append(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GArray *l;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_LIST) {
 		ERROR(srv, "'header.append' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
@@ -1178,9 +1178,9 @@ static liHandlerResult core_handle_header_overwrite(liVRequest *vr, gpointer par
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_header_overwrite(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_header_overwrite(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GArray *l;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_LIST) {
 		ERROR(srv, "'header.overwrite' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
@@ -1217,8 +1217,8 @@ static liHandlerResult core_handle_header_remove(liVRequest *vr, gpointer param,
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_header_remove(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(p);
+static liAction* core_header_remove(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(p); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "'header.remove' action expects a string as parameter, %s given", li_value_type_string(val->type));
@@ -1238,9 +1238,9 @@ static liHandlerResult core_handle_buffer_out(liVRequest *vr, gpointer param, gp
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_buffer_out(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_buffer_out(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	gint64 limit;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_NUMBER) {
 		ERROR(srv, "'io.buffer_out' action expects an integer as parameter, %s given", li_value_type_string(val->type));
@@ -1271,9 +1271,9 @@ static liHandlerResult core_handle_buffer_in(liVRequest *vr, gpointer param, gpo
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_buffer_in(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_buffer_in(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	gint64 limit;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_NUMBER) {
 		ERROR(srv, "'io.buffer_in' action expects an integer as parameter, %s given", li_value_type_string(val->type));
@@ -1326,13 +1326,13 @@ static liHandlerResult core_handle_throttle_pool(liVRequest *vr, gpointer param,
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_throttle_pool(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_throttle_pool(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GString *name;
 	guint i;
 	liThrottlePool *pool = NULL;
 	gint64 rate;
 
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_STRING && val->type != LI_VALUE_LIST) {
 		ERROR(srv, "'io.throttle_pool' action expects a string or a string-number tuple as parameter, %s given", li_value_type_string(val->type));
@@ -1420,9 +1420,9 @@ static liHandlerResult core_handle_throttle_connection(liVRequest *vr, gpointer 
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_throttle_connection(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* core_throttle_connection(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	liThrottleParam *param;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (val->type == LI_VALUE_LIST && val->data.list->len == 2) {
 		liValue *v1 = g_array_index(val->data.list, liValue*, 0);
@@ -1510,46 +1510,46 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "list", core_list },
-	{ "when", core_when },
-	{ "set", core_set },
+	{ "list", core_list, NULL },
+	{ "when", core_when, NULL },
+	{ "set", core_set, NULL },
 
-	{ "docroot", core_docroot },
-	{ "alias", core_alias },
-	{ "index", core_index },
-	{ "static", core_static },
-	{ "pathinfo", core_pathinfo },
+	{ "docroot", core_docroot, NULL },
+	{ "alias", core_alias, NULL },
+	{ "index", core_index, NULL },
+	{ "static", core_static, NULL },
+	{ "pathinfo", core_pathinfo, NULL },
 
-	{ "set_status", core_status },
+	{ "set_status", core_status, NULL },
 
-	{ "log.write", core_log_write },
+	{ "log.write", core_log_write, NULL },
 
-	{ "blank", core_blank },
-	{ "profile_mem", core_profile_mem },
+	{ "blank", core_blank, NULL },
+	{ "profile_mem", core_profile_mem, NULL },
 
-	{ "header.add", core_header_add },
-	{ "header.append", core_header_append },
-	{ "header.overwrite", core_header_overwrite },
-	{ "header.remove", core_header_remove },
+	{ "header.add", core_header_add, NULL },
+	{ "header.append", core_header_append, NULL },
+	{ "header.overwrite", core_header_overwrite, NULL },
+	{ "header.remove", core_header_remove, NULL },
 
-	{ "io.buffer_out", core_buffer_out },
-	{ "io.buffer_in", core_buffer_in },
-	{ "io.throttle", core_throttle_connection },
-	{ "io.throttle_pool", core_throttle_pool },
-	/*{ "io.throttle_ip", core_throttle_ip },*/
+	{ "io.buffer_out", core_buffer_out, NULL },
+	{ "io.buffer_in", core_buffer_in, NULL },
+	{ "io.throttle", core_throttle_connection, NULL },
+	{ "io.throttle_pool", core_throttle_pool, NULL },
+	/*{ "io.throttle_ip", core_throttle_ip, NULL },*/
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ "set_default", core_setup_set },
-	{ "listen", core_listen },
-	{ "workers", core_workers },
-	{ "module_load", core_module_load },
-	{ "io.timeout", core_io_timeout },
-	{ "stat_cache.ttl", core_stat_cache_ttl },
+	{ "set_default", core_setup_set, NULL },
+	{ "listen", core_listen, NULL },
+	{ "workers", core_workers, NULL },
+	{ "module_load", core_module_load, NULL },
+	{ "io.timeout", core_io_timeout, NULL },
+	{ "stat_cache.ttl", core_stat_cache_ttl, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginAngel angelcbs[] = {
@@ -1560,8 +1560,8 @@ static const liPluginAngel angelcbs[] = {
 	{ NULL, NULL }
 };
 
-void li_plugin_core_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+void li_plugin_core_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;

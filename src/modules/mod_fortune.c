@@ -55,8 +55,8 @@ static liHandlerResult fortune_header_handle(liVRequest *vr, gpointer param, gpo
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* fortune_header(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(srv); UNUSED(val);
+static liAction* fortune_header(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(srv); UNUSED(val); UNUSED(userdata);
 	return li_action_new_function(fortune_header_handle, NULL, NULL, p->data);
 }
 
@@ -87,18 +87,19 @@ static liHandlerResult fortune_page_handle(liVRequest *vr, gpointer param, gpoin
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* fortune_page(liServer *srv, liPlugin* p, liValue *val) {
-	UNUSED(srv); UNUSED(val);
+static liAction* fortune_page(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(srv); UNUSED(val); UNUSED(userdata);
 	return li_action_new_function(fortune_page_handle, NULL, NULL, p->data);
 }
 
-static gboolean fortune_load(liServer *srv, liPlugin* p, liValue *val) {
+static gboolean fortune_load(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	gchar *file;
 	GError *err = NULL;
 	gchar *data;
 	gsize len;
 	guint count = 0;
 	fortune_data *fd = p->data;
+	UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_STRING) {
 		ERROR(srv, "fortune.load takes a string as parameter, %s given", val ? li_value_type_string(val->type) : "none");
@@ -148,15 +149,16 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "fortune.header", fortune_header },
-	{ "fortune.page", fortune_page },
+	{ "fortune.header", fortune_header, NULL },
+	{ "fortune.page", fortune_page, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ "fortune.load", fortune_load },
-	{ NULL, NULL }
+	{ "fortune.load", fortune_load, NULL },
+
+	{ NULL, NULL, NULL }
 };
 
 
@@ -175,9 +177,9 @@ static void plugin_fortune_free(liServer *srv, liPlugin *p) {
 	g_slice_free(fortune_data, fd);
 }
 
-static void plugin_fortune_init(liServer *srv, liPlugin *p) {
+static void plugin_fortune_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	fortune_data *fd;
-	UNUSED(srv);
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -196,7 +198,7 @@ gboolean mod_fortune_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(srv, "mod_fortune", plugin_fortune_init);
+	mod->config = li_plugin_register(srv, "mod_fortune", plugin_fortune_init, NULL);
 
 	if (!mod->config)
 		return FALSE;

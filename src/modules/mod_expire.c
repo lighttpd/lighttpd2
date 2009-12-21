@@ -131,12 +131,11 @@ static void expire_free(liServer *srv, gpointer param) {
 	g_slice_free(expire_rule, param);
 }
 
-static liAction* expire_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* expire_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	expire_rule *rule;
 	gchar *str;
 
-	UNUSED(srv);
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "expire expects a string as parameter");
@@ -241,18 +240,18 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "expire", expire_create },
+	{ "expire", expire_create, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
-static void plugin_expire_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_expire_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -265,7 +264,7 @@ gboolean mod_expire_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_expire", plugin_expire_init);
+	mod->config = li_plugin_register(mods->main, "mod_expire", plugin_expire_init, NULL);
 
 	return mod->config != NULL;
 }

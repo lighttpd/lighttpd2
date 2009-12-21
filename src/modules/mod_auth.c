@@ -447,15 +447,18 @@ static liAction* auth_generic_create(liServer *srv, liPlugin* p, liValue *val, c
 }
 
 
-static liAction* auth_plain_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* auth_plain_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(userdata);
 	return auth_generic_create(srv, p, val, "auth.plain", auth_backend_plain, FALSE);
 }
 
-static liAction* auth_htpasswd_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* auth_htpasswd_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(userdata);
 	return auth_generic_create(srv, p, val, "auth.htpasswd", auth_backend_htpasswd, FALSE);
 }
 
-static liAction* auth_htdigest_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* auth_htdigest_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(userdata);
 	return auth_generic_create(srv, p, val, "auth.htdigest", auth_backend_htdigest, TRUE);
 }
 
@@ -483,9 +486,10 @@ static liHandlerResult auth_handle_deny(liVRequest *vr, gpointer param, gpointer
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* auth_deny(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* auth_deny(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(srv);
 	UNUSED(p);
+	UNUSED(userdata);
 
 	if (val) {
 		ERROR(srv, "%s", "'auth.deny' action doesn't have parameters");
@@ -502,21 +506,22 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "auth.plain", auth_plain_create },
-	{ "auth.htpasswd", auth_htpasswd_create },
-	{ "auth.htdigest", auth_htdigest_create },
+	{ "auth.plain", auth_plain_create, NULL },
+	{ "auth.htpasswd", auth_htpasswd_create, NULL },
+	{ "auth.htdigest", auth_htdigest_create, NULL },
 
-	{ "auth.deny", auth_deny },
+	{ "auth.deny", auth_deny, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
-static void plugin_auth_init(liServer *srv, liPlugin *p) {
+static void plugin_auth_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	UNUSED(srv);
+	UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -529,7 +534,7 @@ gboolean mod_auth_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_auth", plugin_auth_init);
+	mod->config = li_plugin_register(mods->main, "mod_auth", plugin_auth_init, NULL);
 
 	return mod->config != NULL;
 }

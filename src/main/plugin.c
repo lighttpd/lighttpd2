@@ -100,12 +100,12 @@ void li_server_plugins_free(liServer *srv) {
 	g_hash_table_destroy(srv->setups);
 }
 
-liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB init) {
+liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB init, gpointer userdata) {
 	liPlugin *p;
 	liServerState s;
 
 	if (!init) {
-		ERROR(srv, "Module '%s' needs an init function", name);
+		ERROR(srv, "Plugin '%s' needs an init function", name);
 		return NULL;
 	}
 
@@ -116,7 +116,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 	}
 
 	if (g_hash_table_lookup(srv->plugins, name)) {
-		ERROR(srv, "Module '%s' already registered", name);
+		ERROR(srv, "Plugin '%s' already registered", name);
 		return NULL;
 	}
 
@@ -124,7 +124,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 	p->id = g_hash_table_size(srv->plugins);
 	g_hash_table_insert(srv->plugins, (gchar*) p->name, p);
 
-	init(srv, p);
+	init(srv, p, userdata);
 	p->opt_base_index = g_hash_table_size(srv->options);
 
 	if (p->options) {
@@ -171,6 +171,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 			sa = g_slice_new0(liServerAction);
 			sa->li_create_action = pa->li_create_action;
 			sa->p = p;
+			sa->userdata = pa->userdata;
 			g_hash_table_insert(srv->actions, (gchar*) pa->name, sa);
 		}
 	}
@@ -192,6 +193,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 			ss = g_slice_new0(liServerSetup);
 			ss->setup = ps->setup;
 			ss->p = p;
+			ss->userdata = ps->userdata;
 			g_hash_table_insert(srv->setups, (gchar*) ps->name, ss);
 		}
 	}
@@ -298,7 +300,7 @@ liAction* li_create_action(liServer *srv, const gchar *name, liValue *val) {
 		return NULL;
 	}
 
-	if (NULL == (a = sa->li_create_action(srv, sa->p, val))) {
+	if (NULL == (a = sa->li_create_action(srv, sa->p, val, sa->userdata))) {
 		ERROR(srv, "Action '%s' creation failed", name);
 		return NULL;
 	}
@@ -314,7 +316,7 @@ gboolean li_call_setup(liServer *srv, const char *name, liValue *val) {
 		return FALSE;
 	}
 
-	if (!ss->setup(srv, ss->p, val)) {
+	if (!ss->setup(srv, ss->p, val, ss->userdata)) {
 		ERROR(srv, "Setup '%s' failed", name);
 		return FALSE;
 	}

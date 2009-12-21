@@ -158,10 +158,10 @@ static void balancer_act_free(liServer *srv, gpointer param) {
 	balancer_free(srv, (balancer*) param);
 }
 
-static liAction* balancer_rr(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* balancer_rr(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	balancer *b;
 	liAction *a;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (!val) {
 		ERROR(srv, "%s", "need parameter");
@@ -184,17 +184,17 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "balancer.rr", balancer_rr },
-	{ NULL, NULL }
+	{ "balancer.rr", balancer_rr, NULL },
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
-static void plugin_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -205,7 +205,7 @@ static void plugin_init(liServer *srv, liPlugin *p) {
 gboolean mod_balancer_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_balancer", plugin_init);
+	mod->config = li_plugin_register(mods->main, "mod_balancer", plugin_init, NULL);
 
 	return mod->config != NULL;
 }

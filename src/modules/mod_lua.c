@@ -10,8 +10,8 @@
  *     none
  * Actions:
  *     lua.handler filename, [ "ttl": 300 ]
- *         - Basically the same as include_lua, but loads the script in a worker
- *           specific lua_State, so it doesn't use the server wide lua lock.
+ *         - Basically the same as include_lua (no setup.* calls allowed), but loads the script
+ *           in a worker specific lua_State, so it doesn't use the server wide lua lock.
  *         - You can give a ttl, after which the file is checked for modifications
  *           and reloaded. The default value 0 disables reloading.
  *
@@ -139,11 +139,11 @@ static const GString /* lua option names */
 	lon_ttl = { CONST_STR_LEN("ttl"), 0 }
 ;
 
-static liAction* lua_handler_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* lua_handler_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	liValue *v_filename = NULL, *v_options = NULL;
 	lua_config *conf;
 	guint ttl = 0;
-	UNUSED(srv); UNUSED(p);
+	UNUSED(srv); UNUSED(p); UNUSED(userdata);
 
 	if (val) {
 		if (val->type == LI_VALUE_STRING) {
@@ -199,24 +199,23 @@ option_failed:
 	return NULL;
 }
 
-
 static const liPluginOption options[] = {
 	{ NULL, 0, NULL, NULL, NULL }
 };
 
 static const liPluginAction actions[] = {
-	{ "lua.handler", lua_handler_create },
+	{ "lua.handler", lua_handler_create, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
-static void plugin_lua_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_lua_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -229,7 +228,7 @@ gboolean mod_lua_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_lua", plugin_lua_init);
+	mod->config = li_plugin_register(mods->main, "mod_lua", plugin_lua_init, NULL);
 
 	return mod->config != NULL;
 }

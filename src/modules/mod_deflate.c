@@ -658,11 +658,9 @@ static const GString
 	don_outputbuffer = { CONST_STR_LEN("output-buffer"), 0 }
 ;
 
-static liAction* deflate_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* deflate_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	deflate_config *conf;
-	UNUSED(srv);
-	UNUSED(p);
-	UNUSED(val);
+	UNUSED(userdata);
 
 	if (val && val->type != LI_VALUE_HASH) {
 		ERROR(srv, "%s", "deflate expects an optional hash of options");
@@ -724,17 +722,17 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "deflate", deflate_create },
-	{ NULL, NULL }
+	{ "deflate", deflate_create, NULL },
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
-static void plugin_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -744,7 +742,7 @@ static void plugin_init(liServer *srv, liPlugin *p) {
 gboolean mod_deflate_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_deflate", plugin_init);
+	mod->config = li_plugin_register(mods->main, "mod_deflate", plugin_init, NULL);
 
 	return mod->config != NULL;
 }

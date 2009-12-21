@@ -878,10 +878,9 @@ static void status_info_free(liServer *srv, gpointer param) {
 	g_slice_free(mod_status_param, param);
 }
 
-static liAction* status_info_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* status_info_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	mod_status_param *param = g_slice_new0(mod_status_param);
-	UNUSED(srv);
-	UNUSED(val);
+	UNUSED(userdata);
 
 	param->p = p;
 	param->short_info = FALSE;
@@ -1151,18 +1150,18 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "status.info", status_info_create },
+	{ "status.info", status_info_create, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
-static void plugin_status_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_status_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -1175,7 +1174,7 @@ gboolean mod_status_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_status", plugin_status_init);
+	mod->config = li_plugin_register(mods->main, "mod_status", plugin_status_init, NULL);
 
 	return mod->config != NULL;
 }

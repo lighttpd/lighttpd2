@@ -385,7 +385,7 @@ static void redirect_free(liServer *srv, gpointer param) {
 	g_slice_free(redirect_data, rd);
 }
 
-static liAction* redirect_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* redirect_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GArray *arr;
 	liValue *v;
 	guint i;
@@ -393,8 +393,7 @@ static liAction* redirect_create(liServer *srv, liPlugin* p, liValue *val) {
 	redirect_rule rule;
 	GError *err = NULL;
 
-	UNUSED(srv);
-	UNUSED(p);
+	UNUSED(userdata);
 
 	if (!val || !(val->type == LI_VALUE_STRING || val->type == LI_VALUE_LIST)) {
 		ERROR(srv, "%s", "redirect expects a either a string, a tuple of strings or a list of string tuples");
@@ -521,17 +520,17 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "redirect", redirect_create },
+	{ "redirect", redirect_create, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
-static void plugin_redirect_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_redirect_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -544,7 +543,7 @@ gboolean mod_redirect_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_redirect", plugin_redirect_init);
+	mod->config = li_plugin_register(mods->main, "mod_redirect", plugin_redirect_init, NULL);
 
 	return mod->config != NULL;
 }

@@ -424,8 +424,9 @@ static void proxy_free(liServer *srv, gpointer param) {
 	proxy_context_release(ctx);
 }
 
-static liAction* proxy_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* proxy_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	proxy_context *ctx;
+	UNUSED(userdata);
 
 	if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "proxy expects a string as parameter");
@@ -443,17 +444,18 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "proxy", proxy_create },
-	{ NULL, NULL }
+	{ "proxy", proxy_create, NULL },
+
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
-static void plugin_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -467,7 +469,7 @@ static void plugin_init(liServer *srv, liPlugin *p) {
 gboolean mod_proxy_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_proxy", plugin_init);
+	mod->config = li_plugin_register(mods->main, "mod_proxy", plugin_init, NULL);
 
 	return mod->config != NULL;
 }

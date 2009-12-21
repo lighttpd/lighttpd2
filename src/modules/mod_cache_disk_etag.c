@@ -305,9 +305,9 @@ static void cache_etag_free(liServer *srv, gpointer param) {
 	g_slice_free(cache_etag_context, ctx);
 }
 
-static liAction* cache_etag_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* cache_etag_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	cache_etag_context *ctx;
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "cache.disk.etag expects a string as parameter");
@@ -325,16 +325,16 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "cache.disk.etag", cache_etag_create },
-	{ NULL, NULL }
+	{ "cache.disk.etag", cache_etag_create, NULL },
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
-static void plugin_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -344,7 +344,7 @@ static void plugin_init(liServer *srv, liPlugin *p) {
 gboolean mod_cache_disk_etag_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_cache_disk_etag", plugin_init);
+	mod->config = li_plugin_register(mods->main, "mod_cache_disk_etag", plugin_init, NULL);
 
 	return mod->config != NULL;
 }

@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
 	li_server_loop_init(srv);
 
 	/* load core plugin */
-	srv->core_plugin = li_plugin_register(srv, "core", li_plugin_core_init);
+	srv->core_plugin = li_plugin_register(srv, "core", li_plugin_core_init, NULL);
 	if (use_angel) {
 		li_angel_setup(srv);
 	}

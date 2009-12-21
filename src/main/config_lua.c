@@ -147,7 +147,7 @@ static int handle_server_action(liServer *srv, lua_State *L, gpointer _sa) {
 	li_lua_unlock(srv);
 
 	/* TRACE(srv, "%s", "Creating action"); */
-	a = sa->li_create_action(srv, sa->p, val);
+	a = sa->li_create_action(srv, sa->p, val, sa->userdata);
 	li_value_free(val);
 
 	li_lua_lock(srv);
@@ -170,7 +170,7 @@ static int handle_server_setup(liServer *srv, lua_State *L, gpointer _ss) {
 
 	li_lua_unlock(srv);
 	/* TRACE(srv, "%s", "Calling setup"); */
-	res = ss->setup(srv, ss->p, val);
+	res = ss->setup(srv, ss->p, val, ss->userdata);
 	li_lua_lock(srv);
 
 	if (!res) {

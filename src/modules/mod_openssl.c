@@ -341,7 +341,7 @@ static void openssl_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 	srv_sock->release_cb = openssl_sock_release;
 }
 
-static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val) {
+static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	openssl_context *ctx;
 	GHashTableIter hti;
 	gpointer hkey, hvalue;
@@ -353,7 +353,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val) {
 	GString *ipstr = NULL;
 	gboolean allow_ssl2 = FALSE;
 
-	UNUSED(p);
+	UNUSED(p); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_HASH) {
 		ERROR(srv, "%s", "openssl expects a hash as parameter");
@@ -476,18 +476,18 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ "openssl", openssl_setup },
+	{ "openssl", openssl_setup, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
-static void plugin_init(liServer *srv, liPlugin *p) {
-	UNUSED(srv);
+static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -547,7 +547,7 @@ gboolean mod_openssl_init(liModules *mods, liModule *mod) {
 		return FALSE;
 	}
 
-	mod->config = li_plugin_register(mods->main, "mod_openssl", plugin_init);
+	mod->config = li_plugin_register(mods->main, "mod_openssl", plugin_init, NULL);
 
 	return mod->config != NULL;
 }

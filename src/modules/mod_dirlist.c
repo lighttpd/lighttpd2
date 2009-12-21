@@ -609,12 +609,13 @@ static void dirlist_free(liServer *srv, gpointer param) {
 	g_slice_free(dirlist_data, data);
 }
 
-static liAction* dirlist_create(liServer *srv, liPlugin* p, liValue *val) {
+static liAction* dirlist_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	dirlist_data *data;
 	guint i;
 	guint j;
 	liValue *v, *tmpval;
 	GString *k;
+	UNUSED(userdata);
 
 	if (val && val->type != LI_VALUE_LIST) {
 		ERROR(srv, "%s", "dirlist expects an optional list of string-value pairs");
@@ -786,13 +787,13 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "dirlist", dirlist_create },
+	{ "dirlist", dirlist_create, NULL },
 
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
@@ -806,10 +807,10 @@ static void plugin_dirlist_free(liServer *srv, liPlugin *p) {
 }
 
 
-static void plugin_dirlist_init(liServer *srv, liPlugin *p) {
+static void plugin_dirlist_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	dirlist_plugin_data *pd;
 
-	UNUSED(srv);
+	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
@@ -826,7 +827,7 @@ gboolean mod_dirlist_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_dirlist", plugin_dirlist_init);
+	mod->config = li_plugin_register(mods->main, "mod_dirlist", plugin_dirlist_init, NULL);
 
 	return mod->config != NULL;
 }

@@ -489,11 +489,11 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
-	{ NULL, NULL }
+	{ NULL, NULL, NULL }
 };
 
 
@@ -503,10 +503,10 @@ static void plugin_accesslog_free(liServer *srv, liPlugin *p) {
 	g_slice_free(al_data, p->data);
 }
 
-static void plugin_accesslog_init(liServer *srv, liPlugin *p) {
+static void plugin_accesslog_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	al_data *ald;
 
-	UNUSED(srv);
+	UNUSED(srv); UNUSED(userdata);
 
 	p->free = plugin_accesslog_free;
 	p->options = options;
@@ -525,7 +525,7 @@ LI_API gboolean mod_accesslog_init(liModules *mods, liModule *mod) {
 
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_accesslog", plugin_accesslog_init);
+	mod->config = li_plugin_register(mods->main, "mod_accesslog", plugin_accesslog_init, NULL);
 
 	/* set default accesslog format */
 	str = g_string_new_len(CONST_STR_LEN("%h %V %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""));
