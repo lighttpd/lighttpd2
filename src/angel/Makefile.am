@@ -1,5 +1,5 @@
 
-bin_PROGRAMS=lighttpd-angel
+sbin_PROGRAMS=lighttpd-angel
 lib_LTLIBRARIES=liblighttpd-sharedangel.la
 
 common_cflags=-I$(top_srcdir)/include -I$(top_builddir)/include

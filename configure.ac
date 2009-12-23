@@ -37,6 +37,15 @@ AC_CHECK_HEADERS([ \
 	sys/un.h \
 ])
 
+# pkglibdir
+AC_ARG_WITH(
+  [pkglibdir],
+  AS_HELP_STRING([--with-pkglibdir=dir],
+                 [specify directory for driver files (default LIBDIR/lighttpd)]),
+  [pkglibdir=$withval],
+  [pkglibdir=$libdir/lighttpd])
+AC_SUBST(pkglibdir)
+
 # Checks for libraries.
 
 # glib/gthread (gthread includes glib)
