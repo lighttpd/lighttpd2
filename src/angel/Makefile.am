@@ -22,7 +22,8 @@ EXTRA_DIST=angel_config_parser.rl
 
 liblighttpd_sharedangel_la_SOURCES=$(lighttpd_angel_shared_src)
 liblighttpd_sharedangel_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS)
-liblighttpd_sharedangel_la_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS)
+liblighttpd_sharedangel_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS)
+liblighttpd_sharedangel_la_LIBADD=../common/liblighttpd-common.la
 
 lighttpd_angel_SOURCES=angel_main.c
 

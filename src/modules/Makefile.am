@@ -1,8 +1,8 @@
 install_libs = 
 
 common_cflags = -I$(top_srcdir)/include -I$(top_builddir)/include
-common_cflags += $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) $(OPENSSL_CFLAGS)
-common_libs = $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
+common_cflags += $(GTHREAD_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) $(OPENSSL_CFLAGS)
+common_libs = $(GTHREAD_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
 common_ldflags = -module -export-dynamic -avoid-version -no-undefined $(common_libs)
 common_libadd = ../common/liblighttpd-common.la ../main/liblighttpd-shared.la
 
@@ -20,8 +20,8 @@ libmod_accesslog_la_LIBADD = $(common_libadd)
 
 install_libs += libmod_auth.la
 libmod_auth_la_SOURCES = mod_auth.c
-libmod_auth_la_LDFLAGS = $(common_ldflags)
-libmod_auth_la_LIBADD = $(CRYPT_LIB) $(common_libadd)
+libmod_auth_la_LDFLAGS = $(common_ldflags) $(CRYPT_LIB)
+libmod_auth_la_LIBADD = $(common_libadd)
 
 install_libs += libmod_balancer.la
 libmod_balancer_la_SOURCES = mod_balancer.c

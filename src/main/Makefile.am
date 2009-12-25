@@ -83,7 +83,8 @@ EXTRA_DIST=config_parser.rl http_range_parser.rl http_request_parser.rl  http_re
 
 liblighttpd_shared_la_SOURCES=$(lighttpd_shared_src)
 liblighttpd_shared_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS)
-liblighttpd_shared_la_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS)
+liblighttpd_shared_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
+liblighttpd_shared_la_LIBADD=../common/liblighttpd-common.la
 
 lighttpd_SOURCES=lighttpd.c
 
