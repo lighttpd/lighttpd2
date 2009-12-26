@@ -295,6 +295,7 @@ if test x$extrawarnings = xtrue; then
 fi
 
 AC_CONFIG_FILES([Makefile \
+	doc/Makefile \
 	include/Makefile \
 	include/lighttpd/Makefile \
 	src/Makefile \

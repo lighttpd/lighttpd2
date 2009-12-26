@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+
+LOG=/var/log/lighttpd2/sv.log
+
+test -d "$LOG" || mkdir -p -m2750 "$LOG" && chown root:adm "$LOG"
+exec svlogd -tt "$LOG"

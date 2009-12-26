@@ -1,0 +1,6 @@
+#!/bin/sh
+exec 2>&1
+echo 'lighttpd2 starting.'
+
+LANG=C LC_ALL=C \
+exec /usr/sbin/lighttpd2-angel -c /etc/lighttpd2/angel.conf
