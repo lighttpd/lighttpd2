@@ -232,7 +232,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 	liPhysical *phys = &vr->physical;
 	gchar *tmp_str = NULL;
 	GString *tmp_gstr = g_string_sized_new(127);
-	GString *tmp_gstr2;
+	GString *tmp_gstr2 = NULL;
 	guint len = 0;
 
 	for (guint i = 0; i < format->len; i++) {
@@ -256,6 +256,9 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 					g_string_append_printf(str, "%jd", vr->vr_out->bytes_out);
 				else
 					g_string_append_c(str, '-');
+				break;
+			case AL_FORMAT_DURATION_MICROSECONDS:
+				li_string_append_int(str, (CUR_TS(vr->wrk) - vr->ts_started) * 1000 * 1000);
 				break;
 			case AL_FORMAT_ENV:
 				tmp_gstr2 = li_environment_get(&vr->env, GSTR_LEN(e->key));
@@ -322,6 +325,9 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				tmp_gstr2 = li_worker_current_timestamp(vr->wrk, LI_LOCALTIME, ald->ts_ndx);
 				g_string_append_len(str, GSTR_LEN(tmp_gstr2));
 				break;
+			case AL_FORMAT_DURATION_SECONDS:
+				li_string_append_int(str, CUR_TS(vr->wrk) - vr->ts_started);
+				break;
 			case AL_FORMAT_AUTHED_USER:
 				tmp_gstr2 = li_environment_get(&vr->env, CONST_STR_LEN("REMOTE_USER"));
 				if (tmp_gstr2)
@@ -360,9 +366,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 			default:
 				/* not implemented:
 				{ 'C', FALSE, AL_FORMAT_COOKIE }
-				{ 'D', FALSE, AL_FORMAT_DURATION_MICROSECONDS }
 				{ 't', FALSE, AL_FORMAT_TIME },
-				{ 'T', FALSE, AL_FORMAT_DURATION_SECONDS },
 				*/
 				g_string_append_c(str, '?');
 				break;
