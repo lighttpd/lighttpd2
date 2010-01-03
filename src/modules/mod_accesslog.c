@@ -249,11 +249,11 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(vr->con->local_addr_str));
 				break;
 			case AL_FORMAT_BYTES_RESPONSE:
-				g_string_append_printf(str, "%jd", vr->vr_out->bytes_out);
+				li_string_append_int(str, vr->vr_out->bytes_out);
 				break;
 			case AL_FORMAT_BYTES_RESPONSE_CLF:
 				if (vr->vr_out->bytes_out)
-					g_string_append_printf(str, "%jd", vr->vr_out->bytes_out);
+					li_string_append_int(str, vr->vr_out->bytes_out);
 				else
 					g_string_append_c(str, '-');
 				break;
@@ -318,7 +318,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				g_string_append_len(str, tmp_str, len);
 				break;
 			case AL_FORMAT_STATUS_CODE:
-				g_string_append_printf(str, "%d", resp->http_status);
+				li_string_append_int(str, resp->http_status);
 				break;
 			case AL_FORMAT_TIME:
 				/* todo: implement format string */
@@ -358,15 +358,15 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 					g_string_append_c(str, vr->con->keep_alive ? '+' : '-');
 				break;
 			case AL_FORMAT_BYTES_IN:
-				g_string_append_printf(str, "%"G_GUINT64_FORMAT, vr->con->stats.bytes_in);
+				li_string_append_int(str, vr->con->stats.bytes_in);
 				break;
 			case AL_FORMAT_BYTES_OUT:
-				g_string_append_printf(str, "%"G_GUINT64_FORMAT, vr->con->stats.bytes_out);
+				li_string_append_int(str, vr->con->stats.bytes_out);
 				break;
 			default:
 				/* not implemented:
 				{ 'C', FALSE, AL_FORMAT_COOKIE }
-				{ 't', FALSE, AL_FORMAT_TIME },
+				{ 't', FALSE, AL_FORMAT_TIME }, (partially implemented)
 				*/
 				g_string_append_c(str, '?');
 				break;
