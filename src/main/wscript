@@ -85,4 +85,4 @@ def build(bld):
 		uselib = libs,
 		uselib_local = ['common'],
 		includes = ['#/include/'],
-		target = 'lighttpd')
+		target = 'lighttpd2')

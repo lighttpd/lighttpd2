@@ -41,9 +41,9 @@ AC_CHECK_HEADERS([ \
 AC_ARG_WITH(
   [pkglibdir],
   AS_HELP_STRING([--with-pkglibdir=dir],
-                 [specify directory for driver files (default LIBDIR/lighttpd)]),
+                 [specify directory for driver files (default LIBDIR/lighttpd-VERSION]),
   [pkglibdir=$withval],
-  [pkglibdir=$libdir/lighttpd])
+  [pkglibdir=$libdir/lighttpd-$PACKAGE_VERSION])
 AC_SUBST(pkglibdir)
 
 # Checks for libraries.
@@ -303,5 +303,6 @@ AC_CONFIG_FILES([Makefile \
 	src/angel/Makefile \
 	src/modules/Makefile \
 	src/unittests/Makefile \
+	src/lighttpd2.pc \
 ])
 AC_OUTPUT

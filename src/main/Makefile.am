@@ -1,6 +1,6 @@
 
-bin_PROGRAMS=lighttpd
-lib_LTLIBRARIES=liblighttpd-shared.la
+bin_PROGRAMS=lighttpd2
+lib_LTLIBRARIES=liblighttpd2-shared.la
 
 common_cflags=-I$(top_srcdir)/include -I$(top_builddir)/include
 
@@ -64,7 +64,7 @@ lua_src= \
 if USE_LUA
 lighttpd_shared_src+=$(lua_src)
 endif
-EXTRA_lighttpd_SOURCES=$(lua_src)
+EXTRA_lighttpd2_SOURCES=$(lua_src)
 
 BUILT_SOURCES=config_parser.c http_range_parser.c http_request_parser.c http_response_parser.c url_parser.c
 
@@ -81,13 +81,13 @@ url_parser.c: url_parser.rl
 
 EXTRA_DIST=config_parser.rl http_range_parser.rl http_request_parser.rl  http_response_parser.rl url_parser.rl
 
-liblighttpd_shared_la_SOURCES=$(lighttpd_shared_src)
-liblighttpd_shared_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS)
-liblighttpd_shared_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
-liblighttpd_shared_la_LIBADD=../common/liblighttpd-common.la
+liblighttpd2_shared_la_SOURCES=$(lighttpd_shared_src)
+liblighttpd2_shared_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS)
+liblighttpd2_shared_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
+liblighttpd2_shared_la_LIBADD=../common/liblighttpd2-common.la
 
-lighttpd_SOURCES=lighttpd.c
+lighttpd2_SOURCES=lighttpd.c
 
-lighttpd_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) -DDEFAULT_LIBDIR='"$(pkglibdir)"'
-lighttpd_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
-lighttpd_LDADD=../common/liblighttpd-common.la ../main/liblighttpd-shared.la
+lighttpd2_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) -DDEFAULT_LIBDIR='"$(pkglibdir)"'
+lighttpd2_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
+lighttpd2_LDADD=../common/liblighttpd2-common.la ../main/liblighttpd2-shared.la

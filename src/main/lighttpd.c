@@ -14,7 +14,7 @@
 #endif
 
 #ifndef DEFAULT_LIBDIR
-# define DEFAULT_LIBDIR "/usr/local/lib/lighttpd"
+# define DEFAULT_LIBDIR "/usr/local/lib/lighttpd2"
 #endif
 
 int main(int argc, char *argv[]) {

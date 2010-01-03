@@ -1,5 +1,5 @@
 
-lib_LTLIBRARIES=liblighttpd-common.la
+lib_LTLIBRARIES=liblighttpd2-common.la
 common_cflags=-I$(top_srcdir)/include -I$(top_builddir)/include
 
 common_src= \
@@ -24,6 +24,6 @@ ip_parsers.c: ip_parsers.rl
 
 EXTRA_DIST=ip_parsers.rl
 
-liblighttpd_common_la_SOURCES=$(common_src)
-liblighttpd_common_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS)
-liblighttpd_common_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS)
+liblighttpd2_common_la_SOURCES=$(common_src)
+liblighttpd2_common_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS)
+liblighttpd2_common_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS)

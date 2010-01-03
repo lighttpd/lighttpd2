@@ -5,6 +5,10 @@
 
 #include <lighttpd/version.h>
 
+#ifndef DEFAULT_LIBDIR
+# define DEFAULT_LIBDIR "/usr/local/lib/lighttpd2"
+#endif
+
 # ifndef HAVE_ISSETUGID
 
 static int l_issetugid() {
@@ -20,7 +24,7 @@ int main(int argc, char *argv[]) {
 
 	/* options */
 	gboolean show_version = FALSE, no_fork = FALSE;
-	gchar const *const def_module_dir = "/usr/local/lib"; /* TODO: configure module-dir with make-system */
+	gchar const *const def_module_dir = DEFAULT_LIBDIR;
 	gchar const *module_dir = def_module_dir;
 	gchar const *config_path = NULL, *pidfile = NULL;
 
