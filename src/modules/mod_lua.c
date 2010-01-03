@@ -135,6 +135,7 @@ static void lua_config_free(liServer *srv, gpointer param) {
 		}
 		g_slice_free1(sizeof(lua_worker_config) * srv->worker_count, wc);
 	}
+	g_string_free(conf->filename, TRUE);
 
 	g_slice_free(lua_config, conf);
 }
