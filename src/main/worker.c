@@ -284,7 +284,7 @@ void li_worker_new_con(liWorker *ctx, liWorker *wrk, liSocketAddress remote_addr
 		con->state = LI_CON_STATE_REQUEST_START;
 		ev_io_set(&con->sock_watcher, s, EV_READ);
 		ev_io_start(wrk->loop, &con->sock_watcher);
-		con->ts = CUR_TS(con->wrk);
+		con->ts_started = CUR_TS(wrk);
 
 		con->remote_addr = remote_addr;
 		li_sockaddr_to_string(remote_addr, con->remote_addr_str, FALSE);

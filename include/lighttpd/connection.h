@@ -81,7 +81,7 @@ struct liConnection {
 		liWaitQueueElem wqueue_elem;
 	} throttle;
 
-	ev_tstamp ts;
+	ev_tstamp ts_started;
 
 	struct {
 		guint64 bytes_in; /* total number of bytes received */

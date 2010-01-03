@@ -157,7 +157,6 @@ static gboolean connection_handle_read(liConnection *con) {
 			con->keep_alive = FALSE;
 
 		con->state = LI_CON_STATE_READ_REQUEST_HEADER;
-		con->ts = CUR_TS(con->wrk);
 
 		li_vrequest_start(con->mainvr);
 	} else {
@@ -639,8 +638,6 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 	li_chunkqueue_set_limit(con->raw_out, con->out->limit);
 	li_cqlimit_set_limit(con->raw_in->limit, 512*1024);
 	li_cqlimit_set_limit(con->raw_out->limit, 512*1024);
-
-	con->ts = CUR_TS(con->wrk);
 
 	/* reset stats */
 	con->stats.bytes_in = G_GUINT64_CONSTANT(0);

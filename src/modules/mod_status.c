@@ -330,7 +330,7 @@ struct mod_status_con_data {
 	liHttpMethod method;
 	goffset request_size;
 	goffset response_size;
-	ev_tstamp ts;
+	ev_tstamp ts_started;
 	guint64 bytes_in;
 	guint64 bytes_out;
 	guint64 bytes_in_5s_diff;
@@ -376,7 +376,7 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->request_size = c->mainvr->request.content_length;
 		cd->response_size = c->mainvr->out->bytes_out;
 		cd->state = c->state;
-		cd->ts = c->ts;
+		cd->ts_started = c->ts_started;
 		cd->bytes_in = c->stats.bytes_in;
 		cd->bytes_out = c->stats.bytes_out;
 		cd->bytes_in_5s_diff = c->stats.bytes_in_5s_diff;
@@ -708,7 +708,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 			for (j = 0; j < sd->connections->len; j++) {
 				mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
 
-				li_counter_format((guint64)(CUR_TS(vr->wrk) - cd->ts), COUNTER_TIME, ts);
+				li_counter_format((guint64)(CUR_TS(vr->wrk) - cd->ts_started), COUNTER_TIME, ts);
 				li_counter_format(cd->bytes_in, COUNTER_BYTES, bytes_in);
 				li_counter_format(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_in_5s);
 				li_counter_format(cd->bytes_out, COUNTER_BYTES, bytes_out);
@@ -723,7 +723,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 					cd->path->str,
 					cd->query->len ? "?":"",
 					cd->query->len ? cd->query->str : "",
-					(guint64)(CUR_TS(vr->wrk) - cd->ts), ts->str,
+					(guint64)(CUR_TS(vr->wrk) - cd->ts_started), ts->str,
 					cd->bytes_in, bytes_in->str,
 					cd->bytes_out, bytes_out->str,
 					cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), bytes_in_5s->str,

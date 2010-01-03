@@ -54,7 +54,7 @@ struct mod_debug_data_t {
 	liHttpMethod method;
 	goffset request_size;
 	goffset response_size;
-	ev_tstamp ts;
+	ev_tstamp ts_started;
 	guint64 bytes_in;
 	guint64 bytes_out;
 	guint64 bytes_in_5s_diff;
@@ -104,7 +104,7 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->request_size = c->mainvr->request.content_length;
 		cd->response_size = c->mainvr->out->bytes_out;
 		cd->state = c->state;
-		cd->ts = c->ts;
+		cd->ts_started = c->ts_started;
 		cd->bytes_in = c->stats.bytes_in;
 		cd->bytes_out = c->stats.bytes_out;
 		cd->bytes_in_5s_diff = c->stats.bytes_in_5s_diff;
@@ -120,7 +120,7 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 				g_string_append_printf(cd->detailed, "	local_addr_str = \"%s\",\n", cd->local_addr_str->str);
 				g_string_append_printf(cd->detailed, "	fd = %d,\n", cd->fd);
 				g_string_append_printf(cd->detailed, "	state = \"%s\",\n", li_connection_state_str(cd->state));
-				g_string_append_printf(cd->detailed, "	ts = %f,\n", cd->ts);
+				g_string_append_printf(cd->detailed, "	ts_started = %f,\n", cd->ts_started);
 				g_string_append_printf(cd->detailed,
 					"	io_timeout_elem = {\n"
 					"		queued = %s,\n"
@@ -213,7 +213,7 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 			for (j = 0; j < cons->len; j++) {
 				mod_debug_data_t *d = &g_array_index(cons, mod_debug_data_t, j);
 
-				li_counter_format((guint64)(CUR_TS(vr->wrk) - d->ts), COUNTER_TIME, duration);
+				li_counter_format((guint64)(CUR_TS(vr->wrk) - d->ts_started), COUNTER_TIME, duration);
 				g_string_append_printf(html, "<tr><td>%s</td><td style=\"text-align:right;\">%s</td><td style=\"padding-left:10px;\"><a href=\"?%u_%u_%d_%s\">debug</a></td></tr>\n",
 					d->remote_addr_str->str,
 					duration->str,
