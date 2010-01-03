@@ -65,6 +65,8 @@ struct liVRequest {
 
 	liVRequestState state;
 
+	ev_tstamp ts_started;
+
 	liVRequestHandlerCB
 		handle_request_headers,
 		handle_response_headers, handle_response_body,

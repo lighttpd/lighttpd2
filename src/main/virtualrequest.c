@@ -324,6 +324,8 @@ void li_vrequest_start(liVRequest *vr) {
 	if (LI_VRS_CLEAN == vr->state) {
 		li_request_reset(&vr->request);
 	}
+
+	vr->ts_started = CUR_TS(vr->wrk);
 }
 
 /* received all request headers */
