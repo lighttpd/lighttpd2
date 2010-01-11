@@ -535,6 +535,11 @@ GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean sho
 	guint8 oct;
 	liSockAddr *saddr = addr.addr;
 
+	if (!saddr) {
+		li_string_assign_len(dest, CONST_STR_LEN("<null>"));
+		return dest;
+	}
+
 	switch (saddr->plain.sa_family) {
 	case AF_INET:
 		/* ipv4 */
