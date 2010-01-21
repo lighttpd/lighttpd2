@@ -144,7 +144,7 @@ static liHandlerResult vhost_simple(liVRequest *vr, gpointer param, gpointer *co
 
 	/* check if directory exists. if not, fall back to default host */
 
-	switch (li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL)) {
+	switch (li_stat_cache_get(vr, vr->physical.doc_root, &st, &err, NULL)) {
 	case LI_HANDLER_GO_ON: break;
 	case LI_HANDLER_WAIT_FOR_EVENT:
 		*context = GINT_TO_POINTER(1);
@@ -158,7 +158,7 @@ static liHandlerResult vhost_simple(liVRequest *vr, gpointer param, gpointer *co
 	}
 
 	if (debug)
-		VR_DEBUG(vr, "vhost.simple: physical docroot now \"%s\"", vr->physical.doc_root->str);
+		VR_DEBUG(vr, "vhost.simple: docroot now \"%s\"", vr->physical.doc_root->str);
 
 	/* build physical path: docroot + uri.path */
 	g_string_truncate(vr->physical.path, 0);
