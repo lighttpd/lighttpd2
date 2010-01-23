@@ -24,11 +24,16 @@ mempool_ptr mempool_alloc(gsize size) {
 }
 
 void mempool_free(mempool_ptr ptr, gsize size) {
+	UNUSED(size);
 	if (!ptr.data) return;
 	free(ptr.data);
 }
 
 void mempool_cleanup() {
+}
+
+gsize mempool_align_page_size(gsize size) {
+	return size;
 }
 
 #else /* MP_MALLOC */
