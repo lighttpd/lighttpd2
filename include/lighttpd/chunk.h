@@ -201,6 +201,17 @@ INLINE liChunk* li_chunkqueue_first_chunk(liChunkQueue *cq);
 LI_API gboolean li_chunkqueue_extract_to(liVRequest *vr, liChunkQueue *cq, goffset len, GString *dest);
 LI_API gboolean li_chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *cq, goffset len, GByteArray *dest);
 
+/* helper functions to append to the last BUFFER_CHUNK of a chunkqueue */
+
+/* returns the liBuffer from the last chunk in cq, if the chunk has type BUFFER_CHUNK,
+ * and the buffer has at least min_space bytes free and refcount == 1 (NULL otherwise) */
+LI_API liBuffer* li_chunkqueue_get_last_buffer(liChunkQueue *cq, guint min_space);
+/* only call this if li_chunkqueue_get_last_buffer returned a buffer; don't modify the chunkqueue
+ * between the two calls
+ * updates the buffer and the cq data
+ */
+LI_API void li_chunkqueue_update_last_buffer_size(liChunkQueue *cq, goffset add_length);
+
 /********************
  * Inline functions *
  ********************/

@@ -90,9 +90,18 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 	}
 
 	do {
-		liBuffer *buf = li_buffer_new(blocksize);
-		if (-1 == (r = li_net_read(fd, buf->addr, buf->alloc_size))) {
-			li_buffer_release(buf);
+		liBuffer *buf;
+		gboolean cq_buf_append;
+
+		buf = li_chunkqueue_get_last_buffer(cq, 1024);
+		buf = NULL;
+		if (!(cq_buf_append = (buf != NULL))) {
+			buf = li_buffer_new(blocksize);
+		} else {
+			VR_ERROR(vr, "buffer: used %i", (int) buf->used);
+		}
+		if (-1 == (r = li_net_read(fd, buf->addr + buf->used, buf->alloc_size - buf->used))) {
+			if (!cq_buf_append) li_buffer_release(buf);
 			switch (errno) {
 			case EAGAIN:
 #if EWOULDBLOCK != EAGAIN
@@ -107,11 +116,15 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {
-			li_buffer_release(buf);
+			if (!cq_buf_append) li_buffer_release(buf);
 			return len ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_CONNECTION_CLOSE;
 		}
-		buf->used = r;
-		li_chunkqueue_append_buffer(cq, buf);
+		if (cq_buf_append) {
+			li_chunkqueue_update_last_buffer_size(cq, r);
+		} else {
+			buf->used = r;
+			li_chunkqueue_append_buffer(cq, buf);
+		}
 		len += r;
 	} while (r == blocksize && len < max_read);
 

@@ -7,6 +7,8 @@ static void li_connection_internal_error(liConnection *con);
 
 static void parse_request_body(liConnection *con) {
 	if ((con->state > LI_CON_STATE_HANDLE_MAINVR || con->mainvr->state >= LI_VRS_READ_CONTENT) && !con->in->is_closed) {
+		goffset newbytes = 0;
+
 		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_READ);
 		if (con->mainvr->request.content_length == -1) {
 			/* TODO: parse chunked encoded request body, filters */
@@ -14,14 +16,16 @@ static void parse_request_body(liConnection *con) {
 			con->in->is_closed = TRUE;
 		} else {
 			if (con->in->bytes_in < con->mainvr->request.content_length) {
-				li_chunkqueue_steal_len(con->in, con->raw_in, con->mainvr->request.content_length - con->in->bytes_in);
+				newbytes = li_chunkqueue_steal_len(con->in, con->raw_in, con->mainvr->request.content_length - con->in->bytes_in);
 			}
 			if (con->in->bytes_in == con->mainvr->request.content_length) {
 				con->in->is_closed = TRUE;
 				li_ev_io_rem_events(con->wrk->loop, &con->sock_watcher, EV_READ);
 			}
 		}
-		li_vrequest_handle_request_body(con->mainvr);
+		if (newbytes > 0 || con->in->is_closed) {
+			li_vrequest_handle_request_body(con->mainvr);
+		}
 	} else {
 		li_ev_io_rem_events(con->wrk->loop, &con->sock_watcher, EV_READ);
 	}

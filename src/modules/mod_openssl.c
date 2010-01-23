@@ -36,7 +36,6 @@ typedef struct openssl_context openssl_context;
 
 struct openssl_connection_ctx {
 	SSL *ssl;
-	GByteArray *reuse_read_buffer;
 };
 
 struct openssl_context {
@@ -88,10 +87,6 @@ static void openssl_con_close(liConnection *con) {
 		SSL_shutdown(conctx->ssl); /* TODO: wait for something??? */
 		SSL_free(conctx->ssl);
 		conctx->ssl = FALSE;
-	}
-
-	if (conctx->reuse_read_buffer) {
-		g_byte_array_free(conctx->reuse_read_buffer, TRUE);
 	}
 
 	con->srv_sock_data = NULL;
@@ -194,7 +189,6 @@ static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 static liNetworkStatus openssl_con_read(liConnection *con) {
 	liChunkQueue *cq = con->raw_in;
 	openssl_connection_ctx *conctx = con->srv_sock_data;
-	GByteArray *buf;
 
 	const ssize_t blocksize = 16*1024; /* 16k */
 	off_t max_read = 16 * blocksize; /* 256k */
@@ -212,30 +206,31 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 		}
 	}
 
-	buf = conctx->reuse_read_buffer;
-	conctx->reuse_read_buffer = NULL;
-
 	do {
+		liBuffer *buf;
+		gboolean cq_buf_append;
+
 		ERR_clear_error();
 
-		if (!buf) {
-			buf = g_byte_array_new();
-			g_byte_array_set_size(buf, blocksize);
+		buf = li_chunkqueue_get_last_buffer(cq, 1024);
+		buf = NULL;
+		if (!(cq_buf_append = (buf != NULL))) {
+			buf = li_buffer_new(blocksize);
 		}
 
-		r = SSL_read(conctx->ssl, buf->data, buf->len);
+		r = SSL_read(conctx->ssl, buf->addr + buf->used, buf->alloc_size - buf->used);
 		if (r < 0) {
 			int oerrno = errno, err;
 			gboolean was_fatal;
 
+			if (!cq_buf_append) li_buffer_release(buf);
+
 			err = SSL_get_error(conctx->ssl, r);
 
 			if (SSL_ERROR_WANT_READ == err || SSL_ERROR_WANT_WRITE == err) {
-				conctx->reuse_read_buffer = buf;
-				return LI_NETWORK_STATUS_WAIT_FOR_EVENT;
+				/* ignore requirement that we should pass the same buffer again */
+				return (len > 0) ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 			}
-			g_byte_array_free(buf, TRUE);
-			buf = NULL;
 
 			switch (err) {
 			case SSL_ERROR_SYSCALL:
@@ -297,15 +292,18 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 
 			return LI_NETWORK_STATUS_FATAL_ERROR;
 		} else if (r == 0) {
-			g_byte_array_free(buf, TRUE);
+			if (!cq_buf_append) li_buffer_release(buf);
 			return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 		}
 
-		g_byte_array_set_size(buf, r);
-		li_chunkqueue_append_bytearr(cq, buf);
-		buf = NULL;
+		if (cq_buf_append) {
+			li_chunkqueue_update_last_buffer_size(cq, r);
+		} else {
+			buf->used = r;
+			li_chunkqueue_append_buffer(cq, buf);
+		}
 		len += r;
-	} while (r == blocksize && len < max_read);
+	} while (len < max_read);
 
 	return LI_NETWORK_STATUS_SUCCESS;
 }

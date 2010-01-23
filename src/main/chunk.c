@@ -870,3 +870,38 @@ error:
 	return FALSE;
 }
 
+/* helper functions to append to the last BUFFER_CHUNK of a chunkqueue */
+
+/* returns the liBuffer from the last chunk in cq, if the chunk has type BUFFER_CHUNK,
+ * and the buffer has at least min_space bytes free and refcount == 1 (NULL otherwise) */
+liBuffer* li_chunkqueue_get_last_buffer(liChunkQueue *cq, guint min_space) {
+	liChunk *c = g_queue_peek_tail(&cq->queue);
+	liBuffer *buf;
+
+	if (!c || c->type != BUFFER_CHUNK) return NULL;
+	buf = c->data.buffer.buffer;
+	if (g_atomic_int_get(&buf->refcount) != 1 || (buf->alloc_size - buf->used) < min_space) return NULL;
+	/* truncate buf->used - we are the only reference, so that is no problem;
+	 * but we need to append directly after the current data block
+	 */
+	buf->used = c->data.buffer.offset + c->data.buffer.length;
+	return buf;
+}
+
+/* only call this if li_chunkqueue_get_last_buffer returned a buffer; don't modify the chunkqueue
+ * between the two calls
+ * updates the buffer and the cq data
+ */
+LI_API void li_chunkqueue_update_last_buffer_size(liChunkQueue *cq, goffset add_length) {
+	liChunk *c = g_queue_peek_tail(&cq->queue);
+	liBuffer *buf;
+
+	assert(c && c->type == BUFFER_CHUNK);
+	buf = c->data.buffer.buffer;
+	buf->used += add_length;
+	c->data.buffer.length += add_length;
+
+	cq->length += add_length;
+	cq->bytes_in += add_length;
+	cqlimit_update(cq, add_length);
+}
