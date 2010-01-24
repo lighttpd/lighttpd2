@@ -90,4 +90,4 @@ lighttpd2_SOURCES=lighttpd.c
 
 lighttpd2_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) -DDEFAULT_LIBDIR='"$(pkglibdir)"'
 lighttpd2_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
-lighttpd2_LDADD=../common/liblighttpd2-common.la ../main/liblighttpd2-shared.la
+lighttpd2_LDADD=../common/liblighttpd2-common.la liblighttpd2-shared.la

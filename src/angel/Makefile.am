@@ -29,4 +29,4 @@ lighttpd2_angel_SOURCES=angel_main.c
 
 lighttpd2_angel_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) -DDEFAULT_LIBDIR='"$(pkglibdir)"'
 lighttpd2_angel_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
-lighttpd2_angel_LDADD=../common/liblighttpd2-common.la ../angel/liblighttpd2-sharedangel.la
+lighttpd2_angel_LDADD=../common/liblighttpd2-common.la liblighttpd2-sharedangel.la
