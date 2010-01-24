@@ -76,6 +76,10 @@ union liSockAddr {
 	struct sockaddr_un un;
 #endif
 	struct sockaddr plain;
+
+#ifdef HAVE_SOCKADDR_STORAGE
+	struct sockaddr_storage storage;
+#endif
 };
 
 typedef struct liSocketAddress liSocketAddress;

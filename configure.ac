@@ -160,6 +160,16 @@ if test x$ipv6 = xtrue; then
   fi
 fi
 
+dnl Check for struct sockaddr_storage
+
+AC_CACHE_CHECK([for struct sockaddr_storage support], ac_cv_sockaddr_storage_support,
+  [AC_TRY_LINK([ #include <sys/socket.h> ], [struct sockaddr_storage s; ],
+  [ac_cv_sockaddr_storage_support=yes], [ac_cv_sockaddr_storage_support=no])])
+
+if test "ac_cv_sockaddr_storage_support" = yes; then
+  AC_DEFINE(HAVE_SOCKADDR_STORAGE,1,[Whether we have struct sockaddr_storage])
+fi
+
 
 dnl Check for openssl
 AC_MSG_CHECKING(for OpenSSL)

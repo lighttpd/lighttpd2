@@ -183,6 +183,15 @@ def configure(conf):
 		define_name='HAVE_IPV6'
 	)
 
+	conf.check(
+		fragment='''
+			#include <sys/socket.h>
+			int main() {struct sockaddr_storage s; return 0;}
+		''',
+		msg='Checking for struct sockaddr_storage support',
+		define_name='HAVE_SOCKADDR_STORAGE'
+	)
+
 	conf.sub_config('src/common')
 	conf.sub_config('src/angel')
 	conf.sub_config('src/main')
