@@ -483,9 +483,9 @@ static liAction* rewrite_create(liServer *srv, liPlugin* p, liValue *val, gpoint
 
 
 static const liPluginOption options[] = {
-	{ "rewrite.debug", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
+	{ "rewrite.debug", LI_VALUE_BOOLEAN, FALSE, NULL },
 
-	{ NULL, 0, NULL, NULL, NULL }
+	{ NULL, 0, 0, NULL }
 };
 
 static const liPluginAction actions[] = {

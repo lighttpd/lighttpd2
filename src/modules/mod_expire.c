@@ -236,7 +236,7 @@ static liAction* expire_create(liServer *srv, liPlugin* p, liValue *val, gpointe
 
 
 static const liPluginOption options[] = {
-	{ NULL, 0, NULL, NULL, NULL }
+	{ NULL, 0, 0, NULL }
 };
 
 static const liPluginAction actions[] = {

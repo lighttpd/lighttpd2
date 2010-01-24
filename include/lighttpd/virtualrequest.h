@@ -62,6 +62,7 @@ struct liVRequest {
 	liVRequestRef *ref;
 
 	liOptionValue *options;
+	liOptionPtrValue **optionptrs;
 
 	liVRequestState state;
 

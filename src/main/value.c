@@ -236,6 +236,39 @@ GString *li_value_to_string(liValue *val) {
 	return str;
 }
 
+gpointer li_value_extract_ptr(liValue *val) {
+	gpointer ptr = NULL;
+
+	if (!val) return NULL;
+
+	switch (val->type) {
+	case LI_VALUE_NONE:
+		break;
+	case LI_VALUE_BOOLEAN:
+		break;
+	case LI_VALUE_NUMBER:
+		break;
+	case LI_VALUE_STRING:
+		ptr = val->data.string;
+		break;
+	case LI_VALUE_LIST:
+		ptr =  val->data.list;
+		break;
+	case LI_VALUE_HASH:
+		ptr =  val->data.hash;
+		break;
+	case LI_VALUE_ACTION:
+		ptr = val->data.val_action.action;
+		break;
+	case LI_VALUE_CONDITION:
+		ptr = val->data.val_action.action;
+		break;
+	}
+	val->type = LI_VALUE_NONE;
+	return ptr;
+}
+
+
 GString* li_value_extract_string(liValue *val) {
 	if (val->type != LI_VALUE_STRING) return NULL;
 	val->type = LI_VALUE_NONE;

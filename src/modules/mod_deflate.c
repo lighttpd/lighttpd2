@@ -716,9 +716,9 @@ option_failed:
 }
 
 static const liPluginOption options[] = {
-	{ "deflate.debug", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
+	{ "deflate.debug", LI_VALUE_BOOLEAN, FALSE, NULL },
 
-	{ NULL, 0, NULL, NULL, NULL }
+	{ NULL, 0, 0, NULL }
 };
 
 static const liPluginAction actions[] = {

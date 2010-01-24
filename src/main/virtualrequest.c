@@ -155,6 +155,15 @@ liVRequest* li_vrequest_new(liConnection *con, liVRequestHandlerCB handle_respon
 	vr->plugin_ctx = g_ptr_array_new();
 	g_ptr_array_set_size(vr->plugin_ctx, g_hash_table_size(srv->plugins));
 	vr->options = g_slice_copy(srv->option_def_values->len * sizeof(liOptionValue), srv->option_def_values->data);
+	vr->optionptrs = g_slice_copy(srv->optionptr_def_values->len * sizeof(liOptionPtrValue*), srv->optionptr_def_values->data);
+	{
+		guint i;
+		for (i = 0; i < srv->optionptr_def_values->len; i++) {
+			if (vr->optionptrs[i]) {
+				g_atomic_int_inc(&vr->optionptrs[i]->refcount);
+			}
+		}
+	}
 
 	li_request_init(&vr->request);
 	li_physical_init(&vr->physical);
@@ -188,6 +197,8 @@ liVRequest* li_vrequest_new(liConnection *con, liVRequestHandlerCB handle_respon
 }
 
 void li_vrequest_free(liVRequest* vr) {
+	liServer *srv = vr->wrk->srv;
+
 	li_action_stack_clear(vr, &vr->action_stack);
 	li_plugins_handle_vrclose(vr);
 	g_ptr_array_free(vr->plugin_ctx, TRUE);
@@ -207,7 +218,14 @@ void li_vrequest_free(liVRequest* vr) {
 		g_atomic_int_set(&vr->queued, 0);
 	}
 
-	g_slice_free1(vr->wrk->srv->option_def_values->len * sizeof(liOptionValue), vr->options);
+	g_slice_free1(srv->option_def_values->len * sizeof(liOptionValue), vr->options);
+	{
+		guint i;
+		for (i = 0; i < srv->optionptr_def_values->len; i++) {
+			li_release_optionptr(srv, vr->optionptrs[i]);
+		}
+	}
+	g_slice_free1(srv->optionptr_def_values->len * sizeof(liOptionPtrValue*), vr->optionptrs);
 
 
 	while (vr->stat_cache_entries->len > 0 ) {
@@ -225,6 +243,8 @@ void li_vrequest_free(liVRequest* vr) {
 }
 
 void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
+	liServer *srv = vr->wrk->srv;
+
 	li_action_stack_reset(vr, &vr->action_stack);
 	li_plugins_handle_vrclose(vr);
 	{
@@ -266,7 +286,18 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 		li_stat_cache_entry_release(vr, sce);
 	}
 
-	memcpy(vr->options, vr->wrk->srv->option_def_values->data, vr->wrk->srv->option_def_values->len * sizeof(liOptionValue));
+	memcpy(vr->options, srv->option_def_values->data, srv->option_def_values->len * sizeof(liOptionValue));
+	{
+		guint i;
+		for (i = 0; i < srv->optionptr_def_values->len; i++) {
+			liOptionPtrValue *oval = g_array_index(srv->optionptr_def_values, liOptionPtrValue*, i);
+			if (vr->optionptrs[i] != oval) {
+				li_release_optionptr(srv, vr->optionptrs[i]);
+				g_atomic_int_inc(&oval->refcount);
+				vr->optionptrs[i] = oval;
+			}
+		}
+	}
 
 	if (1 != g_atomic_int_get(&vr->ref->refcount)) {
 		/* If we are not the only user of vr->ref we have to get a new one and detach the old */

@@ -55,14 +55,21 @@ struct access_check_data {
 };
 typedef struct access_check_data access_check_data;
 
-enum { ACCESS_DENY = 1, ACCESS_ALLOW = 2 } access_values;
+enum { ACCESS_DENY = 1, ACCESS_ALLOW = 2 };
 
+enum {
+	OPTION_LOG_BLOCKED = 0
+};
+
+enum {
+	OPTION_REDIRECT_URL = 0
+};
 
 static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *context) {
 	access_check_data *acd = param;
 	liSockAddr *addr = vr->con->remote_addr.addr;
-	gboolean log_blocked = _OPTION(vr, acd->p, 0).boolean;
-	GString *redirect_url = _OPTION(vr, acd->p, 1).string;
+	gboolean log_blocked = _OPTION(vr, acd->p, OPTION_LOG_BLOCKED).boolean;
+	GString *redirect_url = _OPTIONPTR(vr, acd->p, OPTION_REDIRECT_URL).string;
 
 	UNUSED(context);
 	UNUSED(redirect_url);
@@ -202,8 +209,8 @@ failed_free_acd:
 
 
 static liHandlerResult access_deny(liVRequest *vr, gpointer param, gpointer *context) {
-	gboolean log_blocked = _OPTION(vr, ((liPlugin*)param), 0).boolean;
-	GString *redirect_url = _OPTION(vr, ((liPlugin*)param), 1).string;
+	gboolean log_blocked = _OPTION(vr, ((liPlugin*)param), OPTION_LOG_BLOCKED).boolean;
+	GString *redirect_url = _OPTIONPTR(vr, ((liPlugin*)param), OPTION_REDIRECT_URL).string;
 
 	UNUSED(context);
 	UNUSED(redirect_url);
@@ -233,7 +240,12 @@ static liAction* access_deny_create(liServer *srv, liPlugin* p, liValue *val, gp
 
 
 static const liPluginOption options[] = {
-	{ "access.log_blocked", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
+	{ "access.log_blocked", LI_VALUE_BOOLEAN, 0, NULL },
+
+	{ NULL, 0, 0, NULL }
+};
+
+static const liPluginOptionPtr optionptrs[] = {
 	{ "access.redirect_url", LI_VALUE_STRING, NULL, NULL, NULL },
 
 	{ NULL, 0, NULL, NULL, NULL }
@@ -255,6 +267,7 @@ static void plugin_access_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
+	p->optionptrs = optionptrs;
 	p->actions = actions;
 	p->setups = setups;
 }

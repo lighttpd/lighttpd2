@@ -19,7 +19,9 @@ void li_action_release(liServer *srv, liAction *a) {
 	if (g_atomic_int_dec_and_test(&a->refcount)) {
 		switch (a->type) {
 		case ACTION_TSETTING:
-			li_release_option(srv, &a->data.setting);
+			break;
+		case ACTION_TSETTINGPTR:
+			li_release_optionptr(srv, a->data.settingptr.value);
 			break;
 		case ACTION_TFUNCTION:
 			if (a->data.function.free) {
@@ -123,6 +125,7 @@ static void action_stack_element_release(liServer *srv, liVRequest *vr, action_s
 
 	switch (a->type) {
 	case ACTION_TSETTING:
+	case ACTION_TSETTINGPTR:
 		break;
 	case ACTION_TFUNCTION:
 		if (ase->data.context && a->data.function.cleanup) {
@@ -259,6 +262,14 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 		switch (a->type) {
 		case ACTION_TSETTING:
 			vr->options[a->data.setting.ndx] = a->data.setting.value;
+			action_stack_pop(srv, vr, as);
+			break;
+		case ACTION_TSETTINGPTR:
+			if (vr->optionptrs[a->data.settingptr.ndx] != a->data.settingptr.value) {
+				g_atomic_int_inc(&a->data.settingptr.value->refcount);
+				li_release_optionptr(srv, vr->optionptrs[a->data.settingptr.ndx]);
+				vr->optionptrs[a->data.settingptr.ndx] = a->data.settingptr.value;
+			}
 			action_stack_pop(srv, vr, as);
 			break;
 		case ACTION_TFUNCTION:

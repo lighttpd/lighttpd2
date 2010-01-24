@@ -136,7 +136,7 @@ GString *li_mimetype_get(liVRequest *vr, GString *filename) {
 	if (!vr || !filename || !filename->len)
 		return NULL;
 
-	arr = CORE_OPTION(LI_CORE_OPTION_MIME_TYPES).list;
+	arr = CORE_OPTIONPTR(LI_CORE_OPTION_MIME_TYPES).list;
 
 	for (guint i = 0; i < arr->len; i++) {
 		gint k, j;

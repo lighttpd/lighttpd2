@@ -391,7 +391,7 @@ static luaPlugin* lua_plugin_create_data(liServer *srv, lua_State *L) {
 }
 
 static const liPluginOption lp_options[] = {
-	{ NULL, 0, NULL, NULL, NULL }
+	{ NULL, 0, 0, NULL }
 };
 
 static void lua_plugin_free(liServer *srv, liPlugin *p) {
@@ -537,7 +537,7 @@ static gboolean lua_plugin(liServer *srv, liPlugin *p, liValue *val, gpointer us
 }
 
 static const liPluginOption options[] = {
-	{ NULL, 0, NULL, NULL, NULL }
+	{ NULL, 0, 0, NULL }
 };
 
 static const liPluginAction actions[] = {

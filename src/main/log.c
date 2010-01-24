@@ -42,31 +42,37 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 	liLog *log = NULL;
 	liLogEntry *log_entry;
 	liLogTimestamp *ts = NULL;
+	GArray *logs = NULL;
 
 	if (vr != NULL) {
 		if (!srv) srv = vr->wrk->srv;
 		/* get log from connection */
-		log = g_array_index(CORE_OPTION(LI_CORE_OPTION_LOG).list, liLog*, log_level);
-		if (log == NULL)
-			return TRUE;
-		ts = CORE_OPTION(LI_CORE_OPTION_LOG_TS_FORMAT).ptr;
-		if (!ts)
-			ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, 0);
+		logs = CORE_OPTIONPTR(LI_CORE_OPTION_LOG).list;
+		ts = CORE_OPTIONPTR(LI_CORE_OPTION_LOG_TS_FORMAT).ptr;
 	}
 	else {
-		log = g_array_index(g_array_index(srv->option_def_values, liOptionValue, 0 + LI_CORE_OPTION_LOG).list, liLog*, log_level);
-		if (log == NULL)
-			return TRUE;
+		liOptionPtrValue *ologval;
+		ologval = g_array_index(srv->optionptr_def_values, liOptionPtrValue*, 0 + LI_CORE_OPTION_LOG);
+		if (ologval != NULL) logs = ologval->data.list;
+	}
+
+	if (logs != NULL && log_level < logs->len) {
+		log = g_array_index(logs, liLog*, log_level);
+/*		if (log == NULL)
+			return TRUE;*/
+	}
+
+	if (!ts) {
 		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, 0);
 	}
 
-	li_log_ref(srv, log);
+	if (log) li_log_ref(srv, log);
 	log_line = g_string_sized_new(0);
 	va_start(ap, fmt);
 	g_string_vprintf(log_line, fmt, ap);
 	va_end(ap);
 
-	if (!(flags & LOG_FLAG_NOLOCK))
+	if (log && !(flags & LOG_FLAG_NOLOCK))
 		log_lock(log);
 
 #if 0
@@ -135,10 +141,15 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 		g_mutex_unlock(srv->logs.mutex);
 	}
 
-	if (!(flags & LOG_FLAG_NOLOCK))
+	if (log && !(flags & LOG_FLAG_NOLOCK))
 		log_unlock(log);
 
 	g_string_append_len(log_line, CONST_STR_LEN("\r\n"));
+
+	if (!log) {
+		li_angel_log(srv, log_line);
+		return TRUE;
+	}
 
 	switch (g_atomic_int_get(&srv->state)) {
 	case LI_SERVER_INIT:
@@ -153,6 +164,7 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 	default:
 		break;
 	}
+
 	log_entry = g_slice_new(liLogEntry);
 	log_entry->log = log;
 	log_entry->msg = log_line;

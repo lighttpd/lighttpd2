@@ -500,9 +500,9 @@ static liAction* auth_deny(liServer *srv, liPlugin* p, liValue *val, gpointer us
 }
 
 static const liPluginOption options[] = {
-	{ "auth.debug", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
+	{ "auth.debug", LI_VALUE_BOOLEAN, 0, NULL },
 
-	{ NULL, 0, NULL, NULL, NULL }
+	{ NULL, 0, 0, NULL }
 };
 
 static const liPluginAction actions[] = {

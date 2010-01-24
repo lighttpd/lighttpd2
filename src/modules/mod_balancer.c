@@ -180,7 +180,7 @@ static liAction* balancer_rr(liServer *srv, liPlugin* p, liValue *val, gpointer 
 
 
 static const liPluginOption options[] = {
-	{ NULL, 0, NULL, NULL, NULL }
+	{ NULL, 0, 0, NULL }
 };
 
 static const liPluginAction actions[] = {

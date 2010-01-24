@@ -533,7 +533,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 	}
 
 	/* css */
-	css = _OPTION(vr, p, 0).string;
+	css = _OPTIONPTR(vr, p, 0).string;
 
 	if (!css || !css->len) /* default css */
 		g_string_append_len(html, CONST_STR_LEN(css_default));
@@ -936,7 +936,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 
 	/* css */
 	{
-		GString* css = _OPTION(vr, p, 0).string;
+		GString* css = _OPTIONPTR(vr, p, 0).string;
 
 		if (!css || !css->len) /* default css */
 			g_string_append_len(html, CONST_STR_LEN(css_default));
@@ -1144,6 +1144,10 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 
 
 static const liPluginOption options[] = {
+	{ NULL, 0, 0, NULL }
+};
+
+static const liPluginOptionPtr optionptrs[] = {
 	{ "status.css", LI_VALUE_STRING, NULL, NULL, NULL },
 
 	{ NULL, 0, NULL, NULL, NULL }

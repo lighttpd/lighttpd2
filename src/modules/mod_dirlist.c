@@ -574,7 +574,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 			g_string_append_len(listing, CONST_STR_LEN(javascript_sort));
 		}
 
-		g_string_append_printf(listing, html_footer, CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string->str);
+		g_string_append_printf(listing, html_footer, CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_TAG).string->str);
 
 		li_chunkqueue_append_string(vr->out, listing);
 		g_string_free(encoded, TRUE);
@@ -781,9 +781,9 @@ static liAction* dirlist_create(liServer *srv, liPlugin* p, liValue *val, gpoint
 }
 
 static const liPluginOption options[] = {
-	{ "dirlist.debug", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
+	{ "dirlist.debug", LI_VALUE_BOOLEAN, 0, NULL },
 
-	{ NULL, 0, NULL, NULL, NULL }
+	{ NULL, 0, 0, NULL }
 };
 
 static const liPluginAction actions[] = {

@@ -113,7 +113,7 @@ gboolean li_response_send_headers(liConnection *con) {
 		}
 
 		if (!have_server) {
-			GString *tag = CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string;
+			GString *tag = CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_TAG).string;
 
 			if (tag->len) {
 				g_string_append_len(head, CONST_STR_LEN("Server: "));
@@ -244,7 +244,7 @@ void li_response_send_error_page(liConnection *con) {
 	g_string_append_len(html, str, len);
 	
 	g_string_append_len(html, CONST_STR_LEN("			<p id=\"footer\">"));
-	g_string_append_len(html, GSTR_LEN(CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string));
+	g_string_append_len(html, GSTR_LEN(CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_TAG).string));
 	g_string_append_len(html, CONST_STR_LEN(
 		"</p>\n"
 		"		</div>\n"

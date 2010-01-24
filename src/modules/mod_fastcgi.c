@@ -327,7 +327,7 @@ static void fastcgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteAr
 	liConnection *con = vr->con;
 	GString *tmp = con->wrk->tmp_str;
 
-	fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_SOFTWARE"), GSTR_LEN(CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string));
+	fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_SOFTWARE"), GSTR_LEN(CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_TAG).string));
 	fastcgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_NAME"), GSTR_LEN(vr->request.uri.host));
 	fastcgi_env_add(buf, envdup, CONST_STR_LEN("GATEWAY_INTERFACE"), CONST_STR_LEN("CGI/1.1"));
 	{
@@ -785,9 +785,9 @@ static liAction* fastcgi_create(liServer *srv, liPlugin* p, liValue *val, gpoint
 }
 
 static const liPluginOption options[] = {
-	{ "fastcgi.log_plain_errors", LI_VALUE_BOOLEAN, GINT_TO_POINTER(FALSE), NULL, NULL },
+	{ "fastcgi.log_plain_errors", LI_VALUE_BOOLEAN, FALSE, NULL },
 
-	{ NULL, 0, NULL, NULL, NULL }
+	{ NULL, 0, 0, NULL }
 };
 
 static const liPluginAction actions[] = {

@@ -177,7 +177,7 @@ static void scgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteArray
 	scgi_env_add(buf, envdup, CONST_STR_LEN("SCGI"), CONST_STR_LEN("1"));
 
 
-	scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_SOFTWARE"), GSTR_LEN(CORE_OPTION(LI_CORE_OPTION_SERVER_TAG).string));
+	scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_SOFTWARE"), GSTR_LEN(CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_TAG).string));
 	scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_NAME"), GSTR_LEN(vr->request.uri.host));
 	scgi_env_add(buf, envdup, CONST_STR_LEN("GATEWAY_INTERFACE"), CONST_STR_LEN("CGI/1.1"));
 	{
@@ -535,7 +535,7 @@ static liAction* scgi_create(liServer *srv, liPlugin* p, liValue *val, gpointer 
 }
 
 static const liPluginOption options[] = {
-	{ NULL, 0, NULL, NULL, NULL }
+	{ NULL, 0, 0, NULL }
 };
 
 static const liPluginAction actions[] = {

@@ -686,9 +686,9 @@ static liAction* vhost_pattern_create(liServer *srv, liPlugin* p, liValue *val, 
 
 
 static const liPluginOption options[] = {
-	{ "vhost.debug", LI_VALUE_BOOLEAN, NULL, NULL, NULL },
+	{ "vhost.debug", LI_VALUE_BOOLEAN, FALSE, NULL },
 
-	{ NULL, 0, NULL, NULL, NULL }
+	{ NULL, 0, 0, NULL }
 };
 
 static const liPluginAction actions[] = {

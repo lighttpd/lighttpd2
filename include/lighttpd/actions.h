@@ -57,6 +57,8 @@ struct liAction {
 	union {
 		liOptionSet setting;
 
+		liOptionPtrSet settingptr;
+
 		struct {
 			liCondition *cond;
 			liAction *target; /** action target to jump to if condition is fulfilled */

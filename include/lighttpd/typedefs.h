@@ -34,6 +34,7 @@ typedef struct liBalancerFunc liBalancerFunc;
 
 typedef enum {
 	ACTION_TSETTING,
+	ACTION_TSETTINGPTR,
 	ACTION_TFUNCTION,
 	ACTION_TCONDITION,
 	ACTION_TLIST,
@@ -125,9 +126,13 @@ typedef enum {
 
 /* options.h */
 
+typedef union liOptionValue liOptionValue;
+
+typedef struct liOptionPtrValue liOptionPtrValue;
+
 typedef struct liOptionSet liOptionSet;
 
-typedef union liOptionValue liOptionValue;
+typedef struct liOptionPtrSet liOptionPtrSet;
 
 /* plugin.h */
 typedef struct liPlugin liPlugin;
@@ -135,6 +140,10 @@ typedef struct liPlugin liPlugin;
 typedef struct liPluginOption liPluginOption;
 
 typedef struct liServerOption liServerOption;
+
+typedef struct liPluginOptionPtr liPluginOptionPtr;
+
+typedef struct liServerOptionPtr liServerOptionPtr;
 
 typedef struct liPluginAction liPluginAction;
 

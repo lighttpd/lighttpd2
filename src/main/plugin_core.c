@@ -420,7 +420,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 	struct stat st;
 	int err;
 	liHandlerResult res;
-	GArray *exclude_arr = CORE_OPTION(LI_CORE_OPTION_STATIC_FILE_EXCLUDE_EXTENSIONS).list;
+	GArray *exclude_arr = CORE_OPTIONPTR(LI_CORE_OPTION_STATIC_FILE_EXCLUDE_EXTENSIONS).list;
 	static const gchar boundary[] = "fkj49sn38dcn3";
 
 	UNUSED(param);
@@ -822,7 +822,7 @@ static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val, gpoin
 			}
 		}
 		g_array_free(mods->data.list, TRUE);
-		mods->data.list = li_value_extract_ist(val);
+		mods->data.list = li_value_extract_list(val);
 	} else {
 		ERROR(srv, "module_load takes either a string or a list of strings as parameter, %s given", li_value_type_string(val->type));
 		return FALSE;
@@ -880,7 +880,7 @@ static gboolean core_stat_cache_ttl(liServer *srv, liPlugin* p, liValue *val, gp
  * OPTIONS
  */
 
-static gboolean core_option_log_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
+static gboolean core_option_log_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
 	GHashTableIter iter;
 	gpointer k, v;
 	liLogLevel level;
@@ -890,7 +890,7 @@ static gboolean core_option_log_parse(liServer *srv, liPlugin *p, size_t ndx, li
 	UNUSED(p);
 	UNUSED(ndx);
 
-	oval->list = arr;
+	*oval = arr;
 	g_array_set_size(arr, 6);
 
 	/* default value */
@@ -937,8 +937,8 @@ static gboolean core_option_log_parse(liServer *srv, liPlugin *p, size_t ndx, li
 	return TRUE;
 }
 
-static void core_option_log_free(liServer *srv, liPlugin *p, size_t ndx, liOptionValue oval) {
-	GArray *arr = oval.list;
+static void core_option_log_free(liServer *srv, liPlugin *p, size_t ndx, gpointer oval) {
+	GArray *arr = oval;
 	UNUSED(p);
 	UNUSED(ndx);
 
@@ -951,25 +951,25 @@ static void core_option_log_free(liServer *srv, liPlugin *p, size_t ndx, liOptio
 	g_array_free(arr, TRUE);
 }
 
-static gboolean core_option_log_timestamp_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
+static gboolean core_option_log_timestamp_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
 	UNUSED(p);
 	UNUSED(ndx);
 
 	if (!val) return TRUE;
-	oval->ptr = li_log_timestamp_new(srv, li_value_extract_string(val));
+	*oval = li_log_timestamp_new(srv, li_value_extract_string(val));
 
 	return TRUE;
 }
 
-static void core_option_log_timestamp_free(liServer *srv, liPlugin *p, size_t ndx, liOptionValue oval) {
+static void core_option_log_timestamp_free(liServer *srv, liPlugin *p, size_t ndx, gpointer oval) {
 	UNUSED(p);
 	UNUSED(ndx);
 
-	if (!oval.ptr) return;
-	li_log_timestamp_free(srv, oval.ptr);
+	if (!oval) return;
+	li_log_timestamp_free(srv, oval);
 }
 
-static gboolean core_option_static_exclude_exts_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
+static gboolean core_option_static_exclude_exts_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
 	GArray *arr;
 	UNUSED(srv);
 	UNUSED(p);
@@ -987,13 +987,13 @@ static gboolean core_option_static_exclude_exts_parse(liServer *srv, liPlugin *p
 	}
 
 	/* everything ok */
-	oval->list = li_value_extract_list(val);
+	*oval = li_value_extract_list(val);
 
 	return TRUE;
 }
 
 
-static gboolean core_option_mime_types_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
+static gboolean core_option_mime_types_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
 	GArray *arr;
 	UNUSED(srv);
 	UNUSED(p);
@@ -1002,7 +1002,7 @@ static gboolean core_option_mime_types_parse(liServer *srv, liPlugin *p, size_t 
 
 	/* default value */
 	if (!val) {
-		oval->list = g_array_new(FALSE, TRUE, sizeof(liValue));
+		*oval = g_array_new(FALSE, TRUE, sizeof(liValue));
 		return TRUE;
 	}
 
@@ -1030,20 +1030,21 @@ static gboolean core_option_mime_types_parse(liServer *srv, liPlugin *p, size_t 
 	}
 
 	/* everything ok */
-	oval->list = li_value_extract_list(val);
+	*oval = li_value_extract_list(val);
 
 	return TRUE;
 }
 
-static void core_option_mime_types_free(liServer *srv, liPlugin *p, size_t ndx, liOptionValue oval) {
+static void core_option_mime_types_free(liServer *srv, liPlugin *p, size_t ndx, gpointer oval) {
+	GArray *list = oval;
 	UNUSED(srv);
 	UNUSED(p);
 	UNUSED(ndx);
 
-	for (guint i = 0; i < oval.list->len; i++)
-		li_value_free(g_array_index(oval.list, liValue*, i));
+	for (guint i = 0; i < list->len; i++)
+		li_value_free(g_array_index(list, liValue*, i));
 
-	g_array_free(oval.list, TRUE);
+	g_array_free(list, TRUE);
 }
 
 static gboolean core_option_etag_use_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
@@ -1489,22 +1490,28 @@ static void core_suspend(liServer *srv, liPlugin *p, gint32 id, GString *data) {
 }
 
 static const liPluginOption options[] = {
-	{ "debug.log_request_handling", LI_VALUE_BOOLEAN, GINT_TO_POINTER(FALSE), NULL, NULL },
+	{ "debug.log_request_handling", LI_VALUE_BOOLEAN, FALSE, NULL },
 
+	{ "static.range_requests", LI_VALUE_BOOLEAN, TRUE, NULL },
+
+	{ "keepalive.timeout", LI_VALUE_NUMBER, 5, NULL },
+	{ "keepalive.requests", LI_VALUE_NUMBER, 0, NULL },
+
+	{ "etag.use", LI_VALUE_NONE, 0, core_option_etag_use_parse }, /* type in config is list, internal type is number for flags */
+
+	{ NULL, 0, 0, NULL }
+};
+
+static const liPluginOptionPtr optionptrs[] = {
 	{ "log.timestamp", LI_VALUE_STRING, NULL, core_option_log_timestamp_parse, core_option_log_timestamp_free },
 	{ "log", LI_VALUE_HASH, NULL, core_option_log_parse, core_option_log_free },
 
 	{ "static.exclude_extensions", LI_VALUE_LIST, NULL, core_option_static_exclude_exts_parse, NULL },
-	{ "static.range_requests", LI_VALUE_BOOLEAN, GINT_TO_POINTER(TRUE), NULL, NULL },
 
 	{ "server.name", LI_VALUE_STRING, NULL, NULL, NULL },
 	{ "server.tag", LI_VALUE_STRING, PACKAGE_DESC, NULL, NULL },
-	{ "keepalive.timeout", LI_VALUE_NUMBER, GINT_TO_POINTER(5), NULL, NULL },
-	{ "keepalive.requests", LI_VALUE_NUMBER, GINT_TO_POINTER(0), NULL, NULL },
 
 	{ "mime_types", LI_VALUE_LIST, NULL, core_option_mime_types_parse, core_option_mime_types_free },
-
-	{ "etag.use", LI_VALUE_NONE, NULL, core_option_etag_use_parse, NULL }, /* type in config is list, internal type is number for flags */
 
 	{ NULL, 0, NULL, NULL, NULL }
 };
@@ -1564,6 +1571,7 @@ void li_plugin_core_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
+	p->optionptrs = optionptrs;
 	p->actions = actions;
 	p->setups = setups;
 	p->angelcbs = angelcbs;

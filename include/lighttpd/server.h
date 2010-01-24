@@ -72,13 +72,15 @@ struct liServer {
 
 	/* registered by plugins */
 	GHashTable *options;      /**< const gchar* => (liServerOption*) */
+	GHashTable *optionptrs;   /**< const gchar* => (liServerOptionPtr*) */
 	GHashTable *actions;      /**< const gchar* => (liServerAction*) */
 	GHashTable *setups;       /**< const gchar* => (liServerSetup*) */
 
 	GArray *li_plugins_handle_close; /** list of handle_close callbacks */
 	GArray *li_plugins_handle_vrclose; /** list of handle_vrclose callbacks */
 
-	GArray *option_def_values;/** array of option_value */
+	GArray *option_def_values;/** array of liOptionValue */
+	GArray *optionptr_def_values;/** array of liOptionPtrValue* */
 	liAction *mainaction;
 
 	gboolean exiting;         /** atomic access */
