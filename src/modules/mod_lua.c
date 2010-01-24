@@ -204,7 +204,7 @@ static liAction* lua_handler_create(liServer *srv, liPlugin* p, liValue *val, gp
 		}
 	}
 
-	conf = lua_config_new(li_value_extract_ptr(v_filename), ttl);
+	conf = lua_config_new(li_value_extract_string(v_filename), ttl);
 
 	return li_action_new_function(lua_handle, NULL, lua_config_free, conf);
 
@@ -533,7 +533,7 @@ static gboolean lua_plugin(liServer *srv, liPlugin *p, liValue *val, gpointer us
 		}
 	}
 
-	return lua_plugin_load(srv, p, li_value_extract_ptr(v_filename));
+	return lua_plugin_load(srv, p, li_value_extract_string(v_filename));
 }
 
 static const liPluginOption options[] = {

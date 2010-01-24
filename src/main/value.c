@@ -235,3 +235,33 @@ GString *li_value_to_string(liValue *val) {
 
 	return str;
 }
+
+GString* li_value_extract_string(liValue *val) {
+	if (val->type != LI_VALUE_STRING) return NULL;
+	val->type = LI_VALUE_NONE;
+	return val->data.string;
+}
+
+GArray* li_value_extract_list(liValue *val) {
+	if (val->type != LI_VALUE_LIST) return NULL;
+	val->type = LI_VALUE_NONE;
+	return val->data.list;
+}
+
+GHashTable* li_value_extract_hash(liValue *val) {
+	if (val->type != LI_VALUE_HASH) return NULL;
+	val->type = LI_VALUE_NONE;
+	return val->data.hash;
+}
+
+liAction* li_value_extract_action(liValue *val) {
+	if (val->type != LI_VALUE_ACTION) return NULL;
+	val->type = LI_VALUE_NONE;
+	return val->data.val_action.action;
+}
+
+liCondition* li_value_extract_condition(liValue *val) {
+	if (val->type != LI_VALUE_CONDITION) return NULL;
+	val->type = LI_VALUE_NONE;
+	return val->data.val_cond.cond;
+}

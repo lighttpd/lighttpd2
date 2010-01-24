@@ -235,7 +235,7 @@ static liAction* vhost_simple_create(liServer *srv, liPlugin* p, liValue *val, g
 			return NULL;
 		}
 
-		*setting = li_value_extract(v).string;
+		*setting = li_value_extract_string(v);
 	}
 
 	if (!sd->server_root || !sd->docroot || !sd->default_vhost) {
@@ -303,7 +303,7 @@ static liAction* vhost_map_create(liServer *srv, liPlugin* p, liValue *val, gpoi
 
 	md = g_slice_new0(vhost_map_data);
 	md->plugin = p;
-	md->hash = li_value_extract(val).hash;
+	md->hash = li_value_extract_hash(val);
 	str = g_string_new_len(CONST_STR_LEN("default"));
 	md->default_action = g_hash_table_lookup(md->hash, str);
 	g_string_free(str, TRUE);
@@ -598,7 +598,7 @@ static liAction* vhost_pattern_create(liServer *srv, liPlugin* p, liValue *val, 
 		return NULL;
 	}
 
-	str = li_value_extract(val).string;
+	str = li_value_extract_string(val);
 
 	pd = g_slice_new0(vhost_pattern_data);
 	pd->parts = g_array_sized_new(FALSE, TRUE, sizeof(vhost_pattern_part), 6);

@@ -315,7 +315,7 @@ static liAction* cache_etag_create(liServer *srv, liPlugin* p, liValue *val, gpo
 	}
 
 	ctx = g_slice_new0(cache_etag_context);
-	ctx->path = li_value_extract_ptr(val);
+	ctx->path = li_value_extract_string(val);
 
 	return li_action_new_function(cache_etag_handle, cache_etag_cleanup, cache_etag_free, ctx);
 }

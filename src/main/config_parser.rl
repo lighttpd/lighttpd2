@@ -538,7 +538,7 @@
 			/* assignment vor user defined variable, insert into hashtable */
 			gpointer old_key;
 			gpointer old_val;
-			GString *str = li_value_extract(name).string;
+			GString *str = li_value_extract_string(name);
 
 			/* free old key and value if we are overwriting it */
 			if (g_hash_table_lookup_extended(ctx->uservars, str, &old_key, &old_val)) {
@@ -864,14 +864,14 @@
 					WARNING(srv, "%s", "header conditional needs a key");
 					return FALSE;
 				}
-				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_HEADER, li_value_extract(k).string);
+				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_HEADER, li_value_extract_string(k));
 			}
 			else if (g_str_equal(str, "environment") || g_str_equal(str, "env")) {
 				if (k == NULL) {
 					WARNING(srv, "%s", "environment conditional needs a key");
 					return FALSE;
 				}
-				lvalue = li_condition_lvalue_new(LI_COMP_ENVIRONMENT, li_value_extract(k).string);
+				lvalue = li_condition_lvalue_new(LI_COMP_ENVIRONMENT, li_value_extract_string(k));
 			}
 			else {
 				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
@@ -922,7 +922,7 @@
 					WARNING(srv, "%s", "header conditional needs a key");
 					return FALSE;
 				}
-				lvalue = li_condition_lvalue_new(LI_COMP_RESPONSE_HEADER, li_value_extract(k).string);
+				lvalue = li_condition_lvalue_new(LI_COMP_RESPONSE_HEADER, li_value_extract_string(k));
 			}
 			else {
 				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
@@ -936,10 +936,10 @@
 
 		if (ctx->condition_nonbool) {
 			if (v->type == LI_VALUE_STRING) {
-				cond = li_condition_new_string(srv, ctx->op, lvalue, li_value_extract(v).string);
+				cond = li_condition_new_string(srv, ctx->op, lvalue, li_value_extract_string(v));
 			}
 			else if (v->type == LI_VALUE_NUMBER)
-				cond = li_condition_new_int(srv, ctx->op, lvalue, li_value_extract_number(v));
+				cond = li_condition_new_int(srv, ctx->op, lvalue, v->data.number);
 			else {
 				cond = NULL;
 			}

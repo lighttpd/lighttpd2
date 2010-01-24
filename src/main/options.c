@@ -34,16 +34,3 @@ liOptionValue li_value_extract(liValue *val) {
 	val->type = LI_VALUE_NONE;
 	return oval;
 }
-
-gpointer li_value_extract_ptr(liValue *val) {
-	liOptionValue oval = li_value_extract(val);
-	return oval.ptr;
-}
-gint64 li_value_extract_number(liValue *val) {
-	liOptionValue oval = li_value_extract(val);
-	return oval.number;
-}
-gboolean li_value_extract_bool(liValue *val) {
-	liOptionValue oval = li_value_extract(val);
-	return oval.boolean;
-}

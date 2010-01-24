@@ -188,7 +188,7 @@ static liAction* core_docroot(liServer *srv, liPlugin* p, liValue *val, gpointer
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_docroot, NULL, core_docroot_free, li_value_extract(val).string);
+	return li_action_new_function(core_handle_docroot, NULL, core_docroot_free, li_value_extract_string(val));
 }
 
 typedef struct {
@@ -264,8 +264,8 @@ static liAction* core_alias(liServer *srv, liPlugin* p, liValue *val, gpointer u
 	vl = val->data.list;
 	if (vl->len == 2 && g_array_index(vl, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(vl, liValue*, 1)->type == LI_VALUE_STRING) {
 		a = g_array_sized_new(FALSE, TRUE, sizeof(core_alias_config), 1);
-		ac.prefix = li_value_extract_ptr(g_array_index(vl, liValue*, 0));
-		ac.path = li_value_extract_ptr(g_array_index(vl, liValue*, 1));
+		ac.prefix = li_value_extract_string(g_array_index(vl, liValue*, 0));
+		ac.path = li_value_extract_string(g_array_index(vl, liValue*, 1));
 		g_array_append_val(a, ac);
 	} else {
 		guint i;
@@ -277,8 +277,8 @@ static liAction* core_alias(liServer *srv, liPlugin* p, liValue *val, gpointer u
 			}
 			vl1 = g_array_index(vl, liValue*, i)->data.list;
 			if (g_array_index(vl1, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(vl1, liValue*, 1)->type == LI_VALUE_STRING) {
-				ac.prefix = li_value_extract_ptr(g_array_index(vl1, liValue*, 0));
-				ac.path = li_value_extract_ptr(g_array_index(vl1, liValue*, 1));
+				ac.prefix = li_value_extract_string(g_array_index(vl1, liValue*, 0));
+				ac.path = li_value_extract_string(g_array_index(vl1, liValue*, 1));
 				g_array_append_val(a, ac);
 			} else {
 				ERROR(srv, "%s", "unexpected entry in parameter for alias action");
@@ -411,7 +411,7 @@ static liAction* core_index(liServer *srv, liPlugin* p, liValue *val, gpointer u
 		}
 	}
 
-	return li_action_new_function(core_handle_index, NULL, core_index_free, li_value_extract(val).list);
+	return li_action_new_function(core_handle_index, NULL, core_index_free, li_value_extract_list(val));
 }
 
 
@@ -687,7 +687,7 @@ static liAction* core_status(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		return NULL;
 	}
 
-	ptr = GINT_TO_POINTER((gint) li_value_extract(val).number);
+	ptr = GINT_TO_POINTER((gint) val->data.number);
 
 	return li_action_new_function(core_handle_status, NULL, NULL, ptr);
 }
@@ -715,7 +715,7 @@ static liAction* core_log_write(liServer *srv, liPlugin* p, liValue *val, gpoint
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_log_write, NULL, core_log_write_free, li_value_extract(val).string);
+	return li_action_new_function(core_handle_log_write, NULL, core_log_write_free, li_value_extract_string(val));
 }
 
 
@@ -809,7 +809,7 @@ static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val, gpoin
 
 	if (val->type == LI_VALUE_STRING) {
 		/* load only one module */
-		liValue *name = li_value_new_string(li_value_extract(val).string);
+		liValue *name = li_value_new_string(li_value_extract_string(val));
 		g_array_append_val(mods->data.list, name);
 	} else if (val->type == LI_VALUE_LIST) {
 		/* load a list of modules */
@@ -822,7 +822,7 @@ static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val, gpoin
 			}
 		}
 		g_array_free(mods->data.list, TRUE);
-		mods->data.list = li_value_extract(val).list;
+		mods->data.list = li_value_extract_ist(val);
 	} else {
 		ERROR(srv, "module_load takes either a string or a list of strings as parameter, %s given", li_value_type_string(val->type));
 		return FALSE;
@@ -858,7 +858,7 @@ static gboolean core_io_timeout(liServer *srv, liPlugin* p, liValue *val, gpoint
 		return FALSE;
 	}
 
-	srv->io_timeout = li_value_extract(val).number;
+	srv->io_timeout = val->data.number;
 
 	return TRUE;
 }
@@ -871,7 +871,7 @@ static gboolean core_stat_cache_ttl(liServer *srv, liPlugin* p, liValue *val, gp
 		return FALSE;
 	}
 
-	srv->stat_cache_ttl = (gdouble)li_value_extract(val).number;
+	srv->stat_cache_ttl = (gdouble)val->data.number;
 
 	return TRUE;
 }
@@ -956,7 +956,7 @@ static gboolean core_option_log_timestamp_parse(liServer *srv, liPlugin *p, size
 	UNUSED(ndx);
 
 	if (!val) return TRUE;
-	oval->ptr = li_log_timestamp_new(srv, li_value_extract(val).string);
+	oval->ptr = li_log_timestamp_new(srv, li_value_extract_string(val));
 
 	return TRUE;
 }
@@ -987,7 +987,7 @@ static gboolean core_option_static_exclude_exts_parse(liServer *srv, liPlugin *p
 	}
 
 	/* everything ok */
-	oval->list = li_value_extract(val).list;
+	oval->list = li_value_extract_list(val);
 
 	return TRUE;
 }
@@ -1030,7 +1030,7 @@ static gboolean core_option_mime_types_parse(liServer *srv, liPlugin *p, size_t 
 	}
 
 	/* everything ok */
-	oval->list = li_value_extract(val).list;
+	oval->list = li_value_extract_list(val);
 
 	return TRUE;
 }
@@ -1125,7 +1125,7 @@ static liAction* core_header_add(liServer *srv, liPlugin* p, liValue *val, gpoin
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_header_add, NULL, core_header_free, li_value_extract(val).list);
+	return li_action_new_function(core_handle_header_add, NULL, core_header_free, li_value_extract_list(val));
 }
 
 
@@ -1162,7 +1162,7 @@ static liAction* core_header_append(liServer *srv, liPlugin* p, liValue *val, gp
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_header_append, NULL, core_header_free, li_value_extract(val).list);
+	return li_action_new_function(core_handle_header_append, NULL, core_header_free, li_value_extract_list(val));
 }
 
 
@@ -1199,7 +1199,7 @@ static liAction* core_header_overwrite(liServer *srv, liPlugin* p, liValue *val,
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_header_overwrite, NULL, core_header_free, li_value_extract(val).list);
+	return li_action_new_function(core_handle_header_overwrite, NULL, core_header_free, li_value_extract_list(val));
 }
 
 static void core_header_remove_free(liServer *srv, gpointer param) {
@@ -1225,7 +1225,7 @@ static liAction* core_header_remove(liServer *srv, liPlugin* p, liValue *val, gp
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_header_remove, NULL, core_header_remove_free, li_value_extract(val).string);
+	return li_action_new_function(core_handle_header_remove, NULL, core_header_remove_free, li_value_extract_string(val));
 }
 
 /* chunkqueue memory limits */
@@ -1386,7 +1386,7 @@ static liAction* core_throttle_pool(liServer *srv, liPlugin* p, liValue *val, gp
 			return NULL;
 		}
 
-		pool = li_throttle_pool_new(srv, li_value_extract(g_array_index(val->data.list, liValue*, 0)).string, (guint)rate);
+		pool = li_throttle_pool_new(srv, li_value_extract_string(g_array_index(val->data.list, liValue*, 0)), (guint)rate);
 		g_array_append_val(srv->throttle_pools, pool);
 	}
 

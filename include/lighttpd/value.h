@@ -44,4 +44,13 @@ LI_API GString *li_value_to_string(liValue *val);
 
 LI_API void li_value_list_free(GArray *vallist);
 
+/* extracts the pointer of a; set val->type to none (so a free on the value doesn't free the previous content)
+ * returns NULL (and doesn't modify val->type) if the type doesn't match
+ */
+LI_API GString* li_value_extract_string(liValue *val);
+LI_API GArray* li_value_extract_list(liValue *val);
+LI_API GHashTable* li_value_extract_hash(liValue *val);
+LI_API liAction* li_value_extract_action(liValue *val);
+LI_API liCondition* li_value_extract_condition(liValue *val);
+
 #endif

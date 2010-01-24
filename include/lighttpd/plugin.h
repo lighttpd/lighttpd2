@@ -84,7 +84,7 @@ struct liServerOption {
 	liPlugin *p;
 
 	/** the value is freed with li_value_free after the parse call, so you
-	  *   probably want to extract the content via li_value_extract*
+	  *   probably want to extract pointers via li_value_extract_*
 	  * val is zero to get the global default value if nothing is specified
 	  * save result in value
 	  *

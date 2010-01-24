@@ -435,7 +435,7 @@ static liAction* auth_generic_create(liServer *srv, liPlugin* p, liValue *val, c
 
 		bdata = g_slice_new(AuthBasicData);
 		bdata->p = p;
-		bdata->realm = li_value_extract(realm).string;
+		bdata->realm = li_value_extract_string(realm);
 		bdata->backend = basic_action;
 		bdata->data = afd;
 
