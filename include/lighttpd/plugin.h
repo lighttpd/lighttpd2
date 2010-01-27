@@ -28,7 +28,7 @@ struct liPlugin {
 
 	gpointer data;     /**< private plugin data */
 
-	size_t opt_base_index;
+	size_t opt_base_index, optptr_base_index;
 
 	gboolean ready_for_next_state; /**< don't modify this; use li_plugin_ready_for_state() instead */
 
@@ -190,7 +190,7 @@ extern liOptionPtrValue li_option_ptr_zero;
 #define _OPTION(vr, p, idx) (vr->options[p->opt_base_index + idx])
 #define _OPTION_ABS(vr, idx) (vr->options[idx])
 #define OPTIONPTR(idx) _OPTIONPTR(vr, p, idx)
-#define _OPTIONPTR(vr, p, idx) (vr->optionptrs[p->opt_base_index + idx] ? vr->optionptrs[p->opt_base_index + idx]->data : li_option_ptr_zero.data)
+#define _OPTIONPTR(vr, p, idx) (vr->optionptrs[p->optptr_base_index + idx] ? vr->optionptrs[p->optptr_base_index + idx]->data : li_option_ptr_zero.data)
 #define _OPTIONPTR_ABS(vr, idx) (vr->optionptrs[idx] ? vr->optionptrs[idx]->data : li_option_ptr_zero.data)
 
 #endif

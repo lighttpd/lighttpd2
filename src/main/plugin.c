@@ -136,6 +136,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 
 	init(srv, p, userdata);
 	p->opt_base_index = g_hash_table_size(srv->options);
+	p->optptr_base_index = g_hash_table_size(srv->optionptrs);
 
 	if (p->options) {
 		size_t i;

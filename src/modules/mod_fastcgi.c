@@ -32,10 +32,6 @@ enum fastcgi_options_t {
 	FASTCGI_OPTION_LOG_PLAIN_ERRORS = 0,
 };
 
-#define FASTCGI_OPTION(idx) _FASTCGI_OPTION(vr, idx)
-#define _FASTCGI_OPTION(vr, idx) _OPTION_ABS(vr, p->opt_base_index + idx)
-
-
 LI_API gboolean mod_fastcgi_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_fastcgi_free(liModules *mods, liModule *mod);
 
@@ -531,7 +527,7 @@ static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 		case FCGI_STDERR:
 			len = fastcgi_available(fcon);
 			li_chunkqueue_extract_to(vr, fcon->fcgi_in, len, vr->wrk->tmp_str);
-			if (FASTCGI_OPTION(FASTCGI_OPTION_LOG_PLAIN_ERRORS).boolean) {
+			if (OPTION(FASTCGI_OPTION_LOG_PLAIN_ERRORS).boolean) {
 				li_log_split_lines(vr->wrk->srv, vr, LI_LOG_LEVEL_BACKEND, 0, vr->wrk->tmp_str->str, "");
 			} else {
 				VR_BACKEND_LINES(vr, vr->wrk->tmp_str->str, "(fcgi-stderr %s) ", fcon->ctx->socket_str->str);
