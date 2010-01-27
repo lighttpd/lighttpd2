@@ -166,6 +166,51 @@ static int li_lua_debug(lua_State *L) {
 	return 0;
 }
 
+static int li_lua_md5(lua_State *L) {
+	const char *s;
+	size_t len;
+	char *hash;
+
+	s = lua_tolstring(L, 1, &len);
+	if (!s) return 0;
+
+	hash = g_compute_checksum_for_string(G_CHECKSUM_MD5, s, len);
+	lua_pushstring(L, hash);
+	g_free(hash);
+
+	return 1;
+}
+
+static int li_lua_sha1(lua_State *L) {
+	const char *s;
+	size_t len;
+	char *hash;
+
+	s = lua_tolstring(L, 1, &len);
+	if (!s) return 0;
+
+	hash = g_compute_checksum_for_string(G_CHECKSUM_SHA1, s, len);
+	lua_pushstring(L, hash);
+	g_free(hash);
+
+	return 1;
+}
+
+static int li_lua_sha256(lua_State *L) {
+	const char *s;
+	size_t len;
+	char *hash;
+
+	s = lua_tolstring(L, 1, &len);
+	if (!s) return 0;
+
+	hash = g_compute_checksum_for_string(G_CHECKSUM_SHA256, s, len);
+	lua_pushstring(L, hash);
+	g_free(hash);
+
+	return 1;
+}
+
 static void lua_push_constants(lua_State *L, int ndx) {
 	lua_pushinteger(L, LI_HANDLER_GO_ON);
 	lua_setfield(L, ndx, "HANDLER_GO_ON");
@@ -217,6 +262,13 @@ void li_lua_init(lua_State *L, liServer *srv, liWorker *wrk) {
 	lua_pushlightuserdata(L, srv);
 	lua_pushcclosure(L, li_lua_debug, 1);
 	lua_setfield(L, -2, "debug");
+
+	lua_pushcclosure(L, li_lua_md5, 0);
+	lua_setfield(L, -2, "md5");
+	lua_pushcclosure(L, li_lua_sha1, 0);
+	lua_setfield(L, -2, "sha1");
+	lua_pushcclosure(L, li_lua_sha256, 0);
+	lua_setfield(L, -2, "sha256");
 
 	lua_push_constants(L, -2);
 
