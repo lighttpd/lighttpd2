@@ -87,6 +87,7 @@ LI_API void li_action_release(liServer *srv, liAction *a);
 LI_API void li_action_acquire(liAction *a);
 /* create new action */
 LI_API liAction *li_action_new_setting(liOptionSet setting);
+LI_API liAction *li_action_new_settingptr(liOptionPtrSet setting);
 LI_API liAction *li_action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup, liActionFreeCB ffree, gpointer param);
 LI_API liAction *li_action_new_list();
 LI_API liAction *li_action_new_condition(liCondition *cond, liAction *target, liAction *target_else);

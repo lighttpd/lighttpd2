@@ -5,7 +5,7 @@ static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt);
 static gboolean plugin_load_default_optionptr(liServer *srv, liServerOptionPtr *sopt);
 static void li_plugin_free_default_options(liServer *srv, liPlugin *p);
 
-liOptionPtrValue li_option_ptr_zero = { 0 };
+liOptionPtrValue li_option_ptr_zero = { 0, { 0 } , 0 };
 
 static liPlugin* plugin_new(const gchar *name) {
 	liPlugin *p = g_slice_new0(liPlugin);
@@ -379,20 +379,29 @@ void li_release_optionptr(liServer *srv, liOptionPtrValue *value) {
 }
 
 liAction* li_option_action(liServer *srv, const gchar *name, liValue *val) {
-	liOptionSet setting;
 	liServerOption *sopt;
+	liServerOptionPtr *soptptr;
 
-	sopt = find_option(srv, name);
-	if (!sopt) {
+	if (NULL != (sopt = find_option(srv, name))) {
+		liOptionSet setting;
+
+		if (!li_parse_option(srv, sopt, name, val, &setting)) {
+			return NULL;
+		}
+
+		return li_action_new_setting(setting);
+	} else if (NULL != (soptptr = find_optionptr(srv, name))) {
+		liOptionPtrSet setting;
+
+		if (!li_parse_optionptr(srv, soptptr, name, val, &setting)) {
+			return NULL;
+		}
+
+		return li_action_new_settingptr(setting);
+	} else {
 		ERROR(srv, "Unknown option '%s'", name);
 		return FALSE;
 	}
-
-	if (!li_parse_option(srv, sopt, name, val, &setting)) {
-		return NULL;
-	}
-
-	return li_action_new_setting(setting);
 }
 
 liAction* li_create_action(liServer *srv, const gchar *name, liValue *val) {

@@ -64,6 +64,16 @@ liAction *li_action_new_setting(liOptionSet setting) {
 	return a;
 }
 
+liAction *li_action_new_settingptr(liOptionPtrSet setting) {
+	liAction *a = g_slice_new(liAction);
+
+	a->refcount = 1;
+	a->type = ACTION_TSETTINGPTR;
+	a->data.settingptr = setting;
+
+	return a;
+}
+
 liAction *li_action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup, liActionFreeCB ffree, gpointer param) {
 	liAction *a;
 
