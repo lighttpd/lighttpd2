@@ -518,6 +518,8 @@
 			else if (*ctx->mark == '!' && *(ctx->mark+1) == '$') ctx->op = LI_CONFIG_COND_NOSUFFIX;
 			else if (*ctx->mark == '=' && *(ctx->mark+1) == '~') ctx->op = LI_CONFIG_COND_MATCH;
 			else if (*ctx->mark == '!' && *(ctx->mark+1) == '~') ctx->op = LI_CONFIG_COND_NOMATCH;
+			else if (*ctx->mark == '=' && *(ctx->mark+1) == '/') ctx->op = LI_CONFIG_COND_IP;
+			else if (*ctx->mark == '!' && *(ctx->mark+1) == '/') ctx->op = LI_CONFIG_COND_NOTIP;
 		}
 	}
 
@@ -1158,7 +1160,7 @@
 	value_statement = ( noise* cast? value (ws* value_statement_op ws* cast? value %value_statement)* noise* );
 	hash_elem = ( noise* string >mark noise* ':' value_statement );
 
-	operator = ( '==' | '!=' | '=^' | '!^' | '=$' | '!$' | '<' | '<=' | '>' | '>=' | '=~' | '!~' ) >mark %operator;
+	operator = ( '==' | '!=' | '=^' | '!^' | '=$' | '!$' | '<' | '<=' | '>' | '>=' | '=~' | '!~' | '=/' | '!/' ) >mark %operator;
 
 	# statements
 	assignment = ( varname ws* '=' ws* value_statement ';' ) %assignment;
