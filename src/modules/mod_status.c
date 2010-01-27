@@ -1168,6 +1168,7 @@ static void plugin_status_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
+	p->optionptrs = optionptrs;
 	p->actions = actions;
 	p->setups = setups;
 }
