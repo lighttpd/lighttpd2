@@ -5,7 +5,10 @@
  *     mod_lua
  *
  * Setups:
- *     none
+ *     lua.plugin filename, [ options ]
+ *         - No options available yet, can be omitted
+ *         - Can register setup.* and action.* callbacks (like any c module)
+ *           via creating a setups / actions table in the global lua namespace
  * Options:
  *     none
  * Actions:
@@ -19,7 +22,7 @@
  *     lua.handler "/etc/lighttpd/pathrewrite.lua";
  *
  * Todo:
- *     - Support lua plugins (new action/setup callbacks, plugin hooks)
+ *     - Add more lua plugin features (plugin hooks)
  *
  * Author:
  *     Copyright (c) 2009 Stefan Bühler
