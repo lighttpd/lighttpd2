@@ -32,6 +32,7 @@ liNetworkStatus li_network_backend_write(liVRequest *vr, int fd, liChunkQueue *c
 				return did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 			case ECONNRESET:
 			case EPIPE:
+			case ETIMEDOUT:
 				return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
 				VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));

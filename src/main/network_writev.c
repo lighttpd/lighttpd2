@@ -77,6 +77,7 @@ liNetworkStatus li_network_backend_writev(liVRequest *vr, int fd, liChunkQueue *
 				goto cleanup;
 			case ECONNRESET:
 			case EPIPE:
+			case ETIMEDOUT:
 				res = LI_NETWORK_STATUS_CONNECTION_CLOSE;
 				goto cleanup;
 			case EINTR:

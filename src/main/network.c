@@ -100,6 +100,7 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 #endif
 				return len ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 			case ECONNRESET:
+			case ETIMEDOUT:
 				return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
 				VR_ERROR(vr, "oops, read from fd=%d failed: %s", fd, g_strerror(errno) );

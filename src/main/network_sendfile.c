@@ -28,6 +28,7 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 			return NSR_WAIT_FOR_EVENT;
 		case ECONNRESET:
 		case EPIPE:
+		case ETIMEDOUT:
 			return NSR_CLOSE;
 		case EINTR:
 			break; /* try again */
@@ -59,6 +60,7 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 			return NSR_WAIT_FOR_EVENT;
 		case ENOTCONN:
 		case EPIPE:
+		case ETIMEDOUT:
 			return NSR_CLOSE;
 		case EINTR:
 			if (r) {
@@ -95,6 +97,7 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 		case EAGAIN:
 			return NSR_WAIT_FOR_EVENT;
 		case EPIPE:
+		case ETIMEDOUT:
 			return NSR_CLOSE;
 		case EINTR:
 			break; /* try again */
@@ -125,6 +128,7 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 			return NSR_WAIT_FOR_EVENT;
 		case ENOTCONN:
 		case EPIPE:
+		case ETIMEDOUT:
 			return NSR_CLOSE;
 		case EINTR:
 			if (bytes) {
