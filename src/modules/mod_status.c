@@ -189,6 +189,7 @@ static const gchar html_connections_th[] =
 	"				<th style=\"width: 170px;\"><span class=\"string\" onclick=\"sort(this, 0); return false;\">Host</span><span></span></th>\n"
 	"				<th><span class=\"string\" onclick=\"sort(this, 0); return false;\">Path+Querystring</span><span></span></th>\n"
 	"				<th><span class=\"int\" onclick=\"sort(this, 0); return false;\">Duration</span><span></span></th>\n"
+	"				<th><span class=\"int\" onclick=\"sort(this, 0); return false;\">Timeout</span><span></span></th>\n"
 	"				<th>Traffic <span class=\"int\" onclick=\"sort(this, 0); return false;\">in</span><span>/</span><span class=\"int\" onclick=\"sort(this, 2); return false;\">out</span><span></span></th>\n"
 	"				<th>Traffic <span class=\"int\" onclick=\"sort(this, 0); return false;\">in</span><span>/</span><span class=\"int\" onclick=\"sort(this, 2); return false;\">out</span><span> / s</span><span></span></th>\n"
 	"				<th><span class=\"string\" onclick=\"sort(this, 0); return false;\">Method</span><span></span></th>\n"
@@ -201,6 +202,7 @@ static const gchar html_connections_row[] =
 	"				<td><span>%s</span></td>\n"
 	"				<td><span>%s</span></td>\n"
 	"				<td class=\"left\"><span>%s%s%s</span></td>\n"
+	"				<td><span value=\"%"G_GUINT64_FORMAT"\">%s</span></td>\n"
 	"				<td><span value=\"%"G_GUINT64_FORMAT"\">%s</span></td>\n"
 	"				<td><span value=\"%"G_GUINT64_FORMAT"\">%s</span><span> / </span><span value=\"%"G_GUINT64_FORMAT"\">%s</span></td>\n"
 	"				<td><span value=\"%"G_GUINT64_FORMAT"\">%s</span><span> / </span><span value=\"%"G_GUINT64_FORMAT"\">%s</span></td>\n"
@@ -235,6 +237,10 @@ static const gchar html_server_info[] =
 	"			<tr>\n"
 	"				<td class=\"left\">Core size limit</td>\n"
 	"				<td class=\"left\">%s</td>\n"
+	"			</tr>\n"
+	"			<tr>\n"
+	"				<td class=\"left\">IO Timeout</td>\n"
+	"				<td class=\"left\">%"G_GUINT64_FORMAT" seconds</td>\n"
 	"			</tr>\n"
 	"		</table>\n";
 static const gchar html_libinfo_th[] =
@@ -330,7 +336,7 @@ struct mod_status_con_data {
 	liHttpMethod method;
 	goffset request_size;
 	goffset response_size;
-	ev_tstamp ts_started;
+	ev_tstamp ts_started, ts_timeout;
 	guint64 bytes_in;
 	guint64 bytes_out;
 	guint64 bytes_in_5s_diff;
@@ -377,6 +383,7 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->response_size = c->mainvr->out->bytes_out;
 		cd->state = c->state;
 		cd->ts_started = c->ts_started;
+		cd->ts_timeout = c->io_timeout_elem.ts;
 		cd->bytes_in = c->stats.bytes_in;
 		cd->bytes_out = c->stats.bytes_out;
 		cd->bytes_in_5s_diff = c->stats.bytes_in_5s_diff;
@@ -690,10 +697,11 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 
 	/* list connections */
 	if (!short_info) {
-		GString *ts, *bytes_in, *bytes_out, *bytes_in_5s, *bytes_out_5s;
+		GString *ts, *ts_timeout, *bytes_in, *bytes_out, *bytes_in_5s, *bytes_out_5s;
 		GString *req_len, *resp_len;
 
 		ts = g_string_sized_new(15);
+		ts_timeout = g_string_sized_new(15);
 		bytes_in = g_string_sized_new(10);
 		bytes_out = g_string_sized_new(10);
 		bytes_in_5s = g_string_sized_new(10);
@@ -707,8 +715,13 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 			for (j = 0; j < sd->connections->len; j++) {
 				mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
+				guint64 val_timeout = 0;
 
 				li_counter_format((guint64)(CUR_TS(vr->wrk) - cd->ts_started), COUNTER_TIME, ts);
+				if (cd->ts_timeout != 0) {
+					val_timeout = (guint64)(CUR_TS(vr->wrk) - cd->ts_timeout);
+					li_counter_format(val_timeout, COUNTER_TIME, ts_timeout);
+				}
 				li_counter_format(cd->bytes_in, COUNTER_BYTES, bytes_in);
 				li_counter_format(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_in_5s);
 				li_counter_format(cd->bytes_out, COUNTER_BYTES, bytes_out);
@@ -724,6 +737,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 					cd->query->len ? "?":"",
 					cd->query->len ? cd->query->str : "",
 					(guint64)(CUR_TS(vr->wrk) - cd->ts_started), ts->str,
+					val_timeout, ts_timeout->str,
 					cd->bytes_in, bytes_in->str,
 					cd->bytes_out, bytes_out->str,
 					cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), bytes_in_5s->str,
@@ -738,6 +752,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 
 		g_string_free(ts, TRUE);
+		g_string_free(ts_timeout, TRUE);
 		g_string_free(bytes_in, TRUE);
 		g_string_free(bytes_in_5s, TRUE);
 		g_string_free(bytes_out, TRUE);
@@ -992,7 +1007,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Server info</strong></div>\n"));
 		g_string_append_printf(html, html_server_info,
 			g_get_host_name(), g_get_user_name(), getuid(), li_ev_backend_string(ev_backend(vr->wrk->loop)),
-			slim_fd, g_atomic_int_get(&vr->wrk->srv->max_connections), slim_core
+			slim_fd, g_atomic_int_get(&vr->wrk->srv->max_connections), slim_core, (guint64) vr->wrk->srv->io_timeout
 		);
 
 #ifdef HAVE_GETRLIMIT
