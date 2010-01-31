@@ -263,6 +263,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	goffset write_max;
 	goffset transferred;
 	liConnection *con = (liConnection*) w->data;
+	gboolean update_io_timeout = FALSE;
 
 	if (revents & EV_READ) {
 		if (con->in->is_closed) {
@@ -280,6 +281,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			transferred = con->raw_in->length - transferred;
 			con->wrk->stats.bytes_in += transferred;
 			con->stats.bytes_in += transferred;
+			update_io_timeout ||= (transferred > 0);
 
 			if ((ev_now(loop) - con->stats.last_avg) >= 5.0) {
 				con->stats.bytes_out_5s_diff = con->stats.bytes_out - con->stats.bytes_out_5s;
@@ -291,6 +293,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 			switch (res) {
 			case LI_NETWORK_STATUS_SUCCESS:
+				if (0 == transferred) break;
 				if (!connection_handle_read(con)) return;
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:
@@ -332,9 +335,11 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				transferred = transferred - con->raw_out->length;
 				con->wrk->stats.bytes_out += transferred;
 				con->stats.bytes_out += transferred;
+				update_io_timeout ||= (transferred > 0);
 
 				switch (res) {
 				case LI_NETWORK_STATUS_SUCCESS:
+					if (0 == transferred) break;
 					li_vrequest_joblist_append(con->mainvr);
 					break;
 				case LI_NETWORK_STATUS_FATAL_ERROR:
@@ -390,8 +395,9 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		}
 	}
 
-	if ((con->io_timeout_elem.ts + 1.0) < ev_now(loop))
+	if (update_io_timeout && ((con->io_timeout_elem.ts + 1.0) < ev_now(loop))) {
 		li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
+	}
 
 	check_response_done(con);
 }
