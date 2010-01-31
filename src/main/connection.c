@@ -281,7 +281,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			transferred = con->raw_in->length - transferred;
 			con->wrk->stats.bytes_in += transferred;
 			con->stats.bytes_in += transferred;
-			update_io_timeout ||= (transferred > 0);
+			update_io_timeout = update_io_timeout || (transferred > 0);
 
 			if ((ev_now(loop) - con->stats.last_avg) >= 5.0) {
 				con->stats.bytes_out_5s_diff = con->stats.bytes_out - con->stats.bytes_out_5s;
@@ -335,7 +335,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				transferred = transferred - con->raw_out->length;
 				con->wrk->stats.bytes_out += transferred;
 				con->stats.bytes_out += transferred;
-				update_io_timeout ||= (transferred > 0);
+				update_io_timeout = update_io_timeout || (transferred > 0);
 
 				switch (res) {
 				case LI_NETWORK_STATUS_SUCCESS:
