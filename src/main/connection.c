@@ -395,6 +395,13 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		}
 	}
 
+	if (revents & EV_ERROR) {
+		/* if this happens, we have a serious bug in the event handling */
+		VR_ERROR(con->mainvr, "%s", "EV_ERROR encountered, dropping connection!");
+		li_connection_error(con);
+		return;
+	}
+
 	if (update_io_timeout && ((con->io_timeout_elem.ts + 1.0) < ev_now(loop))) {
 		li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
 	}
