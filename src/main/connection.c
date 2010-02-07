@@ -384,8 +384,10 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 				if (con->throttle.pool.ptr && con->throttle.pool.magazine <= MAX(write_max,0) && !con->throttle.pool.queued) {
 					liThrottlePool *pool = con->throttle.pool.ptr;
+					guint8 queue_ndx = con->wrk->ndx+pool->current_queue[con->wrk->ndx];
 					g_atomic_int_inc(&pool->num_cons);
-					g_queue_push_tail_link(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.pool.lnk);
+					g_queue_push_tail_link(pool->queues[queue_ndx], &con->throttle.pool.lnk);
+					con->throttle.pool.queue_ndx = queue_ndx;
 					con->throttle.pool.queued = TRUE;
 				}
 			}
@@ -579,7 +581,7 @@ void li_connection_reset(liConnection *con) {
 	if (con->throttle.pool.ptr) {
 		if (con->throttle.pool.queued) {
 			liThrottlePool *pool = con->throttle.pool.ptr;
-			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.pool.lnk);
+			g_queue_unlink(pool->queues[con->throttle.pool.queue_ndx], &con->throttle.pool.lnk);
 			g_atomic_int_add(&con->throttle.pool.ptr->num_cons, -1);
 			con->throttle.pool.queued = FALSE;
 		}
@@ -595,7 +597,7 @@ void li_connection_reset(liConnection *con) {
 	if (con->throttle.ip.ptr) {
 		if (con->throttle.ip.queued) {
 			liThrottlePool *pool = con->throttle.ip.ptr;
-			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.ip.lnk);
+			g_queue_unlink(pool->queues[con->throttle.pool.queue_ndx], &con->throttle.ip.lnk);
 			g_atomic_int_add(&con->throttle.ip.ptr->num_cons, -1);
 			con->throttle.ip.queued = FALSE;
 		}
@@ -673,7 +675,7 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 	if (con->throttle.pool.ptr) {
 		if (con->throttle.pool.queued) {
 			liThrottlePool *pool = con->throttle.pool.ptr;
-			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.pool.lnk);
+			g_queue_unlink(pool->queues[con->throttle.pool.queue_ndx], &con->throttle.pool.lnk);
 			g_atomic_int_add(&con->throttle.pool.ptr->num_cons, -1);
 			con->throttle.pool.queued = FALSE;
 		}
@@ -689,7 +691,7 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 	if (con->throttle.ip.ptr) {
 		if (con->throttle.ip.queued) {
 			liThrottlePool *pool = con->throttle.ip.ptr;
-			g_queue_unlink(pool->queues[con->wrk->ndx+pool->current_queue[con->wrk->ndx]], &con->throttle.ip.lnk);
+			g_queue_unlink(pool->queues[con->throttle.pool.queue_ndx], &con->throttle.ip.lnk);
 			g_atomic_int_add(&con->throttle.ip.ptr->num_cons, -1);
 			con->throttle.ip.queued = FALSE;
 		}

@@ -64,6 +64,7 @@ struct liConnection {
 		struct {
 			liThrottlePool *ptr; /* NULL if not in any throttling pool */
 			GList lnk;
+			guint8 queue_ndx;
 			gboolean queued;
 			gint magazine;
 		} pool;
