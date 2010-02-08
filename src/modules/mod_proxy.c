@@ -169,11 +169,11 @@ static void proxy_send_headers(liVRequest *vr, proxy_connection *pcon) {
 
 	switch (vr->request.http_version) {
 	case LI_HTTP_VERSION_1_1:
-		g_string_append_len(head, CONST_STR_LEN(" HTTP/1.1"));
+		g_string_append_len(head, CONST_STR_LEN(" HTTP/1.1\r\n"));
 		break;
 	case LI_HTTP_VERSION_1_0:
 	default:
-		g_string_append_len(head, CONST_STR_LEN(" HTTP/1.0"));
+		g_string_append_len(head, CONST_STR_LEN(" HTTP/1.0\r\n"));
 		break;
 	}
 
