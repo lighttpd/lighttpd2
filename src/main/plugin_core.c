@@ -628,23 +628,31 @@ static liHandlerResult core_handle_pathinfo(liVRequest *vr, gpointer param, gpoi
 next_round:
 	if (vr->physical.path->len <= vr->physical.doc_root->len) return LI_HANDLER_GO_ON;
 
-	VR_DEBUG(vr, "stat: physical path: %s", vr->physical.path->str);
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		VR_DEBUG(vr, "stat: physical path: %s", vr->physical.path->str);
+	}
 	res = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
 	if (res == LI_HANDLER_WAIT_FOR_EVENT || res == LI_HANDLER_GO_ON)
 		return res;
 
 	/* stat failed. why? */
-	VR_DEBUG(vr, "stat failed %i: physical path: %s", err, vr->physical.path->str);
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		VR_DEBUG(vr, "stat failed %i: physical path: %s", err, vr->physical.path->str);
+	}
 	switch (err) {
 	case ENOTDIR:
 		slash = strrchr(vr->physical.path->str, '/');
 		if (!slash) {
-			VR_DEBUG(vr, "no slash: %s", vr->physical.path->str);
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "no slash: %s", vr->physical.path->str);
+			}
 			return LI_HANDLER_GO_ON;
 		}
 		g_string_prepend(vr->physical.pathinfo, slash);
 		g_string_set_size(vr->physical.path, slash - vr->physical.path->str);
-		VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
+		}
 		goto next_round;
 	case ENOENT:
 		return LI_HANDLER_GO_ON;
