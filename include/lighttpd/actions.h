@@ -11,9 +11,8 @@ struct liActionRegexStackElement {
 };
 
 struct liActionStack {
-	GArray* stack;
-	GArray* regex_stack;
-	gboolean backend_failed;
+	GArray *stack, *regex_stack, *backend_stack;
+	gboolean backend_failed, backend_finished;
 	liBackendError backend_error;
 };
 

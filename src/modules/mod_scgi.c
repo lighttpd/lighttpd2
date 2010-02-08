@@ -122,6 +122,7 @@ static void scgi_connection_free(scgi_connection *scon) {
 	ev_io_stop(vr->wrk->loop, &scon->fd_watcher);
 	scgi_context_release(scon->ctx);
 	if (scon->fd != -1) close(scon->fd);
+	li_vrequest_backend_finished(vr);
 
 	li_chunkqueue_free(scon->scgi_in);
 	li_chunkqueue_free(scon->scgi_out);
@@ -340,6 +341,7 @@ static void scgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				ev_io_stop(loop, w);
 				close(scon->fd);
 				scon->fd = -1;
+				li_vrequest_backend_finished(scon->vr);
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;
@@ -365,6 +367,7 @@ static void scgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				ev_io_stop(loop, w);
 				close(scon->fd);
 				scon->fd = -1;
+				li_vrequest_backend_finished(scon->vr);
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;

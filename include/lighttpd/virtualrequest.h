@@ -128,6 +128,7 @@ LI_API void li_vrequest_error(liVRequest *vr);
 LI_API void li_vrequest_backend_overloaded(liVRequest *vr);
 LI_API void li_vrequest_backend_dead(liVRequest *vr);
 LI_API void li_vrequest_backend_error(liVRequest *vr, liBackendError berror);
+LI_API void li_vrequest_backend_finished(liVRequest *vr); /* action.c */
 
 /* resets fields which weren't reset in favor of keep-alive tracking */
 LI_API void li_vrequest_start(liVRequest *vr);

@@ -169,30 +169,54 @@ static void action_stack_element_release(liServer *srv, liVRequest *vr, action_s
 }
 
 void li_action_stack_init(liActionStack *as) {
-	as->stack = g_array_sized_new(FALSE, TRUE, sizeof(action_stack_element), 15);
-	as->regex_stack = g_array_sized_new(FALSE, FALSE, sizeof(liActionRegexStackElement), 15);
-	g_array_set_size(as->regex_stack, 0);
+	as->stack = g_array_sized_new(FALSE, TRUE, sizeof(action_stack_element), 16);
+	as->regex_stack = g_array_sized_new(FALSE, FALSE, sizeof(liActionRegexStackElement), 16);
+	as->backend_stack = g_array_sized_new(FALSE, TRUE, sizeof(action_stack_element), 4);
+}
+
+static void li_action_backend_stack_reset(liVRequest *vr, liActionStack *as) {
+	liServer *srv = vr->wrk->srv;
+	guint i;
+
+	/* index 0 is the "deepest" backend - release it first */
+	for (i = 0; i < as->backend_stack->len; i++ ) {
+		action_stack_element_release(srv, vr, &g_array_index(as->backend_stack, action_stack_element, i));
+	}
+	g_array_set_size(as->backend_stack, 0);
 }
 
 void li_action_stack_reset(liVRequest *vr, liActionStack *as) {
 	liServer *srv = vr->wrk->srv;
 	guint i;
+
 	for (i = as->stack->len; i-- > 0; ) {
 		action_stack_element_release(srv, vr, &g_array_index(as->stack, action_stack_element, i));
 	}
 	g_array_set_size(as->stack, 0);
+
+	li_action_backend_stack_reset(vr, as);
+
 	as->backend_failed = FALSE;
+	as->backend_finished = FALSE;
 }
 
 void li_action_stack_clear(liVRequest *vr, liActionStack *as) {
 	liServer *srv = vr->wrk->srv;
 	guint i;
+
 	for (i = as->stack->len; i-- > 0; ) {
 		action_stack_element_release(srv, vr, &g_array_index(as->stack, action_stack_element, i));
 	}
 	g_array_free(as->stack, TRUE);
+
+	li_action_backend_stack_reset(vr, as);
+	g_array_free(as->backend_stack, TRUE);
+
 	g_array_free(as->regex_stack, TRUE);
-	as->stack = NULL;
+
+	as->stack = as->backend_stack = as->regex_stack = NULL;
+	as->backend_failed = FALSE;
+	as->backend_finished = FALSE;
 }
 
 static action_stack_element *action_stack_top(liActionStack* as) {
@@ -210,7 +234,19 @@ void li_action_enter(liVRequest *vr, liAction *a) {
 }
 
 static void action_stack_pop(liServer *srv, liVRequest *vr, liActionStack *as) {
-	action_stack_element_release(srv, vr, &g_array_index(as->stack, action_stack_element, as->stack->len - 1));
+	action_stack_element *ase;
+
+	if (as->stack->len == 0) return;
+
+	ase = &g_array_index(as->stack, action_stack_element, as->stack->len - 1);
+
+	if (ase->act->type == ACTION_TBALANCER && !as->backend_finished) {
+		/* release later if backend is finished (i.e. "disconnected") */
+		g_array_append_val(as->backend_stack, *ase);
+	} else {
+		action_stack_element_release(srv, vr, ase);
+	}
+
 	g_array_set_size(as->stack, as->stack->len - 1);
 }
 
@@ -224,6 +260,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 
 	while (NULL != (ase = action_stack_top(as))) {
 		if (as->backend_failed) {
+			/* set by li_vrequest_backend_error */
 			vr->state = LI_VRS_HANDLE_REQUEST_HEADERS;
 			vr->backend = NULL;
 
@@ -325,6 +362,11 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			}
 			break;
 		case ACTION_TBALANCER:
+			/* skip balancer if request is already handled */
+			if (li_vrequest_is_handled(vr)) {
+				ase->finished = TRUE;
+				break;
+			}
 			res = a->data.balancer.select(vr, ase->backlog_provided, a->data.balancer.param, &ase->data.context);
 			switch (res) {
 			case LI_HANDLER_GO_ON:
@@ -344,4 +386,10 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			vr->response.http_status = 503;
 	}
 	return LI_HANDLER_GO_ON;
+}
+
+void li_vrequest_backend_finished(liVRequest *vr) {
+	if (!li_vrequest_is_handled(vr)) return;
+	vr->action_stack.backend_finished = TRUE;
+	li_action_backend_stack_reset(vr, &vr->action_stack);
 }

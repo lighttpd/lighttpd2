@@ -114,6 +114,8 @@ static liHandlerResult balancer_act_select(liVRequest *vr, gboolean backlog_prov
 
 	/* TODO implement some selection algorithms */
 
+	VR_ERROR(vr, "balancer select: %i", be_ndx);
+
 	be->load++;
 	li_action_enter(vr, be->act);
 	*context = GINT_TO_POINTER(be_ndx);
@@ -124,12 +126,14 @@ static liHandlerResult balancer_act_select(liVRequest *vr, gboolean backlog_prov
 static liHandlerResult balancer_act_fallback(liVRequest *vr, gboolean backlog_provided, gpointer param, gpointer *context, liBackendError error) {
 	balancer *b = (balancer*) param;
 	gint be_ndx = GPOINTER_TO_INT(*context);
-	backend *be = &g_array_index(b->backends, backend, be_ndx);
+	backend *be;
 
 	UNUSED(backlog_provided);
-	UNUSED(error);
 
 	if (be_ndx < 0) return LI_HANDLER_GO_ON;
+	be = &g_array_index(b->backends, backend, be_ndx);
+
+	VR_ERROR(vr, "balancer fallback: %i (error: %i)", be_ndx, error);
 
 	/* TODO implement fallback/backlog */
 
@@ -142,11 +146,14 @@ static liHandlerResult balancer_act_fallback(liVRequest *vr, gboolean backlog_pr
 static liHandlerResult balancer_act_finished(liVRequest *vr, gpointer param, gpointer context) {
 	balancer *b = (balancer*) param;
 	gint be_ndx = GPOINTER_TO_INT(context);
-	backend *be = &g_array_index(b->backends, backend, be_ndx);
+	backend *be;
 
 	UNUSED(vr);
 
 	if (be_ndx < 0) return LI_HANDLER_GO_ON;
+	be = &g_array_index(b->backends, backend, be_ndx);
+
+	VR_ERROR(vr, "balancer finished: %i", be_ndx);
 
 	/* TODO implement backlog */
 
@@ -160,7 +167,6 @@ static void balancer_act_free(liServer *srv, gpointer param) {
 
 static liAction* balancer_rr(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	balancer *b;
-	liAction *a;
 	UNUSED(p); UNUSED(userdata);
 
 	if (!val) {
@@ -174,8 +180,7 @@ static liAction* balancer_rr(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		return NULL;
 	}
 
-	a = li_action_new_balancer(balancer_act_select, balancer_act_fallback, balancer_act_finished, balancer_act_free, b, TRUE);
-	return a;
+	return li_action_new_balancer(balancer_act_select, balancer_act_fallback, balancer_act_finished, balancer_act_free, b, TRUE);
 }
 
 

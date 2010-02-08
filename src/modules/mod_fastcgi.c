@@ -187,6 +187,7 @@ static void fastcgi_connection_free(fastcgi_connection *fcon) {
 	ev_io_stop(vr->wrk->loop, &fcon->fd_watcher);
 	fastcgi_context_release(fcon->ctx);
 	if (fcon->fd != -1) close(fcon->fd);
+	li_vrequest_backend_finished(vr);
 
 	li_chunkqueue_free(fcon->fcgi_in);
 	li_chunkqueue_free(fcon->fcgi_out);
@@ -574,6 +575,7 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				ev_io_stop(loop, w);
 				close(fcon->fd);
 				fcon->fd = -1;
+				li_vrequest_backend_finished(fcon->vr);
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;
@@ -599,6 +601,7 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				ev_io_stop(loop, w);
 				close(fcon->fd);
 				fcon->fd = -1;
+				li_vrequest_backend_finished(fcon->vr);
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;

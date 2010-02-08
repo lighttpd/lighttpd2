@@ -127,6 +127,7 @@ static void proxy_connection_free(proxy_connection *pcon) {
 	ev_io_stop(vr->wrk->loop, &pcon->fd_watcher);
 	proxy_context_release(pcon->ctx);
 	if (pcon->fd != -1) close(pcon->fd);
+	li_vrequest_backend_finished(vr);
 
 	li_chunkqueue_free(pcon->proxy_in);
 	li_chunkqueue_free(pcon->proxy_out);
@@ -251,6 +252,7 @@ static void proxy_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				ev_io_stop(loop, w);
 				close(pcon->fd);
 				pcon->fd = -1;
+				li_vrequest_backend_finished(pcon->vr);
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;
@@ -276,6 +278,7 @@ static void proxy_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				ev_io_stop(loop, w);
 				close(pcon->fd);
 				pcon->fd = -1;
+				li_vrequest_backend_finished(pcon->vr);
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;
