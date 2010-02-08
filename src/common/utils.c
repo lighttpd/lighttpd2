@@ -678,6 +678,14 @@ void li_sockaddr_clear(liSocketAddress *saddr) {
 	saddr->len = 0;
 }
 
+liSocketAddress li_sockaddr_dup(liSocketAddress saddr) {
+	liSocketAddress naddr = { 0, NULL };
+	naddr.addr = (liSockAddr*) g_slice_alloc0(saddr.len);
+	naddr.len = saddr.len;
+	memcpy(naddr.addr, saddr.addr, saddr.len);
+	return naddr;
+}
+
 gboolean li_ipv4_in_ipv4_net(guint32 target, guint32 match, guint32 networkmask) {
 	return (target & networkmask) == (match & networkmask);
 }

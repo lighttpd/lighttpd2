@@ -70,6 +70,7 @@ LI_API liSocketAddress li_sockaddr_from_string(const GString *str, guint tcp_def
 LI_API liSocketAddress li_sockaddr_local_from_socket(gint fd);
 LI_API liSocketAddress li_sockaddr_remote_from_socket(gint fd);
 LI_API void li_sockaddr_clear(liSocketAddress *saddr);
+LI_API liSocketAddress li_sockaddr_dup(liSocketAddress saddr);
 
 LI_API gboolean li_ipv4_in_ipv4_net(guint32 target, guint32 match, guint32 networkmask);
 LI_API gboolean li_ipv6_in_ipv6_net(const unsigned char *target, const guint8 *match, guint network);
