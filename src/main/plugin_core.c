@@ -1309,6 +1309,7 @@ static liHandlerResult core_handle_throttle_pool(liVRequest *vr, gpointer param,
 				liThrottlePool *p = vr->con->throttle.pool.ptr;
 				g_queue_unlink(p->queues[vr->con->throttle.pool.queue_ndx], &vr->con->throttle.pool.lnk);
 				g_atomic_int_add(&p->num_cons, -1);
+				vr->con->throttle.pool.queued = FALSE;
 			}
 		}
 
