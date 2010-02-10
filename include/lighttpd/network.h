@@ -16,7 +16,7 @@ LI_API ssize_t li_net_write(int fd, void *buf, ssize_t nbyte);
 LI_API ssize_t li_net_read(int fd, void *buf, ssize_t nbyte);
 
 LI_API liNetworkStatus li_network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset write_max);
-LI_API liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq);
+LI_API liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq, liBuffer **buffer);
 
 /* use writev for mem chunks, buffered read/write for files */
 LI_API liNetworkStatus li_network_write_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max);

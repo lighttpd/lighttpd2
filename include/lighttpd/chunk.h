@@ -152,11 +152,11 @@ LI_API void li_chunkqueue_append_string(liChunkQueue *cq, GString *str);
   */
 LI_API void li_chunkqueue_append_bytearr(liChunkQueue *cq, GByteArray *mem);
 
- /* pass ownership of buffer to chunkqueue, do not free/modify it afterwards
-  * you may modify the data (not the length) if you are sure it isn't sent before.
-  * if the length is NULL, buffer is destroyed immediately
+ /* pass ownership of one buffer reference to chunkqueue
+  * if the length is NULL, reference is released immediately
   */
 LI_API void li_chunkqueue_append_buffer(liChunkQueue *cq, liBuffer *buffer);
+LI_API void li_chunkqueue_append_buffer2(liChunkQueue *cq, liBuffer *buffer, gsize offset, gsize length);
 
 /* memory gets copied */
 LI_API void li_chunkqueue_append_mem(liChunkQueue *cq, const void *mem, gssize len);

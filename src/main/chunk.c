@@ -522,9 +522,8 @@ void li_chunkqueue_append_bytearr(liChunkQueue *cq, GByteArray *mem) {
 	cqlimit_update(cq, mem->len);
 }
 
- /* pass ownership of buffer to chunkqueue, do not free/modify it afterwards
-  * you may modify the data (not the length) if you are sure it isn't sent before.
-  * if the length is NULL, buffer is destroyed immediately
+ /* pass ownership of one buffer reference to chunkqueue
+  * if the length is NULL, reference is released immediately
   */
 void li_chunkqueue_append_buffer(liChunkQueue *cq, liBuffer *buffer) {
 	liChunk *c;
@@ -541,6 +540,24 @@ void li_chunkqueue_append_buffer(liChunkQueue *cq, liBuffer *buffer) {
 	cq->length += buffer->used;
 	cq->bytes_in += buffer->used;
 	cqlimit_update(cq, buffer->used);
+}
+
+void li_chunkqueue_append_buffer2(liChunkQueue *cq, liBuffer *buffer, gsize offset, gsize length) {
+	liChunk *c;
+	if (length == 0) {
+		li_buffer_release(buffer);
+		return;
+	}
+	assert(offset + length <= buffer->used);
+	c = chunk_new();
+	c->type = BUFFER_CHUNK;
+	c->data.buffer.buffer = buffer;
+	c->data.buffer.offset = offset;
+	c->data.buffer.length = length;
+	g_queue_push_tail_link(&cq->queue, &c->cq_link);
+	cq->length += length;
+	cq->bytes_in += length;
+	cqlimit_update(cq, length);
 }
 
 /* memory gets copied */

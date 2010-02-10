@@ -279,7 +279,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			if (con->srv_sock->read_cb) {
 				res = con->srv_sock->read_cb(con);
 			} else {
-				res = li_network_read(con->mainvr, w->fd, con->raw_in);
+				res = li_network_read(con->mainvr, w->fd, con->raw_in, &con->raw_in_buffer);
 			}
 
 			transferred = con->raw_in->length - transferred;
@@ -535,6 +535,8 @@ void li_connection_reset(liConnection *con) {
 
 	li_chunkqueue_reset(con->raw_in);
 	li_chunkqueue_reset(con->raw_out);
+	li_buffer_release(con->raw_in_buffer);
+	con->raw_in_buffer = NULL;
 
 	li_vrequest_reset(con->mainvr, FALSE);
 
@@ -736,6 +738,7 @@ void li_connection_free(liConnection *con) {
 
 	li_chunkqueue_free(con->raw_in);
 	li_chunkqueue_free(con->raw_out);
+	li_buffer_release(con->raw_in_buffer);
 
 	li_vrequest_free(con->mainvr);
 	li_http_request_parser_clear(&con->req_parser_ctx);

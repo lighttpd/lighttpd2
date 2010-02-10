@@ -47,6 +47,7 @@ struct scgi_connection {
 	int fd;
 	ev_io fd_watcher;
 	liChunkQueue *scgi_in, *scgi_out;
+	liBuffer *scgi_in_buffer;
 
 	liHttpResponseCtx parse_response_ctx;
 	gboolean response_headers_finished;
@@ -126,6 +127,7 @@ static void scgi_connection_free(scgi_connection *scon) {
 
 	li_chunkqueue_free(scon->scgi_in);
 	li_chunkqueue_free(scon->scgi_out);
+	li_buffer_release(scon->scgi_in_buffer);
 
 	li_http_response_parser_clear(&scon->parse_response_ctx);
 
@@ -329,7 +331,7 @@ static void scgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		if (scon->scgi_in->is_closed) {
 			li_ev_io_rem_events(loop, w, EV_READ);
 		} else {
-			switch (li_network_read(scon->vr, w->fd, scon->scgi_in)) {
+			switch (li_network_read(scon->vr, w->fd, scon->scgi_in, &scon->scgi_in_buffer)) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:

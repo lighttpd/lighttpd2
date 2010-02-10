@@ -213,17 +213,32 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 		ERR_clear_error();
 
 		buf = li_chunkqueue_get_last_buffer(cq, 1024);
-		buf = NULL;
-		if (!(cq_buf_append = (buf != NULL))) {
-			buf = li_buffer_new(blocksize);
+		cq_buf_append = (buf != NULL);
+
+		if (buf != NULL) {
+			/* use last buffer as raw_in_buffer; they should be the same anyway */
+			if (G_UNLIKELY(buf != con->raw_in_buffer)) {
+				li_buffer_acquire(buf);
+				li_buffer_release(con->raw_in_buffer);
+				con->raw_in_buffer = buf;
+			}
+		} else {
+			buf = con->raw_in_buffer;
+			if (buf != NULL && buf->alloc_size - buf->used < 1024) {
+				/* release *buffer */
+				li_buffer_release(buf);
+				con->raw_in_buffer = buf = NULL;
+			}
+			if (buf == NULL) {
+				con->raw_in_buffer = buf = li_buffer_new(blocksize);
+			}
 		}
+		assert(con->raw_in_buffer == buf);
 
 		r = SSL_read(conctx->ssl, buf->addr + buf->used, buf->alloc_size - buf->used);
 		if (r < 0) {
 			int oerrno = errno, err;
 			gboolean was_fatal;
-
-			if (!cq_buf_append) li_buffer_release(buf);
 
 			err = SSL_get_error(conctx->ssl, r);
 
@@ -292,15 +307,22 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 
 			return LI_NETWORK_STATUS_FATAL_ERROR;
 		} else if (r == 0) {
-			if (!cq_buf_append) li_buffer_release(buf);
 			return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 		}
 
 		if (cq_buf_append) {
 			li_chunkqueue_update_last_buffer_size(cq, r);
 		} else {
-			buf->used = r;
-			li_chunkqueue_append_buffer(cq, buf);
+			gsize offset;
+
+			offset = buf->used;
+			buf->used += r;
+			li_chunkqueue_append_buffer2(cq, buf, offset, r);
+		}
+		if (buf->alloc_size - buf->used < 1024) {
+			/* release *buffer */
+			li_buffer_release(buf);
+			con->raw_in_buffer = buf = NULL;
 		}
 		len += r;
 	} while (len < max_read);

@@ -37,6 +37,7 @@ struct liConnection {
 
 	liChunkQueue *raw_in, *raw_out;
 	liChunkQueue *in, *out;    /* link to mainvr->in/out */
+	liBuffer *raw_in_buffer;
 
 	ev_io sock_watcher;
 	liSocketAddress remote_addr, local_addr;

@@ -52,6 +52,7 @@ struct proxy_connection {
 	int fd;
 	ev_io fd_watcher;
 	liChunkQueue *proxy_in, *proxy_out;
+	liBuffer *proxy_in_buffer;
 
 	liHttpResponseCtx parse_response_ctx;
 	gboolean response_headers_finished;
@@ -131,6 +132,7 @@ static void proxy_connection_free(proxy_connection *pcon) {
 
 	li_chunkqueue_free(pcon->proxy_in);
 	li_chunkqueue_free(pcon->proxy_out);
+	li_buffer_release(pcon->proxy_in_buffer);
 
 	li_http_response_parser_clear(&pcon->parse_response_ctx);
 
@@ -240,7 +242,7 @@ static void proxy_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		if (pcon->proxy_in->is_closed) {
 			li_ev_io_rem_events(loop, w, EV_READ);
 		} else {
-			switch (li_network_read(pcon->vr, w->fd, pcon->proxy_in)) {
+			switch (li_network_read(pcon->vr, w->fd, pcon->proxy_in, &pcon->proxy_in_buffer)) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:

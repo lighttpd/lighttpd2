@@ -68,6 +68,7 @@ struct fastcgi_connection {
 	int fd;
 	ev_io fd_watcher;
 	liChunkQueue *fcgi_in, *fcgi_out, *stdout;
+	liBuffer *fcgi_in_buffer;
 
 	GByteArray *buf_in_record;
 	FCGI_Record fcgi_in_record;
@@ -192,6 +193,7 @@ static void fastcgi_connection_free(fastcgi_connection *fcon) {
 	li_chunkqueue_free(fcon->fcgi_in);
 	li_chunkqueue_free(fcon->fcgi_out);
 	li_chunkqueue_free(fcon->stdout);
+	li_buffer_release(fcon->fcgi_in_buffer);
 	g_byte_array_free(fcon->buf_in_record, TRUE);
 
 	li_http_response_parser_clear(&fcon->parse_response_ctx);
@@ -563,7 +565,7 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		if (fcon->fcgi_in->is_closed) {
 			li_ev_io_rem_events(loop, w, EV_READ);
 		} else {
-			switch (li_network_read(fcon->vr, w->fd, fcon->fcgi_in)) {
+			switch (li_network_read(fcon->vr, w->fd, fcon->fcgi_in, &fcon->fcgi_in_buffer)) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:

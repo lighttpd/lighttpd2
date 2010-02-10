@@ -73,7 +73,7 @@ liNetworkStatus li_network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffs
 	return res;
 }
 
-liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
+liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq, liBuffer **buffer) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
@@ -90,18 +90,47 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 	}
 
 	do {
-		liBuffer *buf;
+		liBuffer *buf = NULL;
 		gboolean cq_buf_append;
 
 		buf = li_chunkqueue_get_last_buffer(cq, 1024);
-		buf = NULL;
-		if (!(cq_buf_append = (buf != NULL))) {
-			buf = li_buffer_new(blocksize);
+		cq_buf_append = (buf != NULL);
+
+		if (NULL != buffer) {
+			if (buf != NULL) {
+				/* use last buffer as *buffer; they should be the same anyway */
+				if (G_UNLIKELY(buf != *buffer)) {
+					li_buffer_acquire(buf);
+					li_buffer_release(*buffer);
+					*buffer = buf;
+				}
+			} else {
+				buf = *buffer;
+				if (buf != NULL) {
+					/* if *buffer is the only reference, we can reset the buffer */
+					if (g_atomic_int_get(&buf->refcount) == 1) {
+						buf->used = 0;
+					}
+
+					if (buf->alloc_size - buf->used < 1024) {
+						/* release *buffer */
+						li_buffer_release(buf);
+						*buffer = buf = NULL;
+					}
+				}
+				if (buf == NULL) {
+					*buffer = buf = li_buffer_new(blocksize);
+				}
+			}
+			assert(*buffer == buf);
 		} else {
-			VR_ERROR(vr, "buffer: used %i", (int) buf->used);
+			if (buf == NULL) {
+				buf = li_buffer_new(blocksize);
+			}
 		}
+
 		if (-1 == (r = li_net_read(fd, buf->addr + buf->used, buf->alloc_size - buf->used))) {
-			if (!cq_buf_append) li_buffer_release(buf);
+			if (buffer == NULL && !cq_buf_append) li_buffer_release(buf);
 			switch (errno) {
 			case EAGAIN:
 #if EWOULDBLOCK != EAGAIN
@@ -116,14 +145,26 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq) {
 				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {
-			if (!cq_buf_append) li_buffer_release(buf);
+			if (buffer == NULL && !cq_buf_append) li_buffer_release(buf);
 			return len ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_CONNECTION_CLOSE;
 		}
 		if (cq_buf_append) {
 			li_chunkqueue_update_last_buffer_size(cq, r);
 		} else {
-			buf->used = r;
-			li_chunkqueue_append_buffer(cq, buf);
+			gsize offset;
+
+			if (buffer != NULL) li_buffer_acquire(buf);
+
+			offset = buf->used;
+			buf->used += r;
+			li_chunkqueue_append_buffer2(cq, buf, offset, r);
+		}
+		if (NULL != buffer) {
+			if (buf->alloc_size - buf->used < 1024) {
+				/* release *buffer */
+				li_buffer_release(buf);
+				*buffer = buf = NULL;
+			}
 		}
 		len += r;
 	} while (r == blocksize && len < max_read);
