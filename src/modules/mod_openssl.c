@@ -315,6 +315,8 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 		} else {
 			gsize offset;
 
+			li_buffer_acquire(buf);
+
 			offset = buf->used;
 			buf->used += r;
 			li_chunkqueue_append_buffer2(cq, buf, offset, r);
