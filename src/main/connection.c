@@ -382,13 +382,11 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 					li_waitqueue_push(&con->wrk->throttle_queue, &con->throttle.wqueue_elem);
 				}
 
-				if (con->throttle.pool.ptr && con->throttle.pool.magazine <= MAX(write_max,0) && !con->throttle.pool.queued) {
+				if (con->throttle.pool.ptr && con->throttle.pool.magazine <= MAX(write_max,0) && !con->throttle.pool.queue) {
 					liThrottlePool *pool = con->throttle.pool.ptr;
-					guint8 queue_ndx = con->wrk->ndx+pool->current_queue[con->wrk->ndx];
-					g_atomic_int_inc(&pool->num_cons);
-					g_queue_push_tail_link(pool->queues[queue_ndx], &con->throttle.pool.lnk);
-					con->throttle.pool.queue_ndx = queue_ndx;
-					con->throttle.pool.queued = TRUE;
+					g_atomic_int_inc(&pool->num_cons_queued);
+					con->throttle.pool.queue = pool->queues[con->wrk->ndx];
+					g_queue_push_tail_link(con->throttle.pool.queue, &con->throttle.pool.lnk);
 				}
 			}
 
@@ -504,7 +502,6 @@ liConnection* li_connection_new(liWorker *wrk) {
 
 	con->throttle.wqueue_elem.data = con;
 	con->throttle.pool.lnk.data = con;
-	con->throttle.ip.lnk.data = con;
 
 	return con;
 }
@@ -577,42 +574,7 @@ void li_connection_reset(liConnection *con) {
 	/* remove from timeout queue */
 	li_waitqueue_remove(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
 
-	/* remove from throttle queue */
-	li_waitqueue_remove(&con->wrk->throttle_queue, &con->throttle.wqueue_elem);
-
-	if (con->throttle.pool.ptr) {
-		if (con->throttle.pool.queued) {
-			liThrottlePool *pool = con->throttle.pool.ptr;
-			g_queue_unlink(pool->queues[con->throttle.pool.queue_ndx], &con->throttle.pool.lnk);
-			g_atomic_int_add(&con->throttle.pool.ptr->num_cons, -1);
-			con->throttle.pool.queued = FALSE;
-		}
-		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.pool.magazine);
-		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.ip.magazine);
-		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.con.magazine);
-		con->throttle.pool.magazine = 0;
-		con->throttle.ip.magazine = 0;
-		con->throttle.con.magazine = 0;
-		con->throttle.pool.ptr = NULL;
-	}
-
-	if (con->throttle.ip.ptr) {
-		if (con->throttle.ip.queued) {
-			liThrottlePool *pool = con->throttle.ip.ptr;
-			g_queue_unlink(pool->queues[con->throttle.pool.queue_ndx], &con->throttle.ip.lnk);
-			g_atomic_int_add(&con->throttle.ip.ptr->num_cons, -1);
-			con->throttle.ip.queued = FALSE;
-		}
-		g_atomic_int_add(&con->throttle.ip.ptr->magazine, con->throttle.ip.magazine);
-		g_atomic_int_add(&con->throttle.ip.ptr->magazine, con->throttle.con.magazine);
-		con->throttle.ip.ptr = NULL;
-	}
-
-	con->throttle.con.rate = 0;
-	con->throttle.pool.magazine = 0;
-	con->throttle.ip.magazine = 0;
-	con->throttle.con.magazine = 0;
-	con->throttled = FALSE;
+	li_throttle_reset(con);
 }
 
 static void li_connection_reset_keep_alive(liConnection *con) {
@@ -671,42 +633,8 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 
 	/* remove from timeout queue */
 	li_waitqueue_remove(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
-	/* remove from throttle queue */
-	li_waitqueue_remove(&con->wrk->throttle_queue, &con->throttle.wqueue_elem);
 
-	if (con->throttle.pool.ptr) {
-		if (con->throttle.pool.queued) {
-			liThrottlePool *pool = con->throttle.pool.ptr;
-			g_queue_unlink(pool->queues[con->throttle.pool.queue_ndx], &con->throttle.pool.lnk);
-			g_atomic_int_add(&con->throttle.pool.ptr->num_cons, -1);
-			con->throttle.pool.queued = FALSE;
-		}
-		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.pool.magazine);
-		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.ip.magazine);
-		g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.con.magazine);
-		con->throttle.pool.magazine = 0;
-		con->throttle.ip.magazine = 0;
-		con->throttle.con.magazine = 0;
-		con->throttle.pool.ptr = NULL;
-	}
-
-	if (con->throttle.ip.ptr) {
-		if (con->throttle.ip.queued) {
-			liThrottlePool *pool = con->throttle.ip.ptr;
-			g_queue_unlink(pool->queues[con->throttle.pool.queue_ndx], &con->throttle.ip.lnk);
-			g_atomic_int_add(&con->throttle.ip.ptr->num_cons, -1);
-			con->throttle.ip.queued = FALSE;
-		}
-		g_atomic_int_add(&con->throttle.ip.ptr->magazine, con->throttle.ip.magazine);
-		g_atomic_int_add(&con->throttle.ip.ptr->magazine, con->throttle.con.magazine);
-		con->throttle.ip.ptr = NULL;
-	}
-
-	con->throttle.con.rate = 0;
-	con->throttle.pool.magazine = 0;
-	con->throttle.ip.magazine = 0;
-	con->throttle.con.magazine = 0;
-	con->throttled = FALSE;
+	li_throttle_reset(con);
 
 	if (con->raw_in->length != 0) {
 		/* start handling next request if data is already available */

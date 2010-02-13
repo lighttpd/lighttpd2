@@ -1304,34 +1304,10 @@ static liAction* core_buffer_in(liServer *srv, liPlugin* p, liValue *val, gpoint
 
 static liHandlerResult core_handle_throttle_pool(liVRequest *vr, gpointer param, gpointer *context) {
 	liThrottlePool *pool = param;
-	gint magazine;
 
 	UNUSED(context);
 
-	if (vr->con->throttle.pool.ptr != pool) {
-		if (vr->con->throttle.pool.ptr) {
-			/* connection has been in a different pool, give back bandwidth */
-			g_atomic_int_add(&vr->con->throttle.pool.ptr->magazine, vr->con->throttle.pool.magazine);
-			vr->con->throttle.pool.magazine = 0;
-			if (vr->con->throttle.pool.queued) {
-				liThrottlePool *p = vr->con->throttle.pool.ptr;
-				g_queue_unlink(p->queues[vr->con->throttle.pool.queue_ndx], &vr->con->throttle.pool.lnk);
-				g_atomic_int_add(&p->num_cons, -1);
-				vr->con->throttle.pool.queued = FALSE;
-			}
-		}
-
-		/* try to steal some initial 4kbytes from the pool */
-		while ((magazine = g_atomic_int_get(&pool->magazine)) > (4*1024)) {
-			if (g_atomic_int_compare_and_exchange(&pool->magazine, magazine, magazine - (4*1024))) {
-				vr->con->throttle.pool.magazine = 4*1024;
-				break;
-			}
-		}
-	}
-
-	vr->con->throttle.pool.ptr = pool;
-	vr->con->throttled = TRUE;
+	li_throttle_pool_acquire(vr->con, pool);
 
 	return LI_HANDLER_GO_ON;
 }

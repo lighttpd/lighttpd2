@@ -65,15 +65,11 @@ struct liConnection {
 		struct {
 			liThrottlePool *ptr; /* NULL if not in any throttling pool */
 			GList lnk;
-			guint8 queue_ndx;
-			gboolean queued;
+			GQueue *queue;
 			gint magazine;
 		} pool;
 		struct {
-			liThrottlePool *ptr; /* pool for per-ip throttling, NULL if not limited by ip */
-			GList lnk;
-			gboolean queued;
-			gint magazine;
+			gchar unused; /* this struct is unused for now */
 		} ip;
 		struct {
 			guint rate; /* maximum transfer rate in bytes per second, 0 if unlimited */
