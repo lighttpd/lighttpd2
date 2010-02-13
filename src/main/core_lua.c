@@ -211,6 +211,25 @@ static int li_lua_sha256(lua_State *L) {
 	return 1;
 }
 
+static int li_lua_path_simplify(lua_State *L) {
+	const char *s;
+	size_t len;
+	GString *str;
+
+	s = lua_tolstring(L, 1, &len);
+	if (!s) return 0;
+
+	str = g_string_new_len(s, len);
+
+	li_path_simplify(str);
+
+	lua_pushlstring(L, GSTR_LEN(str));
+
+	g_string_free(str, TRUE);
+
+	return 1;
+}
+
 static void lua_push_constants(lua_State *L, int ndx) {
 	lua_pushinteger(L, LI_HANDLER_GO_ON);
 	lua_setfield(L, ndx, "HANDLER_GO_ON");
@@ -269,6 +288,9 @@ void li_lua_init(lua_State *L, liServer *srv, liWorker *wrk) {
 	lua_setfield(L, -2, "sha1");
 	lua_pushcclosure(L, li_lua_sha256, 0);
 	lua_setfield(L, -2, "sha256");
+
+	lua_pushcclosure(L, li_lua_path_simplify, 0);
+	lua_setfield(L, -2, "path_simplify");
 
 	lua_push_constants(L, -2);
 
