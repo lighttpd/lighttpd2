@@ -1134,7 +1134,7 @@
 	integer_suffix_bits = ( 'bit' | 'kbit' | 'mbit' | 'gbit' | 'tbit' | 'pbit' );
 	integer_suffix_seconds = ( 'sec' | 'min' | 'hours' | 'days' );
 	integer_suffix = ( integer_suffix_bytes | integer_suffix_bits | integer_suffix_seconds ) >mark %integer_suffix;
-	integer = ( ('0' | ( [1-9] [0-9]* )) %integer (ws? integer_suffix)? );
+	integer = ( ('0' | ( [1-9] [0-9]* )) %integer integer_suffix? );
 	escaped_hex = ( '\\x' xdigit{2} );
 	special_chars = ( '\\' [nrt\\] );
 	#string = ( '"' ( ( any - ["\\] ) | special_chars | escaped_hex | '\\"' )* '"' ) %string;
