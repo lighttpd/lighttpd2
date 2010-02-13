@@ -17,6 +17,9 @@ typedef liAction*(*liPluginCreateActionCB)  (liServer *srv, liPlugin *p, liValue
 typedef gboolean (*liPluginSetupCB)         (liServer *srv, liPlugin *p, liValue *val, gpointer userdata);
 typedef void     (*liPluginAngelCB)         (liServer *srv, liPlugin *p, gint32 id, GString *data);
 
+typedef void     (*liPluginServerPrepareWorker)(liServer *srv, liPlugin *p, liWorker *wrk);
+typedef void     (*liPluginServerPrepare)(liServer *srv, liPlugin *p);
+
 typedef void     (*liPluginHandleCloseCB)   (liConnection *con, liPlugin *p);
 typedef liHandlerResult(*liPluginHandleVRequestCB)(liVRequest *vr, liPlugin *p);
 typedef void     (*liPluginHandleVRCloseCB) (liVRequest *vr, liPlugin *p);
@@ -164,8 +167,6 @@ LI_API void li_plugins_start_listen(liServer *srv); /* "warmup" */
 LI_API void li_plugins_stop_listen(liServer *srv); /* "prepare suspend", async */
 LI_API void li_plugins_start_log(liServer *srv); /* "run" */
 LI_API void li_plugins_stop_log(liServer *srv); /* "suspend now" */
-
-LI_API void li_plugin_ready_for_state(liServer *srv, liPlugin *p, liServerState state);
 
 LI_API void li_plugins_handle_close(liConnection *con);
 LI_API void li_plugins_handle_vrclose(liVRequest *vr);

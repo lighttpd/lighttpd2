@@ -201,6 +201,8 @@ typedef struct liResponse liResponse;
 
 /* server.h */
 
+typedef struct liServerStateWait liServerStateWait;
+
 typedef struct liServer liServer;
 
 typedef struct liServerSocket liServerSocket;

@@ -12,6 +12,8 @@
 #include <fcntl.h>
 #include <stdarg.h>
 
+#define DEFAULT_TS_FORMAT "%d/%b/%Y %T %Z"
+
 static void log_free_unlocked(liServer *srv, liLog *log);
 static void log_thread_stop(liServer *srv);
 static void log_thread_finish(liServer *srv);
@@ -51,8 +53,10 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 		ts = CORE_OPTIONPTR(LI_CORE_OPTION_LOG_TS_FORMAT).ptr;
 	}
 	else {
-		liOptionPtrValue *ologval;
-		ologval = g_array_index(srv->optionptr_def_values, liOptionPtrValue*, 0 + LI_CORE_OPTION_LOG);
+		liOptionPtrValue *ologval = NULL;
+		if (0 + LI_CORE_OPTION_LOG < srv->optionptr_def_values->len) {
+			ologval = g_array_index(srv->optionptr_def_values, liOptionPtrValue*, 0 + LI_CORE_OPTION_LOG);
+		}
 		if (ologval != NULL) logs = ologval->data.list;
 	}
 
@@ -62,7 +66,7 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 			return TRUE;*/
 	}
 
-	if (!ts) {
+	if (NULL == ts && 0 < srv->logs.timestamps->len) {
 		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, 0);
 	}
 
@@ -105,6 +109,9 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 	/* for normal error messages, we prepend a timestamp */
 	if (flags & LOG_FLAG_TIMESTAMP) {
 		time_t cur_ts;
+		liLogTimestamp fake_ts;
+		GString fake_ts_format;
+		GString *tmpstr = NULL;
 
 		g_mutex_lock(srv->logs.mutex);
 
@@ -113,6 +120,14 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 			cur_ts = (time_t)CUR_TS(vr->wrk);
 		else
 			cur_ts = time(NULL);
+
+		if (NULL == ts) {
+			ts = &fake_ts;
+			ts->last_ts = 0;
+			fake_ts_format = li_const_gstring(CONST_STR_LEN(DEFAULT_TS_FORMAT));
+			ts->format = &fake_ts_format;
+			ts->cached = tmpstr = g_string_sized_new(255);
+		}
 
 		if (cur_ts != ts->last_ts) {
 			gsize s;
@@ -137,6 +152,8 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 
 		g_string_prepend_c(log_line, ' ');
 		g_string_prepend_len(log_line, GSTR_LEN(ts->cached));
+
+		if (NULL != tmpstr) g_string_free(tmpstr, TRUE);
 
 		g_mutex_unlock(srv->logs.mutex);
 	}
@@ -415,7 +432,7 @@ void li_log_init(liServer *srv) {
 	srv->logs.thread_alive = FALSE;
 
 	/* first entry in srv->logs.timestamps is the default timestamp */
-	li_log_timestamp_new(srv, g_string_new_len(CONST_STR_LEN("%d/%b/%Y %T %Z")));
+	li_log_timestamp_new(srv, g_string_new_len(CONST_STR_LEN(DEFAULT_TS_FORMAT)));
 
 	/* first entry in srv->logs.targets is the plain good old stderr */
 	str = g_string_new_len(CONST_STR_LEN("stderr"));

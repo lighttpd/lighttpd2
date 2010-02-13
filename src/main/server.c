@@ -14,6 +14,7 @@
 
 static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents);
 static void li_server_stop(liServer *srv);
+static void state_ready_cb(struct ev_loop *loop, struct ev_async *w, int revents);
 
 static liServerSocket* server_socket_new(int fd) {
 	liServerSocket *sock = g_slice_new0(liServerSocket);
@@ -93,6 +94,12 @@ liServer* li_server_new(const gchar *module_dir) {
 	srv->magic = LIGHTTPD_SERVER_MAGIC;
 	srv->state = LI_SERVER_INIT;
 	srv->dest_state = LI_SERVER_RUNNING;
+
+	srv->statelock = g_mutex_new();
+	g_queue_init(&srv->state_wait_queue);
+	srv->state_wait_for = srv->state;
+	ev_init(&srv->state_ready_watcher, state_ready_cb);
+	srv->state_ready_watcher.data = srv;
 
 #ifdef HAVE_LUA_H
 	srv->L = luaL_newstate();
@@ -190,6 +197,8 @@ void li_server_free(liServer* srv) {
 
 	li_action_release(srv, srv->mainaction);
 
+	li_ev_safe_ref_and_stop(ev_async_stop, srv->loop, &srv->state_ready_watcher);
+
 #ifdef HAVE_LUA_H
 	lua_close(srv->L);
 	srv->L = NULL;
@@ -282,6 +291,9 @@ gboolean li_server_loop_init(liServer *srv) {
 		li_fatal ("could not initialise libev, bad $LIBEV_FLAGS in environment?");
 		return FALSE;
 	}
+
+	ev_async_start(srv->loop, &srv->state_ready_watcher);
+	ev_unref(srv->loop); /* don't keep loop alive */
 
 	return TRUE;
 }
@@ -629,36 +641,40 @@ static liServerState li_server_next_state(liServer *srv) {
 
 static void li_server_start_transition(liServer *srv, liServerState state) {
 	guint i;
+	liServerStateWait sw_dummy;
+
 	DEBUG(srv, "Try reaching state: %s (dest: %s)", li_server_state_string(state), li_server_state_string(srv->dest_state));
+
+	srv->state_wait_for = state;
+	memset(&sw_dummy, 0, sizeof(sw_dummy));
+	li_server_state_wait(srv, &sw_dummy);
 
 	switch (state) {
 	case LI_SERVER_INIT:
 	case LI_SERVER_LOADING:
+		li_server_reached_state(srv, state);
+		break;
 	case LI_SERVER_SUSPENDED:
-		/* TODO: wait for prepare / suspended */
-		li_server_reached_state(srv, LI_SERVER_SUSPENDED);
+		if (srv->state == LI_SERVER_LOADING) {
+			li_plugins_prepare(srv);
+		}
 		break;
 	case LI_SERVER_WARMUP:
 		li_server_start_listen(srv);
 		li_plugins_start_listen(srv);
-		li_server_reached_state(srv, LI_SERVER_WARMUP);
 		break;
 	case LI_SERVER_RUNNING:
 		if (LI_SERVER_WARMUP == srv->state) {
 			li_plugins_start_log(srv);
-			li_server_reached_state(srv, LI_SERVER_RUNNING);
 		} else if (LI_SERVER_SUSPENDING == srv->state) {
 			li_server_start_listen(srv);
 			li_plugins_start_listen(srv);
-			li_server_reached_state(srv, LI_SERVER_RUNNING);
 		}
 		break;
 	case LI_SERVER_SUSPENDING:
 		li_server_stop_listen(srv);
 		li_plugins_stop_listen(srv);
 		/* wait for closed connections and plugins */
-		/* TODO: wait */
-		li_server_reached_state(srv, LI_SERVER_SUSPENDING);
 		break;
 	case LI_SERVER_STOPPING:
 		/* stop all workers */
@@ -675,6 +691,8 @@ static void li_server_start_transition(liServer *srv, liServerState state) {
 		/* wait */
 		break;
 	}
+
+	li_server_state_ready(srv, &sw_dummy);
 }
 
 void li_server_goto_state(liServer *srv, liServerState state) {
@@ -704,12 +722,25 @@ void li_server_goto_state(liServer *srv, liServerState state) {
 void li_server_reached_state(liServer *srv, liServerState state) {
 	liServerState want_state = li_server_next_state(srv);
 	liServerState old_state = srv->state;
+	GList *swlink;
 
 	if (state != want_state) return;
 	if (state == srv->state) return;
 
 	g_atomic_int_set(&srv->state, state);
 	DEBUG(srv, "Reached state: %s (dest: %s)", li_server_state_string(state), li_server_state_string(srv->dest_state));
+
+	/* cleanup state_wait_queue */
+	g_mutex_lock(srv->statelock);
+
+	while (NULL != (swlink = g_queue_pop_head_link(&srv->state_wait_queue))) {
+		liServerStateWait *sw = swlink->data;
+		sw->active = FALSE;
+		if (sw->cancel_cb) {
+			sw->cancel_cb(srv, sw);
+		}
+	}
+	g_mutex_unlock(srv->statelock);
 
 	switch (srv->state) {
 	case LI_SERVER_INIT:
@@ -725,9 +756,6 @@ void li_server_reached_state(liServer *srv, liServerState state) {
 		}
 
 		li_log_thread_start(srv);
-
-		li_plugins_prepare(srv);
-		/* wait for plugins to report success */
 		break;
 	case LI_SERVER_SUSPENDED:
 		if (LI_SERVER_SUSPENDING == old_state) {
@@ -759,4 +787,56 @@ void li_server_reached_state(liServer *srv, liServerState state) {
 		want_state = li_server_next_state(srv);
 		li_server_start_transition(srv, want_state);
 	}
+}
+
+static void state_ready_cb(struct ev_loop *loop, struct ev_async *w, int revents) {
+	liServer *srv = w->data;
+
+	UNUSED(loop);
+	UNUSED(revents);
+
+	g_mutex_lock(srv->statelock);
+
+	if (srv->state_wait_queue.length > 0) {
+		/* not ready - ignore event */
+		g_mutex_unlock(srv->statelock);
+		return;
+	}
+
+	g_mutex_unlock(srv->statelock);
+
+	if (srv->state_wait_for != li_server_next_state(srv)) {
+		/* not the state we have been waiting for - ignore */
+		return;
+	}
+
+	/* IMPORTANT: do not call this while statelock is locked  */
+	li_server_reached_state(srv, srv->state_wait_for);
+}
+
+/** threadsafe */
+void li_server_state_ready(liServer *srv, liServerStateWait *sw) {
+	g_mutex_lock(srv->statelock);
+
+	if (sw->active) {
+		g_queue_unlink(&srv->state_wait_queue, &sw->queue_link);
+		sw->active = FALSE;
+
+		if (srv->state_wait_queue.length == 0) {
+			ev_async_send(srv->loop, &srv->state_ready_watcher);
+		}
+	}
+
+	g_mutex_unlock(srv->statelock);
+}
+
+/** only call from server state plugin hooks; push new wait condition to wait queue */
+void li_server_state_wait(liServer *srv, liServerStateWait *sw) {
+	g_mutex_lock(srv->statelock);
+
+	sw->queue_link.data = sw;
+	g_queue_push_tail_link(&srv->state_wait_queue, &sw->queue_link);
+	sw->active = TRUE;
+
+	g_mutex_unlock(srv->statelock);
 }

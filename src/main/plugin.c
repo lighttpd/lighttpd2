@@ -589,7 +589,7 @@ static void li_plugin_free_default_options(liServer *srv, liPlugin *p) {
 	}
 }
 
-void li_plugins_prepare_worker(liWorker *srv) { /* blocking callbacks */
+void li_plugins_prepare_worker(liWorker *wrk) { /* blocking callbacks */
 	/* TODO */
 }
 void li_plugins_prepare(liServer* srv) { /* "prepare", async */
@@ -606,9 +606,5 @@ void li_plugins_start_log(liServer *srv) { /* "run" */
 	/* TODO */
 }
 void li_plugins_stop_log(liServer *srv) { /* "suspend now" */
-	/* TODO */
-}
-
-void li_plugin_ready_for_state(liServer *srv, liPlugin *p, liServerState state) {
 	/* TODO */
 }

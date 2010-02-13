@@ -17,6 +17,8 @@ typedef liNetworkStatus (*liConnectionWriteCB)(liConnection *con, goffset write_
 typedef liNetworkStatus (*liConnectionReadCB)(liConnection *con);
 typedef void (*liServerSocketReleaseCB)(liServerSocket *srv_sock);
 
+typedef void (*liServerStateWaitCancelled)(liServer *srv, liServerStateWait *w);
+
 typedef enum {
 	LI_SERVER_INIT,             /** start state */
 	LI_SERVER_LOADING,          /** config loaded, prepare listeing sockets/open log files */
@@ -42,10 +44,23 @@ struct liServerSocket {
 	liServerSocketReleaseCB release_cb;
 };
 
+struct liServerStateWait {
+	GList queue_link;
+	gboolean active;
+	liServerStateWaitCancelled cancel_cb;
+	gpointer data;
+};
+
 struct liServer {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_SERVER_MAGIC in plugins */
 	liServerState state, dest_state;       /** atomic access */
 	liAngelConnection *acon;
+
+	/* state machine handling */
+	GMutex *statelock;
+	GQueue state_wait_queue;
+	liServerState state_wait_for;
+	ev_async state_ready_watcher;
 
 	GMutex *lualock;
 	struct lua_State *L;     /** NULL if compiled without Lua */
@@ -135,5 +150,11 @@ LI_API void li_server_socket_acquire(liServerSocket* sock);
 
 LI_API void li_server_goto_state(liServer *srv, liServerState state);
 LI_API void li_server_reached_state(liServer *srv, liServerState state);
+
+/** threadsafe */
+LI_API void li_server_state_ready(liServer *srv, liServerStateWait *sw);
+
+/** only call from server state plugin hooks; push new wait condition to wait queue */
+LI_API void li_server_state_wait(liServer *srv, liServerStateWait *sw);
 
 #endif
