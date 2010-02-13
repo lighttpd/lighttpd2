@@ -9,8 +9,6 @@
 # include <lauxlib.h>
 #endif
 
-#include <sched.h>
-
 static liConnection* worker_con_get(liWorker *wrk);
 
 /* closing sockets - wait for proper shutdown */
@@ -540,27 +538,6 @@ void li_worker_free(liWorker *wrk) {
 }
 
 void li_worker_run(liWorker *wrk) {
-#ifdef LIGHTY_OS_LINUX
-	/* sched_setaffinity is only available on linux */
-	cpu_set_t mask;
-
-	if (0 != sched_getaffinity(0, sizeof(mask), &mask)) {
-		ERROR(wrk->srv, "couldn't get cpu affinity mask: %s", g_strerror(errno));
-	} else {
-		guint cpus = 0;
-		while (CPU_ISSET(cpus, &mask)) cpus++;
-		if (cpus) {
-			CPU_ZERO(&mask);
-			CPU_SET(wrk->ndx % cpus, &mask);
-			if (0 != sched_setaffinity(0, sizeof(mask), &mask)) {
-				ERROR(wrk->srv, "couldn't set cpu affinity mask: %s", g_strerror(errno));
-			}
-		} else {
-			ERROR(wrk->srv, "%s", "cpu 0 not enabled, no affinity set");
-		}
-	}
-#endif
-	
 	ev_loop(wrk->loop, 0);
 }
 

@@ -10,6 +10,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <sched.h>
+
 static liAction* core_list(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	liAction *a;
 	guint i;
@@ -1552,6 +1554,33 @@ static const liPluginAngel angelcbs[] = {
 	{ NULL, NULL }
 };
 
+static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) {
+	UNUSED(p);
+
+#ifdef LIGHTY_OS_LINUX
+	/* sched_setaffinity is only available on linux */
+	{
+		cpu_set_t mask;
+
+		if (0 != sched_getaffinity(0, sizeof(mask), &mask)) {
+			ERROR(srv, "couldn't get cpu affinity mask: %s", g_strerror(errno));
+		} else {
+			guint cpus = 0;
+			while (CPU_ISSET(cpus, &mask)) cpus++;
+			if (cpus) {
+				CPU_ZERO(&mask);
+				CPU_SET(wrk->ndx % cpus, &mask);
+				if (0 != sched_setaffinity(0, sizeof(mask), &mask)) {
+					ERROR(srv, "couldn't set cpu affinity mask: %s", g_strerror(errno));
+				}
+			} else {
+				ERROR(srv, "%s", "cpu 0 not enabled, no affinity set");
+			}
+		}
+	}
+#endif
+}
+
 void li_plugin_core_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	UNUSED(srv); UNUSED(userdata);
 
@@ -1560,4 +1589,6 @@ void li_plugin_core_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->actions = actions;
 	p->setups = setups;
 	p->angelcbs = angelcbs;
+
+	p->handle_prepare_worker = plugin_core_prepare_worker;
 }
