@@ -48,6 +48,8 @@ typedef struct module_config module_config;
 struct module_config {
 	liPlugin *main_plugin;
 	GPtrArray *lua_plugins;
+
+	GQueue lua_configs; /* for creating worker contexts */
 };
 
 typedef struct lua_worker_config lua_worker_config;
@@ -61,22 +63,10 @@ struct lua_config {
 	GString *filename;
 	guint ttl;
 
-	gint initialized; /* 0: not initialized, 1: initialized, 2: initializing */
 	lua_worker_config *worker_config;
+	GList mconf_link;
+	liPlugin *p;
 };
-
-static void lua_config_check_init(liServer *srv, lua_config *conf) {
-	gint i;
-	while (1 != (i = g_atomic_int_get(&conf->initialized))) {
-		if (i != 0) {
-			ev_sleep(0.01);
-		} else if (g_atomic_int_compare_and_exchange(&conf->initialized, 0, 2)) {
-			conf->worker_config = g_slice_alloc0(sizeof(lua_worker_config) * srv->worker_count);
-			g_atomic_int_set(&conf->initialized, 1);
-			return;
-		}
-	}
-}
 
 static liHandlerResult lua_handle(liVRequest *vr, gpointer param, gpointer *context) {
 	lua_config *conf = (lua_config*) param;
@@ -84,8 +74,6 @@ static liHandlerResult lua_handle(liVRequest *vr, gpointer param, gpointer *cont
 	gboolean timeout = FALSE;
 	liHandlerResult res;
 	UNUSED(context);
-
-	lua_config_check_init(vr->wrk->srv, conf);
 
 	wc = &conf->worker_config[vr->wrk->ndx];
 
@@ -140,13 +128,27 @@ static void lua_config_free(liServer *srv, gpointer param) {
 	}
 	g_string_free(conf->filename, TRUE);
 
+	if (conf->mconf_link.prev) { /* still in LI_SERVER_INIT */
+		module_config *mc = conf->p->data;
+		g_queue_unlink(&mc->lua_configs, &conf->mconf_link);
+	}
+
 	g_slice_free(lua_config, conf);
 }
 
-static lua_config* lua_config_new(GString *filename, guint ttl) {
+static lua_config* lua_config_new(liServer *srv, liPlugin *p, GString *filename, guint ttl) {
+	module_config *mc = p->data;
 	lua_config *conf = g_slice_new0(lua_config);
 	conf->filename = filename;
 	conf->ttl = ttl;
+	conf->p = p;
+
+	if (LI_SERVER_INIT != g_atomic_int_get(&srv->state)) {
+		conf->worker_config = g_slice_alloc0(sizeof(lua_worker_config) * srv->worker_count);
+	} else {
+		conf->mconf_link.data = conf;
+		g_queue_push_tail_link(&mc->lua_configs, &conf->mconf_link);
+	}
 
 	return conf;
 }
@@ -159,7 +161,7 @@ static liAction* lua_handler_create(liServer *srv, liPlugin* p, liValue *val, gp
 	liValue *v_filename = NULL, *v_options = NULL;
 	lua_config *conf;
 	guint ttl = 0;
-	UNUSED(p); UNUSED(userdata);
+	UNUSED(userdata);
 
 	if (val) {
 		if (val->type == LI_VALUE_STRING) {
@@ -207,7 +209,7 @@ static liAction* lua_handler_create(liServer *srv, liPlugin* p, liValue *val, gp
 		}
 	}
 
-	conf = lua_config_new(li_value_extract_string(v_filename), ttl);
+	conf = lua_config_new(srv, p, li_value_extract_string(v_filename), ttl);
 
 	return li_action_new_function(lua_handle, NULL, lua_config_free, conf);
 
@@ -555,6 +557,16 @@ static const liPluginSetup setups[] = {
 	{ NULL, NULL, NULL }
 };
 
+static void plugin_lua_prepare(liServer *srv, liPlugin *p) {
+	module_config *mc = p->data;
+	GList *conf_link;
+	lua_config *conf;
+
+	while (NULL != (conf_link = g_queue_pop_head_link(&mc->lua_configs))) {
+		conf = conf_link->data;
+		conf->worker_config = g_slice_alloc0(sizeof(lua_worker_config) * srv->worker_count);
+	}
+}
 
 static void plugin_lua_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	UNUSED(srv); UNUSED(userdata);
@@ -562,6 +574,8 @@ static void plugin_lua_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->options = options;
 	p->actions = actions;
 	p->setups = setups;
+
+	p->handle_prepare = plugin_lua_prepare;
 }
 
 
@@ -577,6 +591,7 @@ gboolean mod_lua_init(liModules *mods, liModule *mod) {
 		module_config *mc = g_slice_new0(module_config);
 		mc->lua_plugins = g_ptr_array_new();
 		mc->main_plugin = p;
+		g_queue_init(&mc->lua_configs);
 
 		p->data = mc;
 		mod->config = mc;
