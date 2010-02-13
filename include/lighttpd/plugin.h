@@ -17,8 +17,8 @@ typedef liAction*(*liPluginCreateActionCB)  (liServer *srv, liPlugin *p, liValue
 typedef gboolean (*liPluginSetupCB)         (liServer *srv, liPlugin *p, liValue *val, gpointer userdata);
 typedef void     (*liPluginAngelCB)         (liServer *srv, liPlugin *p, gint32 id, GString *data);
 
-typedef void     (*liPluginServerPrepareWorker)(liServer *srv, liPlugin *p, liWorker *wrk);
-typedef void     (*liPluginServerPrepare)(liServer *srv, liPlugin *p);
+typedef void     (*liPluginServerStateWorker)(liServer *srv, liPlugin *p, liWorker *wrk);
+typedef void     (*liPluginServerState)(liServer *srv, liPlugin *p);
 
 typedef void     (*liPluginHandleCloseCB)   (liConnection *con, liPlugin *p);
 typedef liHandlerResult(*liPluginHandleVRequestCB)(liVRequest *vr, liPlugin *p);
@@ -33,8 +33,6 @@ struct liPlugin {
 
 	size_t opt_base_index, optptr_base_index;
 
-	gboolean ready_for_next_state; /**< don't modify this; use li_plugin_ready_for_state() instead */
-
 	liPluginFreeCB free;   /**< called before plugin is unloaded */
 
 	liPluginHandleVRequestCB handle_request_body;
@@ -46,6 +44,10 @@ struct liPlugin {
 
 	/** called for every plugin after vrequest got reset */
 	liPluginHandleVRCloseCB handle_vrclose;
+
+	liPluginServerStateWorker handle_prepare_worker; /**< called in the worker thread context once before running the workers */
+	/* server state machine hooks */
+	liPluginServerState handle_prepare, handle_start_listen, handle_stop_listen, handle_start_log, handle_stop_log;
 
 	const liPluginOption *options;
 	const liPluginOptionPtr *optionptrs;

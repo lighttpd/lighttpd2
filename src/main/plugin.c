@@ -590,21 +590,82 @@ static void li_plugin_free_default_options(liServer *srv, liPlugin *p) {
 }
 
 void li_plugins_prepare_worker(liWorker *wrk) { /* blocking callbacks */
-	/* TODO */
+	GHashTableIter iter;
+	liPlugin *p;
+	gpointer v;
+	liServer *srv = wrk->srv;
+
+	g_hash_table_iter_init(&iter, srv->plugins);
+	while (g_hash_table_iter_next(&iter, NULL, &v)) {
+		p = (liPlugin*) v;
+		if (p->handle_prepare_worker) {
+			p->handle_prepare_worker(srv, p, wrk);
+		}
+	}
 }
 void li_plugins_prepare(liServer* srv) { /* "prepare", async */
-	/* TODO */
+	GHashTableIter iter;
+	liPlugin *p;
+	gpointer v;
+
+	g_hash_table_iter_init(&iter, srv->plugins);
+	while (g_hash_table_iter_next(&iter, NULL, &v)) {
+		p = (liPlugin*) v;
+		if (p->handle_prepare) {
+			p->handle_prepare(srv, p);
+		}
+	}
 }
 
 void li_plugins_start_listen(liServer *srv) { /* "warmup" */
-	/* TODO */
+	GHashTableIter iter;
+	liPlugin *p;
+	gpointer v;
+
+	g_hash_table_iter_init(&iter, srv->plugins);
+	while (g_hash_table_iter_next(&iter, NULL, &v)) {
+		p = (liPlugin*) v;
+		if (p->handle_start_listen) {
+			p->handle_start_listen(srv, p);
+		}
+	}
 }
 void li_plugins_stop_listen(liServer *srv) { /* "prepare suspend", async */
-	/* TODO */
+	GHashTableIter iter;
+	liPlugin *p;
+	gpointer v;
+
+	g_hash_table_iter_init(&iter, srv->plugins);
+	while (g_hash_table_iter_next(&iter, NULL, &v)) {
+		p = (liPlugin*) v;
+		if (p->handle_stop_listen) {
+			p->handle_stop_listen(srv, p);
+		}
+	}
 }
 void li_plugins_start_log(liServer *srv) { /* "run" */
-	/* TODO */
+	GHashTableIter iter;
+	liPlugin *p;
+	gpointer v;
+
+	g_hash_table_iter_init(&iter, srv->plugins);
+	while (g_hash_table_iter_next(&iter, NULL, &v)) {
+		p = (liPlugin*) v;
+		if (p->handle_start_log) {
+			p->handle_start_log(srv, p);
+		}
+	}
 }
 void li_plugins_stop_log(liServer *srv) { /* "suspend now" */
-	/* TODO */
+	GHashTableIter iter;
+	liPlugin *p;
+	gpointer v;
+
+	g_hash_table_iter_init(&iter, srv->plugins);
+	while (g_hash_table_iter_next(&iter, NULL, &v)) {
+		p = (liPlugin*) v;
+		if (p->handle_stop_log) {
+			p->handle_stop_log(srv, p);
+		}
+	}
 }

@@ -280,6 +280,7 @@ void li_server_free(liServer* srv) {
 
 static gpointer server_worker_cb(gpointer data) {
 	liWorker *wrk = (liWorker*) data;
+	li_plugins_prepare_worker(wrk);
 	li_worker_run(wrk);
 	return NULL;
 }
@@ -318,7 +319,7 @@ static void li_server_1sec_timer(struct ev_loop *loop, ev_timer *w, int revents)
 	}
 }
 
-gboolean li_server_worker_init(liServer *srv) {
+static gboolean li_server_worker_init(liServer *srv) {
 	struct ev_loop *loop = srv->loop;
 	guint i;
 
@@ -336,7 +337,6 @@ gboolean li_server_worker_init(liServer *srv) {
 	srv->main_worker = g_array_index(srv->workers, liWorker*, 0) = li_worker_new(srv, loop);
 	srv->main_worker->ndx = 0;
 	for (i = 1; i < srv->worker_count; i++) {
-		GError *error = NULL;
 		liWorker *wrk;
 		if (NULL == (loop = ev_loop_new(srv->loop_flags))) {
 			li_fatal ("could not create extra libev loops");
@@ -344,13 +344,22 @@ gboolean li_server_worker_init(liServer *srv) {
 		}
 		wrk = g_array_index(srv->workers, liWorker*, i) = li_worker_new(srv, loop);
 		wrk->ndx = i;
-		if (NULL == (wrk->thread = g_thread_create(server_worker_cb, wrk, TRUE, &error))) {
-			g_error ( "g_thread_create failed: %s", error->message );
-			return FALSE;
-		}
 	}
 
 	return TRUE;
+}
+
+static void li_server_worker_run(liServer *srv) {
+	guint i;
+	li_plugins_prepare_worker(srv->main_worker);
+
+	for (i = 1; i < srv->worker_count; i++) {
+		GError *error = NULL;
+		liWorker *wrk  = g_array_index(srv->workers, liWorker*, i);
+		if (NULL == (wrk->thread = g_thread_create(server_worker_cb, wrk, TRUE, &error))) {
+			g_error ( "g_thread_create failed: %s", error->message );
+		}
+	}
 }
 
 static void server_connection_limit_hit(liServer *srv) {
@@ -760,6 +769,8 @@ void li_server_reached_state(liServer *srv, liServerState state) {
 	case LI_SERVER_SUSPENDED:
 		if (LI_SERVER_SUSPENDING == old_state) {
 			li_plugins_stop_log(srv);
+		} else if (LI_SERVER_LOADING == old_state) {
+			li_server_worker_run(srv);
 		}
 		break;
 	case LI_SERVER_WARMUP:
