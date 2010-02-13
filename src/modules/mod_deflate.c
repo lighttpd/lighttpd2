@@ -550,6 +550,14 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 		return LI_HANDLER_GO_ON;
 	}
 
+	/* don't mess with content after transfer-encoding */
+	if (li_http_header_find_first(vr->response.headers, CONST_STR_LEN("transfer-encoding"))) {
+		if (debug) {
+			VR_DEBUG(vr, "%s", "deflate: Transfer-Encoding set => not compressing");
+		}
+		return LI_HANDLER_GO_ON;
+	}
+
 	/* announce that we have looked for accept-encoding */
 	li_http_header_append(vr->response.headers, CONST_STR_LEN("Vary"), CONST_STR_LEN("Accept-Encoding"));
 
