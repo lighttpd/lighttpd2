@@ -132,9 +132,10 @@ static void lua_config_free(liServer *srv, gpointer param) {
 	g_string_free(conf->filename, TRUE);
 	li_value_free(conf->args);
 
-	if (conf->mconf_link.prev) { /* still in LI_SERVER_INIT */
+	if (conf->mconf_link.data) { /* still in LI_SERVER_INIT */
 		module_config *mc = conf->p->data;
 		g_queue_unlink(&mc->lua_configs, &conf->mconf_link);
+		conf->mconf_link.data = NULL;
 	}
 
 	g_slice_free(lua_config, conf);
@@ -589,6 +590,7 @@ static void plugin_lua_prepare(liServer *srv, liPlugin *p) {
 	while (NULL != (conf_link = g_queue_pop_head_link(&mc->lua_configs))) {
 		conf = conf_link->data;
 		conf->worker_config = g_slice_alloc0(sizeof(lua_worker_config) * srv->worker_count);
+		conf_link->data = NULL;
 	}
 }
 
