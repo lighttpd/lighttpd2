@@ -198,6 +198,7 @@ void li_server_free(liServer* srv) {
 	li_action_release(srv, srv->mainaction);
 
 	li_ev_safe_ref_and_stop(ev_async_stop, srv->loop, &srv->state_ready_watcher);
+	g_mutex_free(srv->statelock);
 
 #ifdef HAVE_LUA_H
 	lua_close(srv->L);
