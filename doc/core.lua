@@ -1,10 +1,10 @@
--- contrib.lua
+-- core.lua
 
 -- usage:
 -- load mod_lua and this plugin:
 --   setup {
 --       module_load "mod_lua";
---       lua.plugin "/path/contrib.lua";
+--       lua.plugin "/path/core.lua";
 --   }
 
 local filename, args = ...
@@ -54,8 +54,11 @@ end
 -- if url doesn't already belong to a file and has not already ".html" prefix
 -- example:
 --   core.cached_html;
+local _cached_html -- cache action as it doesn't have parameters
 local function cached_html()
-	local try_cached_html = action.lua.handler(basepath .. 'core__cached_html.lua')
+	if not _cached_html then
+		_cached_html = action.lua.handler(basepath .. 'core__cached_html.lua')
+	end
 
 	return action.when(physical.is_file:isnot(), action.when(physical.path:notsuffix('.html'), try_cached_html))
 end
