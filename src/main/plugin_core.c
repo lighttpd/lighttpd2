@@ -73,11 +73,11 @@ static liAction* core_when(liServer *srv, liPlugin* p, liValue *val, gpointer us
 	val_cond = g_array_index(val->data.list, liValue*, 0);
 	val_act = g_array_index(val->data.list, liValue*, 1);
 
-	if (val_cond->type != LI_VALUE_CONDITION) {
+	if (NULL == val_cond || val_cond->type != LI_VALUE_CONDITION) {
 		ERROR(srv, "expected condition as first parameter, got %s", li_value_type_string(val_cond->type));
 		return NULL;
 	}
-	if (val_act->type == LI_VALUE_NONE) {
+	if (NULL == val_act || val_act->type == LI_VALUE_NONE) {
 		act = NULL;
 	} else if (val_act->type == LI_VALUE_ACTION) {
 		act = val_act->data.val_action.action;
@@ -85,7 +85,7 @@ static liAction* core_when(liServer *srv, liPlugin* p, liValue *val, gpointer us
 		ERROR(srv, "expected action as second parameter, got %s", li_value_type_string(val_act->type));
 		return NULL;
 	}
-	if (val_act_else) {
+	if (NULL != val_act_else) {
 		if (val_act_else->type == LI_VALUE_NONE) {
 			act_else = NULL;
 		} else if (val_act_else->type == LI_VALUE_ACTION) {
@@ -96,8 +96,8 @@ static liAction* core_when(liServer *srv, liPlugin* p, liValue *val, gpointer us
 		}
 	}
 	li_condition_acquire(val_cond->data.val_cond.cond);
-	if (act) li_action_acquire(act);
-	if (act_else) li_action_acquire(act_else);
+	if (NULL != act) li_action_acquire(act);
+	if (NULL != act_else) li_action_acquire(act_else);
 	a = li_action_new_condition(val_cond->data.val_cond.cond, act, act_else);
 	return a;
 }
