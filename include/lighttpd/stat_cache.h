@@ -93,6 +93,9 @@ LI_API void li_stat_cache_free(liStatCache *sc);
 */
 LI_API liHandlerResult li_stat_cache_get(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd);
 
+/* doesn't return HANDLER_WAIT_FOR_EVENT, blocks instead of async lookup */
+LI_API liHandlerResult li_stat_cache_get_sync(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd);
+
 /*
  sce->dirlist will contain a list of stat_cache_entry_data upon success
  returns HANDLER_WAIT_FOR_EVENT in case of a cache MISS, HANDLER_GO_ON in case of a hit and HANDLER_ERROR in case of an error

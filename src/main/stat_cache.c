@@ -291,7 +291,7 @@ liHandlerResult li_stat_cache_get_dirlist(liVRequest *vr, GString *path, liStatC
 	}
 }
 
-liHandlerResult li_stat_cache_get(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd) {
+static liHandlerResult stat_cache_get(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd, gboolean async) {
 	liStatCache *sc;
 	liStatCacheEntry *sce;
 	guint i;
@@ -302,17 +302,23 @@ liHandlerResult li_stat_cache_get(liVRequest *vr, GString *path, struct stat *st
 	if (sce) {
 		/* cache hit, check state */
 		if (g_atomic_int_get(&sce->state) == STAT_CACHE_ENTRY_WAITING) {
+			if (async) {
+				sce = NULL;
+				goto callstat;
+			}
+
 			/* already waiting for it? */
 			for (i = 0; i < vr->stat_cache_entries->len; i++) {
-				if (g_ptr_array_index(vr->stat_cache_entries, i) == sce)
+				if (g_ptr_array_index(vr->stat_cache_entries, i) == sce) {
 					return LI_HANDLER_WAIT_FOR_EVENT;
+				}
 			}
 			li_stat_cache_entry_acquire(vr, sce);
 			return LI_HANDLER_WAIT_FOR_EVENT;
 		}
 
 		sc->hits++;
-	} else {
+	} else if (async) {
 		/* cache miss, allocate new entry */
 		sce = stat_cache_entry_new(path);
 		sce->type = STAT_CACHE_ENTRY_SINGLE;
@@ -324,6 +330,7 @@ liHandlerResult li_stat_cache_get(liVRequest *vr, GString *path, struct stat *st
 		return LI_HANDLER_WAIT_FOR_EVENT;
 	}
 
+callstat:
 	if (fd) {
 		/* open + fstat */
 		while (-1 == (*fd = open(path->str, O_RDONLY))) {
@@ -349,6 +356,16 @@ liHandlerResult li_stat_cache_get(liVRequest *vr, GString *path, struct stat *st
 
 	return LI_HANDLER_GO_ON;
 }
+
+liHandlerResult li_stat_cache_get(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd) {
+	return stat_cache_get(vr, path, &st, &err, &fd, TRUE);
+}
+
+/* doesn't return HANDLER_WAIT_FOR_EVENT, blocks instead of async lookup */
+liHandlerResult li_stat_cache_get_sync(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd) {
+	return stat_cache_get(vr, path, &st, &err, &fd, FALSE);
+}
+
 
 void li_stat_cache_entry_acquire(liVRequest *vr, liStatCacheEntry *sce) {
 	sce->refcount++;
