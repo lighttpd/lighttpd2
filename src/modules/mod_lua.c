@@ -5,18 +5,20 @@
  *     mod_lua
  *
  * Setups:
- *     lua.plugin filename, [ options ]
+ *     lua.plugin filename, [ options ], <lua-args>
  *         - No options available yet, can be omitted
  *         - Can register setup.* and action.* callbacks (like any c module)
  *           via creating a setups / actions table in the global lua namespace
  * Options:
  *     none
  * Actions:
- *     lua.handler filename, [ "ttl": 300 ]
+ *     lua.handler filename, [ "ttl": 300 ], <lua-args>
  *         - Basically the same as include_lua (no setup.* calls allowed), but loads the script
  *           in a worker specific lua_State, so it doesn't use the server wide lua lock.
  *         - You can give a ttl, after which the file is checked for modifications
  *           and reloaded. The default value 0 disables reloading.
+ *         - The third parameter is available as second parameter in the lua file:
+ *             local filename, args = ...
  *
  * Example config:
  *     lua.handler "/etc/lighttpd/pathrewrite.lua";
@@ -62,6 +64,7 @@ typedef struct lua_config lua_config;
 struct lua_config {
 	GString *filename;
 	guint ttl;
+	liValue *args;
 
 	lua_worker_config *worker_config;
 	GList mconf_link;
@@ -101,7 +104,7 @@ static liHandlerResult lua_handle(liVRequest *vr, gpointer param, gpointer *cont
 
 		li_action_release(vr->wrk->srv, wc->act);
 		wc->act = NULL;
-		if (!li_config_lua_load(vr->wrk->L, vr->wrk->srv, conf->filename->str, &wc->act, FALSE) || !wc->act) {
+		if (!li_config_lua_load(vr->wrk->L, vr->wrk->srv, conf->filename->str, &wc->act, FALSE, conf->args) || !wc->act) {
 			VR_ERROR(vr, "lua.handler: couldn't load '%s'", conf->filename->str);
 			return LI_HANDLER_ERROR;
 		}
@@ -127,6 +130,7 @@ static void lua_config_free(liServer *srv, gpointer param) {
 		g_slice_free1(sizeof(lua_worker_config) * srv->worker_count, wc);
 	}
 	g_string_free(conf->filename, TRUE);
+	li_value_free(conf->args);
 
 	if (conf->mconf_link.prev) { /* still in LI_SERVER_INIT */
 		module_config *mc = conf->p->data;
@@ -136,12 +140,13 @@ static void lua_config_free(liServer *srv, gpointer param) {
 	g_slice_free(lua_config, conf);
 }
 
-static lua_config* lua_config_new(liServer *srv, liPlugin *p, GString *filename, guint ttl) {
+static lua_config* lua_config_new(liServer *srv, liPlugin *p, GString *filename, guint ttl, liValue *args) {
 	module_config *mc = p->data;
 	lua_config *conf = g_slice_new0(lua_config);
 	conf->filename = filename;
 	conf->ttl = ttl;
 	conf->p = p;
+	conf->args = args;
 
 	if (LI_SERVER_INIT != g_atomic_int_get(&srv->state)) {
 		conf->worker_config = g_slice_alloc0(sizeof(lua_worker_config) * srv->worker_count);
@@ -158,7 +163,7 @@ static const GString /* lua option names */
 ;
 
 static liAction* lua_handler_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	liValue *v_filename = NULL, *v_options = NULL;
+	liValue *v_filename = NULL, *v_options = NULL, *v_args = NULL;
 	lua_config *conf;
 	guint ttl = 0;
 	UNUSED(userdata);
@@ -170,6 +175,10 @@ static liAction* lua_handler_create(liServer *srv, liPlugin* p, liValue *val, gp
 			GArray *l = val->data.list;
 			if (l->len > 0) v_filename = g_array_index(l, liValue*, 0);
 			if (l->len > 1) v_options = g_array_index(l, liValue*, 1);
+			if (l->len > 2) {
+				v_args = g_array_index(l, liValue*, 2);
+				g_array_index(l, liValue*, 2) = NULL;
+			}
 		}
 	}
 
@@ -179,10 +188,12 @@ static liAction* lua_handler_create(liServer *srv, liPlugin* p, liValue *val, gp
 
 	if (!v_filename) {
 		ERROR(srv, "%s", "lua.handler expects at least a filename, or a filename and some options");
+		li_value_free(v_args);
 		return NULL;
 	}
 	if (v_options && v_options->type != LI_VALUE_HASH) {
 		ERROR(srv, "%s", "lua.handler expects options in a hash");
+		li_value_free(v_args);
 		return NULL;
 	}
 
@@ -209,11 +220,12 @@ static liAction* lua_handler_create(liServer *srv, liPlugin* p, liValue *val, gp
 		}
 	}
 
-	conf = lua_config_new(srv, p, li_value_extract_string(v_filename), ttl);
+	conf = lua_config_new(srv, p, li_value_extract_string(v_filename), ttl, v_args);
 
 	return li_action_new_function(lua_handle, NULL, lua_config_free, conf);
 
 option_failed:
+	li_value_free(v_args);
 	return NULL;
 }
 
@@ -227,7 +239,9 @@ struct luaPlugin {
 };
 
 static int push_args(lua_State *L, liValue *val) {
-	if (val->type == LI_VALUE_LIST) {
+	if (NULL == val) {
+		return 0;
+	} else if (val->type == LI_VALUE_LIST) {
 		GArray *list = val->data.list;
 		guint i;
 		for (i = 0; i < list->len; i++) {
@@ -417,7 +431,7 @@ static void lua_plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->free = lua_plugin_free;
 }
 
-static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename) {
+static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, liValue* args) {
 	int errfunc;
 	int lua_stack_top;
 	lua_State *L = srv->L;
@@ -449,8 +463,14 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename) {
 	lua_pushvalue(L, LUA_GLOBALSINDEX);
 	lua_setfenv(L, -2);
 
-	errfunc = li_lua_push_traceback(L, 0);
-	if (lua_pcall(L, 0, 0, errfunc)) {
+	/* arguments for plugin: local filename, args = ...  */
+	/* 1. filename */
+	lua_pushlstring(L, GSTR_LEN(filename));
+	/* 2. args */
+	li_lua_push_value(L, args);
+
+	errfunc = li_lua_push_traceback(L, 2);
+	if (lua_pcall(L, 2, 0, errfunc)) {
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
 		goto failed_unlock_lua;
 	}
@@ -483,7 +503,7 @@ failed_unlock_lua:
 }
 
 static gboolean lua_plugin(liServer *srv, liPlugin *p, liValue *val, gpointer userdata) {
-	liValue *v_filename = NULL, *v_options = NULL;
+	liValue *v_filename = NULL, *v_options = NULL, *v_args = NULL;
 	UNUSED(userdata);
 
 	if (val) {
@@ -493,6 +513,7 @@ static gboolean lua_plugin(liServer *srv, liPlugin *p, liValue *val, gpointer us
 			GArray *l = val->data.list;
 			if (l->len > 0) v_filename = g_array_index(l, liValue*, 0);
 			if (l->len > 1) v_options = g_array_index(l, liValue*, 1);
+			if (l->len > 2) v_args = g_array_index(l, liValue*, 2);
 		}
 	}
 
@@ -525,20 +546,23 @@ static gboolean lua_plugin(liServer *srv, liPlugin *p, liValue *val, gpointer us
 			if (g_string_equal(key, &lon_ttl)) {
 				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0) {
 					ERROR(srv, "lua.plugin option '%s' expects positive integer as parameter", lon_ttl.str);
-					return FALSE;
+					goto option_failed;
 				}
 				ttl = value->data.number;
 			} else {
 */
 				ERROR(srv, "unknown option for lua.plugin '%s'", key->str);
-				return FALSE;
+				goto option_failed;
 /*
 			}
 */
 		}
 	}
 
-	return lua_plugin_load(srv, p, li_value_extract_string(v_filename));
+	return lua_plugin_load(srv, p, li_value_extract_string(v_filename), v_args);
+
+option_failed:
+	return FALSE;
 }
 
 static const liPluginOption options[] = {

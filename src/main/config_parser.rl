@@ -750,7 +750,7 @@
 				return FALSE;
 			}
 
-			if (!li_config_lua_load(srv->L, srv, val->data.string->str, &a, TRUE)) {
+			if (!li_config_lua_load(srv->L, srv, val->data.string->str, &a, TRUE, NULL)) {
 				ERROR(srv, "include_lua '%s' failed", val->data.string->str);
 				li_value_free(name);
 				li_value_free(val);

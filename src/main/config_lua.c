@@ -23,11 +23,7 @@ static liValue* lua_params_to_value(liServer *srv, lua_State *L) {
 		val = li_value_new_list();
 		g_array_set_size(val->data.list, lua_gettop(L) - 1);
 		while (lua_gettop(L) > 1) {
-			if (NULL == (subval = li_value_from_lua(srv, L))) {
-				ERROR(srv, "Couldn't convert value from lua (lua type '%s')", lua_typename(L, lua_type(L, -1)));
-				li_value_free(val);
-				return NULL;
-			}
+			subval = li_value_from_lua(srv, L);
 			g_array_index(val->data.list, liValue*, lua_gettop(L) - 1) = subval;
 		}
 		return val;
@@ -140,17 +136,18 @@ int li_lua_config_handle_server_action(liServer *srv, lua_State *L, gpointer _sa
 	liServerAction *sa = (liServerAction*) _sa;
 	liValue *val;
 	liAction *a;
+	gboolean dolock = (L == srv->L);
 
 	lua_checkstack(L, 16);
 	val = lua_params_to_value(srv, L);
 
-	li_lua_unlock(srv);
+	if (dolock) li_lua_unlock(srv);
 
 	/* TRACE(srv, "%s", "Creating action"); */
 	a = sa->create_action(srv, sa->p, val, sa->userdata);
 	li_value_free(val);
 
-	li_lua_lock(srv);
+	if (dolock) li_lua_lock(srv);
 
 	if (NULL == a) {
 		lua_pushstring(L, "creating action failed");
@@ -164,14 +161,15 @@ int li_lua_config_handle_server_setup(liServer *srv, lua_State *L, gpointer _ss)
 	liServerSetup *ss = (liServerSetup*) _ss;
 	liValue *val;
 	gboolean res;
+	gboolean dolock = (L == srv->L);
 
 	lua_checkstack(L, 16);
 	val = lua_params_to_value(srv, L);
 
-	li_lua_unlock(srv);
+	if (dolock) li_lua_unlock(srv);
 	/* TRACE(srv, "%s", "Calling setup"); */
 	res = ss->setup(srv, ss->p, val, ss->userdata);
-	li_lua_lock(srv);
+	if (dolock) li_lua_lock(srv);
 
 	if (!res) {
 		li_value_free(val);
@@ -183,7 +181,7 @@ int li_lua_config_handle_server_setup(liServer *srv, lua_State *L, gpointer _ss)
 	return 0;
 }
 
-gboolean li_config_lua_load(lua_State *L, liServer *srv, const gchar *filename, liAction **pact, gboolean allow_setup) {
+gboolean li_config_lua_load(lua_State *L, liServer *srv, const gchar *filename, liAction **pact, gboolean allow_setup, liValue *args) {
 	int errfunc;
 	int lua_stack_top;
 	gboolean dolock = (L == srv->L);
@@ -213,8 +211,14 @@ gboolean li_config_lua_load(lua_State *L, liServer *srv, const gchar *filename, 
 
 	li_lua_push_lvalues_dict(srv, L);
 
-	errfunc = li_lua_push_traceback(L, 0);
-	if (lua_pcall(L, 0, 1, errfunc)) {
+	/* arguments for config: local filename, args = ... */
+	/* 1. filename */
+	lua_pushstring(L, filename);
+	/* 2. args */
+	li_lua_push_value(L, args);
+
+	errfunc = li_lua_push_traceback(L, 2);
+	if (lua_pcall(L, 2, 0, errfunc)) {
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
 
 		/* cleanup stack */
@@ -229,8 +233,6 @@ gboolean li_config_lua_load(lua_State *L, liServer *srv, const gchar *filename, 
 		return FALSE;
 	}
 	lua_remove(L, errfunc);
-
-	lua_pop(L, 1); /* pop the ret-value */
 
 	lua_getfield(L, LUA_GLOBALSINDEX, "actions");
 	*pact = li_lua_get_action_ref(L, -1);

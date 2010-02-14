@@ -77,7 +77,7 @@ liValue* li_value_from_lua(liServer *srv, lua_State *L) {
 	switch (lua_type(L, -1)) {
 	case LUA_TNIL:
 		lua_pop(L, 1);
-		return li_value_new_none();
+		return NULL;
 
 	case LUA_TBOOLEAN:
 		val = li_value_new_bool(lua_toboolean(L, -1));
@@ -155,6 +155,11 @@ GString* li_lua_togstring(lua_State *L, int ndx) {
 }
 
 int li_lua_push_value(lua_State *L, liValue *value) {
+	if (NULL == value) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	switch (value->type) {
 	case LI_VALUE_NONE:
 		lua_pushnil(L);
