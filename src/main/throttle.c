@@ -88,7 +88,7 @@ void li_throttle_pool_release(liConnection *con) {
 	con->throttle.pool.ptr = NULL;
 }
 
-void li_throttle_pool_rearm(liWorker *wrk, liThrottlePool *pool) {
+static void li_throttle_pool_rearm(liWorker *wrk, liThrottlePool *pool) {
 	ev_tstamp now = CUR_TS(wrk);
 
 	/* this is basically another way to do "if (try_lock(foo)) { ...; unlock(foo); }" */
