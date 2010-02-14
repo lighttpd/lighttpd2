@@ -127,7 +127,7 @@ gint li_send_fd(gint s, gint fd) { /* write fd to unix socket s */
 #endif
 	cmsg->cmsg_len = CMSG_LEN(sizeof(gint));
 	msg.msg_controllen = cmsg->cmsg_len;
-	*((gint*)CMSG_DATA(cmsg)) = fd;
+	memcpy(CMSG_DATA(cmsg), &fd, sizeof(gint));
 #else
 	msg.msg_accrights = (gchar*)&fd;
 	msg.msg_accrightslen = sizeof(fd);
@@ -158,9 +158,8 @@ gint li_receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
 #ifdef CMSG_FIRSTHDR
 	union fdmsg cmsg;
 	struct cmsghdr* h;
-#else
-	gint _fd;
 #endif
+	gint _fd;
 	gchar x[100];
 	gchar name[100];
 
@@ -189,7 +188,8 @@ gint li_receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
 	h->cmsg_len = CMSG_LEN(sizeof(gint));
 	h->cmsg_level = SOL_SOCKET;
 	h->cmsg_type = SCM_RIGHTS;
-	*((gint*)CMSG_DATA(h)) = -1;
+	_fd = -1;
+	memcpy(CMSG_DATA(h), &_fd, sizeof(gint));
 #endif
 
 	for (;;) {
@@ -219,7 +219,7 @@ gint li_receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
 		return -1;
 	}
 
-	*fd = *((gint*)CMSG_DATA(h));
+	memcpy(fd, CMSG_DATA(h), sizeof(gint));
 
 	return 0;
 #else
