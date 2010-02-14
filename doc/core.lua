@@ -93,7 +93,7 @@ end
 -- Example:
 --   core.xsendfile "/srv/";
 local function xsendfile(docroot)
-	if docroot and type(docroot) =~ "string" then
+	if docroot and type(docroot) ~= "string" then
 		lighty.error("xsendfile: parameter has to be a string")
 		return nil
 	end
