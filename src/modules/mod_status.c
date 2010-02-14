@@ -181,6 +181,24 @@ static const gchar html_connections_sum[] =
 	"				<td>%u</td>\n"
 	"			</tr>\n"
 	"		</table>\n";
+static const gchar html_status_codes[] =
+	"		<table cellspacing=\"0\">\n"
+	"			<tr>\n"
+	"				<th style=\"width: 100px;\">1xx (info)</th>\n"
+	"				<th style=\"width: 175px;\">2xx (success)</th>\n"
+	"				<th style=\"width: 175px;\">3xx (redirect)</th>\n"
+	"				<th style=\"width: 175px;\">4xx (client error)</th>\n"
+	"				<th style=\"width: 175px;\">5xx (server error)</th>\n"
+	"			</tr>\n"
+	"			<tr>\n"
+	"				<td>%" G_GUINT64_FORMAT "</td>\n"
+	"				<td>%" G_GUINT64_FORMAT "</td>\n"
+	"				<td>%" G_GUINT64_FORMAT "</td>\n"
+	"				<td>%" G_GUINT64_FORMAT "</td>\n"
+	"				<td>%" G_GUINT64_FORMAT "</td>\n"
+	"			</tr>\n"
+	"		</table>\n";
+
 static const gchar html_connections_th[] =
 	"		<table cellspacing=\"0\">\n"
 	"			<tr>\n"
@@ -313,6 +331,13 @@ static const gchar css_blue[] =
 	"			.totals td { border-top: 1px solid #DDDDDD; }\n"
 	"		</style>\n";
 
+static guint64 mod_status_response_codes[] = {
+	0, /*1xx*/ 
+	0, /*2xx*/ 
+	0, /*3xx*/ 
+	0, /*4xx*/ 
+	0, /*5xx*/ 
+};
 
 typedef struct mod_status_param mod_status_param;
 
@@ -694,6 +719,13 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 	g_string_append_printf(html, html_connections_sum, connection_count[2],
 		connection_count[3], connection_count[4], connection_count[5], connection_count[1]
 	);
+
+	/* response status codes */
+	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>HTTP Status codes</strong> (sum)</div>\n"));
+	g_string_append_printf(html, html_status_codes, mod_status_response_codes[0], mod_status_response_codes[1],
+		mod_status_response_codes[2], mod_status_response_codes[3], mod_status_response_codes[4]
+	);
+
 
 	/* list connections */
 	if (!short_info) {
@@ -1156,6 +1188,18 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 	return LI_HANDLER_GO_ON;
 }
 
+static void status_handle_vrclose(liVRequest *vr, liPlugin *p) {
+	gint http_status = vr->response.http_status;
+	UNUSED(p);
+
+	if ((http_status < 100 && http_status != 0) || http_status > 599) {
+		VR_ERROR(vr, "unknown status code: %d", http_status);
+		return;
+	}
+
+	mod_status_response_codes[(http_status / 100)-1]++;
+}
+
 
 
 static const liPluginOption options[] = {
@@ -1186,6 +1230,8 @@ static void plugin_status_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->optionptrs = optionptrs;
 	p->actions = actions;
 	p->setups = setups;
+
+	p->handle_vrclose = status_handle_vrclose;
 }
 
 
