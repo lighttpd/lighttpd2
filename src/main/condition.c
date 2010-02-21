@@ -3,7 +3,9 @@
 #if 0
 static const liConditionValueType cond_value_hints[] = {
 	/* LI_COMP_REQUEST_LOCALIP: */ LI_COND_VALUE_HINT_SOCKADDR,
+	/* LI_COMP_REQUEST_LOCALPORT: */ LI_COND_VALUE_HINT_NUMBER,
 	/* LI_COMP_REQUEST_REMOTEIP: */ LI_COND_VALUE_HINT_SOCKADDR,
+	/* LI_COMP_REQUEST_REMOTEPORT: */ LI_COND_VALUE_HINT_NUMBER,
 	/* LI_COMP_REQUEST_PATH: */ LI_COND_VALUE_HINT_STRING,
 	/* LI_COMP_REQUEST_HOST: */ LI_COND_VALUE_HINT_ANY,
 	/* LI_COMP_REQUEST_SCHEME: */ LI_COND_VALUE_HINT_STRING,
@@ -46,6 +48,22 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 			res->data.addr = con->local_addr;
 		}
 		break;
+	case LI_COMP_REQUEST_LOCALPORT:
+		res->match_type = LI_COND_VALUE_HINT_NUMBER;
+		switch (con->local_addr.addr->plain.sa_family) {
+		case AF_INET:
+			res->data.number = con->local_addr.addr->ipv4.sin_port;
+			break;
+		#ifdef HAVE_IPV6
+		case AF_INET6:
+			res->data.number = con->local_addr.addr->ipv6.sin6_port;
+			break;
+		#endif
+		default:
+			res->data.number = -1;
+			break;
+		}
+		break;
 	case LI_COMP_REQUEST_REMOTEIP:
 		if (prefer == LI_COND_VALUE_HINT_STRING) {
 			res->match_type = LI_COND_VALUE_HINT_STRING;
@@ -53,6 +71,22 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 		} else {
 			res->match_type = LI_COND_VALUE_HINT_SOCKADDR;
 			res->data.addr = con->remote_addr;
+		}
+		break;
+	case LI_COMP_REQUEST_REMOTEPORT:
+		res->match_type = LI_COND_VALUE_HINT_NUMBER;
+		switch (con->remote_addr.addr->plain.sa_family) {
+		case AF_INET:
+			res->data.number = con->remote_addr.addr->ipv4.sin_port;
+			break;
+		#ifdef HAVE_IPV6
+		case AF_INET6:
+			res->data.number = con->remote_addr.addr->ipv6.sin6_port;
+			break;
+		#endif
+		default:
+			res->data.number = -1;
+			break;
 		}
 		break;
 	case LI_COMP_REQUEST_PATH:
@@ -412,7 +446,9 @@ const char* li_comp_op_to_string(liCompOperator op) {
 const char* li_cond_lvalue_to_string(liCondLValue t) {
 	switch (t) {
 	case LI_COMP_REQUEST_LOCALIP: return "request.localip";
+	case LI_COMP_REQUEST_LOCALPORT: return "request.localport";
 	case LI_COMP_REQUEST_REMOTEIP: return "request.remoteip";
+	case LI_COMP_REQUEST_REMOTEPORT: return "request.remoteport";
 	case LI_COMP_REQUEST_PATH: return "request.path";
 	case LI_COMP_REQUEST_HOST: return "request.host";
 	case LI_COMP_REQUEST_SCHEME: return "request.scheme";
@@ -444,8 +480,12 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 
 		if (strncmp(c, "localip", len) == 0)
 			return LI_COMP_REQUEST_LOCALIP;
+		else if (strncmp(c, "localport", len) == 0)
+			return LI_COMP_REQUEST_LOCALPORT;
 		else if (strncmp(c, "remoteip", len) == 0)
 			return LI_COMP_REQUEST_REMOTEIP;
+		else if (strncmp(c, "remoteport", len) == 0)
+			return LI_COMP_REQUEST_REMOTEPORT;
 		else if (strncmp(c, "path", len) == 0)
 			return LI_COMP_REQUEST_PATH;
 		else if (strncmp(c, "host", len) == 0)
