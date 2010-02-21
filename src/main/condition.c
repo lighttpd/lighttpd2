@@ -474,9 +474,16 @@ const char* li_cond_lvalue_to_string(liCondLValue t) {
 liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 	gchar *c = (gchar*)str;
 
-	if (g_str_has_prefix(c, "request.")) {
-		c += sizeof("request.")-1;
-		len -= sizeof("request.")-1;
+	if (g_str_has_prefix(c, "req")) {
+		if (g_str_has_prefix(c, "req.")) {
+			c += sizeof("req.")-1;
+			len -= sizeof("req.")-1;
+		} else if (g_str_has_prefix(c, "request.")) {
+			c += sizeof("request.")-1;
+			len -= sizeof("request.")-1;
+		} else {
+			return LI_COMP_UNKNOWN;
+		}
 
 		if (strncmp(c, "localip", len) == 0)
 			return LI_COMP_REQUEST_LOCALIP;
@@ -504,9 +511,16 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 			return LI_COMP_ENVIRONMENT;
 		else if (strncmp(c, "is_handled", len) == 0)
 			return LI_COMP_REQUEST_IS_HANDLED;
-	} else if (g_str_has_prefix(c, "physical.")) {
-		c += sizeof("physical.")-1;
-		len -= sizeof("physical.")-1;
+	} else if (g_str_has_prefix(c, "phys")) {
+		if (g_str_has_prefix(c, "phys.")) {
+			c += sizeof("phys.")-1;
+			len -= sizeof("phys.")-1;
+		} else if (g_str_has_prefix(c, "physical.")) {
+			c += sizeof("physical.")-1;
+			len -= sizeof("physical.")-1;
+		} else {
+			return LI_COMP_UNKNOWN;
+		}
 
 		if (strncmp(c, "path", len) == 0)
 			return LI_COMP_PHYSICAL_PATH;
@@ -518,9 +532,16 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 			return LI_COMP_PHYSICAL_ISFILE;
 		else if (strncmp(c, "is_dir", len) == 0)
 			return LI_COMP_PHYSICAL_ISDIR;
-	} else if (g_str_has_prefix(c, "response.")) {
-		c += sizeof("response.")-1;
-		len -= sizeof("response.")-1;
+	} else if (g_str_has_prefix(c, "resp")) {
+		if (g_str_has_prefix(c, "resp.")) {
+			c += sizeof("resp.")-1;
+			len -= sizeof("resp.")-1;
+		} else if (g_str_has_prefix(c, "response.")) {
+			c += sizeof("response.")-1;
+			len -= sizeof("response.")-1;
+		} else {
+			return LI_COMP_UNKNOWN;
+		}
 
 		if (strncmp(c, "status", len) == 0)
 			return LI_COMP_RESPONSE_STATUS;

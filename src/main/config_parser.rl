@@ -812,6 +812,7 @@
 		gchar *str;
 		liCondition *cond;
 		liConditionLValue *lvalue;
+		liCondLValue lvalue_type;
 
 		/* if condition is nonbool, then it has a value and maybe a key too on the stack */
 		if (ctx->condition_nonbool) {
@@ -834,107 +835,18 @@
 		/* create condition lvalue */
 		str = n->data.string->str;
 
-		if (g_str_has_prefix(str, "req")) {
-			str += 3;
-			if (g_str_has_prefix(str, "."))
-				str++;
-			else if (g_str_has_prefix(str, "uest."))
-				str += 5;
-			else {
-				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
-				return FALSE;
-			}
-
-			if (g_str_equal(str, "host"))
-				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_HOST, NULL);
-			else if (g_str_equal(str, "path"))
-				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_PATH, NULL);
-			else if (g_str_equal(str, "query"))
-				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_QUERY_STRING, NULL);
-			else if (g_str_equal(str, "method"))
-				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_METHOD, NULL);
-			else if (g_str_equal(str, "scheme"))
-				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_SCHEME, NULL);
-			else if (g_str_equal(str, "remoteip"))
-				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_REMOTEIP, NULL);
-			else if (g_str_equal(str, "localip"))
-				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_LOCALIP, NULL);
-			else if (g_str_equal(str, "is_handled"))
-				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_IS_HANDLED, NULL);
-			else if (g_str_equal(str, "header")) {
-				if (k == NULL) {
-					WARNING(srv, "%s", "header conditional needs a key");
-					return FALSE;
-				}
-				lvalue = li_condition_lvalue_new(LI_COMP_REQUEST_HEADER, li_value_extract_string(k));
-			}
-			else if (g_str_equal(str, "environment") || g_str_equal(str, "env")) {
-				if (k == NULL) {
-					WARNING(srv, "%s", "environment conditional needs a key");
-					return FALSE;
-				}
-				lvalue = li_condition_lvalue_new(LI_COMP_ENVIRONMENT, li_value_extract_string(k));
-			}
-			else {
-				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
-				return FALSE;
-			}
-		}
-		else if (g_str_has_prefix(str, "phys")) {
-			str += 4;
-			if (g_str_has_prefix(str, "."))
-				str++;
-			else if (g_str_has_prefix(str, "ical."))
-				str += 5;
-			else {
-				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
-				return FALSE;
-			}
-
-			if (g_str_equal(str, "path"))
-				lvalue = li_condition_lvalue_new(LI_COMP_PHYSICAL_PATH, NULL);
-			else if (g_str_equal(str, "exists"))
-				lvalue = li_condition_lvalue_new(LI_COMP_PHYSICAL_EXISTS, NULL);
-			else if (g_str_equal(str, "size"))
-				lvalue = li_condition_lvalue_new(LI_COMP_PHYSICAL_SIZE, NULL);
-			else if (g_str_equal(str, "is_dir"))
-				lvalue = li_condition_lvalue_new(LI_COMP_PHYSICAL_ISDIR, NULL);
-			else if (g_str_equal(str, "is_file"))
-				lvalue = li_condition_lvalue_new(LI_COMP_PHYSICAL_ISFILE, NULL);
-			else {
-				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
-				return FALSE;
-			}
-		}
-		else if (g_str_has_prefix(str, "resp")) {
-			str += 4;
-			if (g_str_has_prefix(str, "."))
-				str++;
-			else if (g_str_has_prefix(str, "onse."))
-				str += 5;
-			else {
-				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
-				return FALSE;
-			}
-
-			if (g_str_equal(str, "status"))
-				lvalue = li_condition_lvalue_new(LI_COMP_RESPONSE_STATUS, NULL);
-			else if (g_str_equal(str, "header")) {
-				if (k == NULL) {
-					WARNING(srv, "%s", "header conditional needs a key");
-					return FALSE;
-				}
-				lvalue = li_condition_lvalue_new(LI_COMP_RESPONSE_HEADER, li_value_extract_string(k));
-			}
-			else {
-				WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
-				return FALSE;
-			}
-		}
-		else {
-			WARNING(srv, "unkown lvalue for condition: %s", n->data.string->str);
+		lvalue_type = li_cond_lvalue_from_string(GSTR_LEN(n->data.string));
+		if (lvalue_type == LI_COMP_UNKNOWN) {
+			ERROR(srv, "unknown lvalue for condition: %s", n->data.string->str);
 			return FALSE;
 		}
+
+		if ((lvalue_type == LI_COMP_REQUEST_HEADER || lvalue_type == LI_COMP_ENVIRONMENT || lvalue_type == LI_COMP_RESPONSE_HEADER) && k == NULL) {
+			ERROR(srv, "%s conditional needs a key", n->data.string->str);
+			return FALSE;
+		}
+
+		lvalue = li_condition_lvalue_new(lvalue_type, k ? li_value_extract_string(k) : NULL);
 
 		if (ctx->condition_nonbool) {
 			if (v->type == LI_VALUE_STRING) {
