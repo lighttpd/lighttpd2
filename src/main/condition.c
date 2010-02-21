@@ -52,11 +52,11 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 		res->match_type = LI_COND_VALUE_HINT_NUMBER;
 		switch (con->local_addr.addr->plain.sa_family) {
 		case AF_INET:
-			res->data.number = con->local_addr.addr->ipv4.sin_port;
+			res->data.number = ntohs(con->local_addr.addr->ipv4.sin_port);
 			break;
 		#ifdef HAVE_IPV6
 		case AF_INET6:
-			res->data.number = con->local_addr.addr->ipv6.sin6_port;
+			res->data.number = ntohs(con->local_addr.addr->ipv6.sin6_port);
 			break;
 		#endif
 		default:
@@ -77,11 +77,11 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 		res->match_type = LI_COND_VALUE_HINT_NUMBER;
 		switch (con->remote_addr.addr->plain.sa_family) {
 		case AF_INET:
-			res->data.number = con->remote_addr.addr->ipv4.sin_port;
+			res->data.number = ntohs(con->remote_addr.addr->ipv4.sin_port);
 			break;
 		#ifdef HAVE_IPV6
 		case AF_INET6:
-			res->data.number = con->remote_addr.addr->ipv6.sin6_port;
+			res->data.number = ntohs(con->remote_addr.addr->ipv6.sin6_port);
 			break;
 		#endif
 		default:
