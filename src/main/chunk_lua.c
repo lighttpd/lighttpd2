@@ -130,48 +130,85 @@ static int lua_chunkqueue_add(lua_State *L) {
 	return 0;
 }
 
-static int lua_chunkqueue_add(lua_State *L) {
+static int _lua_chunkqueue_add_file(lua_State *L, gboolean tempfile) {
 	liChunkQueue *cq;
-	const char *s;
+	const char *filename;
+	GString g_filename;
 	size_t len;
+	struct stat st;
+	int fd, err;
+	goffset start, length;
 
 	luaL_checkany(L, 2);
 	cq = li_lua_get_chunkqueue(L, 1);
 	if (cq == NULL) return 0;
-	if (lua_isstring(L, 2)) {
-		s = lua_tolstring(L, 2, &len);
-		li_chunkqueue_append_mem(cq, s, len);
-	} else if (lua_istable(L, 2)) {
-		const char *filename = NULL;
-		GString *g_filename = NULL;
+	if (!lua_isstring(L, 2)) {
+		lua_pushliteral(L, "chunkqueue:add expects filename as first parameter");
+		lua_error(L);
 
-		lua_getfield(L, -1, "filename");
-		if (!lua_isnil(L, -1)) {
-			filename = lua_tostring(L, -1);
-			if (filename) g_filename = g_string_new(filename);
+		return -1;
+	}
+
+	filename = lua_tolstring(L, 2, &len);
+	g_filename = li_const_gstring(filename, len);
+	if (LI_HANDLER_GO_ON != li_stat_cache_get_sync(NULL, &g_filename, &st, &err, &fd)) {
+		lua_pushliteral(L, "chunkqueue:add couldn't open file: ");
+		lua_pushvalue(L, 2);
+		lua_concat(L, 2);
+		lua_error(L);
+
+		return -1;
+	}
+
+	start = 0;
+	length = st.st_size;
+
+	if (lua_gettop(L) >= 3) {
+		if (!lua_isnumber(L, 3)) {
+			lua_pushliteral(L, "chunkqueue:add expects number (or nothing) as second parameter");
+			lua_error(L);
+
+			close(fd);
+			return -1;
 		}
-		lua_pop(L, 1);
 
-		if (g_filename) {
-			struct stat st;
+		start = lua_tonumber(L, 3);
+	}
+	if (lua_gettop(L) >= 4) {
+		if (!lua_isnumber(L, 4)) {
+			lua_pushliteral(L, "chunkqueue:add expects number (or nothing) as third parameter");
+			lua_error(L);
 
-			if (-1 != stat(g_filename->str, &st) && S_ISREG(st.st_mode)) {
-				li_chunkqueue_append_file(cq, g_filename, 0, st.st_size);
-			}
-		} else {
-			goto fail;
+			close(fd);
+			return -1;
 		}
+
+		length = lua_tonumber(L, 3);
+	}
+
+	if (start < 0 || start >= st.st_size || length < 0 || start + length > st.st_size) {
+		lua_pushliteral(L, "chunkqueue:add: Invalid start/length values");
+		lua_error(L);
+
+		close(fd);
+		return -1;
+	}
+
+	if (tempfile) {
+		li_chunkqueue_append_file_fd(cq, NULL, start, length, fd);
 	} else {
-		goto fail;
+		li_chunkqueue_append_tempfile_fd(cq, NULL, start, length, fd);
 	}
 
 	return 0;
+}
 
-fail:
-	lua_pushliteral(L, "Wrong type for chunkqueue add");
-	lua_error(L);
+static int lua_chunkqueue_add_file(lua_State *L) {
+	return _lua_chunkqueue_add_file(L, FALSE);
+}
 
-	return -1;
+static int lua_chunkqueue_add_temp_file(lua_State *L) {
+	return _lua_chunkqueue_add_file(L, TRUE);
 }
 
 static int lua_chunkqueue_reset(lua_State *L) {

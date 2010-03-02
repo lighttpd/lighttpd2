@@ -296,6 +296,8 @@ static liHandlerResult stat_cache_get(liVRequest *vr, GString *path, struct stat
 	liStatCacheEntry *sce;
 	guint i;
 
+	if (NULL == vr) goto callstat;
+
 	sc = vr->wrk->stat_cache;
 	sce = g_hash_table_lookup(sc->entries, path);
 

@@ -62,7 +62,7 @@ local function handle_x_sendfile(vr)
 		-- Add checks for the pathname here
 
 		vr:debug("XSendfile:handle: pushing file '" .. xs .. "' as content")
-		f.out:add({ filename = xs })
+		f.out:add_file(xs)
 	end
 end
 
