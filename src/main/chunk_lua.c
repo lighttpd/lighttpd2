@@ -116,6 +116,28 @@ static int lua_chunkqueue_add(lua_State *L) {
 	luaL_checkany(L, 2);
 	cq = li_lua_get_chunkqueue(L, 1);
 	if (cq == NULL) return 0;
+
+	if (!lua_isstring(L, 2)) {
+		lua_pushliteral(L, "chunkqueue add expects simple string");
+		lua_error(L);
+
+		return -1;
+	}
+
+	s = lua_tolstring(L, 2, &len);
+	li_chunkqueue_append_mem(cq, s, len);
+
+	return 0;
+}
+
+static int lua_chunkqueue_add(lua_State *L) {
+	liChunkQueue *cq;
+	const char *s;
+	size_t len;
+
+	luaL_checkany(L, 2);
+	cq = li_lua_get_chunkqueue(L, 1);
+	if (cq == NULL) return 0;
 	if (lua_isstring(L, 2)) {
 		s = lua_tolstring(L, 2, &len);
 		li_chunkqueue_append_mem(cq, s, len);
@@ -191,6 +213,8 @@ static const luaL_Reg chunkqueue_mt[] = {
 	{ "__newindex", lua_chunkqueue_newindex },
 
 	{ "add", lua_chunkqueue_add },
+	{ "add_file", lua_chunkqueue_add_file },
+	{ "add_temp_file", lua_chunkqueue_add_temp_file },
 	{ "reset", lua_chunkqueue_reset },
 	{ "steal_all", lua_chunkqueue_steal_all },
 	{ "skip_all", lua_chunkqueue_skip_all },
