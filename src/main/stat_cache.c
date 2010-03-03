@@ -360,12 +360,12 @@ callstat:
 }
 
 liHandlerResult li_stat_cache_get(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd) {
-	return stat_cache_get(vr, path, &st, &err, &fd, TRUE);
+	return stat_cache_get(vr, path, st, err, fd, TRUE);
 }
 
 /* doesn't return HANDLER_WAIT_FOR_EVENT, blocks instead of async lookup */
 liHandlerResult li_stat_cache_get_sync(liVRequest *vr, GString *path, struct stat *st, int *err, int *fd) {
-	return stat_cache_get(vr, path, &st, &err, &fd, FALSE);
+	return stat_cache_get(vr, path, st, err, fd, FALSE);
 }
 
 
