@@ -197,7 +197,7 @@ static int _lua_chunkqueue_add_file(lua_State *L, gboolean tempfile) {
 	if (tempfile) {
 		li_chunkqueue_append_file_fd(cq, NULL, start, length, fd);
 	} else {
-		li_chunkqueue_append_tempfile_fd(cq, NULL, start, length, fd);
+		li_chunkqueue_append_tempfile_fd(cq, g_string_new_len(filename, len), start, length, fd);
 	}
 
 	return 0;
