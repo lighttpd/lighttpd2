@@ -438,7 +438,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 
 	if (!allow_ssl2) {
 		/* disable SSLv2 */
-		if (SSL_OP_NO_SSLv2 != SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_NO_SSLv2)) {
+		if (0 == (SSL_OP_NO_SSLv2 & SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_NO_SSLv2))) {
 			ERROR(srv, "SSL_CTX_set_options(SSL_OP_NO_SSLv2): %s", ERR_error_string(ERR_get_error(), NULL));
 			goto error_free_socket;
 		}
