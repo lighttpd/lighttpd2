@@ -227,6 +227,7 @@ static GArray *rewrite_parts_parse(GString *str, gboolean *has_querystring) {
 static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *dest_query, GRegex *regex, GArray *parts, gboolean raw) {
 	guint i;
 	GString *str;
+	GString str_stack;
 	gchar *path;
 	gint start_pos, end_pos;
 	gboolean encoded;
@@ -283,7 +284,13 @@ static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *de
 			switch (rp->data.cond_lval) {
 			case LI_COMP_REQUEST_LOCALIP: str = vr->con->local_addr_str; break;
 			case LI_COMP_REQUEST_REMOTEIP: str = vr->con->remote_addr_str; break;
-			case LI_COMP_REQUEST_SCHEME: str = NULL; break;
+			case LI_COMP_REQUEST_SCHEME:
+				if (vr->con->is_ssl)
+					str_stack = li_const_gstring(CONST_STR_LEN("https"));
+				else
+					str_stack = li_const_gstring(CONST_STR_LEN("http"));
+				str = &str_stack;
+				break;
 			case LI_COMP_REQUEST_PATH: str = vr->request.uri.path; break;
 			case LI_COMP_REQUEST_HOST: str = vr->request.uri.host; break;
 			case LI_COMP_REQUEST_QUERY_STRING: str = vr->request.uri.query; break;
@@ -295,17 +302,10 @@ static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *de
 			default: continue;
 			}
 
-			if (rp->data.cond_lval == LI_COMP_REQUEST_SCHEME) {
-				if (vr->con->is_ssl)
-					g_string_append_len(dest, CONST_STR_LEN("https"));
-				else
-					g_string_append_len(dest, CONST_STR_LEN("http"));
-			} else {
-				if (encoded)
-					li_string_encode_append(str->str, dest, LI_ENCODING_URI);
-				else
-					g_string_append_len(dest, GSTR_LEN(str));
-			}
+			if (encoded)
+				li_string_encode_append(str->str, dest, LI_ENCODING_URI);
+			else
+				g_string_append_len(dest, GSTR_LEN(str));
 
 			break;
 		case REWRITE_PART_QUERYSTRING:
