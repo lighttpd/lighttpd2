@@ -170,11 +170,9 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("/etc/lighttpd2/lighttpd.conf")));
 	}
 
-	g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("-m")));
 	if (options[5]) {
+		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("-m")));
 		g_ptr_array_add(cmd, g_strndup(GSTR_LEN(options[5]->data.string)));
-	} else {
-		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("/usr/lib/lighttpd2/")));
 	}
 
 	if (options[9]) rlim_core = options[9]->data.number;
