@@ -248,7 +248,9 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 	liServer *srv = vr->wrk->srv;
 
 	li_action_stack_reset(vr, &vr->action_stack);
-	li_plugins_handle_vrclose(vr);
+	if (vr->state != LI_VRS_CLEAN) {
+		li_plugins_handle_vrclose(vr);
+	}
 	{
 		gint len = vr->plugin_ctx->len;
 		g_ptr_array_set_size(vr->plugin_ctx, 0);
