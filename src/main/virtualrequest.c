@@ -200,7 +200,9 @@ void li_vrequest_free(liVRequest* vr) {
 	liServer *srv = vr->wrk->srv;
 
 	li_action_stack_clear(vr, &vr->action_stack);
-	li_plugins_handle_vrclose(vr);
+	if (vr->state != LI_VRS_CLEAN) {
+		li_plugins_handle_vrclose(vr);
+	}
 	g_ptr_array_free(vr->plugin_ctx, TRUE);
 
 	li_request_clear(&vr->request);
