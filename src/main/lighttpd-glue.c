@@ -107,6 +107,33 @@ gchar *li_http_method_string(liHttpMethod method, guint *len) {
 	return NULL;
 }
 
+liHttpMethod li_http_method_from_string(gchar *method_str) {
+	if (g_str_equal(method_str, "GET"))						return LI_HTTP_METHOD_GET;
+	else if (g_str_equal(method_str, "POST"))				return LI_HTTP_METHOD_POST;
+	else if (g_str_equal(method_str, "HEAD"))				return LI_HTTP_METHOD_HEAD;
+	else if (g_str_equal(method_str, "OPTIONS"))			return LI_HTTP_METHOD_OPTIONS;
+	else if (g_str_equal(method_str, "PROPFIND"))			return LI_HTTP_METHOD_PROPFIND;
+	else if (g_str_equal(method_str, "MKCOL"))				return LI_HTTP_METHOD_MKCOL;
+	else if (g_str_equal(method_str, "PUT"))				return LI_HTTP_METHOD_PUT;
+	else if (g_str_equal(method_str, "DELETE"))				return LI_HTTP_METHOD_DELETE;
+	else if (g_str_equal(method_str, "COPY"))				return LI_HTTP_METHOD_COPY;
+	else if (g_str_equal(method_str, "MOVE"))				return LI_HTTP_METHOD_MOVE;
+	else if (g_str_equal(method_str, "PROPPATCH"))			return LI_HTTP_METHOD_PROPPATCH;
+	else if (g_str_equal(method_str, "REPORT"))				return LI_HTTP_METHOD_REPORT;
+	else if (g_str_equal(method_str, "CHECKOUT"))			return LI_HTTP_METHOD_CHECKOUT;
+	else if (g_str_equal(method_str, "CHECKIN"))			return LI_HTTP_METHOD_CHECKIN;
+	else if (g_str_equal(method_str, "VERSION_CONTROL"))	return LI_HTTP_METHOD_VERSION_CONTROL;
+	else if (g_str_equal(method_str, "UNCHECKOUT"))			return LI_HTTP_METHOD_UNCHECKOUT;
+	else if (g_str_equal(method_str, "MKACTIVITY"))			return LI_HTTP_METHOD_MKACTIVITY;
+	else if (g_str_equal(method_str, "MERGE"))				return LI_HTTP_METHOD_MERGE;
+	else if (g_str_equal(method_str, "LOCK"))				return LI_HTTP_METHOD_LOCK;
+	else if (g_str_equal(method_str, "UNLOCK"))				return LI_HTTP_METHOD_UNLOCK;
+	else if (g_str_equal(method_str, "LABEL"))				return LI_HTTP_METHOD_LABEL;
+	else if (g_str_equal(method_str, "CONNECT"))			return LI_HTTP_METHOD_CONNECT;
+
+	return LI_HTTP_METHOD_UNSET;
+}
+
 gchar *li_http_version_string(liHttpVersion method, guint *len) {
 	switch (method) {
 	case LI_HTTP_VERSION_1_1: SET_LEN_AND_RETURN_STR("HTTP/1.1");
