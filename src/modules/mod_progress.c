@@ -24,17 +24,17 @@
  *
  * Examples responses:
  *     - legacy format
- *       new Object({'state': 'running', 'received': 123456, 'sent': 0, 'request_size': 200000, 'response_size': 0})
+ *       new Object({"state": "running"", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0})
  *     - json format
- *       {'state': 'running', 'received': 123456, 'sent': 0, 'request_size': 200000, 'response_size': 0}
+ *       {"state": "running", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0}
  *     - jsonp format (function name specified via X-Progress-Callback querystring key, defaults to "progress")
- *       progress({'state': 'running', 'received': 123456, 'sent': 0, 'request_size': 200000, 'response_size': 0})
+ *       progress({"state": "running", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0})
  *
  * Possible response objects:
- *     - {'state': 'unknown'}
- *     - {'state': 'running', 'received': <bytes_recived>, 'sent': <bytes_sent>, 'request_size': <bytes>, 'response_size': <bytes>}
- *     - {'state': 'done', 'received': <bytes_recived>, 'sent': <bytes_sent>, 'request_size': <bytes>, 'response_size': <bytes>}
- *     - {'state': 'error', 'status': <http_status>}
+ *     - {"state": "unknown"}
+ *     - {"state": "running", "received": <bytes_recived>, "sent": <bytes_sent>, "request_size": <bytes>, "response_size": <bytes>}
+ *     - {"state": "done", "received": <bytes_recived>, "sent": <bytes_sent>, "request_size": <bytes>, "response_size": <bytes>}
+ *     - {"state": "error", "status": <http_status>}
  *
  * Example config:
  *     if req.path == "/upload.php" {
@@ -286,7 +286,7 @@ static void progress_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *resu
 			if (debug)
 				VR_DEBUG(vr, "progress.show: progress id \"%s\" unknown", id);
 			
-			g_string_append_len(output, CONST_STR_LEN("{'state': 'unknown'}"));
+			g_string_append_len(output, CONST_STR_LEN("{\"state\": \"unknown\"}"));
 		} else {
 			if (debug)
 				VR_DEBUG(vr, "progress.show: progress id \"%s\" found", id);
@@ -294,19 +294,19 @@ static void progress_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *resu
 			if (node->vr) {
 				/* still in progress */
 				g_string_append_printf(output,
-					"{'state': 'running', 'received': %"G_GUINT64_FORMAT", 'sent': %"G_GUINT64_FORMAT", 'request_size': %"G_GUINT64_FORMAT", 'response_size': %"G_GUINT64_FORMAT"}",
+					"{\"state\": \"running\", \"received\": %"G_GUINT64_FORMAT", \"sent\": %"G_GUINT64_FORMAT", \"request_size\": %"G_GUINT64_FORMAT", \"response_size\": %"G_GUINT64_FORMAT"}",
 					node->bytes_in, node->bytes_out, node->request_size, node->response_size
 				);
 			} else if (node->status_code == 200) {
 				/* done, success */
 				g_string_append_printf(output,
-					"{'state': 'done', 'received': %"G_GUINT64_FORMAT", 'sent': %"G_GUINT64_FORMAT", 'request_size': %"G_GUINT64_FORMAT", 'response_size': %"G_GUINT64_FORMAT"}",
+					"{\"state\": \"done\", \"received\": %"G_GUINT64_FORMAT", \"sent\": %"G_GUINT64_FORMAT", \"request_size\": %"G_GUINT64_FORMAT", \"response_size\": %"G_GUINT64_FORMAT"}",
 					node->bytes_in, node->bytes_out, node->request_size, node->response_size
 				);
 			} else {
 				/* done, error */
 				g_string_append_printf(output,
-					"{'state': 'error', 'status': %d}",
+					"{\"state\": \"error\", \"status\": %d}",
 					node->status_code
 				);
 			}
@@ -386,7 +386,7 @@ static void progress_show_free(liServer *srv, gpointer param) {
 
 static liAction* progress_show_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	mod_progress_show_param *psp;
-	mod_progress_format format;
+	mod_progress_format format = PROGRESS_FORMAT_JSON;
 
 	UNUSED(srv);
 	UNUSED(userdata);
@@ -403,9 +403,12 @@ static liAction* progress_show_create(liServer *srv, liPlugin* p, liValue *val, 
 			format = PROGRESS_FORMAT_JSONP;
 		} if (g_str_equal(str, "dump")) {
 			format = PROGRESS_FORMAT_DUMP;
+		} else {
+			ERROR(srv, "progress.show: unknown format \"%s\"", str);
+			return NULL;
 		}
 	} else {
-		ERROR(srv, "%s", "progress.track expects an optional string as parameter");
+		ERROR(srv, "%s", "progress.show expects an optional string as parameter");
 		return NULL;
 	}
 
@@ -494,7 +497,7 @@ static void progress_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) {
 
 static const liPluginOption options[] = {
 	{ "progress.debug", LI_VALUE_BOOLEAN, 0, NULL },
-	{ "progress.methods", LI_VALUE_LIST, (1 << LI_HTTP_METHOD_GET), progress_methods_parse },
+	{ "progress.methods", LI_VALUE_LIST, (1 << LI_HTTP_METHOD_POST), progress_methods_parse },
 
 	{ NULL, 0, 0, NULL }
 };
