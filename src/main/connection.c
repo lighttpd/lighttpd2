@@ -169,9 +169,13 @@ static gboolean connection_handle_read(liConnection *con) {
 	}
 
 	if (con->state == LI_CON_STATE_READ_REQUEST_HEADER && con->mainvr->state == LI_VRS_CLEAN) {
+		liHandlerResult res;
+
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "%s", "reading request header");
 		}
+
+		res = li_http_request_parse(con->mainvr, &con->req_parser_ctx);
 
 		/* max uri length 8 kilobytes */
 		if (vr->request.uri.raw->len > 8*1024) {
@@ -204,7 +208,7 @@ static gboolean connection_handle_read(liConnection *con) {
 			return TRUE;
 		}
 
-		switch(li_http_request_parse(con->mainvr, &con->req_parser_ctx)) {
+		switch(res) {
 		case LI_HANDLER_GO_ON:
 			break; /* go on */
 		case LI_HANDLER_WAIT_FOR_EVENT:
