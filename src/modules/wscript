@@ -52,6 +52,7 @@ def build(bld):
 	if env['USE_OPENSSL'] == 1:
 		uselib = ['ssl','crypto']
 		lighty_mod(bld, 'mod_openssl', 'mod_openssl.c', uselib)
+	lighty_mod(bld, 'mod_progress', 'mod_progress.c')
 	lighty_mod(bld, 'mod_proxy', 'mod_proxy.c')
 	lighty_mod(bld, 'mod_redirect', 'mod_redirect.c')
 	lighty_mod(bld, 'mod_rewrite', 'mod_rewrite.c')
