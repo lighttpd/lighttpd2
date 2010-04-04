@@ -79,7 +79,6 @@ struct mod_progress_node {
 	liWaitQueueElem timeout_queue_elem;
 	guint wrk_ndx;
 	liVRequest *vr; /* null in case of tombstone. otherwise the following vars will not be valid! */
-	ev_tstamp timeout; /* timestamp marking the time this node will be freed */
 	goffset request_size;
 	goffset response_size;
 	guint64 bytes_in;
@@ -147,7 +146,6 @@ static void progress_vrclose(liVRequest *vr, liPlugin *p) {
 	if (node) {
 		/* connection is being tracked, replace with tombstone */
 		node->vr = NULL;
-		node->timeout = CUR_TS(vr->wrk) + progress_data.ttl;
 		node->request_size = vr->request.content_length;
 		node->response_size = vr->out->bytes_out;
 		node->bytes_in = vr->con->in->bytes_in;
@@ -214,6 +212,7 @@ static gpointer progress_collect_func(liWorker *wrk, gpointer fdata) {
 
 		if (node->vr) {
 			/* copy live data */
+			node_new->vr = node->vr;
 			node_new->request_size = node->vr->request.content_length;
 			node_new->response_size = node->vr->out->bytes_out;
 			node_new->bytes_in = node->vr->con->in->bytes_in;
