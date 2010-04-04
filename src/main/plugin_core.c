@@ -428,15 +428,22 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 	UNUSED(param);
 	UNUSED(context);
 
+	if (li_vrequest_is_handled(vr))
+		return LI_HANDLER_GO_ON;
+
 	switch (vr->request.http_method) {
 	case LI_HTTP_METHOD_GET:
 	case LI_HTTP_METHOD_HEAD:
 		break;
 	default:
+		if (!li_vrequest_handle_direct(vr)) {
+			return LI_HANDLER_ERROR;
+		}
+
+		vr->response.http_status = 405;
+		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Allow"), CONST_STR_LEN("GET, HEAD"));
 		return LI_HANDLER_GO_ON;
 	}
-
-	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
 
 	if (vr->physical.path->len == 0) return LI_HANDLER_GO_ON;
 
