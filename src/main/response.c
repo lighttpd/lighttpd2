@@ -252,6 +252,8 @@ void li_response_send_error_page(liConnection *con) {
 		"</html>\n"
 	));
 
+	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html; charset=utf-8"));
+
 	li_chunkqueue_append_string(con->out, html);
 	li_http_header_remove(vr->response.headers, CONST_STR_LEN("transfer-encoding"));
 	li_http_header_remove(vr->response.headers, CONST_STR_LEN("content-encoding"));
