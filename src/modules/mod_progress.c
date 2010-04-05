@@ -149,7 +149,7 @@ static void progress_vrclose(liVRequest *vr, liPlugin *p) {
 		node->request_size = vr->request.content_length;
 		node->response_size = vr->out->bytes_out;
 		node->bytes_in = vr->con->in->bytes_in;
-		node->bytes_out = vr->con->out->bytes_out;
+		node->bytes_out = MAX(0, vr->con->out->bytes_out - vr->con->raw_out->length);
 		node->status_code = vr->response.http_status;
 		li_waitqueue_push(&progress_data.timeout_queues[vr->wrk->ndx], &(node->timeout_queue_elem));
 	}
@@ -207,23 +207,22 @@ static gpointer progress_collect_func(liWorker *wrk, gpointer fdata) {
 
 	node = g_hash_table_lookup(progress_data.hash_tables[wrk->ndx], id);
 
-	if (node) {
-		node_new = g_slice_new0(mod_progress_node);
+	if (!node)
+		return NULL;
 
-		if (node->vr) {
-			/* copy live data */
-			node_new->vr = node->vr;
-			node_new->request_size = node->vr->request.content_length;
-			node_new->response_size = node->vr->out->bytes_out;
-			node_new->bytes_in = node->vr->con->in->bytes_in;
-			node_new->bytes_out = node->vr->con->out->bytes_out;
-			node_new->status_code = node->vr->response.http_status;
-		} else {
-			/* copy dead data */
-			*node_new = *node;
-		}
+	node_new = g_slice_new0(mod_progress_node);
+
+	if (node->vr) {
+		/* copy live data */
+		node_new->vr = node->vr;
+		node_new->request_size = node->vr->request.content_length;
+		node_new->response_size = node->vr->out->bytes_out;
+		node_new->bytes_in = node->vr->con->in->bytes_in;
+		node_new->bytes_out = MAX(0, node->vr->con->out->bytes_out - node->vr->con->raw_out->length);
+		node_new->status_code = node->vr->response.http_status;
 	} else {
-		node_new = NULL;
+		/* copy dead data */
+		*node_new = *node;
 	}
 
 	return node_new;
@@ -251,6 +250,9 @@ static void progress_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *resu
 		}
 
 		output = g_string_sized_new(128);
+
+		/* send mime-type. there seems to be no standard for javascript... using the most commong */
+		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("application/x-javascript"));
 
 		if (format == PROGRESS_FORMAT_LEGACY) {
 			g_string_append_len(output, CONST_STR_LEN("new Object("));
@@ -400,7 +402,7 @@ static liAction* progress_show_create(liServer *srv, liPlugin* p, liValue *val, 
 			format = PROGRESS_FORMAT_JSON;
 		} else if (g_str_equal(str, "jsonp")) {
 			format = PROGRESS_FORMAT_JSONP;
-		} if (g_str_equal(str, "dump")) {
+		} else if (g_str_equal(str, "dump")) {
 			format = PROGRESS_FORMAT_DUMP;
 		} else {
 			ERROR(srv, "progress.show: unknown format \"%s\"", str);
