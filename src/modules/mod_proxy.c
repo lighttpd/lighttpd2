@@ -172,7 +172,8 @@ static void proxy_send_headers(liVRequest *vr, proxy_connection *pcon) {
 
 	switch (vr->request.http_version) {
 	case LI_HTTP_VERSION_1_1:
-		g_string_append_len(head, CONST_STR_LEN(" HTTP/1.1\r\n"));
+		/* g_string_append_len(head, CONST_STR_LEN(" HTTP/1.1\r\n")); */
+		g_string_append_len(head, CONST_STR_LEN(" HTTP/1.0\r\n"));
 		break;
 	case LI_HTTP_VERSION_1_0:
 	default:
@@ -210,6 +211,8 @@ static void proxy_send_headers(liVRequest *vr, proxy_connection *pcon) {
 
 	for (iter = g_queue_peek_head_link(&vr->request.headers->entries); iter; iter = g_list_next(iter)) {
 		header = (liHttpHeader*) iter->data;
+		if (li_http_header_key_is(header, CONST_STR_LEN("Connection"))) continue;
+		if (li_http_header_key_is(header, CONST_STR_LEN("Proxy-Connection"))) continue;
 		g_string_append_len(head, GSTR_LEN(header->data));
 		g_string_append_len(head, CONST_STR_LEN("\r\n"));
 	}
