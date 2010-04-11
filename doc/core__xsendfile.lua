@@ -49,7 +49,7 @@ local function handle_x_sendfile(vr)
 	local xs = vr.resp.headers["X-Sendfile"]
 	if xs and xs ~= "" then
 		xs = lighty.path_simplify(xs)
-		if docroot and xs:sub(docroot.len()) =~ docroot then
+		if docroot and xs:sub(docroot.len()) ~= docroot then
 			vr:error("x-sendfile: File '".. xs .. "'not in required docroot '" .. docroot .. "'")
 			return lighty.HANDLER_GO_ON
 		end
