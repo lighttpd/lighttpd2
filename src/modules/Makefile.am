@@ -60,6 +60,11 @@ libmod_fastcgi_la_SOURCES = mod_fastcgi.c
 libmod_fastcgi_la_LDFLAGS = $(common_ldflags)
 libmod_fastcgi_la_LIBADD = $(common_libadd)
 
+install_libs += libmod_flv.la
+libmod_flv_la_SOURCES = mod_flv.c
+libmod_flv_la_LDFLAGS = $(common_ldflags)
+libmod_flv_la_LIBADD = $(common_libadd)
+
 install_libs += libmod_fortune.la
 libmod_fortune_la_SOURCES = mod_fortune.c
 libmod_fortune_la_LDFLAGS = $(common_ldflags)
