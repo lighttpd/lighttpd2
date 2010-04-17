@@ -112,7 +112,6 @@ static liHandlerResult userdir(liVRequest *vr, gpointer param, gpointer *context
 		// user found
 		g_string_append(vr->physical.doc_root, pwd.pw_dir);
 		g_string_append_c(vr->physical.doc_root, G_DIR_SEPARATOR);
-		g_print("home: %s\n", pwd.pw_dir);
 	}
 
 	for (i = 0; i < parts->len; i++) {
@@ -141,8 +140,6 @@ static liHandlerResult userdir(liVRequest *vr, gpointer param, gpointer *context
 	g_string_append_len(vr->wrk->tmp_str, username + username_len, vr->request.uri.path->str - username - username_len);
 	g_string_truncate(vr->request.uri.path, 0);
 	g_string_append_len(vr->request.uri.path, GSTR_LEN(vr->wrk->tmp_str));
-
-	g_print("phys.path: %s req.path: %s\n", vr->physical.path->str, vr->request.uri.path->str);
 
 	return LI_HANDLER_GO_ON;
 }
