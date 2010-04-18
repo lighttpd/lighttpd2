@@ -55,6 +55,7 @@ static liHandlerResult userdir(liVRequest *vr, gpointer param, gpointer *context
 	GArray *parts = param;
 	gchar *username;
 	guint username_len = 0;
+	gboolean has_username;
 
 	UNUSED(context);
 
@@ -112,6 +113,9 @@ static liHandlerResult userdir(liVRequest *vr, gpointer param, gpointer *context
 		// user found
 		g_string_append(vr->physical.doc_root, pwd.pw_dir);
 		g_string_append_c(vr->physical.doc_root, G_DIR_SEPARATOR);
+		has_username = TRUE;
+	} else {
+		has_username = FALSE;
 	}
 
 	for (i = 0; i < parts->len; i++) {
@@ -122,6 +126,7 @@ static liHandlerResult userdir(liVRequest *vr, gpointer param, gpointer *context
 			break;
 		case USERDIR_PART_USERNAME:
 			g_string_append_len(vr->physical.doc_root, username, username_len);
+			has_username = TRUE;
 			break;
 		case USERDIR_PART_LETTER:
 			if (part->data.ndx <= username_len)
@@ -129,6 +134,17 @@ static liHandlerResult userdir(liVRequest *vr, gpointer param, gpointer *context
 			break;
 		}
 	}
+
+	if (!has_username) {
+		/* pattern without username, append it. /usr/web/ => /usr/web/user/ */
+		if (vr->physical.doc_root->str[vr->physical.doc_root->len-1] != G_DIR_SEPARATOR)
+			g_string_append_c(vr->physical.doc_root, G_DIR_SEPARATOR);
+		g_string_append_len(vr->physical.doc_root, username, username_len);
+	}
+
+	/* ensure that docroot is ending with a slash */
+	if (vr->physical.doc_root->str[vr->physical.doc_root->len-1] != G_DIR_SEPARATOR)
+		g_string_append_c(vr->physical.doc_root, G_DIR_SEPARATOR);
 
 	/* build physical path: docroot + uri.path */
 	g_string_truncate(vr->physical.path, 0);
@@ -139,7 +155,10 @@ static liHandlerResult userdir(liVRequest *vr, gpointer param, gpointer *context
 	g_string_truncate(vr->wrk->tmp_str, 0);
 	g_string_append_len(vr->wrk->tmp_str, username + username_len, vr->request.uri.path->str - username - username_len);
 	g_string_truncate(vr->request.uri.path, 0);
-	g_string_append_len(vr->request.uri.path, GSTR_LEN(vr->wrk->tmp_str));
+	if (vr->wrk->tmp_str->len)
+		g_string_append_len(vr->request.uri.path, GSTR_LEN(vr->wrk->tmp_str));
+	else
+		g_string_append_c(vr->request.uri.path, G_DIR_SEPARATOR);
 
 	return LI_HANDLER_GO_ON;
 }
@@ -174,9 +193,16 @@ static liAction* userdir_create(liServer *srv, liPlugin* p, liValue *val, gpoint
 		return NULL;
 	}
 
-	// parse pattern
-	parts = g_array_new(FALSE, FALSE, sizeof(userdir_part));
 	str = val->data.string;
+
+	if (!str->len) {
+		ERROR(srv, "%s", "userdir parameter must not be an empty string");
+		return NULL;
+	}
+
+	parts = g_array_new(FALSE, FALSE, sizeof(userdir_part));
+
+	// parse pattern
 	for (c_last = c = str->str; c != str->str + str->len; c++) {
 		if (*c == '*') {
 			// username
