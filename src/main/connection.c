@@ -318,6 +318,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			case LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
 				/* TODO: aio */
 				li_ev_io_rem_events(loop, w, EV_READ);
+				_ERROR(con->srv, con->mainvr, "%s", "TODO: wait for aio");
 				break;
 			}
 		}
@@ -360,9 +361,9 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 					break;
 				case LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
+					/* TODO: aio */
 					li_ev_io_rem_events(loop, w, EV_WRITE);
 					_ERROR(con->srv, con->mainvr, "%s", "TODO: wait for aio");
-					/* TODO: aio */
 					break;
 				}
 			} else {
@@ -410,7 +411,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		return;
 	}
 
-	if (update_io_timeout && ((con->io_timeout_elem.ts + 1.0) < ev_now(loop))) {
+	if ((update_io_timeout && ((con->io_timeout_elem.ts + 1.0) < ev_now(loop))) || !con->io_timeout_elem.queued) {
 		li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
 	}
 
