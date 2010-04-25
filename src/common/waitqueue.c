@@ -89,6 +89,7 @@ liWaitQueueElem *li_waitqueue_pop(liWaitQueue *queue) {
 
 	queue->head = elem->next;
 
+	elem->ts = 0;
 	elem->queued = FALSE;
 
 	return elem;
@@ -108,6 +109,7 @@ liWaitQueueElem *li_waitqueue_pop_force(liWaitQueue *queue) {
 
 	queue->head = elem->next;
 
+	elem->ts = 0;
 	elem->queued = FALSE;
 
 	return elem;
@@ -127,8 +129,8 @@ void li_waitqueue_remove(liWaitQueue *queue, liWaitQueueElem *elem) {
 	else
 		elem->next->prev = elem->prev;
 
-	elem->queued = FALSE;
 	elem->ts = 0;
+	elem->queued = FALSE;
 
 	if (G_UNLIKELY(!queue->head))
 		ev_timer_stop(queue->loop, &queue->timer);
@@ -165,6 +167,7 @@ guint li_waitqueue_pop_ready(liWaitQueue *queue, liWaitQueueElem **head) {
 			return i;
 		}
 
+		elem->ts = 0;
 		elem->queued = FALSE;
 		elem = elem->next;
 		i++;
