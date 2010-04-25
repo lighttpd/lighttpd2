@@ -29,8 +29,8 @@
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
 
-#include <pwd.h>
 #include <lighttpd/base.h>
+#include <pwd.h>
 
 LI_API gboolean mod_userdir_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_userdir_free(liModules *mods, liModule *mod);
