@@ -641,6 +641,14 @@ next_round:
 		VR_DEBUG(vr, "stat: physical path: %s", vr->physical.path->str);
 	}
 	res = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
+	if (res == LI_HANDLER_GO_ON) {
+		if (vr->physical.pathinfo->len > 0) {
+			/* remove PATHINFO from url too ("SCRIPT_NAME") */
+			if (li_string_suffix(vr->request.uri.path, GSTR_LEN(vr->physical.pathinfo))) {
+				g_string_set_size(vr->request.uri.path, vr->request.uri.path->len - vr->physical.pathinfo->len);
+			}
+		}
+	}
 	if (res == LI_HANDLER_WAIT_FOR_EVENT || res == LI_HANDLER_GO_ON)
 		return res;
 
