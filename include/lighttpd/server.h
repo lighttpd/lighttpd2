@@ -129,7 +129,7 @@ struct liServer {
 };
 
 
-LI_API liServer* li_server_new(const gchar *module_dir);
+LI_API liServer* li_server_new(const gchar *module_dir, gboolean module_resident);
 LI_API void li_server_free(liServer* srv);
 LI_API gboolean li_server_loop_init(liServer *srv);
 

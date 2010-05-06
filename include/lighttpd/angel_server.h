@@ -63,7 +63,7 @@ struct liInstanceResource {
 	gpointer data;
 };
 
-LI_API liServer* li_server_new(const gchar *module_dir);
+LI_API liServer* li_server_new(const gchar *module_dir, gboolean module_resident);
 LI_API void li_server_free(liServer* srv);
 
 LI_API void li_server_stop(liServer *srv);

@@ -46,11 +46,12 @@ struct liModules {
 	gpointer main;    /**< pointer to a application specific main structure, e.g. server */
 	GArray *mods;      /**< array of (module*) */
 	gchar *module_dir;
+	gboolean module_resident; /** if true, call g_module_make_resident() when loading a module */
 
 	guint8 sizeof_off_t; /** holds the value of sizeof(off_t) to check if loaded module was compiled with the same flags */
 };
 
-LI_API liModules* li_modules_new(gpointer main, const gchar *module_dir);
+LI_API liModules* li_modules_new(gpointer main, const gchar *module_dir, gboolean make_resident);
 LI_API void li_modules_free(liModules *mods);
 
 /** Loads a module if not loaded yet and returns the module struct for it (after increasing refcount)

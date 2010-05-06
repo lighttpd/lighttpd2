@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
 	gchar *config_path = NULL;
 	const gchar *def_module_dir = DEFAULT_LIBDIR;
 	const gchar *module_dir = def_module_dir;
+	gboolean module_resident = FALSE;
 	gboolean luaconfig = FALSE;
 	gboolean test_config = FALSE;
 	gboolean show_version = FALSE;
@@ -37,6 +38,7 @@ int main(int argc, char *argv[]) {
 		{ "lua", 'l', 0, G_OPTION_ARG_NONE, &luaconfig, "use the lua config frontend", NULL },
 		{ "test", 't', 0, G_OPTION_ARG_NONE, &test_config, "test config and exit", NULL },
 		{ "module-dir", 'm', 0, G_OPTION_ARG_STRING, &module_dir, "module directory [default: " DEFAULT_LIBDIR "]", "PATH" },
+		{ "module-resident", 0, 0, G_OPTION_ARG_NONE, &module_resident, "never unload modules (e.g. for valgrind)", NULL },
 		{ "version", 'v', 0, G_OPTION_ARG_NONE, &show_version, "show version and exit", NULL },
 		{ "angel", 0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_NONE, &use_angel, "spawned by angel", NULL },
 		{ NULL, 0, 0, 0, NULL, NULL, NULL }
@@ -79,7 +81,7 @@ int main(int argc, char *argv[]) {
 	/* initialize threading */
 	g_thread_init(NULL);
 
-	srv = li_server_new(module_dir);
+	srv = li_server_new(module_dir, module_resident);
 	li_server_loop_init(srv);
 
 	/* load core plugin */

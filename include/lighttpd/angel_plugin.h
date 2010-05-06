@@ -72,7 +72,7 @@ struct liPlugins {
 	GPtrArray *plugins, *load_plugins; /* plugin* */
 };
 
-LI_API void li_plugins_init(liServer *srv, const gchar *module_dir);
+LI_API void li_plugins_init(liServer *srv, const gchar *module_dir, gboolean module_resident);
 LI_API void li_plugins_clear(liServer *srv);
 
 LI_API void li_plugins_config_clean(liServer *srv);

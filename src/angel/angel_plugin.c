@@ -80,10 +80,10 @@ static server_module* server_module_new(liServer *srv, const gchar *name) { /* m
 	return sm;
 }
 
-void li_plugins_init(liServer *srv, const gchar *module_dir) {
+void li_plugins_init(liServer *srv, const gchar *module_dir, gboolean module_resident) {
 	liPlugins *ps = &srv->plugins;
 
-	ps->modules = li_modules_new(srv, module_dir);
+	ps->modules = li_modules_new(srv, module_dir, module_resident);
 
 	ps->items = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, _server_item_free);
 	ps->load_items = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, _server_item_free);

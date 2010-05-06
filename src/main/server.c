@@ -88,7 +88,7 @@ static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	UNUSED(loop); UNUSED(w); UNUSED(revents);
 }
 
-liServer* li_server_new(const gchar *module_dir) {
+liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	liServer* srv = g_slice_new0(liServer);
 
 	srv->magic = LIGHTTPD_SERVER_MAGIC;
@@ -116,7 +116,7 @@ liServer* li_server_new(const gchar *module_dir) {
 
 	srv->sockets = g_ptr_array_new();
 
-	srv->modules = li_modules_new(srv, module_dir);
+	srv->modules = li_modules_new(srv, module_dir, module_resident);
 
 	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
 	srv->options = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_option_free);

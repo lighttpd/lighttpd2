@@ -25,7 +25,7 @@ static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	UNUSED(loop); UNUSED(w); UNUSED(revents);
 }
 
-liServer* li_server_new(const gchar *module_dir) {
+liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	liServer *srv = g_slice_new0(liServer);
 
 	srv->loop = ev_default_loop(0);
@@ -35,7 +35,7 @@ liServer* li_server_new(const gchar *module_dir) {
 	CATCH_SIGNAL(srv->loop, sigpipe_cb, PIPE);
 
 	li_log_init(srv);
-	li_plugins_init(srv, module_dir);
+	li_plugins_init(srv, module_dir, module_resident);
 	return srv;
 }
 

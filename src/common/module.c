@@ -1,13 +1,14 @@
 
 #include <lighttpd/module.h>
 
-liModules *li_modules_new(gpointer main, const gchar *module_dir) {
+liModules *li_modules_new(gpointer main, const gchar *module_dir, gboolean module_resident) {
 	liModules *m = g_slice_new(liModules);
 
 	m->version = MODULE_VERSION;
 	m->main = main;
 	m->mods = g_array_new(FALSE, TRUE, sizeof(liModule*));
 	m->module_dir = g_strdup(module_dir);
+	m->module_resident = module_resident;
 	m->sizeof_off_t = sizeof(off_t);
 
 	return m;
@@ -100,6 +101,9 @@ liModule* li_module_load(liModules *mods, const gchar* name) {
 		g_slice_free(liModule, mod);
 		return NULL;
 	}
+
+	if (mods->module_resident)
+		g_module_make_resident(mod->module);
 
 	/* insert into free slot */
 	for (i = 0; i < mods->mods->len; i++) {
