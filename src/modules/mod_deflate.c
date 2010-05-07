@@ -505,7 +505,7 @@ static gboolean cached_handle_etag(liVRequest *vr, gboolean debug, liHttpHeader 
 }
 
 static guint header_to_endocing_mask(const gchar *s) {
-	guint encoding_mask, i;
+	guint encoding_mask = 0, i;
 
 	for (i = 1; encoding_names[i]; i++) {
 		if (strstr(s, encoding_names[i])) {
