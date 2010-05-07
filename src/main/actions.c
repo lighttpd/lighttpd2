@@ -254,6 +254,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 	liAction *a;
 	liActionStack *as = &vr->action_stack;
 	action_stack_element *ase;
+	guint ase_ndx;
 	liHandlerResult res;
 	gboolean condres;
 	liServer *srv = vr->wrk->srv;
@@ -305,6 +306,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 
 		vr->wrk->stats.actions_executed++;
 		a = ase->act;
+		ase_ndx = as->stack->len - 1; /* sometimes the stack gets modified - reread "ase" after that */
 
 		switch (a->type) {
 		case ACTION_TSETTING:
@@ -321,6 +323,8 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			break;
 		case ACTION_TFUNCTION:
 			res = a->data.function.func(vr, a->data.function.param, &ase->data.context);
+			ase = &g_array_index(as->stack, action_stack_element, ase_ndx);
+
 			switch (res) {
 			case LI_HANDLER_GO_ON:
 				ase->finished = TRUE;
@@ -357,8 +361,8 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			if (ase->data.pos >= a->data.list->len) {
 				action_stack_pop(srv, vr, as);
 			} else {
-				li_action_enter(vr, g_array_index(a->data.list, liAction*, ase->data.pos));
-				ase->data.pos++;
+				guint p = ase->data.pos++;
+				li_action_enter(vr, g_array_index(a->data.list, liAction*, p));
 			}
 			break;
 		case ACTION_TBALANCER:
@@ -368,6 +372,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 				break;
 			}
 			res = a->data.balancer.select(vr, ase->backlog_provided, a->data.balancer.param, &ase->data.context);
+			ase = &g_array_index(as->stack, action_stack_element, ase_ndx);
 			switch (res) {
 			case LI_HANDLER_GO_ON:
 				ase->finished = TRUE;
