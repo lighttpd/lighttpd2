@@ -179,12 +179,13 @@ static void userdir_free(liServer *srv, gpointer param) {
 	g_array_free(parts, TRUE);
 }
 
-static liAction* userdir_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* userdir_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	GString *str;
 	gchar *c, *c_last;
 	GArray *parts;
 	userdir_part part;
 
+	UNUSED(wrk);
 	UNUSED(p);
 	UNUSED(userdata);
 

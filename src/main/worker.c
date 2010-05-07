@@ -545,6 +545,8 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 	if (context == wrk) {
 		guint i;
 
+		li_plugins_worker_stop(wrk);
+
 		ev_async_stop(wrk->loop, &wrk->li_worker_stop_watcher);
 		ev_async_stop(wrk->loop, &wrk->li_worker_suspend_watcher);
 		ev_async_stop(wrk->loop, &wrk->new_con_watcher);

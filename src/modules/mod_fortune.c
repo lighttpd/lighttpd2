@@ -55,8 +55,8 @@ static liHandlerResult fortune_header_handle(liVRequest *vr, gpointer param, gpo
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* fortune_header(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(srv); UNUSED(val); UNUSED(userdata);
+static liAction* fortune_header(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(srv); UNUSED(wrk); UNUSED(val); UNUSED(userdata);
 	return li_action_new_function(fortune_header_handle, NULL, NULL, p->data);
 }
 
@@ -87,8 +87,8 @@ static liHandlerResult fortune_page_handle(liVRequest *vr, gpointer param, gpoin
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* fortune_page(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(srv); UNUSED(val); UNUSED(userdata);
+static liAction* fortune_page(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(srv); UNUSED(wrk); UNUSED(val); UNUSED(userdata);
 	return li_action_new_function(fortune_page_handle, NULL, NULL, p->data);
 }
 

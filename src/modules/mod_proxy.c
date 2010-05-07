@@ -432,9 +432,9 @@ static void proxy_free(liServer *srv, gpointer param) {
 	proxy_context_release(ctx);
 }
 
-static liAction* proxy_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* proxy_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	proxy_context *ctx;
-	UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "proxy expects a string as parameter");

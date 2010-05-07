@@ -165,9 +165,9 @@ static void balancer_act_free(liServer *srv, gpointer param) {
 	balancer_free(srv, (balancer*) param);
 }
 
-static liAction* balancer_rr(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* balancer_rr(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	balancer *b;
-	UNUSED(p); UNUSED(userdata);
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
 	if (!val) {
 		ERROR(srv, "%s", "need parameter");

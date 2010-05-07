@@ -925,9 +925,9 @@ static void status_info_free(liServer *srv, gpointer param) {
 	g_slice_free(mod_status_param, param);
 }
 
-static liAction* status_info_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* status_info_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	mod_status_param *param = g_slice_new0(mod_status_param);
-	UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata);
 
 	param->p = p;
 	param->short_info = FALSE;

@@ -10,10 +10,10 @@
 
 typedef void     (*liPluginInitCB)          (liServer *srv, liPlugin *p, gpointer userdata);
 typedef void     (*liPluginFreeCB)          (liServer *srv, liPlugin *p);
-typedef gboolean (*liPluginParseOptionCB)   (liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval);
-typedef gboolean (*liPluginParseOptionPtrCB)(liServer *srv, liPlugin *p, size_t ndx, liValue *val, gpointer *oval);
+typedef gboolean (*liPluginParseOptionCB)   (liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval);
+typedef gboolean (*liPluginParseOptionPtrCB)(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, gpointer *oval);
 typedef void     (*liPluginFreeOptionPtrCB) (liServer *srv, liPlugin *p, size_t ndx, gpointer oval);
-typedef liAction*(*liPluginCreateActionCB)  (liServer *srv, liPlugin *p, liValue *val, gpointer userdata);
+typedef liAction*(*liPluginCreateActionCB)  (liServer *srv, liWorker *wrk, liPlugin *p, liValue *val, gpointer userdata);
 typedef gboolean (*liPluginSetupCB)         (liServer *srv, liPlugin *p, liValue *val, gpointer userdata);
 typedef void     (*liPluginAngelCB)         (liServer *srv, liPlugin *p, gint32 id, GString *data);
 
@@ -46,6 +46,7 @@ struct liPlugin {
 	liPluginHandleVRCloseCB handle_vrclose;
 
 	liPluginServerStateWorker handle_prepare_worker; /**< called in the worker thread context once before running the workers */
+	liPluginServerStateWorker handle_worker_stop;
 	/* server state machine hooks */
 	liPluginServerState handle_prepare, handle_start_listen, handle_stop_listen, handle_start_log, handle_stop_log;
 
@@ -162,8 +163,10 @@ LI_API void li_release_optionptr(liServer *srv, liOptionPtrValue *value);
 LI_API void li_plugins_prepare_callbacks(liServer *srv);
 
 /* server state machine callbacks */
-LI_API void li_plugins_prepare_worker(liWorker *srv); /* blocking callbacks */
+LI_API void li_plugins_prepare_worker(liWorker *wrk); /* blocking callbacks */
 LI_API void li_plugins_prepare(liServer *srv); /* "prepare", async */
+
+LI_API void li_plugins_worker_stop(liWorker *wrk); /* blocking callbacks */
 
 LI_API void li_plugins_start_listen(liServer *srv); /* "warmup" */
 LI_API void li_plugins_stop_listen(liServer *srv); /* "prepare suspend", async */
@@ -175,11 +178,11 @@ LI_API void li_plugins_handle_vrclose(liVRequest *vr);
 
 /* Needed for config frontends */
 /** For parsing 'somemod.option = "somevalue"', free value after call */
-LI_API liAction* li_option_action(liServer *srv, const gchar *name, liValue *val);
+LI_API liAction* li_option_action(liServer *srv, liWorker *wrk, const gchar *name, liValue *val);
 /** For parsing 'somemod.action value', e.g. 'rewrite "/url" => "/destination"'
   * free value after call
   */
-LI_API liAction* li_create_action(liServer *srv, const gchar *name, liValue *val);
+LI_API liAction* li_create_action(liServer *srv, liWorker *wrk, const gchar *name, liValue *val);
 /** For setup function, e.g. 'listen "127.0.0.1:8080"'; free value after call */
 LI_API gboolean li_call_setup(liServer *srv, const char *name, liValue *val);
 

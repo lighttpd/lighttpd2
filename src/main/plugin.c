@@ -261,8 +261,8 @@ static liServerOption* find_option(liServer *srv, const char *name) {
 	return (liServerOption*) g_hash_table_lookup(srv->options, name);
 }
 
-static gboolean li_parse_option(liServer *srv, liServerOption *sopt, const char *name, liValue *val, liOptionSet *mark) {
-	if (!srv || !name || !mark || !sopt) return FALSE;
+static gboolean li_parse_option(liServer *srv, liWorker *wrk, liServerOption *sopt, const char *name, liValue *val, liOptionSet *mark) {
+	if (!srv || !wrk || !name || !mark || !sopt) return FALSE;
 
 	if (sopt->type != val->type && sopt->type != LI_VALUE_NONE) {
 		ERROR(srv, "Unexpected value type '%s', expected '%s' for option %s",
@@ -284,7 +284,7 @@ static gboolean li_parse_option(liServer *srv, liServerOption *sopt, const char 
 			return FALSE;
 		}
 	} else {
-		if (!sopt->parse_option(srv, sopt->p, sopt->module_index, val, &mark->value)) {
+		if (!sopt->parse_option(srv, wrk, sopt->p, sopt->module_index, val, &mark->value)) {
 			/* errors should be logged by parse function */
 			return FALSE;
 		}
@@ -299,11 +299,11 @@ static liServerOptionPtr* find_optionptr(liServer *srv, const char *name) {
 	return (liServerOptionPtr*) g_hash_table_lookup(srv->optionptrs, name);
 }
 
-static gboolean li_parse_optionptr(liServer *srv, liServerOptionPtr *sopt, const char *name, liValue *val, liOptionPtrSet *mark) {
+static gboolean li_parse_optionptr(liServer *srv, liWorker *wrk, liServerOptionPtr *sopt, const char *name, liValue *val, liOptionPtrSet *mark) {
 	liOptionPtrValue *oval;
 	gpointer ptr = NULL;
 
-	if (!srv || !name || !mark || !sopt) return FALSE;
+	if (!srv || !wrk || !name || !mark || !sopt) return FALSE;
 
 	if (sopt->type != val->type && sopt->type != LI_VALUE_NONE) {
 		ERROR(srv, "Unexpected value type '%s', expected '%s' for option %s",
@@ -314,7 +314,7 @@ static gboolean li_parse_optionptr(liServer *srv, liServerOptionPtr *sopt, const
 	if (!sopt->parse_option) {
 		ptr = li_value_extract_ptr(val);
 	} else {
-		if (!sopt->parse_option(srv, sopt->p, sopt->module_index, val, &ptr)) {
+		if (!sopt->parse_option(srv, wrk, sopt->p, sopt->module_index, val, &ptr)) {
 			/* errors should be logged by parse function */
 			return FALSE;
 		}
@@ -379,14 +379,14 @@ void li_release_optionptr(liServer *srv, liOptionPtrValue *value) {
 	g_slice_free(liOptionPtrValue, value);
 }
 
-liAction* li_option_action(liServer *srv, const gchar *name, liValue *val) {
+liAction* li_option_action(liServer *srv, liWorker *wrk, const gchar *name, liValue *val) {
 	liServerOption *sopt;
 	liServerOptionPtr *soptptr;
 
 	if (NULL != (sopt = find_option(srv, name))) {
 		liOptionSet setting;
 
-		if (!li_parse_option(srv, sopt, name, val, &setting)) {
+		if (!li_parse_option(srv, wrk, sopt, name, val, &setting)) {
 			return NULL;
 		}
 
@@ -394,7 +394,7 @@ liAction* li_option_action(liServer *srv, const gchar *name, liValue *val) {
 	} else if (NULL != (soptptr = find_optionptr(srv, name))) {
 		liOptionPtrSet setting;
 
-		if (!li_parse_optionptr(srv, soptptr, name, val, &setting)) {
+		if (!li_parse_optionptr(srv, wrk, soptptr, name, val, &setting)) {
 			return NULL;
 		}
 
@@ -405,7 +405,7 @@ liAction* li_option_action(liServer *srv, const gchar *name, liValue *val) {
 	}
 }
 
-liAction* li_create_action(liServer *srv, const gchar *name, liValue *val) {
+liAction* li_create_action(liServer *srv, liWorker *wrk, const gchar *name, liValue *val) {
 	liAction *a;
 	liServerAction *sa;
 
@@ -414,7 +414,7 @@ liAction* li_create_action(liServer *srv, const gchar *name, liValue *val) {
 		return NULL;
 	}
 
-	if (NULL == (a = sa->create_action(srv, sa->p, val, sa->userdata))) {
+	if (NULL == (a = sa->create_action(srv, wrk, sa->p, val, sa->userdata))) {
 		ERROR(srv, "Action '%s' creation failed", name);
 		return NULL;
 	}
@@ -471,7 +471,7 @@ void li_plugins_handle_vrclose(liVRequest *vr) {
 	}
 }
 
-gboolean li_plugin_set_default_option(liServer *srv, const gchar* name, liValue *val) {
+gboolean li_plugin_set_default_option(liServer* srv, const gchar* name, liValue* val) {
 	liServerOption *sopt;
 	liServerOptionPtr *soptptr;
 
@@ -479,7 +479,7 @@ gboolean li_plugin_set_default_option(liServer *srv, const gchar* name, liValue 
 		liOptionSet setting;
 
 		/* assign new value */
-		if (!li_parse_option(srv, sopt, name, val, &setting)) {
+		if (!li_parse_option(srv, srv->main_worker, sopt, name, val, &setting)) {
 			return FALSE;
 		}
 
@@ -488,7 +488,7 @@ gboolean li_plugin_set_default_option(liServer *srv, const gchar* name, liValue 
 		liOptionPtrSet setting;
 
 		/* assign new value */
-		if (!li_parse_optionptr(srv, soptptr, name, val, &setting)) {
+		if (!li_parse_optionptr(srv, srv->main_worker, soptptr, name, val, &setting)) {
 			return FALSE;
 		}
 
@@ -521,7 +521,7 @@ static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt) 
 			return FALSE;
 		}
 	} else {
-		if (!sopt->parse_option(srv, sopt->p, sopt->module_index, NULL, &oval)) {
+		if (!sopt->parse_option(srv, srv->main_worker, sopt->p, sopt->module_index, NULL, &oval)) {
 			/* errors should be logged by parse function */
 			return FALSE;
 		}
@@ -551,7 +551,7 @@ static gboolean plugin_load_default_optionptr(liServer *srv, liServerOptionPtr *
 			ptr = NULL;
 		}
 	} else {
-		if (!sopt->parse_option(srv, sopt->p, sopt->module_index, NULL, &ptr)) {
+		if (!sopt->parse_option(srv, srv->main_worker, sopt->p, sopt->module_index, NULL, &ptr)) {
 			/* errors should be logged by parse function */
 			return FALSE;
 		}
@@ -613,6 +613,21 @@ void li_plugins_prepare(liServer* srv) { /* "prepare", async */
 		p = (liPlugin*) v;
 		if (p->handle_prepare) {
 			p->handle_prepare(srv, p);
+		}
+	}
+}
+
+void li_plugins_worker_stop(liWorker *wrk) { /* blocking callbacks */
+	GHashTableIter iter;
+	liPlugin *p;
+	gpointer v;
+	liServer *srv = wrk->srv;
+
+	g_hash_table_iter_init(&iter, srv->plugins);
+	while (g_hash_table_iter_next(&iter, NULL, &v)) {
+		p = (liPlugin*) v;
+		if (p->handle_worker_stop) {
+			p->handle_worker_stop(srv, p, wrk);
 		}
 	}
 }

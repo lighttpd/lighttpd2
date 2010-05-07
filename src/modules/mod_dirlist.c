@@ -609,13 +609,13 @@ static void dirlist_free(liServer *srv, gpointer param) {
 	g_slice_free(dirlist_data, data);
 }
 
-static liAction* dirlist_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* dirlist_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	dirlist_data *data;
 	guint i;
 	guint j;
 	liValue *v, *tmpval;
 	GString *k;
-	UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata);
 
 	if (val && val->type != LI_VALUE_LIST) {
 		ERROR(srv, "%s", "dirlist expects an optional list of string-value pairs");

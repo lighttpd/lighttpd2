@@ -183,13 +183,14 @@ static void vhost_simple_free(liServer *srv, gpointer param) {
 	g_slice_free(vhost_simple_data, sd);
 }
 
-static liAction* vhost_simple_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* vhost_simple_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	guint i;
 	GArray *arr;
 	liValue *k, *v;
 	vhost_simple_data *sd;
 	GString **setting;
 
+	UNUSED(wrk);
 	UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_LIST) {
@@ -289,12 +290,12 @@ static void vhost_map_free(liServer *srv, gpointer param) {
 	g_slice_free(vhost_map_data, md);
 }
 
-static liAction* vhost_map_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* vhost_map_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	GHashTableIter iter;
 	gpointer k, v;
 	vhost_map_data *md;
 	GString *str;
-	UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_HASH) {
 		ERROR(srv, "%s", "vhost.map expects a hashtable as parameter");
@@ -421,7 +422,7 @@ static void vhost_map_regex_free(liServer *srv, gpointer param) {
 	g_slice_free(vhost_map_regex_data, mrd);
 }
 
-static liAction* vhost_map_regex_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* vhost_map_regex_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	GHashTable *hash;
 	GHashTableIter iter;
 	gpointer k, v;
@@ -430,7 +431,7 @@ static liAction* vhost_map_regex_create(liServer *srv, liPlugin* p, liValue *val
 	GArray *list;
 	guint i;
 	GError *err = NULL;
-	UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_HASH) {
 		ERROR(srv, "%s", "vhost.map_regex expects a hashtable as parameter");
@@ -586,12 +587,12 @@ static void vhost_pattern_free(liServer *srv, gpointer param) {
 	g_slice_free(vhost_pattern_data, pd);
 }
 
-static liAction* vhost_pattern_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* vhost_pattern_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	vhost_pattern_data *pd;
 	GString *str;
 	gchar *c, *c_last;
 	vhost_pattern_part part;
-	UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "vhost.map expects a hashtable as parameter");

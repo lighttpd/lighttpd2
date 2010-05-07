@@ -565,7 +565,7 @@
 		}
 		else {
 			/* normal assignment */
-			a = li_option_action(srv, name->data.string->str, val);
+			a = li_option_action(srv, srv->main_worker, name->data.string->str, val);
 			li_value_free(val);
 
 			if (a == NULL) {
@@ -607,7 +607,7 @@
 				a = g_hash_table_lookup(ctx->action_blocks, name->data.string);
 
 				if (a == NULL) {
-					a = li_create_action(srv, name->data.string->str, NULL);
+					a = li_create_action(srv, srv->main_worker, name->data.string->str, NULL);
 				} else {
 					li_action_acquire(a);
 				}
@@ -750,7 +750,7 @@
 				return FALSE;
 			}
 
-			if (!li_config_lua_load(srv->L, srv, val->data.string->str, &a, TRUE, NULL)) {
+			if (!li_config_lua_load(srv->L, srv, srv->main_worker, val->data.string->str, &a, TRUE, NULL)) {
 				ERROR(srv, "include_lua '%s' failed", val->data.string->str);
 				li_value_free(name);
 				li_value_free(val);
@@ -791,7 +791,7 @@
 			}
 			else {
 				al = g_queue_peek_head(ctx->action_list_stack);
-				a = li_create_action(srv, name->data.string->str, val);
+				a = li_create_action(srv, srv->main_worker, name->data.string->str, val);
 				li_value_free(val);
 
 				if (a == NULL) {
@@ -1355,7 +1355,7 @@ gboolean li_config_parse(liServer *srv, const gchar *config_path) {
 	}
 
 	/* append fallback "static" action */
-	a = li_create_action(srv, "static", NULL);
+	a = li_create_action(srv, srv->main_worker, "static", NULL);
 	g_array_append_val(srv->mainaction->data.list, a);
 
 	g_get_current_time(&end);

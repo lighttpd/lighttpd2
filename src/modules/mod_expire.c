@@ -131,11 +131,11 @@ static void expire_free(liServer *srv, gpointer param) {
 	g_slice_free(expire_rule, param);
 }
 
-static liAction* expire_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* expire_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	expire_rule *rule;
 	gchar *str;
 
-	UNUSED(p); UNUSED(userdata);
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "expire expects a string as parameter");

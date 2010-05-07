@@ -412,9 +412,10 @@ static void al_option_accesslog_free(liServer *srv, liPlugin *p, size_t ndx, gpo
 	li_log_unref(srv, oval);
 }
 
-static gboolean al_option_accesslog_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
+static gboolean al_option_accesslog_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
 	liLog *log;
 
+	UNUSED(wrk);
 	UNUSED(p);
 	UNUSED(ndx);
 
@@ -456,9 +457,10 @@ static void al_option_accesslog_format_free(liServer *srv, liPlugin *p, size_t n
 	g_array_free(arr, TRUE);
 }
 
-static gboolean al_option_accesslog_format_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
+static gboolean al_option_accesslog_format_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
 	GArray *arr;
 
+	UNUSED(wrk);
 	UNUSED(p);
 	UNUSED(ndx);
 

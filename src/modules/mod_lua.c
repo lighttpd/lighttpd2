@@ -104,7 +104,7 @@ static liHandlerResult lua_handle(liVRequest *vr, gpointer param, gpointer *cont
 
 		li_action_release(vr->wrk->srv, wc->act);
 		wc->act = NULL;
-		if (!li_config_lua_load(vr->wrk->L, vr->wrk->srv, conf->filename->str, &wc->act, FALSE, conf->args) || !wc->act) {
+		if (!li_config_lua_load(vr->wrk->L, vr->wrk->srv, vr->wrk, conf->filename->str, &wc->act, FALSE, conf->args) || !wc->act) {
 			VR_ERROR(vr, "lua.handler: couldn't load '%s'", conf->filename->str);
 			return LI_HANDLER_ERROR;
 		}
@@ -163,11 +163,11 @@ static const GString /* lua option names */
 	lon_ttl = { CONST_STR_LEN("ttl"), 0 }
 ;
 
-static liAction* lua_handler_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* lua_handler_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	liValue *v_filename = NULL, *v_options = NULL, *v_args = NULL;
 	lua_config *conf;
 	guint ttl = 0;
-	UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata);
 
 	if (val) {
 		if (val->type == LI_VALUE_STRING) {
@@ -288,13 +288,13 @@ static gboolean lua_plugin_handle_setup(liServer *srv, liPlugin *p, liValue *val
 	return res;
 }
 
-static liAction* lua_plugin_handle_action(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* lua_plugin_handle_action(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	lua_State *L = srv->L;
 	int lua_ref = GPOINTER_TO_INT(userdata);
 	int nargs, errfunc;
 	liAction *res = NULL;
 
-	UNUSED(p);
+	UNUSED(wrk); UNUSED(p);
 
 	li_lua_lock(srv);
 
@@ -453,10 +453,10 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 
 	DEBUG(srv, "Loaded lua plugin '%s'", filename->str);
 
-	li_lua_config_publish_str_hash(srv, L, srv->setups, li_lua_config_handle_server_setup);
+	li_lua_config_publish_str_hash(srv, srv->main_worker, L, srv->setups, li_lua_config_handle_server_setup);
 	lua_setfield(L, LUA_GLOBALSINDEX, "setup");
 
-	li_lua_config_publish_str_hash(srv, L, srv->actions, li_lua_config_handle_server_action);
+	li_lua_config_publish_str_hash(srv, srv->main_worker, L, srv->actions, li_lua_config_handle_server_action);
 	lua_setfield(L, LUA_GLOBALSINDEX, "action");
 
 	li_lua_push_lvalues_dict(srv, L);

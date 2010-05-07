@@ -666,9 +666,9 @@ static const GString
 	don_outputbuffer = { CONST_STR_LEN("output-buffer"), 0 }
 ;
 
-static liAction* deflate_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* deflate_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	deflate_config *conf;
-	UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata);
 
 	if (val && val->type != LI_VALUE_HASH) {
 		ERROR(srv, "%s", "deflate expects an optional hash of options");

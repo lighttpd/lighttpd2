@@ -297,6 +297,9 @@ gboolean li_server_loop_init(liServer *srv) {
 	ev_async_start(srv->loop, &srv->state_ready_watcher);
 	ev_unref(srv->loop); /* don't keep loop alive */
 
+	srv->main_worker = li_worker_new(srv, srv->loop);
+	srv->main_worker->ndx = 0;
+
 	return TRUE;
 }
 
@@ -335,8 +338,7 @@ static gboolean li_server_worker_init(liServer *srv) {
 
 	if (srv->worker_count < 1) srv->worker_count = 1;
 	g_array_set_size(srv->workers, srv->worker_count);
-	srv->main_worker = g_array_index(srv->workers, liWorker*, 0) = li_worker_new(srv, loop);
-	srv->main_worker->ndx = 0;
+	g_array_index(srv->workers, liWorker*, 0) = srv->main_worker;
 	for (i = 1; i < srv->worker_count; i++) {
 		liWorker *wrk;
 		if (NULL == (loop = ev_loop_new(srv->loop_flags))) {

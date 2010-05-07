@@ -769,10 +769,10 @@ static void fastcgi_free(liServer *srv, gpointer param) {
 	fastcgi_context_release(ctx);
 }
 
-static liAction* fastcgi_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* fastcgi_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	fastcgi_context *ctx;
 
-	UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "fastcgi expects a string as parameter");

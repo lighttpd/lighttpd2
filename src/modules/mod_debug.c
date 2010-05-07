@@ -295,8 +295,8 @@ static liHandlerResult debug_show_connections(liVRequest *vr, gpointer param, gp
 	return (*context) ? LI_HANDLER_WAIT_FOR_EVENT : LI_HANDLER_GO_ON;
 }
 
-static liAction* debug_show_connections_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(srv); UNUSED(p); UNUSED(userdata);
+static liAction* debug_show_connections_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(srv); UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
 	if (val) {
 		ERROR(srv, "%s", "debug.show_connections doesn't expect any parameters");

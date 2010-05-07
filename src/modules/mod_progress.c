@@ -188,8 +188,8 @@ static liHandlerResult progress_track(liVRequest *vr, gpointer param, gpointer *
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* progress_track_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(userdata);
+static liAction* progress_track_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(userdata);
 
 	if (val) {
 		ERROR(srv, "%s", "progress.show doesn't expect any parameters");
@@ -385,11 +385,12 @@ static void progress_show_free(liServer *srv, gpointer param) {
 	g_slice_free(mod_progress_show_param, param);
 }
 
-static liAction* progress_show_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* progress_show_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	mod_progress_show_param *psp;
 	mod_progress_format format = PROGRESS_FORMAT_JSON;
 
 	UNUSED(srv);
+	UNUSED(wrk);
 	UNUSED(userdata);
 
 	if (!val) {
@@ -420,9 +421,10 @@ static liAction* progress_show_create(liServer *srv, liPlugin* p, liValue *val, 
 	return li_action_new_function(progress_show, progress_collect_cleanup, progress_show_free, psp);
 }
 
-static gboolean progress_methods_parse(liServer *srv, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
+static gboolean progress_methods_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
 	GArray *arr;
 	guint methods = 0;
+	UNUSED(wrk);
 	UNUSED(p);
 	UNUSED(ndx);
 

@@ -305,9 +305,9 @@ static void cache_etag_free(liServer *srv, gpointer param) {
 	g_slice_free(cache_etag_context, ctx);
 }
 
-static liAction* cache_etag_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* cache_etag_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	cache_etag_context *ctx;
-	UNUSED(p); UNUSED(userdata);
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "cache.disk.etag expects a string as parameter");

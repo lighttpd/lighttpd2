@@ -114,7 +114,7 @@ static void access_check_free(liServer *srv, gpointer param) {
 	g_slice_free(access_check_data, acd);
 }
 
-static liAction* access_check_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* access_check_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	GArray *arr;
 	liValue *v, *ip;
 	guint i, j;
@@ -123,6 +123,7 @@ static liAction* access_check_create(liServer *srv, liPlugin* p, liValue *val, g
 	access_check_data *acd = NULL;
 
 	UNUSED(srv);
+	UNUSED(wrk);
 	UNUSED(userdata);
 
 	if (!val || val->type != LI_VALUE_LIST || (val->data.list->len != 1 && val->data.list->len != 2)) {
@@ -227,8 +228,8 @@ static liHandlerResult access_deny(liVRequest *vr, gpointer param, gpointer *con
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* access_deny_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(srv); UNUSED(userdata);
+static liAction* access_deny_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(srv); UNUSED(wrk); UNUSED(userdata);
 
 	if (val) {
 		ERROR(srv, "%s", "access.deny doesn't expect any parameters");

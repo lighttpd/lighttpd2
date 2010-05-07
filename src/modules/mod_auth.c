@@ -447,18 +447,18 @@ static liAction* auth_generic_create(liServer *srv, liPlugin* p, liValue *val, c
 }
 
 
-static liAction* auth_plain_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(userdata);
+static liAction* auth_plain_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(userdata);
 	return auth_generic_create(srv, p, val, "auth.plain", auth_backend_plain, FALSE);
 }
 
-static liAction* auth_htpasswd_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(userdata);
+static liAction* auth_htpasswd_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(userdata);
 	return auth_generic_create(srv, p, val, "auth.htpasswd", auth_backend_htpasswd, FALSE);
 }
 
-static liAction* auth_htdigest_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(userdata);
+static liAction* auth_htdigest_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(userdata);
 	return auth_generic_create(srv, p, val, "auth.htdigest", auth_backend_htdigest, TRUE);
 }
 
@@ -486,8 +486,9 @@ static liHandlerResult auth_handle_deny(liVRequest *vr, gpointer param, gpointer
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* auth_deny(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* auth_deny(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(srv);
+	UNUSED(wrk);
 	UNUSED(p);
 	UNUSED(userdata);
 

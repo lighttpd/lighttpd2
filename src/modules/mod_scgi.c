@@ -524,9 +524,9 @@ static void scgi_free(liServer *srv, gpointer param) {
 	scgi_context_release(ctx);
 }
 
-static liAction* scgi_create(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* scgi_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	scgi_context *ctx;
-	UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata);
 
 	if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "scgi expects a string as parameter");
