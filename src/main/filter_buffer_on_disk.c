@@ -32,6 +32,8 @@ static gboolean bod_open(liVRequest *vr, bod_state *state) {
 		state->tempfile = li_chunkfile_new(tmpfilename, fd, TRUE);
 		state->write_pos = 0;
 		state->flush_pos = 0;
+
+		g_string_free(tmpfilename, TRUE);
 	}
 
 	return TRUE;

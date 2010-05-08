@@ -106,6 +106,7 @@ void li_server_plugins_free(liServer *srv) {
 	}
 	g_hash_table_destroy(srv->plugins);
 	g_hash_table_destroy(srv->options);
+	g_hash_table_destroy(srv->optionptrs);
 	g_hash_table_destroy(srv->actions);
 	g_hash_table_destroy(srv->setups);
 }
