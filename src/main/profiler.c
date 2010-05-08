@@ -1,121 +1,123 @@
 
 /*
  * lighty memory profiler
- * counts how many times malloc/realloc/free have been called and the amounts of bytes allocated/freed
- * TODO: move hashtable to utils.c, optimize hashtable? implementation is very basic
+ * prints a backtrace for every object not free()d at exit()
+ *
  */
 
 
 #include <lighttpd/base.h>
 #include <lighttpd/profiler.h>
+#include <execinfo.h>
+#if defined(LIGHTY_OS_MACOSX)
+	#include <malloc/malloc.h>
+#elif defined(LIGHTY_OS_LINUX)
+	#include <malloc.h>
+#endif
 
-#define PROFILER_HASHTABLE_SIZE 1024
+#define PROFILER_HASHTABLE_SIZE 65521
 
 
-typedef struct profiler_entry profiler_entry;
-struct profiler_entry {
+typedef struct profiler_block profiler_block;
+struct profiler_block {
 	gpointer addr;
-	gsize len;
-	profiler_entry *next;
+	gsize size;
+	profiler_block *next;
+	void *stackframes[12];
+	gint stackframes_num;
 };
 
-static liProfilerMem stats_mem = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-static GMutex *profiler_mutex = NULL;
-static gboolean profiler_enabled = FALSE;
-static profiler_entry *free_list = NULL;
+
+static void profiler_free(gpointer addr);
+
+static GStaticMutex profiler_mutex = G_STATIC_MUTEX_INIT;
+static profiler_block *block_free_list = NULL;
+static profiler_block **profiler_hashtable;
 
 
-static struct {
-	profiler_entry **nodes;
-} profiler_hashtable;
-
-static void profiler_hashtable_init() {
-	profiler_hashtable.nodes = calloc(1, sizeof(profiler_entry*) * PROFILER_HASHTABLE_SIZE);
+static guint profiler_hash(gpointer addr) {
+	return ((guintptr)addr * 2654435761); /* ~ golden ratio of 2^32 */
 }
 
-static guint profiler_hash_addr(gpointer addr) {
-	guint h = (gsize) addr;
-	h = (h >> 3) * 2654435761; /* ~ golden ratio of 2^32, shift 3 because of 8 byte boundary alignment (use 2 for 4 byte boundary) */
-	/* printf("hashing addr 0x%zx: %u ([%u])\n", (gsize)addr, h, h % PROFILER_HASHTABLE_SIZE); */
-	return h % PROFILER_HASHTABLE_SIZE;
+static profiler_block *profiler_block_new() {
+	profiler_block *block;
+
+	if (!block_free_list) {
+		/* page_free_list exhausted */
+		block = malloc(sizeof(profiler_block));
+	} else {
+		block = block_free_list;
+		block_free_list = block_free_list->next;
+	}
+
+	block->addr = NULL;
+	block->size = 0;
+	block->next = NULL;
+	block->stackframes_num = 0;
+
+	return block;
 }
 
-static profiler_entry *profiler_hashtable_find(gpointer addr) {
-	guint h = profiler_hash_addr(addr);
-
-	for (profiler_entry *e = profiler_hashtable.nodes[h]; e != NULL; e = e->next) {
-		if (e->addr == addr)
-			return e;
-	}
-	assert(NULL);
-	return NULL;
+static void profiler_block_free(profiler_block *block) {
+	/* push onto free list */
+	block->next = block_free_list;
+	block_free_list = block;
 }
 
-static void profiler_hashtable_insert(gpointer addr, gsize len) {
-	profiler_entry *e = free_list;
-	guint h;
+static void profiler_hashtable_insert(gpointer addr, gsize size) {
+	profiler_block *block;
+	guint hash;
 
-	free_list = free_list->next ? free_list->next : calloc(1, sizeof(profiler_entry));
+	hash = profiler_hash(addr);
 
-	e->addr = addr;
-	e->len = len;
-	e->next = NULL;
+	block = profiler_block_new();
+	block->addr = addr;
+	block->size = size;
+	block->stackframes_num = backtrace(block->stackframes, 12);
 
-	h = profiler_hash_addr(addr);
-
-	if (profiler_hashtable.nodes[h] == NULL) {
-		profiler_hashtable.nodes[h] = e;
-		return;
-	}
-
-	for (profiler_entry *ec = profiler_hashtable.nodes[h];; ec = ec->next) {
-		if (ec->next == NULL) {
-			ec->next = e;
-			return;
-		}
-	}
+	block->next = profiler_hashtable[hash % PROFILER_HASHTABLE_SIZE];
+	profiler_hashtable[hash % PROFILER_HASHTABLE_SIZE] = block;
 }
 
 static void profiler_hashtable_remove(gpointer addr) {
-	guint h = profiler_hash_addr(addr);
-	profiler_entry *prev = profiler_hashtable.nodes[h];
+	profiler_block *block, *block_prev;
+	guint hash;
 
-	if (!prev)
-		return;
+	hash = profiler_hash(addr);
 
-	if (prev->addr == addr) {
-		if (prev->next)
-			profiler_hashtable.nodes[h] = prev->next;
-		else
-			profiler_hashtable.nodes[h] = NULL;
-		free(prev);
+	block = profiler_hashtable[hash % PROFILER_HASHTABLE_SIZE];
+
+	if (block->addr == addr) {
+		profiler_hashtable[hash % PROFILER_HASHTABLE_SIZE] = block->next;
+		profiler_block_free(block);
 		return;
 	}
 
-	for (profiler_entry *e = prev->next; e != NULL; e = e->next) {
-		if (e->addr == addr) {
-			prev->next = e->next;
-			e->next = free_list;
-			free_list = e;
+	block_prev = block;
+	for (block = block->next; block != NULL; block = block->next) {
+		if (block->addr == addr) {
+			block_prev->next = block->next;
+			profiler_block_free(block);
 			return;
 		}
-		prev = e;
+		block_prev = block;
 	}
 }
 
 static gpointer profiler_try_malloc(gsize n_bytes) {
-	/* we alloc sizeof(gsize) bytes more to hold n_bytes */
 	gsize *p;
 
 	p = malloc(n_bytes);
 
 	if (p) {
-		g_mutex_lock(profiler_mutex);
+		g_static_mutex_lock(&profiler_mutex);
+		#if defined(LIGHTY_OS_MACOSX)
+		n_bytes = malloc_size(p);
+		#elif defined(LIGHTY_OS_LINUX)
+		n_bytes = malloc_usable_size(p);
+		#endif
 		profiler_hashtable_insert(p, n_bytes);
-		stats_mem.alloc_times++;
-		stats_mem.alloc_bytes += n_bytes;
-		stats_mem.inuse_bytes += n_bytes;
-		g_mutex_unlock(profiler_mutex);
+		g_static_mutex_unlock(&profiler_mutex);
 	}
 
 	return p;
@@ -130,35 +132,30 @@ static gpointer profiler_malloc(gsize n_bytes) {
 }
 
 static gpointer profiler_try_realloc(gpointer mem, gsize n_bytes) {
-	gsize l;
-	gsize *p = mem;
+	gsize *p;
 
-	if (!mem) {
-		p = malloc(n_bytes);
-		g_mutex_lock(profiler_mutex);
-		stats_mem.alloc_times++;
-		g_mutex_unlock(profiler_mutex);
-		l = 0;
-	}
-	else {
-		profiler_entry *e;
+	if (!mem)
+		return profiler_try_malloc(n_bytes);
 
-		p = realloc(p, n_bytes);
-		g_mutex_lock(profiler_mutex);
-		e = profiler_hashtable_find(mem);
-		l = e->len;
-		profiler_hashtable_remove(mem);
-		g_mutex_unlock(profiler_mutex);
+	if (!n_bytes) {
+		profiler_free(mem);
+		return NULL;
 	}
+
+	p = realloc(mem, n_bytes);
+	g_static_mutex_lock(&profiler_mutex);
+	profiler_hashtable_remove(mem);
 
 	if (p) {
-		g_mutex_lock(profiler_mutex);
+		#if defined(LIGHTY_OS_MACOSX)
+		n_bytes = malloc_size(p);
+		#elif defined(LIGHTY_OS_LINUX)
+		n_bytes = malloc_usable_size(p);
+		#endif
 		profiler_hashtable_insert(p, n_bytes);
-		stats_mem.realloc_times++;
-		stats_mem.realloc_bytes += n_bytes;
-		stats_mem.inuse_bytes += n_bytes - l;
-		g_mutex_unlock(profiler_mutex);
 	}
+
+	g_static_mutex_unlock(&profiler_mutex);
 
 	return p;
 }
@@ -172,20 +169,20 @@ static gpointer profiler_realloc(gpointer mem, gsize n_bytes) {
 }
 
 static gpointer profiler_calloc(gsize n_blocks, gsize n_bytes) {
-	/* we alloc sizeof(gsize) bytes more to hold n_blocks*n_bytes */
 	gsize *p;
+	gsize size = n_blocks * n_bytes;
 
-	gsize l = n_blocks * n_bytes;
-
-	p = calloc(1, l);
+	p = calloc(1, size);
 
 	if (p) {
-		g_mutex_lock(profiler_mutex);
-		profiler_hashtable_insert(p, l);
-		stats_mem.calloc_times++;
-		stats_mem.calloc_bytes += l;
-		stats_mem.inuse_bytes += l;
-		g_mutex_unlock(profiler_mutex);
+		g_static_mutex_lock(&profiler_mutex);
+		#if defined(LIGHTY_OS_MACOSX)
+		n_bytes = malloc_size(p);
+		#elif defined(LIGHTY_OS_LINUX)
+		n_bytes = malloc_usable_size(p);
+		#endif
+		profiler_hashtable_insert(p, n_bytes);
+		g_static_mutex_unlock(&profiler_mutex);
 	}
 
 	assert(p);
@@ -194,40 +191,21 @@ static gpointer profiler_calloc(gsize n_blocks, gsize n_bytes) {
 }
 
 static void profiler_free(gpointer mem) {
-	gsize *p = mem;
-	profiler_entry *e;
+	assert(mem);
 
-	assert(p);
-	g_mutex_lock(profiler_mutex);
-	e = profiler_hashtable_find(mem);
-	stats_mem.free_times++;
-	stats_mem.free_bytes += e->len;
-	stats_mem.inuse_bytes -= e->len;
+	g_static_mutex_lock(&profiler_mutex);
 	profiler_hashtable_remove(mem);
-	g_mutex_unlock(profiler_mutex);
-	g_mutex_free(profiler_mutex);
-	free(p);
+	g_static_mutex_unlock(&profiler_mutex);
+
+	free(mem);
 }
 
 /* public functions */
 void li_profiler_enable() {
 	GMemVTable t;
 
-	if (profiler_enabled)
-		return;
-
-	profiler_mutex = g_mutex_new();
-
-	profiler_enabled = TRUE;
-
-	profiler_hashtable_init();
-	/* prealloc 50 hashtable entries */
-	free_list = calloc(1, sizeof(profiler_entry));
-	for (guint i = 0; i < 49; i++) {
-		profiler_entry *e = calloc(1, sizeof(profiler_entry));
-		e->next = free_list;
-		free_list = e;
-	}
+	block_free_list = profiler_block_new();
+	profiler_hashtable = calloc(sizeof(profiler_block), PROFILER_HASHTABLE_SIZE);
 
 	t.malloc = profiler_malloc;
 	t.realloc = profiler_realloc;
@@ -241,37 +219,62 @@ void li_profiler_enable() {
 }
 
 void li_profiler_finish() {
-	for (profiler_entry *e = free_list; e != NULL;) {
-		profiler_entry *prev = e;
-		e = e->next;
-		free(prev);
+	guint i;
+	profiler_block *block, *block_tmp;
+
+	for (i = 0; i < PROFILER_HASHTABLE_SIZE; i++) {
+		for (block = profiler_hashtable[i]; block != NULL;) {
+			block_tmp = block->next;
+			free(block);
+			block = block_tmp;
+		}
 	}
+
+	for (block = block_free_list; block != NULL;) {
+		block_tmp = block->next;
+		free(block);
+		block = block_tmp;
+	}
+
+	free(profiler_hashtable);
 }
 
 void li_profiler_dump() {
-	liProfilerMem s;
+	profiler_block *block;
+	guint i;
+	gchar str[1024];
+	gsize leaked_size = 0;
+	guint leaked_num = 0;
 
-	if (!profiler_enabled)
-		return;
+	g_static_mutex_lock(&profiler_mutex);
 
-	g_mutex_lock(profiler_mutex);
-	s = stats_mem;
-	g_mutex_unlock(profiler_mutex);
+	for (i = 0; i < PROFILER_HASHTABLE_SIZE; i++) {
+		for (block = profiler_hashtable[i]; block != NULL; block = block->next) {
+			leaked_num++;
+			leaked_size += block->size;
+			sprintf(str, "--------------- unfreed block of %"G_GSIZE_FORMAT" bytes @ %p ---------------\n", block->size, block->addr);
+			fputs(str, stdout);
+			fflush(stdout);
+			backtrace_symbols_fd(block->stackframes, block->stackframes_num, STDOUT_FILENO);
+			fflush(stdout);
+		}
+	}
 
-	g_print("--- memory profiler stats ---\n");
-	g_print("malloc(): called %" G_GUINT64_FORMAT " times, %" G_GUINT64_FORMAT " bytes total\n", s.alloc_times, s.alloc_bytes);
-	g_print("calloc(): called %" G_GUINT64_FORMAT " times, %" G_GUINT64_FORMAT " bytes total\n", s.calloc_times, s.calloc_bytes);
-	g_print("realloc(): called %" G_GUINT64_FORMAT " times, %" G_GUINT64_FORMAT " bytes total\n", s.realloc_times, s.realloc_bytes);
-	g_print("free(): called %" G_GUINT64_FORMAT " times, %" G_GUINT64_FORMAT " bytes total\n", s.free_times, s.free_bytes);
-	g_print("memory remaining: %" G_GUINT64_FORMAT " bytes, %" G_GUINT64_FORMAT " calls to free()\n", s.inuse_bytes, s.alloc_times + s.calloc_times - s.free_times);
+	sprintf(str,
+		"--------------- memory profiler stats ---------------\n"
+		"leaked objects:\t\t%u\n"
+		"leaked bytes:\t\t%"G_GSIZE_FORMAT" %s\n",
+		leaked_num,
+		(leaked_size > 1024) ? leaked_size / 1024 : leaked_size,
+		(leaked_size > 1024) ? "kilobytes" : "bytes"
+	);
+	fputs(str, stdout);
+	fflush(stdout);
+
+	g_static_mutex_unlock(&profiler_mutex);
+
 }
 
 void li_profiler_dump_table() {
-	for (guint i = 0; i < PROFILER_HASHTABLE_SIZE; i++) {
-		guint n = 1;
-		for (profiler_entry *e = profiler_hashtable.nodes[i]; e; e = e->next) {
-			g_print("profiler entry #%u/%u: addr 0x%zx, size %zu bytes\n", i+1, n, (gsize)e->addr, e->len);
-			n++;
-		}
-	}
+
 }
