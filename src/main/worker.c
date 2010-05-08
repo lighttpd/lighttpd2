@@ -210,11 +210,21 @@ GString *li_worker_current_timestamp(liWorker *wrk, liTimeFunc timefunc, guint f
 	struct tm tm;
 	liWorkerTS *wts;
 	time_t now = (time_t)CUR_TS(wrk);
+	GArray *a;
 
-	if (timefunc == LI_GMTIME)
-		wts = &g_array_index(wrk->timestamps_gmt, liWorkerTS, format_ndx);
-	else
-		wts = &g_array_index(wrk->timestamps_local, liWorkerTS, format_ndx);
+	if (timefunc == LI_GMTIME) {
+		a = wrk->timestamps_gmt;
+	} else {
+		a = wrk->timestamps_local;
+	}
+
+	if (format_ndx >= a->len) {
+		g_array_set_size(a, format_ndx);
+	}
+
+	wts = &g_array_index(a, liWorkerTS, format_ndx);
+
+	if (!wts->str) wts->str = g_string_sized_new(255);
 
 	/* cache hit */
 	if (now == wts->last_generated)
