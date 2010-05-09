@@ -9,7 +9,11 @@
 #include <lighttpd/base.h>
 #include <lighttpd/profiler.h>
 #include <fcntl.h>
+
+#ifdef HAVE_EXECINFO_H
 #include <execinfo.h>
+#endif
+
 #if defined(LIGHTY_OS_MACOSX)
 	#include <malloc/malloc.h>
 #elif defined(LIGHTY_OS_LINUX)
@@ -75,7 +79,9 @@ static void profiler_hashtable_insert(gpointer addr, gsize size) {
 	block = profiler_block_new();
 	block->addr = addr;
 	block->size = size;
+	#ifdef HAVE_EXECINFO_H
 	block->stackframes_num = backtrace(block->stackframes, 12);
+	#endif
 
 	block->next = profiler_hashtable[hash % PROFILER_HASHTABLE_SIZE];
 	profiler_hashtable[hash % PROFILER_HASHTABLE_SIZE] = block;
@@ -289,7 +295,9 @@ void li_profiler_dump() {
 			leaked_size += block->size;
 			len = sprintf(str, "--------------- unfreed block of %"G_GSIZE_FORMAT" bytes @ %p ---------------\n", block->size, block->addr);
 			profiler_write(str, len);
+			#ifdef HAVE_EXECINFO_H
 			backtrace_symbols_fd(block->stackframes, block->stackframes_num, profiler_output_fd);
+			#endif
 		}
 	}
 

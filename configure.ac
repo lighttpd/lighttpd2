@@ -35,6 +35,7 @@ AC_CHECK_HEADERS([ \
 	sys/types.h \
 	sys/uio.h \
 	sys/un.h \
+	execinfo.h \
 ])
 
 # pkglibdir

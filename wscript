@@ -154,6 +154,7 @@ def configure(conf):
 	conf.check(header_name='sys/resource.h')
 	conf.check(header_name='sys/sendfile.h')
 	conf.check(header_name='sys/un.h')
+	conf.check(header_name='execinfo.h')
 	
 	# check for available functions
 	if sys.platform == 'linux2':
