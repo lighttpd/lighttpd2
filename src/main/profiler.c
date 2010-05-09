@@ -8,6 +8,7 @@
 
 #include <lighttpd/base.h>
 #include <lighttpd/profiler.h>
+#include <fcntl.h>
 #include <execinfo.h>
 #if defined(LIGHTY_OS_MACOSX)
 	#include <malloc/malloc.h>
@@ -32,7 +33,8 @@ static void profiler_free(gpointer addr);
 
 static GStaticMutex profiler_mutex = G_STATIC_MUTEX_INIT;
 static profiler_block *block_free_list = NULL;
-static profiler_block **profiler_hashtable;
+static profiler_block **profiler_hashtable = NULL;
+static gint profiler_output_fd = 0;
 
 
 static guint profiler_hash(gpointer addr) {
@@ -143,19 +145,18 @@ static gpointer profiler_try_realloc(gpointer mem, gsize n_bytes) {
 	}
 
 	p = realloc(mem, n_bytes);
-	g_static_mutex_lock(&profiler_mutex);
-	profiler_hashtable_remove(mem);
 
 	if (p) {
+		g_static_mutex_lock(&profiler_mutex);
+		profiler_hashtable_remove(mem);
 		#if defined(LIGHTY_OS_MACOSX)
 		n_bytes = malloc_size(p);
 		#elif defined(LIGHTY_OS_LINUX)
 		n_bytes = malloc_usable_size(p);
 		#endif
 		profiler_hashtable_insert(p, n_bytes);
+		g_static_mutex_unlock(&profiler_mutex);
 	}
-
-	g_static_mutex_unlock(&profiler_mutex);
 
 	return p;
 }
@@ -200,9 +201,39 @@ static void profiler_free(gpointer mem) {
 	free(mem);
 }
 
+static void profiler_write(gchar *str, gint len) {
+	gint res;
+	gint written = 0;
+
+	while (len) {
+		res = write(profiler_output_fd, str + written, len);
+		if (-1 == res) {
+			fputs("error writing to profiler output file\n", stderr);
+			fflush(stderr);
+			exit(1);
+		}
+
+		written += res;
+		len -= res;
+	}
+}
+
 /* public functions */
-void li_profiler_enable() {
+void li_profiler_enable(gchar *output_path) {
 	GMemVTable t;
+
+	if (g_str_equal(output_path, "stdout")) {
+		profiler_output_fd = STDOUT_FILENO;
+	} else if (g_str_equal(output_path, "stderr")) {
+		profiler_output_fd = STDERR_FILENO;
+	} else {
+		profiler_output_fd = open(output_path, O_WRONLY | O_CREAT | O_TRUNC);
+		if (-1 == profiler_output_fd) {
+			fputs("error opening profiler output file\n", stderr);
+			fflush(stderr);
+			exit(1);
+		}
+	}
 
 	block_free_list = profiler_block_new();
 	profiler_hashtable = calloc(sizeof(profiler_block), PROFILER_HASHTABLE_SIZE);
@@ -242,25 +273,27 @@ void li_profiler_finish() {
 void li_profiler_dump() {
 	profiler_block *block;
 	guint i;
+	gint len;
 	gchar str[1024];
 	gsize leaked_size = 0;
 	guint leaked_num = 0;
 
 	g_static_mutex_lock(&profiler_mutex);
 
+	len = sprintf(str, "--------------- memory profiler dump @ %ju ---------------\n", time(NULL));
+	profiler_write(str, len);
+
 	for (i = 0; i < PROFILER_HASHTABLE_SIZE; i++) {
 		for (block = profiler_hashtable[i]; block != NULL; block = block->next) {
 			leaked_num++;
 			leaked_size += block->size;
-			sprintf(str, "--------------- unfreed block of %"G_GSIZE_FORMAT" bytes @ %p ---------------\n", block->size, block->addr);
-			fputs(str, stdout);
-			fflush(stdout);
-			backtrace_symbols_fd(block->stackframes, block->stackframes_num, STDOUT_FILENO);
-			fflush(stdout);
+			len = sprintf(str, "--------------- unfreed block of %"G_GSIZE_FORMAT" bytes @ %p ---------------\n", block->size, block->addr);
+			profiler_write(str, len);
+			backtrace_symbols_fd(block->stackframes, block->stackframes_num, profiler_output_fd);
 		}
 	}
 
-	sprintf(str,
+	len = sprintf(str,
 		"--------------- memory profiler stats ---------------\n"
 		"leaked objects:\t\t%u\n"
 		"leaked bytes:\t\t%"G_GSIZE_FORMAT" %s\n",
@@ -268,8 +301,10 @@ void li_profiler_dump() {
 		(leaked_size > 1024) ? leaked_size / 1024 : leaked_size,
 		(leaked_size > 1024) ? "kilobytes" : "bytes"
 	);
-	fputs(str, stdout);
-	fflush(stdout);
+	profiler_write(str, len);
+
+	len = sprintf(str, "--------------- memory profiler dump end ---------------\n");
+	profiler_write(str, len);
 
 	g_static_mutex_unlock(&profiler_mutex);
 

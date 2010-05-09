@@ -46,9 +46,9 @@ int main(int argc, char *argv[]) {
 
 	/* check for environment variable LIGHTY_PROFILE_MEM */
 	gchar *profile_mem = getenv("LIGHTY_PROFILE_MEM");
-	if (profile_mem != NULL && g_str_equal(profile_mem, "true")) {
+	if (profile_mem) {
 		/*g_mem_set_vtable(glib_mem_profiler_table);*/
-		li_profiler_enable();
+		li_profiler_enable(profile_mem);
 		atexit(li_profiler_finish);
 		atexit(li_profiler_dump);
 		/*atexit(profiler_dump_table);*/
