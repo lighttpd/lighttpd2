@@ -154,8 +154,12 @@ def configure(conf):
 	conf.check(header_name='sys/resource.h')
 	conf.check(header_name='sys/sendfile.h')
 	conf.check(header_name='sys/un.h')
-	conf.check(header_name='execinfo.h')
-	
+
+	if sys.platform.startswith('freebsd'):
+		conf.check(lib='execinfo', uselib_store='execinfo', define_name="HAVE_EXECINFO_H")
+	else:
+		conf.check(header_name='execinfo.h', define_name="HAVE_EXECINFO_H")
+
 	# check for available functions
 	if sys.platform == 'linux2':
 		conf.check(function_name='sendfile', header_name='sys/sendfile.h', define_name='HAVE_SENDFILE')

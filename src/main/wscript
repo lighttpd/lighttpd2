@@ -16,6 +16,8 @@ def configure(conf):
 
 def build(bld):
 	libs = ['glib', 'gthread', 'gmodule', 'ev']
+	if sys.platform.startswith('freebsd'):
+		libs += ['execinfo']
 
 	source = '''
 		actions.c
