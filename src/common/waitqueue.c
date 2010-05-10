@@ -22,6 +22,8 @@ void li_waitqueue_set_delay(liWaitQueue *queue, gdouble delay) {
 	} else {
 		ev_timer_set(&queue->timer, delay, delay);
 	}
+
+	queue->delay = delay;
 }
 
 void li_waitqueue_update(liWaitQueue *queue) {
