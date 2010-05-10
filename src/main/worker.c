@@ -548,6 +548,10 @@ void li_worker_free(liWorker *wrk) {
 }
 
 void li_worker_run(liWorker *wrk) {
+	/* update and start io timeout queue since first worker is allocated before srv->io_timeout is set */
+	li_waitqueue_set_delay(&wrk->io_timeout_queue, wrk->srv->io_timeout);
+	li_waitqueue_update(&wrk->io_timeout_queue);
+
 	ev_loop(wrk->loop, 0);
 }
 
