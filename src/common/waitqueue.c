@@ -14,6 +14,16 @@ void li_waitqueue_stop(liWaitQueue *queue) {
 	ev_timer_stop(queue->loop, &queue->timer);
 }
 
+void li_waitqueue_set_delay(liWaitQueue *queue, gdouble delay) {
+	if (ev_is_active(&queue->timer)) {
+		ev_timer_stop(queue->loop, &queue->timer);
+		ev_timer_set(&queue->timer, delay, delay);
+		ev_timer_start(queue->loop, &queue->timer);
+	} else {
+		ev_timer_set(&queue->timer, delay, delay);
+	}
+}
+
 void li_waitqueue_update(liWaitQueue *queue) {
 	ev_tstamp repeat;
 	ev_tstamp now = ev_now(queue->loop);
