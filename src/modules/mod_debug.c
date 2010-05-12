@@ -13,6 +13,8 @@
  *         - shows a page similar to the one from mod_status, listing all active connections
  *         - by specifying one or more "connection ids" via querystring (parameter "con"),
  *           one can request additional debug output for specific connections
+ *     debug.profiler_dump;
+ *         - dumps all allocated memory to the profiler output file if profiling enabled (LIGHTY_PROFILE_MEM=profiler.log)
  *
  * Example config:
  *     if req.path == "/debug/connections" { debug.show_connections; }
@@ -32,6 +34,7 @@
  */
 
 #include <lighttpd/base.h>
+#include <lighttpd/profiler.h>
 
 LI_API gboolean mod_debug_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_debug_free(liModules *mods, liModule *mod);
@@ -296,7 +299,7 @@ static liHandlerResult debug_show_connections(liVRequest *vr, gpointer param, gp
 }
 
 static liAction* debug_show_connections_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(srv); UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata);
 
 	if (val) {
 		ERROR(srv, "%s", "debug.show_connections doesn't expect any parameters");
@@ -306,6 +309,28 @@ static liAction* debug_show_connections_create(liServer *srv, liWorker *wrk, liP
 	return li_action_new_function(debug_show_connections, debug_show_connections_cleanup, NULL, p);
 }
 
+static liHandlerResult debug_profiler_dump(liVRequest *vr, gpointer param, gpointer *context) {
+	UNUSED(vr); UNUSED(param); UNUSED(context);
+
+	if (!getenv("LIGHTY_PROFILE_MEM"))
+		return LI_HANDLER_GO_ON;
+
+	li_profiler_dump();
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* debug_profiler_dump_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(userdata);
+
+	if (val) {
+		ERROR(srv, "%s", "debug.profiler_dump doesn't expect any parameters");
+		return NULL;
+	}
+
+	return li_action_new_function(debug_profiler_dump, NULL, NULL, p);
+}
+
 
 static const liPluginOption options[] = {
 	{ NULL, 0, 0, NULL }
@@ -313,6 +338,7 @@ static const liPluginOption options[] = {
 
 static const liPluginAction actions[] = {
 	{ "debug.show_connections", debug_show_connections_create, NULL },
+	{ "debug.profiler_dump", debug_profiler_dump_create, NULL },
 
 	{ NULL, NULL, NULL }
 };
