@@ -11,13 +11,13 @@
 #include <fcntl.h>
 
 #ifdef HAVE_EXECINFO_H
-#include <execinfo.h>
+# include <execinfo.h>
 #endif
 
 #if defined(LIGHTY_OS_MACOSX)
-	#include <malloc/malloc.h>
+# include <malloc/malloc.h>
 #elif defined(LIGHTY_OS_LINUX)
-	#include <malloc.h>
+# include <malloc.h>
 #endif
 
 #define PROFILER_HASHTABLE_SIZE 65521
@@ -79,9 +79,9 @@ static void profiler_hashtable_insert(gpointer addr, gsize size) {
 	block = profiler_block_new();
 	block->addr = addr;
 	block->size = size;
-	#ifdef HAVE_EXECINFO_H
+#ifdef HAVE_EXECINFO_H
 	block->stackframes_num = backtrace(block->stackframes, 12);
-	#endif
+#endif
 
 	block->next = profiler_hashtable[hash % PROFILER_HASHTABLE_SIZE];
 	profiler_hashtable[hash % PROFILER_HASHTABLE_SIZE] = block;
@@ -119,11 +119,11 @@ static gpointer profiler_try_malloc(gsize n_bytes) {
 
 	if (p) {
 		g_static_mutex_lock(&profiler_mutex);
-		#if defined(LIGHTY_OS_MACOSX)
+#if defined(LIGHTY_OS_MACOSX)
 		n_bytes = malloc_size(p);
-		#elif defined(LIGHTY_OS_LINUX)
+#elif defined(LIGHTY_OS_LINUX)
 		n_bytes = malloc_usable_size(p);
-		#endif
+#endif
 		profiler_hashtable_insert(p, n_bytes);
 		g_static_mutex_unlock(&profiler_mutex);
 	}
@@ -155,11 +155,11 @@ static gpointer profiler_try_realloc(gpointer mem, gsize n_bytes) {
 	if (p) {
 		g_static_mutex_lock(&profiler_mutex);
 		profiler_hashtable_remove(mem);
-		#if defined(LIGHTY_OS_MACOSX)
+#if defined(LIGHTY_OS_MACOSX)
 		n_bytes = malloc_size(p);
-		#elif defined(LIGHTY_OS_LINUX)
+#elif defined(LIGHTY_OS_LINUX)
 		n_bytes = malloc_usable_size(p);
-		#endif
+#endif
 		profiler_hashtable_insert(p, n_bytes);
 		g_static_mutex_unlock(&profiler_mutex);
 	}
@@ -183,11 +183,11 @@ static gpointer profiler_calloc(gsize n_blocks, gsize n_bytes) {
 
 	if (p) {
 		g_static_mutex_lock(&profiler_mutex);
-		#if defined(LIGHTY_OS_MACOSX)
+#if defined(LIGHTY_OS_MACOSX)
 		n_bytes = malloc_size(p);
-		#elif defined(LIGHTY_OS_LINUX)
+#elif defined(LIGHTY_OS_LINUX)
 		n_bytes = malloc_usable_size(p);
-		#endif
+#endif
 		profiler_hashtable_insert(p, n_bytes);
 		g_static_mutex_unlock(&profiler_mutex);
 	}
@@ -295,9 +295,9 @@ void li_profiler_dump() {
 			leaked_size += block->size;
 			len = sprintf(str, "--------------- unfreed block of %"G_GSIZE_FORMAT" bytes @ %p ---------------\n", block->size, block->addr);
 			profiler_write(str, len);
-			#ifdef HAVE_EXECINFO_H
+#ifdef HAVE_EXECINFO_H
 			backtrace_symbols_fd(block->stackframes, block->stackframes_num, profiler_output_fd);
-			#endif
+#endif
 		}
 	}
 

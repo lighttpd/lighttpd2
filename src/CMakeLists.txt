@@ -25,6 +25,7 @@ OPTION(BUILD_STATIC "build a static lighttpd with all modules added")
 OPTION(BUILD_EXTRA_WARNINGS "extra warnings")
 OPTION(WITH_BZIP "with bzip2-support for mod_deflate")
 OPTION(WITH_ZLIB "with deflate-support for mod_deflate")
+OPTION(WITH_PROFILER "with memory profiler")
 OPTION(BUILD_UNIT_TESTS "build unit tests for testing")
 
 IF(BUILD_STATIC)
@@ -130,6 +131,10 @@ IF(WITH_ZLIB)
   ENDIF(HAVE_ZLIB_H AND HAVE_LIBZ)
 ENDIF(WITH_ZLIB)
 
+IF(WITH_PROFILER)
+  CHECK_INCLUDE_FILES(execinfo.h HAVE_EXECINFO_H)
+ENDIF(WITH_PROFILER)
+
 IF(NOT BUILD_STATIC)
   CHECK_INCLUDE_FILES(dlfcn.h HAVE_DLFCN_H)
 ENDIF(NOT BUILD_STATIC)
@@ -202,7 +207,6 @@ SET(LIGHTTPD_SHARED_SRC
 	network_sendfile.c
 	options.c
 	plugin.c
-	profiler.c
 	request.c
 	response.c
 	server.c
@@ -217,10 +221,17 @@ SET(LIGHTTPD_SHARED_SRC
 )
 
 IF(NOT WITHOUT_CONFIG_PARSER)
-SET(LIGHTTPD_SHARED_SRC ${LIGHTTPD_SHARED_SRC}
-	config_parser.c
-)
+	SET(LIGHTTPD_SHARED_SRC ${LIGHTTPD_SHARED_SRC}
+		config_parser.c
+	)
 ENDIF(NOT WITHOUT_CONFIG_PARSER)
+
+IF(WITH_PROFILER)
+	SET(LIGHTTPD_SHARED_SRC ${LIGHTTPD_SHARED_SRC}
+		profiler.c
+	)
+ENDIF(WITH_PROFILER)
+
 
 IF(WITH_LUA)
 SET(LIGHTTPD_SHARED_SRC ${LIGHTTPD_SHARED_SRC}

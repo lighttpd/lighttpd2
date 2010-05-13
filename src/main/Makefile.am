@@ -29,7 +29,6 @@ lighttpd_shared_src= \
 	network_sendfile.c \
 	options.c \
 	plugin.c \
-	profiler.c \
 	request.c \
 	response.c \
 	server.c \
@@ -64,7 +63,10 @@ lua_src= \
 if USE_LUA
 lighttpd_shared_src+=$(lua_src)
 endif
-EXTRA_lighttpd2_SOURCES=$(lua_src)
+if WITH_PROFILER
+lighttpd_shared_src+= profiler.c
+endif
+EXTRA_lighttpd2_SOURCES=$(lua_src) profiler.c
 
 BUILT_SOURCES=config_parser.c http_range_parser.c http_request_parser.c http_response_parser.c url_parser.c
 

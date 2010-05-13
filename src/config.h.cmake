@@ -30,6 +30,7 @@
 #cmakedefine HAVE_INET_ATON
 #cmakedefine HAVE_IPV6
 #cmakedefine HAVE_SOCKADDR_STORAGE
+#cmakedefine HAVE_EXECINFO_H
 
 /* XATTR */
 #cmakedefine HAVE_ATTR_ATTRIBUTES_H
@@ -157,3 +158,4 @@
 /* features */
 #cmakedefine WITHOUT_CONFIG_PARSER
 #cmakedefine LIGHTTPD_STATIC
+#cmakedefine WITH_PROFILER

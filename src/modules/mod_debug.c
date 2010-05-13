@@ -34,7 +34,10 @@
  */
 
 #include <lighttpd/base.h>
-#include <lighttpd/profiler.h>
+
+#ifdef WITH_PROFILER
+# include <lighttpd/profiler.h>
+#endif
 
 LI_API gboolean mod_debug_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_debug_free(liModules *mods, liModule *mod);
@@ -312,10 +315,12 @@ static liAction* debug_show_connections_create(liServer *srv, liWorker *wrk, liP
 static liHandlerResult debug_profiler_dump(liVRequest *vr, gpointer param, gpointer *context) {
 	UNUSED(vr); UNUSED(param); UNUSED(context);
 
+#ifdef WITH_PROFILER
 	if (!getenv("LIGHTY_PROFILE_MEM"))
 		return LI_HANDLER_GO_ON;
 
 	li_profiler_dump();
+#endif
 
 	return LI_HANDLER_GO_ON;
 }

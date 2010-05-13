@@ -1,9 +1,12 @@
 
 #include <lighttpd/base.h>
-#include <lighttpd/profiler.h>
 #include <lighttpd/plugin_core.h>
 
 #include <lighttpd/version.h>
+
+#ifdef WITH_PROFILER
+# include <lighttpd/profiler.h>
+#endif
 
 #ifdef HAVE_LUA_H
 # include <lighttpd/config_lua.h>
@@ -44,15 +47,19 @@ int main(int argc, char *argv[]) {
 		{ NULL, 0, 0, 0, NULL, NULL, NULL }
 	};
 
-	/* check for environment variable LIGHTY_PROFILE_MEM */
-	gchar *profile_mem = getenv("LIGHTY_PROFILE_MEM");
-	if (profile_mem) {
-		/*g_mem_set_vtable(glib_mem_profiler_table);*/
-		li_profiler_enable(profile_mem);
-		atexit(li_profiler_finish);
-		atexit(li_profiler_dump);
-		/*atexit(profiler_dump_table);*/
+#ifdef WITH_PROFILER
+	{
+		/* check for environment variable LIGHTY_PROFILE_MEM */
+		gchar *profile_mem = getenv("LIGHTY_PROFILE_MEM");
+		if (profile_mem) {
+			/*g_mem_set_vtable(glib_mem_profiler_table);*/
+			li_profiler_enable(profile_mem);
+			atexit(li_profiler_finish);
+			atexit(li_profiler_dump);
+			/*atexit(profiler_dump_table);*/
+		}
 	}
+#endif
 
 	/* parse commandline options */
 	context = g_option_context_new("- fast and lightweight webserver");

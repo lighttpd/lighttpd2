@@ -111,6 +111,8 @@ fi
 
 AM_CONDITIONAL([USE_LUA], [test "$USE_LUA" = "true"])
 
+
+
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 AC_TYPE_UID_T
@@ -273,6 +275,14 @@ fi
 AC_SUBST(BZ_LIB)
 
 AM_CONDITIONAL([USE_MOD_DEFLATE], [test "x$use_mod_deflate" = "xyes"])
+
+AC_ARG_ENABLE(profiler,
+ AC_HELP_STRING([--enable-profiler],[enable memory profiler support]),[
+   profiler=yes
+   AC_DEFINE([WITH_PROFILER], [1], [profiler])
+   AC_CHECK_HEADERS([execinfo.h])],[])
+
+AM_CONDITIONAL([WITH_PROFILER], [test "x$profiler" = "xyes"])
 
 save_LIBS=$LIBS
 LIBS=
