@@ -15,7 +15,12 @@ struct liBuffer {
 };
 
 /* shared buffer; free memory after last reference is released */
+
+/** create new buffer: optimized for short-term buffers which will be released soon, uses mempool */
 LI_API liBuffer* li_buffer_new(gsize max_size);
+/** create new buffer; optimized for long-term buffers, uses g_slice_alloc */
+LI_API liBuffer* li_buffer_new_slice(gsize max_size);
+
 LI_API void li_buffer_acquire(liBuffer *buf);
 LI_API void li_buffer_release(liBuffer *buf);
 
