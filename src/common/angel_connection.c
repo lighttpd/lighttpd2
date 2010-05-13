@@ -79,7 +79,7 @@ static void send_queue_clean(GQueue *queue) {
 			g_array_free(i->value.fds.fds, TRUE);
 			break;
 		}
-		g_queue_peek_head(queue);
+		g_queue_pop_head(queue);
 		g_slice_free(angel_connection_send_item_t, i);
 	}
 }
@@ -349,10 +349,8 @@ static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) 
 				break;
 			}
 
-			send_queue_item_free(send_item);
-
 			g_mutex_lock(acon->mutex);
-				g_queue_pop_head(acon->out);
+				send_queue_clean(acon->out);
 				send_item = g_queue_peek_head(acon->out);
 			g_mutex_unlock(acon->mutex);
 		}
