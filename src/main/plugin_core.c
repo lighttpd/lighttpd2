@@ -1,7 +1,6 @@
 
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
-#include <lighttpd/profiler.h>
 
 #include <lighttpd/version.h>
 
@@ -766,27 +765,6 @@ static liAction* core_blank(liServer *srv, liWorker *wrk, liPlugin* p, liValue *
 	return li_action_new_function(core_handle_blank, NULL, NULL, NULL);
 }
 
-static liHandlerResult core_handle_profile_mem(liVRequest *vr, gpointer param, gpointer *context) {
-	UNUSED(vr);
-	UNUSED(param);
-	UNUSED(context);
-
-	/*g_mem_profile();*/
-	li_profiler_dump();
-
-	return LI_HANDLER_GO_ON;
-}
-
-static liAction* core_profile_mem(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
-
-	if (val) {
-		ERROR(srv, "%s", "'profile_mem' action doesn't have parameters");
-		return NULL;
-	}
-
-	return li_action_new_function(core_handle_profile_mem, NULL, NULL, NULL);
-}
 
 static gboolean core_listen(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GString *ipstr;
@@ -1539,7 +1517,6 @@ static const liPluginAction actions[] = {
 	{ "log.write", core_log_write, NULL },
 
 	{ "blank", core_blank, NULL },
-	{ "profile_mem", core_profile_mem, NULL },
 
 	{ "header.add", core_header_add, NULL },
 	{ "header.append", core_header_append, NULL },
@@ -1598,6 +1575,8 @@ static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk
 			}
 		}
 	}
+#else
+	UNUSED(srv); UNUSED(wrk);
 #endif
 }
 
