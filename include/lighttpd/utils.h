@@ -36,6 +36,14 @@ LI_API void li_ev_io_set_events(struct ev_loop *loop, ev_io *watcher, int events
 	}                                                      \
 } while (0)
 
+#define li_ev_safe_unref_and_start(startf, loop, watcher) do { \
+	ev_watcher *__w = (ev_watcher*) watcher;               \
+	if (!ev_is_active(__w)) {                              \
+		startf(loop, watcher);                             \
+		ev_unref(loop);                                    \
+	}                                                      \
+} while (0)
+
 /* URL inplace decode: replace %XX with character \xXX; replace control characters with '_' (< 32 || == 127) */
 LI_API void li_url_decode(GString *path);
 
