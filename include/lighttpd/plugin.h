@@ -24,6 +24,10 @@ typedef void     (*liPluginHandleCloseCB)   (liConnection *con, liPlugin *p);
 typedef liHandlerResult(*liPluginHandleVRequestCB)(liVRequest *vr, liPlugin *p);
 typedef void     (*liPluginHandleVRCloseCB) (liVRequest *vr, liPlugin *p);
 
+struct lua_State;
+typedef void     (*liPluginInitLua)(struct lua_State *L, liServer *srv, liWorker *wrk, liPlugin *p);
+
+
 struct liPlugin {
 	size_t version;
 	const gchar *name; /**< name of the plugin */
@@ -49,6 +53,8 @@ struct liPlugin {
 	liPluginServerStateWorker handle_worker_stop;
 	/* server state machine hooks */
 	liPluginServerState handle_prepare, handle_start_listen, handle_stop_listen, handle_start_log, handle_stop_log;
+
+	liPluginInitLua handle_init_lua;
 
 	const liPluginOption *options;
 	const liPluginOptionPtr *optionptrs;
@@ -188,6 +194,8 @@ LI_API gboolean li_call_setup(liServer *srv, const char *name, liValue *val);
 
 /** free val after call */
 LI_API gboolean li_plugin_set_default_option(liServer *srv, const gchar* name, liValue *val);
+
+LI_API void li_plugins_init_lua(struct lua_State *L, liServer *srv, liWorker *wrk);
 
 extern liOptionPtrValue li_option_ptr_zero;
 
