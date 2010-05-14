@@ -196,8 +196,7 @@ static void worker_job_async_queue_cb(struct ev_loop *loop, ev_async *w, int rev
 	UNUSED(revents);
 
 	while (NULL != (vr_ref = g_async_queue_try_pop(q))) {
-		if (NULL != (vr = li_vrequest_release_ref(vr_ref))) {
-			g_assert(g_atomic_int_compare_and_exchange(&vr->queued, 1, 0));
+		if (NULL != (vr = li_vrequest_ref_release(vr_ref))) {
 			li_vrequest_state_machine(vr);
 		}
 	}
@@ -515,7 +514,7 @@ void li_worker_free(liWorker *wrk) {
 		liVRequest *vr;
 
 		while (NULL != (vr_ref = g_async_queue_try_pop(q))) {
-			if (NULL != (vr = li_vrequest_release_ref(vr_ref))) {
+			if (NULL != (vr = li_vrequest_ref_release(vr_ref))) {
 				g_assert(g_atomic_int_compare_and_exchange(&vr->queued, 1, 0));
 				li_vrequest_state_machine(vr);
 			}

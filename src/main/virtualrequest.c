@@ -145,6 +145,7 @@ liVRequest* li_vrequest_new(liConnection *con, liVRequestHandlerCB handle_respon
 	vr->ref = g_slice_new0(liVRequestRef);
 	vr->ref->refcount = 1;
 	vr->ref->vr = vr;
+	vr->ref->wrk = con->wrk;
 	vr->state = LI_VRS_CLEAN;
 
 	vr->handle_response_headers = handle_response_headers;
@@ -312,17 +313,23 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 		vr->ref = g_slice_new0(liVRequestRef);
 		vr->ref->refcount = 1;
 		vr->ref->vr = vr;
+		vr->ref->wrk = vr->wrk;
 	}
 }
 
-liVRequestRef* li_vrequest_acquire_ref(liVRequest *vr) {
+liVRequestRef* li_vrequest_get_ref(liVRequest *vr) {
 	liVRequestRef* vr_ref = vr->ref;
 	g_assert(vr_ref->refcount > 0);
 	g_atomic_int_inc(&vr_ref->refcount);
 	return vr_ref;
 }
 
-liVRequest* li_vrequest_release_ref(liVRequestRef *vr_ref) {
+void li_vrequest_ref_acquire(liVRequestRef *vr_ref) {
+	g_assert(vr_ref->refcount > 0);
+	g_atomic_int_inc(&vr_ref->refcount);
+}
+
+liVRequest* li_vrequest_ref_release(liVRequestRef *vr_ref) {
 	liVRequest *vr = vr_ref->vr;
 	g_assert(vr_ref->refcount > 0);
 	if (g_atomic_int_dec_and_test(&vr_ref->refcount)) {
@@ -648,11 +655,11 @@ void li_vrequest_joblist_append(liVRequest *vr) {
 	ev_timer_start(wrk->loop, &wrk->job_queue_watcher);
 }
 
-void li_vrequest_joblist_append_async(liVRequest *vr) {
-	liWorker *wrk = vr->wrk;
+void li_vrequest_joblist_append_async(liVRequestRef *vr_ref) {
+	liWorker *wrk = vr_ref->wrk;
 	GAsyncQueue *const q = wrk->job_async_queue;
-	if (!g_atomic_int_compare_and_exchange(&vr->queued, 0, 1)) return; /* already in queue */
-	g_async_queue_push(q, li_vrequest_acquire_ref(vr));
+	li_vrequest_ref_acquire(vr_ref);
+	g_async_queue_push(q, vr_ref);
 	ev_async_send(wrk->loop, &wrk->job_async_queue_watcher);
 }
 
