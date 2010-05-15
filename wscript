@@ -31,6 +31,7 @@ def set_options(opt):
 	opt.add_option('--with-openssl', action='store_true', help='with openssl-support [default: off]', dest='openssl', default=False)
 	opt.add_option('--with-zlib', action='store_true', help='with deflate/gzip-support [default: off]', dest='zlib', default=False)
 	opt.add_option('--with-bzip', action='store_true', help='with bzip2-support [default: off]', dest='bzip', default=False)
+	opt.add_option('--with-profiler', action='store_true', help='with memory profiler [default: off]', dest='profiler', default=False)
 	opt.add_option('--with-all', action='store_true', help='Enable all features', dest = 'all', default = False)
 	opt.add_option('--static', action='store_true', help='build a static lighttpd with all modules added', dest = 'static', default = False)
 	opt.add_option('--append', action='store', help='Append string to binary names / library dir', dest = 'append', default = '')
@@ -142,6 +143,9 @@ def configure(conf):
 		conf.check(function_name='BZ2_bzCompressInit', header_name='bzlib.h', uselib='bz2', mandatory=True)
 		conf.define('HAVE_BZIP', 1)
 
+	if opts.profiler:
+		conf.define('WITH_PROFILER', 1)
+
 	if not opts.static:
 		conf.check(lib='dl', uselib_store='dl')
 	
@@ -156,7 +160,8 @@ def configure(conf):
 	conf.check(header_name='sys/un.h')
 
 	if sys.platform.startswith('freebsd'):
-		conf.check(lib='execinfo', uselib_store='execinfo', define_name="HAVE_EXECINFO_H")
+		conf.check(lib='execinfo', uselib_store='execinfo')
+		conf.check(function_name='backtrace', header_name='execinfo.h', define_name='HAVE_EXECINFO_H')
 	else:
 		conf.check(header_name='execinfo.h', define_name="HAVE_EXECINFO_H")
 
@@ -221,6 +226,7 @@ def configure(conf):
 	print_summary(conf, 'With lua support', 'yes' if opts.lua else 'no', 'GREEN' if opts.lua else 'YELLOW')
 	print_summary(conf, 'With deflate/gzip support', 'yes' if opts.zlib else 'no', 'GREEN' if opts.zlib else 'YELLOW')
 	print_summary(conf, 'With bzip2 support', 'yes' if opts.bzip else 'no', 'GREEN' if opts.bzip else 'YELLOW')
+	print_summary(conf, 'With memory profiler', 'yes' if opts.profiler else 'no', 'GREEN' if opts.profiler else 'YELLOW')
 	
 
 def build(bld):
