@@ -281,10 +281,14 @@ void li_profiler_dump() {
 	guint i;
 	gint len;
 	gchar str[1024];
+	struct stat st;
 	gsize leaked_size = 0;
 	guint leaked_num = 0;
 
 	g_static_mutex_lock(&profiler_mutex);
+
+	fstat(profiler_output_fd, &st);
+	lseek(profiler_output_fd, st.st_size, SEEK_SET);
 
 	len = sprintf(str, "--------------- memory profiler dump @ %ju ---------------\n", time(NULL));
 	profiler_write(str, len);
