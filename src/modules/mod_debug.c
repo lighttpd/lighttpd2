@@ -312,15 +312,14 @@ static liAction* debug_show_connections_create(liServer *srv, liWorker *wrk, liP
 	return li_action_new_function(debug_show_connections, debug_show_connections_cleanup, NULL, p);
 }
 
+#ifdef WITH_PROFILER
 static liHandlerResult debug_profiler_dump(liVRequest *vr, gpointer param, gpointer *context) {
 	UNUSED(vr); UNUSED(param); UNUSED(context);
 
-#ifdef WITH_PROFILER
 	if (!getenv("LIGHTY_PROFILE_MEM"))
 		return LI_HANDLER_GO_ON;
 
 	li_profiler_dump();
-#endif
 
 	return LI_HANDLER_GO_ON;
 }
@@ -335,6 +334,7 @@ static liAction* debug_profiler_dump_create(liServer *srv, liWorker *wrk, liPlug
 
 	return li_action_new_function(debug_profiler_dump, NULL, NULL, p);
 }
+#endif
 
 
 static const liPluginOption options[] = {
@@ -343,7 +343,9 @@ static const liPluginOption options[] = {
 
 static const liPluginAction actions[] = {
 	{ "debug.show_connections", debug_show_connections_create, NULL },
+#ifdef WITH_PROFILER
 	{ "debug.profiler_dump", debug_profiler_dump_create, NULL },
+#endif
 
 	{ NULL, NULL, NULL }
 };
