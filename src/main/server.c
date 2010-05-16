@@ -175,6 +175,20 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	srv->io_timeout = 300; /* default I/O timeout */
 	srv->keep_alive_queue_timeout = 5;
 
+#ifdef LIGHTY_OS_LINUX
+	/* sched_getaffinity is only available on linux */
+	if (0 != sched_getaffinity(0, sizeof(srv->affinity_mask), &srv->affinity_mask)) {
+		ERROR(srv, "couldn't get cpu affinity mask: %s", g_strerror(errno));
+	} else {
+		/* how many cpus do we have */
+		gint cpu;
+		for (cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+			if (CPU_ISSET(cpu, &srv->affinity_mask))
+				srv->affinity_cpus++;
+		}
+	}
+#endif
+
 	return srv;
 }
 

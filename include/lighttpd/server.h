@@ -68,6 +68,10 @@ struct liServer {
 	liWorker *main_worker;
 	guint worker_count;
 	GArray *workers;
+#ifdef LIGHTY_OS_LINUX
+	cpu_set_t affinity_mask; /** cpus used by workers */
+	guint affinity_cpus;     /** total number of cpus in affinity_mask */
+#endif
 	GArray *ts_formats;      /** array of (GString*), add with li_server_ts_format_add() */
 
 	struct ev_loop *loop;

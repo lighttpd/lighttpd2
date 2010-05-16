@@ -9,8 +9,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include <sched.h>
-
 static liAction* core_list(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	liAction *a;
 	guint i;
@@ -1550,29 +1548,37 @@ static const liPluginAngel angelcbs[] = {
 
 	{ NULL, NULL }
 };
+#include <sys/types.h>
 
 static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) {
 	UNUSED(p);
 
-#ifdef LIGHTY_OS_LINUX
+
+#if defined(LIGHTY_OS_LINUX) && 0
 	/* sched_setaffinity is only available on linux */
-	{
+	if (srv->affinity_cpus != 0) {
+		gint cpu;
+		guint cpu_nth;
 		cpu_set_t mask;
 
-		if (0 != sched_getaffinity(0, sizeof(mask), &mask)) {
-			ERROR(srv, "couldn't get cpu affinity mask: %s", g_strerror(errno));
-		} else {
-			guint cpus = 0;
-			while (CPU_ISSET(cpus, &mask)) cpus++;
-			if (cpus) {
+		/* bind worker to n-th cpu */
+		for (cpu_nth = 0, cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+			//g_print("wrk: %u cpu: %d\n", wrk->ndx, cpu);
+			if (!CPU_ISSET(cpu, &srv->affinity_mask))
+				continue;
+
+			if ((wrk->ndx % srv->affinity_cpus) == cpu_nth) {
 				CPU_ZERO(&mask);
-				CPU_SET(wrk->ndx % cpus, &mask);
-				if (0 != sched_setaffinity(0, sizeof(mask), &mask)) {
+				CPU_SET(wrk->ndx % srv->affinity_cpus, &mask);
+				DEBUG(srv, "binding worker #%u to cpu #%u", wrk->ndx+1, wrk->ndx % srv->affinity_cpus);
+				if (0 != sched_setaffinity(0, sizeof(srv->affinity_mask), &mask)) {
 					ERROR(srv, "couldn't set cpu affinity mask: %s", g_strerror(errno));
 				}
-			} else {
-				ERROR(srv, "%s", "cpu 0 not enabled, no affinity set");
+
+				break;
 			}
+
+			cpu_nth++;
 		}
 	}
 #else

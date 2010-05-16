@@ -13,5 +13,9 @@
 #include <unistd.h>
 #endif
 
+#ifdef LIGHTY_OS_LINUX
+#include <sched.h>
+#endif
+
 #endif
 
