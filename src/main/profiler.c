@@ -233,7 +233,7 @@ void li_profiler_enable(gchar *output_path) {
 	} else if (g_str_equal(output_path, "stderr")) {
 		profiler_output_fd = STDERR_FILENO;
 	} else {
-		profiler_output_fd = open(output_path, O_WRONLY | O_CREAT | O_TRUNC);
+		profiler_output_fd = open(output_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 		if (-1 == profiler_output_fd) {
 			fputs("error opening profiler output file\n", stderr);
 			fflush(stderr);
