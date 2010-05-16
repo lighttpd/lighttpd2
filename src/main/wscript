@@ -16,8 +16,6 @@ def configure(conf):
 
 def build(bld):
 	libs = ['glib', 'gthread', 'gmodule', 'ev']
-	if sys.platform.startswith('freebsd'):
-		libs += ['execinfo']
 
 	source = '''
 		actions.c
@@ -47,7 +45,6 @@ def build(bld):
 		options.c
 		plugin.c
 		plugin_core.c
-		profiler.c
 		request.c
 		response.c
 		server.c
@@ -58,6 +55,13 @@ def build(bld):
 		virtualrequest.c
 		worker.c
 	'''
+
+	if bld.env['WITH_PROFILER'] == 1:
+		if sys.platform.startswith('freebsd'):
+			libs += ['execinfo']
+		source += '''
+			profiler.c
+		'''
 
 	if bld.env['USE_LUA'] == 1:
 		libs += ['lua']
