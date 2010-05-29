@@ -298,7 +298,7 @@ void li_lua_init(lua_State *L, liServer *srv, liWorker *wrk) {
 
 	li_lua_store_globals(L);
 
-	li_plugins_init_lua(L, srv, wrk);
+	//li_plugins_init_lua(L, srv, wrk);
 }
 
 void li_lua_restore_globals(lua_State *L) {
