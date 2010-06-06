@@ -450,7 +450,7 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 				bz->next_out = (char*) ctx->buf->data;
 				bz->avail_out = ctx->buf->len;
 			}
-		} while (rc == BZ_RUN_OK);
+		} while (rc == BZ_RUN_OK || rc == BZ_FINISH_OK);
 
 		if (debug) {
 			VR_DEBUG(vr, "deflate finished: in: %i, out : %i", (int) bz->total_in_lo32, (int) bz->total_out_lo32);
