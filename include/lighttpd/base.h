@@ -56,6 +56,8 @@
 #include <lighttpd/log.h>
 #include <lighttpd/stat_cache.h>
 #include <lighttpd/throttle.h>
+#include <lighttpd/pattern.h>
+#include <lighttpd/encoding.h>
 
 #include <lighttpd/connection.h>
 

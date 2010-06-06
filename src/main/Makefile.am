@@ -28,6 +28,7 @@ lighttpd_shared_src= \
 	network_write.c network_writev.c \
 	network_sendfile.c \
 	options.c \
+	pattern.c \
 	plugin.c \
 	request.c \
 	response.c \

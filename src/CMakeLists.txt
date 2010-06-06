@@ -206,6 +206,7 @@ SET(LIGHTTPD_SHARED_SRC
 	network_write.c network_writev.c
 	network_sendfile.c
 	options.c
+	pattern.c
 	plugin.c
 	request.c
 	response.c

@@ -43,6 +43,7 @@ def build(bld):
 		network_write.c
 		network_writev.c
 		options.c
+		pattern.c
 		plugin.c
 		plugin_core.c
 		request.c
