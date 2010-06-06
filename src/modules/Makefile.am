@@ -77,6 +77,11 @@ libmod_lua_la_LDFLAGS = $(common_ldflags)
 libmod_lua_la_LIBADD = $(common_libadd)
 endif
 
+install_libs += libmod_memcached.la
+libmod_memcached_la_SOURCES = mod_memcached.c
+libmod_memcached_la_LDFLAGS = $(common_ldflags)
+libmod_memcached_la_LIBADD = $(common_libadd)
+
 if USE_OPENSSL
 install_libs += libmod_openssl.la
 libmod_openssl_la_SOURCES = mod_openssl.c

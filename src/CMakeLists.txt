@@ -172,6 +172,7 @@ SET(COMMON_SRC
 	encoding.c
 	idlist.c
 	ip_parsers.c
+	memcached.c
 	mempool.c
 	module.c
 	radix.c
@@ -329,6 +330,7 @@ ADD_AND_INSTALL_LIBRARY(mod_expire "modules/mod_expire.c")
 ADD_AND_INSTALL_LIBRARY(mod_fastcgi "modules/mod_fastcgi.c")
 ADD_AND_INSTALL_LIBRARY(mod_flv "modules/mod_flv.c")
 ADD_AND_INSTALL_LIBRARY(mod_fortune "modules/mod_fortune.c")
+ADD_AND_INSTALL_LIBRARY(mod_memcached "modules/mod_memcached.c")
 ADD_AND_INSTALL_LIBRARY(mod_progress "modules/mod_progress.c")
 ADD_AND_INSTALL_LIBRARY(mod_proxy "modules/mod_proxy.c")
 ADD_AND_INSTALL_LIBRARY(mod_redirect "modules/mod_redirect.c")
