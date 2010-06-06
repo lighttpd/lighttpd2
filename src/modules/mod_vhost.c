@@ -193,6 +193,8 @@ static liAction* vhost_simple_create(liServer *srv, liWorker *wrk, liPlugin* p, 
 	UNUSED(wrk);
 	UNUSED(userdata);
 
+	WARNING(srv, "%s", "vhost.simple is deprecated, 'docroot' now has the same power");
+
 	if (!val || val->type != LI_VALUE_LIST) {
 		ERROR(srv, "%s", "vhost.simple expects a list if string tuples as parameter");
 		return NULL;
@@ -594,8 +596,10 @@ static liAction* vhost_pattern_create(liServer *srv, liWorker *wrk, liPlugin* p,
 	vhost_pattern_part part;
 	UNUSED(wrk); UNUSED(userdata);
 
+	WARNING(srv, "%s", "vhost.pattern is deprecated, 'docroot' now has the same power");
+
 	if (!val || val->type != LI_VALUE_STRING) {
-		ERROR(srv, "%s", "vhost.map expects a hashtable as parameter");
+		ERROR(srv, "%s", "vhost.pattern expects a string as parameter");
 		return NULL;
 	}
 
