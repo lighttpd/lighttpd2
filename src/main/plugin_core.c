@@ -151,14 +151,79 @@ static gboolean core_setup_set(liServer *srv, liPlugin* p, liValue *val, gpointe
 	return li_plugin_set_default_option(srv, val_name->data.string->str, val_val);
 }
 
+static void core_docroot_nth_cb(GString *pattern_result, guint8 nth_ndx, gpointer data) {
+	/* $n means n-th part of hostname from end divided by dots */
+	gchar *c, *end;
+	guint i = 0;
+	GString *str = data;
+
+	if (nth_ndx == 0) {
+		g_string_append_len(pattern_result, GSTR_LEN(str));
+		return;
+	}
+
+	end = str->str + str->len - 1;
+
+	for (c = end; c > str->str; c--) {
+		if (*c == '.') {
+			i++;
+
+			if (i == nth_ndx) {
+				g_string_append_len(pattern_result, c+1, end - c);
+				return;
+			}
+
+			end = c-1;
+		}
+	}
+}
+
 static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpointer *context) {
-	UNUSED(context);
+	guint i;
+	GMatchInfo *match_info = NULL;
+	GArray *arr = param;
 
 	g_string_truncate(vr->physical.doc_root, 0);
-	g_string_append_len(vr->physical.doc_root, GSTR_LEN((GString*) param));
 
-	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-		VR_DEBUG(vr, "docroot: %s", vr->physical.doc_root->str);
+	if (vr->action_stack.regex_stack->len) {
+		GArray *rs = vr->action_stack.regex_stack;
+		match_info = g_array_index(rs, liActionRegexStackElement, rs->len - 1).match_info;
+	}
+
+	/* resume from last stat check */
+	if (*context) {
+		i = GPOINTER_TO_INT(*context);
+	} else {
+		i = 0;
+	}
+
+	/* loop over all the patterns until we find an existing path */
+	for (; i < arr->len; i++) {
+		struct stat st;
+		gint err;
+		
+
+		g_string_truncate(vr->physical.doc_root, 0);
+		li_pattern_eval(vr, vr->physical.doc_root, g_array_index(arr, liPattern*, i), core_docroot_nth_cb, vr->request.uri.host, li_pattern_regex_cb, match_info);
+
+		/* check if path exists */
+		switch (li_stat_cache_get(vr, vr->physical.doc_root, &st, &err, NULL)) {
+		case LI_HANDLER_GO_ON: break;
+		case LI_HANDLER_WAIT_FOR_EVENT:
+			*context = GINT_TO_POINTER(i);
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "docroot: waiting for async: \"%s\"", vr->physical.doc_root->str);
+			}
+			return LI_HANDLER_WAIT_FOR_EVENT;
+		default:
+			/* not found, try next pattern */
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "docroot: not found: \"%s\", trying next", vr->physical.doc_root->str);
+			}
+			continue;
+		}
+
+		*context = NULL;
 	}
 
 	/* build physical path: docroot + uri.path */
@@ -169,25 +234,57 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
 
 	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-		VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
+		VR_DEBUG(vr, "docroot: \"%s\"", vr->physical.doc_root->str);
+		VR_DEBUG(vr, "physical path: \"%s\"", vr->physical.path->str);
 	}
 
 	return LI_HANDLER_GO_ON;
 }
 
 static void core_docroot_free(liServer *srv, gpointer param) {
+	guint i;
+	GArray *arr = param;
+
 	UNUSED(srv);
-	g_string_free(param, TRUE);
+
+	for (i = 0; i < arr->len; i++) {
+		li_pattern_free(g_array_index(arr, liPattern*, i));
+	}
 }
 
 static liAction* core_docroot(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	GArray *arr;
+	guint i;
+	liValue *v;
+	liPattern *pattern;
+
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
-	if (!val || val->type != LI_VALUE_STRING) {
-		ERROR(srv, "%s", "docroot action expects a string parameter");
+
+	if (!val || (val->type != LI_VALUE_STRING && val->type != LI_VALUE_LIST)) {
+		ERROR(srv, "%s", "docroot action expects a string or list of strings as parameter");
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_docroot, NULL, core_docroot_free, li_value_extract_string(val));
+	arr = g_array_new(FALSE, TRUE, sizeof(liPattern*));
+
+	if (val->type == LI_VALUE_STRING) {
+		pattern = li_pattern_new(val->data.string->str);
+		g_array_append_val(arr, pattern);
+	} else {
+		for (i = 0; i < val->data.list->len; i++) {
+			v = g_array_index(val->data.list, liValue*, i);
+
+			if (v->type != LI_VALUE_STRING) {
+				core_docroot_free(srv, arr);
+				return NULL;
+			}
+
+			pattern = li_pattern_new(v->data.string->str);
+			g_array_append_val(arr, pattern);
+		}
+	}
+
+	return li_action_new_function(core_handle_docroot, NULL, core_docroot_free, arr);
 }
 
 typedef struct {
