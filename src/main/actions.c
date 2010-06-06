@@ -331,7 +331,9 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 				break;
 			case LI_HANDLER_ERROR:
 				li_action_stack_reset(vr, as);
+				return res;
 			case LI_HANDLER_COMEBACK:
+				return res;
 			case LI_HANDLER_WAIT_FOR_EVENT:
 				if (ase != action_stack_top(as)) break; /* allow an action to push another action and rerun after it again */
 				return res;

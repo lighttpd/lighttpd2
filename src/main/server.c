@@ -350,6 +350,11 @@ static gboolean li_server_worker_init(liServer *srv) {
 	ev_timer_start(loop, &srv->srv_1sec_timer);
 	ev_unref(loop); /* don't keep loop alive */
 
+#ifdef HAVE_LUA_H
+	li_plugins_init_lua(srv->L, srv, NULL);
+	li_plugins_init_lua(srv->main_worker->L, srv, srv->main_worker);
+#endif
+
 	if (srv->worker_count < 1) srv->worker_count = 1;
 	g_array_set_size(srv->workers, srv->worker_count);
 	g_array_index(srv->workers, liWorker*, 0) = srv->main_worker;
@@ -361,6 +366,10 @@ static gboolean li_server_worker_init(liServer *srv) {
 		}
 		wrk = g_array_index(srv->workers, liWorker*, i) = li_worker_new(srv, loop);
 		wrk->ndx = i;
+
+#ifdef HAVE_LUA_H
+	li_plugins_init_lua(wrk->L, srv, wrk);
+#endif
 	}
 
 	return TRUE;

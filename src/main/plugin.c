@@ -691,6 +691,8 @@ void li_plugins_init_lua(struct lua_State *L, liServer *srv, liWorker *wrk) {
 	liPlugin *p;
 	gpointer v;
 
+	if (NULL == srv->plugins) return;
+
 	g_hash_table_iter_init(&iter, srv->plugins);
 	while (g_hash_table_iter_next(&iter, NULL, &v)) {
 		p = (liPlugin*) v;
