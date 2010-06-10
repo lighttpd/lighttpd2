@@ -193,21 +193,6 @@ static gboolean connection_handle_read(liConnection *con) {
 			return TRUE;
 		}
 
-		if (con->raw_in->length > 64*1024) {
-			VR_INFO(vr,
-				"request header too large. limit: 64kb, received: %s",
-				li_counter_format((guint64)con->raw_in->length, COUNTER_BYTES, vr->wrk->tmp_str)->str
-			);
-
-			con->keep_alive = FALSE;
-			con->mainvr->response.http_status = 413; /* Request Entity Too Large */
-			li_vrequest_handle_direct(con->mainvr);
-			con->state = LI_CON_STATE_WRITE;
-			con->in->is_closed = TRUE;
-			forward_response_body(con);
-			return TRUE;
-		}
-
 		switch(res) {
 		case LI_HANDLER_GO_ON:
 			break; /* go on */
@@ -221,6 +206,22 @@ static gboolean connection_handle_read(liConnection *con) {
 			}
 			con->keep_alive = FALSE;
 			con->mainvr->response.http_status = 400;
+			li_vrequest_handle_direct(con->mainvr);
+			con->state = LI_CON_STATE_WRITE;
+			con->in->is_closed = TRUE;
+			forward_response_body(con);
+			return TRUE;
+		}
+
+		/* sanity check: if the whole http request header is larger than 64kbytes, then something probably went wrong */
+		if (con->raw_in->bytes_in > 64*1024) {
+			VR_INFO(vr,
+				"request header too large. limit: 64kb, received: %s",
+				li_counter_format((guint64)con->raw_in->bytes_in, COUNTER_BYTES, vr->wrk->tmp_str)->str
+			);
+
+			con->keep_alive = FALSE;
+			con->mainvr->response.http_status = 413; /* Request Entity Too Large */
 			li_vrequest_handle_direct(con->mainvr);
 			con->state = LI_CON_STATE_WRITE;
 			con->in->is_closed = TRUE;
