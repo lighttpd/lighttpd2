@@ -204,24 +204,12 @@ static gboolean connection_handle_read(liConnection *con) {
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "%s", "parsing header failed");
 			}
-			con->keep_alive = FALSE;
-			con->mainvr->response.http_status = 400;
-			li_vrequest_handle_direct(con->mainvr);
-			con->state = LI_CON_STATE_WRITE;
-			con->in->is_closed = TRUE;
-			forward_response_body(con);
-			return TRUE;
-		}
 
-		/* sanity check: if the whole http request header is larger than 64kbytes, then something probably went wrong */
-		if (con->raw_in->bytes_in > 64*1024) {
-			VR_INFO(vr,
-				"request header too large. limit: 64kb, received: %s",
-				li_counter_format((guint64)con->raw_in->bytes_in, COUNTER_BYTES, vr->wrk->tmp_str)->str
-			);
-
+			con->wrk->stats.requests++;
 			con->keep_alive = FALSE;
-			con->mainvr->response.http_status = 413; /* Request Entity Too Large */
+			/* set status 400 if not already set to e.g. 413 */
+			if (con->mainvr->response.http_status == 0)
+				con->mainvr->response.http_status = 400;
 			li_vrequest_handle_direct(con->mainvr);
 			con->state = LI_CON_STATE_WRITE;
 			con->in->is_closed = TRUE;

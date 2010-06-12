@@ -174,6 +174,17 @@ liHandlerResult li_http_request_parse(liVRequest *vr, liHttpRequestCtx *ctx) {
 
 	if (li_http_request_parser_has_error(ctx)) return LI_HANDLER_ERROR;
 	if (li_http_request_parser_is_finished(ctx)) {
+		/* sanity check: if the whole http request header is larger than 64kbytes, then something probably went wrong */
+		if (ctx->chunk_ctx.bytes_in > 64*1024) {
+			VR_INFO(vr,
+				"request header too large. limit: 64kb, received: %s",
+				li_counter_format((guint64)ctx->chunk_ctx.bytes_in, COUNTER_BYTES, vr->wrk->tmp_str)->str
+			);
+
+			vr->response.http_status = 413; /* Request Entity Too Large */
+			return LI_HANDLER_ERROR;
+		}
+
 		li_chunkqueue_skip(ctx->chunk_ctx.cq, ctx->chunk_ctx.bytes_in);
 		return LI_HANDLER_GO_ON;
 	}
