@@ -814,27 +814,40 @@ static liAction* core_status(liServer *srv, liWorker *wrk, liPlugin* p, liValue 
 
 static void core_log_write_free(liServer *srv, gpointer param) {
 	UNUSED(srv);
-	g_string_free(param, TRUE);
+
+	li_pattern_free(param);
 }
 
 static liHandlerResult core_handle_log_write(liVRequest *vr, gpointer param, gpointer *context) {
-	GString *msg = param;
+	liPattern *pattern = param;
 
 	UNUSED(context);
 
-	VR_INFO(vr, "%s", msg->str);
+	/* eval pattern, ignore $n and %n */
+	g_string_truncate(vr->wrk->tmp_str, 0);
+	li_pattern_eval(vr, vr->wrk->tmp_str, pattern, NULL, NULL, NULL, NULL);
+
+	VR_INFO(vr, "%s", vr->wrk->tmp_str->str);
 
 	return LI_HANDLER_GO_ON;
 }
 
 static liAction* core_log_write(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	liPattern *pattern;
+
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 	if (!val || val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "log.write expects a string parameter");
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_log_write, NULL, core_log_write_free, li_value_extract_string(val));
+	pattern = li_pattern_new(val->data.string->str);
+	if (!pattern) {
+		ERROR(srv, "%s", "log.write failed to parse pattern");
+		return NULL;
+	}
+
+	return li_action_new_function(core_handle_log_write, NULL, core_log_write_free, pattern);
 }
 
 
