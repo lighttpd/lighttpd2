@@ -418,7 +418,7 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 		if (c->state == LI_CON_STATE_KEEP_ALIVE) {
 			cd->ts_timeout = (guint64)(c->keep_alive_data.timeout - CUR_TS(wrk));
 		} else {
-			cd->ts_timeout = (guint64)(CUR_TS(wrk) - c->io_timeout_elem.ts);
+			cd->ts_timeout = (guint64)(wrk->srv->io_timeout - (CUR_TS(wrk) - c->io_timeout_elem.ts));
 		}
 
 		sd->connection_count[c->state]++;
