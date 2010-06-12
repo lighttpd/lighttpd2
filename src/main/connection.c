@@ -595,7 +595,10 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 				li_worker_con_put(con);
 				return;
 			}
-			if (con->keep_alive_data.max_idle >= con->srv->keep_alive_queue_timeout) {
+
+			con->keep_alive_data.timeout = ev_now(con->wrk->loop) + con->keep_alive_data.max_idle;
+
+			if (con->keep_alive_data.max_idle == con->srv->keep_alive_queue_timeout) {
 				/* queue is sorted by con->keep_alive_data.timeout */
 				gboolean need_start = (0 == con->wrk->keep_alive_queue.length);
 				con->keep_alive_data.timeout = ev_now(con->wrk->loop) + con->srv->keep_alive_queue_timeout;
