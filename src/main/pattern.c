@@ -134,10 +134,12 @@ void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatter
 			g_string_append_len(dest, GSTR_LEN(part->data.str));
 			break;
 		case PATTERN_NTH:
-			nth_callback(dest, part->data.ndx, nth_data);
+			if (nth_callback)
+				nth_callback(dest, part->data.ndx, nth_data);
 			break;
 		case PATTERN_NTH_PREV:
-			nth_prev_callback(dest, part->data.ndx, nth_prev_data);
+			if (nth_prev_callback)
+				nth_prev_callback(dest, part->data.ndx, nth_prev_data);
 			break;
 		case PATTERN_VAR_ENCODED:
 			encoded = TRUE;
