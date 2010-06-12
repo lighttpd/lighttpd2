@@ -857,15 +857,15 @@ static GString *status_info_plain(liVRequest *vr, guint uptime, liStatistics *to
 	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_keep_alive: "));
 	li_string_append_int(html, connection_count[1]);
 	/* status cpdes */
-	g_string_append_len(html, CONST_STR_LEN("\n\n# Status Codes (since start)\n1xx: "));
+	g_string_append_len(html, CONST_STR_LEN("\n\n# Status Codes (since start)\nstatus_1xx: "));
 	li_string_append_int(html, mod_status_response_codes[0]);
-	g_string_append_len(html, CONST_STR_LEN("\n2xx: "));
+	g_string_append_len(html, CONST_STR_LEN("\nstatus_2xx: "));
 	li_string_append_int(html, mod_status_response_codes[1]);
-	g_string_append_len(html, CONST_STR_LEN("\n3xx: "));
+	g_string_append_len(html, CONST_STR_LEN("\nstatus_3xx: "));
 	li_string_append_int(html, mod_status_response_codes[2]);
-	g_string_append_len(html, CONST_STR_LEN("\n4xx: "));
+	g_string_append_len(html, CONST_STR_LEN("\nstatus_4xx: "));
 	li_string_append_int(html, mod_status_response_codes[3]);
-	g_string_append_len(html, CONST_STR_LEN("\n5xx: "));
+	g_string_append_len(html, CONST_STR_LEN("\nstatus_5xx: "));
 	li_string_append_int(html, mod_status_response_codes[4]);
 
 	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/plain"));
