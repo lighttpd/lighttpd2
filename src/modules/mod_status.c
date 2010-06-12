@@ -361,7 +361,8 @@ struct mod_status_con_data {
 	liHttpMethod method;
 	goffset request_size;
 	goffset response_size;
-	ev_tstamp ts_started, ts_timeout;
+	guint64 ts_started;
+	guint64 ts_timeout;
 	guint64 bytes_in;
 	guint64 bytes_out;
 	guint64 bytes_in_5s_diff;
@@ -407,12 +408,18 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->request_size = c->mainvr->request.content_length;
 		cd->response_size = c->mainvr->out->bytes_out;
 		cd->state = c->state;
-		cd->ts_started = c->ts_started;
-		cd->ts_timeout = c->io_timeout_elem.ts;
 		cd->bytes_in = c->stats.bytes_in;
 		cd->bytes_out = c->stats.bytes_out;
 		cd->bytes_in_5s_diff = c->stats.bytes_in_5s_diff;
 		cd->bytes_out_5s_diff = c->stats.bytes_out_5s_diff;
+
+		cd->ts_started = (guint64)(CUR_TS(wrk) - c->ts_started);
+
+		if (c->state == LI_CON_STATE_KEEP_ALIVE) {
+			cd->ts_timeout = (guint64)(c->keep_alive_data.timeout - CUR_TS(wrk));
+		} else {
+			cd->ts_timeout = (guint64)(CUR_TS(wrk) - c->io_timeout_elem.ts);
+		}
 
 		sd->connection_count[c->state]++;
 	}
@@ -729,10 +736,10 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 
 	/* list connections */
 	if (!short_info) {
-		GString *ts, *ts_timeout, *bytes_in, *bytes_out, *bytes_in_5s, *bytes_out_5s;
+		GString *ts_started, *ts_timeout, *bytes_in, *bytes_out, *bytes_in_5s, *bytes_out_5s;
 		GString *req_len, *resp_len;
 
-		ts = g_string_sized_new(15);
+		ts_started = g_string_sized_new(15);
 		ts_timeout = g_string_sized_new(15);
 		bytes_in = g_string_sized_new(10);
 		bytes_out = g_string_sized_new(10);
@@ -745,15 +752,12 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 		g_string_append_len(html, CONST_STR_LEN(html_connections_th));
 		for (i = 0; i < result->len; i++) {
 			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
+
 			for (j = 0; j < sd->connections->len; j++) {
 				mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, j);
-				guint64 val_timeout = 0;
 
-				li_counter_format((guint64)(CUR_TS(vr->wrk) - cd->ts_started), COUNTER_TIME, ts);
-				if (cd->ts_timeout != 0) {
-					val_timeout = (guint64)(CUR_TS(vr->wrk) - cd->ts_timeout);
-					li_counter_format(val_timeout, COUNTER_TIME, ts_timeout);
-				}
+				li_counter_format(cd->ts_started, COUNTER_TIME, ts_started);
+				li_counter_format(cd->ts_timeout, COUNTER_TIME, ts_timeout);
 				li_counter_format(cd->bytes_in, COUNTER_BYTES, bytes_in);
 				li_counter_format(cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), COUNTER_BYTES, bytes_in_5s);
 				li_counter_format(cd->bytes_out, COUNTER_BYTES, bytes_out);
@@ -768,8 +772,8 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 					cd->path->str,
 					cd->query->len ? "?":"",
 					cd->query->len ? cd->query->str : "",
-					(guint64)(CUR_TS(vr->wrk) - cd->ts_started), ts->str,
-					val_timeout, ts_timeout->str,
+					cd->ts_started, ts_started->str,
+					cd->ts_timeout, ts_timeout->str,
 					cd->bytes_in, bytes_in->str,
 					cd->bytes_out, bytes_out->str,
 					cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), bytes_in_5s->str,
@@ -783,7 +787,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 
 		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 
-		g_string_free(ts, TRUE);
+		g_string_free(ts_started, TRUE);
 		g_string_free(ts_timeout, TRUE);
 		g_string_free(bytes_in, TRUE);
 		g_string_free(bytes_in_5s, TRUE);
