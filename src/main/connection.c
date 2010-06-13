@@ -262,6 +262,10 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	liConnection *con = (liConnection*) w->data;
 	gboolean update_io_timeout = FALSE;
 
+	/* ensure that the connection is always in the io timeout queue */
+	if (!con->io_timeout_elem.queued)
+		li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
+
 	if (revents & EV_READ) {
 		if (con->in->is_closed) {
 			/* don't read the next request before current one is done */
@@ -400,7 +404,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		return;
 	}
 
-	if ((update_io_timeout && ((con->io_timeout_elem.ts + 1.0) < ev_now(loop))) || !con->io_timeout_elem.queued) {
+	if (update_io_timeout && ((con->io_timeout_elem.ts + 1.0) < ev_now(loop))) {
 		li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
 	}
 
