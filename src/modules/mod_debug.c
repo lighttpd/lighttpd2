@@ -85,6 +85,7 @@ typedef struct mod_debug_job_t mod_debug_job_t;
 /* the CollectFunc */
 static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 	GArray *cons;
+	guint len;
 	mod_debug_job_t *job = fdata;
 
 	/* gather connection info */
@@ -122,9 +123,11 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 
 				cd->detailed = g_string_sized_new(1023);
 				g_string_append_printf(cd->detailed, "<pre>connection* @ %p = {\n", (void*)cd->con);
+				g_string_append_printf(cd->detailed, "	fd = %d,\n", cd->fd);
 				g_string_append_printf(cd->detailed, "	remote_addr_str = \"%s\",\n", cd->remote_addr_str->str);
 				g_string_append_printf(cd->detailed, "	local_addr_str = \"%s\",\n", cd->local_addr_str->str);
-				g_string_append_printf(cd->detailed, "	fd = %d,\n", cd->fd);
+				g_string_append_printf(cd->detailed, "	is_ssl = \"%s\",\n", cd->is_ssl ? "true" : "false");
+				g_string_append_printf(cd->detailed, "	keep_alive = \"%s\",\n", cd->keep_alive ? "true" : "false");
 				g_string_append_printf(cd->detailed, "	state = \"%s\",\n", li_connection_state_str(cd->state));
 				g_string_append_printf(cd->detailed, "	ts_started = %f,\n", cd->ts_started);
 				g_string_append_printf(cd->detailed,
@@ -146,6 +149,20 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 					"		bytes_out = %"G_GUINT64_FORMAT"\n"
 					"	}\n",
 					cd->bytes_in, cd->bytes_out
+				);
+				g_string_append_printf(cd->detailed,
+					"	mainvr = {\n"
+					"		request = {\n"
+					"			method = \"%s\"\n"
+					"			host = \"%s\"\n"
+					"			path = \"%s\"\n"
+					"			query = \"%s\"\n"
+					"		}\n"
+					"	}\n",
+					li_http_method_string(cd->method, &len),
+					cd->host->str,
+					cd->path->str,
+					cd->query->str
 				);
 				g_string_append_len(cd->detailed, CONST_STR_LEN("}</pre>"));
 			}
