@@ -155,6 +155,10 @@ static gboolean connection_handle_read(liConnection *con) {
 		con->keep_alive_data.timeout = 0;
 		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 
+		/* put back in io timeout queue */
+		if (!con->io_timeout_elem.queued)
+			li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
+
 		con->keep_alive_requests++;
 		/* disable keep alive if limit is reached */
 		if (con->keep_alive_requests == CORE_OPTION(LI_CORE_OPTION_MAX_KEEP_ALIVE_REQUESTS).number)
@@ -603,6 +607,9 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 				ev_timer_start(con->wrk->loop, &con->keep_alive_data.watcher);
 			}
 		}
+
+		/* remove from timeout queue */
+		li_waitqueue_remove(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
 	}
 
 	con->state = LI_CON_STATE_KEEP_ALIVE;
@@ -631,9 +638,6 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 	con->stats.bytes_out_5s = G_GUINT64_CONSTANT(0);
 	con->stats.bytes_out_5s_diff = G_GUINT64_CONSTANT(0);
 	con->stats.last_avg = 0;
-
-	/* remove from timeout queue */
-	li_waitqueue_remove(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
 
 	li_throttle_reset(con);
 
