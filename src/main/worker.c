@@ -217,13 +217,7 @@ GString *li_worker_current_timestamp(liWorker *wrk, liTimeFunc timefunc, guint f
 		a = wrk->timestamps_local;
 	}
 
-	if (format_ndx >= a->len) {
-		g_array_set_size(a, format_ndx);
-	}
-
 	wts = &g_array_index(a, liWorkerTS, format_ndx);
-
-	if (!wts->str) wts->str = g_string_sized_new(255);
 
 	/* cache hit */
 	if (now == wts->last_generated)
@@ -550,6 +544,19 @@ void li_worker_run(liWorker *wrk) {
 	/* update and start io timeout queue since first worker is allocated before srv->io_timeout is set */
 	li_waitqueue_set_delay(&wrk->io_timeout_queue, wrk->srv->io_timeout);
 	li_waitqueue_update(&wrk->io_timeout_queue);
+
+	/* initialize timestamp caches for new ones that have been added by modules */
+	if (wrk->srv->ts_formats->len > wrk->timestamps_gmt->len) {
+		guint i = wrk->timestamps_gmt->len;
+		g_array_set_size(wrk->timestamps_gmt, wrk->srv->ts_formats->len);
+		g_array_set_size(wrk->timestamps_local, wrk->srv->ts_formats->len);
+		for (; i < wrk->srv->ts_formats->len; i++) {
+			g_array_index(wrk->timestamps_gmt, liWorkerTS, i).last_generated = 0;
+			g_array_index(wrk->timestamps_gmt, liWorkerTS, i).str = g_string_sized_new(255);
+			g_array_index(wrk->timestamps_local, liWorkerTS, i).last_generated = 0;
+			g_array_index(wrk->timestamps_local, liWorkerTS, i).str = g_string_sized_new(255);
+		}
+	}
 
 	ev_loop(wrk->loop, 0);
 }
