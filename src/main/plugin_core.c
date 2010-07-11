@@ -250,6 +250,8 @@ static void core_docroot_free(liServer *srv, gpointer param) {
 	for (i = 0; i < arr->len; i++) {
 		li_pattern_free(g_array_index(arr, liPattern*, i));
 	}
+
+	g_array_free(arr, TRUE);
 }
 
 static liAction* core_docroot(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
