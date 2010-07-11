@@ -298,7 +298,8 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 			liOptionPtrValue *oval = g_array_index(srv->optionptr_def_values, liOptionPtrValue*, i);
 			if (vr->optionptrs[i] != oval) {
 				li_release_optionptr(srv, vr->optionptrs[i]);
-				g_atomic_int_inc(&oval->refcount);
+				if (oval)
+					g_atomic_int_inc(&oval->refcount);
 				vr->optionptrs[i] = oval;
 			}
 		}
