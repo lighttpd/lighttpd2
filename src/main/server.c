@@ -305,6 +305,11 @@ static gpointer server_worker_cb(gpointer data) {
 }
 
 gboolean li_server_loop_init(liServer *srv) {
+	/* disable usage if signalfd for libev 3.8, it breaks signal handling. 3.9+ have it disabled by default */
+	if (EV_VERSION_MAJOR == 3 && EV_VERSION_MINOR == 8 && ev_version_major() == 3 && ev_version_minor() == 8) {
+			srv->loop_flags |= EVFLAG_NOSIGFD;
+	}
+
 	srv->loop = ev_default_loop(srv->loop_flags);
 
 	if (!srv->loop) {
