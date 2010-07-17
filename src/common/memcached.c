@@ -16,6 +16,9 @@
  * through the ev_io callback, which is why we get an extra
  * reference there, so our refcount doesn't drop to 0 while
  * we are working.
+ *
+ * TODO: retry connect() once (per second?) if we have a request
+ *   before we drop all requests
  */
 
 GQuark li_memcached_error_quark() {
@@ -37,6 +40,7 @@ struct liMemcachedCon {
 
 	ev_io con_watcher;
 	int fd;
+	ev_tstamp last_con_start;
 
 	GQueue req_queue;
 	int_request *cur_req;
@@ -231,6 +235,10 @@ static void memcached_connect(liMemcachedCon *con) {
 
 	s = con->con_watcher.fd;
 	if (-1 == s) {
+		/* reconnect limit */
+		if (ev_now(con->loop) < con->last_con_start + 1) return;
+		con->last_con_start = ev_now(con->loop);
+
 		do {
 			s = socket(con->addr.addr->plain.sa_family, SOCK_STREAM, 0);
 		} while (-1 == s && errno == EINTR);
@@ -688,10 +696,12 @@ static void memcached_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		return;
 	}
 
-	li_memcached_con_acquire(con); /* make sure con isn't freed in the middle of something */
+	if (-1 == con->fd) {
+		memcached_connect(con);
+		return;
+	}
 
-	if (-1 == con->fd) memcached_connect(con);
-	if (-1 == con->fd) goto out;
+	li_memcached_con_acquire(con); /* make sure con isn't freed in the middle of something */
 
 	if (revents | EV_WRITE) {
 		int i;
