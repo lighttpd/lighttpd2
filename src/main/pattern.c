@@ -108,8 +108,11 @@ liPattern *li_pattern_new(const gchar* str) {
 
 void li_pattern_free(liPattern *pattern) {
 	guint i;
-	GArray *arr = (GArray*) pattern;
+	GArray *arr;
 
+	if (!pattern) return;
+
+	arr = (GArray*) pattern;
 	for (i = 0; i < arr->len; i++) {
 		if (g_array_index(arr, liPatternPart, i).type == PATTERN_STRING)
 			g_string_free(g_array_index(arr, liPatternPart, i).data.str, TRUE);
