@@ -211,6 +211,8 @@ static void free_request(liMemcachedCon *con, int_request *req) {
 static void cancel_all_requests(liMemcachedCon *con) {
 	int_request *req;
 	GError *err1 = NULL, *err = NULL;
+	gboolean first = TRUE;
+
 	if (con->err) {
 		err1 = g_error_copy(con->err);
 	} else {
@@ -224,8 +226,15 @@ static void cancel_all_requests(liMemcachedCon *con) {
 
 		if (req->req.callback) req->req.callback(&req->req, LI_MEMCACHED_RESULT_ERROR, NULL, &err);
 
-		if (err1) err1->code = LI_MEMCACHED_DISABLED; /* "silent" fail */
-		if (con->err) con->err->code = LI_MEMCACHED_DISABLED; /* "silent" fail */
+		free_request(con, req);
+
+		if (first) {
+			if (err) err->code = LI_MEMCACHED_DISABLED; /* "silent" fail */
+			if (err1) err1->code = LI_MEMCACHED_DISABLED; /* "silent" fail */
+			if (con->err) con->err->code = LI_MEMCACHED_DISABLED; /* "silent" fail */
+
+			first = FALSE;
+		}
 	}
 
 	if (NULL != err) g_clear_error(&err);

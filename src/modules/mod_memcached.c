@@ -298,7 +298,9 @@ static void memcache_callback(liMemcachedRequest *request, liMemcachedResult res
 		break;
 	case LI_MEMCACHED_RESULT_ERROR:
 		if (err && *err) {
-			VR_ERROR(vr, "memcached error: %s", (*err)->message);
+			if (LI_MEMCACHED_DISABLED != (*err)->code) {
+				VR_ERROR(vr, "memcached error: %s", (*err)->message);
+			}
 		} else {
 			VR_ERROR(vr, "memcached error: %s", "Unknown error");
 		}
