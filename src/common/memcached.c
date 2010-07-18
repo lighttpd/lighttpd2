@@ -203,6 +203,8 @@ static void free_request(liMemcachedCon *con, int_request *req) {
 
 	g_string_free(req->key, TRUE);
 	req->key = NULL;
+
+	g_slice_free(int_request, req);
 }
 
 static void cancel_all_requests(liMemcachedCon *con) {
@@ -224,6 +226,22 @@ static void cancel_all_requests(liMemcachedCon *con) {
 
 	if (NULL != err) g_clear_error(&err);
 	if (NULL != err1) g_clear_error(&err1);
+}
+
+static void memcached_update_io(liMemcachedCon *con) {
+	int events = 0;
+
+	if (-1 == con->fd) return; /* not connected or in connect stage */
+
+	if (0 < con->req_queue.length) events = events | EV_READ;
+	if (0 < con->out.length) events = events | EV_WRITE;
+
+	if (0 == events) {
+		memcached_stop_io(con);
+	} else {
+		memcached_start_io(con);
+		li_ev_io_set_events(con->loop, &con->con_watcher, events);
+	}
 }
 
 static void memcached_connect(liMemcachedCon *con) {
@@ -271,13 +289,7 @@ static void memcached_connect(liMemcachedCon *con) {
 			/* connect succeeded */
 			con->fd = s;
 			g_clear_error(&con->err);
-			if (0 == con->out.length) {
-				memcached_start_io(con);
-				li_ev_io_set_events(con->loop, &con->con_watcher, EV_READ);
-			} else {
-				memcached_start_io(con);
-				li_ev_io_set_events(con->loop, &con->con_watcher, EV_READ | EV_WRITE);
-			}
+			memcached_update_io(con);
 		}
 
 		return;
@@ -315,13 +327,7 @@ static void memcached_connect(liMemcachedCon *con) {
 		/* connect succeeded */
 		con->fd = s;
 		g_clear_error(&con->err);
-		if (0 == con->out.length) {
-			memcached_start_io(con);
-			li_ev_io_set_events(con->loop, &con->con_watcher, EV_READ);
-		} else {
-			memcached_start_io(con);
-			li_ev_io_set_events(con->loop, &con->con_watcher, EV_READ | EV_WRITE);
-		}
+		memcached_update_io(con);
 	}
 }
 
@@ -690,6 +696,7 @@ req_get_header_done: ;
 
 static void memcached_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	liMemcachedCon *con = (liMemcachedCon*) w->data;
+	UNUSED(loop);
 
 	if (1 == g_atomic_int_get(&con->refcount) && w->active) {
 		memcached_stop_io(con);
@@ -707,7 +714,6 @@ static void memcached_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		int i;
 		ssize_t written, len;
 		gchar *data;
-		gboolean out_queue_empty;
 		send_item *si;
 
 		si = g_queue_peek_head(&con->out);
@@ -746,14 +752,6 @@ static void memcached_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 write_eagain:
 		send_queue_clean(&con->out);
-		out_queue_empty = (0 == con->out.length);
-
-		if (out_queue_empty) {
-			li_ev_io_rem_events(loop, w, EV_WRITE);
-			if (0 == (w->events & (EV_READ | EV_WRITE))) {
-				memcached_stop_io(con);
-			}
-		}
 	}
 
 	if (revents | EV_READ) {
@@ -763,6 +761,7 @@ write_eagain:
 	}
 
 out:
+	memcached_update_io(con);
 	li_memcached_con_release(con);
 }
 
