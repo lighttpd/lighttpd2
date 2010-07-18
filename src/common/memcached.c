@@ -805,6 +805,8 @@ static void li_memcached_con_free(liMemcachedCon* con) {
 	li_sockaddr_clear(&con->addr);
 	g_string_free(con->tmpstr, TRUE);
 
+	g_clear_error(&con->err);
+
 	g_slice_free(liMemcachedCon, con);
 }
 
