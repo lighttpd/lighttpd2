@@ -455,8 +455,6 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	ev_async_start(wrk->loop, &wrk->job_async_queue_watcher);
 	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
-	li_stat_cache_new(wrk, srv->stat_cache_ttl);
-
 	wrk->network_read_buf = g_byte_array_sized_new(0);
 
 	return wrk;
@@ -558,6 +556,10 @@ void li_worker_run(liWorker *wrk) {
 		}
 	}
 
+	/* setup stat cache if necessary */
+	if (wrk->srv->stat_cache_ttl && !wrk->stat_cache)
+		li_stat_cache_new(wrk, wrk->srv->stat_cache_ttl);
+
 	ev_loop(wrk->loop, 0);
 }
 
@@ -572,7 +574,8 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 		ev_async_stop(wrk->loop, &wrk->new_con_watcher);
 		li_waitqueue_stop(&wrk->io_timeout_queue);
 		li_waitqueue_stop(&wrk->throttle_queue);
-		li_waitqueue_stop(&wrk->stat_cache->delete_queue);
+		if (wrk->stat_cache)
+			li_waitqueue_stop(&wrk->stat_cache->delete_queue);
 		li_worker_new_con_cb(wrk->loop, &wrk->new_con_watcher, 0); /* handle remaining new connections */
 
 		/* close keep alive connections */
@@ -656,7 +659,7 @@ void li_worker_con_put(liConnection *con) {
 	guint threshold;
 	liWorker *wrk = con->wrk;
 	ev_tstamp now = CUR_TS(wrk);
-	
+
 	if (con->state == LI_CON_STATE_DEAD)
 		/* already disconnected */
 		return;

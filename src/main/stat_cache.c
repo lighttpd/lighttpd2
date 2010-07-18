@@ -12,9 +12,13 @@ void li_stat_cache_new(liWorker *wrk, gdouble ttl) {
 	liStatCache *sc;
 	GError *err;
 
-	/* ttl default 10s */
-	if (ttl < 1)
+	if (ttl < 0) {
+		/* fall back to default if not sane */
 		ttl = 10.0;
+	} else if (ttl == 0) {
+		/* ttl means disabled stat cache */
+		return;
+	}
 
 	sc = g_slice_new0(liStatCache);
 	sc->ttl = ttl;
@@ -42,6 +46,10 @@ void li_stat_cache_new(liWorker *wrk, gdouble ttl) {
 void li_stat_cache_free(liStatCache *sc) {
 	liStatCacheEntry *sce;
 	liWaitQueueElem *wqe;
+
+	/* check if stat cache was enabled */
+	if (!sc)
+		return;
 
 	/* wake up thread */
 	sce = g_slice_new0(liStatCacheEntry);
@@ -296,43 +304,40 @@ static liHandlerResult stat_cache_get(liVRequest *vr, GString *path, struct stat
 	liStatCacheEntry *sce;
 	guint i;
 
-	if (NULL == vr) goto callstat;
+	/* force blocking call if we are not in a vrequest context or stat cache is disabled */
+	if (!vr || !(sc = vr->wrk->stat_cache))
+		async = FALSE;
 
-	sc = vr->wrk->stat_cache;
-	sce = g_hash_table_lookup(sc->entries, path);
+	if (async) {
+		sce = g_hash_table_lookup(sc->entries, path);
 
-	if (sce) {
-		/* cache hit, check state */
-		if (g_atomic_int_get(&sce->state) == STAT_CACHE_ENTRY_WAITING) {
-			if (async) {
-				sce = NULL;
-				goto callstat;
-			}
-
-			/* already waiting for it? */
-			for (i = 0; i < vr->stat_cache_entries->len; i++) {
-				if (g_ptr_array_index(vr->stat_cache_entries, i) == sce) {
-					return LI_HANDLER_WAIT_FOR_EVENT;
+		if (sce) {
+			/* cache hit, check state */
+			if (g_atomic_int_get(&sce->state) == STAT_CACHE_ENTRY_WAITING) {
+				/* already waiting for it? */
+				for (i = 0; i < vr->stat_cache_entries->len; i++) {
+					if (g_ptr_array_index(vr->stat_cache_entries, i) == sce) {
+						return LI_HANDLER_WAIT_FOR_EVENT;
+					}
 				}
+				li_stat_cache_entry_acquire(vr, sce);
+				return LI_HANDLER_WAIT_FOR_EVENT;
 			}
+
+			sc->hits++;
+		} else {
+			/* cache miss, allocate new entry */
+			sce = stat_cache_entry_new(path);
+			sce->type = STAT_CACHE_ENTRY_SINGLE;
 			li_stat_cache_entry_acquire(vr, sce);
+			li_waitqueue_push(&sc->delete_queue, &sce->queue_elem);
+			g_hash_table_insert(sc->entries, sce->data.path, sce);
+			g_async_queue_push(sc->job_queue_out, sce);
+			sc->misses++;
 			return LI_HANDLER_WAIT_FOR_EVENT;
 		}
-
-		sc->hits++;
-	} else if (async) {
-		/* cache miss, allocate new entry */
-		sce = stat_cache_entry_new(path);
-		sce->type = STAT_CACHE_ENTRY_SINGLE;
-		li_stat_cache_entry_acquire(vr, sce);
-		li_waitqueue_push(&sc->delete_queue, &sce->queue_elem);
-		g_hash_table_insert(sc->entries, sce->data.path, sce);
-		g_async_queue_push(sc->job_queue_out, sce);
-		sc->misses++;
-		return LI_HANDLER_WAIT_FOR_EVENT;
 	}
 
-callstat:
 	if (fd) {
 		/* open + fstat */
 		while (-1 == (*fd = open(path->str, O_RDONLY))) {

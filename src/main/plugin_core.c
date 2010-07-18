@@ -201,7 +201,7 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 	for (; i < arr->len; i++) {
 		struct stat st;
 		gint err;
-		
+
 
 		g_string_truncate(vr->physical.doc_root, 0);
 		li_pattern_eval(vr, vr->physical.doc_root, g_array_index(arr, liPattern*, i), core_docroot_nth_cb, vr->request.uri.host, li_pattern_regex_cb, match_info);
@@ -483,7 +483,7 @@ static void core_index_free(liServer *srv, gpointer param) {
 
 	UNUSED(srv);
 
-	for (i = 0; i < files->len; i++) 
+	for (i = 0; i < files->len; i++)
 		li_value_free(g_array_index(files, liValue*, i));
 
 	g_array_free(files, TRUE);
@@ -599,7 +599,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "not a regular file: '%s'", vr->physical.path->str);
 		}
-		
+
 		if (fd != -1)
 			close(fd);
 
@@ -979,7 +979,7 @@ static gboolean core_io_timeout(liServer *srv, liPlugin* p, liValue *val, gpoint
 static gboolean core_stat_cache_ttl(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(p); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_NUMBER || val->data.number < 1) {
+	if (!val || val->type != LI_VALUE_NUMBER || val->data.number < 0) {
 		ERROR(srv, "%s", "stat_cache.ttl expects a positive number as parameter");
 		return FALSE;
 	}

@@ -178,6 +178,7 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 
 	srv->io_timeout = 300; /* default I/O timeout */
 	srv->keep_alive_queue_timeout = 5;
+	srv->stat_cache_ttl = 10.0; /* default stat cache ttl */
 
 #ifdef LIGHTY_OS_LINUX
 	/* sched_getaffinity is only available on linux */
