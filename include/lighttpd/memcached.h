@@ -38,6 +38,7 @@ LI_API GQuark li_memcached_error_quark();
 typedef enum {
 	LI_MEMCACHED_CONNECTION,
 	LI_MEMCACHED_BAD_KEY,
+	LI_MEMCACHED_DISABLED, /* disabled right now */
 	LI_MEMCACHED_UNKNOWN = 0xff
 } liMemcachedError;
 

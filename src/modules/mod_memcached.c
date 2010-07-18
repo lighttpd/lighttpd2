@@ -377,7 +377,9 @@ static liHandlerResult mc_handle_lookup(liVRequest *vr, gpointer param, gpointer
 
 		if (NULL == req->req) {
 			if (NULL != err) {
-				VR_ERROR(vr, "memcached.lookup: get failed: %s", err->message);
+				if (LI_MEMCACHED_DISABLED != err->code) {
+					VR_ERROR(vr, "memcached.lookup: get failed: %s", err->message);
+				}
 				g_clear_error(&err);
 			} else {
 				VR_ERROR(vr, "memcached.lookup: get failed: %s", "Unkown error");
@@ -498,7 +500,9 @@ static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 
 		if (NULL == req) {
 			if (NULL != err) {
-				VR_ERROR(vr, "memcached.store: set failed: %s", err->message);
+				if (LI_MEMCACHED_DISABLED != err->code) {
+					VR_ERROR(vr, "memcached.store: set failed: %s", err->message);
+				}
 				g_clear_error(&err);
 			} else {
 				VR_ERROR(vr, "memcached.store: set failed: %s", "Unkown error");

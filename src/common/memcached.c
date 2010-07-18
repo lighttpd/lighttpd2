@@ -223,6 +223,9 @@ static void cancel_all_requests(liMemcachedCon *con) {
 		}
 
 		if (req->req.callback) req->req.callback(&req->req, LI_MEMCACHED_RESULT_ERROR, NULL, &err);
+
+		if (err1) err1->code = LI_MEMCACHED_DISABLED; /* "silent" fail */
+		if (con->err) con->err->code = LI_MEMCACHED_DISABLED; /* "silent" fail */
 	}
 
 	if (NULL != err) g_clear_error(&err);
@@ -255,7 +258,14 @@ static void memcached_connect(liMemcachedCon *con) {
 	s = con->con_watcher.fd;
 	if (-1 == s) {
 		/* reconnect limit */
-		if (ev_now(con->loop) < con->last_con_start + 1) return;
+		if (ev_now(con->loop) < con->last_con_start + 1) {
+			if (con->err) {
+				con->err->code = LI_MEMCACHED_DISABLED;
+			} else {
+				g_set_error(&con->err, LI_MEMCACHED_ERROR, LI_MEMCACHED_DISABLED, "Disabled right now");
+			}
+			return;
+		}
 		con->last_con_start = ev_now(con->loop);
 
 		do {
@@ -838,7 +848,7 @@ liMemcachedRequest* li_memcached_get(liMemcachedCon *con, GString *key, liMemcac
 	if (-1 == con->fd) memcached_connect(con);
 	if (-1 == con->fd) {
 		if (NULL == con->err) {
-			g_set_error(err, LI_MEMCACHED_ERROR, LI_MEMCACHED_CONNECTION, "Not connected");
+			g_set_error(err, LI_MEMCACHED_ERROR, LI_MEMCACHED_DISABLED, "Not connected");
 		} else if (err) {
 			*err = g_error_copy(con->err);
 		}
@@ -871,7 +881,7 @@ liMemcachedRequest* li_memcached_set(liMemcachedCon *con, GString *key, guint32 
 	if (-1 == con->fd) memcached_connect(con);
 	if (-1 == con->fd) {
 		if (NULL == con->err) {
-			g_set_error(err, LI_MEMCACHED_ERROR, LI_MEMCACHED_CONNECTION, "Not connected");
+			g_set_error(err, LI_MEMCACHED_ERROR, LI_MEMCACHED_DISABLED, "Not connected");
 		} else if (err) {
 			*err = g_error_copy(con->err);
 		}
