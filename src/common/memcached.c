@@ -587,6 +587,8 @@ static void handle_read(liMemcachedCon *con) {
 			/* wait for header line */
 			if (!try_read_line(con)) return;
 
+			con->get_have_header = TRUE;
+
 			if (3 == con->line->used && 0 == memcmp("END", con->line->addr, 3)) {
 				/* key not found */
 				if (cur->req.callback) {
