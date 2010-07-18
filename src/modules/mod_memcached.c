@@ -282,7 +282,7 @@ static void memcache_callback(liMemcachedRequest *request, liMemcachedResult res
 		req->buffer = item->data;
 		item->data = NULL;
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-			VR_DEBUG(vr, "memcached.lookup: key '%s' found, ttl = %f, flags = %u", item->key->str, (double) item->ttl, (guint) item->flags);
+			VR_DEBUG(vr, "memcached.lookup: key '%s' found, flags = %u", item->key->str, (guint) item->flags);
 		}
 		break;
 	case LI_MEMCACHED_NOT_FOUND:
@@ -488,7 +488,7 @@ static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 		key = mc_ctx_build_key(ctx, vr);
 
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-			VR_DEBUG(vr, "memcached.lookup: storing response for key '%s'", key->str);
+			VR_DEBUG(vr, "memcached.store: storing response for key '%s'", key->str);
 		}
 
 		req = li_memcached_set(con, key, ctx->flags, ctx->ttl, mf->buf, NULL, NULL, &err);
