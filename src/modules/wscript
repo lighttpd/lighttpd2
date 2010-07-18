@@ -50,7 +50,7 @@ def build(bld):
 	lighty_mod(bld, 'mod_fortune', 'mod_fortune.c')
 	if bld.env['USE_LUA'] == 1:
 		lighty_mod(bld, 'mod_lua', 'mod_lua.c', ['lua'])
-	lighty_mod(bld, 'mod_memcached', 'mod_memcached.c')
+	lighty_mod(bld, 'mod_memcached', 'mod_memcached.c', ['lua'])
 	if env['USE_OPENSSL'] == 1:
 		uselib = ['ssl','crypto']
 		lighty_mod(bld, 'mod_openssl', 'mod_openssl.c', uselib)
