@@ -221,7 +221,7 @@ static void cancel_all_requests(liMemcachedCon *con) {
 			err = g_error_copy(err1);
 		}
 
-		if (req->req.callback) req->req.callback(&req->req, LI_MEMCACHED_ERROR, NULL, &err);
+		if (req->req.callback) req->req.callback(&req->req, LI_MEMCACHED_RESULT_ERROR, NULL, &err);
 	}
 
 	if (NULL != err) g_clear_error(&err);
