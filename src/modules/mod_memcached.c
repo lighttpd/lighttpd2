@@ -52,7 +52,7 @@ LI_API gboolean mod_memcached_free(liModules *mods, liModule *mod);
 
 typedef struct memcached_ctx memcached_ctx;
 struct memcached_ctx {
-	int refcount; /* TODO */
+	int refcount;
 
 	liMemcachedCon **worker_client_ctx;
 	liSocketAddress addr;
@@ -94,9 +94,19 @@ static const GString
 	mon_key = { CONST_STR_LEN("key"), 0 }
 ;
 
-static void mc_ctx_free(liServer *srv, gpointer param) {
+static void mc_ctx_acquire(memcached_ctx* ctx) {
+	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	g_atomic_int_inc(&ctx->refcount);
+}
+
+static void mc_ctx_release(liServer *srv, gpointer param) {
 	memcached_ctx *ctx = param;
 	guint i;
+
+	if (NULL == ctx) return;
+
+	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	if (!g_atomic_int_dec_and_test(&ctx->refcount)) return;
 
 	if (ctx->worker_client_ctx) {
 		for (i = 0; i < srv->worker_count; i++) {
@@ -132,6 +142,7 @@ static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config) 
 	}
 
 	ctx = g_slice_new0(memcached_ctx);
+	ctx->refcount = 1;
 	ctx->p = p;
 
 	ctx->addr = li_sockaddr_from_string(&def_server, 11211);
@@ -220,7 +231,7 @@ static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config) 
 	return ctx;
 
 option_failed:
-	mc_ctx_free(srv, ctx);
+	mc_ctx_release(srv, ctx);
 	return NULL;
 }
 
@@ -405,7 +416,7 @@ static void memcache_store_filter_free(liVRequest *vr, liFilter *f) {
 	memcache_filter *mf = (memcache_filter*) f->param;
 	UNUSED(vr);
 
-	/* release mf->ctx */
+	mc_ctx_release(vr->wrk->srv, mf->ctx);
 	li_buffer_release(mf->buf);
 
 	g_slice_free(memcache_filter, mf);
@@ -514,7 +525,7 @@ static liHandlerResult mc_handle_store(liVRequest *vr, gpointer param, gpointer 
 
 	mf = g_slice_new0(memcache_filter);
 	mf->ctx = ctx;
-	/* TODO acquire ctx */
+	mc_ctx_acquire(ctx);
 	mf->buf = li_buffer_new(ctx->maxsize);
 
 	li_vrequest_add_filter_out(vr, memcache_store_filter, memcache_store_filter_free, mf);
@@ -564,7 +575,7 @@ static liAction* mc_lookup_create(liServer *srv, liWorker *wrk, liPlugin* p, liV
 	if (act_found) ctx->act_found = li_value_extract_action(act_found);
 	if (act_miss) ctx->act_miss = li_value_extract_action(act_miss);
 
-	return li_action_new_function(mc_handle_lookup, mc_lookup_handle_free, mc_ctx_free, ctx);
+	return li_action_new_function(mc_handle_lookup, mc_lookup_handle_free, mc_ctx_release, ctx);
 }
 
 static liAction* mc_store_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
@@ -576,7 +587,7 @@ static liAction* mc_store_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 
 	if (!ctx) return NULL;
 
-	return li_action_new_function(mc_handle_store, NULL, mc_ctx_free, ctx);
+	return li_action_new_function(mc_handle_store, NULL, mc_ctx_release, ctx);
 }
 
 static const liPluginOption options[] = {
