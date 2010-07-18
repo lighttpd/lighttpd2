@@ -150,7 +150,7 @@ static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config) 
 	ctx->pattern = li_pattern_new("%{req.path}");
 
 	ctx->flags = 0;
-	ctx->ttl = 0;
+	ctx->ttl = 30;
 	ctx->maxsize = 64*1024; /* 64 kB */
 	ctx->headers = FALSE;
 
@@ -193,8 +193,8 @@ static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config) 
 				}
 				ctx->flags = value->data.number;
 			} else if (g_string_equal(key, &mon_ttl)) {
-				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0) {
-					ERROR(srv, "memcache option '%s' expects positive integer as parameter", mon_ttl.str);
+				if (value->type != LI_VALUE_NUMBER || value->data.number < 0) {
+					ERROR(srv, "memcache option '%s' expects non-negative integer as parameter", mon_ttl.str);
 					goto option_failed;
 				}
 				ctx->ttl = value->data.number;
