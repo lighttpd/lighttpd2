@@ -121,6 +121,7 @@ static void send_queue_clean(GQueue *queue) {
 	send_item *i;
 	while (NULL != (i = g_queue_peek_head(queue))) {
 		if (i->len != 0) return;
+		g_queue_pop_head(queue);
 		li_buffer_release(i->buf);
 		g_slice_free(send_item, i);
 	}
@@ -128,7 +129,7 @@ static void send_queue_clean(GQueue *queue) {
 
 static void send_queue_reset(GQueue *queue) {
 	send_item *i;
-	while (NULL != (i = g_queue_peek_head(queue))) {
+	while (NULL != (i = g_queue_pop_head(queue))) {
 		li_buffer_release(i->buf);
 		g_slice_free(send_item, i);
 	}
