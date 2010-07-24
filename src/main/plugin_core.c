@@ -270,7 +270,7 @@ static liAction* core_docroot(liServer *srv, liWorker *wrk, liPlugin* p, liValue
 	arr = g_array_new(FALSE, TRUE, sizeof(liPattern*));
 
 	if (val->type == LI_VALUE_STRING) {
-		pattern = li_pattern_new(val->data.string->str);
+		pattern = li_pattern_new(srv, val->data.string->str);
 		g_array_append_val(arr, pattern);
 	} else {
 		for (i = 0; i < val->data.list->len; i++) {
@@ -281,7 +281,7 @@ static liAction* core_docroot(liServer *srv, liWorker *wrk, liPlugin* p, liValue
 				return NULL;
 			}
 
-			pattern = li_pattern_new(v->data.string->str);
+			pattern = li_pattern_new(srv, v->data.string->str);
 			g_array_append_val(arr, pattern);
 		}
 	}
@@ -822,14 +822,15 @@ static void core_log_write_free(liServer *srv, gpointer param) {
 
 static liHandlerResult core_handle_log_write(liVRequest *vr, gpointer param, gpointer *context) {
 	liPattern *pattern = param;
+	GString *str = g_string_sized_new(127);
 
 	UNUSED(context);
 
 	/* eval pattern, ignore $n and %n */
-	g_string_truncate(vr->wrk->tmp_str, 0);
-	li_pattern_eval(vr, vr->wrk->tmp_str, pattern, NULL, NULL, NULL, NULL);
+	li_pattern_eval(vr, str, pattern, NULL, NULL, NULL, NULL);
 
-	VR_INFO(vr, "%s", vr->wrk->tmp_str->str);
+	VR_INFO(vr, "%s", str->str);
+	g_string_free(str, TRUE);
 
 	return LI_HANDLER_GO_ON;
 }
@@ -843,7 +844,7 @@ static liAction* core_log_write(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 		return NULL;
 	}
 
-	pattern = li_pattern_new(val->data.string->str);
+	pattern = li_pattern_new(srv, val->data.string->str);
 	if (!pattern) {
 		ERROR(srv, "%s", "log.write failed to parse pattern");
 		return NULL;

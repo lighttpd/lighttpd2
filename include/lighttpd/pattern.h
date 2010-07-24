@@ -15,7 +15,7 @@ typedef struct {
 	union {
 		GString *str;		/* PATTERN_STRING */
 		guint8 ndx;			/* PATTERN_NTH and PATTERN_NTH_PREV */
-		liCondLValue var;	/* PATTERN_VAR and PATTERN_VAR_ENCODED */
+		liConditionLValue *lvalue;	/* PATTERN_VAR and PATTERN_VAR_ENCODED */
 	} data;
 } liPatternPart;
 
@@ -26,7 +26,7 @@ typedef GArray liPattern;
 typedef void (*liPatternCB) (GString *pattern_result, guint8 nth_ndx, gpointer data);
 
 /* constructs a new liPattern* by parsing the given string, returns NULL on error */
-LI_API liPattern *li_pattern_new(const gchar* str);
+LI_API liPattern *li_pattern_new(liServer *srv, const gchar* str);
 LI_API void li_pattern_free(liPattern *pattern);
 
 LI_API void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatternCB nth_callback, gpointer nth_data, liPatternCB nth_prev_callback, gpointer nth_prev_data);

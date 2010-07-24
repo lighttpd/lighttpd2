@@ -147,7 +147,7 @@ static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config) 
 
 	ctx->addr = li_sockaddr_from_string(&def_server, 11211);
 
-	ctx->pattern = li_pattern_new("%{req.path}");
+	ctx->pattern = li_pattern_new(srv, "%{req.path}");
 
 	ctx->flags = 0;
 	ctx->ttl = 30;
@@ -181,7 +181,7 @@ static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config) 
 					goto option_failed;
 				}
 				li_pattern_free(ctx->pattern);
-				ctx->pattern = li_pattern_new(value->data.string->str);
+				ctx->pattern = li_pattern_new(srv,  value->data.string->str);
 				if (NULL == ctx->pattern) {
 					ERROR(srv, "memcache: couldn't parse pattern for key '%s'", value->data.string->str);
 					goto option_failed;

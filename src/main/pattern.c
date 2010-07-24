@@ -1,6 +1,6 @@
 #include <lighttpd/base.h>
 
-liPattern *li_pattern_new(const gchar* str) {
+liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 	GArray *pattern;
 	liPatternPart part;
 	gchar *c;
@@ -19,6 +19,7 @@ liPattern *li_pattern_new(const gchar* str) {
 				c++;
 			} else {
 				/* parse error */
+				ERROR(srv, "could not parse pattern: \"%s\"", str);
 				li_pattern_free((liPattern*)pattern);
 				return NULL;
 			}
@@ -48,29 +49,33 @@ liPattern *li_pattern_new(const gchar* str) {
 
 				if (*c == '\0') {
 					/* parse error */
+					ERROR(srv, "could not parse pattern: \"%s\"", str);
 					li_pattern_free((liPattern*)pattern);
 					return NULL;
 				}
 
-				part.data.var = li_cond_lvalue_from_string(c-len, len);
+				part.data.lvalue = li_condition_lvalue_new(li_cond_lvalue_from_string(c-len, len), NULL);
+				part.type = encoded ? PATTERN_VAR_ENCODED : PATTERN_VAR;
+				g_array_append_val(pattern, part);
 
-				if (part.data.var == LI_COMP_UNKNOWN) {
+				if (part.data.lvalue->type == LI_COMP_UNKNOWN) {
 					/* parse error */
+					ERROR(srv, "could not parse pattern: \"%s\"", str);
 					li_pattern_free((liPattern*)pattern);
 					return NULL;
 				}
 
 				if (len && *c == '}') {
-					part.type = encoded ? PATTERN_VAR_ENCODED : PATTERN_VAR;
-					g_array_append_val(pattern, part);
 					c++;
 				} else {
 					/* parse error */
+					ERROR(srv, "could not parse pattern: \"%s\"", str);
 					li_pattern_free((liPattern*)pattern);
 					return NULL;
 				}
 			} else {
 				/* parse error */
+				ERROR(srv, "could not parse pattern: \"%s\"", str);
 				li_pattern_free((liPattern*)pattern);
 				return NULL;
 			}
@@ -88,6 +93,7 @@ liPattern *li_pattern_new(const gchar* str) {
 						c++;
 					} else {
 						/* parse error */
+						ERROR(srv, "could not parse pattern: \"%s\"", str);
 						li_pattern_free((liPattern*)pattern);
 						return NULL;
 					}
@@ -109,13 +115,19 @@ liPattern *li_pattern_new(const gchar* str) {
 void li_pattern_free(liPattern *pattern) {
 	guint i;
 	GArray *arr;
+	liPatternPart *part;
 
 	if (!pattern) return;
 
 	arr = (GArray*) pattern;
 	for (i = 0; i < arr->len; i++) {
-		if (g_array_index(arr, liPatternPart, i).type == PATTERN_STRING)
-			g_string_free(g_array_index(arr, liPatternPart, i).data.str, TRUE);
+		part = &g_array_index(arr, liPatternPart, i);
+		switch (part->type) {
+		case PATTERN_STRING: g_string_free(part->data.str, TRUE); break;
+		case PATTERN_VAR_ENCODED: /* fall through */
+		case PATTERN_VAR: li_condition_lvalue_release(part->data.lvalue); break;
+		default: break;
+		}
 	}
 
 	g_array_free(arr, TRUE);
@@ -124,8 +136,8 @@ void li_pattern_free(liPattern *pattern) {
 void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatternCB nth_callback, gpointer nth_data, liPatternCB nth_prev_callback, gpointer nth_prev_data) {
 	guint i;
 	gboolean encoded;
-	GString *str;
-	GString str_stack;
+	liHandlerResult res;
+	liConditionValue cond_val;
 	GArray *arr = (GArray*) pattern;
 
 	for (i = 0; i < arr->len; i++) {
@@ -148,31 +160,14 @@ void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatter
 			encoded = TRUE;
 			/* fall through */
 		case PATTERN_VAR:
-			switch (part->data.var) {
-			case LI_COMP_REQUEST_LOCALIP: str = vr->con->local_addr_str; break;
-			case LI_COMP_REQUEST_REMOTEIP: str = vr->con->remote_addr_str; break;
-			case LI_COMP_REQUEST_SCHEME:
-				if (vr->con->is_ssl)
-					str_stack = li_const_gstring(CONST_STR_LEN("https"));
-				else
-					str_stack = li_const_gstring(CONST_STR_LEN("http"));
-				str = &str_stack;
-				break;
-			case LI_COMP_REQUEST_PATH: str = vr->request.uri.path; break;
-			case LI_COMP_REQUEST_HOST: str = vr->request.uri.host; break;
-			case LI_COMP_REQUEST_QUERY_STRING: str = vr->request.uri.query; break;
-			case LI_COMP_REQUEST_METHOD: str = vr->request.http_method_str; break;
-			case LI_COMP_REQUEST_CONTENT_LENGTH:
-				g_string_printf(vr->con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
-				str = vr->con->wrk->tmp_str;
-				break;
-			default: continue;
-			}
+			res = li_condition_get_value(vr, part->data.lvalue, &cond_val, LI_COND_VALUE_HINT_STRING);
 
-			if (encoded)
-				li_string_encode_append(str->str, dest, LI_ENCODING_URI);
-			else
-				g_string_append_len(dest, GSTR_LEN(str));
+			if (res == LI_HANDLER_GO_ON) {
+				if (encoded)
+					li_string_encode_append(li_condition_value_to_string(vr, &cond_val), dest, LI_ENCODING_URI);
+				else
+					g_string_append(dest, li_condition_value_to_string(vr, &cond_val));
+			}
 
 			break;
 		}
