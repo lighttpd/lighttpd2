@@ -77,7 +77,7 @@ CHECK_C_SOURCE_COMPILES("
 	#include <sys/types.h>
 	#include <sys/socket.h>
 	#include <netinet/in.h>
-	
+
 	int main() {
 		struct sockaddr_in6 s; struct in6_addr t=in6addr_any; int i=AF_INET6; s; t.s6_addr[0] = 0;
 		return 0;
@@ -330,6 +330,7 @@ ADD_AND_INSTALL_LIBRARY(mod_expire "modules/mod_expire.c")
 ADD_AND_INSTALL_LIBRARY(mod_fastcgi "modules/mod_fastcgi.c")
 ADD_AND_INSTALL_LIBRARY(mod_flv "modules/mod_flv.c")
 ADD_AND_INSTALL_LIBRARY(mod_fortune "modules/mod_fortune.c")
+ADD_AND_INSTALL_LIBRARY(mod_fortune "modules/mod_limit.c")
 ADD_AND_INSTALL_LIBRARY(mod_memcached "modules/mod_memcached.c")
 ADD_AND_INSTALL_LIBRARY(mod_progress "modules/mod_progress.c")
 ADD_AND_INSTALL_LIBRARY(mod_proxy "modules/mod_proxy.c")

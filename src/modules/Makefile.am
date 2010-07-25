@@ -1,4 +1,4 @@
-install_libs = 
+install_libs =
 
 common_cflags = -I$(top_srcdir)/include -I$(top_builddir)/include
 common_cflags += $(GTHREAD_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) $(OPENSSL_CFLAGS)
@@ -69,6 +69,11 @@ install_libs += libmod_fortune.la
 libmod_fortune_la_SOURCES = mod_fortune.c
 libmod_fortune_la_LDFLAGS = $(common_ldflags)
 libmod_fortune_la_LIBADD = $(common_libadd)
+
+install_libs += libmod_limit.la
+libmod_limit_la_SOURCES = mod_limit.c
+libmod_limit_la_LDFLAGS = $(common_ldflags)
+libmod_limit_la_LIBADD = $(common_libadd)
 
 if USE_LUA
 install_libs += libmod_lua.la
