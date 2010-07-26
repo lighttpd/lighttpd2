@@ -91,8 +91,8 @@ CHECK_C_SOURCE_COMPILES("
 	}" HAVE_SOCKADDR_STORAGE)
 
 # glib/gthread
-pkg_check_modules(GTHREAD REQUIRED gthread-2.0)
-pkg_check_modules(GMODULE REQUIRED gmodule-2.0)
+pkg_check_modules(GTHREAD REQUIRED gthread-2.0>=2.16)
+pkg_check_modules(GMODULE REQUIRED gmodule-2.0>=2.16)
 
 IF(WITH_LUA)
   pkg_search_module(LUA REQUIRED lua lua5.1 lua-5.1)
