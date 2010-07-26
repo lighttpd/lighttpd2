@@ -50,6 +50,7 @@
  */
 
 #include <lighttpd/base.h>
+#include <lighttpd/radix.h>
 
 LI_API gboolean mod_limit_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_limit_free(liModules *mods, liModule *mod);
