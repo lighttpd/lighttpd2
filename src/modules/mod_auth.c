@@ -293,18 +293,10 @@ static liHandlerResult auth_basic(liVRequest *vr, gpointer param, gpointer *cont
 	UNUSED(context);
 
 	if (li_vrequest_is_handled(vr)) {
-		/* only allow access restrictions as previous handlers */
-		switch (vr->response.http_status) { /* use same list as in auth_handle_deny */
-		case 401: /* Unauthorized */
-		case 402: /* Payment Required */
-		case 403: /* Forbidden */
-		case 405: /* Method Not Allowed */
-		case 407: /* Proxy Authentication Required */
-		case 500: /* Internal Server Error */
-			return LI_HANDLER_GO_ON;
-		default:
-			return LI_HANDLER_ERROR;
+		if (debug || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "skipping auth.basic as request is already handled with current status %i", vr->response.http_status);
 		}
+		return LI_HANDLER_GO_ON;
 	}
 
 	/* check for Authorization header */
@@ -467,18 +459,10 @@ static liHandlerResult auth_handle_deny(liVRequest *vr, gpointer param, gpointer
 	UNUSED(context);
 
 	if (!li_vrequest_handle_direct(vr)) {
-		/* only allow access restrictions as previous handlers */
-		switch (vr->response.http_status) { /* use same list as in auth_basic */
-		case 401: /* Unauthorized */
-		case 402: /* Payment Required */
-		case 403: /* Forbidden */
-		case 405: /* Method Not Allowed */
-		case 407: /* Proxy Authentication Required */
-		case 500: /* Internal Server Error */
-			return LI_HANDLER_GO_ON;
-		default:
-			return LI_HANDLER_ERROR;
+		if (debug || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "skipping auth.deny as request is already handled with current status %i", vr->response.http_status);
 		}
+		return LI_HANDLER_GO_ON;
 	}
 
 	vr->response.http_status = 401;
