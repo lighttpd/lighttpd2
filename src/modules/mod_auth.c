@@ -63,6 +63,8 @@
 #include <lighttpd/base.h>
 #include <lighttpd/encoding.h>
 
+#include <lighttpd/plugin_core.h>
+
 #ifdef HAVE_CRYPT_H
 # include <crypt.h>
 #endif
@@ -455,11 +457,11 @@ static liAction* auth_htdigest_create(liServer *srv, liWorker *wrk, liPlugin* p,
 }
 
 static liHandlerResult auth_handle_deny(liVRequest *vr, gpointer param, gpointer *context) {
-	UNUSED(param);
+	AuthBasicData *bdata = param;
 	UNUSED(context);
 
 	if (!li_vrequest_handle_direct(vr)) {
-		if (debug || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		if (_OPTION(vr, bdata->p, 0).boolean || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "skipping auth.deny as request is already handled with current status %i", vr->response.http_status);
 		}
 		return LI_HANDLER_GO_ON;
