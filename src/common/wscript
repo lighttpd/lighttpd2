@@ -10,6 +10,8 @@ License and Copyright: see COPYING file
 import Options, sys, Utils
 
 def configure(conf):
+	if sys.platform.startswith('freebsd'):
+		conf.check(lib='kvm', uselib_store='kvm', mandatory=True)
 	pass
 
 
@@ -29,11 +31,15 @@ def build(bld):
 		utils.c
 		waitqueue.c
 	'''
+	if sys.platform.startswith('freebsd'):
+		libs = ['kvm']
+	else:
+		libs = []
 
 	libcommon = bld.new_task_gen(
 		features = 'cc cshlib',
 	 	source = source,
 		defines = ['HAVE_CONFIG_H=1'],
-		uselib = ['glib', 'gthread', 'gmodule', 'ev'],
+		uselib = ['glib', 'gthread', 'gmodule', 'ev'] + libs,
 		includes = ['#/include/'],
 		target = 'common')

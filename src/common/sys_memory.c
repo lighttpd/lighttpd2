@@ -80,7 +80,7 @@ gsize li_memory_usage(void) {
 	if (KERN_SUCCESS != task_info(mach_task_self(), TASK_BASIC_INFO, (task_info_t) &tbinfo, &cnt))
 		return 0;
 
-	return binfo.resident_size;
+	return tbinfo.resident_size;
 }
 
 #elif defined(LIGHTY_OS_SOLARIS)
