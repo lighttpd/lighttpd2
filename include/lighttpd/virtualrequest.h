@@ -36,6 +36,40 @@ typedef liHandlerResult (*liFilterHandlerCB)(liVRequest *vr, liFilter *f);
 typedef void (*liFilterFreeCB)(liVRequest *vr, liFilter *f);
 typedef liHandlerResult (*liVRequestHandlerCB)(liVRequest *vr);
 typedef liHandlerResult (*liVRequestPluginHandlerCB)(liVRequest *vr, liPlugin *p);
+typedef gboolean (*liVRequestCheckIOCB)(liVRequest *vr);
+
+struct liConCallbacks {
+	liVRequestHandlerCB
+		handle_request_headers,
+		handle_response_headers, handle_response_body,
+		handle_response_error; /* this is _not_ for 500 - internal error */
+
+	liVRequestCheckIOCB handle_check_io;
+};
+
+/* this data "belongs" to a vrequest, but is updated by the connection code */
+struct liConInfo {
+	const liConCallbacks *callbacks;
+
+	liSocketAddress remote_addr, local_addr;
+	GString *remote_addr_str, *local_addr_str;
+	gboolean is_ssl;
+	gboolean keep_alive;
+
+	/* bytes in our "raw-io-out-queue" that hasn't be sent yet. (whatever "sent" means - in ssl buffer, kernel, ...) */
+	goffset out_queue_length;
+
+	/* use li_vrequest_update_stats_{in,out} to update this */
+	struct {
+		guint64 bytes_in; /* total number of bytes received */
+		guint64 bytes_out; /* total number of bytes sent */
+		ev_tstamp last_avg;
+		guint64 bytes_in_5s; /* total number of bytes received at last 5s interval */
+		guint64 bytes_out_5s; /* total number of bytes sent at last 5s interval */
+		guint64 bytes_in_5s_diff; /* diff between bytes received at 5s interval n and interval n-1 */
+		guint64 bytes_out_5s_diff; /* diff between bytes sent at 5s interval n and interval n-1 */
+	} stats;
+};
 
 struct liFilter {
 	liChunkQueue *in, *out;
@@ -58,7 +92,7 @@ struct liVRequestRef {
 };
 
 struct liVRequest {
-	liConnection *con;
+	liConInfo *coninfo;
 	liWorker *wrk;
 	liVRequestRef *ref;
 
@@ -68,11 +102,6 @@ struct liVRequest {
 	liVRequestState state;
 
 	ev_tstamp ts_started;
-
-	liVRequestHandlerCB
-		handle_request_headers,
-		handle_response_headers, handle_response_body,
-		handle_response_error; /* this is _not_ for 500 - internal error */
 
 	GPtrArray *plugin_ctx;
 	liPlugin *backend;
@@ -98,6 +127,27 @@ struct liVRequest {
 	GList job_queue_link;
 
 	GPtrArray *stat_cache_entries;
+
+	/* I/O throttling */
+	gboolean throttled; /* TRUE if vrequest is throttled */
+	struct {
+		gint magazine; /* currently available for use */
+
+		struct {
+			liThrottlePool *ptr; /* NULL if not in any throttling pool */
+			GList lnk;
+			GQueue *queue;
+			gint magazine;
+		} pool;
+		struct {
+			gchar unused; /* this struct is unused for now */
+		} ip;
+		struct {
+			guint rate; /* maximum transfer rate in bytes per second, 0 if unlimited */
+			ev_tstamp last_update;
+		} con;
+		liWaitQueueElem wqueue_elem;
+	} throttle;
 };
 
 #define VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr) \
@@ -110,7 +160,7 @@ struct liVRequest {
 		} \
 	} while (0)
 
-LI_API liVRequest* li_vrequest_new(liConnection *con, liVRequestHandlerCB handle_response_headers, liVRequestHandlerCB handle_response_body, liVRequestHandlerCB handle_response_error, liVRequestHandlerCB handle_request_headers);
+LI_API liVRequest* li_vrequest_new(liConnection *con, liConInfo *coninfo);
 LI_API void li_vrequest_free(liVRequest *vr);
 /* if keepalive = TRUE, you either have to reset it later again with FALSE or call li_vrequest_start before reusing the vr;
  * keepalive = TRUE doesn't reset the vr->request fields, so mod_status can show the last request data in the keep-alive state
@@ -156,5 +206,9 @@ LI_API void li_vrequest_joblist_append_async(liVRequestRef *vr_ref);
 LI_API gboolean li_vrequest_redirect(liVRequest *vr, GString *uri);
 
 LI_API gboolean li_vrequest_redirect_directory(liVRequest *vr);
+
+/* updates worker stats too */
+LI_API void li_vrequest_update_stats_in(liVRequest *vr, goffset transferred);
+LI_API void li_vrequest_update_stats_out(liVRequest *vr, goffset transferred);
 
 #endif

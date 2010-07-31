@@ -49,43 +49,43 @@ void li_throttle_pool_free(liServer *srv, liThrottlePool *pool) {
 	g_slice_free(liThrottlePool, pool);
 }
 
-void li_throttle_pool_acquire(liConnection *con, liThrottlePool *pool) {
+void li_throttle_pool_acquire(liVRequest *vr, liThrottlePool *pool) {
 	gint magazine;
 
-	if (con->throttle.pool.ptr == pool)
+	if (vr->throttle.pool.ptr == pool)
 		return;
 
-	if (con->throttle.pool.ptr != NULL) {
+	if (vr->throttle.pool.ptr != NULL) {
 		/* already in a different pool */
-		li_throttle_pool_release(con);
+		li_throttle_pool_release(vr);
 	}
 
 	/* try to steal some initial 4kbytes from the pool */
 	while ((magazine = g_atomic_int_get(&pool->magazine)) > (4*1024)) {
 		if (g_atomic_int_compare_and_exchange(&pool->magazine, magazine, magazine - (4*1024))) {
-			con->throttle.pool.magazine = 4*1024;
+			vr->throttle.pool.magazine = 4*1024;
 			break;
 		}
 	}
 
-	con->throttle.pool.ptr = pool;
-	con->throttled = TRUE;
+	vr->throttle.pool.ptr = pool;
+	vr->throttled = TRUE;
 }
 
-void li_throttle_pool_release(liConnection *con) {
-	if (con->throttle.pool.queue == NULL)
+void li_throttle_pool_release(liVRequest *vr) {
+	if (vr->throttle.pool.queue == NULL)
 		return;
 
-	if (con->throttle.pool.queue) {
-		g_queue_unlink(con->throttle.pool.queue, &con->throttle.pool.lnk);
-		con->throttle.pool.queue = NULL;
-		g_atomic_int_add(&con->throttle.pool.ptr->num_cons_queued, -1);
+	if (vr->throttle.pool.queue) {
+		g_queue_unlink(vr->throttle.pool.queue, &vr->throttle.pool.lnk);
+		vr->throttle.pool.queue = NULL;
+		g_atomic_int_add(&vr->throttle.pool.ptr->num_cons_queued, -1);
 	}
 
 	/* give back bandwidth */
-	g_atomic_int_add(&con->throttle.pool.ptr->magazine, con->throttle.pool.magazine);
-	con->throttle.pool.magazine = 0;
-	con->throttle.pool.ptr = NULL;
+	g_atomic_int_add(&vr->throttle.pool.ptr->magazine, vr->throttle.pool.magazine);
+	vr->throttle.pool.magazine = 0;
+	vr->throttle.pool.ptr = NULL;
 }
 
 static void li_throttle_pool_rearm(liWorker *wrk, liThrottlePool *pool) {
@@ -123,8 +123,8 @@ static void li_throttle_pool_rearm(liWorker *wrk, liThrottlePool *pool) {
 
 			/* rearm connections */
 			for (lnk = g_queue_peek_head_link(queue); lnk != NULL; lnk = lnk_next) {
-				((liConnection*)lnk->data)->throttle.pool.magazine += supply;
-				((liConnection*)lnk->data)->throttle.pool.queue = NULL;
+				((liVRequest*)lnk->data)->throttle.pool.magazine += supply;
+				((liVRequest*)lnk->data)->throttle.pool.queue = NULL;
 				lnk_next = lnk->next;
 				lnk->next = NULL;
 				lnk->prev = NULL;
@@ -138,23 +138,23 @@ static void li_throttle_pool_rearm(liWorker *wrk, liThrottlePool *pool) {
 	}
 }
 
-void li_throttle_reset(liConnection *con) {
-	if (!con->throttled)
+void li_throttle_reset(liVRequest *vr) {
+	if (!vr->throttled)
 		return;
 
 	/* remove from throttle queue */
-	li_waitqueue_remove(&con->wrk->throttle_queue, &con->throttle.wqueue_elem);
-	li_throttle_pool_release(con);
+	li_waitqueue_remove(&vr->wrk->throttle_queue, &vr->throttle.wqueue_elem);
+	li_throttle_pool_release(vr);
 
-	con->throttle.con.rate = 0;
-	con->throttle.con.magazine = 0;
-	con->throttled = FALSE;
+	vr->throttle.con.rate = 0;
+	vr->throttle.magazine = 0;
+	vr->throttled = FALSE;
 }
 
 void li_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	liWaitQueueElem *wqe;
 	liThrottlePool *pool;
-	liConnection *con;
+	liVRequest *vr;
 	liWorker *wrk;
 	ev_tstamp now;
 	guint supply;
@@ -165,31 +165,49 @@ void li_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	now = ev_now(loop);
 
 	while (NULL != (wqe = li_waitqueue_pop(&wrk->throttle_queue))) {
-		con = wqe->data;
+		vr = wqe->data;
 
-		if (con->throttle.pool.ptr) {
+		if (vr->throttle.pool.ptr) {
 			/* throttled by pool */
-			pool = con->throttle.pool.ptr;
+			pool = vr->throttle.pool.ptr;
 
 			li_throttle_pool_rearm(wrk, pool);
 
-			if (con->throttle.con.rate) {
-				supply = MIN(con->throttle.pool.magazine, con->throttle.con.rate * THROTTLE_GRANULARITY);
-				con->throttle.con.magazine += supply;
-				con->throttle.pool.magazine -= supply;
+			if (vr->throttle.con.rate) {
+				supply = MIN(vr->throttle.pool.magazine, vr->throttle.con.rate * THROTTLE_GRANULARITY);
+				vr->throttle.magazine += supply;
+				vr->throttle.pool.magazine -= supply;
 			} else {
-				con->throttle.con.magazine += con->throttle.pool.magazine;
-				con->throttle.pool.magazine = 0;
+				vr->throttle.magazine += vr->throttle.pool.magazine;
+				vr->throttle.pool.magazine = 0;
 			}
 		/* TODO: throttled by ip */
 		} else {
 			/* throttled by connection */
-			if (con->throttle.con.magazine <= con->throttle.con.rate * THROTTLE_GRANULARITY * 4)
-				con->throttle.con.magazine += con->throttle.con.rate * THROTTLE_GRANULARITY;
+			if (vr->throttle.magazine <= vr->throttle.con.rate * THROTTLE_GRANULARITY * 4)
+				vr->throttle.magazine += vr->throttle.con.rate * THROTTLE_GRANULARITY;
 		}
 
-		li_ev_io_add_events(loop, &con->sock_watcher, EV_WRITE);
+		vr->coninfo->callbacks->handle_check_io(vr);
 	}
 
 	li_waitqueue_update(&wrk->throttle_queue);
+}
+
+void li_throttle_update(liVRequest *vr, goffset transferred, goffset write_max) {
+	vr->throttle.magazine -= transferred;
+
+	/*g_print("%p wrote %"G_GINT64_FORMAT"/%"G_GINT64_FORMAT" bytes, mags: %d/%d, queued: %s\n", (void*)con,
+	transferred, write_max, con->throttle.pool.magazine, con->throttle.con.magazine, con->throttle.pool.queued ? "yes":"no");*/
+
+	if (vr->throttle.magazine <= 0) {
+		li_waitqueue_push(&vr->wrk->throttle_queue, &vr->throttle.wqueue_elem);
+	}
+
+	if (vr->throttle.pool.ptr && vr->throttle.pool.magazine <= write_max && !vr->throttle.pool.queue) {
+		liThrottlePool *pool = vr->throttle.pool.ptr;
+		g_atomic_int_inc(&pool->num_cons_queued);
+		vr->throttle.pool.queue = pool->queues[vr->wrk->ndx];
+		g_queue_push_tail_link(vr->throttle.pool.queue, &vr->throttle.pool.lnk);
+	}
 }

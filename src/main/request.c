@@ -61,7 +61,7 @@ void li_request_clear(liRequest *req) {
 
 /* closes connection after response */
 static void bad_request(liConnection *con, int status) {
-	con->keep_alive = FALSE;
+	con->info.keep_alive = FALSE;
 	con->mainvr->response.http_status = status;
 	li_vrequest_handle_direct(con->mainvr);
 }
@@ -94,7 +94,7 @@ gboolean li_request_validate_header(liConnection *con) {
 	liHttpHeader *hh;
 	GList *l;
 
-	if (con->is_ssl) {
+	if (con->info.is_ssl) {
 		g_string_append_len(req->uri.scheme, CONST_STR_LEN("https"));
 	} else {
 		g_string_append_len(req->uri.scheme, CONST_STR_LEN("http"));
@@ -103,11 +103,11 @@ gboolean li_request_validate_header(liConnection *con) {
 	switch (req->http_version) {
 	case LI_HTTP_VERSION_1_0:
 		if (!li_http_header_is(req->headers, CONST_STR_LEN("connection"), CONST_STR_LEN("keep-alive")))
-			con->keep_alive = FALSE;
+			con->info.keep_alive = FALSE;
 		break;
 	case LI_HTTP_VERSION_1_1:
 		if (li_http_header_is(req->headers, CONST_STR_LEN("connection"), CONST_STR_LEN("close")))
-			con->keep_alive = FALSE;
+			con->info.keep_alive = FALSE;
 		break;
 	case LI_HTTP_VERSION_UNSET:
 		bad_request(con, 505); /* Version not Supported */

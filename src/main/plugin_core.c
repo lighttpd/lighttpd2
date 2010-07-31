@@ -1418,7 +1418,7 @@ static liHandlerResult core_handle_throttle_pool(liVRequest *vr, gpointer param,
 
 	UNUSED(context);
 
-	li_throttle_pool_acquire(vr->con, pool);
+	li_throttle_pool_acquire(vr, pool);
 
 	return LI_HANDLER_GO_ON;
 }
@@ -1498,20 +1498,19 @@ static void core_throttle_connection_free(liServer *srv, gpointer param) {
 
 
 static liHandlerResult core_handle_throttle_connection(liVRequest *vr, gpointer param, gpointer *context) {
-	liConnection *con = vr->con;
 	liThrottleParam *throttle_param = param;
 
 	UNUSED(context);
 
-	con->throttle.con.rate = throttle_param->rate;
-	con->throttled = TRUE;
+	vr->throttle.con.rate = throttle_param->rate;
+	vr->throttled = TRUE;
 
-	if (con->throttle.pool.magazine) {
-		guint supply = MAX(con->throttle.pool.magazine, throttle_param->rate * THROTTLE_GRANULARITY);
-		con->throttle.con.magazine += supply;
-		con->throttle.pool.magazine -= supply;
+	if (vr->throttle.pool.magazine) {
+		guint supply = MAX(vr->throttle.pool.magazine, throttle_param->rate * THROTTLE_GRANULARITY);
+		vr->throttle.magazine += supply;
+		vr->throttle.pool.magazine -= supply;
 	} else {
-		con->throttle.con.magazine += throttle_param->burst;
+		vr->throttle.magazine += throttle_param->burst;
 	}
 
 	return LI_HANDLER_GO_ON;

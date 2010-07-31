@@ -64,7 +64,7 @@ static gboolean openssl_con_new(liConnection *con) {
 	}
 
 	con->srv_sock_data = conctx;
-	con->is_ssl = TRUE;
+	con->info.is_ssl = TRUE;
 
 	return TRUE;
 
@@ -90,7 +90,7 @@ static void openssl_con_close(liConnection *con) {
 	}
 
 	con->srv_sock_data = NULL;
-	con->is_ssl = FALSE;
+	con->info.is_ssl = FALSE;
 
 	g_slice_free(openssl_connection_ctx, conctx);
 }

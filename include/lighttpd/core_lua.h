@@ -55,6 +55,10 @@ LI_API void li_lua_init_vrequest_mt(lua_State *L);
 LI_API liVRequest* li_lua_get_vrequest(lua_State *L, int ndx);
 LI_API int li_lua_push_vrequest(lua_State *L, liVRequest *vr);
 
+LI_API void li_lua_init_coninfo_mt(lua_State *L);
+LI_API liConInfo* li_lua_get_coninfo(lua_State *L, int ndx);
+LI_API int li_lua_push_coninfo(lua_State *L, liConInfo *vr);
+
 
 LI_API int li_lua_fixindex(lua_State *L, int ndx);
 

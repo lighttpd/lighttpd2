@@ -173,6 +173,7 @@ static void mod_limit_vrclose(liVRequest *vr, liPlugin *p) {
 	mod_limit_context *ctx;
 	guint i;
 	gint cons;
+	liSocketAddress remote_addr = vr->coninfo->remote_addr;
 
 	if (!arr)
 		return;
@@ -186,12 +187,12 @@ static void mod_limit_vrclose(liVRequest *vr, liPlugin *p) {
 			g_atomic_int_add(&ctx->refcount, -1);
 			break;
 		case ML_TYPE_CON_IP:
-			cons = GPOINTER_TO_INT(li_radixtree_lookup_exact(ctx->pool.con_ip, vr->con->remote_addr.addr, vr->con->remote_addr.len));
+			cons = GPOINTER_TO_INT(li_radixtree_lookup_exact(ctx->pool.con_ip, remote_addr.addr, remote_addr.len));
 			cons--;
 			if (!cons) {
-				li_radixtree_remove(ctx->pool.con_ip, vr->con->remote_addr.addr, vr->con->remote_addr.len);
+				li_radixtree_remove(ctx->pool.con_ip, remote_addr.addr, remote_addr.len);
 			} else {
-				li_radixtree_insert(ctx->pool.con_ip, vr->con->remote_addr.addr, vr->con->remote_addr.len, GINT_TO_POINTER(cons));
+				li_radixtree_insert(ctx->pool.con_ip, remote_addr.addr, remote_addr.len, GINT_TO_POINTER(cons));
 			}
 			g_atomic_int_add(&ctx->refcount, -1);
 			break;
@@ -211,6 +212,7 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 	GPtrArray *arr = g_ptr_array_index(vr->plugin_ctx, ctx->plugin->id);
 	gint cons;
 	mod_limit_req_ip_data *rid;
+	liSocketAddress remote_addr = vr->coninfo->remote_addr;
 
 	UNUSED(context);
 
@@ -237,9 +239,9 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 		break;
 	case ML_TYPE_CON_IP:
 		g_mutex_lock(ctx->mutex);
-		cons = GPOINTER_TO_INT(li_radixtree_lookup_exact(ctx->pool.con_ip, vr->con->remote_addr.addr, vr->con->remote_addr.len));
+		cons = GPOINTER_TO_INT(li_radixtree_lookup_exact(ctx->pool.con_ip, remote_addr.addr, remote_addr.len));
 		if (cons < ctx->limit) {
-			li_radixtree_insert(ctx->pool.con_ip, vr->con->remote_addr.addr, vr->con->remote_addr.len, GINT_TO_POINTER(cons+1));
+			li_radixtree_insert(ctx->pool.con_ip, remote_addr.addr, remote_addr.len, GINT_TO_POINTER(cons+1));
 			g_atomic_int_inc(&ctx->refcount);
 		} else {
 			limit_reached = TRUE;
@@ -267,15 +269,15 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 		break;
 	case ML_TYPE_REQ_IP:
 		g_mutex_lock(ctx->mutex);
-		rid = li_radixtree_lookup_exact(ctx->pool.req_ip, vr->con->remote_addr.addr, vr->con->remote_addr.len);
+		rid = li_radixtree_lookup_exact(ctx->pool.req_ip, remote_addr.addr, remote_addr.len);
 		if (!rid) {
 			/* IP not known */
 			rid = g_slice_new0(mod_limit_req_ip_data);
 			rid->requests = 1;
-			rid->ip = li_sockaddr_dup(vr->con->remote_addr);
+			rid->ip = li_sockaddr_dup(remote_addr);
 			rid->ctx = ctx;
 			rid->timeout_elem.data = rid;
-			li_radixtree_insert(ctx->pool.req_ip, vr->con->remote_addr.addr, vr->con->remote_addr.len, rid);
+			li_radixtree_insert(ctx->pool.req_ip, remote_addr.addr, remote_addr.len, rid);
 			li_waitqueue_push(&(((mod_limit_data*)ctx->plugin->data)->timeout_queues[vr->wrk->ndx]), &rid->timeout_elem);
 			g_atomic_int_inc(&ctx->refcount);
 		} else if (rid->requests < ctx->limit) {

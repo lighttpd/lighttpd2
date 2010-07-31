@@ -67,7 +67,7 @@ enum {
 
 static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *context) {
 	access_check_data *acd = param;
-	liSockAddr *addr = vr->con->remote_addr.addr;
+	liSockAddr *addr = vr->coninfo->remote_addr.addr;
 	gboolean log_blocked = _OPTION(vr, acd->p, OPTION_LOG_BLOCKED).boolean;
 	GString *redirect_url = _OPTIONPTR(vr, acd->p, OPTION_REDIRECT_URL).string;
 
@@ -82,7 +82,7 @@ static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *co
 			vr->response.http_status = 403;
 
 			if (log_blocked)
-				VR_INFO(vr, "access.check: blocked %s", vr->con->remote_addr_str->str);
+				VR_INFO(vr, "access.check: blocked %s", vr->coninfo->remote_addr_str->str);
 		}
 #ifdef HAVE_IPV6
 	} else if (addr->plain.sa_family == AF_INET6) {
@@ -93,7 +93,7 @@ static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *co
 			vr->response.http_status = 403;
 
 			if (log_blocked)
-				VR_INFO(vr, "access.check: blocked %s", vr->con->remote_addr_str->str);
+				VR_INFO(vr, "access.check: blocked %s", vr->coninfo->remote_addr_str->str);
 		}
 #endif
 	} else {
@@ -222,7 +222,7 @@ static liHandlerResult access_deny(liVRequest *vr, gpointer param, gpointer *con
 	vr->response.http_status = 403;
 
 	if (log_blocked) {
-		VR_INFO(vr, "access.deny: blocked %s", vr->con->remote_addr_str->str);
+		VR_INFO(vr, "access.deny: blocked %s", vr->coninfo->remote_addr_str->str);
 	}
 
 	return LI_HANDLER_GO_ON;

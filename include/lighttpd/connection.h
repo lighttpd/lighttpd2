@@ -32,6 +32,8 @@ struct liConnection {
 	liServerSocket *srv_sock;
 	gpointer srv_sock_data; /** private data for custom sockets (ssl) */
 
+	liConInfo info;
+
 	liConnectionState state;
 	gboolean response_headers_sent, expect_100_cont;
 
@@ -40,12 +42,11 @@ struct liConnection {
 	liBuffer *raw_in_buffer;
 
 	ev_io sock_watcher;
-	liSocketAddress remote_addr, local_addr;
-	GString *remote_addr_str, *local_addr_str;
-	gboolean is_ssl, keep_alive;
 
 	liVRequest *mainvr;
 	liHttpRequestCtx req_parser_ctx;
+
+	ev_tstamp ts_started; /* when connection was started, not a (v)request */
 
 	/* Keep alive timeout data */
 	struct {
@@ -58,38 +59,6 @@ struct liConnection {
 
 	/* I/O timeout data */
 	liWaitQueueElem io_timeout_elem;
-
-	/* I/O throttling */
-	gboolean throttled; /* TRUE if connection is throttled */
-	struct {
-		struct {
-			liThrottlePool *ptr; /* NULL if not in any throttling pool */
-			GList lnk;
-			GQueue *queue;
-			gint magazine;
-		} pool;
-		struct {
-			gchar unused; /* this struct is unused for now */
-		} ip;
-		struct {
-			guint rate; /* maximum transfer rate in bytes per second, 0 if unlimited */
-			gint magazine;
-			ev_tstamp last_update;
-		} con;
-		liWaitQueueElem wqueue_elem;
-	} throttle;
-
-	ev_tstamp ts_started;
-
-	struct {
-		guint64 bytes_in; /* total number of bytes received */
-		guint64 bytes_out; /* total number of bytes sent */
-		ev_tstamp last_avg;
-		guint64 bytes_in_5s; /* total number of bytes received at last 5s interval */
-		guint64 bytes_out_5s; /* total number of bytes sent at last 5s interval */
-		guint64 bytes_in_5s_diff; /* diff between bytes received at 5s interval n and interval n-1 */
-		guint64 bytes_out_5s_diff; /* diff between bytes sent at 5s interval n and interval n-1 */
-	} stats;
 };
 
 /* Internal functions */
@@ -104,5 +73,8 @@ LI_API void li_connection_error(liConnection *con); /* used in worker.c */
 
 /* public function */
 LI_API gchar *li_connection_state_str(liConnectionState state);
+
+/* returns NULL if the vrequest doesn't belong to a liConnection* object */
+LI_API liConnection* li_connection_from_vrequest(liVRequest *vr);
 
 #endif

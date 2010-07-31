@@ -261,10 +261,6 @@ static void proxy_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;
-			case LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
-				/* TODO: aio */
-				li_ev_io_rem_events(loop, w, EV_READ);
-				break;
 			}
 		}
 	}
@@ -286,10 +282,6 @@ static void proxy_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				li_vrequest_backend_finished(pcon->vr);
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
-				break;
-			case LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
-				li_ev_io_rem_events(loop, w, EV_WRITE);
-				/* TODO: aio */
 				break;
 			}
 		}

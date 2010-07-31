@@ -298,10 +298,10 @@ static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *
 		case REDIRECT_PART_VAR:
 
 			switch (rp->data.cond_lval) {
-			case LI_COMP_REQUEST_LOCALIP: str = vr->con->local_addr_str; break;
-			case LI_COMP_REQUEST_REMOTEIP: str = vr->con->remote_addr_str; break;
+			case LI_COMP_REQUEST_LOCALIP: str = vr->coninfo->local_addr_str; break;
+			case LI_COMP_REQUEST_REMOTEIP: str = vr->coninfo->remote_addr_str; break;
 			case LI_COMP_REQUEST_SCHEME:
-				if (vr->con->is_ssl)
+				if (vr->coninfo->is_ssl)
 					str_stack = li_const_gstring(CONST_STR_LEN("https"));
 				else
 					str_stack = li_const_gstring(CONST_STR_LEN("http"));
@@ -312,8 +312,8 @@ static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *
 			case LI_COMP_REQUEST_QUERY_STRING: str = vr->request.uri.query; break;
 			case LI_COMP_REQUEST_METHOD: str = vr->request.http_method_str; break;
 			case LI_COMP_REQUEST_CONTENT_LENGTH:
-				g_string_printf(vr->con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
-				str = vr->con->wrk->tmp_str;
+				g_string_printf(vr->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
+				str = vr->wrk->tmp_str;
 				break;
 			default: continue;
 			}

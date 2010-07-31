@@ -49,7 +49,6 @@ lua_src= \
 	value_lua.c \
 	 \
 	chunk_lua.c \
-	connection_lua.c \
 	core_lua.c \
 	environment_lua.c \
 	filters_lua.c \

@@ -397,10 +397,10 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 	for (guint i = 0; i < wrk->connections_active; i++) {
 		liConnection *c = g_array_index(wrk->connections, liConnection*, i);
 		mod_status_con_data *cd = &g_array_index(sd->connections, mod_status_con_data, i);
-		cd->is_ssl = c->is_ssl;
-		cd->keep_alive = c->keep_alive;
-		cd->remote_addr_str = g_string_new_len(GSTR_LEN(c->remote_addr_str));
-		cd->local_addr_str = g_string_new_len(GSTR_LEN(c->local_addr_str));
+		cd->is_ssl = c->info.is_ssl;
+		cd->keep_alive = c->info.keep_alive;
+		cd->remote_addr_str = g_string_new_len(GSTR_LEN(c->info.remote_addr_str));
+		cd->local_addr_str = g_string_new_len(GSTR_LEN(c->info.local_addr_str));
 		cd->host = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.host));
 		cd->path = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.path));
 		cd->query = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.query));
@@ -408,10 +408,10 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->request_size = c->mainvr->request.content_length;
 		cd->response_size = c->mainvr->out->bytes_out;
 		cd->state = c->state;
-		cd->bytes_in = c->stats.bytes_in;
-		cd->bytes_out = c->stats.bytes_out;
-		cd->bytes_in_5s_diff = c->stats.bytes_in_5s_diff;
-		cd->bytes_out_5s_diff = c->stats.bytes_out_5s_diff;
+		cd->bytes_in = c->info.stats.bytes_in;
+		cd->bytes_out = c->info.stats.bytes_out;
+		cd->bytes_in_5s_diff = c->info.stats.bytes_in_5s_diff;
+		cd->bytes_out_5s_diff = c->info.stats.bytes_out_5s_diff;
 
 		cd->ts_started = (guint64)(CUR_TS(wrk) - c->ts_started);
 

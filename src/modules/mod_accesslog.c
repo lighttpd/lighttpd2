@@ -243,10 +243,10 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				g_string_append_c(str, '%');
 				break;
 			case AL_FORMAT_REMOTE_ADDR:
-				g_string_append_len(str, GSTR_LEN(vr->con->remote_addr_str));
+				g_string_append_len(str, GSTR_LEN(vr->coninfo->remote_addr_str));
 				break;
 			case AL_FORMAT_LOCAL_ADDR:
-				g_string_append_len(str, GSTR_LEN(vr->con->local_addr_str));
+				g_string_append_len(str, GSTR_LEN(vr->coninfo->local_addr_str));
 				break;
 			case AL_FORMAT_BYTES_RESPONSE:
 				li_string_append_int(str, vr->vr_out->bytes_out);
@@ -291,10 +291,10 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_LOCAL_PORT:
-				switch (vr->con->local_addr.addr->plain.sa_family) {
-				case AF_INET: li_string_append_int(str, ntohs(vr->con->local_addr.addr->ipv4.sin_port)); break;
+				switch (vr->coninfo->local_addr.addr->plain.sa_family) {
+				case AF_INET: li_string_append_int(str, ntohs(vr->coninfo->local_addr.addr->ipv4.sin_port)); break;
 				#ifdef HAVE_IPV6
-				case AF_INET6: li_string_append_int(str, ntohs(vr->con->local_addr.addr->ipv6.sin6_port)); break;
+				case AF_INET6: li_string_append_int(str, ntohs(vr->coninfo->local_addr.addr->ipv6.sin6_port)); break;
 				#endif
 				default: g_string_append_c(str, '-'); break;
 				}
@@ -350,18 +350,22 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				else
 					g_string_append_c(str, '-');
 				break;
-			case AL_FORMAT_CONNECTION_STATUS:
-				/* was request completed? */
-				if (vr->con->in->is_closed && vr->con->raw_out->is_closed && 0 == vr->con->raw_out->length)
-					g_string_append_c(str, 'X');
-				else
-					g_string_append_c(str, vr->con->keep_alive ? '+' : '-');
+			case AL_FORMAT_CONNECTION_STATUS: {
+					/* was request completed? */
+					liConnection *con = li_connection_from_vrequest(vr); /* try to get a connection object */
+
+					if (con && (con->in->is_closed && con->raw_out->is_closed && 0 == con->raw_out->length)) {
+						g_string_append_c(str, 'X');
+					} else {
+						g_string_append_c(str, vr->coninfo->keep_alive ? '+' : '-');
+					}
+				}
 				break;
 			case AL_FORMAT_BYTES_IN:
-				li_string_append_int(str, vr->con->stats.bytes_in);
+				li_string_append_int(str, vr->coninfo->stats.bytes_in);
 				break;
 			case AL_FORMAT_BYTES_OUT:
-				li_string_append_int(str, vr->con->stats.bytes_out);
+				li_string_append_int(str, vr->coninfo->stats.bytes_out);
 				break;
 			default:
 				/* not implemented:
@@ -398,7 +402,7 @@ static void al_handle_vrclose(liVRequest *vr, liPlugin *p) {
 	msg = al_format_log(vr, p->data, format);
 
 	g_string_append_len(msg, CONST_STR_LEN("\r\n"));
-	li_log_write(vr->con->srv, log, msg);
+	li_log_write(vr->wrk->srv, log, msg);
 }
 
 

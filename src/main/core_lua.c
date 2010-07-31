@@ -243,7 +243,7 @@ static void lua_push_constants(lua_State *L, int ndx) {
 
 void li_lua_init(lua_State *L, liServer *srv, liWorker *wrk) {
 	li_lua_init_chunk_mt(L);
-	li_lua_init_connection_mt(L);
+	li_lua_init_coninfo_mt(L);
 	li_lua_init_environment_mt(L);
 	li_lua_init_filter_mt(L);
 	li_lua_init_physical_mt(L);

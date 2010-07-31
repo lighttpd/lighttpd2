@@ -30,7 +30,7 @@ static const liConditionValueType cond_value_hints[] = {
 
 /* uses wrk->tmp_str for temporary (and returned) strings */
 liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue, liConditionValue *res, liConditionValueType prefer) {
-	liConnection *con = vr->con;
+	liConInfo *coninfo = vr->coninfo;
 	liHandlerResult r;
 	struct stat st;
 	int err;
@@ -42,21 +42,21 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 	case LI_COMP_REQUEST_LOCALIP:
 		if (prefer == LI_COND_VALUE_HINT_STRING) {
 			res->match_type = LI_COND_VALUE_HINT_STRING;
-			res->data.str = con->local_addr_str->str;
+			res->data.str = coninfo->local_addr_str->str;
 		} else {
 			res->match_type = LI_COND_VALUE_HINT_SOCKADDR;
-			res->data.addr = con->local_addr;
+			res->data.addr = coninfo->local_addr;
 		}
 		break;
 	case LI_COMP_REQUEST_LOCALPORT:
 		res->match_type = LI_COND_VALUE_HINT_NUMBER;
-		switch (con->local_addr.addr->plain.sa_family) {
+		switch (coninfo->local_addr.addr->plain.sa_family) {
 		case AF_INET:
-			res->data.number = ntohs(con->local_addr.addr->ipv4.sin_port);
+			res->data.number = ntohs(coninfo->local_addr.addr->ipv4.sin_port);
 			break;
 		#ifdef HAVE_IPV6
 		case AF_INET6:
-			res->data.number = ntohs(con->local_addr.addr->ipv6.sin6_port);
+			res->data.number = ntohs(coninfo->local_addr.addr->ipv6.sin6_port);
 			break;
 		#endif
 		default:
@@ -67,21 +67,21 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 	case LI_COMP_REQUEST_REMOTEIP:
 		if (prefer == LI_COND_VALUE_HINT_STRING) {
 			res->match_type = LI_COND_VALUE_HINT_STRING;
-			res->data.str = con->remote_addr_str->str;
+			res->data.str = coninfo->remote_addr_str->str;
 		} else {
 			res->match_type = LI_COND_VALUE_HINT_SOCKADDR;
-			res->data.addr = con->remote_addr;
+			res->data.addr = coninfo->remote_addr;
 		}
 		break;
 	case LI_COMP_REQUEST_REMOTEPORT:
 		res->match_type = LI_COND_VALUE_HINT_NUMBER;
-		switch (con->remote_addr.addr->plain.sa_family) {
+		switch (coninfo->remote_addr.addr->plain.sa_family) {
 		case AF_INET:
-			res->data.number = ntohs(con->remote_addr.addr->ipv4.sin_port);
+			res->data.number = ntohs(coninfo->remote_addr.addr->ipv4.sin_port);
 			break;
 		#ifdef HAVE_IPV6
 		case AF_INET6:
-			res->data.number = ntohs(con->remote_addr.addr->ipv6.sin6_port);
+			res->data.number = ntohs(coninfo->remote_addr.addr->ipv6.sin6_port);
 			break;
 		#endif
 		default:
@@ -99,7 +99,7 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 		break;
 	case LI_COMP_REQUEST_SCHEME:
 		res->match_type = LI_COND_VALUE_HINT_STRING;
-		res->data.str = con->is_ssl ? "https" : "http";
+		res->data.str = coninfo->is_ssl ? "https" : "http";
 		break;
 	case LI_COMP_REQUEST_QUERY_STRING:
 		res->data.str = vr->request.uri.query->str;
@@ -164,14 +164,14 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 		break;
 	case LI_COMP_REQUEST_HEADER:
 		res->match_type = LI_COND_VALUE_HINT_STRING;
-		li_http_header_get_all(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(lvalue->key));
-		res->data.str = con->wrk->tmp_str->str;
+		li_http_header_get_all(vr->wrk->tmp_str, vr->request.headers, GSTR_LEN(lvalue->key));
+		res->data.str = vr->wrk->tmp_str->str;
 		break;
 	case LI_COMP_RESPONSE_HEADER:
 		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 		res->match_type = LI_COND_VALUE_HINT_STRING;
-		li_http_header_get_all(con->wrk->tmp_str, vr->response.headers, GSTR_LEN(lvalue->key));
-		res->data.str = con->wrk->tmp_str->str;
+		li_http_header_get_all(vr->wrk->tmp_str, vr->response.headers, GSTR_LEN(lvalue->key));
+		res->data.str = vr->wrk->tmp_str->str;
 		break;
 	case LI_COMP_ENVIRONMENT:
 		res->match_type = LI_COND_VALUE_HINT_STRING;

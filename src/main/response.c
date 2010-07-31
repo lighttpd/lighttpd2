@@ -50,7 +50,7 @@ gboolean li_response_send_headers(liConnection *con) {
 			g_string_printf(con->wrk->tmp_str, "%"L_GOFFSET_FORMAT, con->out->length);
 			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(con->wrk->tmp_str));
 		}
-	} else if (con->keep_alive && vr->request.http_version == LI_HTTP_VERSION_1_1) {
+	} else if (con->info.keep_alive && vr->request.http_version == LI_HTTP_VERSION_1_1) {
 		/* TODO: maybe someone set a content length header? */
 		if (!(vr->response.transfer_encoding & LI_HTTP_TRANSFER_ENCODING_CHUNKED)) {
 			vr->response.transfer_encoding |= LI_HTTP_TRANSFER_ENCODING_CHUNKED;
@@ -58,7 +58,7 @@ gboolean li_response_send_headers(liConnection *con) {
 		}
 	} else {
 		/* Unknown content length, no chunked encoding */
-		con->keep_alive = FALSE;
+		con->info.keep_alive = FALSE;
 	}
 
 	if (vr->request.http_method == LI_HTTP_METHOD_HEAD) {
@@ -71,11 +71,11 @@ gboolean li_response_send_headers(liConnection *con) {
 	/* Status line */
 	if (vr->request.http_version == LI_HTTP_VERSION_1_1) {
 		g_string_append_len(head, CONST_STR_LEN("HTTP/1.1 "));
-		if (!con->keep_alive)
+		if (!con->info.keep_alive)
 			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Connection"), CONST_STR_LEN("close"));
 	} else {
 		g_string_append_len(head, CONST_STR_LEN("HTTP/1.0 "));
-		if (con->keep_alive)
+		if (con->info.keep_alive)
 			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Connection"), CONST_STR_LEN("keep-alive"));
 	}
 

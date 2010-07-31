@@ -167,8 +167,8 @@ static void scgi_env_add(GByteArray *buf, liEnvironmentDup *envdup, const gchar 
 }
 
 static void scgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteArray* buf) {
-	liConnection *con = vr->con;
-	GString *tmp = con->wrk->tmp_str;
+	liConInfo *coninfo = vr->coninfo;
+	GString *tmp = vr->wrk->tmp_str;
 
 	g_assert(vr->request.content_length >= 0);
 
@@ -185,10 +185,10 @@ static void scgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteArray
 	scgi_env_add(buf, envdup, CONST_STR_LEN("GATEWAY_INTERFACE"), CONST_STR_LEN("CGI/1.1"));
 	{
 		guint port = 0;
-		switch (con->local_addr.addr->plain.sa_family) {
-		case AF_INET: port = con->local_addr.addr->ipv4.sin_port; break;
+		switch (coninfo->local_addr.addr->plain.sa_family) {
+		case AF_INET: port = coninfo->local_addr.addr->ipv4.sin_port; break;
 #ifdef HAVE_IPV6
-		case AF_INET6: port = con->local_addr.addr->ipv6.sin6_port; break;
+		case AF_INET6: port = coninfo->local_addr.addr->ipv6.sin6_port; break;
 #endif
 		}
 		if (port) {
@@ -196,14 +196,14 @@ static void scgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteArray
 			scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_PORT"), GSTR_LEN(tmp));
 		}
 	}
-	scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_ADDR"), GSTR_LEN(con->local_addr_str));
+	scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_ADDR"), GSTR_LEN(coninfo->local_addr_str));
 
 	{
 		guint port = 0;
-		switch (con->remote_addr.addr->plain.sa_family) {
-		case AF_INET: port = con->remote_addr.addr->ipv4.sin_port; break;
+		switch (coninfo->remote_addr.addr->plain.sa_family) {
+		case AF_INET: port = coninfo->remote_addr.addr->ipv4.sin_port; break;
 #ifdef HAVE_IPV6
-		case AF_INET6: port = con->remote_addr.addr->ipv6.sin6_port; break;
+		case AF_INET6: port = coninfo->remote_addr.addr->ipv6.sin6_port; break;
 #endif
 		}
 		if (port) {
@@ -211,7 +211,7 @@ static void scgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteArray
 			scgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_PORT"), GSTR_LEN(tmp));
 		}
 	}
-	scgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_ADDR"), GSTR_LEN(con->remote_addr_str));
+	scgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_ADDR"), GSTR_LEN(coninfo->remote_addr_str));
 
 	scgi_env_add(buf, envdup, CONST_STR_LEN("SCRIPT_NAME"), GSTR_LEN(vr->request.uri.path));
 
@@ -244,7 +244,7 @@ static void scgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteArray
 		break;
 	}
 
-	if (con->is_ssl) {
+	if (coninfo->is_ssl) {
 		scgi_env_add(buf, envdup, CONST_STR_LEN("HTTPS"), CONST_STR_LEN("on"));
 	}
 }
@@ -347,10 +347,6 @@ static void scgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
 				break;
-			case LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
-				/* TODO: aio */
-				li_ev_io_rem_events(loop, w, EV_READ);
-				break;
 			}
 		}
 	}
@@ -372,10 +368,6 @@ static void scgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 				li_vrequest_backend_finished(scon->vr);
 				break;
 			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
-				break;
-			case LI_NETWORK_STATUS_WAIT_FOR_AIO_EVENT:
-				li_ev_io_rem_events(loop, w, EV_WRITE);
-				/* TODO: aio */
 				break;
 			}
 		}

@@ -100,10 +100,10 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->con = c;
 		cd->io_timeout_elem = c->io_timeout_elem;
 		cd->fd = c->sock_watcher.fd;
-		cd->is_ssl = c->is_ssl;
-		cd->keep_alive = c->keep_alive;
-		cd->remote_addr_str = g_string_new_len(GSTR_LEN(c->remote_addr_str));
-		cd->local_addr_str = g_string_new_len(GSTR_LEN(c->local_addr_str));
+		cd->is_ssl = c->info.is_ssl;
+		cd->keep_alive = c->info.keep_alive;
+		cd->remote_addr_str = g_string_new_len(GSTR_LEN(c->info.remote_addr_str));
+		cd->local_addr_str = g_string_new_len(GSTR_LEN(c->info.local_addr_str));
 		cd->host = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.host));
 		cd->path = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.path));
 		cd->query = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.query));
@@ -112,14 +112,14 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->response_size = c->mainvr->out->bytes_out;
 		cd->state = c->state;
 		cd->ts_started = c->ts_started;
-		cd->bytes_in = c->stats.bytes_in;
-		cd->bytes_out = c->stats.bytes_out;
-		cd->bytes_in_5s_diff = c->stats.bytes_in_5s_diff;
-		cd->bytes_out_5s_diff = c->stats.bytes_out_5s_diff;
+		cd->bytes_in = c->info.stats.bytes_in;
+		cd->bytes_out = c->info.stats.bytes_out;
+		cd->bytes_in_5s_diff = c->info.stats.bytes_in_5s_diff;
+		cd->bytes_out_5s_diff = c->info.stats.bytes_out_5s_diff;
 
 		if (job->detailed.remote_addr_str) {
 			if (job->detailed.wrk_ndx == wrk->ndx && job->detailed.con_ndx == i &&
-				job->detailed.fd == c->sock_watcher.fd && g_string_equal(job->detailed.remote_addr_str, c->remote_addr_str)) {
+				job->detailed.fd == c->sock_watcher.fd && g_string_equal(job->detailed.remote_addr_str, c->info.remote_addr_str)) {
 
 				cd->detailed = g_string_sized_new(1023);
 				g_string_append_printf(cd->detailed, "<pre>connection* @ %p = {\n", (void*)cd->con);

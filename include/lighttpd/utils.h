@@ -9,8 +9,6 @@ typedef enum {
 	COUNTER_UNITS
 } liCounterType;
 
-
-
 LI_API void li_fatal(const gchar* msg);
 
 /* set O_NONBLOCK and FD_CLOEXEC */
@@ -122,6 +120,21 @@ LI_API GQuark li_sys_error_quark();
 	_li_set_sys_error(error, msg, REMOVE_PATH(__FILE__), __LINE__);
 
 LI_API gboolean _li_set_sys_error(GError **error, const gchar *msg, const gchar *file, int lineno);
+
+
+/* idea from linux kernel container_of: include/linux/kernel.h
+ * Please note that this "implementation" is not "type-safe"; it doesn't
+ * check the type of the ptr.
+ */
+/**
+ * LI_CONTAINER_OF - cast a member of a structure out to the containing structure
+ * @ptr:    the pointer to the member.
+ * @type:   the type of the container struct this is embedded in.
+ * @member: the name of the member within the struct.
+ *
+ */
+#define LI_CONTAINER_OF(ptr, type, member) \
+	((type *)( (char *) ptr - offsetof(type, member) ))
 
 /* inline implementations */
 

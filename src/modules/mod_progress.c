@@ -148,8 +148,8 @@ static void progress_vrclose(liVRequest *vr, liPlugin *p) {
 		node->vr = NULL;
 		node->request_size = vr->request.content_length;
 		node->response_size = vr->out->bytes_out;
-		node->bytes_in = vr->con->in->bytes_in;
-		node->bytes_out = MAX(0, vr->con->out->bytes_out - vr->con->raw_out->length);
+		node->bytes_in = vr->vr_in->bytes_in;
+		node->bytes_out = MAX(0, vr->vr_out->bytes_out - vr->coninfo->out_queue_length);
 		node->status_code = vr->response.http_status;
 		li_waitqueue_push(&progress_data.timeout_queues[vr->wrk->ndx], &(node->timeout_queue_elem));
 	}
@@ -217,8 +217,8 @@ static gpointer progress_collect_func(liWorker *wrk, gpointer fdata) {
 		node_new->vr = node->vr;
 		node_new->request_size = node->vr->request.content_length;
 		node_new->response_size = node->vr->out->bytes_out;
-		node_new->bytes_in = node->vr->con->in->bytes_in;
-		node_new->bytes_out = MAX(0, node->vr->con->out->bytes_out - node->vr->con->raw_out->length);
+		node_new->bytes_in = node->vr->vr_in->bytes_in;
+		node_new->bytes_out = MAX(0, node->vr->vr_out->bytes_out - node->vr->coninfo->out_queue_length);
 		node_new->status_code = node->vr->response.http_status;
 	} else {
 		/* copy dead data */

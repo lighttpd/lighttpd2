@@ -159,7 +159,7 @@ static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents)
 		con = wqe->data;
 		vr = con->mainvr;
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-			VR_DEBUG(vr, "connection io-timeout from %s after %.2f seconds", con->remote_addr_str->str, now - wqe->ts);
+			VR_DEBUG(vr, "connection io-timeout from %s after %.2f seconds", con->info.remote_addr_str->str, now - wqe->ts);
 		}
 		li_plugins_handle_close(con);
 		li_worker_con_put(con);
@@ -288,11 +288,11 @@ void li_worker_new_con(liWorker *ctx, liWorker *wrk, liSocketAddress remote_addr
 		con->ts_started = CUR_TS(wrk);
 		con->mainvr->ts_started = CUR_TS(wrk);
 
-		con->remote_addr = remote_addr;
-		li_sockaddr_to_string(remote_addr, con->remote_addr_str, FALSE);
+		con->info.remote_addr = remote_addr;
+		li_sockaddr_to_string(remote_addr, con->info.remote_addr_str, FALSE);
 
-		con->local_addr = li_sockaddr_local_from_socket(s);
-		li_sockaddr_to_string(con->local_addr, con->local_addr_str, FALSE);
+		con->info.local_addr = li_sockaddr_local_from_socket(s);
+		li_sockaddr_to_string(con->info.local_addr, con->info.local_addr_str, FALSE);
 
 		li_waitqueue_push(&wrk->io_timeout_queue, &con->io_timeout_elem);
 

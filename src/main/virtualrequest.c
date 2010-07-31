@@ -136,22 +136,17 @@ liFilter* li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_da
 	return filters_add(&vr->filters_out, handle_data, handle_free, param);
 }
 
-liVRequest* li_vrequest_new(liConnection *con, liVRequestHandlerCB handle_response_headers, liVRequestHandlerCB handle_response_body, liVRequestHandlerCB handle_response_error, liVRequestHandlerCB handle_request_headers) {
+liVRequest* li_vrequest_new(liConnection *con, liConInfo *coninfo) {
 	liServer *srv = con->srv;
 	liVRequest *vr = g_slice_new0(liVRequest);
 
-	vr->con = con;
+	vr->coninfo = coninfo;
 	vr->wrk = con->wrk;
 	vr->ref = g_slice_new0(liVRequestRef);
 	vr->ref->refcount = 1;
 	vr->ref->vr = vr;
 	vr->ref->wrk = con->wrk;
 	vr->state = LI_VRS_CLEAN;
-
-	vr->handle_response_headers = handle_response_headers;
-	vr->handle_response_body = handle_response_body;
-	vr->handle_response_error = handle_response_error;
-	vr->handle_request_headers = handle_request_headers;
 
 	vr->plugin_ctx = g_ptr_array_new();
 	g_ptr_array_set_size(vr->plugin_ctx, g_hash_table_size(srv->plugins));
@@ -193,6 +188,9 @@ liVRequest* li_vrequest_new(liConnection *con, liVRequestHandlerCB handle_respon
 	vr->job_queue_link.data = vr;
 
 	li_action_stack_init(&vr->action_stack);
+
+	vr->throttle.wqueue_elem.data = vr;
+	vr->throttle.pool.lnk.data = vr;
 
 	return vr;
 }
@@ -521,7 +519,7 @@ static void vrequest_do_handle_write(liVRequest *vr) {
 		return;
 	}
 
-	switch (vr->handle_response_body(vr)) {
+	switch (vr->coninfo->callbacks->handle_response_body(vr)) {
 	case LI_HANDLER_GO_ON:
 		break;
 	case LI_HANDLER_COMEBACK:
@@ -561,7 +559,7 @@ void li_vrequest_state_machine(liVRequest *vr) {
 			case LI_HANDLER_ERROR:
 				return;
 			}
-			res = vr->handle_request_headers(vr);
+			res = vr->coninfo->callbacks->handle_request_headers(vr);
 			switch (res) {
 			case LI_HANDLER_GO_ON:
 				if (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS) {
@@ -610,7 +608,7 @@ void li_vrequest_state_machine(liVRequest *vr) {
 			case LI_HANDLER_ERROR:
 				return;
 			}
-			res = vr->handle_response_headers(vr);
+			res = vr->coninfo->callbacks->handle_response_headers(vr);
 			switch (res) {
 			case LI_HANDLER_GO_ON:
 				vr->state = LI_VRS_WRITE_CONTENT;
@@ -642,7 +640,7 @@ void li_vrequest_state_machine(liVRequest *vr) {
 				VR_DEBUG(vr, "%s", "error");
 			}
 			/* this will probably reset the vrequest, so stop handling after it */
-			vr->handle_response_error(vr);
+			vr->coninfo->callbacks->handle_response_error(vr);
 			return;
 		}
 	} while (!done);
@@ -688,7 +686,7 @@ gboolean li_vrequest_redirect_directory(liVRequest *vr) {
 	if (vr->request.uri.authority->len > 0) {
 		g_string_append_len(uri, GSTR_LEN(vr->request.uri.authority));
 	} else {
-		g_string_append_len(uri, GSTR_LEN(vr->con->local_addr_str));
+		g_string_append_len(uri, GSTR_LEN(vr->coninfo->local_addr_str));
 	}
 	g_string_append_len(uri, GSTR_LEN(vr->request.uri.raw_orig_path));
 	g_string_append_c(uri, '/');
@@ -698,4 +696,30 @@ gboolean li_vrequest_redirect_directory(liVRequest *vr) {
 	}
 
 	return li_vrequest_redirect(vr, uri);
+}
+
+static void update_stats_avg(ev_tstamp now, liConInfo *coninfo) {
+	if ((now - coninfo->stats.last_avg) >= 5.0) {
+		coninfo->stats.bytes_out_5s_diff = coninfo->stats.bytes_out - coninfo->stats.bytes_out_5s;
+		coninfo->stats.bytes_out_5s = coninfo->stats.bytes_out;
+		coninfo->stats.bytes_in_5s_diff = coninfo->stats.bytes_in - coninfo->stats.bytes_in_5s;
+		coninfo->stats.bytes_in_5s = coninfo->stats.bytes_in;
+		coninfo->stats.last_avg = now;
+	}
+}
+
+void li_vrequest_update_stats_in(liVRequest *vr, goffset transferred) {
+	liConInfo *coninfo = vr->coninfo;
+	vr->wrk->stats.bytes_in += transferred;
+	coninfo->stats.bytes_in += transferred;
+
+	update_stats_avg(ev_now(vr->wrk->loop), coninfo);
+}
+
+void li_vrequest_update_stats_out(liVRequest *vr, goffset transferred) {
+	liConInfo *coninfo = vr->coninfo;
+	vr->wrk->stats.bytes_out += transferred;
+	coninfo->stats.bytes_out += transferred;
+
+	update_stats_avg(ev_now(vr->wrk->loop), coninfo);
 }

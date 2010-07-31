@@ -20,7 +20,7 @@ static int lua_vrequest_attr_read_out(liVRequest *vr, lua_State *L) {
 }
 
 static int lua_vrequest_attr_read_con(liVRequest *vr, lua_State *L) {
-	li_lua_push_connection(L, vr->con);
+	li_lua_push_coninfo(L, vr->coninfo);
 	return 1;
 }
 
@@ -75,6 +75,10 @@ static const struct {
 
 	{ NULL, NULL, NULL }
 };
+
+#undef AR
+#undef AW
+#undef ARW
 
 static int lua_vrequest_index(lua_State *L) {
 	liVRequest *vr;
@@ -365,6 +369,153 @@ int li_lua_push_vrequest(lua_State *L, liVRequest *vr) {
 
 	if (luaL_newmetatable(L, LUA_VREQUEST)) {
 		init_vrequest_mt(L);
+	}
+
+	lua_setmetatable(L, -2);
+	return 1;
+}
+
+
+#define LUA_CONINFO "liConInfo*"
+
+typedef int (*lua_ConInfo_Attrib)(liConInfo *coninfo, lua_State *L);
+
+static int lua_coninfo_attr_read_local(liConInfo *coninfo, lua_State *L) {
+	lua_pushlstring(L, GSTR_LEN(coninfo->local_addr_str));
+	return 1;
+}
+
+static int lua_coninfo_attr_read_remote(liConInfo *coninfo, lua_State *L) {
+	lua_pushlstring(L, GSTR_LEN(coninfo->remote_addr_str));
+	return 1;
+}
+
+#define AR(m) { #m, lua_coninfo_attr_read_##m, NULL }
+#define AW(m) { #m, NULL, lua_coninfo_attr_write_##m }
+#define ARW(m) { #m, lua_coninfo_attr_read_##m, lua_coninfo_attr_write_##m }
+
+static const struct {
+	const char* key;
+	lua_ConInfo_Attrib read_attr, write_attr;
+} coninfo_attribs[] = {
+	AR(local),
+	AR(remote),
+
+	{ NULL, NULL, NULL }
+};
+
+#undef AR
+#undef AW
+#undef ARW
+
+static int lua_coninfo_index(lua_State *L) {
+	liConInfo *coninfo;
+	const char *key;
+	int i;
+
+	if (lua_gettop(L) != 2) {
+		lua_pushstring(L, "incorrect number of arguments");
+		lua_error(L);
+	}
+
+	if (li_lua_metatable_index(L)) return 1;
+
+	coninfo = li_lua_get_coninfo(L, 1);
+	if (!coninfo) return 0;
+
+	if (lua_isnumber(L, 2)) return 0;
+	if (!lua_isstring(L, 2)) return 0;
+
+	key = lua_tostring(L, 2);
+	for (i = 0; coninfo_attribs[i].key ; i++) {
+		if (0 == strcmp(key, coninfo_attribs[i].key)) {
+			if (coninfo_attribs[i].read_attr)
+				return coninfo_attribs[i].read_attr(coninfo, L);
+			break;
+		}
+	}
+
+	lua_pushstring(L, "cannot read attribute ");
+	lua_pushstring(L, key);
+	lua_pushstring(L, " in coninfo");
+	lua_concat(L, 3);
+	lua_error(L);
+
+	return 0;
+}
+
+static int lua_coninfo_newindex(lua_State *L) {
+	liConInfo *coninfo;
+	const char *key;
+	int i;
+
+	if (lua_gettop(L) != 3) {
+		lua_pushstring(L, "incorrect number of arguments");
+		lua_error(L);
+	}
+
+	coninfo = li_lua_get_coninfo(L, 1);
+	if (!coninfo) return 0;
+
+	if (lua_isnumber(L, 2)) return 0;
+	if (!lua_isstring(L, 2)) return 0;
+
+	key = lua_tostring(L, 2);
+	for (i = 0; coninfo_attribs[i].key ; i++) {
+		if (0 == strcmp(key, coninfo_attribs[i].key)) {
+			if (coninfo_attribs[i].write_attr)
+				return coninfo_attribs[i].write_attr(coninfo, L);
+			break;
+		}
+	}
+
+	lua_pushstring(L, "cannot write attribute ");
+	lua_pushstring(L, key);
+	lua_pushstring(L, "in coninfo");
+	lua_concat(L, 3);
+	lua_error(L);
+
+	return 0;
+}
+
+static const luaL_Reg coninfo_mt[] = {
+	{ "__index", lua_coninfo_index },
+	{ "__newindex", lua_coninfo_newindex },
+
+	{ NULL, NULL }
+};
+
+static void init_coninfo_mt(lua_State *L) {
+	luaL_register(L, NULL, coninfo_mt);
+}
+
+void li_lua_init_coninfo_mt(lua_State *L) {
+	if (luaL_newmetatable(L, LUA_CONINFO)) {
+		init_coninfo_mt(L);
+	}
+	lua_pop(L, 1);
+}
+
+liConInfo* li_lua_get_coninfo(lua_State *L, int ndx) {
+	if (!lua_isuserdata(L, ndx)) return NULL;
+	if (!lua_getmetatable(L, ndx)) return NULL;
+	luaL_getmetatable(L, LUA_CONINFO);
+	if (lua_isnil(L, -1) || lua_isnil(L, -2) || !lua_equal(L, -1, -2)) {
+		lua_pop(L, 2);
+		return NULL;
+	}
+	lua_pop(L, 2);
+	return *(liConInfo**) lua_touserdata(L, ndx);
+}
+
+int li_lua_push_coninfo(lua_State *L, liConInfo *coninfo) {
+	liConInfo **pconinfo;
+
+	pconinfo = (liConInfo**) lua_newuserdata(L, sizeof(liConInfo*));
+	*pconinfo = coninfo;
+
+	if (luaL_newmetatable(L, LUA_CONINFO)) {
+		init_coninfo_mt(L);
 	}
 
 	lua_setmetatable(L, -2);
