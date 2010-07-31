@@ -981,10 +981,11 @@ static gint str_comp(gconstpointer a, gconstpointer b) {
 }
 
 static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
-	GString *html;
+	GString *html, *tmp_str;
+	gsize mem;
 
 	html = g_string_sized_new(8*1024-1);
-
+	tmp_str = g_string_sized_new(10);
 
 	g_string_append_len(html, CONST_STR_LEN(html_header));
 
@@ -1021,9 +1022,12 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 		"	<body>\n"
 	));
 
+	mem = li_memory_usage();
+	if (mem)
+		li_counter_format(mem, COUNTER_BYTES, tmp_str);
 	li_counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, vr->wrk->tmp_str);
 	g_string_append_printf(html, html_top,
-		vr->request.uri.host->str,
+		mem ? tmp_str->str : "N/A",
 		vr->wrk->tmp_str->str,
 		vr->wrk->srv->started_str->str
 	);
@@ -1072,8 +1076,6 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 
 	/* library info */
 	{
-		GString *tmp_str = g_string_sized_new(31);
-
 		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Libraries</strong></div>\n"));
 		g_string_append_len(html, CONST_STR_LEN(html_libinfo_th));
 
@@ -1098,7 +1100,6 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 		);
 
 		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
-		g_string_free(tmp_str, TRUE);
 	}
 
 	/* libev info */
@@ -1207,6 +1208,8 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 
 	vr->response.http_status = 200;
 	li_vrequest_handle_direct(vr);
+
+	g_string_free(tmp_str, TRUE);
 
 	return LI_HANDLER_GO_ON;
 }
