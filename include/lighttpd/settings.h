@@ -85,7 +85,7 @@
 #include <stdio.h>
 #include <dirent.h>
 #include <unistd.h>
-#include <wait.h>
+#include <sys/wait.h>
 
 #if defined(LIGHTY_OS_LINUX)
 # include <sched.h>
