@@ -124,6 +124,9 @@ AC_HEADER_TIME
 AC_SEARCH_LIBS([socket],[socket])
 AC_SEARCH_LIBS([inet_addr],[nsl socket])
 
+## freebsd: kvm
+AC_SEARCH_LIBS([kvm_open],[kvm])
+
 # Checks for library functions.
 AC_CHECK_FUNCS([ \
 	chroot \
