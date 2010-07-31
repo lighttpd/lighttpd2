@@ -12,8 +12,8 @@ common_src= \
 	mempool.c \
 	module.c \
 	radix.c \
-	sys-files.c \
-	sys-socket.c \
+	sys_memory.c \
+	sys_socket.c \
 	utils.c \
 	waitqueue.c
 

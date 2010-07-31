@@ -25,6 +25,7 @@ def build(bld):
 		mempool.c
 		module.c
 		radix.c
+		sys_memory.c
 		utils.c
 		waitqueue.c
 	'''

@@ -818,7 +818,7 @@ gsize li_dirent_buf_size(DIR * dirp) {
 }
 
 const char *li_remove_path(const char *path) {
-	char *p = strrchr(path, DIR_SEPERATOR);
+	char *p = strrchr(path, G_DIR_SEPARATOR);
 	if (NULL != p && *(p) != '\0') {
 		return (p + 1);
 	}

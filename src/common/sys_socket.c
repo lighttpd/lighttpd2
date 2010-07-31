@@ -1,5 +1,5 @@
 #include <lighttpd/base.h>
-#include <lighttpd/sys-socket.h>
+#include <lighttpd/sys_socket.h>
 
 #ifndef HAVE_INET_ATON
 /* win32 has inet_addr instead if inet_aton */

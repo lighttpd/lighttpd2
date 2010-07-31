@@ -18,7 +18,7 @@ LI_API void li_fd_init(int fd);
 LI_API void li_fd_no_block(int fd);
 LI_API void li_fd_block(int fd);
 
-#ifndef _WIN32
+#ifndef LIGHTY_OS_WINDOWS
 /* return -2 for EAGAIN, -1 for some other error, 0 for success */
 LI_API int li_send_fd(int s, int fd); /* write fd to unix socket s */
 LI_API int li_receive_fd(int s, int *fd); /* read fd from unix socket s */

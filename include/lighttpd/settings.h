@@ -83,6 +83,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <dirent.h>
+#include <unistd.h>
+
+#if defined(LIGHTY_OS_LINUX)
+# include <sched.h>
+#endif
 
 /* on linux 2.4.x you get either sendfile or LFS */
 #if defined(LIGHTY_OS_LINUX) && defined(HAVE_SYS_SENDFILE_H) && defined(HAVE_SENDFILE) && (defined(_LARGEFILE_SOURCE) || defined(HAVE_SENDFILE64)) && defined(HAVE_WRITEV) && !defined(HAVE_SENDFILE_BROKEN)
@@ -206,10 +212,8 @@
 # define PACKAGE_BUILD_DATE (__DATE__ " " __TIME__)
 #endif
 
-#include <lighttpd/sys-files.h>
-#include <lighttpd/sys-mmap.h>
-#include <lighttpd/sys-process.h>
-#include <lighttpd/sys-socket.h>
+#include <lighttpd/sys_memory.h>
+#include <lighttpd/sys_socket.h>
 
 #if( 2 < __GNUC__ )
 #pragma GCC poison strtok asctime ctime tmpnam strerror
