@@ -28,7 +28,7 @@
  *     -
  *
  * Author:
- *     Copyright (c) 2008-2009 Thomas Porzelt
+ *     Copyright (c) 2008-2010 Thomas Porzelt
  * License:
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
@@ -118,7 +118,7 @@ static const gchar html_top[] =
 	"			<span style=\"font-size: 12px;\"><a href=\"?\">main</a></strong> - <a href=\"?mode=runtime\">runtime</a></span>"
 	"		</div>\n"
 	"		<div class=\"spacer\">\n"
-	"			<strong>Hostname</strong>: <span>%s</span>"
+	"			<strong>Memory Usage</strong>: <span>%s</span>"
 	"			<strong>Uptime</strong>: <span>%s</span>\n"
 	"			<strong>Started at</strong>: <span>%s</span>\n"
 	"			<strong>Version</strong>: <span>" PACKAGE_VERSION " (" __DATE__ " " __TIME__ ")</span>\n"
@@ -126,7 +126,7 @@ static const gchar html_top[] =
 static const gchar html_top_short[] =
 	"		<div class=\"header\">Lighttpd Server Status</div>\n"
 	"		<div class=\"spacer\">\n"
-	"			<strong>Hostname</strong>: <span>%s</span>"
+	"			<strong>Memory Usage</strong>: <span>%s</span>"
 	"			<strong>Uptime</strong>: <span>%s</span>\n"
 	"			<strong>Started at</strong>: <span>%s</span>\n"
 	"		</div>\n";
@@ -332,11 +332,11 @@ static const gchar css_blue[] =
 	"		</style>\n";
 
 static guint64 mod_status_response_codes[] = {
-	0, /*1xx*/ 
-	0, /*2xx*/ 
-	0, /*3xx*/ 
-	0, /*4xx*/ 
-	0, /*5xx*/ 
+	0, /*1xx*/
+	0, /*2xx*/
+	0, /*3xx*/
+	0, /*4xx*/
+	0, /*5xx*/
 };
 
 typedef struct mod_status_param mod_status_param;
@@ -547,15 +547,17 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 }
 
 static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_info, GPtrArray *result, guint uptime, liStatistics *totals, guint total_connections, guint *connection_count) {
-	GString *html, *css, *count_req, *count_bin, *count_bout, *tmpstr;
+	GString *html, *css, *count_req, *count_bin, *count_bout, *count_mem, *tmpstr;
 	gchar *val;
 	guint i, j, len;
 	gchar c;
+	gsize mem;
 
 	html = g_string_sized_new(8 * 1024 - 1);
 	count_req = g_string_sized_new(10);
 	count_bin = g_string_sized_new(10);
 	count_bout = g_string_sized_new(10);
+	count_mem = g_string_sized_new(10);
 	tmpstr = vr->wrk->tmp_str;
 
 	g_string_append_len(html, CONST_STR_LEN(html_header));
@@ -586,9 +588,12 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 		"	<body>\n"
 	));
 
+	mem = li_memory_usage();
+	if (mem)
+		li_counter_format(mem, COUNTER_BYTES, count_mem);
 	li_counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, tmpstr);
 	g_string_append_printf(html, short_info ? html_top_short : html_top,
-		vr->request.uri.host->str,
+		mem ? count_mem->str : "N/A",
 		tmpstr->str,
 		vr->wrk->srv->started_str->str
 	);
@@ -807,6 +812,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 	g_string_free(count_req, TRUE);
 	g_string_free(count_bin, TRUE);
 	g_string_free(count_bout, TRUE);
+	g_string_free(count_mem, TRUE);
 
 	return html;
 }
@@ -819,6 +825,8 @@ static GString *status_info_plain(liVRequest *vr, guint uptime, liStatistics *to
 	/* absolute values */
 	g_string_append_len(html, CONST_STR_LEN("# Absolute Values\nuptime: "));
 	li_string_append_int(html, (gint64)uptime);
+	g_string_append_len(html, CONST_STR_LEN("\nmemory_usage: "));
+	li_string_append_int(html, li_memory_usage());
 	g_string_append_len(html, CONST_STR_LEN("\nrequests_abs: "));
 	li_string_append_int(html, totals->requests);
 	g_string_append_len(html, CONST_STR_LEN("\ntraffic_out_abs: "));
@@ -969,7 +977,7 @@ error_free_param:
 }
 
 static gint str_comp(gconstpointer a, gconstpointer b) {
-	return strcmp(*(const gchar**)a, *(const gchar**)b); 
+	return strcmp(*(const gchar**)a, *(const gchar**)b);
 }
 
 static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
