@@ -416,8 +416,8 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	liServer *srv = sock->srv;
 	int s;
 	liSocketAddress remote_addr;
-	struct sockaddr sa;
-	socklen_t l = sizeof(sa);
+	liSockAddr sa;
+	socklen_t l;
 	UNUSED(loop);
 	UNUSED(revents);
 
@@ -432,7 +432,8 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			return;
 		}
 
-		if (-1 == (s = accept(w->fd, &sa, &l))) break;
+		l = sizeof(sa);
+		if (-1 == (s = accept(w->fd, &sa.plain, &l))) break;
 
 		wrk = srv->main_worker;
 		min_load = g_atomic_int_get(&wrk->connection_load);
@@ -440,13 +441,12 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		if (l <= sizeof(sa)) {
 			remote_addr.addr = g_slice_alloc(l);
 			remote_addr.len = l;
-			memcpy(remote_addr.addr, &sa, l);
+			memcpy(remote_addr.addr, &sa.plain, l);
 		} else {
 			remote_addr = li_sockaddr_remote_from_socket(s);
 		}
-		l = sizeof(sa); /* reset l */
 
-		li_fd_init(s);
+		li_fd_no_block(s); /* we don't fork, don't care about FD_CLOEXEC */
 
 		for (i = 1; i < srv->worker_count; i++) {
 			liWorker *wt = g_array_index(srv->workers, liWorker*, i);

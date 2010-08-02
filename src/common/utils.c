@@ -641,7 +641,7 @@ liSocketAddress li_sockaddr_from_string(const GString *str, guint tcp_default_po
 }
 
 liSocketAddress li_sockaddr_local_from_socket(gint fd) {
-	static liSockAddr sa;
+	liSockAddr sa;
 	socklen_t l = sizeof(sa);
 	liSocketAddress saddr = { 0, NULL };
 
@@ -651,13 +651,17 @@ liSocketAddress li_sockaddr_local_from_socket(gint fd) {
 
 	saddr.addr = (liSockAddr*) g_slice_alloc0(l);
 	saddr.len = l;
-	getsockname(fd, (struct sockaddr*) saddr.addr, &l);
+	if (l <= sizeof(sa)) {
+		memcpy(saddr.addr, &sa.plain, l);
+	} else {
+		getsockname(fd, (struct sockaddr*) saddr.addr, &l);
+	}
 
 	return saddr;
 }
 
 liSocketAddress li_sockaddr_remote_from_socket(gint fd) {
-	static liSockAddr sa;
+	liSockAddr sa;
 	socklen_t l = sizeof(sa);
 	liSocketAddress saddr = { 0, NULL };
 
@@ -667,7 +671,11 @@ liSocketAddress li_sockaddr_remote_from_socket(gint fd) {
 
 	saddr.addr = (liSockAddr*) g_slice_alloc0(l);
 	saddr.len = l;
-	getpeername(fd, (struct sockaddr*) saddr.addr, &l);
+	if (l <= sizeof(sa)) {
+		memcpy(saddr.addr, &sa.plain, l);
+	} else {
+		getpeername(fd, (struct sockaddr*) saddr.addr, &l);
+	}
 
 	return saddr;
 }
