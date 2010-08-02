@@ -61,7 +61,6 @@ liNetworkStatus li_network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffs
 	res = li_network_write_writev(vr, fd, cq, &write_bytes);
 #endif
 	wrote = write_max - write_bytes;
-	if (wrote > 0 && res == LI_NETWORK_STATUS_WAIT_FOR_EVENT) res = LI_NETWORK_STATUS_SUCCESS;
 
 #ifdef TCP_CORK
 	if (corked) {
@@ -136,7 +135,7 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq, liBuff
 #if EWOULDBLOCK != EAGAIN
 			case EWOULDBLOCK:
 #endif
-				return len ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
+				return LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 			case ECONNRESET:
 			case ETIMEDOUT:
 				return LI_NETWORK_STATUS_CONNECTION_CLOSE;
@@ -146,7 +145,7 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq, liBuff
 			}
 		} else if (0 == r) {
 			if (buffer == NULL && !cq_buf_append) li_buffer_release(buf);
-			return len ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_CONNECTION_CLOSE;
+			return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 		}
 		if (cq_buf_append) {
 			li_chunkqueue_update_last_buffer_size(cq, r);

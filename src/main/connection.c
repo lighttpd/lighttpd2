@@ -8,11 +8,11 @@ static void li_connection_internal_error(liConnection *con);
 static void update_io_events(liConnection *con) {
 	int events = 0;
 
-	if ((con->state > LI_CON_STATE_HANDLE_MAINVR || con->mainvr->state >= LI_VRS_READ_CONTENT) && !con->in->is_closed) {
+	if (!con->can_read && (con->state != LI_CON_STATE_HANDLE_MAINVR || con->mainvr->state >= LI_VRS_READ_CONTENT) && !con->in->is_closed) {
 		events = events | EV_READ;
 	}
 
-	if (con->raw_out->length > 0) {
+	if (!con->can_write && con->raw_out->length > 0) {
 		if (!con->mainvr->throttled || con->mainvr->throttle.magazine > 0) {
 			events = events | EV_WRITE;
 		}
@@ -266,114 +266,141 @@ static gboolean connection_handle_read(liConnection *con) {
 	return TRUE;
 }
 
-static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
+static void connection_update_io_timeout(liConnection *con) {
+	liWorker *wrk = con->wrk;
+
+	if ((con->io_timeout_elem.ts + 1.0) < ev_now(wrk->loop)) {
+		li_waitqueue_push(&wrk->io_timeout_queue, &con->io_timeout_elem);
+	}
+}
+
+static gboolean connection_try_read(liConnection *con) {
 	liNetworkStatus res;
+
+// 	con->can_read = TRUE;
+
+	if (!con->in->is_closed) {
+		goffset transferred;
+		transferred = con->raw_in->length;
+
+		if (con->srv_sock->read_cb) {
+			res = con->srv_sock->read_cb(con);
+		} else {
+			res = li_network_read(con->mainvr, con->sock_watcher.fd, con->raw_in, &con->raw_in_buffer);
+		}
+
+		transferred = con->raw_in->length - transferred;
+		if (transferred > 0) connection_update_io_timeout(con);
+
+		li_vrequest_update_stats_in(con->mainvr, transferred);
+
+		switch (res) {
+		case LI_NETWORK_STATUS_SUCCESS:
+			con->can_read = FALSE; /* for now we still need the EV_READ event to get a callback */
+			if (!connection_handle_read(con)) return FALSE;
+			break;
+		case LI_NETWORK_STATUS_FATAL_ERROR:
+			_ERROR(con->srv, con->mainvr, "%s", "network read fatal error");
+			li_connection_error(con);
+			return FALSE;
+		case LI_NETWORK_STATUS_CONNECTION_CLOSE:
+			con->raw_in->is_closed = TRUE;
+			/* shutdown(con->sock_watcher.fd, SHUT_RD); */ /* useless anyway */
+			ev_io_stop(con->wrk->loop, &con->sock_watcher);
+			close(con->sock_watcher.fd);
+			ev_io_set(&con->sock_watcher, -1, 0);
+			connection_close(con);
+			return FALSE;
+		case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
+			con->can_read = FALSE;
+			break;
+		}
+	}
+
+	return TRUE;
+}
+
+static gboolean connection_try_write(liConnection *con) {
+	liNetworkStatus res;
+
+	con->can_write = TRUE;
+
+	if (con->raw_out->length > 0) {
+		goffset transferred;
+		static const goffset WRITE_MAX = 256*1024; /* 256kB */
+		goffset write_max;
+
+		if (con->mainvr->throttled) {
+			write_max = MIN(con->mainvr->throttle.magazine, WRITE_MAX);
+		} else {
+			write_max = WRITE_MAX;
+		}
+
+		if (write_max > 0) {
+			transferred = con->raw_out->length;
+
+			if (con->srv_sock->write_cb) {
+				res = con->srv_sock->write_cb(con, write_max);
+			} else {
+				res = li_network_write(con->mainvr, con->sock_watcher.fd, con->raw_out, write_max);
+			}
+
+			transferred = transferred - con->raw_out->length;
+			con->info.out_queue_length = con->raw_out->length;
+			if (transferred > 0) {
+				connection_update_io_timeout(con);
+				li_vrequest_joblist_append(con->mainvr);
+			}
+			con->can_write = FALSE; /* for now we still need the EV_WRITE event to get a callback */
+
+			switch (res) {
+			case LI_NETWORK_STATUS_SUCCESS:
+				break;
+			case LI_NETWORK_STATUS_FATAL_ERROR:
+				_ERROR(con->srv, con->mainvr, "%s", "network write fatal error");
+				li_connection_error(con);
+				return FALSE;
+			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
+				connection_close(con);
+				return FALSE;
+			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
+				break;
+			}
+		} else {
+			transferred = 0;
+		}
+
+		li_vrequest_update_stats_out(con->mainvr, transferred);
+
+		if (con->mainvr->throttled) {
+			li_throttle_update(con->mainvr, transferred, WRITE_MAX);
+		}
+	}
+
+	return TRUE;
+}
+
+static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	liConnection *con = (liConnection*) w->data;
-	gboolean update_io_timeout = FALSE;
+	UNUSED(loop);
 
 	/* ensure that the connection is always in the io timeout queue */
 	if (!con->io_timeout_elem.queued)
 		li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
 
-	if (revents & EV_READ) {
-		if (!con->in->is_closed) {
-			goffset transferred;
-			transferred = con->raw_in->length;
+	if (revents & EV_READ) con->can_read = TRUE;
+	if (revents & EV_WRITE) con->can_write = TRUE;
 
-			if (con->srv_sock->read_cb) {
-				res = con->srv_sock->read_cb(con);
-			} else {
-				res = li_network_read(con->mainvr, w->fd, con->raw_in, &con->raw_in_buffer);
-			}
-
-			transferred = con->raw_in->length - transferred;
-			update_io_timeout = update_io_timeout || (transferred > 0);
-
-			li_vrequest_update_stats_in(con->mainvr, transferred);
-
-			switch (res) {
-			case LI_NETWORK_STATUS_SUCCESS:
-				if (0 == transferred) break;
-				if (!connection_handle_read(con)) return;
-				break;
-			case LI_NETWORK_STATUS_FATAL_ERROR:
-				_ERROR(con->srv, con->mainvr, "%s", "network read fatal error");
-				li_connection_error(con);
-				return;
-			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
-				con->raw_in->is_closed = TRUE;
-				shutdown(w->fd, SHUT_RD);
-				connection_close(con);
-				return;
-			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
-				break;
-			}
-		}
-	}
-
-	if (revents & EV_WRITE) {
-		if (con->raw_out->length > 0) {
-			goffset transferred;
-			static const goffset WRITE_MAX = 256*1024; /* 256kB */
-			goffset write_max;
-
-			if (con->mainvr->throttled) {
-				write_max = MIN(con->mainvr->throttle.magazine, WRITE_MAX);
-			} else {
-				write_max = WRITE_MAX;
-			}
-
-			if (write_max > 0) {
-				transferred = con->raw_out->length;
-
-				if (con->srv_sock->write_cb) {
-					res = con->srv_sock->write_cb(con, write_max);
-				} else {
-					res = li_network_write(con->mainvr, w->fd, con->raw_out, write_max);
-				}
-
-				transferred = transferred - con->raw_out->length;
-				con->info.out_queue_length = con->raw_out->length;
-				update_io_timeout = update_io_timeout || (transferred > 0);
-
-				switch (res) {
-				case LI_NETWORK_STATUS_SUCCESS:
-					if (0 == transferred) break;
-					li_vrequest_joblist_append(con->mainvr);
-					break;
-				case LI_NETWORK_STATUS_FATAL_ERROR:
-					_ERROR(con->srv, con->mainvr, "%s", "network write fatal error");
-					li_connection_error(con);
-					return;
-				case LI_NETWORK_STATUS_CONNECTION_CLOSE:
-					connection_close(con);
-					return;
-				case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
-					break;
-				}
-			} else {
-				transferred = 0;
-			}
-
-			li_vrequest_update_stats_out(con->mainvr, transferred);
-
-			if (con->mainvr->throttled) {
-				li_throttle_update(con->mainvr, transferred, WRITE_MAX);
-			}
-		} else {
-			_DEBUG(con->srv, con->mainvr, "%s", "write event for empty queue");
-		}
-	}
+	if (con->can_read)
+		if (!connection_try_read(con)) return;
+	if (con->can_write)
+		if (!connection_try_write(con)) return;
 
 	if (revents & EV_ERROR) {
 		/* if this happens, we have a serious bug in the event handling */
 		VR_ERROR(con->mainvr, "%s", "EV_ERROR encountered, dropping connection!");
 		li_connection_error(con);
 		return;
-	}
-
-	if (update_io_timeout && ((con->io_timeout_elem.ts + 1.0) < ev_now(loop))) {
-		li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
 	}
 
 	if (!check_response_done(con)) return;
@@ -392,7 +419,15 @@ static liHandlerResult mainvr_handle_response_headers(liVRequest *vr) {
 	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "%s", "read request/handle response header");
 	}
+
+	if (con->can_read)
+		if (!connection_try_read(con)) return FALSE;
+
 	parse_request_body(con);
+
+	if (con->can_write)
+		if (!connection_try_write(con)) return FALSE;
+
 	update_io_events(con);
 
 	return LI_HANDLER_GO_ON;
@@ -406,8 +441,14 @@ static liHandlerResult mainvr_handle_response_body(liVRequest *vr) {
 		VR_DEBUG(vr, "%s", "write response");
 	}
 
+	if (con->can_read)
+		if (!connection_try_read(con)) return FALSE;
+
 	parse_request_body(con);
 	forward_response_body(con);
+
+	if (con->can_write)
+		if (!connection_try_write(con)) return FALSE;
 
 	if (!check_response_done(con)) return LI_HANDLER_GO_ON;
 
@@ -420,6 +461,12 @@ static liHandlerResult mainvr_handle_response_error(liVRequest *vr) {
 	liConnection *con = LI_CONTAINER_OF(vr->coninfo, liConnection, info);
 
 	li_connection_internal_error(con);
+
+	if (con->can_read)
+		if (!connection_try_read(con)) return FALSE;
+	if (con->can_write)
+		if (!connection_try_write(con)) return FALSE;
+
 	update_io_events(con);
 
 	return LI_HANDLER_GO_ON;
@@ -429,6 +476,9 @@ static liHandlerResult mainvr_handle_request_headers(liVRequest *vr) {
 	liConnection *con = LI_CONTAINER_OF(vr->coninfo, liConnection, info);
 
 	/* start reading input */
+	if (con->can_read)
+		if (!connection_try_read(con)) return FALSE;
+
 	parse_request_body(con);
 	update_io_events(con);
 
@@ -437,6 +487,11 @@ static liHandlerResult mainvr_handle_request_headers(liVRequest *vr) {
 
 static gboolean mainvr_handle_check_io(liVRequest *vr) {
 	liConnection *con = LI_CONTAINER_OF(vr->coninfo, liConnection, info);
+
+	if (con->can_read)
+		if (!connection_try_read(con)) return FALSE;
+	if (con->can_write)
+		if (!connection_try_write(con)) return FALSE;
 
 	update_io_events(con);
 
@@ -492,6 +547,8 @@ liConnection* li_connection_new(liWorker *wrk) {
 	ev_init(&con->keep_alive_data.watcher, connection_keepalive_cb);
 	con->keep_alive_data.watcher.data = con;
 
+	con->can_read = con->can_write = TRUE;
+
 	con->io_timeout_elem.data = con;
 
 	return con;
@@ -512,8 +569,8 @@ void li_connection_reset(liConnection *con) {
 
 	ev_io_stop(con->wrk->loop, &con->sock_watcher);
 	if (con->sock_watcher.fd != -1) {
-		if (con->raw_in->is_closed) { /* read already shutdown */
-			shutdown(con->sock_watcher.fd, SHUT_WR);
+		if (con->raw_in->is_closed) { /* read already got EOF */
+			shutdown(con->sock_watcher.fd, SHUT_RDWR);
 			close(con->sock_watcher.fd);
 		} else {
 			li_worker_add_closing_socket(con->wrk, con->sock_watcher.fd);
@@ -564,6 +621,8 @@ void li_connection_reset(liConnection *con) {
 	con->info.stats.bytes_out_5s = G_GUINT64_CONSTANT(0);
 	con->info.stats.bytes_out_5s_diff = G_GUINT64_CONSTANT(0);
 	con->info.stats.last_avg = 0;
+
+	con->can_read = con->can_write = TRUE;
 
 	/* remove from timeout queue */
 	li_waitqueue_remove(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
@@ -679,6 +738,34 @@ void li_connection_free(liConnection *con) {
 		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
 
 	g_slice_free(liConnection, con);
+}
+
+void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, liServerSocket *srv_sock) {
+	ev_io_set(&con->sock_watcher, s, 0);
+
+	con->srv_sock = srv_sock;
+	con->state = LI_CON_STATE_REQUEST_START;
+	con->mainvr->ts_started = con->ts_started = CUR_TS(con->wrk);
+
+	con->info.remote_addr = remote_addr;
+	li_sockaddr_to_string(remote_addr, con->info.remote_addr_str, FALSE);
+
+	con->info.local_addr = li_sockaddr_local_from_socket(s);
+	li_sockaddr_to_string(con->info.local_addr, con->info.local_addr_str, FALSE);
+
+	li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
+
+	if (srv_sock->new_cb) {
+		if (!srv_sock->new_cb(con)) {
+			li_connection_error(con);
+			return;
+		}
+	}
+
+	if (con->can_read)
+		if (!connection_try_read(con)) return;
+
+	update_io_events(con);
 }
 
 gchar *li_connection_state_str(liConnectionState state) {

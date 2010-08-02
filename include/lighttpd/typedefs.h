@@ -116,11 +116,10 @@ typedef enum {
 /* network.h */
 
 typedef enum {
-	LI_NETWORK_STATUS_SUCCESS,             /**< some IO was actually done (read/write) or cq was empty for write */
+	LI_NETWORK_STATUS_SUCCESS,             /**< socket probably could have done more */
 	LI_NETWORK_STATUS_FATAL_ERROR,
 	LI_NETWORK_STATUS_CONNECTION_CLOSE,
-	LI_NETWORK_STATUS_WAIT_FOR_EVENT       /**< read/write returned -1 with errno=EAGAIN/EWOULDBLOCK; no real IO was done
-	                                            internal: some io may be done */
+	LI_NETWORK_STATUS_WAIT_FOR_EVENT       /**< read/write returned -1 with errno=EAGAIN/EWOULDBLOCK */
 } liNetworkStatus;
 
 /* options.h */

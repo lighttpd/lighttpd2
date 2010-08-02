@@ -651,7 +651,6 @@ void li_vrequest_joblist_append(liVRequest *vr) {
 	GQueue *const q = &wrk->job_queue;
 	if (!g_atomic_int_compare_and_exchange(&vr->queued, 0, 1)) return; /* already in queue */
 	g_queue_push_tail_link(q, &vr->job_queue_link);
-	ev_timer_start(wrk->loop, &wrk->job_queue_watcher);
 }
 
 void li_vrequest_joblist_append_async(liVRequestRef *vr_ref) {

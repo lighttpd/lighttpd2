@@ -25,7 +25,7 @@ struct worker_closing_socket {
 static void worker_close_socket_now(worker_closing_socket *scs) {
 	liWorker *wrk = scs->wrk;
 
-	shutdown(scs->fd, SHUT_RD);
+	/* shutdown(scs->fd, SHUT_RD); */ /* useless anyway */
 	close(scs->fd);
 	g_queue_delete_link(&wrk->closing_sockets, scs->link);
 	g_slice_free(worker_closing_socket, scs);
@@ -168,22 +168,46 @@ static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents)
 	li_waitqueue_update(&wrk->io_timeout_queue);
 }
 
+static void worker_job_queue(liWorker *wrk, int loops) {
+	int i;
+
+	for (i = 0; i < loops; i++) {
+		GQueue q = wrk->job_queue;
+		GList *l;
+		liVRequest *vr;
+
+		if (q.length == 0) return;
+
+		g_queue_init(&wrk->job_queue); /* reset queue, elements are in q */
+
+		while (NULL != (l = g_queue_pop_head_link(&q))) {
+			vr = l->data;
+			g_assert(g_atomic_int_compare_and_exchange(&vr->queued, 1, 0));
+			li_vrequest_state_machine(vr);
+		}
+	}
+
+	if (wrk->job_queue.length > 0) {
+		/* make sure we will run again soon */
+		ev_timer_start(wrk->loop, &wrk->job_queue_watcher);
+	}
+}
+
 /* run vreqest state machine */
-static void worker_job_queue_cb(struct ev_loop *loop, ev_timer *w, int revents) {
+static void li_worker_prepare_cb(struct ev_loop *loop, ev_prepare *w, int revents) {
 	liWorker *wrk = (liWorker*) w->data;
-	GQueue q = wrk->job_queue;
-	GList *l;
-	liVRequest *vr;
 	UNUSED(loop);
 	UNUSED(revents);
 
-	g_queue_init(&wrk->job_queue); /* reset queue, elements are in q */
+	worker_job_queue(wrk, 3);
+}
 
-	while (NULL != (l = g_queue_pop_head_link(&q))) {
-		vr = l->data;
-		g_assert(g_atomic_int_compare_and_exchange(&vr->queued, 1, 0));
-		li_vrequest_state_machine(vr);
-	}
+static void worker_job_queue_cb(struct ev_loop *loop, ev_timer *w, int revents) {
+	UNUSED(loop);
+	UNUSED(revents);
+	UNUSED(w);
+
+	/* just kept loop alive, call state machines in prepare */
 }
 
 /* run vreqest state machine for async queued jobs */
@@ -281,27 +305,7 @@ void li_worker_new_con(liWorker *ctx, liWorker *wrk, liSocketAddress remote_addr
 	if (ctx == wrk) {
 		liConnection *con = worker_con_get(wrk);
 
-		con->srv_sock = srv_sock;
-		con->state = LI_CON_STATE_REQUEST_START;
-		ev_io_set(&con->sock_watcher, s, EV_READ);
-		ev_io_start(wrk->loop, &con->sock_watcher);
-		con->ts_started = CUR_TS(wrk);
-		con->mainvr->ts_started = CUR_TS(wrk);
-
-		con->info.remote_addr = remote_addr;
-		li_sockaddr_to_string(remote_addr, con->info.remote_addr_str, FALSE);
-
-		con->info.local_addr = li_sockaddr_local_from_socket(s);
-		li_sockaddr_to_string(con->info.local_addr, con->info.local_addr_str, FALSE);
-
-		li_waitqueue_push(&wrk->io_timeout_queue, &con->io_timeout_elem);
-
-
-		if (srv_sock->new_cb) {
-			if (!srv_sock->new_cb(con)) {
-				li_connection_error(con);
-			}
-		}
+		li_connection_start(con, remote_addr, s, srv_sock);
 	} else {
 		li_worker_new_con_data *d = g_slice_new(li_worker_new_con_data);
 		d->remote_addr = remote_addr;
@@ -409,18 +413,23 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 			g_array_index(wrk->timestamps_local, liWorkerTS, i).str = g_string_sized_new(255);
 	}
 
-	ev_init(&wrk->li_worker_exit_watcher, li_worker_exit_cb);
-	wrk->li_worker_exit_watcher.data = wrk;
-	ev_async_start(wrk->loop, &wrk->li_worker_exit_watcher);
+	ev_init(&wrk->loop_prepare, li_worker_prepare_cb);
+	wrk->loop_prepare.data = wrk;
+	ev_prepare_start(wrk->loop, &wrk->loop_prepare);
 	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
-	ev_init(&wrk->li_worker_stop_watcher, li_worker_stop_cb);
-	wrk->li_worker_stop_watcher.data = wrk;
-	ev_async_start(wrk->loop, &wrk->li_worker_stop_watcher);
+	ev_init(&wrk->worker_exit_watcher, li_worker_exit_cb);
+	wrk->worker_exit_watcher.data = wrk;
+	ev_async_start(wrk->loop, &wrk->worker_exit_watcher);
+	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
-	ev_init(&wrk->li_worker_suspend_watcher, li_worker_suspend_cb);
-	wrk->li_worker_suspend_watcher.data = wrk;
-	ev_async_start(wrk->loop, &wrk->li_worker_suspend_watcher);
+	ev_init(&wrk->worker_stop_watcher, li_worker_stop_cb);
+	wrk->worker_stop_watcher.data = wrk;
+	ev_async_start(wrk->loop, &wrk->worker_stop_watcher);
+
+	ev_init(&wrk->worker_suspend_watcher, li_worker_suspend_cb);
+	wrk->worker_suspend_watcher.data = wrk;
+	ev_async_start(wrk->loop, &wrk->worker_suspend_watcher);
 
 	ev_init(&wrk->new_con_watcher, li_worker_new_con_cb);
 	wrk->new_con_watcher.data = wrk;
@@ -498,7 +507,7 @@ void li_worker_free(liWorker *wrk) {
 		g_array_free(wrk->timestamps_local, TRUE);
 	}
 
-	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->li_worker_exit_watcher);
+	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->worker_exit_watcher);
 
 	{
 		GAsyncQueue *q = wrk->job_async_queue;
@@ -523,6 +532,8 @@ void li_worker_free(liWorker *wrk) {
 	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->collect_watcher);
 	li_collect_watcher_cb(wrk->loop, &wrk->collect_watcher, 0);
 	g_async_queue_unref(wrk->collect_queue);
+
+	li_ev_safe_ref_and_stop(ev_prepare_stop, wrk->loop, &wrk->loop_prepare);
 
 	g_string_free(wrk->tmp_str, TRUE);
 
@@ -569,8 +580,8 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 
 		li_plugins_worker_stop(wrk);
 
-		ev_async_stop(wrk->loop, &wrk->li_worker_stop_watcher);
-		ev_async_stop(wrk->loop, &wrk->li_worker_suspend_watcher);
+		ev_async_stop(wrk->loop, &wrk->worker_stop_watcher);
+		ev_async_stop(wrk->loop, &wrk->worker_suspend_watcher);
 		ev_async_stop(wrk->loop, &wrk->new_con_watcher);
 		li_waitqueue_stop(&wrk->io_timeout_queue);
 		li_waitqueue_stop(&wrk->throttle_queue);
@@ -595,7 +606,7 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 			}
 		}
 	} else {
-		ev_async_send(wrk->loop, &wrk->li_worker_stop_watcher);
+		ev_async_send(wrk->loop, &wrk->worker_stop_watcher);
 	}
 }
 
@@ -628,7 +639,7 @@ void li_worker_suspend(liWorker *context, liWorker *wrk) {
 		}
 #endif
 	} else {
-		ev_async_send(wrk->loop, &wrk->li_worker_suspend_watcher);
+		ev_async_send(wrk->loop, &wrk->worker_suspend_watcher);
 	}
 }
 
@@ -636,7 +647,7 @@ void li_worker_exit(liWorker *context, liWorker *wrk) {
 	if (context == wrk) {
 		ev_unloop (wrk->loop, EVUNLOOP_ALL);
 	} else {
-		ev_async_send(wrk->loop, &wrk->li_worker_exit_watcher);
+		ev_async_send(wrk->loop, &wrk->worker_exit_watcher);
 	}
 }
 

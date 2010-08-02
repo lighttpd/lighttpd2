@@ -66,7 +66,7 @@ struct liWorker {
 	struct ev_loop *loop;
 	ev_prepare loop_prepare;
 	ev_check loop_check;
-	ev_async li_worker_stop_watcher, li_worker_suspend_watcher, li_worker_exit_watcher;
+	ev_async worker_stop_watcher, worker_suspend_watcher, worker_exit_watcher;
 
 	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections
 	                            * use with atomic, read direct from local worker context

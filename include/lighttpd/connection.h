@@ -41,8 +41,6 @@ struct liConnection {
 	liChunkQueue *in, *out;    /* link to mainvr->in/out */
 	liBuffer *raw_in_buffer;
 
-	ev_io sock_watcher;
-
 	liVRequest *mainvr;
 	liHttpRequestCtx req_parser_ctx;
 
@@ -57,6 +55,9 @@ struct liConnection {
 	} keep_alive_data;
 	guint keep_alive_requests;
 
+	ev_io sock_watcher;
+	gboolean can_read, can_write;
+
 	/* I/O timeout data */
 	liWaitQueueElem io_timeout_elem;
 };
@@ -70,6 +71,8 @@ LI_API void li_connection_reset(liConnection *con);
 
 /** aborts an active connection, calls all plugin cleanup handlers */
 LI_API void li_connection_error(liConnection *con); /* used in worker.c */
+
+LI_API void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, liServerSocket *srv_sock);
 
 /* public function */
 LI_API gchar *li_connection_state_str(liConnectionState state);
