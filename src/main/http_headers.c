@@ -9,11 +9,16 @@ static void _http_header_free(gpointer p) {
 
 static liHttpHeader* _http_header_new(const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	liHttpHeader *h = g_slice_new0(liHttpHeader);
+	gchar *s;
 	h->data = g_string_sized_new(keylen + valuelen + 2);
+	g_string_set_size(h->data, keylen + valuelen + 2);
 	h->keylen = keylen;
-	g_string_append_len(h->data, key, keylen);
-	g_string_append_len(h->data, CONST_STR_LEN(": "));
-	g_string_append_len(h->data, val, valuelen);
+	s = h->data->str;
+	memcpy(s, key, keylen);
+	s += keylen;
+	memcpy(s, ": ", 2);
+	s += 2;
+	memcpy(s, val, valuelen);
 	return h;
 }
 
@@ -87,9 +92,14 @@ void li_http_header_append(liHttpHeaders *headers, const gchar *key, size_t keyl
 	if (NULL == l) {
 		li_http_header_insert(headers, key, keylen, val, valuelen);
 	} else {
+		gsize oldlen;
+		gchar *s;
 		h = (liHttpHeader*) l->data;
-		g_string_append_len(h->data, CONST_STR_LEN(", "));
-		g_string_append_len(h->data, val, valuelen);
+		oldlen = h->data->len;
+		g_string_set_size(h->data, oldlen + 2 + valuelen);
+		s = h->data->str + oldlen;
+		memcpy(s, ", ", 2);
+		memcpy(s+2, val, valuelen);
 	}
 }
 
@@ -103,10 +113,9 @@ void li_http_header_overwrite(liHttpHeaders *headers, const gchar *key, size_t k
 		li_http_header_insert(headers, key, keylen, val, valuelen);
 	} else {
 		h = (liHttpHeader*) l->data;
-		g_string_truncate(h->data, 0);
-		g_string_append_len(h->data, key, keylen);
-		g_string_append_len(h->data, CONST_STR_LEN(": "));
-		g_string_append_len(h->data, val, valuelen);
+		g_string_set_size(h->data, keylen + 2 + valuelen);
+		/* only overwrite value */
+		memcpy(h->data->str + keylen + 2, val, valuelen);
 	}
 }
 
