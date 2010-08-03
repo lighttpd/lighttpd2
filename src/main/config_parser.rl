@@ -213,10 +213,12 @@
 	}
 
 	action block_start {
+		_printf("%s", "block_start\n");
 		fcall block_scanner;
 	}
 
 	action block_end {
+		_printf("%s", "block_end\n");
 		fret;
 	}
 
@@ -448,6 +450,7 @@
 		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
 		o = li_value_new_string(str);
 		g_queue_push_head(ctx->option_stack, o);
+		_printf("got varname %s\n", str->str);
 	}
 
 	action actionref {
@@ -806,157 +809,6 @@
 		}
 	}
 
-	action condition_start {
-		/* stack: value, varname OR value, key, varname */
-		liValue *v, *n, *k;
-		gchar *str;
-		liCondition *cond;
-		liConditionLValue *lvalue;
-		liCondLValue lvalue_type;
-
-		/* if condition is nonbool, then it has a value and maybe a key too on the stack */
-		if (ctx->condition_nonbool) {
-			v = g_queue_pop_head(ctx->option_stack);
-			if (ctx->condition_with_key)
-				k = g_queue_pop_head(ctx->option_stack);
-			else
-				k = NULL;
-		} else {
-			v = NULL;
-			k = NULL;
-		}
-
-		n = g_queue_pop_head(ctx->option_stack);
-
-		assert(n->type == LI_VALUE_STRING);
-
-		/*_printf("got condition: %s:%s %s %s in line %zd\n", n->data.string->str, ctx->condition_with_key ? k->data.string->str : "", li_comp_op_to_string(ctx->op), li_value_type_string(v->type), ctx->line);*/
-
-		/* create condition lvalue */
-		str = n->data.string->str;
-
-		lvalue_type = li_cond_lvalue_from_string(GSTR_LEN(n->data.string));
-		if (lvalue_type == LI_COMP_UNKNOWN) {
-			ERROR(srv, "unknown lvalue for condition: %s", n->data.string->str);
-			return FALSE;
-		}
-
-		if ((lvalue_type == LI_COMP_REQUEST_HEADER || lvalue_type == LI_COMP_ENVIRONMENT || lvalue_type == LI_COMP_RESPONSE_HEADER) && k == NULL) {
-			ERROR(srv, "%s conditional needs a key", n->data.string->str);
-			return FALSE;
-		}
-
-		lvalue = li_condition_lvalue_new(lvalue_type, k ? li_value_extract_string(k) : NULL);
-
-		if (ctx->condition_nonbool) {
-			if (v->type == LI_VALUE_STRING) {
-				cond = li_condition_new_string(srv, ctx->op, lvalue, li_value_extract_string(v));
-			}
-			else if (v->type == LI_VALUE_NUMBER)
-				cond = li_condition_new_int(srv, ctx->op, lvalue, v->data.number);
-			else {
-				cond = NULL;
-			}
-		} else {
-			/* boolean condition */
-			cond = li_condition_new_bool(srv, lvalue, !ctx->condition_negated);
-		}
-
-		if (cond == NULL) {
-			WARNING(srv, "%s", "could not create condition");
-			return FALSE;
-		}
-
-		g_queue_push_head(ctx->condition_stack, cond);
-
-		g_queue_push_head(ctx->action_list_stack, li_action_new_list());
-
-		li_value_free(n);
-		if (ctx->condition_nonbool) {
-			li_value_free(k);
-			li_value_free(v);
-		}
-
-		ctx->condition_with_key = FALSE;
-		ctx->condition_nonbool = FALSE;
-		ctx->condition_negated = FALSE;
-	}
-
-	action condition_end {
-		liCondition *cond;
-		liAction *a, *al;
-
-		cond = g_queue_pop_head(ctx->condition_stack);
-		al = g_queue_pop_head(ctx->action_list_stack);
-		a = li_action_new_condition(cond, al, NULL);
-		al = g_queue_peek_head(ctx->action_list_stack);
-		g_array_append_val(al->data.list, a);
-	}
-
-	action condition_key {
-		ctx->condition_with_key = TRUE;
-	}
-
-	action else_nocond_start {
-		/* start a new action list */
-		g_queue_push_head(ctx->action_list_stack, li_action_new_list());
-
-		_printf("got else_nocond_start in line %zd\n", ctx->line);
-	}
-
-	action else_nocond_end {
-		/*
-			else block WITHOUT condition
-			- pop current action list from stack
-			- peek previous action list from stack
-			- get last action from action list
-			- put current action list as target_else of the last action
-		*/
-		liAction *al, *target, *cond;
-
-		target = g_queue_pop_head(ctx->action_list_stack);
-		al = g_queue_peek_head(ctx->action_list_stack);
-		cond = g_array_index(al->data.list, liAction*, al->data.list->len - 1); /* last action in the list is our condition */
-
-		while (cond->data.condition.target_else) {
-			/* condition has already an else statement, try the target */
-			cond = cond->data.condition.target_else;
-		}
-
-		cond->data.condition.target_else = target;
-
-		_printf("got else_nocond_end in line %zd\n", ctx->line);
-	}
-
-	action else_cond_end {
-		/*
-			else block WITH condition
-			- get current condition action from action list
-			- get previous condition action from action list
-			- put current condition action as target_else of the previous condition
-			- remove current condition action from action list
-		*/
-
-		liAction *prev, *cur, *al;
-
-		al = g_queue_peek_head(ctx->action_list_stack);
-		cur = g_array_index(al->data.list, liAction*, al->data.list->len - 1); /* last element of the action list */
-		prev = g_array_index(al->data.list, liAction*, al->data.list->len - 2);
-
-		assert(cur->type == ACTION_TCONDITION);
-		assert(prev->type == ACTION_TCONDITION);
-
-		while (prev->data.condition.target_else) {
-			/* condition has already an else statement, try the target */
-			prev = prev->data.condition.target_else;
-		}
-
-		prev->data.condition.target_else = cur;
-		g_array_remove_index(al->data.list, al->data.list->len - 1);
-
-		_printf("got else_cond_end in line %zd\n", ctx->line);
-	}
-
 	action action_block_start {
 		liValue *o;
 		liAction *al;
@@ -1025,6 +877,195 @@
 		g_queue_push_head(ctx->option_stack, v);
 	}
 
+	action cond_key { _printf("%s", "cond_key\n"); }
+	action cond_operator { _printf("%s", "cond_operator\n"); }
+	action cond_and_or {
+		_printf("%s", "and_or: ");
+		for (gchar *c = ctx->mark; c < fpc; c++) _printf("%c", *c);
+		_printf("%s", "\n");
+		/* we use spacial values 0x1 and 0x2 to indicate "and" or "or" on the condition stack */
+		if (strncmp(ctx->mark, "and", fpc - ctx->mark) == 0) {
+			/* we got an 'or', push special value 0x1 on condition stack */
+			g_queue_push_head(ctx->condition_stack, GINT_TO_POINTER(0x1));
+		} else {
+
+			/* we got an 'or', push special value 0x2 on condition stack */
+			g_queue_push_head(ctx->condition_stack, GINT_TO_POINTER(0x2));
+		}
+	}
+	action condition {
+		/* stack: value, varname OR value, key, varname */
+		liValue *val, *varname, *key;
+		liCondition *cond;
+		liConditionLValue *lvalue;
+		liCondLValue lvalue_type;
+
+		_printf("%s", "condition\n");
+
+		/* if condition is nonbool, then it has a value and maybe a key too on the stack */
+		if (ctx->condition_nonbool) {
+			val = g_queue_pop_head(ctx->option_stack);
+			if (ctx->condition_with_key)
+				key = g_queue_pop_head(ctx->option_stack);
+			else
+				key = NULL;
+		} else {
+			val = NULL;
+			key = NULL;
+		}
+
+		/* pop varname from stack, this will be the lval */
+		varname = g_queue_pop_head(ctx->option_stack);
+		assert(varname->type == LI_VALUE_STRING);
+
+		if (ctx->condition_nonbool) {
+			if (ctx->condition_with_key) {
+				_printf("got condition: %s[%s] %s %s in line %zd\n", varname->data.string->str, key->data.string->str, li_comp_op_to_string(ctx->op), li_value_type_string(val->type), ctx->line);
+			} else {
+				_printf("got condition: %s %s %s in line %zd\n", varname->data.string->str, li_comp_op_to_string(ctx->op), li_value_type_string(val->type), ctx->line);
+			}
+		} else {
+			if (ctx->condition_with_key) {
+				_printf("got condition: %s[%s] in line %zd\n", varname->data.string->str, key->data.string->str, ctx->line);
+			} else {
+				_printf("got condition: %s in line %zd\n", varname->data.string->str, ctx->line);
+			}
+		}
+
+		/* create condition lvalue */
+		lvalue_type = li_cond_lvalue_from_string(GSTR_LEN(varname->data.string));
+
+		if (lvalue_type == LI_COMP_UNKNOWN) {
+			ERROR(srv, "unknown lvalue for condition: %s", varname->data.string->str);
+			return FALSE;
+		}
+
+		if ((lvalue_type == LI_COMP_REQUEST_HEADER || lvalue_type == LI_COMP_ENVIRONMENT || lvalue_type == LI_COMP_RESPONSE_HEADER) && key == NULL) {
+			ERROR(srv, "%s conditional needs a key", varname->data.string->str);
+			return FALSE;
+		}
+
+		lvalue = li_condition_lvalue_new(lvalue_type, key ? li_value_extract_string(key) : NULL);
+
+		/* if condition is non-boolean, then we have a rval */
+		if (ctx->condition_nonbool) {
+			if (val->type == LI_VALUE_STRING) {
+				cond = li_condition_new_string(srv, ctx->op, lvalue, li_value_extract_string(val));
+			} else if (val->type == LI_VALUE_NUMBER) {
+				cond = li_condition_new_int(srv, ctx->op, lvalue, val->data.number);
+			} else {
+				cond = NULL;
+			}
+		} else {
+			/* boolean condition */
+			cond = li_condition_new_bool(srv, lvalue, !ctx->condition_negated);
+		}
+
+		if (cond == NULL) {
+			ERROR(srv, "%s", "could not create condition");
+			return FALSE;
+		}
+
+		g_queue_push_head(ctx->condition_stack, cond);
+
+		li_value_free(varname);
+		if (ctx->condition_nonbool) {
+			li_value_free(key);
+			li_value_free(val);
+		}
+
+		ctx->condition_with_key = FALSE;
+		ctx->condition_nonbool = FALSE;
+		ctx->condition_negated = FALSE;
+	}
+	action conditions {
+		liAction *a, *target_action, *action_list, *action_last_and;
+		liCondition *cond, *cond_next;
+
+		cond = g_queue_pop_head(ctx->condition_stack);
+		target_action = g_queue_pop_head(ctx->action_list_stack);
+		action_list = g_queue_peek_head(ctx->action_list_stack);
+
+		a = li_action_new_condition(cond, target_action, NULL);
+		action_last_and = a;
+		_printf("new condition action: %p, target: %p\n", (void*)a, (void*)target_action);
+
+		while (NULL != (cond_next = g_queue_peek_head(ctx->condition_stack))) {
+			if (cond_next == GINT_TO_POINTER(0x1)) {
+				/* 'and' */
+				g_queue_pop_head(ctx->condition_stack);
+				cond = g_queue_pop_head(ctx->condition_stack);
+				action_last_and = a;
+				/* mark target pointer as 'and' */
+				a = li_action_new_condition(cond, (liAction*)((uintptr_t)a | 0x1), NULL);
+				_printf("new AND condition action: %p, target: %p, else: %p\n", (void*)a, (void*)action_last_and, NULL);
+				action_last_and = a;
+			} else if (cond_next == GINT_TO_POINTER(0x2)) {
+				/* 'or' */
+				g_queue_pop_head(ctx->condition_stack);
+				cond = g_queue_pop_head(ctx->condition_stack);
+				a = li_action_new_condition(cond, target_action, action_last_and);
+				_printf("new OR condition action: %p, target: %p, else: %p\n", (void*)a, (void*)target_action, (void*)action_last_and);
+			} else {
+				break;
+			}
+		}
+
+		g_array_append_val(action_list->data.list, a);
+	}
+
+	action cond_else {
+		/*
+			else block WITHOUT condition
+			- pop current action list from stack
+			- peek previous action list from stack
+			- get last action from action list
+			- put current action list as target_else of the last action
+		*/
+		liAction *action_list, *target, *cond, *cond_and;
+
+		target = g_queue_pop_head(ctx->action_list_stack);
+		action_list = g_queue_peek_head(ctx->action_list_stack);
+		/* last action in the list is our condition */
+		cond = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
+
+		/* loop over all actions until we find the last without target_else */
+		while (TRUE) {
+			for (cond_and = cond; (uintptr_t)cond->data.condition.target & 0x1; cond_and = cond_and->data.condition.target) {
+
+				cond_and->data.condition.target = (liAction*)((uintptr_t)cond_and->data.condition.target & (~0x1));
+				cond_and->data.condition.target->data.condition.target_else = target;
+			}
+
+			if (cond->data.condition.target_else)
+				cond = cond->data.condition.target_else;
+			else
+				break;
+		}
+
+		cond->data.condition.target_else = target;
+		_printf("got cond_else in line %zd\n", ctx->line);
+	}
+
+	action condition_chain {
+		liAction *action_list, *cond, *cond_and;
+		action_list = g_queue_peek_head(ctx->action_list_stack);
+		/* last action in the list is our condition */
+		cond = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
+
+		/* loop over all actions looking for 'and' markers and clear them */
+		while (cond) {
+			for (cond_and = cond; (uintptr_t)cond->data.condition.target & 0x1; cond_and = cond_and->data.condition.target) {
+				cond_and->data.condition.target = (liAction*)((uintptr_t)cond_and->data.condition.target & (~0x1));
+			}
+
+			if (cond->data.condition.target_else)
+				cond = cond->data.condition.target_else;
+			else
+				break;
+		}
+	}
+
 
 	## definitions
 
@@ -1072,20 +1113,25 @@
 	value_statement = ( noise* cast? value (ws* value_statement_op ws* cast? value %value_statement)* noise* );
 	hash_elem = ( noise* string >mark noise* ':' value_statement );
 
-	operator = ( '==' | '!=' | '=^' | '!^' | '=$' | '!$' | '<' | '<=' | '>' | '>=' | '=~' | '!~' | '=/' | '!/' ) >mark %operator;
+	# conditions
+	cond_lval = ( varname );
+	cond_rval = ( value_statement ) %{ ctx->condition_nonbool = TRUE; };
+	cond_negated = ( '!' ) %{ ctx->condition_negated = TRUE; };
+	cond_key = ( '[' string >mark ']' ) %cond_key;
+	cond_operator = ( '==' | '!=' | '=^' | '!^' | '=$' | '!$' | '<' | '<=' | '>' | '>=' | '=~' | '!~' | '=/' | '!/' ) >mark %cond_operator;
+	cond_and_or = ( 'and' | 'or' ) >mark %cond_and_or;
+	condition = ( cond_negated? cond_lval cond_key? ws+ ( cond_operator ws+ cond_rval  )? ) <: '' %condition;
+	conditions = ( 'if' noise+ condition ( cond_and_or noise+ condition )* block >action_block_noname_start ) %conditions;
+	cond_else_if = ( 'else' noise+ conditions );
+	cond_else = ( 'else' noise+ block >action_block_noname_start ) %cond_else;
+	condition_chain = ( conditions noise* cond_else_if* cond_else* ) <: '' %condition_chain;
 
 	# statements
 	assignment = ( varname ws* '=' ws* value_statement ';' ) %assignment;
 	function_noparam = ( varname ws* ';' ) %function_noparam;
 	function_param = ( varname ws+ value_statement ';') %function_param;
 	function = ( function_noparam | function_param );
-
-	condition = ( 'if' noise+ ('!' %{ctx->condition_negated = TRUE;})? varname ('[' string >mark ']' %condition_key)? ws* (operator ws* value_statement %{ctx->condition_nonbool = TRUE;})? noise* block >condition_start ) %condition_end;
-	else_cond = ( 'else' noise+ condition ) %else_cond_end;
-	else_nocond = ( 'else' noise+ block >else_nocond_start ) %else_nocond_end;
-	condition_else = ( condition noise* (else_cond| noise)* else_nocond? );
-
-	statement = ( assignment | function | condition_else | action_block );
+	statement = ( assignment | function | condition_chain | action_block );
 
 	# scanner
 	list_scanner := ( ((value_statement %list_push ( ',' value_statement %list_push )*)  | noise*) ')' >list_end );
@@ -1096,7 +1142,6 @@
 }%%
 
 %% write data;
-
 
 static liConfigParserContext *config_parser_context_new(liServer *srv, GList *ctx_stack) {
 	liConfigParserContext *ctx;
