@@ -24,15 +24,17 @@
 
 	action header_key {
 		getStringTo(fpc, ctx->h_key);
-		g_string_truncate(ctx->h_value, 0);
+		li_g_string_clear(ctx->h_value);
 	}
 	action header_value {
 		getStringTo(fpc, ctx->h_value);
 		/* Remove CRLF */
 		if (ctx->h_value->len > 2) {
-			g_string_truncate(ctx->h_value, ctx->h_value->len - 2);
+			ctx->h_value->len -= 2;
+			ctx->h_value->str[ctx->h_value->len] = '\0';
+			/* g_string_truncate(ctx->h_value, ctx->h_value->len - 2); */
 		} else {
-			g_string_truncate(ctx->h_value, 0);
+			li_g_string_clear(ctx->h_value);
 		}
 	}
 	action header {

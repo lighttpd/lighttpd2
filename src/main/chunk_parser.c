@@ -55,7 +55,8 @@ void li_chunk_parser_done(liChunkParserCtx *ctx, goffset len) {
 gboolean li_chunk_extract_to(liVRequest *vr, liChunkParserMark from, liChunkParserMark to, GString *dest) {
 	liChunkParserMark i;
 
-	g_string_set_size(dest, 0);
+	g_string_set_size(dest, to.abs_pos - from.abs_pos);
+	li_g_string_clear(dest);
 
 	for ( i = from; i.ci.element != to.ci.element; li_chunkiter_next(&i.ci) ) {
 		goffset len = li_chunkiter_length(i.ci);
@@ -63,7 +64,14 @@ gboolean li_chunk_extract_to(liVRequest *vr, liChunkParserMark from, liChunkPars
 			char *buf;
 			off_t we_have;
 			if (LI_HANDLER_GO_ON != li_chunkiter_read(vr, i.ci, i.pos, len - i.pos, &buf, &we_have)) goto error;
-			g_string_append_len(dest, buf, we_have);
+			if (dest->len + we_have < dest->allocated_len) {
+				/* "fast" append */
+				memcpy(dest->str + dest->len, buf, we_have);
+				dest->len += we_have;
+				dest->str[dest->len] = '\0';
+			} else {
+				g_string_append_len(dest, buf, we_have);
+			}
 			i.pos += we_have;
 		}
 		i.pos = 0;
@@ -72,14 +80,21 @@ gboolean li_chunk_extract_to(liVRequest *vr, liChunkParserMark from, liChunkPars
 		char *buf;
 		off_t we_have;
 		if (LI_HANDLER_GO_ON != li_chunkiter_read(vr, i.ci, i.pos, to.pos - i.pos, &buf, &we_have)) goto error;
-		g_string_append_len(dest, buf, we_have);
+		if (dest->len + we_have < dest->allocated_len) {
+			/* "fast" append */
+			memcpy(dest->str + dest->len, buf, we_have);
+			dest->len += we_have;
+			dest->str[dest->len] = '\0';
+		} else {
+			g_string_append_len(dest, buf, we_have);
+		}
 		i.pos += we_have;
 	}
 
 	return TRUE;
 
 error:
-	g_string_assign(dest, "");
+	li_g_string_clear(dest);
 	return FALSE;
 }
 

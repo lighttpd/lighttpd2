@@ -22,7 +22,7 @@ struct liChunkParserCtx {
 
 struct liChunkParserMark {
 	liChunkIter ci;
-	off_t pos;
+	off_t pos, abs_pos;
 };
 
 LI_API void li_chunk_parser_init(liChunkParserCtx *ctx, liChunkQueue *cq);
@@ -31,6 +31,7 @@ LI_API liHandlerResult li_chunk_parser_prepare(liChunkParserCtx *ctx);
 LI_API liHandlerResult li_chunk_parser_next(liVRequest *vr, liChunkParserCtx *ctx, char **p, char **pe);
 LI_API void li_chunk_parser_done(liChunkParserCtx *ctx, goffset len);
 
+/* extract [from..to) */
 LI_API gboolean li_chunk_extract_to(liVRequest *vr, liChunkParserMark from, liChunkParserMark to, GString *dest);
 LI_API GString* li_chunk_extract(liVRequest *vr, liChunkParserMark from, liChunkParserMark to);
 
@@ -44,6 +45,7 @@ INLINE liChunkParserMark li_chunk_parser_getmark(liChunkParserCtx *ctx, const ch
 	liChunkParserMark m;
 	m.ci = ctx->curi;
 	m.pos = ctx->start + fpc - ctx->buf;
+	m.abs_pos = ctx->bytes_in + fpc - ctx->buf;
 	return m;
 }
 
