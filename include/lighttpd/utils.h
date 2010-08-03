@@ -102,6 +102,9 @@ LI_API gsize li_dirent_buf_size(DIR * dirp);
 
 LI_API void li_apr_sha1_base64(GString *dest, const GString *passwd);
 
+INLINE GString* _li_g_string_append_len(GString *s, const gchar *val, gssize len);
+INLINE void li_g_string_clear(GString *s);
+
 /* error log helper functions */
 #define LI_REMOVE_PATH_FROM_FILE 1
 LI_API const char *li_remove_path(const char *path);
@@ -120,8 +123,6 @@ LI_API GQuark li_sys_error_quark();
 
 LI_API gboolean _li_set_sys_error(GError **error, const gchar *msg, const gchar *file, int lineno);
 
-#endif
-
 /* inline implementations */
 
 INLINE void li_path_append_slash(GString *path) {
@@ -134,3 +135,18 @@ INLINE GString li_const_gstring(const gchar *str, gsize len) {
 	GString gs = { (gchar*) str, len, 0 };
 	return gs;
 }
+
+#ifndef g_string_append_len
+# define g_string_append_len _li_g_string_append_len
+#endif
+
+INLINE GString* _li_g_string_append_len(GString *s, const gchar *val, gssize len) {
+	return g_string_insert_len(s, -1, val, len);
+}
+
+INLINE void li_g_string_clear(GString *s) {
+	s->len = 0;
+	s->str[0] = '\0';
+}
+
+#endif

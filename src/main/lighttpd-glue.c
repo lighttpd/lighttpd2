@@ -93,7 +93,7 @@ gchar *li_http_method_string(liHttpMethod method, guint *len) {
 	case LI_HTTP_METHOD_REPORT:          SET_LEN_AND_RETURN_STR("REPORT");
 	case LI_HTTP_METHOD_CHECKOUT:        SET_LEN_AND_RETURN_STR("CHECKOUT");
 	case LI_HTTP_METHOD_CHECKIN:         SET_LEN_AND_RETURN_STR("CHECKIN");
-	case LI_HTTP_METHOD_VERSION_CONTROL: SET_LEN_AND_RETURN_STR("VERSION_CONTROL");
+	case LI_HTTP_METHOD_VERSION_CONTROL: SET_LEN_AND_RETURN_STR("VERSION-CONTROL");
 	case LI_HTTP_METHOD_UNCHECKOUT:      SET_LEN_AND_RETURN_STR("UNCHECKOUT");
 	case LI_HTTP_METHOD_MKACTIVITY:      SET_LEN_AND_RETURN_STR("MKACTIVITY");
 	case LI_HTTP_METHOD_MERGE:           SET_LEN_AND_RETURN_STR("MERGE");
@@ -107,32 +107,58 @@ gchar *li_http_method_string(liHttpMethod method, guint *len) {
 	return NULL;
 }
 
-liHttpMethod li_http_method_from_string(gchar *method_str) {
-	if (g_str_equal(method_str, "GET"))						return LI_HTTP_METHOD_GET;
-	else if (g_str_equal(method_str, "POST"))				return LI_HTTP_METHOD_POST;
-	else if (g_str_equal(method_str, "HEAD"))				return LI_HTTP_METHOD_HEAD;
-	else if (g_str_equal(method_str, "OPTIONS"))			return LI_HTTP_METHOD_OPTIONS;
-	else if (g_str_equal(method_str, "PROPFIND"))			return LI_HTTP_METHOD_PROPFIND;
-	else if (g_str_equal(method_str, "MKCOL"))				return LI_HTTP_METHOD_MKCOL;
-	else if (g_str_equal(method_str, "PUT"))				return LI_HTTP_METHOD_PUT;
-	else if (g_str_equal(method_str, "DELETE"))				return LI_HTTP_METHOD_DELETE;
-	else if (g_str_equal(method_str, "COPY"))				return LI_HTTP_METHOD_COPY;
-	else if (g_str_equal(method_str, "MOVE"))				return LI_HTTP_METHOD_MOVE;
-	else if (g_str_equal(method_str, "PROPPATCH"))			return LI_HTTP_METHOD_PROPPATCH;
-	else if (g_str_equal(method_str, "REPORT"))				return LI_HTTP_METHOD_REPORT;
-	else if (g_str_equal(method_str, "CHECKOUT"))			return LI_HTTP_METHOD_CHECKOUT;
-	else if (g_str_equal(method_str, "CHECKIN"))			return LI_HTTP_METHOD_CHECKIN;
-	else if (g_str_equal(method_str, "VERSION_CONTROL"))	return LI_HTTP_METHOD_VERSION_CONTROL;
-	else if (g_str_equal(method_str, "UNCHECKOUT"))			return LI_HTTP_METHOD_UNCHECKOUT;
-	else if (g_str_equal(method_str, "MKACTIVITY"))			return LI_HTTP_METHOD_MKACTIVITY;
-	else if (g_str_equal(method_str, "MERGE"))				return LI_HTTP_METHOD_MERGE;
-	else if (g_str_equal(method_str, "LOCK"))				return LI_HTTP_METHOD_LOCK;
-	else if (g_str_equal(method_str, "UNLOCK"))				return LI_HTTP_METHOD_UNLOCK;
-	else if (g_str_equal(method_str, "LABEL"))				return LI_HTTP_METHOD_LABEL;
-	else if (g_str_equal(method_str, "CONNECT"))			return LI_HTTP_METHOD_CONNECT;
+#define METHOD_ENUM(x) do { if (0 == strncmp(#x, method_str, len)) return LI_HTTP_METHOD_##x; } while (0)
+#define METHOD_ENUM2(x, y) do { if (0 == strncmp(x, method_str, len)) return LI_HTTP_METHOD_##y; } while (0)
+
+liHttpMethod li_http_method_from_string(const gchar* method_str, gssize len) {
+	switch (len) {
+	case 3:
+		METHOD_ENUM(GET);
+		METHOD_ENUM(PUT);
+		break;
+	case 4:
+		METHOD_ENUM(POST);
+		METHOD_ENUM(HEAD);
+		METHOD_ENUM(COPY);
+		METHOD_ENUM(MOVE);
+		METHOD_ENUM(LOCK);
+		break;
+	case 5:
+		METHOD_ENUM(MKCOL);
+		METHOD_ENUM(MERGE);
+		METHOD_ENUM(LABEL);
+		break;
+	case 6:
+		METHOD_ENUM(UNLOCK);
+		METHOD_ENUM(DELETE);
+		METHOD_ENUM(REPORT);
+		break;
+	case 7:
+		METHOD_ENUM(OPTIONS);
+		METHOD_ENUM(CONNECT);
+		METHOD_ENUM(CHECKIN);
+		break;
+	case 8:
+		METHOD_ENUM(PROPFIND);
+		METHOD_ENUM(CHECKOUT);
+		break;
+	case 9:
+		METHOD_ENUM(PROPPATCH);
+		break;
+	case 10:
+		METHOD_ENUM(UNCHECKOUT);
+		METHOD_ENUM(MKACTIVITY);
+		break;
+	case 15:
+		METHOD_ENUM2("VERSION-CONTROL", VERSION_CONTROL);
+		break;
+	}
 
 	return LI_HTTP_METHOD_UNSET;
 }
+
+#undef METHOD_ENUM
+#undef METHOD_ENUM2
 
 gchar *li_http_version_string(liHttpVersion method, guint *len) {
 	switch (method) {

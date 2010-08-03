@@ -448,7 +448,7 @@ static gboolean progress_methods_parse(liServer *srv, liWorker *wrk, liPlugin *p
 			return FALSE;
 		}
 
-		method = li_http_method_from_string(v->data.string->str);
+		method = li_http_method_from_string(GSTR_LEN(v->data.string));
 		if (method == LI_HTTP_METHOD_UNSET) {
 			ERROR(srv, "progress.methods: unknown method: %s", v->data.string->str);
 			return FALSE;

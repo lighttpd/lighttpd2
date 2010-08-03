@@ -100,7 +100,7 @@
 		| "MOVE"      %{ ctx->request->http_method = LI_HTTP_METHOD_MOVE; }
 		| "PROPPATCH" %{ ctx->request->http_method = LI_HTTP_METHOD_PROPPATCH; }
 		| "REPORT"    %{ ctx->request->http_method = LI_HTTP_METHOD_REPORT; }
-		| "CHKECOUT"  %{ ctx->request->http_method = LI_HTTP_METHOD_CHECKOUT; }
+		| "CHECKOUT"  %{ ctx->request->http_method = LI_HTTP_METHOD_CHECKOUT; }
 		| "CHECKIN"   %{ ctx->request->http_method = LI_HTTP_METHOD_CHECKIN; }
 		| "VERSION-CONTROL" %{ ctx->request->http_method = LI_HTTP_METHOD_VERSION_CONTROL; }
 		| "UNCHECKOUT"      %{ ctx->request->http_method = LI_HTTP_METHOD_UNCHECKOUT; }
