@@ -1047,16 +1047,54 @@
 		_printf("got cond_else in line %zd\n", ctx->line);
 	}
 
+	action cond_else_if {
+		/*
+			else block WITH condition
+			- peek current action list from stack
+			- get last action from action list, this is our target action
+			- get second last action from action list, this is the condition to modify
+			- put target action as target_else of the last condition
+		*/
+		liAction *action_list, *target, *cond, *cond_and;
+
+		/* remove current condition action from list and put it as the else target of the previous condition action */
+		action_list = g_queue_peek_head(ctx->action_list_stack);
+		target = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
+		cond = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 2);
+		g_array_remove_index(action_list->data.list, action_list->data.list->len - 1);
+
+		/* loop over all actions until we find the last without target_else */
+		while (TRUE) {
+			for (cond_and = cond; (uintptr_t)cond->data.condition.target & 0x1; cond_and = cond_and->data.condition.target) {
+
+				cond_and->data.condition.target = (liAction*)((uintptr_t)cond_and->data.condition.target & (~0x1));
+				cond_and->data.condition.target->data.condition.target_else = target;
+			}
+
+			if (cond->data.condition.target_else)
+				cond = cond->data.condition.target_else;
+			else
+				break;
+		}
+
+		cond->data.condition.target_else = target;
+		_printf("got cond_else_if in line %zd\n", ctx->line);
+	}
+
 	action condition_chain {
 		liAction *action_list, *cond, *cond_and;
 		action_list = g_queue_peek_head(ctx->action_list_stack);
 		/* last action in the list is our condition */
 		cond = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
 
+		_printf("got condition_chain in line %zd\n", ctx->line);
+
 		/* loop over all actions looking for 'and' markers and clear them */
 		while (cond) {
+			_printf("condition: %p if: %p else: %p\n", (void*)cond, (void*)cond->data.condition.target, (void*)cond->data.condition.target_else);
 			for (cond_and = cond; (uintptr_t)cond->data.condition.target & 0x1; cond_and = cond_and->data.condition.target) {
 				cond_and->data.condition.target = (liAction*)((uintptr_t)cond_and->data.condition.target & (~0x1));
+				_printf("condition: if: %p else: %p\n", (void*)cond->data.condition.target, (void*)cond->data.condition.target_else);
 			}
 
 			if (cond->data.condition.target_else)
@@ -1122,9 +1160,9 @@
 	cond_and_or = ( 'and' | 'or' ) >mark %cond_and_or;
 	condition = ( cond_negated? cond_lval cond_key? ws+ ( cond_operator ws+ cond_rval  )? ) <: '' %condition;
 	conditions = ( 'if' noise+ condition ( cond_and_or noise+ condition )* block >action_block_noname_start ) %conditions;
-	cond_else_if = ( 'else' noise+ conditions );
+	cond_else_if = ( 'else' noise+ conditions ) %cond_else_if;
 	cond_else = ( 'else' noise+ block >action_block_noname_start ) %cond_else;
-	condition_chain = ( conditions noise* cond_else_if* cond_else* ) <: '' %condition_chain;
+	condition_chain = ( conditions noise* cond_else_if* noise* cond_else* ) <: '' %condition_chain;
 
 	# statements
 	assignment = ( varname ws* '=' ws* value_statement ';' ) %assignment;
