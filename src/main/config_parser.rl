@@ -74,10 +74,10 @@
 		else if (g_str_equal(str->str, "gbyte")) o->data.number *= 1024 * 1024 * 1024;
 		else if (g_str_equal(str->str, "tbyte")) o->data.number *= 1024 * 1024 * 1024 * G_GINT64_CONSTANT(1024);
 
-		else if (g_str_equal(str->str, "kbit")) o->data.number *= 1000;
-		else if (g_str_equal(str->str, "mbit")) o->data.number *= 1000 * 1000;
-		else if (g_str_equal(str->str, "gbit")) o->data.number *= 1000 * 1000 * 1000;
-		else if (g_str_equal(str->str, "tbit")) o->data.number *= 1000 * 1000 * 1000 * G_GINT64_CONSTANT(1000);
+		else if (g_str_equal(str->str, "kbit")) o->data.number *= 1024 / 8;
+		else if (g_str_equal(str->str, "mbit")) o->data.number *= 1024 * 1024 / 8;
+		else if (g_str_equal(str->str, "gbit")) o->data.number *= 1024 * 1024 * 1024 / 8;
+		else if (g_str_equal(str->str, "tbit")) o->data.number *= 1024 * 1024 * 1024 * G_GINT64_CONSTANT(1024) / 8;
 
 		else if (g_str_equal(str->str, "min")) o->data.number *= 60;
 		else if (g_str_equal(str->str, "hours")) o->data.number *= 60 * 60;
