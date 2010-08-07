@@ -47,7 +47,7 @@ local function secdownload(options)
 
 	local args = { ["prefix"] = uri_prefix, ["document-root"] = doc_root, ["secret"] = secret, ["timeout"] = timeout }
 
-	local handle_secdownload = action.lua.handler(basepath .. 'core__cached_html.lua', nil, args)
+	local handle_secdownload = action.lua.handler(basepath .. 'secdownload__secdownload.lua', nil, args)
 
 	return handle_secdownload
 end
