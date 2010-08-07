@@ -24,6 +24,7 @@
 
 
 #include <lighttpd/base.h>
+#include <lighttpd/plugin_core.h>
 
 LI_API gboolean mod_balancer_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_balancer_free(liModules *mods, liModule *mod);
@@ -59,16 +60,19 @@ struct balancer {
 	balancer_state state;
 	balancer_method method;
 	gint next_ndx;
+
+	liPlugin *p;
 };
 typedef struct balancer balancer;
 
-static balancer* balancer_new(balancer_method method) {
+static balancer* balancer_new(liPlugin *p, balancer_method method) {
 	balancer *b = g_slice_new(balancer);
 	b->lock = g_mutex_new();
 	b->backends = g_array_new(FALSE, TRUE, sizeof(backend));
 	b->method = method;
 	b->state = BAL_ALIVE;
 	b->next_ndx = 0;
+	b->p = p;
 
 	return b;
 }
@@ -125,6 +129,7 @@ static liHandlerResult balancer_act_select(liVRequest *vr, gboolean backlog_prov
 	backend *be;
 	ev_tstamp now = ev_now(vr->wrk->loop);
 	gboolean all_dead = TRUE;
+	gboolean debug = _OPTION(vr, b->p, 0).boolean;
 
 	UNUSED(backlog_provided);
 
@@ -152,7 +157,7 @@ static liHandlerResult balancer_act_select(liVRequest *vr, gboolean backlog_prov
 		break;
 	case BM_ROUNDROBIN:
 		for (j = 0; j < b->backends->len; j++) {
-			i = (b->next_ndx + j) & b->backends->len;
+			i = (b->next_ndx + j) % b->backends->len;
 			be = &g_array_index(b->backends, backend, i);
 
 			if (now >= be->wake) be->state = BE_ALIVE;
@@ -181,10 +186,13 @@ static liHandlerResult balancer_act_select(liVRequest *vr, gboolean backlog_prov
 
 	be = &g_array_index(b->backends, backend, be_ndx);
 	be->load++;
+	b->next_ndx = be_ndx + 1;
 
 	g_mutex_unlock(b->lock);
 
-	VR_DEBUG(vr, "balancer select: %i", be_ndx);
+	if (debug || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean){
+		VR_DEBUG(vr, "balancer select: %i", be_ndx);
+	}
 
 	li_action_enter(vr, be->act);
 	*context = GINT_TO_POINTER(be_ndx);
@@ -196,13 +204,16 @@ static liHandlerResult balancer_act_fallback(liVRequest *vr, gboolean backlog_pr
 	balancer *b = (balancer*) param;
 	gint be_ndx = GPOINTER_TO_INT(*context);
 	backend *be;
+	gboolean debug = _OPTION(vr, b->p, 0).boolean;
 
 	UNUSED(backlog_provided);
 
 	if (be_ndx < 0) return LI_HANDLER_GO_ON;
 	be = &g_array_index(b->backends, backend, be_ndx);
 
-	VR_ERROR(vr, "balancer fallback: %i (error: %i)", be_ndx, error);
+	if (debug || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean){
+		VR_DEBUG(vr, "balancer fallback: %i (error: %i)", be_ndx, error);
+	}
 
 	g_mutex_lock(b->lock);
 
@@ -225,21 +236,23 @@ static liHandlerResult balancer_act_fallback(liVRequest *vr, gboolean backlog_pr
 	*context = GINT_TO_POINTER(-1);
 
 	return balancer_act_select(vr, backlog_provided, param, context);
-
-	return LI_HANDLER_GO_ON;
 }
 
 static liHandlerResult balancer_act_finished(liVRequest *vr, gpointer param, gpointer context) {
 	balancer *b = (balancer*) param;
 	gint be_ndx = GPOINTER_TO_INT(context);
 	backend *be;
+	gboolean debug = _OPTION(vr, b->p, 0).boolean;
 
 	UNUSED(vr);
 
 	if (be_ndx < 0) return LI_HANDLER_GO_ON;
 	be = &g_array_index(b->backends, backend, be_ndx);
 
-	VR_ERROR(vr, "balancer finished: %i", be_ndx);
+	if (debug){
+		VR_DEBUG(vr, "balancer finished: %i", be_ndx);
+	}
+
 
 	g_mutex_lock(b->lock);
 
@@ -268,7 +281,7 @@ static liAction* balancer_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 	}
 
 	/* userdata contains the method */
-	b = balancer_new(GPOINTER_TO_INT(userdata));
+	b = balancer_new(p, GPOINTER_TO_INT(userdata));
 	if (!balancer_fill_backends(b, srv, val)) {
 		balancer_free(srv, b);
 		return NULL;
@@ -277,8 +290,9 @@ static liAction* balancer_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 	return li_action_new_balancer(balancer_act_select, balancer_act_fallback, balancer_act_finished, balancer_act_free, b, TRUE);
 }
 
-
 static const liPluginOption options[] = {
+	{ "balancer.debug", LI_VALUE_BOOLEAN, FALSE, NULL },
+
 	{ NULL, 0, 0, NULL }
 };
 

@@ -288,6 +288,10 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			case LI_HANDLER_WAIT_FOR_EVENT:
 				return res;
 			}
+			if (as->backend_failed && ase == action_stack_top(as)) {
+				/* when backend selection failed and balancer i still the top action, we remove the balancer itself so it doesn't loop forever */
+				action_stack_pop(srv, vr, as);
+			}
 			continue;
 		}
 		if (ase->finished) {
