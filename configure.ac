@@ -57,19 +57,33 @@ PKG_CHECK_MODULES(GMODULE, gmodule-2.0 >= 2.16.0, [],[AC_MSG_ERROR("gmodule-2.0 
 AC_MSG_CHECKING(for libev support)
 AC_ARG_WITH(libev,
     AC_HELP_STRING([--with-libev@<:@=PATH@:>@],[Search for libev in PATH/include and PATH/lib]),
-    [WITH_LIBEV=$withval],[WITH_LIBEV=/usr])
+    [WITH_LIBEV=$withval],[WITH_LIBEV=yes])
 
-AC_CHECK_HEADERS([ev.h],[
-	AC_CHECK_LIB([ev], [ev_loop], [
-		AC_SUBST(LIBEV_CFLAGS, [])
-		AC_SUBST(LIBEV_LIBS, [-lev])
-		],[
-		AC_MSG_ERROR([libev not found])
-		]
-	)],[
-		AC_MSG_ERROR([libev not found])
-	]
-)
+LIBEV_CFLAGS=""
+LIBEV_LIBS=""
+
+PKG_CHECK_MODULES(LIBEV, libev, [], [
+	dnl no pkg-config for libev, searching manually:
+
+	if test "$WITH_LIBEV" != "yes"; then
+		LIBEV_CFLAGS="-I$WITH_LIBEV/include"
+		LIBEV_LIBS="-L$WITH_LIBEV/lib -lev"
+	else
+		AC_CHECK_HEADERS([ev.h],[
+			AC_CHECK_LIB([ev], [ev_loop], [
+					LIBEV_LIBS="-lev"
+				],[
+				AC_MSG_ERROR([libev not found])
+				]
+			)],[
+				AC_MSG_ERROR([libev not found])
+			]
+		)
+	fi
+])
+
+AC_SUBST(LIBEV_CFLAGS)
+AC_SUBST(LIBEV_LIBS)
 
 dnl Check for lua
 AC_MSG_CHECKING(for lua)
