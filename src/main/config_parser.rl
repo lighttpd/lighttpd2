@@ -877,7 +877,7 @@
 		g_queue_push_head(ctx->option_stack, v);
 	}
 
-	action cond_key { _printf("%s", "cond_key\n"); }
+	action cond_key { ctx->condition_with_key = TRUE; _printf("%s", "cond_key\n"); }
 	action cond_operator { _printf("%s", "cond_operator\n"); }
 	action cond_and_or {
 		_printf("%s", "and_or: ");
@@ -1032,7 +1032,6 @@
 		/* loop over all actions until we find the last without target_else */
 		while (TRUE) {
 			for (cond_and = cond; (uintptr_t)cond->data.condition.target & 0x1; cond_and = cond_and->data.condition.target) {
-
 				cond_and->data.condition.target = (liAction*)((uintptr_t)cond_and->data.condition.target & (~0x1));
 				cond_and->data.condition.target->data.condition.target_else = target;
 			}
