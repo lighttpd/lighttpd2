@@ -265,8 +265,6 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			vr->state = LI_VRS_HANDLE_REQUEST_HEADERS;
 			vr->backend = NULL;
 
-			/* pop top action in every case (if the balancer itself failed we don't want to restart it) */
-			action_stack_pop(srv, vr, as);
 			while (NULL != (ase = action_stack_top(as)) && (ase->act->type != ACTION_TBALANCER || !ase->act->data.balancer.provide_backlog)) {
 				action_stack_pop(srv, vr, as);
 			}
@@ -384,6 +382,10 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			case LI_HANDLER_COMEBACK:
 			case LI_HANDLER_WAIT_FOR_EVENT:
 				return res;
+			}
+			if (as->backend_failed && ase == action_stack_top(as)) {
+				/* when backend selection failed and balancer i still the top action, we remove the balancer itself so it doesn't loop forever */
+				action_stack_pop(srv, vr, as);
 			}
 			break;
 		}
