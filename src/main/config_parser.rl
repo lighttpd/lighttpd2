@@ -1161,7 +1161,7 @@
 	conditions = ( 'if' noise+ condition ( cond_and_or noise+ condition )* block >action_block_noname_start ) %conditions;
 	cond_else_if = ( 'else' noise+ conditions ) %cond_else_if;
 	cond_else = ( 'else' noise+ block >action_block_noname_start ) %cond_else;
-	condition_chain = ( conditions (noise+ (cond_else_if noise+)* cond_else)? ) <: '' %condition_chain;
+	condition_chain = ( conditions (noise+ (cond_else_if noise+)* cond_else)? ) %condition_chain;
 
 	# statements
 	assignment = ( varname ws* '=' ws* value_statement ';' ) %assignment;
