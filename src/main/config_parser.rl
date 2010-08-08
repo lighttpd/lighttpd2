@@ -1161,7 +1161,7 @@
 	conditions = ( 'if' noise+ condition ( cond_and_or noise+ condition )* block >action_block_noname_start ) %conditions;
 	cond_else_if = ( 'else' noise+ conditions ) %cond_else_if;
 	cond_else = ( 'else' noise+ block >action_block_noname_start ) %cond_else;
-	condition_chain = ( conditions (noise+ (cond_else_if noise+)* cond_else)? ) %condition_chain;
+	condition_chain = ( conditions (noise+ cond_else_if)* (noise+ cond_else)? ) %condition_chain;
 
 	# statements
 	assignment = ( varname ws* '=' ws* value_statement ';' ) %assignment;
@@ -1447,7 +1447,7 @@ gboolean li_config_parse(liServer *srv, const gchar *config_path) {
 	s = d / 1000000;
 	millis = (d - s) / 1000;
 	micros = (d - s - millis) %1000;
-	DEBUG(srv, "parsed config file in %lu seconds, %lu milliseconds, %lu microseconds", s, millis, micros);
+	DEBUG(srv, "parsed config file in %lus, %lums, %luus", s, millis, micros);
 
 	if (g_queue_get_length(ctx->option_stack) != 0 || g_queue_get_length(ctx->action_list_stack) != 1)
 		DEBUG(srv, "option_stack: %u action_list_stack: %u (should be 0:1)", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
