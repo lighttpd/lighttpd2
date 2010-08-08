@@ -878,7 +878,6 @@
 	}
 
 	action cond_key { ctx->condition_with_key = TRUE; _printf("%s", "cond_key\n"); }
-	action cond_operator { _printf("%s", "cond_operator\n"); }
 	action cond_and_or {
 		_printf("%s", "and_or: ");
 		for (gchar *c = ctx->mark; c < fpc; c++) _printf("%c", *c);
@@ -1155,7 +1154,7 @@
 	cond_rval = ( value_statement ) %{ ctx->condition_nonbool = TRUE; };
 	cond_negated = ( '!' ) %{ ctx->condition_negated = TRUE; };
 	cond_key = ( '[' string >mark ']' ) %cond_key;
-	cond_operator = ( '==' | '!=' | '=^' | '!^' | '=$' | '!$' | '<' | '<=' | '>' | '>=' | '=~' | '!~' | '=/' | '!/' ) >mark %cond_operator;
+	cond_operator = ( '==' | '!=' | '=^' | '!^' | '=$' | '!$' | '<' | '<=' | '>' | '>=' | '=~' | '!~' | '=/' | '!/' ) >mark %operator;
 	cond_and_or = ( 'and' | 'or' ) >mark %cond_and_or;
 	condition = ( cond_negated? cond_lval cond_key? ws+ ( cond_operator ws+ cond_rval  )? ) <: '' %condition;
 	conditions = ( 'if' noise+ condition ( cond_and_or noise+ condition )* block >action_block_noname_start ) %conditions;
