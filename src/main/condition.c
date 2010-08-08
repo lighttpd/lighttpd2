@@ -94,6 +94,7 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 		res->data.str = vr->request.uri.path->str;
 		break;
 	case LI_COMP_REQUEST_HOST:
+		res->match_type = LI_COND_VALUE_HINT_STRING;
 		res->data.str = vr->request.uri.host->str;
 		break;
 	case LI_COMP_REQUEST_SCHEME:
@@ -116,6 +117,7 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 		res->data.bool = li_vrequest_is_handled(vr);
 		break;
 	case LI_COMP_PHYSICAL_PATH:
+		res->match_type = LI_COND_VALUE_HINT_STRING;
 		res->data.str = vr->physical.path->str;
 		break;
 	case LI_COMP_PHYSICAL_EXISTS:
@@ -161,15 +163,18 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 		res->data.number = vr->response.http_status;
 		break;
 	case LI_COMP_REQUEST_HEADER:
+		res->match_type = LI_COND_VALUE_HINT_STRING;
 		li_http_header_get_all(con->wrk->tmp_str, vr->request.headers, GSTR_LEN(lvalue->key));
 		res->data.str = con->wrk->tmp_str->str;
 		break;
 	case LI_COMP_RESPONSE_HEADER:
 		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+		res->match_type = LI_COND_VALUE_HINT_STRING;
 		li_http_header_get_all(con->wrk->tmp_str, vr->response.headers, GSTR_LEN(lvalue->key));
 		res->data.str = con->wrk->tmp_str->str;
 		break;
 	case LI_COMP_ENVIRONMENT:
+		res->match_type = LI_COND_VALUE_HINT_STRING;
 		{
 			GString *eval = li_environment_get(&vr->env, GSTR_LEN(lvalue->key));
 			if (eval) res->data.str = eval->str;
