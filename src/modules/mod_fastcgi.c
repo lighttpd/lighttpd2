@@ -84,6 +84,8 @@ struct fastcgi_context {
 	GString *socket_str;
 	guint timeout;
 	liPlugin *plugin;
+
+	gint last_errno;
 };
 
 /* fastcgi types */
@@ -672,8 +674,10 @@ static liHandlerResult fastcgi_statemachine(liVRequest *vr, fastcgi_connection *
 		if (-1 == fcon->fd) {
 			if (errno == EMFILE) {
 				li_server_out_of_fds(vr->wrk->srv);
+			} else if (errno != g_atomic_int_get(&fcon->ctx->last_errno)) {
+				g_atomic_int_set(&fcon->ctx->last_errno, errno);
+				VR_ERROR(vr, "Couldn't open socket: %s", g_strerror(errno));
 			}
-			VR_ERROR(vr, "Couldn't open socket: %s", g_strerror(errno));
 			return LI_HANDLER_ERROR;
 		}
 		li_fd_init(fcon->fd);
@@ -694,14 +698,19 @@ static liHandlerResult fastcgi_statemachine(liVRequest *vr, fastcgi_connection *
 				li_vrequest_backend_overloaded(vr);
 				return LI_HANDLER_GO_ON;
 			default:
-				VR_ERROR(vr, "Couldn't connect to '%s': %s",
-					li_sockaddr_to_string(fcon->ctx->socket, vr->wrk->tmp_str, TRUE)->str,
-					g_strerror(errno));
+				if (errno != g_atomic_int_get(&fcon->ctx->last_errno)) {
+					g_atomic_int_set(&fcon->ctx->last_errno, errno);
+					VR_ERROR(vr, "Couldn't connect to '%s': %s",
+						li_sockaddr_to_string(fcon->ctx->socket, vr->wrk->tmp_str, TRUE)->str,
+						g_strerror(errno));
+				}
 				fastcgi_close(vr, p);
 				li_vrequest_backend_dead(vr);
 				return LI_HANDLER_GO_ON;
 			}
 		}
+
+		g_atomic_int_set(&fcon->ctx->last_errno, 0);
 
 		fcon->state = FS_CONNECTED;
 
