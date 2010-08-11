@@ -12,8 +12,11 @@
  *     balance.rr <actions> - balance between actions (list or single action) with RoundRobin
  *     balance.sqf <actions> - balance between actions (list or single action) with SQF
  *
+ * Be careful: these actions may get executed more than once (until one is successful!),
+ *             so don't loop rewrites in them or something similar
+ *
  * Example config:
- *     balance.rr { fastcgi "127.0.0.1:9090"; };
+ *     balance.sqf ( ${ fastcgi "127.0.0.1:9090"; }, ${ fastcgi "127.0.0.1:9091"; } );
  *
  * Author:
  *     Copyright (c) 2009-2010 Stefan Bühler
