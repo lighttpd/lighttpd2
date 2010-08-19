@@ -5,8 +5,8 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-LI_API tristate_t li_http_response_handle_cachable_etag(liVRequest *vr, GString *etag);
-LI_API tristate_t li_http_response_handle_cachable_modified(liVRequest *vr, GString *last_modified);
+LI_API liTristate li_http_response_handle_cachable_etag(liVRequest *vr, GString *etag);
+LI_API liTristate li_http_response_handle_cachable_modified(liVRequest *vr, GString *last_modified);
 LI_API gboolean li_http_response_handle_cachable(liVRequest *vr);
 
 /* mut maybe the same as etag */

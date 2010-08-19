@@ -18,28 +18,28 @@ void li_action_release(liServer *srv, liAction *a) {
 	assert(g_atomic_int_get(&a->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&a->refcount)) {
 		switch (a->type) {
-		case ACTION_TSETTING:
+		case LI_ACTION_TSETTING:
 			break;
-		case ACTION_TSETTINGPTR:
+		case LI_ACTION_TSETTINGPTR:
 			li_release_optionptr(srv, a->data.settingptr.value);
 			break;
-		case ACTION_TFUNCTION:
+		case LI_ACTION_TFUNCTION:
 			if (a->data.function.free) {
 				a->data.function.free(srv, a->data.function.param);
 			}
 			break;
-		case ACTION_TCONDITION:
+		case LI_ACTION_TCONDITION:
 			li_condition_release(srv, a->data.condition.cond);
 			li_action_release(srv, a->data.condition.target);
 			li_action_release(srv, a->data.condition.target_else);
 			break;
-		case ACTION_TLIST:
+		case LI_ACTION_TLIST:
 			for (i = a->data.list->len; i-- > 0; ) {
 				li_action_release(srv, g_array_index(a->data.list, liAction*, i));
 			}
 			g_array_free(a->data.list, TRUE);
 			break;
-		case ACTION_TBALANCER:
+		case LI_ACTION_TBALANCER:
 			if (a->data.balancer.free) {
 				a->data.balancer.free(srv, a->data.balancer.param);
 			}
@@ -58,7 +58,7 @@ liAction *li_action_new_setting(liOptionSet setting) {
 	liAction *a = g_slice_new(liAction);
 
 	a->refcount = 1;
-	a->type = ACTION_TSETTING;
+	a->type = LI_ACTION_TSETTING;
 	a->data.setting = setting;
 
 	return a;
@@ -68,7 +68,7 @@ liAction *li_action_new_settingptr(liOptionPtrSet setting) {
 	liAction *a = g_slice_new(liAction);
 
 	a->refcount = 1;
-	a->type = ACTION_TSETTINGPTR;
+	a->type = LI_ACTION_TSETTINGPTR;
 	a->data.settingptr = setting;
 
 	return a;
@@ -79,7 +79,7 @@ liAction *li_action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup
 
 	a = g_slice_new(liAction);
 	a->refcount = 1;
-	a->type = ACTION_TFUNCTION;
+	a->type = LI_ACTION_TFUNCTION;
 	a->data.function.func = func;
 	a->data.function.cleanup = fcleanup;
 	a->data.function.free = ffree;
@@ -93,7 +93,7 @@ liAction *li_action_new_list() {
 
 	a = g_slice_new(liAction);
 	a->refcount = 1;
-	a->type = ACTION_TLIST;
+	a->type = LI_ACTION_TLIST;
 	a->data.list = g_array_new(FALSE, TRUE, sizeof(liAction *));
 
 	return a;
@@ -104,7 +104,7 @@ liAction *li_action_new_condition(liCondition *cond, liAction *target, liAction 
 
 	a = g_slice_new(liAction);
 	a->refcount = 1;
-	a->type = ACTION_TCONDITION;
+	a->type = LI_ACTION_TCONDITION;
 	a->data.condition.cond = cond;
 	a->data.condition.target = target;
 	a->data.condition.target_else = target_else;
@@ -117,7 +117,7 @@ liAction *li_action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB 
 
 	a = g_slice_new(liAction);
 	a->refcount = 1;
-	a->type = ACTION_TBALANCER;
+	a->type = LI_ACTION_TBALANCER;
 	a->data.balancer.select = bselect;
 	a->data.balancer.fallback = bfallback;
 	a->data.balancer.finished = bfinished;
@@ -134,15 +134,15 @@ static void action_stack_element_release(liServer *srv, liVRequest *vr, action_s
 	if (!ase || !a) return;
 
 	switch (a->type) {
-	case ACTION_TSETTING:
-	case ACTION_TSETTINGPTR:
+	case LI_ACTION_TSETTING:
+	case LI_ACTION_TSETTINGPTR:
 		break;
-	case ACTION_TFUNCTION:
+	case LI_ACTION_TFUNCTION:
 		if (ase->data.context && a->data.function.cleanup) {
 			a->data.function.cleanup(vr, a->data.function.param, ase->data.context);
 		}
 		break;
-	case ACTION_TCONDITION:
+	case LI_ACTION_TCONDITION:
 		if (a->data.condition.cond->rvalue.type == LI_COND_VALUE_REGEXP) {
 			/* pop regex stack */
 			GArray *rs = vr->action_stack.regex_stack;
@@ -156,9 +156,9 @@ static void action_stack_element_release(liServer *srv, liVRequest *vr, action_s
 			}
 		}
 		break;
-	case ACTION_TLIST:
+	case LI_ACTION_TLIST:
 		break;
-	case ACTION_TBALANCER:
+	case LI_ACTION_TBALANCER:
 		a->data.balancer.finished(vr, a->data.balancer.param, ase->data.context);
 		break;
 	}
@@ -228,7 +228,7 @@ void li_action_enter(liVRequest *vr, liAction *a) {
 	liActionStack *as = &vr->action_stack;
 	action_stack_element *top_ase = action_stack_top(as);
 	action_stack_element ase = { a, { 0 }, FALSE,
-		(top_ase ? top_ase->backlog_provided || (top_ase->act->type == ACTION_TBALANCER && top_ase->act->data.balancer.provide_backlog) : FALSE) };
+		(top_ase ? top_ase->backlog_provided || (top_ase->act->type == LI_ACTION_TBALANCER && top_ase->act->data.balancer.provide_backlog) : FALSE) };
 	li_action_acquire(a);
 	g_array_append_val(as->stack, ase);
 }
@@ -240,7 +240,7 @@ static void action_stack_pop(liServer *srv, liVRequest *vr, liActionStack *as) {
 
 	ase = &g_array_index(as->stack, action_stack_element, as->stack->len - 1);
 
-	if (ase->act->type == ACTION_TBALANCER && !as->backend_finished) {
+	if (ase->act->type == LI_ACTION_TBALANCER && !as->backend_finished) {
 		/* release later if backend is finished (i.e. "disconnected") */
 		g_array_append_val(as->backend_stack, *ase);
 	} else {
@@ -265,7 +265,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			vr->state = LI_VRS_HANDLE_REQUEST_HEADERS;
 			vr->backend = NULL;
 
-			while (NULL != (ase = action_stack_top(as)) && (ase->act->type != ACTION_TBALANCER || !ase->act->data.balancer.provide_backlog)) {
+			while (NULL != (ase = action_stack_top(as)) && (ase->act->type != LI_ACTION_TBALANCER || !ase->act->data.balancer.provide_backlog)) {
 				action_stack_pop(srv, vr, as);
 			}
 			if (!ase) { /* no backlogging balancer found */
@@ -298,7 +298,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			/* a TFUNCTION may enter sub actions _and_ return GO_ON, so we cannot pop the last element
 			 * but we have to remember we already executed it
 			 */
-			if (ase->act->type == ACTION_TBALANCER) {
+			if (ase->act->type == LI_ACTION_TBALANCER) {
 				/* wait until we found a backend */
 				VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 			}
@@ -311,11 +311,11 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 		ase_ndx = as->stack->len - 1; /* sometimes the stack gets modified - reread "ase" after that */
 
 		switch (a->type) {
-		case ACTION_TSETTING:
+		case LI_ACTION_TSETTING:
 			vr->options[a->data.setting.ndx] = a->data.setting.value;
 			action_stack_pop(srv, vr, as);
 			break;
-		case ACTION_TSETTINGPTR:
+		case LI_ACTION_TSETTINGPTR:
 			if (vr->optionptrs[a->data.settingptr.ndx] != a->data.settingptr.value) {
 				g_atomic_int_inc(&a->data.settingptr.value->refcount);
 				li_release_optionptr(srv, vr->optionptrs[a->data.settingptr.ndx]);
@@ -323,7 +323,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			}
 			action_stack_pop(srv, vr, as);
 			break;
-		case ACTION_TFUNCTION:
+		case LI_ACTION_TFUNCTION:
 			res = a->data.function.func(vr, a->data.function.param, &ase->data.context);
 			ase = &g_array_index(as->stack, action_stack_element, ase_ndx);
 
@@ -341,7 +341,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 				return res;
 			}
 			break;
-		case ACTION_TCONDITION:
+		case LI_ACTION_TCONDITION:
 			condres = FALSE;
 			res = li_condition_check(vr, a->data.condition.cond, &condres);
 			switch (res) {
@@ -361,7 +361,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 				return res;
 			}
 			break;
-		case ACTION_TLIST:
+		case LI_ACTION_TLIST:
 			if (ase->data.pos >= a->data.list->len) {
 				action_stack_pop(srv, vr, as);
 			} else {
@@ -369,7 +369,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 				li_action_enter(vr, g_array_index(a->data.list, liAction*, p));
 			}
 			break;
-		case ACTION_TBALANCER:
+		case LI_ACTION_TBALANCER:
 			/* skip balancer if request is already handled */
 			if (li_vrequest_is_handled(vr)) {
 				ase->finished = TRUE;

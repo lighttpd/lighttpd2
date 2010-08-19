@@ -2,9 +2,9 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
-tristate_t li_http_response_handle_cachable_etag(liVRequest *vr, GString *etag) {
+liTristate li_http_response_handle_cachable_etag(liVRequest *vr, GString *etag) {
 	GList *l;
-	tristate_t res = TRI_MAYBE;
+	liTristate res = LI_TRIMAYBE;
 	gchar *setag = NULL;
 
 	if (!etag) {
@@ -19,16 +19,16 @@ tristate_t li_http_response_handle_cachable_etag(liVRequest *vr, GString *etag) 
 			l;
 			l = li_http_header_find_next(l, CONST_STR_LEN("If-None-Match"))) {
 		liHttpHeader *h = (liHttpHeader*) l->data;
-		res = TRI_FALSE; /* if the header was given at least once, we need a match */
+		res = LI_TRIFALSE; /* if the header was given at least once, we need a match */
 		if (!setag) return res;
 		if (strstr(h->data->str + h->keylen + 2, setag)) {
-			return TRI_TRUE;
+			return LI_TRITRUE;
 		}
 	}
 	return res;
 }
 
-tristate_t li_http_response_handle_cachable_modified(liVRequest *vr, GString *last_modified) {
+liTristate li_http_response_handle_cachable_modified(liVRequest *vr, GString *last_modified) {
 	GList *l;
 	gchar *slm = NULL, *hlm;
 	liHttpHeader *h;
@@ -43,13 +43,13 @@ tristate_t li_http_response_handle_cachable_modified(liVRequest *vr, GString *la
 	}
 
 	l = li_http_header_find_first(vr->request.headers, CONST_STR_LEN("If-Modified-Since"));
-	if (!l) return TRI_MAYBE; /* no if-modified-since header */
+	if (!l) return LI_TRIMAYBE; /* no if-modified-since header */
 	if (li_http_header_find_next(l, CONST_STR_LEN("If-Modified-Since"))) {
-		return TRI_FALSE; /* we only check one if-modified-since header */
+		return LI_TRIFALSE; /* we only check one if-modified-since header */
 	}
 	h = (liHttpHeader*) l->data;
 	hlm = h->data->str + h->keylen + 2;
-	if (!slm) return TRI_FALSE;
+	if (!slm) return LI_TRIFALSE;
 
 	if (NULL == (semicolon = strchr(hlm, ';'))) {
 		used_len = strlen(hlm);
@@ -58,7 +58,7 @@ tristate_t li_http_response_handle_cachable_modified(liVRequest *vr, GString *la
 	}
 
 	if (0 == strncmp(hlm, slm, used_len)) {
-		return (slm[used_len] == '\0' || slm[used_len] == ';') ? TRI_TRUE : TRI_FALSE;
+		return (slm[used_len] == '\0' || slm[used_len] == ';') ? LI_TRITRUE : LI_TRIFALSE;
 	} else {
 		char buf[sizeof("Sat, 23 Jul 2005 21:20:01 GMT")];
 		time_t t_header, t_file;
@@ -71,7 +71,7 @@ tristate_t li_http_response_handle_cachable_modified(liVRequest *vr, GString *la
 					hlm, (int) used_len, (int) sizeof(buf) - 1);
 			}
 			/* not returning "412" - should we? */
-			return TRI_FALSE;
+			return LI_TRIFALSE;
 		}
 
 		strncpy(buf, hlm, used_len);
@@ -80,7 +80,7 @@ tristate_t li_http_response_handle_cachable_modified(liVRequest *vr, GString *la
 		memset(&tm, 0, sizeof(tm));
 		if (NULL == strptime(buf, "%a, %d %b %Y %H:%M:%S GMT", &tm)) {
 			/* not returning "412" - should we? */
-			return TRI_FALSE;
+			return LI_TRIFALSE;
 		}
 		tm.tm_isdst = 0;
 		t_header = mktime(&tm);
@@ -90,30 +90,30 @@ tristate_t li_http_response_handle_cachable_modified(liVRequest *vr, GString *la
 		tm.tm_isdst = 0;
 		t_file = mktime(&tm);
 
-		if (t_file > t_header) return TRI_FALSE;
+		if (t_file > t_header) return LI_TRIFALSE;
 
-		return TRI_TRUE;
+		return LI_TRITRUE;
 	}
 }
 
 gboolean li_http_response_handle_cachable(liVRequest *vr) {
-	tristate_t c_able = TRI_MAYBE;
-	if (c_able != TRI_FALSE) {
+	liTristate c_able = LI_TRIMAYBE;
+	if (c_able != LI_TRIFALSE) {
 		switch (li_http_response_handle_cachable_etag(vr, NULL)) {
-		case TRI_FALSE: c_able = TRI_FALSE; break;
-		case TRI_MAYBE: break;
-		case TRI_TRUE : c_able = TRI_TRUE; break;
+		case LI_TRIFALSE: c_able = LI_TRIFALSE; break;
+		case LI_TRIMAYBE: break;
+		case LI_TRITRUE : c_able = LI_TRITRUE; break;
 		}
 	}
-	if (c_able != TRI_FALSE) {
+	if (c_able != LI_TRIFALSE) {
 		switch (li_http_response_handle_cachable_modified(vr, NULL)) {
-		case TRI_FALSE: c_able = TRI_FALSE; break;
-		case TRI_MAYBE: break;
-		case TRI_TRUE : c_able = TRI_TRUE; break;
+		case LI_TRIFALSE: c_able = LI_TRIFALSE; break;
+		case LI_TRIMAYBE: break;
+		case LI_TRITRUE : c_able = LI_TRITRUE; break;
 		}
 	}
 
-	return c_able == TRI_TRUE;
+	return c_able == LI_TRITRUE;
 }
 
 void li_etag_mutate(GString *mut, GString *etag) {
@@ -132,7 +132,7 @@ void li_etag_set_header(liVRequest *vr, struct stat *st, gboolean *cachable) {
 	guint flags = CORE_OPTION(LI_CORE_OPTION_ETAG_FLAGS).number;
 	GString *tmp_str = vr->wrk->tmp_str;
 	struct tm tm;
-	tristate_t c_able = cachable ? TRI_MAYBE : TRI_FALSE;
+	liTristate c_able = cachable ? LI_TRIMAYBE : LI_TRIFALSE;
 
 	if (0 == flags) {
 		li_http_header_remove(vr->response.headers, CONST_STR_LEN("etag"));
@@ -157,11 +157,11 @@ void li_etag_set_header(liVRequest *vr, struct stat *st, gboolean *cachable) {
 	
 		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("ETag"), GSTR_LEN(tmp_str));
 
-		if (c_able != TRI_FALSE) {
+		if (c_able != LI_TRIFALSE) {
 			switch (li_http_response_handle_cachable_etag(vr, tmp_str)) {
-			case TRI_FALSE: c_able = TRI_FALSE; break;
-			case TRI_MAYBE: break;
-			case TRI_TRUE : c_able = TRI_TRUE; break;
+			case LI_TRIFALSE: c_able = LI_TRIFALSE; break;
+			case LI_TRIMAYBE: break;
+			case LI_TRITRUE : c_able = LI_TRITRUE; break;
 			}
 		}
 	}
@@ -172,14 +172,14 @@ void li_etag_set_header(liVRequest *vr, struct stat *st, gboolean *cachable) {
 			"%a, %d %b %Y %H:%M:%S GMT", &tm));
 		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Last-Modified"), GSTR_LEN(tmp_str));
 
-		if (c_able != TRI_FALSE) {
+		if (c_able != LI_TRIFALSE) {
 			switch (li_http_response_handle_cachable_modified(vr, tmp_str)) {
-			case TRI_FALSE: c_able = TRI_FALSE; break;
-			case TRI_MAYBE: break;
-			case TRI_TRUE : c_able = TRI_TRUE; break;
+			case LI_TRIFALSE: c_able = LI_TRIFALSE; break;
+			case LI_TRIMAYBE: break;
+			case LI_TRITRUE : c_able = LI_TRITRUE; break;
 			}
 		}
 	}
 
-	if (cachable) *cachable = (c_able == TRI_TRUE);
+	if (cachable) *cachable = (c_able == LI_TRITRUE);
 }

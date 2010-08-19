@@ -1088,9 +1088,9 @@
 		_printf("got condition_chain in line %zd\n", ctx->line);
 
 		/* loop over all actions looking for 'and' markers and clear them */
-		while (cond && cond->type == ACTION_TCONDITION) {
+		while (cond && cond->type == LI_ACTION_TCONDITION) {
 			_printf("condition: %p if: %p else: %p\n", (void*)cond, (void*)cond->data.condition.target, (void*)cond->data.condition.target_else);
-			for (cond_and = cond; cond_and && (cond_and->type == ACTION_TCONDITION) &&  (uintptr_t)cond_and->data.condition.target & 0x1; cond_and = cond_and->data.condition.target) {
+			for (cond_and = cond; cond_and && (cond_and->type == LI_ACTION_TCONDITION) &&  (uintptr_t)cond_and->data.condition.target & 0x1; cond_and = cond_and->data.condition.target) {
 				cond_and->data.condition.target = (liAction*)((uintptr_t)cond_and->data.condition.target & (~0x1));
 				_printf("condition_and: %p if: %p else: %p\n", (void*)cond_and, (void*)cond_and->data.condition.target, (void*)cond_and->data.condition.target_else);
 			}

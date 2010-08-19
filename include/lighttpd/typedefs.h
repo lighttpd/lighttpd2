@@ -13,7 +13,7 @@ typedef enum {
 	LI_HANDLER_ERROR
 } liHandlerResult;
 
-typedef enum { TRI_FALSE, TRI_MAYBE, TRI_TRUE } tristate_t;
+typedef enum { LI_TRIFALSE, LI_TRIMAYBE, LI_TRITRUE } liTristate;
 
 typedef enum { LI_GMTIME, LI_LOCALTIME } liTimeFunc;
 typedef enum { LI_TS_FORMAT_DEFAULT, LI_TS_FORMAT_HEADER } liTSFormat;
@@ -33,17 +33,17 @@ typedef struct liActionFunc liActionFunc;
 typedef struct liBalancerFunc liBalancerFunc;
 
 typedef enum {
-	ACTION_TSETTING,
-	ACTION_TSETTINGPTR,
-	ACTION_TFUNCTION,
-	ACTION_TCONDITION,
-	ACTION_TLIST,
-	ACTION_TBALANCER
+	LI_ACTION_TSETTING,
+	LI_ACTION_TSETTINGPTR,
+	LI_ACTION_TFUNCTION,
+	LI_ACTION_TCONDITION,
+	LI_ACTION_TLIST,
+	LI_ACTION_TBALANCER
 } liActionType;
 
 typedef enum {
-	BACKEND_OVERLOAD,
-	BACKEND_DEAD
+	LI_BACKEND_OVERLOAD,
+	LI_BACKEND_DEAD
 } liBackendError;
 
 /* chunk.h */

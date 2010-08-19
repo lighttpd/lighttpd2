@@ -353,10 +353,10 @@ void li_vrequest_backend_error(liVRequest *vr, liBackendError berror) {
 }
 
 void li_vrequest_backend_overloaded(liVRequest *vr) {
-	li_vrequest_backend_error(vr, BACKEND_OVERLOAD);
+	li_vrequest_backend_error(vr, LI_BACKEND_OVERLOAD);
 }
 void li_vrequest_backend_dead(liVRequest *vr) {
-	li_vrequest_backend_error(vr, BACKEND_DEAD);
+	li_vrequest_backend_error(vr, LI_BACKEND_DEAD);
 }
 
 
