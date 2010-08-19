@@ -16,8 +16,6 @@
  *     proxy "127.0.0.1:9090"
  *
  * TODO:
- *     - header mangling (X-Forwarded-For, Connection:)
- *     - handle 1xx responses
  *     - keep-alive connections
  *
  * Author:
@@ -181,41 +179,26 @@ static void proxy_send_headers(liVRequest *vr, proxy_connection *pcon) {
 		break;
 	}
 
-#if 0
-	proxy_append_header(con, "X-Forwarded-For", (char *)inet_ntop_cache_get_ip(srv, &(con->dst_addr)));
-	/* http_host is NOT is just a pointer to a buffer
-	 * which is NULL if it is not set */
-	if (con->request.http_host &&
-	    !buffer_is_empty(con->request.http_host)) {
-		proxy_set_header(con, "X-Host", con->request.http_host->ptr);
-	}
-	proxy_set_header(con, "X-Forwarded-Proto", con->conf.is_ssl ? "https" : "http");
-
-	/* request header */
-	for (i = 0; i < con->request.headers->used; i++) {
-		data_string *ds;
-
-		ds = (data_string *)con->request.headers->data[i];
-
-		if (ds->value->used && ds->key->used) {
-			if (buffer_is_equal_string(ds->key, CONST_STR_LEN("Connection"))) continue;
-			if (buffer_is_equal_string(ds->key, CONST_STR_LEN("Proxy-Connection"))) continue;
-
-			buffer_append_string_buffer(b, ds->key);
-			buffer_append_string_len(b, CONST_STR_LEN(": "));
-			buffer_append_string_buffer(b, ds->value);
-			buffer_append_string_len(b, CONST_STR_LEN("\r\n"));
-		}
-	}
-#endif
-
 	for (iter = g_queue_peek_head_link(&vr->request.headers->entries); iter; iter = g_list_next(iter)) {
 		header = (liHttpHeader*) iter->data;
 		if (li_http_header_key_is(header, CONST_STR_LEN("Connection"))) continue;
 		if (li_http_header_key_is(header, CONST_STR_LEN("Proxy-Connection"))) continue;
+		if (li_http_header_key_is(header, CONST_STR_LEN("X-Forwarded-Proto"))) continue;
 		g_string_append_len(head, GSTR_LEN(header->data));
 		g_string_append_len(head, CONST_STR_LEN("\r\n"));
 	}
+
+	g_string_append_len(head, CONST_STR_LEN("X-Forwarded-For: "));
+	g_string_append_len(head, GSTR_LEN(vr->coninfo->remote_addr_str));
+	g_string_append_len(head, CONST_STR_LEN("\r\n"));
+
+	if (vr->coninfo->is_ssl) {
+		g_string_append_len(head, CONST_STR_LEN("X-Forwarded-Proto: https\r\n"));
+	} else {
+		g_string_append_len(head, CONST_STR_LEN("X-Forwarded-Proto: http\r\n"));
+	}
+
+	/* terminate http header */
 	g_string_append_len(head, CONST_STR_LEN("\r\n"));
 
 	li_chunkqueue_append_string(pcon->proxy_out, head);
@@ -291,8 +274,11 @@ static void proxy_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	}
 
 	if (!pcon->response_headers_finished && LI_HANDLER_GO_ON == li_http_response_parse(pcon->vr, &pcon->parse_response_ctx)) {
-		pcon->response_headers_finished = TRUE;
-		li_vrequest_handle_response_headers(pcon->vr);
+		/* "ignore" 1xx response headers */
+		if (!(pcon->vr->response.http_status >= 100 && pcon->vr->response.http_status < 200)) {
+			pcon->response_headers_finished = TRUE;
+			li_vrequest_handle_response_headers(pcon->vr);
+		}
 	}
 
 	if (pcon->response_headers_finished) {
