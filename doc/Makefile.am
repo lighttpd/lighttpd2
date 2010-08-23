@@ -6,4 +6,5 @@ EXTRA_DIST=angel.conf lighttpd.conf mimetypes.conf service \
 	core.lua \
 	core__xsendfile.lua \
 	secdownload.lua \
-	secdownload__secdownload.lua
+	secdownload__secdownload.lua \
+	default.html
