@@ -5,7 +5,7 @@
 
 typedef struct liRadixTree liRadixTree;
 
-LI_API liRadixTree* li_radixtree_new();
+LI_API liRadixTree* li_radixtree_new(void);
 LI_API void li_radixtree_free(liRadixTree *tree, GFunc free_func, gpointer free_userdata);
 
 LI_API gpointer li_radixtree_insert(liRadixTree *tree, const void *key, guint32 bits, gpointer data); /* returns old data after overwrite */

@@ -26,7 +26,7 @@ struct liRadixTree {
 	liRadixNode *zero;
 };
 
-liRadixTree* li_radixtree_new() {
+liRadixTree* li_radixtree_new(void) {
 	liRadixTree *tree;
 
 	tree = g_slice_new0(liRadixTree);

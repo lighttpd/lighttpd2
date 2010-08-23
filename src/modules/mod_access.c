@@ -135,8 +135,8 @@ static liAction* access_check_create(liServer *srv, liWorker *wrk, liPlugin* p, 
 
 	acd = g_slice_new0(access_check_data);
 	acd->p = p;
-	acd->ipv4 = li_radixtree_new(2);
-	acd->ipv6 = li_radixtree_new(2);
+	acd->ipv4 = li_radixtree_new();
+	acd->ipv6 = li_radixtree_new();
 	li_radixtree_insert(acd->ipv4, NULL, 0, GINT_TO_POINTER(ACCESS_DENY));
 	li_radixtree_insert(acd->ipv6, NULL, 0, GINT_TO_POINTER(ACCESS_DENY));
 
