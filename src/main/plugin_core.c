@@ -520,6 +520,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 	liHandlerResult res;
 	GArray *exclude_arr = CORE_OPTIONPTR(LI_CORE_OPTION_STATIC_FILE_EXCLUDE_EXTENSIONS).list;
 	static const gchar boundary[] = "fkj49sn38dcn3";
+	gboolean no_fail = GPOINTER_TO_INT(param);
 
 	UNUSED(param);
 	UNUSED(context);
@@ -532,6 +533,8 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 	case LI_HTTP_METHOD_HEAD:
 		break;
 	default:
+		if (no_fail) return LI_HANDLER_GO_ON;
+
 		if (!li_vrequest_handle_direct(vr)) {
 			return LI_HANDLER_ERROR;
 		}
@@ -551,6 +554,8 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 		for (i = 0; i < exclude_arr->len; i++) {
 			liValue *v = g_array_index(exclude_arr, liValue*, i);
 			if (li_string_suffix(&base, GSTR_LEN(v->data.string))) {
+				if (no_fail) return LI_HANDLER_GO_ON;
+
 				if (!li_vrequest_handle_direct(vr)) {
 					return LI_HANDLER_ERROR;
 				}
@@ -574,6 +579,8 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 
 		if (fd != -1)
 			close(fd);
+
+		if (no_fail) return LI_HANDLER_GO_ON;
 
 		if (!li_vrequest_handle_direct(vr)) {
 			return LI_HANDLER_ERROR;
@@ -603,10 +610,13 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 		if (fd != -1)
 			close(fd);
 
+		if (no_fail) return LI_HANDLER_GO_ON;
+
 		if (!li_vrequest_handle_direct(vr)) {
 			return LI_HANDLER_ERROR;
 		}
 		vr->response.http_status = 403;
+		return LI_HANDLER_GO_ON;
 	} else {
 		const GString *mime_str;
 		gboolean cachable;
@@ -716,7 +726,17 @@ static liAction* core_static(liServer *srv, liWorker *wrk, liPlugin* p, liValue 
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_static, NULL, NULL, NULL);
+	return li_action_new_function(core_handle_static, NULL, NULL, GINT_TO_POINTER(0));
+}
+
+static liAction* core_static_no_fail(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+	if (val) {
+		ERROR(srv, "%s", "static_no_fail action doesn't have parameters");
+		return NULL;
+	}
+
+	return li_action_new_function(core_handle_static, NULL, NULL, GINT_TO_POINTER(1));
 }
 
 
@@ -1620,6 +1640,7 @@ static const liPluginAction actions[] = {
 	{ "alias", core_alias, NULL },
 	{ "index", core_index, NULL },
 	{ "static", core_static, NULL },
+	{ "static_no_fail", core_static_no_fail, NULL },
 	{ "pathinfo", core_pathinfo, NULL },
 
 	{ "set_status", core_status, NULL },
