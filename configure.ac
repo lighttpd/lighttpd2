@@ -48,12 +48,7 @@ AC_ARG_WITH(
 AC_SUBST(pkglibdir)
 
 # libexecdir
-AC_ARG_WITH(
-  [libexecdir],
-  AS_HELP_STRING([--with-libexecdir=dir],
-                 [specify directory for lighttpd2-worker file (default LIBDIR/lighttpd2]),
-  [libexecdir=$withval],
-  [libexecdir=$libdir/lighttpd2])
+libexecdir=$libexecdir/lighttpd2
 AC_SUBST(libexecdir)
 
 # Checks for libraries.
