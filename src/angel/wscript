@@ -33,4 +33,4 @@ def build(bld):
 		uselib = ['glib', 'gthread', 'gmodule', 'ev'],
 		uselib_local = ['common'],
 		includes = ['#/include/'],
-		target = 'lighttpd2-angel')
+		target = 'lighttpd2')

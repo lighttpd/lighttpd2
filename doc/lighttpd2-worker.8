@@ -1,10 +1,10 @@
-.TH lighttpd2-angel "8" "2009-12-26" "" ""
+.TH lighttpd2-worker "8" "2010-08-24" "" ""
 .
 .SH NAME
 lighttpd \- a fast, secure and flexible web server
 .
 .SH SYNOPSIS
-\fBlighttpd2-angel\fP [\fB\-nvh\fP] \fB\-c\fP \fIconfigfile\fP [\fB\-m\fP \fImoduledir\fP] [\fB\--pid-file\fP \fIpidfile\fP]
+\fBlighttpd2-worker\fP [\fB\-ltvh\fP] \fB\-c\fP \fIconfigfile\fP [\fB\-m\fP \fImoduledir\fP]
 .
 .SH DESCRIPTION
 \fBlighttpd\fP (pronounced 'lighty') is an advanced HTTP daemon that aims
@@ -12,12 +12,11 @@ to be secure, fast, compliant and very flexible.  It has been optimized for
 high performance.  Its feature set includes, but is not limited to, FastCGI,
 CGI, basic and digest HTTP authentication, output compression, URL rewriting.
 .PP
-The angel is used to keep lighty running and for other tasks where root
-permissions are needed (opening network sockets, ...)
-.PP
 This manual page only lists the command line arguments.  For details
 on how to configure \fBlighttpd\fP and its modules see the online documentation:
 http://redmine.lighttpd.net/wiki/lighttpd-sandbox
+.PP
+You probably want to use the angel instead of this application: lighttpd2(8)
 .
 .SH OPTIONS
 The following options are supported:
@@ -25,17 +24,16 @@ The following options are supported:
 \fB\-c, --config\ \fP \fIconfigfile\fP
 Load configuration file \fIconfigfile\fP.
 .TP 8
+\fB\-l, --lua\fP
+Interpret the configuration file as lua script.
+.TP 8
 \fB\-m, --module-dir\ \fP \fImoduledir\fP
 Use
 \fImoduledir\fP
 as the directory that contains modules, instead of the default.
 .TP 8
-\fB\-n, --no-daemon\fP
-Do not daemonize (go into background). The default is to daemonize; but we
-recommend using -n in combination with daemontools or runit.
-.TP 8
-\fB\--pid-file\ \fP \fIpidfile\fP
-Location of the pid file (only valid in daemon mode).
+\fB\-t, --test\fP
+Test the configuration file for errors and exit.
 .TP 8
 \fB\-v, --version\fP
 Show version and exit.
@@ -46,7 +44,7 @@ Show a brief help message and exit.
 .SH SEE ALSO
 Online Documentation: http://redmine.lighttpd.net/wiki/lighttpd-sandbox
 .PP
-lighttpd2(1)
+spawn-fcgi(1), lighttpd2(8)
 .
 .SH AUTHOR
 Jan Kneschke <jan@kneschke.de>

@@ -1,5 +1,5 @@
 
-sbin_PROGRAMS=lighttpd2-angel
+sbin_PROGRAMS=lighttpd2
 lib_LTLIBRARIES=liblighttpd2-sharedangel.la
 
 common_cflags=-I$(top_srcdir)/include -I$(top_builddir)/include
@@ -25,8 +25,8 @@ liblighttpd2_sharedangel_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODUL
 liblighttpd2_sharedangel_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS)
 liblighttpd2_sharedangel_la_LIBADD=../common/liblighttpd2-common.la
 
-lighttpd2_angel_SOURCES=angel_main.c
+lighttpd2_SOURCES=angel_main.c
 
-lighttpd2_angel_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) -DDEFAULT_LIBDIR='"$(pkglibdir)"'
-lighttpd2_angel_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
-lighttpd2_angel_LDADD=../common/liblighttpd2-common.la liblighttpd2-sharedangel.la
+lighttpd2_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) -DDEFAULT_LIBDIR='"$(pkglibdir)"' -DDEFAULT_LIBEXECDIR='"$(libexecdir)"'
+lighttpd2_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
+lighttpd2_LDADD=../common/liblighttpd2-common.la liblighttpd2-sharedangel.la

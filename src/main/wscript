@@ -35,8 +35,8 @@ def build(bld):
 		http_range_parser.rl
 		http_request_parser.rl
 		http_response_parser.rl
-		lighttpd-glue.c
-		lighttpd.c
+		lighttpd_glue.c
+		lighttpd_worker.c
 		log.c
 		network.c
 		network_sendfile.c
@@ -91,4 +91,4 @@ def build(bld):
 		uselib = libs,
 		uselib_local = ['common'],
 		includes = ['#/include/'],
-		target = 'lighttpd2')
+		target = 'lighttpd2-worker')

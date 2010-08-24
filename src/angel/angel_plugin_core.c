@@ -5,6 +5,11 @@
 typedef struct listen_socket listen_socket;
 typedef struct listen_ref_resource listen_ref_resource;
 
+#ifndef DEFAULT_LIBEXECDIR
+# define DEFAULT_LIBEXECDIR "/usr/local/lib/lighttpd2"
+#endif
+
+
 struct listen_socket {
 	gint refcount;
 
@@ -156,7 +161,7 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 	if (options[2]) {
 		g_ptr_array_add(cmd, g_strndup(GSTR_LEN(options[2]->data.string)));
 	} else {
-		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("/usr/bin/lighttpd")));
+		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN(DEFAULT_LIBEXECDIR "/lighttpd2-worker")));
 	}
 
 	g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("--angel")));

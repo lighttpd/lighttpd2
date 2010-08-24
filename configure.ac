@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.61)
 AC_INIT([lighttpd], [2.0.0], [contact@lighttpd.net])
-AC_CONFIG_SRCDIR([src/main/lighttpd.c])
+AC_CONFIG_SRCDIR([src/main/lighttpd_worker.c])
 AC_CONFIG_HEADER([include/lighttpd/config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
@@ -46,6 +46,15 @@ AC_ARG_WITH(
   [pkglibdir=$withval],
   [pkglibdir=$libdir/lighttpd-$PACKAGE_VERSION])
 AC_SUBST(pkglibdir)
+
+# libexecdir
+AC_ARG_WITH(
+  [libexecdir],
+  AS_HELP_STRING([--with-libexecdir=dir],
+                 [specify directory for lighttpd2-worker file (default LIBDIR/lighttpd2]),
+  [libexecdir=$withval],
+  [libexecdir=$libdir/lighttpd2])
+AC_SUBST(libexecdir)
 
 # Checks for libraries.
 
@@ -329,7 +338,7 @@ AC_ARG_ENABLE(extra-warnings,
   esac],[extrawarnings=false])
 
 if test x$extrawarnings = xtrue; then
-    CFLAGS="${CFLAGS} -g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wno-pointer-sign -Wcast-align -Winline -Wsign-compare -Wnested-externs -Wpointer-arith -Wl,--as-needed -Wformat-security"
+    CFLAGS="${CFLAGS} -g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wno-pointer-sign -Wcast-align -Wsign-compare -Wnested-externs -Wpointer-arith -Wl,--as-needed -Wformat-security"
 fi
 
 AC_CONFIG_FILES([Makefile \

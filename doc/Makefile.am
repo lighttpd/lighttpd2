@@ -1,5 +1,4 @@
-dist_man8_MANS=lighttpd2-angel.8
-dist_man1_MANS=lighttpd2.1
+dist_man8_MANS=lighttpd2.8 lighttpd2-worker.8
 
 EXTRA_DIST=angel.conf lighttpd.conf mimetypes.conf service \
 	core__cached_html.lua \

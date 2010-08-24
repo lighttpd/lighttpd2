@@ -1,5 +1,5 @@
 
-bin_PROGRAMS=lighttpd2
+libexec_PROGRAMS=lighttpd2-worker
 lib_LTLIBRARIES=liblighttpd2-shared.la
 
 common_cflags=-I$(top_srcdir)/include -I$(top_builddir)/include
@@ -22,7 +22,7 @@ lighttpd_shared_src= \
 	http_range_parser.c \
 	http_request_parser.c \
 	http_response_parser.c \
-	lighttpd-glue.c \
+	lighttpd_glue.c \
 	log.c \
 	network.c \
 	network_write.c network_writev.c \
@@ -66,7 +66,7 @@ endif
 if WITH_PROFILER
 lighttpd_shared_src+= profiler.c
 endif
-EXTRA_lighttpd2_SOURCES=$(lua_src) profiler.c
+EXTRA_lighttpd2_worker_SOURCES=$(lua_src) profiler.c
 
 BUILT_SOURCES=config_parser.c http_range_parser.c http_request_parser.c http_response_parser.c url_parser.c
 
@@ -88,8 +88,8 @@ liblighttpd2_shared_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFL
 liblighttpd2_shared_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
 liblighttpd2_shared_la_LIBADD=../common/liblighttpd2-common.la
 
-lighttpd2_SOURCES=lighttpd.c
+lighttpd2_worker_SOURCES=lighttpd_worker.c
 
-lighttpd2_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) -DDEFAULT_LIBDIR='"$(pkglibdir)"'
-lighttpd2_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
-lighttpd2_LDADD=../common/liblighttpd2-common.la liblighttpd2-shared.la
+lighttpd2_worker_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) -DDEFAULT_LIBDIR='"$(pkglibdir)"'
+lighttpd2_worker_LDFLAGS=-export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
+lighttpd2_worker_LDADD=../common/liblighttpd2-common.la liblighttpd2-shared.la

@@ -203,7 +203,7 @@ SET(LIGHTTPD_SHARED_SRC
 	http_range_parser.c
 	http_request_parser.c
 	http_response_parser.c
-	lighttpd-glue.c
+	lighttpd_glue.c
 	log.c
 	network.c
 	network_write.c network_writev.c
@@ -295,17 +295,17 @@ ADD_LIBRARY(lighttpd-${PACKAGE_VERSION}-sharedangel SHARED
 )
 TARGET_LINK_LIBRARIES(lighttpd-${PACKAGE_VERSION}-sharedangel lighttpd-${PACKAGE_VERSION}-common)
 
-ADD_EXECUTABLE(lighttpd2
-	main/lighttpd.c
+ADD_EXECUTABLE(lighttpd2-worker
+	main/lighttpd_worker.c
 )
-TARGET_LINK_LIBRARIES(lighttpd2 lighttpd-${PACKAGE_VERSION}-common lighttpd-${PACKAGE_VERSION}-shared)
+TARGET_LINK_LIBRARIES(lighttpd2-worker lighttpd-${PACKAGE_VERSION}-common lighttpd-${PACKAGE_VERSION}-shared)
 
-ADD_EXECUTABLE(lighttpd2-angel
+ADD_EXECUTABLE(lighttpd2
 	angel/angel_main.c
 )
-TARGET_LINK_LIBRARIES(lighttpd2-angel lighttpd-${PACKAGE_VERSION}-common lighttpd-${PACKAGE_VERSION}-sharedangel)
+TARGET_LINK_LIBRARIES(lighttpd2 lighttpd-${PACKAGE_VERSION}-common lighttpd-${PACKAGE_VERSION}-sharedangel)
 
-SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd2 lighttpd2-angel lighttpd-${PACKAGE_VERSION}-common lighttpd-${PACKAGE_VERSION}-shared lighttpd-${PACKAGE_VERSION}-sharedangel)
+SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd2-worker lighttpd2 lighttpd-${PACKAGE_VERSION}-common lighttpd-${PACKAGE_VERSION}-shared lighttpd-${PACKAGE_VERSION}-sharedangel)
 
 IF(BUILD_EXTRA_WARNINGS)
 	SET(WARN_CFLAGS "-g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wcast-align -Wsign-compare -Wnested-externs -Wpointer-arith")
@@ -372,11 +372,11 @@ ADD_TARGET_PROPERTIES(lighttpd-${PACKAGE_VERSION}-shared COMPILE_FLAGS ${COMMON_
 ADD_TARGET_PROPERTIES(lighttpd-${PACKAGE_VERSION}-sharedangel LINK_FLAGS ${COMMON_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd-${PACKAGE_VERSION}-sharedangel COMPILE_FLAGS ${COMMON_CFLAGS})
 
+ADD_TARGET_PROPERTIES(lighttpd2-worker LINK_FLAGS ${COMMON_LDFLAGS})
+ADD_TARGET_PROPERTIES(lighttpd2-worker COMPILE_FLAGS ${COMMON_CFLAGS})
+
 ADD_TARGET_PROPERTIES(lighttpd2 LINK_FLAGS ${COMMON_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd2 COMPILE_FLAGS ${COMMON_CFLAGS})
-
-ADD_TARGET_PROPERTIES(lighttpd2-angel LINK_FLAGS ${COMMON_LDFLAGS})
-ADD_TARGET_PROPERTIES(lighttpd2-angel COMPILE_FLAGS ${COMMON_CFLAGS})
 
 IF(HAVE_LIBKVM)
   TARGET_LINK_LIBRARIES(lighttpd-${PACKAGE_VERSION}-common kvm)
@@ -390,16 +390,16 @@ IF(CMAKE_COMPILER_IS_GNUCC)
   ADD_DEFINITIONS(-D_GNU_SOURCE)
 ENDIF(CMAKE_COMPILER_IS_GNUCC)
 
-SET_TARGET_PROPERTIES(lighttpd2 PROPERTIES CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
+SET_TARGET_PROPERTIES(lighttpd2-worker PROPERTIES CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
 IF(WIN32)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DNVALGRIND")
-  ADD_TARGET_PROPERTIES(lighttpd2 COMPILE_FLAGS "-DLI_DECLARE_EXPORTS")
-  TARGET_LINK_LIBRARIES(lighttpd2 ws2_32)
+  ADD_TARGET_PROPERTIES(lighttpd2-worker COMPILE_FLAGS "-DLI_DECLARE_EXPORTS")
+  TARGET_LINK_LIBRARIES(lighttpd2-worker ws2_32)
 
   IF(MINGW)
-    TARGET_LINK_LIBRARIES(lighttpd2 msvcr70)
-    ADD_TARGET_PROPERTIES(lighttpd2 LINK_FLAGS "-Wl,-subsystem,console")
+    TARGET_LINK_LIBRARIES(lighttpd2-worker msvcr70)
+    ADD_TARGET_PROPERTIES(lighttpd2-worker LINK_FLAGS "-Wl,-subsystem,console")
   ENDIF(MINGW)
 ENDIF(WIN32)
 
@@ -410,10 +410,10 @@ IF(NOT WIN32)
 		ARCHIVE DESTINATION ${LIGHTTPD_MODULES_DIR}/static)
 ELSE(NOT WIN32)
 	## HACK to make win32 to install our libraries in desired directory..
-	INSTALL(TARGETS lighttpd2
+	INSTALL(TARGETS lighttpd2-worker
 		RUNTIME DESTINATION ${SBINDIR}
 		ARCHIVE DESTINATION lib/static)
-	LIST(REMOVE_ITEM L_INSTALL_TARGETS lighttpd2)
+	LIST(REMOVE_ITEM L_INSTALL_TARGETS lighttpd2-worker)
 	INSTALL(TARGETS ${L_INSTALL_TARGETS}
 		RUNTIME DESTINATION ${SBINDIR}/lib
 		LIBRARY DESTINATION lib
