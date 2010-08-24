@@ -216,6 +216,8 @@
 #include <lighttpd/sys_memory.h>
 #include <lighttpd/sys_socket.h>
 
+#if 0
+/* on "old" gcc versions (4.1?) poison also hits struct members */
 #if( 2 < __GNUC__ )
 #pragma GCC poison strtok asctime ctime tmpnam strerror
 #ifdef HAVE_LOCALTIME_R
@@ -223,6 +225,7 @@
 #endif
 #ifdef HAVE_GMTIME_R
 #pragma GCC poison gmtime
+#endif
 #endif
 #endif
 
