@@ -160,7 +160,7 @@ struct liVRequest {
 		} \
 	} while (0)
 
-LI_API liVRequest* li_vrequest_new(liConnection *con, liConInfo *coninfo);
+LI_API liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo);
 LI_API void li_vrequest_free(liVRequest *vr);
 /* if keepalive = TRUE, you either have to reset it later again with FALSE or call li_vrequest_start before reusing the vr;
  * keepalive = TRUE doesn't reset the vr->request fields, so mod_status can show the last request data in the keep-alive state

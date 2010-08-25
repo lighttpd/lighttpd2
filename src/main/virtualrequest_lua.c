@@ -335,6 +335,8 @@ static const luaL_Reg vrequest_mt[] = {
 	{ "add_filter_in", lua_vrequest_add_filter_in },
 	{ "add_filter_out", lua_vrequest_add_filter_out },
 
+	{ "subrequest", li_lua_vrequest_subrequest },
+
 	{ NULL, NULL }
 };
 

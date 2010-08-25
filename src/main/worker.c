@@ -524,6 +524,7 @@ void li_worker_free(liWorker *wrk) {
 		}
 
 		g_async_queue_unref(q);
+		wrk->job_async_queue = NULL;
 	}
 
 

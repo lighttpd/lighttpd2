@@ -530,7 +530,7 @@ liConnection* li_connection_new(liWorker *wrk) {
 
 	con->info.callbacks = &con_callbacks;
 
-	con->mainvr = li_vrequest_new(con, &con->info);
+	con->mainvr = li_vrequest_new(wrk, &con->info);
 	li_http_request_parser_init(&con->req_parser_ctx, &con->mainvr->request, con->raw_in);
 
 	con->in      = con->mainvr->vr_in;

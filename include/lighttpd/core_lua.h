@@ -51,6 +51,8 @@ LI_API void li_lua_init_stat_mt(lua_State *L);
 LI_API struct stat* li_lua_get_stat(lua_State *L, int ndx);
 LI_API int li_lua_push_stat(lua_State *L, struct stat *st);
 
+LI_API void li_lua_init_subrequest_mt(lua_State *L);
+
 LI_API void li_lua_init_vrequest_mt(lua_State *L);
 LI_API liVRequest* li_lua_get_vrequest(lua_State *L, int ndx);
 LI_API int li_lua_push_vrequest(lua_State *L, liVRequest *vr);
@@ -94,5 +96,8 @@ LI_API GString* li_lua_print_get_string(lua_State *L, int from, int to);
  * returns: <next>, nil, nil on the stack (and 3 as c function)
  */
 LI_API int li_lua_ghashtable_gstring_pairs(lua_State *L, GHashTable *ht);
+
+/* internal: subrequests (vrequest metamethod) */
+LI_API int li_lua_vrequest_subrequest(lua_State *L);
 
 #endif

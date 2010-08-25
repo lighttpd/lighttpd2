@@ -39,6 +39,8 @@ LI_API void li_request_init(liRequest *req);
 LI_API void li_request_reset(liRequest *req);
 LI_API void li_request_clear(liRequest *req);
 
+LI_API void li_request_copy(liRequest *dest, const liRequest *src);
+
 LI_API gboolean li_request_validate_header(liConnection *con);
 
 LI_API void li_physical_init(liPhysical *phys);

@@ -1,5 +1,6 @@
 
 #include <lighttpd/actions_lua.h>
+#include <lighttpd/config_lua.h>
 #include <lighttpd/core_lua.h>
 
 #include <lualib.h>
@@ -147,6 +148,11 @@ static void lua_action_free(liServer *srv, gpointer param) {
 
 liAction* li_lua_make_action(lua_State *L, int ndx) {
 	lua_action_param *par = g_slice_new0(lua_action_param);
+	liWorker *wrk;
+
+	lua_getfield(L, LUA_REGISTRYINDEX, "lighty.wrk");
+	wrk = lua_touserdata(L, -1);
+	lua_pop(L, 1);
 
 	lua_pushvalue(L, ndx); /* +1 */
 	par->func_ref = luaL_ref(L, LUA_REGISTRYINDEX); /* -1 */
@@ -160,6 +166,10 @@ liAction* li_lua_make_action(lua_State *L, int ndx) {
 		lua_getfield(L, LUA_REGISTRYINDEX, "li_globals"); /* +1 */
 		lua_setfield(L, -2, "__index"); /* -1 */
 		lua_setmetatable(L, -2); /* -1 */
+	if (NULL != wrk) {
+		li_lua_config_publish_str_hash(wrk->srv, wrk, L, wrk->srv->actions, li_lua_config_handle_server_action); /* +1 */
+		lua_setfield(L, -2, "action"); /* -1 */
+	}
 	lua_setfenv(L, -2); /* -1 */
 	lua_pop(L, 1); /* -1 */
 

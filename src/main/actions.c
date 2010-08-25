@@ -178,6 +178,8 @@ static void li_action_backend_stack_reset(liVRequest *vr, liActionStack *as) {
 	liServer *srv = vr->wrk->srv;
 	guint i;
 
+	if (NULL == as->backend_stack) return;
+
 	/* index 0 is the "deepest" backend - release it first */
 	for (i = 0; i < as->backend_stack->len; i++ ) {
 		action_stack_element_release(srv, vr, &g_array_index(as->backend_stack, action_stack_element, i));

@@ -136,16 +136,16 @@ liFilter* li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_da
 	return filters_add(&vr->filters_out, handle_data, handle_free, param);
 }
 
-liVRequest* li_vrequest_new(liConnection *con, liConInfo *coninfo) {
-	liServer *srv = con->srv;
+liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
+	liServer *srv = wrk->srv;
 	liVRequest *vr = g_slice_new0(liVRequest);
 
 	vr->coninfo = coninfo;
-	vr->wrk = con->wrk;
+	vr->wrk = wrk;
 	vr->ref = g_slice_new0(liVRequestRef);
 	vr->ref->refcount = 1;
 	vr->ref->vr = vr;
-	vr->ref->wrk = con->wrk;
+	vr->ref->wrk = wrk;
 	vr->state = LI_VRS_CLEAN;
 
 	vr->plugin_ctx = g_ptr_array_new();
@@ -656,6 +656,7 @@ void li_vrequest_joblist_append(liVRequest *vr) {
 void li_vrequest_joblist_append_async(liVRequestRef *vr_ref) {
 	liWorker *wrk = vr_ref->wrk;
 	GAsyncQueue *const q = wrk->job_async_queue;
+	if (NULL == q) return;
 	li_vrequest_ref_acquire(vr_ref);
 	g_async_queue_push(q, vr_ref);
 	ev_async_send(wrk->loop, &wrk->job_async_queue_watcher);

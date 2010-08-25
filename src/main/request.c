@@ -59,6 +59,33 @@ void li_request_clear(liRequest *req) {
 	req->content_length = -1;
 }
 
+void li_request_copy(liRequest *dest, const liRequest *src) {
+	GList *iter;
+
+	dest->http_method = src->http_method;
+	li_string_assign_len(dest->http_method_str, GSTR_LEN(src->http_method_str));
+	dest->http_version = src->http_version;
+
+	li_string_assign_len(dest->uri.raw, GSTR_LEN(src->uri.raw));
+	li_string_assign_len(dest->uri.raw_path, GSTR_LEN(src->uri.raw_path));
+	li_string_assign_len(dest->uri.raw_orig_path, GSTR_LEN(src->uri.raw_orig_path));
+	li_string_assign_len(dest->uri.scheme, GSTR_LEN(src->uri.scheme));
+	li_string_assign_len(dest->uri.authority, GSTR_LEN(src->uri.authority));
+	li_string_assign_len(dest->uri.path, GSTR_LEN(src->uri.path));
+	li_string_assign_len(dest->uri.query, GSTR_LEN(src->uri.query));
+	li_string_assign_len(dest->uri.host, GSTR_LEN(src->uri.host));
+
+	li_http_headers_reset(dest->headers);
+
+	for (iter = g_queue_peek_head_link(&src->headers->entries); iter; iter = g_list_next(iter)) {
+		liHttpHeader* header = (liHttpHeader*) iter->data;
+
+		li_http_header_insert(dest->headers, LI_HEADER_KEY_LEN(header), LI_HEADER_VALUE_LEN(header));
+	}
+
+	dest->content_length = src->content_length;
+}
+
 /* closes connection after response */
 static void bad_request(liConnection *con, int status) {
 	con->info.keep_alive = FALSE;
