@@ -3,7 +3,7 @@
 # only builds snapshots for now
 # tarball name contains date and git short id
 
-SRCTEST=src/main/lighttpd.c
+SRCTEST=src/main/lighttpd_worker.c
 PACKAGE=lighttpd
 REV=${REV}
 BASEDOWNLOADURL="http://download.lighttpd.net/lighttpd/snapshots-2.0.x"
