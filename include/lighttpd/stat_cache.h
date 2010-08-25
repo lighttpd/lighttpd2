@@ -62,20 +62,17 @@ struct liStatCacheEntry {
 	liStatCacheEntryData data;
 	GArray *dirlist;                  /* array of stat_cache_entry_data, used together with STAT_CACHE_ENTRY_DIR */
 
+	liStatCache *sc;
 	GPtrArray *vrequests;             /* vrequests waiting for this info */
-	guint refcount;
-	liWaitQueueElem queue_elem;        /* queue element for the delete_queue */
+	guint refcount;                   /* vrequests, delete_queue and tasklet hold references; dirlist/entrie cache entries are always in delete_queue too */
+	liWaitQueueElem queue_elem;       /* queue element for the delete_queue */
 	gboolean cached;
 };
 
 struct liStatCache {
 	GHashTable *dirlists;
 	GHashTable *entries;
-	GAsyncQueue *job_queue_out;       /* elements waiting for stat */
-	GAsyncQueue *job_queue_in;        /* elements with finished stat */
 	liWaitQueue delete_queue;
-	GThread *thread;
-	ev_async job_watcher;
 	gdouble ttl;
 
 	guint64 hits;
@@ -83,7 +80,7 @@ struct liStatCache {
 	guint64 errors;
 };
 
-LI_API void li_stat_cache_new(liWorker *wrk, gdouble ttl);
+LI_API liStatCache* li_stat_cache_new(liWorker *wrk, gdouble ttl);
 LI_API void li_stat_cache_free(liStatCache *sc);
 
 /*

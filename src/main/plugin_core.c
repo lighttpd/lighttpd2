@@ -1010,6 +1010,20 @@ static gboolean core_stat_cache_ttl(liServer *srv, liPlugin* p, liValue *val, gp
 	return TRUE;
 }
 
+static gboolean core_tasklet_pool_threads(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(p); UNUSED(userdata);
+
+	if (!val || val->type != LI_VALUE_NUMBER) {
+		ERROR(srv, "%s", "tasklet_pool.threads expects a number as parameter");
+		return FALSE;
+	}
+
+	srv->tasklet_pool_threads = val->data.number;
+	li_tasklet_pool_set_threads(srv->main_worker->tasklets, srv->tasklet_pool_threads);
+
+	return TRUE;
+}
+
 /*
  * OPTIONS
  */
@@ -1614,6 +1628,8 @@ static const liPluginOption options[] = {
 
 	{ "etag.use", LI_VALUE_NONE, 0, core_option_etag_use_parse }, /* type in config is list, internal type is number for flags */
 
+	{ "stat.async", LI_VALUE_BOOLEAN, TRUE, NULL },
+
 	{ NULL, 0, 0, NULL }
 };
 
@@ -1670,6 +1686,7 @@ static const liPluginSetup setups[] = {
 	{ "module_load", core_module_load, NULL },
 	{ "io.timeout", core_io_timeout, NULL },
 	{ "stat_cache.ttl", core_stat_cache_ttl, NULL },
+	{ "tasklet_pool.threads", core_tasklet_pool_threads, NULL },
 
 	{ NULL, NULL, NULL }
 };

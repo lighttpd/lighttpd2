@@ -5,6 +5,8 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
+#include <lighttpd/tasklet.h>
+
 struct lua_State;
 
 typedef struct liStatistics liStatistics;
@@ -108,6 +110,8 @@ struct liWorker {
 
 	GAsyncQueue *job_async_queue;
 	ev_async job_async_queue_watcher;
+
+	liTaskletPool *tasklets;
 
 	liStatCache *stat_cache;
 

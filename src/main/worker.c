@@ -464,6 +464,8 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	ev_async_start(wrk->loop, &wrk->job_async_queue_watcher);
 	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
+	wrk->tasklets = li_tasklet_pool_new(wrk->loop, srv->tasklet_pool_threads);
+
 	wrk->network_read_buf = g_byte_array_sized_new(0);
 
 	return wrk;
@@ -539,6 +541,8 @@ void li_worker_free(liWorker *wrk) {
 
 	li_stat_cache_free(wrk->stat_cache);
 
+	li_tasklet_pool_free(wrk->tasklets);
+
 #ifdef HAVE_LUA_H
 	lua_close(wrk->L);
 	wrk->L = NULL;
@@ -569,7 +573,7 @@ void li_worker_run(liWorker *wrk) {
 
 	/* setup stat cache if necessary */
 	if (wrk->srv->stat_cache_ttl && !wrk->stat_cache)
-		li_stat_cache_new(wrk, wrk->srv->stat_cache_ttl);
+		wrk->stat_cache = li_stat_cache_new(wrk, wrk->srv->stat_cache_ttl);
 
 	ev_loop(wrk->loop, 0);
 }

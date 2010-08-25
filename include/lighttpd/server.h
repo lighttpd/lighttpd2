@@ -130,6 +130,7 @@ struct liServer {
 	GArray *throttle_pools;
 
 	gdouble stat_cache_ttl;
+	gint tasklet_pool_threads;
 };
 
 
