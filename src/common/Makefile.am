@@ -14,6 +14,7 @@ common_src= \
 	radix.c \
 	sys_memory.c \
 	sys_socket.c \
+	tasklet.c \
 	utils.c \
 	waitqueue.c
 
