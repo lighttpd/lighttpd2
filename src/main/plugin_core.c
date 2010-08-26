@@ -196,6 +196,7 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 	} else {
 		i = 0;
 	}
+	*context = NULL;
 
 	/* loop over all the patterns until we find an existing path */
 	for (; i < arr->len; i++) {
@@ -205,6 +206,8 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 
 		g_string_truncate(vr->physical.doc_root, 0);
 		li_pattern_eval(vr, vr->physical.doc_root, g_array_index(arr, liPattern*, i), core_docroot_nth_cb, vr->request.uri.host, li_pattern_regex_cb, match_info);
+
+		if (i == arr->len - 1) break; /* don't stat, we'll use the last entry anyway */
 
 		/* check if path exists */
 		switch (li_stat_cache_get(vr, vr->physical.doc_root, &st, &err, NULL)) {
@@ -222,8 +225,6 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 			}
 			continue;
 		}
-
-		*context = NULL;
 	}
 
 	/* build physical path: docroot + uri.path */
