@@ -351,7 +351,7 @@ static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSo
 			}
 			return FALSE;
 		} else {
-			return (ipv4->sin_port == 80 || ipv4->sin_port == 443);
+			return (port == 80 || port == 443);
 		}
 	} break;
 #ifdef HAVE_IPV6
@@ -377,7 +377,7 @@ static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSo
 			}
 			return FALSE;
 		} else {
-			return (ipv6->sin6_port == 80 || ipv6->sin6_port == 443);
+			return (port == 80 || port == 443);
 		}
 	} break;
 #endif
