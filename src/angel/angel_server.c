@@ -177,7 +177,8 @@ static void instance_spawn(liInstance *i) {
 	li_fd_no_block(confd[1]);
 
 	i->acon = li_angel_connection_new(i->srv->loop, confd[0], i, instance_angel_call_cb, instance_angel_close_cb);
-	i->proc = li_proc_new(i->srv, i->ic->cmd, i->ic->env, i->ic->uid, i->ic->gid, i->ic->username->str, i->ic->rlim_core, i->ic->rlim_nofile, instance_spawn_setup, confd);
+	i->proc = li_proc_new(i->srv, i->ic->cmd, i->ic->env, i->ic->uid, i->ic->gid,
+		i->ic->username != NULL ? i->ic->username->str : NULL, i->ic->rlim_core, i->ic->rlim_nofile, instance_spawn_setup, confd);
 
 	if (!i->proc) return;
 
