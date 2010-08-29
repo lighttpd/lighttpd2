@@ -12,159 +12,225 @@
 #include <fcntl.h>
 #include <stdarg.h>
 
-#define DEFAULT_TS_FORMAT "%d/%b/%Y %T %Z"
+#define LOG_DEFAULT_TS_FORMAT "%d/%b/%Y %T %Z"
+#define LOG_DEFAULT_TTL 30.0
 
-static void log_free_unlocked(liServer *srv, liLog *log);
-static void log_thread_stop(liServer *srv);
-static void log_thread_finish(liServer *srv);
+static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents);
 
-static void log_lock(liLog *log) {
-	g_mutex_lock(log->mutex);
+static void li_log_write_stderr(liServer *srv, const gchar *msg, gboolean newline) {
+	gsize s;
+	struct tm tm;
+	time_t now = (time_t) ev_time();
+	gchar buf[128];
+	GStaticMutex mtx = G_STATIC_MUTEX_INIT;
+
+	UNUSED(srv);
+
+#ifdef HAVE_LOCALTIME_R
+	s = strftime(buf, sizeof(buf), LOG_DEFAULT_TS_FORMAT, localtime_r(&now, &tm));
+#else
+	s = strftime(buf, sizeof(buf), LOG_DEFAULT_TS_FORMAT, localtime(&now));
+#endif
+
+	buf[s] = '\0';
+
+	g_static_mutex_lock(&mtx);
+	g_printerr(newline ? "%s %s\n" : "%s %s", buf, msg);
+	g_static_mutex_unlock(&mtx);
 }
 
-static void log_unlock(liLog *log) {
-	g_mutex_unlock(log->mutex);
+static liLog *log_open(liServer *srv, GString *path) {
+	liLog *log;
+
+	if (path)
+		log = li_radixtree_lookup_exact(srv->logs.targets, path->str, path->len * 8);
+	else
+		log = NULL;
+
+	if (!log) {
+		/* log not open */
+		gint fd = -1;
+		liLogType type = li_log_type_from_path(path);
+
+		switch (type) {
+			case LI_LOG_TYPE_STDERR:
+				fd = STDERR_FILENO;
+				break;
+			case LI_LOG_TYPE_FILE:
+				/* todo: open via angel */
+				fd = open(path->str, O_RDWR | O_CREAT | O_APPEND, 0660);
+				if (fd == -1) {
+					int err = errno;
+					GString *str = g_string_sized_new(255);
+					g_string_append_printf(str, "(error) %s.%d: failed to open log file '%s': %s", LI_REMOVE_PATH(__FILE__), __LINE__, path->str, g_strerror(err));
+					//li_log_write_stderr(srv, str->str, TRUE);
+					g_string_free(str, TRUE);
+					return NULL;
+				}
+				break;
+			case LI_LOG_TYPE_PIPE:
+			case LI_LOG_TYPE_SYSLOG:
+				/* todo */
+				assert(NULL);
+			case LI_LOG_TYPE_NONE:
+				return NULL;
+		}
+
+		log = g_slice_new0(liLog);
+		log->type = type;
+		log->path = g_string_new_len(GSTR_LEN(path));
+		log->fd = fd;
+		log->wqelem.data = log;
+		li_radixtree_insert(srv->logs.targets, log->path->str, log->path->len * 8, log);
+		/*g_print("log_open(\"%s\")\n", log->path->str);*/
+	}
+
+	li_waitqueue_push(&srv->logs.close_queue, &log->wqelem);
+
+	return log;
 }
 
-void li_log_write(liServer *srv, liLog *log, GString *msg) {
+static void log_close(liServer *srv, liLog *log) {
+	li_radixtree_remove(srv->logs.targets, log->path->str, log->path->len * 8);
+	li_waitqueue_remove(&srv->logs.close_queue, &log->wqelem);
+
+	if (log->type == LI_LOG_TYPE_FILE || log->type == LI_LOG_TYPE_PIPE) {
+		close(log->fd);
+	}
+
+	/*g_print("log_close(\"%s\")\n", log->path->str);*/
+	g_string_free(log->path, TRUE);
+
+	g_slice_free(liLog, log);
+}
+
+static void log_close_cb(struct ev_loop *loop, struct ev_timer *w, int revents) {
+	/* callback for the close queue */
+	liServer *srv = (liServer*) w->data;
+	liWaitQueueElem *wqe;
+
+	UNUSED(loop);
+	UNUSED(revents);
+
+	while ((wqe = li_waitqueue_pop(&srv->logs.close_queue)) != NULL) {
+		log_close(srv, wqe->data);
+	}
+
+	li_waitqueue_update(&srv->logs.close_queue);
+}
+
+void li_log_init(liServer *srv) {
+	srv->logs.loop = ev_loop_new(EVFLAG_AUTO);
+	ev_async_init(&srv->logs.watcher, log_watcher_cb);
+	srv->logs.watcher.data = srv;
+	srv->logs.targets = li_radixtree_new();
+	li_waitqueue_init(&srv->logs.close_queue, srv->logs.loop, log_close_cb, LOG_DEFAULT_TTL, srv);
+	srv->logs.timestamps = g_array_new(FALSE, FALSE, sizeof(liLogTimestamp*));
+	srv->logs.thread_alive = FALSE;
+	g_queue_init(&srv->logs.write_queue);
+	g_static_mutex_init(&srv->logs.write_queue_mutex);
+
+	/* first entry in srv->logs.timestamps is the default timestamp */
+	li_log_timestamp_new(srv, g_string_new_len(CONST_STR_LEN(LOG_DEFAULT_TS_FORMAT)));
+}
+
+void li_log_cleanup(liServer *srv) {
+	guint i;
+	liLogTimestamp *ts;
+
+	/* wait for logging thread to exit */
+	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE)
+	{
+		li_log_thread_finish(srv);
+		g_thread_join(srv->logs.thread);
+	}
+
+	li_radixtree_free(srv->logs.targets, NULL, NULL);
+
+	for (i = 0; i < srv->logs.timestamps->len; i++) {
+		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, i);
+		/*g_print("ts #%d refcount: %d\n", i, ts->refcount);*/
+		if (li_log_timestamp_free(srv, g_array_index(srv->logs.timestamps, liLogTimestamp*, 0)))
+			i--;
+	}
+
+	g_array_free(srv->logs.timestamps, TRUE);
+	ev_loop_destroy(srv->logs.loop);
+}
+
+gboolean li_log_write_direct(liServer *srv, liVRequest *vr, GString *path, GString *msg) {
 	liLogEntry *log_entry;
-
-	li_log_ref(srv, log);
+	liWorker *wrk;
 
 	log_entry = g_slice_new(liLogEntry);
-	log_entry->log = log;
+	log_entry->path = g_string_new_len(GSTR_LEN(path));
+	log_entry->ts = NULL;
+	log_entry->level = 0;
+	log_entry->flags = 0;
 	log_entry->msg = msg;
+	log_entry->queue_link.data = log_entry;
+	log_entry->queue_link.next = NULL;
+	log_entry->queue_link.prev = NULL;
 
-	g_async_queue_push(srv->logs.queue, log_entry);
+	if (G_LIKELY(vr)) {
+		/* push onto local worker log queue */
+		wrk = vr->wrk;
+		g_queue_push_tail_link(&wrk->log_queue, &log_entry->queue_link);
+	} else {
+		/* no worker context, push directly onto global log queue */
+		g_static_mutex_lock(&srv->logs.write_queue_mutex);
+		g_queue_push_tail_link(&srv->logs.write_queue, &log_entry->queue_link);
+		g_static_mutex_unlock(&srv->logs.write_queue_mutex);
+		ev_async_send(srv->logs.loop, &srv->logs.watcher);
+	}
+
+	return TRUE;
 }
 
-gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, const gchar *fmt, ...) {
+gboolean li_log_write(liServer *srv, liVRequest *vr, liLogLevel log_level, guint flags, const gchar *fmt, ...) {
+	liWorker *wrk;
 	va_list ap;
 	GString *log_line;
-	liLog *log = NULL;
 	liLogEntry *log_entry;
 	liLogTimestamp *ts = NULL;
 	GArray *logs = NULL;
+	GString *path;
 
 	if (vr != NULL) {
-		if (!srv) srv = vr->wrk->srv;
+		wrk = vr->wrk;
+		if (!srv) srv = wrk->srv;
 		/* get log from connection */
 		logs = CORE_OPTIONPTR(LI_CORE_OPTION_LOG).list;
 		ts = CORE_OPTIONPTR(LI_CORE_OPTION_LOG_TS_FORMAT).ptr;
-	}
-	else {
+	} else {
 		liOptionPtrValue *ologval = NULL;
+		wrk = NULL;
 		if (0 + LI_CORE_OPTION_LOG < srv->optionptr_def_values->len) {
 			ologval = g_array_index(srv->optionptr_def_values, liOptionPtrValue*, 0 + LI_CORE_OPTION_LOG);
 		}
-		if (ologval != NULL) logs = ologval->data.list;
+
+		if (ologval != NULL)
+			logs = ologval->data.list;
 	}
 
 	if (logs != NULL && log_level < logs->len) {
-		log = g_array_index(logs, liLog*, log_level);
-/*		if (log == NULL)
-			return TRUE;*/
+		path = g_array_index(logs, GString*, log_level);
+	} else {
+		return FALSE;
 	}
 
-	if (NULL == ts && 0 < srv->logs.timestamps->len) {
+	if (NULL == ts && srv->logs.timestamps->len > 0) {
 		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, 0);
 	}
 
-	if (log) li_log_ref(srv, log);
-	log_line = g_string_sized_new(0);
+	log_line = g_string_sized_new(63);
 	va_start(ap, fmt);
 	g_string_vprintf(log_line, fmt, ap);
 	va_end(ap);
 
-	if (log && !(flags & LOG_FLAG_NOLOCK))
-		log_lock(log);
-
-#if 0
-/* - needs extra handling for switching between server state (angel log/normal log)
- * - needs an option to turn it off, as it is bad for debugging (you expect to see error messages immediately
- */
-	if (!(flags & LOG_FLAG_ALLOW_REPEAT)) {
-
-		/* check if last message for this log was the same */
-		if (g_string_equal(log->lastmsg, log_line)) {
-			log->lastmsg_count++;
-			if (!(flags & LOG_FLAG_NOLOCK))
-				log_unlock(log);
-			log_unref(srv, log);
-			g_string_free(log_line, TRUE);
-			return TRUE;
-		}
-		else {
-			if (log->lastmsg_count > 0) {
-				guint count = log->lastmsg_count;
-				log->lastmsg_count = 0;
-				li_log_write_(srv, vr, log_level, flags | LOG_FLAG_NOLOCK | LOG_FLAG_ALLOW_REPEAT, "last message repeated %d times", count);
-			}
-		}
-	}
-
-	g_string_assign(log->lastmsg, log_line->str);
-#endif
-
-	/* for normal error messages, we prepend a timestamp */
-	if (flags & LOG_FLAG_TIMESTAMP) {
-		time_t cur_ts;
-		liLogTimestamp fake_ts;
-		GString fake_ts_format;
-		GString *tmpstr = NULL;
-
-		g_mutex_lock(srv->logs.mutex);
-
-		/* if we have a worker context, we can use its timestamp to save us a call to time() */
-		if (vr != NULL)
-			cur_ts = (time_t)CUR_TS(vr->wrk);
-		else
-			cur_ts = time(NULL);
-
-		if (NULL == ts) {
-			ts = &fake_ts;
-			ts->last_ts = 0;
-			fake_ts_format = li_const_gstring(CONST_STR_LEN(DEFAULT_TS_FORMAT));
-			ts->format = &fake_ts_format;
-			ts->cached = tmpstr = g_string_sized_new(255);
-		}
-
-		if (cur_ts != ts->last_ts) {
-			gsize s;
-#ifdef HAVE_LOCALTIME_R
-			struct tm tm;
-#endif
-
-			g_string_set_size(ts->cached, 255);
-
-#ifdef HAVE_LOCALTIME_R
-			s = strftime(ts->cached->str, ts->cached->allocated_len,
-				ts->format->str, localtime_r(&cur_ts, &tm));
-#else
-			s = strftime(ts->cached->str, ts->cached->allocated_len,
-				ts->format->str, localtime(&cur_ts));
-#endif
-
-			g_string_set_size(ts->cached, s);
-
-			ts->last_ts = cur_ts;
-		}
-
-		g_string_prepend_c(log_line, ' ');
-		g_string_prepend_len(log_line, GSTR_LEN(ts->cached));
-
-		if (NULL != tmpstr) g_string_free(tmpstr, TRUE);
-
-		g_mutex_unlock(srv->logs.mutex);
-	}
-
-	if (log && !(flags & LOG_FLAG_NOLOCK))
-		log_unlock(log);
-
-	g_string_append_len(log_line, CONST_STR_LEN("\r\n"));
-
-	if (!log) {
-		li_angel_log(srv, log_line);
+	if (!path) {
+		li_log_write_stderr(srv, log_line->str, TRUE);
+		g_string_free(log_line, TRUE);
 		return TRUE;
 	}
 
@@ -175,66 +241,132 @@ gboolean li_log_write_(liServer *srv, liVRequest *vr, liLogLevel log_level, guin
 	case LI_SERVER_WARMUP:
 	case LI_SERVER_STOPPING:
 	case LI_SERVER_DOWN:
-		li_log_unref(srv, log);
-		li_angel_log(srv, log_line);
+		li_log_write_stderr(srv, log_line->str, TRUE);
+		g_string_free(log_line, TRUE);
 		return TRUE;
 	default:
 		break;
 	}
 
 	log_entry = g_slice_new(liLogEntry);
-	log_entry->log = log;
-	log_entry->msg = log_line;
+	log_entry->path = g_string_new_len(GSTR_LEN(path));
+	log_entry->ts = ts;
 	log_entry->level = log_level;
+	log_entry->flags = flags;
+	log_entry->msg = log_line;
+	log_entry->queue_link.data = log_entry;
+	log_entry->queue_link.next = NULL;
+	log_entry->queue_link.prev = NULL;
 
-	g_async_queue_push(srv->logs.queue, log_entry);
+	if (G_LIKELY(wrk)) {
+		/* push onto local worker log queue */
+		g_queue_push_tail_link(&wrk->log_queue, &log_entry->queue_link);
+	} else {
+		/* no worker context, push directly onto global log queue */
+		g_static_mutex_lock(&srv->logs.write_queue_mutex);
+		g_queue_push_tail_link(&srv->logs.write_queue, &log_entry->queue_link);
+		g_static_mutex_unlock(&srv->logs.write_queue_mutex);
+		ev_async_send(srv->logs.loop, &srv->logs.watcher);
+	}
 
-	/* on critical error, exit */
-	/* TODO: write message immediately, as the log write is followed by an abort() */
-
+//g_print("log_write: %s -> %s\n", log_line->str, path->str);
 	return TRUE;
 }
 
-
 static gpointer log_thread(liServer *srv) {
+	ev_loop(srv->logs.loop, 0);
+	return NULL;
+}
+
+static GString *log_timestamp_format(liServer *srv, liLogTimestamp *ts) {
+	gsize s;
+	struct tm tm;
+	time_t now = (time_t) ev_now(srv->logs.loop);
+
+	/* cache hit */
+	if (now == ts->last_ts)
+		return ts->cached;
+
+#ifdef HAVE_LOCALTIME_R
+	s = strftime(ts->cached->str, ts->cached->allocated_len, ts->format->str, localtime_r(&now, &tm));
+#else
+	s = strftime(ts->cached->str, ts->cached->allocated_len, ts->format->str, localtime(&now));
+#endif
+
+	g_string_set_size(ts->cached, s);
+	ts->last_ts = now;
+
+	return ts->cached;
+}
+
+static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
+	liServer *srv = (liServer*) w->data;
 	liLog *log;
 	liLogEntry *log_entry;
+	GList *queue_link, *queue_link_next;
 	GString *msg;
 	gssize bytes_written;
 	gssize write_res;
 
-	while (TRUE) {
-		if (g_atomic_int_get(&srv->logs.thread_stop) == TRUE)
-			break;
+	UNUSED(loop);
+	UNUSED(revents);
 
-		if (g_atomic_int_get(&srv->logs.thread_finish) == TRUE && g_async_queue_length(srv->logs.queue) == 0)
-			break;
+	if (g_atomic_int_get(&srv->logs.thread_stop) == TRUE) {
+		liWaitQueueElem *wqe;
 
-		log_entry = g_async_queue_pop(srv->logs.queue);
-
-		/* if log_entry->log is NULL, it means that the logger thread has been woken up probably because it should exit */
-		if (log_entry->log == NULL) {
-			g_slice_free(liLogEntry, log_entry);
-			continue;
+		while ((wqe = li_waitqueue_pop_force(&srv->logs.close_queue)) != NULL) {
+			log_close(srv, wqe->data);
 		}
+		li_waitqueue_stop(&srv->logs.close_queue);
+		ev_async_stop(srv->logs.loop, &srv->logs.watcher);
+		return;
+	}
 
-		log = log_entry->log;
+	/* pop everything from global write queue */
+	g_static_mutex_lock(&srv->logs.write_queue_mutex);
+	queue_link = g_queue_peek_head_link(&srv->logs.write_queue);
+	g_queue_init(&srv->logs.write_queue);
+	g_static_mutex_unlock(&srv->logs.write_queue_mutex);
+
+	while (queue_link) {
+		log_entry = queue_link->data;
+		log = log_open(srv, log_entry->path);
 		msg = log_entry->msg;
-
 		bytes_written = 0;
 
+		if (!log) {
+			li_log_write_stderr(srv, log_entry->msg->str, TRUE);
+			goto next;
+		}
+
+		if (log_entry->flags & LOG_FLAG_TIMESTAMP) {
+			log_timestamp_format(srv, log_entry->ts);
+			g_string_prepend_c(msg, ' ');
+			g_string_prepend_len(msg, GSTR_LEN(log_entry->ts->cached));
+		}
+
+		g_string_append_len(msg, CONST_STR_LEN("\n"));
+
+		/* todo: support for other logtargets than files */
 		while (bytes_written < (gssize)msg->len) {
 			write_res = write(log->fd, msg->str + bytes_written, msg->len - bytes_written);
+			//write_res = msg->len;
 
 			/* write() failed, check why */
 			if (write_res == -1) {
-				switch (errno) {
+				GString *str;
+				int err = errno;
+
+				switch (err) {
 					case EAGAIN:
 					case EINTR:
 						continue;
 				}
 
-				g_printerr("could not write to log: %s\n", msg->str);
+				str = g_string_sized_new(63);
+				g_string_printf(str, "could not write to log '%s': %s\n", log_entry->path->str, g_strerror(err));
+				li_log_write_stderr(srv, str->str, TRUE);
+				li_log_write_stderr(srv, msg->str, TRUE);
 				break;
 			}
 			else {
@@ -243,50 +375,26 @@ static gpointer log_thread(liServer *srv) {
 			}
 		}
 
-		g_string_free(msg, TRUE);
+		next:
+		queue_link_next = queue_link->next;
+		g_string_free(log_entry->path, TRUE);
+		g_string_free(log_entry->msg, TRUE);
 		g_slice_free(liLogEntry, log_entry);
-		li_log_unref(srv, log);
+		queue_link = queue_link_next;
 	}
 
-	return NULL;
-}
+	if (g_atomic_int_get(&srv->logs.thread_finish) == TRUE) {
+		liWaitQueueElem *wqe;
 
-static void log_rotate(gchar * path, liLog *log, liServer * UNUSED_PARAM(srv)) {
-
-	switch (log->type) {
-		case LI_LOG_TYPE_FILE:
-			close(log->fd);
-			log->fd = open(log->path->str, O_RDWR | O_CREAT | O_APPEND, 0660);
-			if (log->fd == -1) {
-				g_printerr("failed to reopen log: %s\n", path);
-				assert(NULL); /* TODO */
-			}
-			break;
-		case LI_LOG_TYPE_STDERR:
-			break;
-		case LI_LOG_TYPE_PIPE:
-		case LI_LOG_TYPE_SYSLOG:
-		case LI_LOG_TYPE_NONE:
-			/* TODO */
-			assert(NULL);
+		while ((wqe = li_waitqueue_pop_force(&srv->logs.close_queue)) != NULL) {
+			log_close(srv, wqe->data);
+		}
+		li_waitqueue_stop(&srv->logs.close_queue);
+		ev_async_stop(srv->logs.loop, &srv->logs.watcher);
+		return;
 	}
 
-	g_string_truncate(log->lastmsg, 0);
-	log->lastmsg_count = 0;
-}
-
-void li_log_ref(liServer *srv, liLog *log) {
-	UNUSED(srv);
-	g_atomic_int_inc(&log->refcount);
-}
-
-void li_log_unref(liServer *srv, liLog *log) {
-	g_mutex_lock(srv->logs.mutex);
-
-	if (g_atomic_int_dec_and_test(&log->refcount))
-		log_free_unlocked(srv, log);
-
-	g_mutex_unlock(srv->logs.mutex);
+	return;
 }
 
 liLogType li_log_type_from_path(GString *path) {
@@ -348,153 +456,30 @@ gchar* li_log_level_str(liLogLevel log_level) {
 	}
 }
 
-
-liLog *li_log_new(liServer *srv, liLogType type, GString *path) {
-	liLog *log;
-	gint fd = -1;
-
-	if (type == LI_LOG_TYPE_NONE)
-		return NULL;
-
-	g_mutex_lock(srv->logs.mutex);
-	log = g_hash_table_lookup(srv->logs.targets, path->str);
-
-	/* log already open, inc refcount */
-	if (log != NULL)
-	{
-		g_atomic_int_inc(&log->refcount);
-		g_mutex_unlock(srv->logs.mutex);
-		return log;
-	}
-
-	switch (type) {
-		case LI_LOG_TYPE_STDERR:
-			fd = STDERR_FILENO;
-			break;
-		case LI_LOG_TYPE_FILE:
-			fd = open(path->str, O_RDWR | O_CREAT | O_APPEND, 0660);
-			break;
-		case LI_LOG_TYPE_PIPE:
-		case LI_LOG_TYPE_SYSLOG:
-		case LI_LOG_TYPE_NONE:
-			/* TODO */
-			fd = -1;
-			assert(NULL);
-	}
-
-	if (fd == -1) {
-		g_printerr("failed to open log: %s", g_strerror(errno));
-		return NULL;
-	}
-
-	log = g_slice_new0(liLog);
-	log->lastmsg = g_string_sized_new(0);
-	log->fd = fd;
-	log->path = g_string_new_len(GSTR_LEN(path));
-	log->refcount = 1;
-	log->mutex = g_mutex_new();
-
-	g_hash_table_insert(srv->logs.targets, log->path->str, log);
-
-	g_mutex_unlock(srv->logs.mutex);
-
-	return log;
-}
-
-/* only call this if srv->logs.mutex is NOT locked */
-static void log_free(liServer *srv, liLog *log) {
-	g_mutex_lock(srv->logs.mutex);
-	log_free_unlocked(srv, log);
-	g_mutex_unlock(srv->logs.mutex);
-}
-
-/* only call this if srv->log_mutex IS locked */
-static void log_free_unlocked(liServer *srv, liLog *log) {
-	if (log->type == LI_LOG_TYPE_FILE || log->type == LI_LOG_TYPE_PIPE)
-		close(log->fd);
-
-	g_hash_table_remove(srv->logs.targets, log->path);
-	g_string_free(log->path, TRUE);
-	g_string_free(log->lastmsg, TRUE);
-
-	g_mutex_free(log->mutex);
-
-	g_slice_free(liLog, log);
-}
-
-void li_log_init(liServer *srv) {
-	GString *str;
-
-	srv->logs.targets = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
-	srv->logs.queue = g_async_queue_new();
-	srv->logs.mutex = g_mutex_new();
-	srv->logs.timestamps = g_array_new(FALSE, FALSE, sizeof(liLogTimestamp*));
-	srv->logs.thread_alive = FALSE;
-
-	/* first entry in srv->logs.timestamps is the default timestamp */
-	li_log_timestamp_new(srv, g_string_new_len(CONST_STR_LEN(DEFAULT_TS_FORMAT)));
-
-	/* first entry in srv->logs.targets is the plain good old stderr */
-	str = g_string_new_len(CONST_STR_LEN("stderr"));
-	srv->logs.stderr = li_log_new(srv, LI_LOG_TYPE_STDERR, str);
-	g_string_free(str, TRUE);
-}
-
-void li_log_cleanup(liServer *srv) {
-	guint i;
-	liLogTimestamp *ts;
-
-	/* wait for logging thread to exit */
-	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE)
-	{
-		log_thread_finish(srv);
-		g_thread_join(srv->logs.thread);
-	}
-
-	log_free(srv, srv->logs.stderr);
-
-	g_hash_table_destroy(srv->logs.targets);
-	g_mutex_free(srv->logs.mutex);
-	g_async_queue_unref(srv->logs.queue);
-
-	for (i = 0; i < srv->logs.timestamps->len; i++) {
-		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, i);
-		/* g_print("ts #%d refcount: %d\n", i, ts->refcount); */
-		/*if (g_atomic_int_dec_and_test(&ts->refcount)) {
-			g_string_free(ts->cached, TRUE);
-			g_string_free(ts->format, TRUE);
-			g_slice_free(log_timestamp_t, ts);
-			g_array_remove_index_fast(srv->logs.timestamps, i);
-			i--;
-		}*/
-	}
-
-	li_log_timestamp_free(srv, g_array_index(srv->logs.timestamps, liLogTimestamp*, 0));
-
-	g_array_free(srv->logs.timestamps, TRUE);
-}
-
 void li_log_thread_start(liServer *srv) {
 	GError *err = NULL;
 
+	ev_async_start(srv->logs.loop, &srv->logs.watcher);
+
 	srv->logs.thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
-	g_atomic_int_set(&srv->logs.thread_alive, TRUE);
 
 	if (srv->logs.thread == NULL) {
-		g_printerr("could not create loggin thread: %s\n", err->message);
+		g_printerr("could not create logging thread: %s\n", err->message);
 		g_error_free(err);
 		abort();
 	}
+
+	g_atomic_int_set(&srv->logs.thread_alive, TRUE);
 }
 
-static void log_thread_stop(liServer *srv) {
+void li_log_thread_stop(liServer *srv) {
 	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE) {
 		g_atomic_int_set(&srv->logs.thread_stop, TRUE);
 		li_log_thread_wakeup(srv);
 	}
 }
 
-static void log_thread_finish(liServer *srv) {
+void li_log_thread_finish(liServer *srv) {
 	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE) {
 		g_atomic_int_set(&srv->logs.thread_finish, TRUE);
 		li_log_thread_wakeup(srv);
@@ -502,14 +487,10 @@ static void log_thread_finish(liServer *srv) {
 }
 
 void li_log_thread_wakeup(liServer *srv) {
-	liLogEntry *e;
-
 	if (!g_atomic_int_get(&srv->logs.thread_alive))
 		li_log_thread_start(srv);
 
-	e = g_slice_new0(liLogEntry);
-
-	g_async_queue_push(srv->logs.queue, e);
+	ev_async_send(srv->logs.loop, &srv->logs.watcher);
 }
 
 
@@ -528,7 +509,7 @@ liLogTimestamp *li_log_timestamp_new(liServer *srv, GString *format) {
 
 	ts = g_slice_new(liLogTimestamp);
 
-	ts->cached = g_string_sized_new(0);
+	ts->cached = g_string_sized_new(255);
 	ts->last_ts = 0;
 	ts->refcount = 1;
 	ts->format = format;
@@ -563,7 +544,7 @@ void li_log_split_lines(liServer *srv, liVRequest *vr, liLogLevel log_level, gui
 		if ('\r' == *txt || '\n' == *txt) {
 			*txt = '\0';
 			if (txt - start > 1) { /* skip empty lines*/
-				li_log_write_(srv, vr, log_level, flags, "%s%s", prefix, start);
+				li_log_write(srv, vr, log_level, flags, "%s%s", prefix, start);
 			}
 			txt++;
 			while (*txt == '\n' || *txt == '\r') txt++;
@@ -573,7 +554,7 @@ void li_log_split_lines(liServer *srv, liVRequest *vr, liLogLevel log_level, gui
 		}
 	}
 	if (txt - start > 1) { /* skip empty lines*/
-		li_log_write_(srv, vr, log_level, flags, "%s%s", prefix, start);
+		li_log_write(srv, vr, log_level, flags, "%s%s", prefix, start);
 	}
 }
 

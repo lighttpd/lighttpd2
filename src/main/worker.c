@@ -266,6 +266,37 @@ GString *li_worker_current_timestamp(liWorker *wrk, liTimeFunc timefunc, guint f
 	return wts->str;
 }
 
+/* loop prepare watcher */
+static void li_worker_loop_prepare_cb(struct ev_loop *loop, ev_prepare *w, int revents) {
+	liWorker *wrk = (liWorker*) w->data;
+	liServer *srv = wrk->srv;
+	GList *lnk;
+	UNUSED(loop);
+	UNUSED(revents);
+
+	/* are there pending log entries? */
+	if (g_queue_get_length(&wrk->log_queue)) {
+		//g_print("pending log entries: %d\n", g_queue_get_length(&wrk->log_queue));
+		/* take log entries from local queue, insert into global queue and notify log thread */
+		g_static_mutex_lock(&srv->logs.write_queue_mutex);
+
+		/* have to concatenate the queues by hand as g_queue_push_tail_link() cannot handle this simple task */
+		lnk = g_queue_peek_head_link(&wrk->log_queue);
+		lnk->prev = srv->logs.write_queue.tail;
+		if (srv->logs.write_queue.tail)
+			srv->logs.write_queue.tail->next = lnk;
+		else
+			srv->logs.write_queue.head = lnk;
+		srv->logs.write_queue.tail = g_queue_peek_tail_link(&wrk->log_queue);
+		srv->logs.write_queue.length++;
+
+		g_static_mutex_unlock(&srv->logs.write_queue_mutex);
+		ev_async_send(srv->logs.loop, &srv->logs.watcher);
+		/* clear local worker queue */
+		g_queue_init(&wrk->log_queue);
+	}
+}
+
 /* stop worker watcher */
 static void li_worker_stop_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	liWorker *wrk = (liWorker*) w->data;

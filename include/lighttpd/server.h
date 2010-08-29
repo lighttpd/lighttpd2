@@ -69,8 +69,7 @@ struct liServer {
 	guint worker_count;
 	GArray *workers;
 #ifdef LIGHTY_OS_LINUX
-	cpu_set_t affinity_mask; /** cpus used by workers */
-	guint affinity_cpus;     /** total number of cpus in affinity_mask */
+	liValue *workers_cpu_affinity;
 #endif
 	GArray *ts_formats;      /** array of (GString*), add with li_server_ts_format_add() */
 
@@ -105,15 +104,17 @@ struct liServer {
 	gboolean exiting;         /** atomic access */
 
 	struct {
-		GMutex *mutex;
-		GHashTable *targets;    /** const gchar* path => (log_t*) */
-		GAsyncQueue *queue;
+		struct ev_loop *loop;
+		ev_async watcher;
+		liRadixTree *targets;    /** const gchar* path => (liLog*) */
+		liWaitQueue close_queue;
+		GQueue write_queue;
+		GStaticMutex write_queue_mutex;
 		GThread *thread;
-		gboolean thread_finish; /** finish writing logs in the queue, then exit thread; access with atomic functions */
-		gboolean thread_stop;   /** stop thread immediately; access with atomic functions */
-		gboolean thread_alive;  /** access with atomic functions */
-		GArray *timestamps;     /** array of log_timestamp_t */
-		liLog *stderr;
+		gboolean thread_alive;
+		gboolean thread_finish;
+		gboolean thread_stop;
+		GArray *timestamps;
 	} logs;
 
 	ev_tstamp started;

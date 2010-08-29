@@ -931,6 +931,48 @@ static gboolean core_workers(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	return TRUE;
 }
 
+static gboolean core_workers_cpu_affinity(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+#if defined(LIGHTY_OS_LINUX)
+	GArray *arr1, *arr2;
+	guint i, j;
+	liValue *v;
+
+	UNUSED(p); UNUSED(userdata);
+
+	if (val->type != LI_VALUE_LIST) {
+		ERROR(srv, "%s", "workers.cpu_affinity expects a list of integers or list of list of integers");
+		return FALSE;
+	}
+
+	arr1 = val->data.list;
+
+	for (i = 0; i < arr1->len; i++) {
+		v = g_array_index(arr1, liValue*, i);
+		if (v->type == LI_VALUE_NUMBER)
+			continue;
+		if (v->type == LI_VALUE_LIST) {
+			arr2 = v->data.list;
+			for (j = 0; j < arr2->len; j++) {
+				if (g_array_index(arr2, liValue*, j)->type != LI_VALUE_NUMBER) {
+					ERROR(srv, "%s", "workers.cpu_affinity expects a list of integers or list of list of integers");
+					return FALSE;
+				}
+			}
+		} else {
+			ERROR(srv, "%s", "workers.cpu_affinity expects a list of integers or list of list of integers");
+			return FALSE;
+		}
+	}
+
+	srv->workers_cpu_affinity = li_value_copy(val);
+
+	return TRUE;
+#else
+	ERROR(srv, "%s", "workers.cpu_affinity is only available on Linux systems");
+	return FALSE;
+#endif
+}
+
 static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	liValue *mods = li_value_new_list();
 
@@ -1035,7 +1077,7 @@ static gboolean core_option_log_parse(liServer *srv, liWorker *wrk, liPlugin *p,
 	liLogLevel level;
 	GString *path;
 	GString *level_str;
-	GArray *arr = g_array_sized_new(FALSE, TRUE, sizeof(liLog*), 6);
+	GArray *arr = g_array_sized_new(FALSE, TRUE, sizeof(GString*), 6);
 	UNUSED(wrk);
 	UNUSED(p);
 	UNUSED(ndx);
@@ -1046,13 +1088,9 @@ static gboolean core_option_log_parse(liServer *srv, liWorker *wrk, liPlugin *p,
 	/* default value */
 	if (!val) {
 		/* default: log LI_LOG_LEVEL_WARNING, LI_LOG_LEVEL_ERROR and LI_LOG_LEVEL_BACKEND to stderr */
-		liLog *log = srv->logs.stderr;
-		li_log_ref(srv, log);
-		g_array_index(arr, liLog*, LI_LOG_LEVEL_WARNING) = log;
-		li_log_ref(srv, log);
-		g_array_index(arr, liLog*, LI_LOG_LEVEL_ERROR) = log;
-		li_log_ref(srv, log);
-		g_array_index(arr, liLog*, LI_LOG_LEVEL_BACKEND) = log;
+		g_array_index(arr, GString*, LI_LOG_LEVEL_WARNING) = g_string_new_len(CONST_STR_LEN("stderr"));
+		g_array_index(arr, GString*, LI_LOG_LEVEL_ERROR) = g_string_new_len(CONST_STR_LEN("stderr"));
+		g_array_index(arr, GString*, LI_LOG_LEVEL_BACKEND) = g_string_new_len(CONST_STR_LEN("stderr"));
 		return TRUE;
 	}
 
@@ -1069,18 +1107,16 @@ static gboolean core_option_log_parse(liServer *srv, liWorker *wrk, liPlugin *p,
 
 		if (g_str_equal(level_str->str, "*")) {
 			for (guint i = 0; i < arr->len; i++) {
-				liLog *log;
+				/* overwrite old path */
+				if (NULL != g_array_index(arr, GString*, i))
+					g_string_free(g_array_index(arr, GString*, i), TRUE);
 
-				if (NULL != g_array_index(arr, liLog*, i))
-					continue;
-				log = li_log_new(srv, li_log_type_from_path(path), path);
-				g_array_index(arr, liLog*, i) = log;
+				g_array_index(arr, GString*, i) = g_string_new_len(GSTR_LEN(path));
 			}
 		}
 		else {
-			liLog *log = li_log_new(srv, li_log_type_from_path(path), path);
 			level = li_log_level_from_string(level_str);
-			g_array_index(arr, liLog*, level) = log;
+			g_array_index(arr, GString*, level) = g_string_new_len(GSTR_LEN(path));;
 		}
 	}
 
@@ -1089,14 +1125,16 @@ static gboolean core_option_log_parse(liServer *srv, liWorker *wrk, liPlugin *p,
 
 static void core_option_log_free(liServer *srv, liPlugin *p, size_t ndx, gpointer oval) {
 	GArray *arr = oval;
+
+	UNUSED(srv);
 	UNUSED(p);
 	UNUSED(ndx);
 
 	if (!arr) return;
 
 	for (guint i = 0; i < arr->len; i++) {
-		if (NULL != g_array_index(arr, liLog*, i))
-			li_log_unref(srv, g_array_index(arr, liLog*, i));
+		if (NULL != g_array_index(arr, GString*, i))
+			g_string_free(g_array_index(arr, GString*, i), TRUE);
 	}
 	g_array_free(arr, TRUE);
 }
@@ -1684,6 +1722,7 @@ static const liPluginSetup setups[] = {
 	{ "set_default", core_setup_set, NULL },
 	{ "listen", core_listen, NULL },
 	{ "workers", core_workers, NULL },
+	{ "workers.cpu_affinity", core_workers_cpu_affinity, NULL },
 	{ "module_load", core_module_load, NULL },
 	{ "io.timeout", core_io_timeout, NULL },
 	{ "stat_cache.ttl", core_stat_cache_ttl, NULL },
@@ -1705,32 +1744,44 @@ static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk
 	UNUSED(p);
 
 
-#if defined(LIGHTY_OS_LINUX) && 0
+#if defined(LIGHTY_OS_LINUX)
 	/* sched_setaffinity is only available on linux */
-	if (srv->affinity_cpus != 0) {
-		gint cpu;
-		guint cpu_nth;
-		cpu_set_t mask;
+	cpu_set_t mask;
+	liValue *v = srv->workers_cpu_affinity;
+	GArray *arr;
 
-		/* bind worker to n-th cpu */
-		for (cpu_nth = 0, cpu = 0; cpu < CPU_SETSIZE; cpu++) {
-			//g_print("wrk: %u cpu: %d\n", wrk->ndx, cpu);
-			if (!CPU_ISSET(cpu, &srv->affinity_mask))
-				continue;
+	if (!v)
+		return;
 
-			if ((wrk->ndx % srv->affinity_cpus) == cpu_nth) {
-				CPU_ZERO(&mask);
-				CPU_SET(wrk->ndx % srv->affinity_cpus, &mask);
-				DEBUG(srv, "binding worker #%u to cpu #%u", wrk->ndx+1, wrk->ndx % srv->affinity_cpus);
-				if (0 != sched_setaffinity(0, sizeof(srv->affinity_mask), &mask)) {
-					ERROR(srv, "couldn't set cpu affinity mask: %s", g_strerror(errno));
-				}
+	arr = v->data.list;
 
-				break;
-			}
+	if (wrk->ndx >= arr->len) {
+		WARNING(srv, "worker #%u has no entry in workers.cpu_affinity", wrk->ndx+1);
+		return;
+	}
 
-			cpu_nth++;
+	CPU_ZERO(&mask);
+
+	v = g_array_index(arr, liValue*, wrk->ndx);
+	if (v->type == LI_VALUE_NUMBER) {
+		CPU_SET(v->data.number, &mask);
+		DEBUG(srv, "binding worker #%u to cpu %u", wrk->ndx+1, (guint)v->data.number);
+	} else {
+		guint i;
+
+		g_string_truncate(wrk->tmp_str, 0);
+		arr = v->data.list;
+
+		for (i = 0; i < arr->len; i++) {
+			CPU_SET(g_array_index(arr, liValue*, i)->data.number, &mask);
+			g_string_append_printf(wrk->tmp_str, i ? ",%u":"%u", (guint)g_array_index(arr, liValue*, i)->data.number);
 		}
+
+		DEBUG(srv, "binding worker #%u to cpus %s", wrk->ndx+1, wrk->tmp_str->str);
+	}
+
+	if (0 != sched_setaffinity(0, sizeof(mask), &mask)) {
+		ERROR(srv, "couldn't set cpu affinity mask for worker #%u: %s", wrk->ndx, g_strerror(errno));
 	}
 #else
 	UNUSED(srv); UNUSED(wrk);

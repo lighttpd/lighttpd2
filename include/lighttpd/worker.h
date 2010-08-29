@@ -70,6 +70,8 @@ struct liWorker {
 	ev_check loop_check;
 	ev_async worker_stop_watcher, worker_suspend_watcher, worker_exit_watcher;
 
+	GQueue log_queue;
+
 	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections
 	                            * use with atomic, read direct from local worker context
 	                            */

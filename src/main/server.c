@@ -181,20 +181,6 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	srv->stat_cache_ttl = 10.0; /* default stat cache ttl */
 	srv->tasklet_pool_threads = 4; /* default per-worker tasklet_pool threads */
 
-#ifdef LIGHTY_OS_LINUX
-	/* sched_getaffinity is only available on linux */
-	if (0 != sched_getaffinity(0, sizeof(srv->affinity_mask), &srv->affinity_mask)) {
-		ERROR(srv, "couldn't get cpu affinity mask: %s", g_strerror(errno));
-	} else {
-		/* how many cpus do we have */
-		gint cpu;
-		for (cpu = 0; cpu < CPU_SETSIZE; cpu++) {
-			if (CPU_ISSET(cpu, &srv->affinity_mask))
-				srv->affinity_cpus++;
-		}
-	}
-#endif
-
 	return srv;
 }
 
@@ -292,6 +278,8 @@ void li_server_free(liServer* srv) {
 	li_server_plugins_free(srv);
 	g_array_free(srv->li_plugins_handle_close, TRUE);
 	g_array_free(srv->li_plugins_handle_vrclose, TRUE);
+
+	li_value_free(srv->workers_cpu_affinity);
 
 	if (srv->started_str)
 		g_string_free(srv->started_str, TRUE);

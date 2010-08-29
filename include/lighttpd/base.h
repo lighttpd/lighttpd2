@@ -5,6 +5,8 @@
 #error Do not mix lighty with angel code
 #endif
 
+#define STRINGIFY(s) #s
+
 #include <lighttpd/settings.h>
 
 /* Next try to fix strict-alias warning */
@@ -35,6 +37,7 @@
 #include <lighttpd/chunk_parser.h>
 
 #include <lighttpd/waitqueue.h>
+#include <lighttpd/radix.h>
 
 #include <lighttpd/server.h>
 #include <lighttpd/worker.h>

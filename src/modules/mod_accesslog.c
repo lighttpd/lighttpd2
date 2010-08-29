@@ -31,6 +31,8 @@
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
 
+#define AL_DEFAULT_FORMAT "%h %V %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
+
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
@@ -160,7 +162,7 @@ static al_format al_get_format(gchar c) {
 		if (al_format_mapping[i].character == c)
 			break;
 	}
-	
+
 	return al_format_mapping[i];
 }
 
@@ -180,7 +182,7 @@ static GArray *al_parse_format(liServer *srv, GString *formatstr) {
 	GArray *arr = g_array_new(FALSE, TRUE, sizeof(al_format_entry));
 	al_format_entry e;
 	gchar *c, *k;
-	
+
 	for (c = formatstr->str; *c != '\0';) {
 
 		if (*c == '%') {
@@ -390,35 +392,31 @@ static void al_handle_vrclose(liVRequest *vr, liPlugin *p) {
 	/* VRequest closed, log it */
 	GString *msg;
 	liResponse *resp = &vr->response;
-	liLog *log = OPTIONPTR(AL_OPTION_ACCESSLOG).ptr;
+	GString *log_path = OPTIONPTR(AL_OPTION_ACCESSLOG).ptr;
 	GArray *format = OPTIONPTR(AL_OPTION_ACCESSLOG_FORMAT).list;
 
-	UNUSED(p);
-
-	if (LI_VRS_CLEAN == vr->state || resp->http_status == 0 || !log || !format)
+	if (LI_VRS_CLEAN == vr->state || resp->http_status == 0 || !log_path || !format)
 		/* if status code is zero, it means the connection was closed while in keep alive state or similar and no logging is needed */
 		return;
 
 	msg = al_format_log(vr, p->data, format);
 
-	g_string_append_len(msg, CONST_STR_LEN("\r\n"));
-	li_log_write(vr->wrk->srv, log, msg);
+	li_log_write_direct(vr->wrk->srv, vr, log_path, msg);
 }
 
 
 
 static void al_option_accesslog_free(liServer *srv, liPlugin *p, size_t ndx, gpointer oval) {
+	UNUSED(srv);
 	UNUSED(p);
 	UNUSED(ndx);
 
 	if (!oval) return;
 
-	li_log_unref(srv, oval);
+	g_string_free(oval, TRUE);
 }
 
 static gboolean al_option_accesslog_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
-	liLog *log;
-
 	UNUSED(wrk);
 	UNUSED(p);
 	UNUSED(ndx);
@@ -433,9 +431,7 @@ static gboolean al_option_accesslog_parse(liServer *srv, liWorker *wrk, liPlugin
 		return FALSE;
 	}
 
-	log = li_log_new(srv, li_log_type_from_path(val->data.string), val->data.string);
-
-	*oval = log;
+	*oval = li_value_extract_string(val);
 
 	return TRUE;
 }
@@ -493,7 +489,7 @@ static gboolean al_option_accesslog_format_parse(liServer *srv, liWorker *wrk, l
 
 static const liPluginOptionPtr optionptrs[] = {
 	{ "accesslog", LI_VALUE_NONE, NULL, al_option_accesslog_parse, al_option_accesslog_free },
-	{ "accesslog.format", LI_VALUE_STRING, "%h %V %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"", al_option_accesslog_format_parse, al_option_accesslog_format_free },
+	{ "accesslog.format", LI_VALUE_STRING, AL_DEFAULT_FORMAT, al_option_accesslog_format_parse, al_option_accesslog_format_free },
 
 	{ NULL, 0, NULL, NULL, NULL }
 };
