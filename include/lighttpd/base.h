@@ -61,6 +61,7 @@
 #include <lighttpd/throttle.h>
 #include <lighttpd/pattern.h>
 #include <lighttpd/encoding.h>
+#include <lighttpd/mimetype.h>
 
 #include <lighttpd/connection.h>
 

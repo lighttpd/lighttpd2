@@ -1185,15 +1185,18 @@ static gboolean core_option_static_exclude_exts_parse(liServer *srv, liWorker *w
 
 static gboolean core_option_mime_types_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
 	GArray *arr;
+	liMimetypeNode *node;
+
 	UNUSED(srv);
 	UNUSED(wrk);
 	UNUSED(p);
 	UNUSED(ndx);
 
+	*oval = node = li_mimetype_node_new();
+	node->mimetype = g_string_new_len(CONST_STR_LEN("application/octet-stream"));
 
 	/* default value */
 	if (!val) {
-		*oval = g_array_new(FALSE, TRUE, sizeof(liValue));
 		return TRUE;
 	}
 
@@ -1204,11 +1207,13 @@ static gboolean core_option_mime_types_parse(liServer *srv, liWorker *wrk, liPlu
 		liValue *v1, *v2;
 		if (v->type != LI_VALUE_LIST) {
 			ERROR(srv, "mime_types option expects a list of string tuples, entry #%u is of type %s", i, li_value_type_string(v->type));
+			li_mimetype_node_free(node);
 			return FALSE;
 		}
 
 		if (v->data.list->len != 2) {
 			ERROR(srv, "mime_types option expects a list of string tuples, entry #%u is not a tuple", i);
+			li_mimetype_node_free(node);
 			return FALSE;
 		}
 
@@ -1216,26 +1221,22 @@ static gboolean core_option_mime_types_parse(liServer *srv, liWorker *wrk, liPlu
 		v2 = g_array_index(v->data.list, liValue*, 1);
 		if (v1->type != LI_VALUE_STRING || v2->type != LI_VALUE_STRING) {
 			ERROR(srv, "mime_types option expects a list of string tuples, entry #%u is a (%s,%s) tuple", i, li_value_type_string(v1->type), li_value_type_string(v2->type));
+			li_mimetype_node_free(node);
 			return FALSE;
 		}
-	}
 
-	/* everything ok */
-	*oval = li_value_extract_list(val);
+		li_mimetype_insert(node, v1->data.string, li_value_extract_string(v2), 0);
+	}
 
 	return TRUE;
 }
 
 static void core_option_mime_types_free(liServer *srv, liPlugin *p, size_t ndx, gpointer oval) {
-	GArray *list = oval;
 	UNUSED(srv);
 	UNUSED(p);
 	UNUSED(ndx);
 
-	for (guint i = 0; i < list->len; i++)
-		li_value_free(g_array_index(list, liValue*, i));
-
-	g_array_free(list, TRUE);
+	li_mimetype_node_free(oval);
 }
 
 static gboolean core_option_etag_use_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {

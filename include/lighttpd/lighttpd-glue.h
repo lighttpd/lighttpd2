@@ -16,7 +16,4 @@ LI_API gchar *li_http_version_string(liHttpVersion method, guint *len);
 /* converts a given 3 digit http status code to a gchar[3] string. e.g. 403 to {'4','0','3'} */
 LI_API void li_http_status_to_str(gint status_code, gchar status_str[]);
 
-/* looks up the mimetype for a filename by comparing suffixes. first match is returned. do not free the result */
-LI_API GString *li_mimetype_get(liVRequest *vr, GString *filename);
-
 #endif

@@ -38,6 +38,7 @@ def build(bld):
 		lighttpd_glue.c
 		lighttpd_worker.c
 		log.c
+		mimetype.c
 		network.c
 		network_sendfile.c
 		network_write.c

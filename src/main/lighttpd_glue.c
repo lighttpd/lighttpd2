@@ -180,39 +180,3 @@ void li_http_status_to_str(gint status_code, gchar status_str[]) {
 	status_code /= 10;
 	status_str[0] = status_code + '0';
 }
-
-
-GString *li_mimetype_get(liVRequest *vr, GString *filename) {
-	/* search in mime_types option for the first match */
-	GArray *arr;
-
-	if (!vr || !filename || !filename->len)
-		return NULL;
-
-	arr = CORE_OPTIONPTR(LI_CORE_OPTION_MIME_TYPES).list;
-
-	for (guint i = 0; i < arr->len; i++) {
-		gint k, j;
-		liValue *tuple = g_array_index(arr, liValue*, i);
-		GString *ext = g_array_index(tuple->data.list, liValue*, 0)->data.string;
-		if (ext->len > filename->len)
-			continue;
-
-		/* "" extension matches everything, used for default mimetype */
-		if (!ext->len)
-			return g_array_index(tuple->data.list, liValue*, 1)->data.string;
-
-		k = filename->len - 1;
-		j = ext->len - 1;
-		for (; j >= 0; j--) {
-			if (ext->str[j] != filename->str[k])
-				break;
-			k--;
-		}
-
-		if (j == -1)
-			return g_array_index(tuple->data.list, liValue*, 1)->data.string;
-	}
-
-	return NULL;
-}

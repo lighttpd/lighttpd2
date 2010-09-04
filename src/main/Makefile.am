@@ -24,6 +24,7 @@ lighttpd_shared_src= \
 	http_response_parser.c \
 	lighttpd_glue.c \
 	log.c \
+	mimetype.c \
 	network.c \
 	network_write.c network_writev.c \
 	network_sendfile.c \
