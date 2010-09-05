@@ -1742,14 +1742,12 @@ static const liPluginAngel angelcbs[] = {
 #include <sys/types.h>
 
 static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) {
-	UNUSED(p);
-
-
 #if defined(LIGHTY_OS_LINUX)
 	/* sched_setaffinity is only available on linux */
 	cpu_set_t mask;
 	liValue *v = srv->workers_cpu_affinity;
 	GArray *arr;
+	UNUSED(p);
 
 	if (!v)
 		return;
@@ -1785,7 +1783,7 @@ static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk
 		ERROR(srv, "couldn't set cpu affinity mask for worker #%u: %s", wrk->ndx, g_strerror(errno));
 	}
 #else
-	UNUSED(srv); UNUSED(wrk);
+	UNUSED(srv); UNUSED(wrk); UNUSED(p);
 #endif
 }
 
