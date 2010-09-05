@@ -277,7 +277,7 @@ static void connection_update_io_timeout(liConnection *con) {
 static gboolean connection_try_read(liConnection *con) {
 	liNetworkStatus res;
 
-// 	con->can_read = TRUE;
+	/* con->can_read = TRUE; */
 
 	if (!con->in->is_closed) {
 		goffset transferred;

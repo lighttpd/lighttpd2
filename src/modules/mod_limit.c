@@ -201,8 +201,6 @@ static void mod_limit_vrclose(liVRequest *vr, liPlugin *p) {
 		}
 	}
 
-	//g_ptr_array_index(vr->plugin_ctx, p->id) = NULL;
-	//g_ptr_array_set_size(arr, 0);
 	g_ptr_array_free(arr, TRUE);
 }
 

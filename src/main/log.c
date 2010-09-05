@@ -63,7 +63,7 @@ static liLog *log_open(liServer *srv, GString *path) {
 					int err = errno;
 					GString *str = g_string_sized_new(255);
 					g_string_append_printf(str, "(error) %s.%d: failed to open log file '%s': %s", LI_REMOVE_PATH(__FILE__), __LINE__, path->str, g_strerror(err));
-					//li_log_write_stderr(srv, str->str, TRUE);
+					/* li_log_write_stderr(srv, str->str, TRUE); */
 					g_string_free(str, TRUE);
 					return NULL;
 				}
@@ -269,7 +269,6 @@ gboolean li_log_write(liServer *srv, liVRequest *vr, liLogLevel log_level, guint
 		ev_async_send(srv->logs.loop, &srv->logs.watcher);
 	}
 
-//g_print("log_write: %s -> %s\n", log_line->str, path->str);
 	return TRUE;
 }
 
@@ -350,7 +349,7 @@ static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
 		/* todo: support for other logtargets than files */
 		while (bytes_written < (gssize)msg->len) {
 			write_res = write(log->fd, msg->str + bytes_written, msg->len - bytes_written);
-			//write_res = msg->len;
+			/* write_res = msg->len; */
 
 			/* write() failed, check why */
 			if (write_res == -1) {

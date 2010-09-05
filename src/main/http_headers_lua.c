@@ -183,7 +183,6 @@ static int lua_http_headers_pairs(lua_State *L) {
 	lua_pushcclosure(L, lua_http_headers_next, 3);
 
 	return 1;
-// 	return li_lua_ghashtable_gstring_pairs(L, env->table);
 }
 
 static const luaL_Reg http_headers_mt[] = {

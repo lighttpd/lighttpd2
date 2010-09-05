@@ -110,7 +110,7 @@ static liHandlerResult userdir(liVRequest *vr, gpointer param, gpointer *context
 			return LI_HANDLER_GO_ON;
 		}
 
-		// user found
+		/* user found */
 		g_string_append(vr->physical.doc_root, pwd.pw_dir);
 		g_string_append_c(vr->physical.doc_root, G_DIR_SEPARATOR);
 		has_username = TRUE;
@@ -203,12 +203,12 @@ static liAction* userdir_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 
 	parts = g_array_new(FALSE, FALSE, sizeof(userdir_part));
 
-	// parse pattern
+	/* parse pattern */
 	for (c_last = c = str->str; c != str->str + str->len; c++) {
 		if (*c == '*') {
-			// username
+			/* username */
 			if (c - c_last > 0) {
-				// push last string
+				/* push last string */
 				part.type = USERDIR_PART_STRING;
 				part.data.str = g_string_new_len(c_last, c - c_last);
 				g_array_append_val(parts, part);
@@ -218,9 +218,9 @@ static liAction* userdir_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 			part.type = USERDIR_PART_USERNAME;
 			g_array_append_val(parts, part);
 		} else if (*c == '$' && *(c+1) >= '1' && *(c+2) <= '9') {
-			// letter
+			/* letter */
 			if (c - c_last > 0) {
-				// push last string
+				/* push last string */
 				part.type = USERDIR_PART_STRING;
 				part.data.str = g_string_new_len(c_last, c - c_last);
 				g_array_append_val(parts, part);
@@ -234,7 +234,7 @@ static liAction* userdir_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	}
 
 	if (c - c_last > 0) {
-		// push last string
+		/* push last string */
 		part.type = USERDIR_PART_STRING;
 		part.data.str = g_string_new_len(c_last, c - c_last);
 		g_array_append_val(parts, part);
