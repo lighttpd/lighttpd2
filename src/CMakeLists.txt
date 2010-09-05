@@ -174,6 +174,7 @@ SET(COMMON_SRC
 	encoding.c
 	idlist.c
 	ip_parsers.c
+	jobqueue.c
 	memcached.c
 	mempool.c
 	module.c

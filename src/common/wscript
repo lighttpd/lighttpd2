@@ -23,6 +23,7 @@ def build(bld):
 		encoding.c
 		idlist.c
 		ip_parsers.rl
+		jobqueue.c
 		memcached.c
 		mempool.c
 		module.c

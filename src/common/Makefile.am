@@ -9,6 +9,7 @@ common_src= \
 	encoding.c \
 	idlist.c \
 	ip_parsers.c \
+	jobqueue.c \
 	mempool.c \
 	module.c \
 	radix.c \
