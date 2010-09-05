@@ -136,16 +136,17 @@ liFilter* li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_da
 	return filters_add(&vr->filters_out, handle_data, handle_free, param);
 }
 
+static void vrequest_job_cb(liJob *job) {
+	liVRequest *vr = LI_CONTAINER_OF(job, liVRequest, job);
+	li_vrequest_state_machine(vr);
+}
+
 liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
 	liServer *srv = wrk->srv;
 	liVRequest *vr = g_slice_new0(liVRequest);
 
 	vr->coninfo = coninfo;
 	vr->wrk = wrk;
-	vr->ref = g_slice_new0(liVRequestRef);
-	vr->ref->refcount = 1;
-	vr->ref->vr = vr;
-	vr->ref->wrk = wrk;
 	vr->state = LI_VRS_CLEAN;
 
 	vr->plugin_ctx = g_ptr_array_new();
@@ -183,9 +184,9 @@ liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
 	vr->in_buffer_state.flush_limit = -1; /* wait until upload is complete */
 	vr->in_buffer_state.split_on_file_chunks = FALSE;
 
-	vr->stat_cache_entries = g_ptr_array_sized_new(2);
+	li_job_init(&vr->job, vrequest_job_cb);
 
-	vr->job_queue_link.data = vr;
+	vr->stat_cache_entries = g_ptr_array_sized_new(2);
 
 	li_action_stack_init(&vr->action_stack);
 
@@ -214,10 +215,7 @@ void li_vrequest_free(liVRequest* vr) {
 	li_chunkqueue_free(vr->in);
 	li_filter_buffer_on_disk_reset(&vr->in_buffer_state);
 
-	if (g_atomic_int_get(&vr->queued)) { /* atomic access shouldn't be needed here; no one else can access vr here... */
-		g_queue_unlink(&vr->wrk->job_queue, &vr->job_queue_link);
-		g_atomic_int_set(&vr->queued, 0);
-	}
+	li_job_clear(&vr->job);
 
 	g_slice_free1(srv->option_def_values->len * sizeof(liOptionValue), vr->options);
 	{
@@ -234,11 +232,6 @@ void li_vrequest_free(liVRequest* vr) {
 		li_stat_cache_entry_release(vr, sce);
 	}
 	g_ptr_array_free(vr->stat_cache_entries, TRUE);
-
-	vr->ref->vr = NULL;
-	if (g_atomic_int_dec_and_test(&vr->ref->refcount)) {
-		g_slice_free(liVRequestRef, vr->ref);
-	}
 
 	g_slice_free(liVRequest, vr);
 }
@@ -279,10 +272,7 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 	li_chunkqueue_use_limit(vr->out, vr);
 	li_chunkqueue_set_limit(vr->vr_out, vr->out->limit);
 
-	if (g_atomic_int_get(&vr->queued)) { /* atomic access shouldn't be needed here; no one else can access vr here... */
-		g_queue_unlink(&vr->wrk->job_queue, &vr->job_queue_link);
-		g_atomic_int_set(&vr->queued, 0);
-	}
+	li_job_reset(&vr->job);
 
 	while (vr->stat_cache_entries->len > 0 ) {
 		liStatCacheEntry *sce = g_ptr_array_index(vr->stat_cache_entries, 0);
@@ -302,40 +292,6 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 			}
 		}
 	}
-
-	if (1 != g_atomic_int_get(&vr->ref->refcount)) {
-		/* If we are not the only user of vr->ref we have to get a new one and detach the old */
-		vr->ref->vr = NULL;
-		if (g_atomic_int_dec_and_test(&vr->ref->refcount)) {
-			g_slice_free(liVRequestRef, vr->ref);
-		}
-		vr->ref = g_slice_new0(liVRequestRef);
-		vr->ref->refcount = 1;
-		vr->ref->vr = vr;
-		vr->ref->wrk = vr->wrk;
-	}
-}
-
-liVRequestRef* li_vrequest_get_ref(liVRequest *vr) {
-	liVRequestRef* vr_ref = vr->ref;
-	g_assert(vr_ref->refcount > 0);
-	g_atomic_int_inc(&vr_ref->refcount);
-	return vr_ref;
-}
-
-void li_vrequest_ref_acquire(liVRequestRef *vr_ref) {
-	g_assert(vr_ref->refcount > 0);
-	g_atomic_int_inc(&vr_ref->refcount);
-}
-
-liVRequest* li_vrequest_ref_release(liVRequestRef *vr_ref) {
-	liVRequest *vr = vr_ref->vr;
-	g_assert(vr_ref->refcount > 0);
-	if (g_atomic_int_dec_and_test(&vr_ref->refcount)) {
-		g_assert(vr == NULL); /* we are the last user, and the ref holded by vr itself is handled extra, so the vr was already reset */
-		g_slice_free(liVRequestRef, vr_ref);
-	}
-	return vr;
 }
 
 void li_vrequest_error(liVRequest *vr) {
@@ -647,19 +603,11 @@ void li_vrequest_state_machine(liVRequest *vr) {
 }
 
 void li_vrequest_joblist_append(liVRequest *vr) {
-	liWorker *wrk = vr->wrk;
-	GQueue *const q = &wrk->job_queue;
-	if (!g_atomic_int_compare_and_exchange(&vr->queued, 0, 1)) return; /* already in queue */
-	g_queue_push_tail_link(q, &vr->job_queue_link);
+	li_job_later(&vr->wrk->jobqueue, &vr->job);
 }
 
-void li_vrequest_joblist_append_async(liVRequestRef *vr_ref) {
-	liWorker *wrk = vr_ref->wrk;
-	GAsyncQueue *const q = wrk->job_async_queue;
-	if (NULL == q) return;
-	li_vrequest_ref_acquire(vr_ref);
-	g_async_queue_push(q, vr_ref);
-	ev_async_send(wrk->loop, &wrk->job_async_queue_watcher);
+liJobRef* li_vrequest_get_ref(liVRequest *vr) {
+	return li_job_ref(&vr->wrk->jobqueue, &vr->job);
 }
 
 gboolean li_vrequest_redirect(liVRequest *vr, GString *uri) {

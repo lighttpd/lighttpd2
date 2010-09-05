@@ -6,6 +6,7 @@
 #endif
 
 #include <lighttpd/tasklet.h>
+#include <lighttpd/jobqueue.h>
 
 struct lua_State;
 
@@ -66,8 +67,8 @@ struct liWorker {
 	struct lua_State *L;     /** NULL if compiled without Lua */
 
 	struct ev_loop *loop;
-	ev_prepare loop_prepare;
-	ev_check loop_check;
+	/* ev_prepare loop_prepare; */
+	/* ev_check loop_check; */
 	ev_async worker_stop_watcher, worker_suspend_watcher, worker_exit_watcher;
 
 	GQueue log_queue;
@@ -107,11 +108,7 @@ struct liWorker {
 	ev_async collect_watcher;
 	GAsyncQueue *collect_queue;
 
-	GQueue job_queue;
-	ev_timer job_queue_watcher;
-
-	GAsyncQueue *job_async_queue;
-	ev_async job_async_queue_watcher;
+	liJobQueue jobqueue;
 
 	liTaskletPool *tasklets;
 

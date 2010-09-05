@@ -616,7 +616,7 @@ static const liPluginSetup setups[] = {
 typedef struct {
 	liMemcachedRequest *req;
 	int result_ref; /* table if vr_ref == NULL, callback function otherwise */
-	liVRequestRef *vr_ref;
+	liJobRef *vr_ref;
 	lua_State *L;
 } mc_lua_request;
 
@@ -677,7 +677,7 @@ static void lua_memcache_callback(liMemcachedRequest *request, liMemcachedResult
 
 	if (mreq->vr_ref) {
 		lua_pop(L, 1);
-		li_vrequest_joblist_append_async(mreq->vr_ref);
+		li_job_async(mreq->vr_ref);
 	} else {
 		liServer *srv;
 		int errfunc;
@@ -1028,7 +1028,7 @@ static int lua_memcached_req_gc(lua_State *L) {
 	if (!preq || !*preq) return 0;
 
 	req = *preq;
-	li_vrequest_ref_release(req->vr_ref);
+	li_job_ref_release(req->vr_ref);
 
 	if (req->req) {
 		req->req->callback = NULL;

@@ -13,7 +13,7 @@ struct liSubrequest {
 	int func_notify_ref, func_error_ref;
 
 	liVRequest *vr;
-	liVRequestRef *parentvr_ref;
+	liJobRef *parentvr_ref;
 
 	liConInfo coninfo;
 
@@ -260,7 +260,7 @@ static liHandlerResult subvr_check(liVRequest *vr) {
 	sr->notified_response_headers = sr->have_response_headers;
 
 	if (sr->notified_out_closed) { /* reques done */
-		li_vrequest_joblist_append_async(sr->parentvr_ref);
+		li_job_async(sr->parentvr_ref);
 	}
 
 	return LI_HANDLER_GO_ON;
@@ -357,8 +357,8 @@ static int lua_subrequest_gc(lua_State *L) {
 
 	g_slice_free(liSubrequest, sr);
 
-	li_vrequest_joblist_append_async(sr->parentvr_ref);
-	li_vrequest_ref_release(sr->parentvr_ref);
+	li_job_async(sr->parentvr_ref);
+	li_job_ref_release(sr->parentvr_ref);
 
 	if (dolock) li_lua_lock(srv);
 

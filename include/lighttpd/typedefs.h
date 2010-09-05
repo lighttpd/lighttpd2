@@ -234,8 +234,6 @@ typedef struct liConInfo liConInfo;
 
 typedef struct liVRequest liVRequest;
 
-typedef struct liVRequestRef liVRequestRef;
-
 typedef struct liFilter liFilter;
 
 typedef struct liFilters liFilters;

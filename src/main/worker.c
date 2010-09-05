@@ -168,65 +168,6 @@ static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents)
 	li_waitqueue_update(&wrk->io_timeout_queue);
 }
 
-static void worker_job_queue(liWorker *wrk, int loops) {
-	int i;
-
-	for (i = 0; i < loops; i++) {
-		GQueue q = wrk->job_queue;
-		GList *l;
-		liVRequest *vr;
-
-		if (q.length == 0) return;
-
-		g_queue_init(&wrk->job_queue); /* reset queue, elements are in q */
-
-		while (NULL != (l = g_queue_pop_head_link(&q))) {
-			vr = l->data;
-			g_assert(g_atomic_int_compare_and_exchange(&vr->queued, 1, 0));
-			li_vrequest_state_machine(vr);
-		}
-	}
-
-	if (wrk->job_queue.length > 0) {
-		/* make sure we will run again soon */
-		ev_timer_start(wrk->loop, &wrk->job_queue_watcher);
-	}
-}
-
-/* run vreqest state machine */
-static void li_worker_prepare_cb(struct ev_loop *loop, ev_prepare *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
-	UNUSED(loop);
-	UNUSED(revents);
-
-	worker_job_queue(wrk, 3);
-}
-
-static void worker_job_queue_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	UNUSED(loop);
-	UNUSED(revents);
-	UNUSED(w);
-
-	/* just kept loop alive, call state machines in prepare */
-}
-
-/* run vreqest state machine for async queued jobs */
-static void worker_job_async_queue_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
-	GAsyncQueue *q = wrk->job_async_queue;
-	liVRequestRef *vr_ref;
-	liVRequest *vr;
-	UNUSED(loop);
-	UNUSED(revents);
-
-	while (NULL != (vr_ref = g_async_queue_try_pop(q))) {
-		if (NULL != (vr = li_vrequest_ref_release(vr_ref))) {
-			li_vrequest_state_machine(vr);
-		}
-	}
-}
-
-
 /* cache timestamp */
 GString *li_worker_current_timestamp(liWorker *wrk, liTimeFunc timefunc, guint format_ndx) {
 	gsize len;
@@ -444,11 +385,6 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 			g_array_index(wrk->timestamps_local, liWorkerTS, i).str = g_string_sized_new(255);
 	}
 
-	ev_init(&wrk->loop_prepare, li_worker_prepare_cb);
-	wrk->loop_prepare.data = wrk;
-	ev_prepare_start(wrk->loop, &wrk->loop_prepare);
-	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
-
 	ev_init(&wrk->worker_exit_watcher, li_worker_exit_cb);
 	wrk->worker_exit_watcher.data = wrk;
 	ev_async_start(wrk->loop, &wrk->worker_exit_watcher);
@@ -484,16 +420,7 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	/* throttling */
 	li_waitqueue_init(&wrk->throttle_queue, wrk->loop, li_throttle_cb, THROTTLE_GRANULARITY, wrk);
 
-	/* job queue */
-	g_queue_init(&wrk->job_queue);
-	ev_timer_init(&wrk->job_queue_watcher, worker_job_queue_cb, 0, 0);
-	wrk->job_queue_watcher.data = wrk;
-
-	wrk->job_async_queue = g_async_queue_new();
-	ev_async_init(&wrk->job_async_queue_watcher, worker_job_async_queue_cb);
-	wrk->job_async_queue_watcher.data = wrk;
-	ev_async_start(wrk->loop, &wrk->job_async_queue_watcher);
-	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
+	li_job_queue_init(&wrk->jobqueue, wrk->loop);
 
 	wrk->tasklets = li_tasklet_pool_new(wrk->loop, srv->tasklet_pool_threads);
 
@@ -504,6 +431,8 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 
 void li_worker_free(liWorker *wrk) {
 	if (!wrk) return;
+
+	li_job_queue_clear(&wrk->jobqueue);
 
 	{ /* close connections */
 		guint i;
@@ -528,8 +457,6 @@ void li_worker_free(liWorker *wrk) {
 		g_queue_clear(&wrk->closing_sockets);
 	}
 
-	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->job_async_queue_watcher);
-
 	{ /* free timestamps */
 		guint i;
 		for (i = 0; i < wrk->timestamps_gmt->len; i++) {
@@ -542,23 +469,6 @@ void li_worker_free(liWorker *wrk) {
 
 	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->worker_exit_watcher);
 
-	{
-		GAsyncQueue *q = wrk->job_async_queue;
-		liVRequestRef *vr_ref;
-		liVRequest *vr;
-
-		while (NULL != (vr_ref = g_async_queue_try_pop(q))) {
-			if (NULL != (vr = li_vrequest_ref_release(vr_ref))) {
-				g_assert(g_atomic_int_compare_and_exchange(&vr->queued, 1, 0));
-				li_vrequest_state_machine(vr);
-			}
-		}
-
-		g_async_queue_unref(q);
-		wrk->job_async_queue = NULL;
-	}
-
-
 	g_async_queue_unref(wrk->new_con_queue);
 
 	li_ev_safe_ref_and_stop(ev_timer_stop, wrk->loop, &wrk->stats_watcher);
@@ -566,8 +476,6 @@ void li_worker_free(liWorker *wrk) {
 	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->collect_watcher);
 	li_collect_watcher_cb(wrk->loop, &wrk->collect_watcher, 0);
 	g_async_queue_unref(wrk->collect_queue);
-
-	li_ev_safe_ref_and_stop(ev_prepare_stop, wrk->loop, &wrk->loop_prepare);
 
 	g_string_free(wrk->tmp_str, TRUE);
 

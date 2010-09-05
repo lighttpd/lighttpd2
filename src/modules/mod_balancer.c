@@ -83,7 +83,7 @@ struct bcontext { /* context for a balancer in a vrequest */
 	gint selected; /* selected backend */
 
 	GList backlog_link;
-	liVRequestRef *ref;
+	liJobRef *ref;
 	gboolean scheduled;
 };
 
@@ -164,7 +164,7 @@ static gboolean balancer_fill_backends(balancer *b, liServer *srv, liValue *val)
 static void _balancer_context_backlog_unlink(balancer *b, bcontext *bc) {
 	if (NULL != bc->backlog_link.data) {
 		g_queue_unlink(&b->backlog, &bc->backlog_link);
-		li_vrequest_ref_release(bc->ref);
+		li_job_ref_release(bc->ref);
 		bc->backlog_link.data = NULL;
 		bc->backlog_link.next = bc->backlog_link.prev = NULL;
 	}
@@ -235,10 +235,10 @@ static gboolean _balancer_backlog_schedule(liWorker *wrk, balancer *b) {
 		bc = it->data;
 		bc->scheduled = 1;
 
-		li_vrequest_joblist_append_async(bc->ref);
+		li_job_async(bc->ref);
 
 		g_queue_unlink(&b->backlog, it);
-		li_vrequest_ref_release(bc->ref);
+		li_job_ref_release(bc->ref);
 		it->data = NULL;
 		it->next = it->prev = NULL;
 	}

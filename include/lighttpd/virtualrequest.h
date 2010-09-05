@@ -5,6 +5,8 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
+#include <lighttpd/jobqueue.h>
+
 typedef enum {
 	/* waiting for request headers */
 	LI_VRS_CLEAN,
@@ -85,16 +87,9 @@ struct liFilters {
 	liChunkQueue *in, *out;
 };
 
-struct liVRequestRef {
-	gint refcount;
-	liWorker *wrk;
-	liVRequest *vr; /* This is only accesible by the worker thread the vrequest belongs to, and it may be NULL if the vrequest is already reset */
-};
-
 struct liVRequest {
 	liConInfo *coninfo;
 	liWorker *wrk;
-	liVRequestRef *ref;
 
 	liOptionValue *options;
 	liOptionPtrValue **optionptrs;
@@ -123,8 +118,7 @@ struct liVRequest {
 	liActionStack action_stack;
 	gboolean actions_wait_for_response;
 
-	gint queued;
-	GList job_queue_link;
+	liJob job;
 
 	GPtrArray *stat_cache_entries;
 
@@ -167,10 +161,6 @@ LI_API void li_vrequest_free(liVRequest *vr);
  */
 LI_API void li_vrequest_reset(liVRequest *vr, gboolean keepalive);
 
-LI_API liVRequestRef* li_vrequest_get_ref(liVRequest *vr);
-LI_API void li_vrequest_ref_acquire(liVRequestRef *vr_ref);
-LI_API liVRequest* li_vrequest_ref_release(liVRequestRef *vr_ref);
-
 LI_API liFilter* li_vrequest_add_filter_in(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
 LI_API liFilter* li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
 
@@ -201,7 +191,7 @@ LI_API gboolean li_vrequest_is_handled(liVRequest *vr);
 
 LI_API void li_vrequest_state_machine(liVRequest *vr);
 LI_API void li_vrequest_joblist_append(liVRequest *vr);
-LI_API void li_vrequest_joblist_append_async(liVRequestRef *vr_ref);
+LI_API liJobRef* li_vrequest_get_ref(liVRequest *vr);
 
 LI_API gboolean li_vrequest_redirect(liVRequest *vr, GString *uri);
 
