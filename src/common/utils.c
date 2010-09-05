@@ -861,3 +861,22 @@ void li_apr_sha1_base64(GString *dest, const GString *passwd) {
 
 	g_free(digest_base64);
 }
+
+void li_g_queue_merge(GQueue *dest, GQueue *src) {
+	assert(dest != src);
+	if (g_queue_is_empty(src)) return; /* nothing to do */
+
+	/* if dest is empty, just swap dest / src */
+	if (g_queue_is_empty(dest)) {
+		GQueue tmp = *src; *src = *dest; *dest = tmp;
+	} else {
+		/* link the two "lists", neither of them is empty */
+		dest->tail->next = src->head;
+		src->head->prev = dest->tail;
+		/* update the queue tail and length */
+		dest->tail = src->tail;
+		dest->length += src->length;
+		/* reset src */
+		g_queue_init(src);
+	}
+}

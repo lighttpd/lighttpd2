@@ -103,6 +103,9 @@ LI_API void li_apr_sha1_base64(GString *dest, const GString *passwd);
 INLINE GString* _li_g_string_append_len(GString *s, const gchar *val, gssize len);
 INLINE void li_g_string_clear(GString *s);
 
+/* src will be empty after the merge, and dest' = dest (++) src */
+LI_API void li_g_queue_merge(GQueue *dest, GQueue *src);
+
 /* error log helper functions */
 #define LI_REMOVE_PATH_FROM_FILE 1
 LI_API const char *li_remove_path(const char *path);

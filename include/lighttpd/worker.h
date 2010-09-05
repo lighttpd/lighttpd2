@@ -67,7 +67,7 @@ struct liWorker {
 	struct lua_State *L;     /** NULL if compiled without Lua */
 
 	struct ev_loop *loop;
-	/* ev_prepare loop_prepare; */
+	ev_prepare loop_prepare;
 	/* ev_check loop_check; */
 	ev_async worker_stop_watcher, worker_suspend_watcher, worker_exit_watcher;
 

@@ -733,19 +733,8 @@ goffset li_chunkqueue_steal_all(liChunkQueue *out, liChunkQueue *in) {
 		in->mem_usage = 0;
 	}
 
-	/* if out->queue is empty, just swap in->queue/out->queue */
-	if (g_queue_is_empty(&out->queue)) {
-		GQueue tmp = in->queue; in->queue = out->queue; out->queue = tmp;
-	} else {
-		/* link the two "lists", neither of them is empty */
-		out->queue.tail->next = in->queue.head;
-		in->queue.head->prev = out->queue.tail;
-		/* update the queue tail and length */
-		out->queue.tail = in->queue.tail;
-		out->queue.length += in->queue.length;
-		/* reset in->queue */
-		g_queue_init(&in->queue);
-	}
+	li_g_queue_merge(&out->queue, &in->queue);
+
 	/* count bytes in chunkqueues */
 	len = in->length;
 	in->bytes_out += len;
