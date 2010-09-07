@@ -6,6 +6,8 @@ common_libs = $(GTHREAD_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
 common_ldflags = -module -export-dynamic -avoid-version -no-undefined $(common_libs)
 common_libadd = ../common/liblighttpd2-common.la ../main/liblighttpd2-shared.la
 
+luadir = $(datarootdir)/lighttpd2/lua
+
 AM_CPPFLAGS = $(common_cflags)
 
 install_libs += libmod_access.la
@@ -77,6 +79,7 @@ libmod_limit_la_LIBADD = $(common_libadd)
 
 if USE_LUA
 install_libs += libmod_lua.la
+libmod_lua_la_CPPFLAGS = $(AM_CPPFLAGS) -DDEFAULT_LUADIR='"$(luadir)"'
 libmod_lua_la_SOURCES = mod_lua.c
 libmod_lua_la_LDFLAGS = $(common_ldflags)
 libmod_lua_la_LIBADD = $(common_libadd)

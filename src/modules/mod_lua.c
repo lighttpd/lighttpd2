@@ -43,6 +43,10 @@
 #include <lualib.h>
 #include <lauxlib.h>
 
+#ifndef DEFAULT_LUADIR
+#define DEFAULT_LUADIR "/usr/local/share/lighttpd2/lua"
+#endif
+
 LI_API gboolean mod_lua_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_lua_free(liModules *mods, liModule *mod);
 
@@ -70,6 +74,32 @@ struct lua_config {
 	GList mconf_link;
 	liPlugin *p;
 };
+
+static gboolean lua_find_file(GString *filename) {
+	gboolean res = TRUE;
+	struct stat st;
+
+	if (-1 == stat(filename->str, &st) || !S_ISREG(st.st_mode)) {
+		GString *tmp;
+
+		if (filename->str[0] == '/') return FALSE;
+
+		tmp = g_string_sized_new(0);
+
+		/* try DEFAULT_LUADIR */
+		li_string_assign_len(tmp, CONST_STR_LEN(DEFAULT_LUADIR "/"));
+		g_string_append_len(tmp, GSTR_LEN(filename));
+		if (-1 != stat(tmp->str, &st) && S_ISREG(st.st_mode)) {
+			li_string_assign_len(filename, GSTR_LEN(tmp));
+		} else {
+			res = FALSE;
+		}
+
+		g_string_free(tmp, TRUE);
+	}
+
+	return res;
+}
 
 static liHandlerResult lua_handle(liVRequest *vr, gpointer param, gpointer *context) {
 	lua_config *conf = (lua_config*) param;
@@ -144,10 +174,13 @@ static void lua_config_free(liServer *srv, gpointer param) {
 static lua_config* lua_config_new(liServer *srv, liPlugin *p, GString *filename, guint ttl, liValue *args) {
 	module_config *mc = p->data;
 	lua_config *conf = g_slice_new0(lua_config);
+
 	conf->filename = filename;
 	conf->ttl = ttl;
 	conf->p = p;
 	conf->args = args;
+
+	lua_find_file(filename);
 
 	if (LI_SERVER_INIT != g_atomic_int_get(&srv->state)) {
 		conf->worker_config = g_slice_alloc0(sizeof(lua_worker_config) * srv->worker_count);
@@ -445,6 +478,8 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 	lua_stack_top = lua_gettop(L);
 
 	li_lua_new_globals(L);
+
+	lua_find_file(filename);
 
 	if (0 != luaL_loadfile(L, filename->str)) {
 		ERROR(srv, "Loading lua plugin '%s' failed: %s", filename->str, lua_tostring(L, -1));
