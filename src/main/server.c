@@ -279,7 +279,9 @@ void li_server_free(liServer* srv) {
 	g_array_free(srv->li_plugins_handle_close, TRUE);
 	g_array_free(srv->li_plugins_handle_vrclose, TRUE);
 
+#ifdef LIGHTY_OS_LINUX
 	li_value_free(srv->workers_cpu_affinity);
+#endif
 
 	if (srv->started_str)
 		g_string_free(srv->started_str, TRUE);

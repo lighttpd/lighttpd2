@@ -968,6 +968,7 @@ static gboolean core_workers_cpu_affinity(liServer *srv, liPlugin* p, liValue *v
 
 	return TRUE;
 #else
+	UNUSED(p); UNUSED(val); UNUSED(userdata);
 	ERROR(srv, "%s", "workers.cpu_affinity is only available on Linux systems");
 	return FALSE;
 #endif
