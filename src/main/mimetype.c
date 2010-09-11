@@ -3,9 +3,9 @@
 #include <lighttpd/plugin_core.h>
 
 #define MIME_COUNT_CHILDREN(x)	(x->cmin == 0 ? 0 : ((guint)x->cmax - x->cmin + 1))
-#define MIME_MARK_NODE(x)		((gpointer)((guintptr)x | 1))
-#define MIME_UNMARK_NODE(x)		((gpointer)((guintptr)x & (~1)))
-#define MIME_IS_NODE(x)			((guintptr)x & 1)
+#define MIME_MARK_NODE(x)		((gpointer)((uintptr_t)x | 1))
+#define MIME_UNMARK_NODE(x)		((gpointer)((uintptr_t)x & (~1)))
+#define MIME_IS_NODE(x)			((uintptr_t)x & 1)
 
 LI_API liMimetypeNode *li_mimetype_node_new(void) {
 	return g_slice_new0(liMimetypeNode);

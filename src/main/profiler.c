@@ -42,7 +42,7 @@ static gint profiler_output_fd = 0;
 
 
 static guint profiler_hash(gpointer addr) {
-	return ((guintptr)addr * 2654435761); /* ~ golden ratio of 2^32 */
+	return ((uintptr_t)addr * 2654435761); /* ~ golden ratio of 2^32 */
 }
 
 static profiler_block *profiler_block_new() {
