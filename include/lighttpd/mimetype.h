@@ -2,8 +2,8 @@
 #define _LIGHTTPD_MIMETYPE_H_
 
 struct liMimetypeNode {
-	gchar cmin;
-	gchar cmax;
+	guchar cmin;
+	guchar cmax;
 	gpointer *children; /* array of either liMimetypeNode* or GString* */
 	GString *mimetype;
 };

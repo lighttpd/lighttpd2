@@ -2,10 +2,12 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
+#include <assert.h>
+
 #define MIME_COUNT_CHILDREN(x)	(x->cmin == 0 ? 0 : ((guint)x->cmax - x->cmin + 1))
 #define MIME_MARK_NODE(x)		((gpointer)((uintptr_t)x | 1))
 #define MIME_UNMARK_NODE(x)		((gpointer)((uintptr_t)x & (~1)))
-#define MIME_IS_NODE(x)			((uintptr_t)x & 1)
+#define MIME_IS_NODE(x)			(1 == ((uintptr_t)x & 1))
 
 LI_API liMimetypeNode *li_mimetype_node_new(void) {
 	return g_slice_new0(liMimetypeNode);
@@ -21,7 +23,7 @@ LI_API void li_mimetype_node_free(liMimetypeNode *node) {
 	for (i = 0; i < MIME_COUNT_CHILDREN(node); i++) {
 		ptr = node->children[i];
 
-		if (!ptr)
+		if (NULL == ptr)
 			continue;
 
 		if (!MIME_IS_NODE(ptr)) {
@@ -38,9 +40,10 @@ LI_API void li_mimetype_node_free(liMimetypeNode *node) {
 }
 
 LI_API void li_mimetype_insert(liMimetypeNode *node, GString *suffix, GString *mimetype, guint depth) {
-	gchar c, cdiff;
+	guchar c, cdiff;
 	gpointer ptr;
-	liMimetypeNode *node_new;
+	liMimetypeNode *next_node;
+	assert(!MIME_IS_NODE(mimetype));
 
 	/* start of suffix reached */
 	if (depth == suffix->len) {
@@ -51,9 +54,10 @@ LI_API void li_mimetype_insert(liMimetypeNode *node, GString *suffix, GString *m
 		return;
 	}
 
-	c = suffix->str[suffix->len - depth - 1];
+	c = (guchar) suffix->str[suffix->len - depth - 1];
+	assert(c != '\0');
 
-	if (!node->children) {
+	if (NULL == node->children) {
 		node->cmin = node->cmax = c;
 		node->children = g_malloc(sizeof(gpointer));
 		node->children[0] = mimetype;
@@ -81,24 +85,24 @@ LI_API void li_mimetype_insert(liMimetypeNode *node, GString *suffix, GString *m
 
 	/* slot contains another node */
 	if (MIME_IS_NODE(ptr)) {
-		li_mimetype_insert(MIME_UNMARK_NODE(ptr), suffix, mimetype, depth+1);
-		return;
+		next_node = MIME_UNMARK_NODE(ptr);
+	} else {
+		/* slot contains a mimetype, split into node */
+		next_node = g_slice_new(liMimetypeNode);
+		next_node->mimetype = ptr;
+		next_node->cmax = next_node->cmin = 0;
+		next_node->children = NULL;
+		node->children[c - node->cmin] = MIME_MARK_NODE(next_node);
 	}
 
-	/* slot contains a mimetype, split into node */
-	node_new = g_slice_new(liMimetypeNode);
-	node_new->mimetype = ptr;
-	node_new->cmax = node_new->cmin = suffix->str[suffix->len - depth - 1];
-	node_new->children = g_malloc(sizeof(gpointer));
-	node_new->children[0] = mimetype;
-	node->children[c - node->cmin] = MIME_MARK_NODE(node_new);
+	li_mimetype_insert(next_node, suffix, mimetype, depth+1);
 }
 
 LI_API GString *li_mimetype_get(liVRequest *vr, GString *filename) {
 	/* search in mime_types option for the longest suffix match */
 	GString *mimetype;
 	liMimetypeNode *node;
-	gchar *c;
+	guchar *c, *s;
 	gpointer ptr;
 
 	if (!vr || !filename || !filename->len)
@@ -108,18 +112,24 @@ LI_API GString *li_mimetype_get(liVRequest *vr, GString *filename) {
 
 	mimetype = node->mimetype;
 
-	for (c = filename->str + filename->len - 1; c > filename->str; c--) {
+	for (s = (guchar*) filename->str, c = (guchar*) filename->str + filename->len; c-- > s; ) {
 		if (*c < node->cmin || *c > node->cmax)
 			return mimetype;
 
 		ptr = node->children[*c - node->cmin];
-		if (!ptr)
+		if (NULL == ptr) {
 			return mimetype;
+		}
 
-		if (!MIME_IS_NODE(ptr))
+		if (!MIME_IS_NODE(ptr)) {
 			return ptr;
+		}
 
 		node = MIME_UNMARK_NODE(ptr);
+
+		if (NULL != node->mimetype) {
+			mimetype = node->mimetype;
+		}
 	}
 
 	return mimetype;
