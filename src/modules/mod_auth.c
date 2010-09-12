@@ -22,18 +22,20 @@
  *     auth.debug = <true|false>;
  *         - if set, debug information is written to the log
  * Actions:
- *     auth.plain ["method": method, "realm": realm, "file": path];
+ *     auth.plain ["method": method, "realm": realm, "file": path, "ttl": 10];
  *         - requires authentication using a plaintext file containing user:password pairs seperated by newlines (\n)
- *     auth.htpasswd ["method": method, "realm": realm, "file": path];
+ *     auth.htpasswd ["method": method, "realm": realm, "file": path, "ttl": 10];
  *         - requires authentication using a htpasswd file containing user:encrypted_password pairs seperated by newlines (\n)
  *         - passwords are encrypted using crypt(3), use the htpasswd binary from apache to manage the file
  *           + hashes starting with "$apr1$" are NOT supported (htpasswd -m)
  *           + hashes starting with "{SHA}" ARE supported (followed by sha1_base64(password), htpasswd -s)
  *         - only supports "basic" method
- *     auth.htdigest ["method": method, "realm": realm, "file": path];
+ *     auth.htdigest ["method": method, "realm": realm, "file": path, "ttl": 10];
  *         - requires authentication using a htdigest file containing user:realm:hashed_password tuples seperated by newlines (\n)
  *         - passwords are saved as (modified) md5 hashes:
  *             md5hex(username + ":" + realm + ":" + password)
+ *
+ *     ttl specifies how often lighty checks the files for modifications (in seconds), 0 means it will never check after the first load.
  *
  *     auth.deny;
  *         - handles request with "401 Unauthorized"
@@ -51,8 +53,6 @@
  *
  * Todo:
  *     - method: digest
- *     - anti bruteforce protection
- *     - auth.deny ( using env[] "REMOTE_METHOD"/"REMOTE_REALM"/...? )
  *
  * Author:
  *     Copyright (c) 2009 Thomas Porzelt
@@ -86,26 +86,38 @@ struct AuthBasicData {
 
 typedef struct AuthFileData AuthFileData;
 struct AuthFileData {
-	GString *path;
-	gboolean has_realm;
+	int refcount;
 
 	GHashTable *users; /* doesn't use own strings, the strings are in contents */
 	gchar *contents;
-
-	ev_tstamp last_check; /* unused */
 };
 
-static gboolean auth_file_update(liServer *srv, AuthFileData *data) {
+typedef struct AuthFile AuthFile;
+struct AuthFile {
+	GString *path;
+	gboolean has_realm;
+
+	GMutex *lock;
+
+	AuthFileData *data;
+	ev_tstamp last_stat;
+
+	gint ttl;
+	ev_tstamp next_check; /* unused */
+};
+
+static AuthFileData* auth_file_load(liServer *srv, AuthFile *f) {
 	GHashTable *users;
 	gchar *contents;
 	gchar *c;
 	gchar *username, *password;
 	GError *err = NULL;
+	AuthFileData *data = NULL;
 
-	if (!g_file_get_contents(data->path->str, &contents, NULL, &err)) {
-		ERROR(srv, "failed to load auth file \"%s\": %s", data->path->str, err->message);
+	if (!g_file_get_contents(f->path->str, &contents, NULL, &err)) {
+		ERROR(srv, "failed to load auth file \"%s\": %s", f->path->str, err->message);
 		g_error_free(err);
-		return FALSE;
+		return NULL;
 	}
 
 	users = g_hash_table_new((GHashFunc) g_str_hash, (GEqualFunc) g_str_equal);
@@ -135,98 +147,148 @@ static gboolean auth_file_update(liServer *srv, AuthFileData *data) {
 
 		if (!password) {
 			/* missing delimiter for user:pass => bogus file */
-			ERROR(srv, "failed to parse auth file \"%s\", missing user:password delimiter", data->path->str);
+			ERROR(srv, "failed to parse auth file \"%s\", missing user:password delimiter", f->path->str);
 			goto cleanup_fail;
 		}
 
 		/* file is of type htdigest (user:realm:pass) */
-		if (data->has_realm && !found_realm) {
+		if (f->has_realm && !found_realm) {
 			/* missing delimiter for realm:pass => bogus file */
-			ERROR(srv, "failed to parse auth file \"%s\", missing realm:password delimiter", data->path->str);
+			ERROR(srv, "failed to parse auth file \"%s\", missing realm:password delimiter", f->path->str);
 			goto cleanup_fail;
 		}
 
 		g_hash_table_insert(users, username, password);
 	}
 
-	/* TODO: protect update with locks? */
-	if (data->contents) {
-		g_free(data->contents);
-		g_hash_table_destroy(data->users);
-	}
+	data = g_slice_new(AuthFileData);
+	data->refcount = 1;
 	data->contents = contents;
 	data->users = users;
 
-	return TRUE;
+	return data;
 
 cleanup_fail:
 	g_hash_table_destroy(users);
 	g_free(contents);
-	return FALSE;
+	return NULL;
 }
 
-static void auth_file_free(AuthFileData* data) {
-	g_string_free(data->path, TRUE);
-	if (data->contents) {
-		g_free(data->contents);
-		g_hash_table_destroy(data->users);
-	}
+static void auth_file_data_release(AuthFileData *data) {
+	if (!data) return;
+	assert(g_atomic_int_get(&data->refcount) > 0);
+	if (!g_atomic_int_dec_and_test(&data->refcount)) return;
 
+	g_hash_table_destroy(data->users);
+	g_free(data->contents);
 	g_slice_free(AuthFileData, data);
 }
 
-static AuthFileData* auth_file_new(liServer *srv, const GString *path, gboolean has_realm) {
-	AuthFileData* data = g_slice_new0(AuthFileData);
-	data->path = g_string_new_len(GSTR_LEN(path));
-	data->has_realm = has_realm;
+static AuthFileData* auth_file_get_data(liWorker *wrk, AuthFile *f) {
+	ev_tstamp now = ev_now(wrk->loop);
+	AuthFileData *data = NULL;
 
-	if (!auth_file_update(srv, data)) {
-		auth_file_free(data);
-		return NULL;
+	g_mutex_lock(f->lock);
+
+	if (f->ttl != 0 && now >= f->next_check) {
+		struct stat st;
+		f->next_check = now + f->ttl;
+
+		if (-1 != stat(f->path->str, &st) && st.st_mtime >= f->last_stat - 1) {
+			g_mutex_unlock(f->lock);
+
+			/* update without lock held */
+			data = auth_file_load(wrk->srv, f);
+
+			g_mutex_lock(f->lock);
+
+			if (NULL != data) {
+				auth_file_data_release(f->data);
+				f->data = data;
+			}
+		}
+
+		f->last_stat = now;
 	}
+
+	data = f->data;
+	if (NULL != data) g_atomic_int_inc(&data->refcount);
+
+	g_mutex_unlock(f->lock);
 
 	return data;
 }
 
+static void auth_file_free(AuthFile* f) {
+	g_string_free(f->path, TRUE);
+
+	auth_file_data_release(f->data);
+	g_mutex_free(f->lock);
+
+	g_slice_free(AuthFile, f);
+}
+
+static AuthFile* auth_file_new(liWorker *wrk, const GString *path, gboolean has_realm, gint ttl) {
+	AuthFile* f = g_slice_new0(AuthFile);
+	f->path = g_string_new_len(GSTR_LEN(path));
+	f->has_realm = has_realm;
+	f->ttl = ttl;
+	f->next_check = ev_now(wrk->loop) + ttl;
+
+	if (NULL == (f->data = auth_file_load(wrk->srv, f))) {
+		auth_file_free(f);
+		return NULL;
+	}
+
+	return f;
+}
+
 static gboolean auth_backend_plain(liVRequest *vr, const GString *username, const GString *password, AuthBasicData *bdata) {
 	const char *pass;
-	AuthFileData *afd = bdata->data;
+	AuthFileData *afd = auth_file_get_data(vr->wrk, bdata->data);
+	gboolean res = FALSE;
 
-	UNUSED(vr);
+	if (NULL == afd) return FALSE;
 
 	/* unknown user? */
 	if (!(pass = g_hash_table_lookup(afd->users, username->str))) {
-		return FALSE;
+		goto out;
 	}
 
 	/* wrong password? */
 	if (!g_str_equal(password->str, pass)) {
-		return FALSE;
+		goto out;
 	}
 
-	return TRUE;
+	res = TRUE;
+
+out:
+	auth_file_data_release(afd);
+
+	return res;
 }
 
 static gboolean auth_backend_htpasswd(liVRequest *vr, const GString *username, const GString *password, AuthBasicData *bdata) {
 	const char *pass;
-	AuthFileData *afd = bdata->data;
+	AuthFileData *afd = auth_file_get_data(vr->wrk, bdata->data);
+	gboolean res = FALSE;
 
-	UNUSED(vr);
+	if (NULL == afd) return FALSE;
 
 	/* unknown user? */
 	if (!(pass = g_hash_table_lookup(afd->users, username->str))) {
-		return FALSE;
+		goto out;
 	}
 
 	if (g_str_has_prefix(pass, "$apr1$")) {
 		/* We don't support this stupid method. Run around your house 1000 times and use sha1 next time */
-		return FALSE;
+		goto out;
 	} else
 	if (g_str_has_prefix(pass, "{SHA}")) {
 		li_apr_sha1_base64(vr->wrk->tmp_str, password);
 
 		if (g_str_equal(password->str, vr->wrk->tmp_str->str)) {
-			return TRUE;
+			goto out;
 		}
 	}
 #ifdef HAVE_CRYPT_R
@@ -238,25 +300,30 @@ static gboolean auth_backend_htpasswd(liVRequest *vr, const GString *username, c
 		crypted = crypt_r(password->str, pass, &buffer);
 
 		if (g_str_equal(pass, crypted)) {
-			return TRUE;
+			goto out;
 		}
 	}
 #endif
 
-	return FALSE;
+	res = TRUE;
+
+out:
+	auth_file_data_release(afd);
+
+	return res;
 }
 
 static gboolean auth_backend_htdigest(liVRequest *vr, const GString *username, const GString *password, AuthBasicData *bdata) {
 	const char *pass, *realm;
-	AuthFileData *afd = bdata->data;
+	AuthFileData *afd = auth_file_get_data(vr->wrk, bdata->data);
 	GChecksum *md5sum;
-	gboolean res;
+	gboolean res = FALSE;
 
-	UNUSED(vr);
+	if (NULL == afd) return FALSE;
 
 	/* unknown user? */
 	if (!(pass = g_hash_table_lookup(afd->users, username->str))) {
-		return FALSE;
+		goto out;
 	}
 
 	realm = pass;
@@ -264,7 +331,7 @@ static gboolean auth_backend_htdigest(liVRequest *vr, const GString *username, c
 
 	/* no realm/wrong realm? */
 	if (NULL == pass || 0 != strncmp(realm, bdata->realm->str, bdata->realm->len)) {
-		return FALSE;
+		goto out;
 	}
 	pass++;
 
@@ -275,13 +342,15 @@ static gboolean auth_backend_htdigest(liVRequest *vr, const GString *username, c
 	g_checksum_update(md5sum, CONST_USTR_LEN(":"));
 	g_checksum_update(md5sum, GUSTR_LEN(password));
 
-	res = TRUE;
 	/* wrong password? */
-	if (!g_str_equal(pass, g_checksum_get_string(md5sum))) {
-		res = FALSE;
+	if (g_str_equal(pass, g_checksum_get_string(md5sum))) {
+		res = TRUE;
 	}
 
 	g_checksum_free(md5sum);
+
+out:
+	auth_file_data_release(afd);
 
 	return res;
 }
@@ -375,7 +444,7 @@ static liHandlerResult auth_basic(liVRequest *vr, gpointer param, gpointer *cont
 
 static void auth_basic_free(liServer *srv, gpointer param) {
 	AuthBasicData *bdata = param;
-	AuthFileData *afd = bdata->data;
+	AuthFile *afd = bdata->data;
 
 	UNUSED(srv);
 
@@ -385,25 +454,60 @@ static void auth_basic_free(liServer *srv, gpointer param) {
 	g_slice_free(AuthBasicData, bdata);
 }
 
-static liAction* auth_generic_create(liServer *srv, liPlugin* p, liValue *val, const char *actname, AuthBasicBackend basic_action, gboolean has_realm) {
-	AuthFileData *afd;
-	liValue *method, *realm, *file;
-	GString str;
+/* auth option names */
+static const GString
+	aon_method = { CONST_STR_LEN("method"), 0 },
+	aon_realm = { CONST_STR_LEN("realm"), 0 },
+	aon_file = { CONST_STR_LEN("file"), 0 },
+	aon_ttl = { CONST_STR_LEN("ttl"), 0 }
+;
 
+static liAction* auth_generic_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, const char *actname, AuthBasicBackend basic_action, gboolean has_realm) {
+	AuthFile *afd;
+	liValue *method = NULL, *realm = NULL, *file = NULL;
+	gint ttl = 10;
 
-	if (!val || val->type != LI_VALUE_HASH || g_hash_table_size(val->data.hash) != 3) {
-		ERROR(srv, "%s expects a hashtable with 3 elements: method, realm and file", actname);
+	GHashTableIter it;
+	gpointer pkey, pvalue;
+
+	if (!val || val->type != LI_VALUE_HASH) {
+		ERROR(srv, "%s expects a hashtable with at least 3 elements: method, realm and file", actname);
 		return NULL;
 	}
 
-	str = li_const_gstring(CONST_STR_LEN("method"));
-	method = g_hash_table_lookup(val->data.hash, &str);
-	str = li_const_gstring(CONST_STR_LEN("realm"));
-	realm = g_hash_table_lookup(val->data.hash, &str);
-	str = li_const_gstring(CONST_STR_LEN("file"));
-	file = g_hash_table_lookup(val->data.hash, &str);
+	g_hash_table_iter_init(&it, val->data.hash);
+	while (g_hash_table_iter_next(&it, &pkey, &pvalue)) {
+		GString *key = pkey;
+		liValue *value = pvalue;
 
-	if (!method || method->type != LI_VALUE_STRING || !realm || realm->type != LI_VALUE_STRING || !file || file->type != LI_VALUE_STRING) {
+		if (g_string_equal(key, &aon_method)) {
+			if (value->type != LI_VALUE_STRING) {
+				ERROR(srv, "auth option '%s' expects string as parameter", aon_method.str);
+				return NULL;
+			}
+			method = value;
+		} else if (g_string_equal(key, &aon_realm)) {
+			if (value->type != LI_VALUE_STRING) {
+				ERROR(srv, "auth option '%s' expects string as parameter", aon_realm.str);
+				return NULL;
+			}
+			realm = value;
+		} else if (g_string_equal(key, &aon_file)) {
+			if (value->type != LI_VALUE_STRING) {
+				ERROR(srv, "auth option '%s' expects string as parameter", aon_file.str);
+				return NULL;
+			}
+			file = value;
+		} else if (g_string_equal(key, &aon_ttl)) {
+			if (value->type != LI_VALUE_NUMBER || value->data.number < 0) {
+				ERROR(srv, "auth option '%s' expects non-negative number as parameter", aon_ttl.str);
+				return NULL;
+			}
+			ttl = value->data.number;
+		}
+	}
+
+	if (NULL == method || NULL == realm || NULL == file) {
 		ERROR(srv, "%s expects a hashtable with 3 elements: method, realm and file", actname);
 		return NULL;
 	}
@@ -419,7 +523,7 @@ static liAction* auth_generic_create(liServer *srv, liPlugin* p, liValue *val, c
 	}
 
 	/* load users from file */
-	afd = auth_file_new(srv, file->data.string, has_realm);
+	afd = auth_file_new(wrk, file->data.string, has_realm, ttl);
 
 	if (!afd)
 		return FALSE;
@@ -442,18 +546,18 @@ static liAction* auth_generic_create(liServer *srv, liPlugin* p, liValue *val, c
 
 
 static liAction* auth_plain_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(wrk); UNUSED(userdata);
-	return auth_generic_create(srv, p, val, "auth.plain", auth_backend_plain, FALSE);
+	UNUSED(srv); UNUSED(userdata);
+	return auth_generic_create(srv, wrk, p, val, "auth.plain", auth_backend_plain, FALSE);
 }
 
 static liAction* auth_htpasswd_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(wrk); UNUSED(userdata);
-	return auth_generic_create(srv, p, val, "auth.htpasswd", auth_backend_htpasswd, FALSE);
+	UNUSED(srv); UNUSED(userdata);
+	return auth_generic_create(srv, wrk, p, val, "auth.htpasswd", auth_backend_htpasswd, FALSE);
 }
 
 static liAction* auth_htdigest_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(wrk); UNUSED(userdata);
-	return auth_generic_create(srv, p, val, "auth.htdigest", auth_backend_htdigest, TRUE);
+	UNUSED(srv); UNUSED(userdata);
+	return auth_generic_create(srv, wrk, p, val, "auth.htdigest", auth_backend_htdigest, TRUE);
 }
 
 static liHandlerResult auth_handle_deny(liVRequest *vr, gpointer param, gpointer *context) {
