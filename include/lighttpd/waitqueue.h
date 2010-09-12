@@ -24,6 +24,7 @@ struct liWaitQueue {
 
 	liWaitQueueCB callback;
 	gpointer data;
+	guint length;
 };
 
 /*
@@ -58,8 +59,5 @@ LI_API guint li_waitqueue_pop_ready(liWaitQueue *queue, liWaitQueueElem **head);
 
 /* removes an element from the queue */
 LI_API void li_waitqueue_remove(liWaitQueue *queue, liWaitQueueElem *elem);
-
-/* returns the length of the queue */
-LI_API guint li_waitqueue_length(liWaitQueue *queue);
 
 #endif

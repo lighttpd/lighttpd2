@@ -15,9 +15,9 @@ void li_waitqueue_init(liWaitQueue *queue, struct ev_loop *loop, liWaitQueueCB c
 	queue->head = queue->tail = NULL;
 	queue->loop = loop;
 	queue->delay = delay;
-
 	queue->callback = callback;
 	queue->data = data;
+	queue->length = 0;
 }
 
 void li_waitqueue_stop(liWaitQueue *queue) {
@@ -61,7 +61,8 @@ void li_waitqueue_push(liWaitQueue *queue, liWaitQueueElem *elem) {
 	if (!elem->queued) {
 		/* not in the queue yet, insert at the end */
 		elem->queued = TRUE;
-		
+		queue->length++;
+
 		if (!queue->head) {
 			/* queue is empty */
 			queue->head = elem;
@@ -84,7 +85,7 @@ void li_waitqueue_push(liWaitQueue *queue, liWaitQueueElem *elem) {
 			queue->head = elem->next;
 		else
 			elem->prev->next = elem->next;
-		
+
 		elem->next->prev = elem->prev;
 		elem->prev = queue->tail;
 		elem->next = NULL;
@@ -110,6 +111,7 @@ liWaitQueueElem *li_waitqueue_pop(liWaitQueue *queue) {
 		elem->next->prev = NULL;
 
 	queue->head = elem->next;
+	queue->length--;
 
 	elem->ts = 0;
 	elem->queued = FALSE;
@@ -130,6 +132,7 @@ liWaitQueueElem *li_waitqueue_pop_force(liWaitQueue *queue) {
 		elem->next->prev = NULL;
 
 	queue->head = elem->next;
+	queue->length--;
 
 	elem->ts = 0;
 	elem->queued = FALSE;
@@ -153,22 +156,10 @@ void li_waitqueue_remove(liWaitQueue *queue, liWaitQueueElem *elem) {
 
 	elem->ts = 0;
 	elem->queued = FALSE;
+	queue->length--;
 
 	if (G_UNLIKELY(!queue->head))
 		ev_timer_stop(queue->loop, &queue->timer);
-}
-
-
-guint li_waitqueue_length(liWaitQueue *queue) {
-	guint i = 0;
-	liWaitQueueElem *elem = queue->head;
-
-	while (elem) {
-		i++;
-		elem = elem->next;
-	}
-
-	return i;
 }
 
 guint li_waitqueue_pop_ready(liWaitQueue *queue, liWaitQueueElem **head) {
@@ -192,6 +183,7 @@ guint li_waitqueue_pop_ready(liWaitQueue *queue, liWaitQueueElem **head) {
 		elem->ts = 0;
 		elem->queued = FALSE;
 		elem = elem->next;
+		queue->length--;
 		i++;
 	}
 
