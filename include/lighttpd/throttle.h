@@ -21,7 +21,7 @@ struct liThrottleParam {
 };
 
 LI_API void li_throttle_reset(liVRequest *vr);
-LI_API void li_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents);
+LI_API void li_throttle_cb(liWaitQueue *wq, gpointer data);
 
 LI_API liThrottlePool *li_throttle_pool_new(liServer *srv, GString *name, guint rate);
 LI_API void li_throttle_pool_free(liServer *srv, liThrottlePool *pool);

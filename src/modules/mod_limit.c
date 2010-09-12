@@ -148,13 +148,11 @@ static void mod_limit_context_free(liServer *srv, mod_limit_context *ctx) {
 	g_slice_free(mod_limit_context, ctx);
 }
 
-static void mod_limit_timeout_callback(struct ev_loop *loop, ev_async *w, int revents) {
-	liWaitQueue *wq = (liWaitQueue*) w->data;
+static void mod_limit_timeout_callback(liWaitQueue *wq, gpointer data) {
 	liWaitQueueElem *wqe;
 	mod_limit_req_ip_data *rid;
 
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(data);
 
 	while ((wqe = li_waitqueue_pop(wq)) != NULL) {
 		rid = wqe->data;
@@ -411,7 +409,7 @@ static void mod_limit_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) 
 		mld = p->data;
 	}
 
-	li_waitqueue_init(&(mld->timeout_queues[wrk->ndx]), wrk->loop, (liWaitQueueCB)mod_limit_timeout_callback, 1.0, &(mld->timeout_queues[wrk->ndx]));
+	li_waitqueue_init(&(mld->timeout_queues[wrk->ndx]), wrk->loop, mod_limit_timeout_callback, 1.0, NULL);
 }
 
 static void plugin_limit_free(liServer *srv, liPlugin *p) {

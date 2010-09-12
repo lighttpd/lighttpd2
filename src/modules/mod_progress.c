@@ -112,13 +112,10 @@ typedef struct mod_progress_job mod_progress_job;
 /* global data */
 static mod_progress_data progress_data;
 
-static void progress_timeout_callback(struct ev_loop *loop, ev_async *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
-	liWaitQueue *wq = &progress_data.timeout_queues[wrk->ndx];
+static void progress_timeout_callback(liWaitQueue *wq, gpointer data) {
+	liWorker *wrk = data;
 	liWaitQueueElem *wqe;
 	mod_progress_node *node;
-	UNUSED(loop);
-	UNUSED(revents);
 
 	while ((wqe = li_waitqueue_pop(wq)) != NULL) {
 		node = wqe->data;
@@ -494,7 +491,7 @@ static void progress_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) {
 	}
 
 	progress_data.hash_tables[wrk->ndx] = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, progress_hashtable_free_callback);
-	li_waitqueue_init(&(progress_data.timeout_queues[wrk->ndx]), wrk->loop, (liWaitQueueCB)progress_timeout_callback, progress_data.ttl, wrk);
+	li_waitqueue_init(&(progress_data.timeout_queues[wrk->ndx]), wrk->loop, progress_timeout_callback, progress_data.ttl, wrk);
 }
 
 

@@ -104,19 +104,16 @@ static void log_close(liServer *srv, liLog *log) {
 	g_slice_free(liLog, log);
 }
 
-static void log_close_cb(struct ev_loop *loop, struct ev_timer *w, int revents) {
+static void log_close_cb(liWaitQueue *wq, gpointer data) {
 	/* callback for the close queue */
-	liServer *srv = (liServer*) w->data;
+	liServer *srv = (liServer*) data;
 	liWaitQueueElem *wqe;
 
-	UNUSED(loop);
-	UNUSED(revents);
-
-	while ((wqe = li_waitqueue_pop(&srv->logs.close_queue)) != NULL) {
+	while ((wqe = li_waitqueue_pop(wq)) != NULL) {
 		log_close(srv, wqe->data);
 	}
 
-	li_waitqueue_update(&srv->logs.close_queue);
+	li_waitqueue_update(wq);
 }
 
 void li_log_init(liServer *srv) {

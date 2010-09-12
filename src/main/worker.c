@@ -144,16 +144,13 @@ static void worker_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 }
 
 /* check for timeouted connections */
-static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
+static void worker_io_timeout_cb(liWaitQueue *wq, gpointer data) {
+	liWorker *wrk = data;
 	liConnection *con;
 	liWaitQueueElem *wqe;
 	ev_tstamp now = CUR_TS(wrk);
 
-	UNUSED(loop);
-	UNUSED(revents);
-
-	while ((wqe = li_waitqueue_pop(&wrk->io_timeout_queue)) != NULL) {
+	while ((wqe = li_waitqueue_pop(wq)) != NULL) {
 		liVRequest *vr;
 		/* connection has timed out */
 		con = wqe->data;
@@ -165,7 +162,7 @@ static void worker_io_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents)
 		li_worker_con_put(con);
 	}
 
-	li_waitqueue_update(&wrk->io_timeout_queue);
+	li_waitqueue_update(wq);
 }
 
 /* cache timestamp */

@@ -1,13 +1,23 @@
 
 #include <lighttpd/waitqueue.h>
 
-void li_waitqueue_init(liWaitQueue *queue, struct ev_loop *loop, liWaitQueueCB callback, gdouble delay, gpointer data) {
-	ev_timer_init(&queue->timer, callback, delay, delay);
+static void wq_cb(struct ev_loop *loop, ev_timer *w, int revents) {
+	liWaitQueue *queue = w->data;
+	UNUSED(loop); UNUSED(revents);
 
-	queue->timer.data = data;
+	queue->callback(queue, queue->data);
+}
+
+void li_waitqueue_init(liWaitQueue *queue, struct ev_loop *loop, liWaitQueueCB callback, gdouble delay, gpointer data) {
+	ev_timer_init(&queue->timer, wq_cb, delay, delay);
+
+	queue->timer.data = queue;
 	queue->head = queue->tail = NULL;
 	queue->loop = loop;
 	queue->delay = delay;
+
+	queue->callback = callback;
+	queue->data = data;
 }
 
 void li_waitqueue_stop(liWaitQueue *queue) {

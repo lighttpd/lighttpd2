@@ -151,7 +151,7 @@ void li_throttle_reset(liVRequest *vr) {
 	vr->throttled = FALSE;
 }
 
-void li_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
+void li_throttle_cb(liWaitQueue *wq, gpointer data) {
 	liWaitQueueElem *wqe;
 	liThrottlePool *pool;
 	liVRequest *vr;
@@ -159,12 +159,10 @@ void li_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	ev_tstamp now;
 	guint supply;
 
-	UNUSED(revents);
+	wrk = data;
+	now = ev_now(wrk->loop);
 
-	wrk = w->data;
-	now = ev_now(loop);
-
-	while (NULL != (wqe = li_waitqueue_pop(&wrk->throttle_queue))) {
+	while (NULL != (wqe = li_waitqueue_pop(wq))) {
 		vr = wqe->data;
 
 		if (vr->throttle.pool.ptr) {
@@ -191,7 +189,7 @@ void li_throttle_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 		vr->coninfo->callbacks->handle_check_io(vr);
 	}
 
-	li_waitqueue_update(&wrk->throttle_queue);
+	li_waitqueue_update(wq);
 }
 
 void li_throttle_update(liVRequest *vr, goffset transferred, goffset write_max) {

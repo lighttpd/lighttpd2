@@ -4,7 +4,7 @@
 
 #include <lighttpd/plugin_core.h>
 
-static void stat_cache_delete_cb(struct ev_loop *loop, ev_timer *w, int revents);
+static void stat_cache_delete_cb(liWaitQueue *wq, gpointer daa);
 
 static void stat_cache_entry_release(liStatCacheEntry *sce);
 static void stat_cache_entry_acquire(liStatCacheEntry *sce);
@@ -62,21 +62,18 @@ void li_stat_cache_free(liStatCache *sc) {
 	g_slice_free(liStatCache, sc);
 }
 
-static void stat_cache_delete_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	liStatCache *sc = (liStatCache*) w->data;
+static void stat_cache_delete_cb(liWaitQueue *wq, gpointer data) {
+	liStatCache *sc = data;
 	liWaitQueueElem *wqe;
 
-	UNUSED(loop);
-	UNUSED(revents);
-
-	while ((wqe = li_waitqueue_pop(&sc->delete_queue)) != NULL) {
+	while ((wqe = li_waitqueue_pop(wq)) != NULL) {
 		liStatCacheEntry *sce = wqe->data;
 
 		/* stat cache entry TTL over */
 		stat_cache_remove_from_cache(sc, sce);
 	}
 
-	li_waitqueue_update(&sc->delete_queue);
+	li_waitqueue_update(wq);
 }
 
 static void stat_cache_finished(gpointer data) {

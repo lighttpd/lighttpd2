@@ -5,7 +5,7 @@
 
 typedef struct liWaitQueueElem liWaitQueueElem;
 typedef struct liWaitQueue liWaitQueue;
-typedef void (*liWaitQueueCB) (struct ev_loop *loop, struct ev_timer *w, int revents);
+typedef void (*liWaitQueueCB) (liWaitQueue *wq, gpointer data);
 
 struct liWaitQueueElem {
 	gboolean queued;
@@ -21,6 +21,9 @@ struct liWaitQueue {
 	ev_timer timer;
 	struct ev_loop *loop;
 	gdouble delay;
+
+	liWaitQueueCB callback;
+	gpointer data;
 };
 
 /*
