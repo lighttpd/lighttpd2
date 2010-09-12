@@ -493,6 +493,8 @@ gboolean li_plugin_set_default_option(liServer* srv, const gchar* name, liValue*
 			return FALSE;
 		}
 
+		li_release_optionptr(srv, g_array_index(srv->optionptr_def_values, liOptionPtrValue*, soptptr->index));
+
 		g_array_index(srv->optionptr_def_values, liOptionPtrValue*, soptptr->index) = setting.value;
 	} else {
 		ERROR(srv, "unknown option \"%s\"", name);
