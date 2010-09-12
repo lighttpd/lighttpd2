@@ -1500,7 +1500,6 @@ static liHandlerResult core_handle_throttle_pool(liVRequest *vr, gpointer param,
 
 static liAction* core_throttle_pool(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	GString *name;
-	guint i;
 	liThrottlePool *pool = NULL;
 	gint64 rate;
 
@@ -1520,11 +1519,10 @@ static liAction* core_throttle_pool(liServer *srv, liWorker *wrk, liPlugin* p, l
 			return NULL;
 		}
 
-		name = g_array_index(val->data.list, liValue*, 0)->data.string;
 		rate = g_array_index(val->data.list, liValue*, 1)->data.number;
 
 		if (rate && rate < (32*1024)) {
-			ERROR(srv, "io.throttle_pool: rate %"G_GINT64_FORMAT" is too low (32kbyte/s minimum or 0 for unlimited)", rate);
+			ERROR(srv, "io.throttle_pool: rate %"G_GINT64_FORMAT" is too low (32kbyte/s minimum)", rate);
 			return NULL;
 		}
 
@@ -1532,34 +1530,23 @@ static liAction* core_throttle_pool(liServer *srv, liWorker *wrk, liPlugin* p, l
 			ERROR(srv, "io.throttle_pool: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", rate);
 			return NULL;
 		}
+
+		name = li_value_extract_string(g_array_index(val->data.list, liValue*, 0));
 	} else {
-		name = val->data.string;
+		name = li_value_extract_string(val);
 		rate = 0;
 	}
 
-	for (i = 0; i < srv->throttle_pools->len; i++) {
-		if (g_string_equal(g_array_index(srv->throttle_pools, liThrottlePool*, i)->name, name)) {
-			/* pool already defined */
-			if (val->type == LI_VALUE_LIST && g_array_index(srv->throttle_pools, liThrottlePool*, i)->rate != (guint)rate) {
-				ERROR(srv, "io.throttle_pool: pool '%s' already defined but with different rate (%ukbyte/s)", name->str,
-					g_array_index(srv->throttle_pools, liThrottlePool*, i)->rate);
-				return NULL;
-			}
-
-			pool = g_array_index(srv->throttle_pools, liThrottlePool*, i);
-			break;
-		}
-	}
+	pool = li_throttle_pool_new(srv, name, rate);
 
 	if (!pool) {
-		/* pool not yet defined */
-		if (val->type == LI_VALUE_STRING) {
-			ERROR(srv, "io.throttle_pool: rate for pool '%s' hasn't been defined", name->str);
-			return NULL;
-		}
+		ERROR(srv, "io.throttle_pool: rate for pool '%s' hasn't been defined", name->str);
+		return NULL;
+	}
 
-		pool = li_throttle_pool_new(srv, li_value_extract_string(g_array_index(val->data.list, liValue*, 0)), (guint)rate);
-		g_array_append_val(srv->throttle_pools, pool);
+	if (rate != pool->rate && rate != 0) {
+		ERROR(srv, "io.throttle_pool: pool '%s' already defined but with different rate (%ukbyte/s)", pool->name->str, pool->rate);
+		return NULL;
 	}
 
 	return li_action_new_function(core_handle_throttle_pool, NULL, NULL, pool);
@@ -1581,7 +1568,7 @@ static liHandlerResult core_handle_throttle_connection(liVRequest *vr, gpointer 
 	vr->throttled = TRUE;
 
 	if (vr->throttle.pool.magazine) {
-		guint supply = MAX(vr->throttle.pool.magazine, throttle_param->rate * THROTTLE_GRANULARITY);
+		gint supply = MAX(vr->throttle.pool.magazine, throttle_param->rate / 1000 * THROTTLE_GRANULARITY);
 		vr->throttle.magazine += supply;
 		vr->throttle.pool.magazine -= supply;
 	} else {
@@ -1743,48 +1730,68 @@ static const liPluginAngel angelcbs[] = {
 #include <sys/types.h>
 
 static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) {
-#if defined(LIGHTY_OS_LINUX)
-	/* sched_setaffinity is only available on linux */
-	cpu_set_t mask;
-	liValue *v = srv->workers_cpu_affinity;
-	GArray *arr;
+	guint i;
+
 	UNUSED(p);
 
-	if (!v)
-		return;
+	/* initialize throttle pools that have not been yet */
+	g_static_mutex_lock(&srv->throttle_pools_mutex);
+	for (i = 0; i < srv->throttle_pools->len; i++) {
+		liThrottlePool *pool = g_array_index(srv->throttle_pools, liThrottlePool*, i);
 
-	arr = v->data.list;
+		if (!pool->worker_queues) {
+			pool->worker_magazine = g_new0(gint, srv->worker_count);
+			pool->worker_last_rearm = g_new0(gint, srv->worker_count);
+			pool->worker_num_cons_queued = g_new0(gint, srv->worker_count);
+			pool->worker_queues = g_new0(GQueue*, srv->worker_count);
 
-	if (wrk->ndx >= arr->len) {
-		WARNING(srv, "worker #%u has no entry in workers.cpu_affinity", wrk->ndx+1);
-		return;
+			for (i = 0; i < srv->worker_count; i++) {
+				pool->worker_queues[i] = g_queue_new();
+				pool->worker_last_rearm[i] = pool->last_rearm;
+			}
+		}
 	}
+	g_static_mutex_unlock(&srv->throttle_pools_mutex);
 
-	CPU_ZERO(&mask);
+#if defined(LIGHTY_OS_LINUX)
+	/* sched_setaffinity is only available on linux */
+	{
+		cpu_set_t mask;
+		liValue *v = srv->workers_cpu_affinity;
+		GArray *arr;
 
-	v = g_array_index(arr, liValue*, wrk->ndx);
-	if (v->type == LI_VALUE_NUMBER) {
-		CPU_SET(v->data.number, &mask);
-		DEBUG(srv, "binding worker #%u to cpu %u", wrk->ndx+1, (guint)v->data.number);
-	} else {
-		guint i;
+		if (!v)
+			return;
 
-		g_string_truncate(wrk->tmp_str, 0);
 		arr = v->data.list;
 
-		for (i = 0; i < arr->len; i++) {
-			CPU_SET(g_array_index(arr, liValue*, i)->data.number, &mask);
-			g_string_append_printf(wrk->tmp_str, i ? ",%u":"%u", (guint)g_array_index(arr, liValue*, i)->data.number);
+		if (wrk->ndx >= arr->len) {
+			WARNING(srv, "worker #%u has no entry in workers.cpu_affinity", wrk->ndx+1);
+			return;
 		}
 
-		DEBUG(srv, "binding worker #%u to cpus %s", wrk->ndx+1, wrk->tmp_str->str);
-	}
+		CPU_ZERO(&mask);
 
-	if (0 != sched_setaffinity(0, sizeof(mask), &mask)) {
-		ERROR(srv, "couldn't set cpu affinity mask for worker #%u: %s", wrk->ndx, g_strerror(errno));
+		v = g_array_index(arr, liValue*, wrk->ndx);
+		if (v->type == LI_VALUE_NUMBER) {
+			CPU_SET(v->data.number, &mask);
+			DEBUG(srv, "binding worker #%u to cpu %u", wrk->ndx+1, (guint)v->data.number);
+		} else {
+			g_string_truncate(wrk->tmp_str, 0);
+			arr = v->data.list;
+
+			for (i = 0; i < arr->len; i++) {
+				CPU_SET(g_array_index(arr, liValue*, i)->data.number, &mask);
+				g_string_append_printf(wrk->tmp_str, i ? ",%u":"%u", (guint)g_array_index(arr, liValue*, i)->data.number);
+			}
+
+			DEBUG(srv, "binding worker #%u to cpus %s", wrk->ndx+1, wrk->tmp_str->str);
+		}
+
+		if (0 != sched_setaffinity(0, sizeof(mask), &mask)) {
+			ERROR(srv, "couldn't set cpu affinity mask for worker #%u: %s", wrk->ndx, g_strerror(errno));
+		}
 	}
-#else
-	UNUSED(srv); UNUSED(wrk); UNUSED(p);
 #endif
 }
 

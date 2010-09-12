@@ -1,22 +1,28 @@
 #ifndef _LIGHTTPD_THROTTLE_H_
 #define _LIGHTTPD_THROTTLE_H_
 
-#define THROTTLE_GRANULARITY 0.2 /* defines how frequently a magazine is refilled. should be 0.1 <= x <= 1.0 */
+#define THROTTLE_GRANULARITY 200 /* defines how frequently (in milliseconds) a magazine is refilled */
+
+/* this makro converts a ev_tstamp to a gint. this is needed for atomic access. millisecond precision, can hold a month max */
+#define THROTTLE_EVTSTAMP_TO_GINT(x) ((gint) ((x - ((gint)x - (gint)x % (3600*24*31))) * 1000))
 
 struct liThrottlePool {
+	/* global per pool */
 	GString *name;
-	guint rate; /** bytes/s */
-	gint magazine;
-	GQueue** queues;  /** worker specific queues */
-	gint num_cons_queued;
+	gint rate; /* bytes/s */
+	gint refcount;
+	gint rearming; /* atomic access, 1 if a worker is currently rearming the magazine */
+	gint last_rearm; /* gint for atomic access. represents a ((gint)ev_tstamp*1000) */
 
-	gint rearming;
-	ev_tstamp last_pool_rearm;
-	ev_tstamp *last_con_rearm;
+	/* local per worker */
+	gint *worker_magazine;
+	gint *worker_last_rearm;
+	gint *worker_num_cons_queued;
+	GQueue** worker_queues;
 };
 
 struct liThrottleParam {
-	guint rate;
+	gint rate;
 	guint burst;
 };
 

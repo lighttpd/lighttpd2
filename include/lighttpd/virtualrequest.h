@@ -137,7 +137,7 @@ struct liVRequest {
 			gchar unused; /* this struct is unused for now */
 		} ip;
 		struct {
-			guint rate; /* maximum transfer rate in bytes per second, 0 if unlimited */
+			gint rate; /* maximum transfer rate in bytes per second, 0 if unlimited */
 			ev_tstamp last_update;
 		} con;
 		liWaitQueueElem wqueue_elem;

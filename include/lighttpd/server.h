@@ -129,6 +129,7 @@ struct liServer {
 	gdouble io_timeout;
 
 	GArray *throttle_pools;
+	GStaticMutex throttle_pools_mutex;
 
 	gdouble stat_cache_ttl;
 	gint tasklet_pool_threads;

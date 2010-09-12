@@ -407,7 +407,7 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	li_waitqueue_init(&wrk->io_timeout_queue, wrk->loop, worker_io_timeout_cb, srv->io_timeout, wrk);
 
 	/* throttling */
-	li_waitqueue_init(&wrk->throttle_queue, wrk->loop, li_throttle_cb, THROTTLE_GRANULARITY, wrk);
+	li_waitqueue_init(&wrk->throttle_queue, wrk->loop, li_throttle_cb, ((gdouble)THROTTLE_GRANULARITY) / 1000, wrk);
 
 	li_job_queue_init(&wrk->jobqueue, wrk->loop);
 
