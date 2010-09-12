@@ -35,6 +35,9 @@ static void finished_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) 
 
 	while (NULL != (t = g_async_queue_try_pop(pool->finished))) {
 		t->finished_cb(t->data);
+
+		g_slice_free(liTasklet, t);
+
 		if (1 == pool->delete_later) {
 			g_slice_free(liTaskletPool, pool);
 			return;
