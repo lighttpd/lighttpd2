@@ -898,6 +898,134 @@ static liAction* core_blank(liServer *srv, liWorker *wrk, liPlugin* p, liValue *
 }
 
 
+static void core_env_set_free(liServer *srv, gpointer param) {
+	GArray *arr = param;
+
+	UNUSED(srv);
+
+	li_value_free(g_array_index(arr, liValue*, 0));
+	li_pattern_free(g_array_index(arr, liPattern*, 1));
+	g_array_free(arr, TRUE);
+}
+
+static liHandlerResult core_handle_env_set(liVRequest *vr, gpointer param, gpointer *context) {
+	GArray *arr = param;
+
+	UNUSED(context);
+
+	g_string_truncate(vr->wrk->tmp_str, 0);
+	li_pattern_eval(vr, vr->wrk->tmp_str, g_array_index(arr, liPattern*, 1), NULL, NULL, NULL, NULL);
+	li_environment_set(&vr->env, GSTR_LEN(g_array_index(arr, liValue*, 0)->data.string), GSTR_LEN(vr->wrk->tmp_str));
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_env_set(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	liPattern *pattern;
+
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	if (!val || val->type != LI_VALUE_LIST || val->data.list->len != 2
+		|| g_array_index(val->data.list, liValue*, 0)->type != LI_VALUE_STRING
+		|| g_array_index(val->data.list, liValue*, 1)->type != LI_VALUE_STRING) {
+		ERROR(srv, "%s", "'env.set' action requires a pair of strings as parameter");
+		return NULL;
+	}
+
+	if (NULL == (pattern = li_pattern_new(srv, g_array_index(val->data.list, liValue*, 1)->data.string->str)))
+		return NULL;
+
+	/* exchange second parameter (string) with the new pattern */
+	li_value_free(g_array_index(val->data.list, liValue*, 1));
+	g_array_index(val->data.list, liPattern*, 1) = pattern;
+
+	return li_action_new_function(core_handle_env_set, NULL, core_env_set_free, li_value_extract_list(val));
+}
+
+
+static liHandlerResult core_handle_env_add(liVRequest *vr, gpointer param, gpointer *context) {
+	GArray *arr = param;
+
+	UNUSED(context);
+
+	g_string_truncate(vr->wrk->tmp_str, 0);
+	li_pattern_eval(vr, vr->wrk->tmp_str, g_array_index(arr, liPattern*, 1), NULL, NULL, NULL, NULL);
+	li_environment_insert(&vr->env, GSTR_LEN(g_array_index(arr, liValue*, 0)->data.string), GSTR_LEN(vr->wrk->tmp_str));
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_env_add(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	liPattern *pattern;
+
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	if (!val || val->type != LI_VALUE_LIST || val->data.list->len != 2
+		|| g_array_index(val->data.list, liValue*, 0)->type != LI_VALUE_STRING
+		|| g_array_index(val->data.list, liValue*, 1)->type != LI_VALUE_STRING) {
+		ERROR(srv, "%s", "'env.add' action requires a pair of strings as parameter");
+		return NULL;
+	}
+
+	if (NULL == (pattern = li_pattern_new(srv, g_array_index(val->data.list, liValue*, 1)->data.string->str)))
+		return NULL;
+
+	/* exchange second parameter (string) with the new pattern */
+	li_value_free(g_array_index(val->data.list, liValue*, 1));
+	g_array_index(val->data.list, liPattern*, 1) = pattern;
+
+	return li_action_new_function(core_handle_env_add, NULL, core_env_set_free, li_value_extract_list(val));
+}
+
+
+static void core_env_remove_free(liServer *srv, gpointer param) {
+	UNUSED(srv);
+
+	g_string_free(param, TRUE);
+}
+
+static liHandlerResult core_handle_env_remove(liVRequest *vr, gpointer param, gpointer *context) {
+	GString *key = param;
+
+	UNUSED(context);
+
+	li_environment_remove(&vr->env, GSTR_LEN(key));
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_env_remove(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	if (!val || val->type != LI_VALUE_STRING) {
+		ERROR(srv, "%s", "'env.remove' action requires a string as parameter");
+		return NULL;
+	}
+
+	return li_action_new_function(core_handle_env_remove, NULL, core_env_remove_free, li_value_extract_string(val));
+}
+
+
+static liHandlerResult core_handle_env_clear(liVRequest *vr, gpointer param, gpointer *context) {
+	UNUSED(param); UNUSED(context);
+
+	li_environment_reset(&vr->env);
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_env_clear(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	if (val) {
+		ERROR(srv, "%s", "'env.clear' action doesn't have parameters");
+		return NULL;
+	}
+
+	return li_action_new_function(core_handle_env_clear, NULL, NULL, NULL);
+}
+
+
 static gboolean core_listen(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	GString *ipstr;
 	UNUSED(p); UNUSED(userdata);
@@ -1692,6 +1820,11 @@ static const liPluginAction actions[] = {
 	{ "log.write", core_log_write, NULL },
 
 	{ "blank", core_blank, NULL },
+
+	{ "env.set", core_env_set, NULL },
+	{ "env.add", core_env_add, NULL },
+	{ "env.remove", core_env_remove, NULL },
+	{ "env.clear", core_env_clear, NULL },
 
 	{ "header.add", core_header_add, NULL },
 	{ "header.append", core_header_append, NULL },
