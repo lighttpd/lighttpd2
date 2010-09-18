@@ -33,41 +33,61 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 				c++;
 			} else if (*c == '{') {
 				/* %{var}, PATTERN_VAR */
-				guint len;
+				gchar *lval_c, *lval_start;
+				guint lval_len = 0;
+				GString *key = NULL;
 
-				c++;
+				lval_c = c+1;
 				encoded = FALSE;
 
-				if (g_str_has_prefix(c, "enc:")) {
+				if (g_str_has_prefix(lval_c, "enc:")) {
 					/* %{enc:var}, PATTERN_VAR_ENCODED */
-					c += sizeof("enc:")-1;
+					lval_c += sizeof("enc:")-1;
 					encoded = TRUE;
 				}
 
-				for (len = 0; *c != '\0' && *c != '}'; c++)
-					len++;
+				/* search for closing '}' */
+				for (lval_start = lval_c; *lval_c != '\0' && *lval_c != '}'; lval_c++) {
+					/* got a key */
+					if (*lval_c == '[') {
+						gchar *key_c, *key_start;
+						guint key_len = 0;
 
-				if (*c == '\0') {
+						/* search for clsoing ']' */
+						for (key_start = key_c = lval_c+1; *key_c != '\0' && *key_c != ']'; key_c++) {
+							key_len++;
+						}
+
+						if (key_len == 0 || *key_c != ']' || *(key_c+1) != '}') {
+							/* parse error */
+							ERROR(srv, "could not parse pattern: \"%s\"", str);
+							li_pattern_free((liPattern*)pattern);
+							return NULL;
+						}
+
+						key = g_string_new_len(key_start, key_len);
+						break;
+					}
+
+					lval_len++;
+				}
+
+				/* adjust c */
+				c = lval_start + lval_len + (key ? (key->len+2) : 0);
+
+				if (*c != '}') {
 					/* parse error */
 					ERROR(srv, "could not parse pattern: \"%s\"", str);
 					li_pattern_free((liPattern*)pattern);
 					return NULL;
 				}
 
-				part.data.lvalue = li_condition_lvalue_new(li_cond_lvalue_from_string(c-len, len), NULL);
+				part.data.lvalue = li_condition_lvalue_new(li_cond_lvalue_from_string(lval_start, lval_len), key);
 				part.type = encoded ? PATTERN_VAR_ENCODED : PATTERN_VAR;
 				g_array_append_val(pattern, part);
+				c++;
 
 				if (part.data.lvalue->type == LI_COMP_UNKNOWN) {
-					/* parse error */
-					ERROR(srv, "could not parse pattern: \"%s\"", str);
-					li_pattern_free((liPattern*)pattern);
-					return NULL;
-				}
-
-				if (len && *c == '}') {
-					c++;
-				} else {
 					/* parse error */
 					ERROR(srv, "could not parse pattern: \"%s\"", str);
 					li_pattern_free((liPattern*)pattern);
@@ -161,7 +181,6 @@ void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatter
 			/* fall through */
 		case PATTERN_VAR:
 			res = li_condition_get_value(vr, part->data.lvalue, &cond_val, LI_COND_VALUE_HINT_STRING);
-
 			if (res == LI_HANDLER_GO_ON) {
 				if (encoded)
 					li_string_encode_append(li_condition_value_to_string(vr, &cond_val), dest, LI_ENCODING_URI);
