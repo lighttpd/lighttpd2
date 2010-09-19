@@ -158,7 +158,7 @@ static void mod_limit_timeout_callback(liWaitQueue *wq, gpointer data) {
 	while ((wqe = li_waitqueue_pop(wq)) != NULL) {
 		rid = wqe->data;
 		g_mutex_lock(rid->ctx->mutex);
-		li_radixtree_remove(rid->ctx->pool.req_ip, rid->ip.addr, rid->ip.len);
+		li_radixtree_remove(rid->ctx->pool.req_ip, rid->ip.addr, rid->ip.len * 8);
 		g_mutex_unlock(rid->ctx->mutex);
 		li_sockaddr_clear(&rid->ip);
 		g_slice_free(mod_limit_req_ip_data, rid);
@@ -186,12 +186,12 @@ static void mod_limit_vrclose(liVRequest *vr, liPlugin *p) {
 			break;
 		case ML_TYPE_CON_IP:
 			g_mutex_lock(ctx->mutex);
-			cons = GPOINTER_TO_INT(li_radixtree_lookup_exact(ctx->pool.con_ip, remote_addr.addr, remote_addr.len));
+			cons = GPOINTER_TO_INT(li_radixtree_lookup_exact(ctx->pool.con_ip, remote_addr.addr, remote_addr.len * 8));
 			cons--;
 			if (!cons) {
-				li_radixtree_remove(ctx->pool.con_ip, remote_addr.addr, remote_addr.len);
+				li_radixtree_remove(ctx->pool.con_ip, remote_addr.addr, remote_addr.len * 8);
 			} else {
-				li_radixtree_insert(ctx->pool.con_ip, remote_addr.addr, remote_addr.len, GINT_TO_POINTER(cons));
+				li_radixtree_insert(ctx->pool.con_ip, remote_addr.addr, remote_addr.len * 8, GINT_TO_POINTER(cons));
 			}
 			g_mutex_unlock(ctx->mutex);
 			break;
@@ -238,9 +238,9 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 		break;
 	case ML_TYPE_CON_IP:
 		g_mutex_lock(ctx->mutex);
-		cons = GPOINTER_TO_INT(li_radixtree_lookup_exact(ctx->pool.con_ip, remote_addr.addr, remote_addr.len));
+		cons = GPOINTER_TO_INT(li_radixtree_lookup_exact(ctx->pool.con_ip, remote_addr.addr, remote_addr.len * 8));
 		if (cons < ctx->limit) {
-			li_radixtree_insert(ctx->pool.con_ip, remote_addr.addr, remote_addr.len, GINT_TO_POINTER(cons+1));
+			li_radixtree_insert(ctx->pool.con_ip, remote_addr.addr, remote_addr.len * 8, GINT_TO_POINTER(cons+1));
 		} else {
 			limit_reached = TRUE;
 			VR_DEBUG(vr, "limit.con_ip: limit reached (%d active connections)", ctx->limit);
@@ -264,7 +264,7 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 		break;
 	case ML_TYPE_REQ_IP:
 		g_mutex_lock(ctx->mutex);
-		rid = li_radixtree_lookup_exact(ctx->pool.req_ip, remote_addr.addr, remote_addr.len);
+		rid = li_radixtree_lookup_exact(ctx->pool.req_ip, remote_addr.addr, remote_addr.len * 8);
 		if (!rid) {
 			/* IP not known */
 			rid = g_slice_new0(mod_limit_req_ip_data);
@@ -272,7 +272,7 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 			rid->ip = li_sockaddr_dup(remote_addr);
 			rid->ctx = ctx;
 			rid->timeout_elem.data = rid;
-			li_radixtree_insert(ctx->pool.req_ip, remote_addr.addr, remote_addr.len, rid);
+			li_radixtree_insert(ctx->pool.req_ip, remote_addr.addr, remote_addr.len * 8, rid);
 			li_waitqueue_push(&(((mod_limit_data*)ctx->plugin->data)->timeout_queues[vr->wrk->ndx]), &rid->timeout_elem);
 		} else if (rid->requests < ctx->limit) {
 			rid->requests++;
