@@ -494,11 +494,13 @@ liLogTimestamp *li_log_timestamp_new(liServer *srv, GString *format) {
 	liLogTimestamp *ts;
 
 	/* check if there already exists a timestamp entry with the same format */
+	g_mutex_lock(srv->action_mutex);
 	for (guint i = 0; i < srv->logs.timestamps->len; i++) {
 		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, i);
 		if (g_string_equal(ts->format, format)) {
 			g_atomic_int_inc(&(ts->refcount));
 			g_string_free(format, TRUE);
+			g_mutex_unlock(srv->action_mutex);
 			return ts;
 		}
 	}
@@ -511,18 +513,23 @@ liLogTimestamp *li_log_timestamp_new(liServer *srv, GString *format) {
 	ts->format = format;
 
 	g_array_append_val(srv->logs.timestamps, ts);
+	g_mutex_unlock(srv->action_mutex);
 
 	return ts;
 }
 
 gboolean li_log_timestamp_free(liServer *srv, liLogTimestamp *ts) {
 	if (g_atomic_int_dec_and_test(&(ts->refcount))) {
+		g_mutex_lock(srv->action_mutex);
+
 		for (guint i = 0; i < srv->logs.timestamps->len; i++) {
 			if (g_string_equal(g_array_index(srv->logs.timestamps, liLogTimestamp*, i)->format, ts->format)) {
 				g_array_remove_index_fast(srv->logs.timestamps, i);
 				break;
 			}
 		}
+
+		g_mutex_unlock(srv->action_mutex);
 		g_string_free(ts->cached, TRUE);
 		g_string_free(ts->format, TRUE);
 		g_slice_free(liLogTimestamp, ts);

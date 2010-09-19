@@ -1868,7 +1868,7 @@ static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk
 	UNUSED(p);
 
 	/* initialize throttle pools that have not been yet */
-	g_static_mutex_lock(&srv->throttle_pools_mutex);
+	g_mutex_lock(srv->action_mutex);
 	for (i = 0; i < srv->throttle_pools->len; i++) {
 		liThrottlePool *pool = g_array_index(srv->throttle_pools, liThrottlePool*, i);
 
@@ -1884,7 +1884,7 @@ static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk
 			}
 		}
 	}
-	g_static_mutex_unlock(&srv->throttle_pools_mutex);
+	g_mutex_unlock(srv->action_mutex);
 
 #if defined(LIGHTY_OS_LINUX)
 	/* sched_setaffinity is only available on linux */

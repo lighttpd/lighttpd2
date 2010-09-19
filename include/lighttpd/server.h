@@ -101,6 +101,8 @@ struct liServer {
 	GArray *optionptr_def_values;/** array of liOptionPtrValue* */
 	liAction *mainaction;
 
+	GMutex *action_mutex;     /** used to synchronize action creation/destruction */
+
 	gboolean exiting;         /** atomic access */
 
 	struct {
@@ -129,7 +131,6 @@ struct liServer {
 	gdouble io_timeout;
 
 	GArray *throttle_pools;
-	GStaticMutex throttle_pools_mutex;
 
 	gdouble stat_cache_ttl;
 	gint tasklet_pool_threads;

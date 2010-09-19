@@ -10,7 +10,7 @@ liThrottlePool *li_throttle_pool_new(liServer *srv, GString *name, guint rate) {
 	liThrottlePool *pool;
 	guint i;
 
-	g_static_mutex_lock(&srv->throttle_pools_mutex);
+	g_mutex_lock(srv->action_mutex);
 
 	/* check if we already have a pool with that name */
 	for (i = 0; i < srv->throttle_pools->len; i++) {
@@ -18,14 +18,14 @@ liThrottlePool *li_throttle_pool_new(liServer *srv, GString *name, guint rate) {
 
 		if (g_string_equal(pool->name, name)) {
 			g_atomic_int_inc(&pool->refcount);
-			g_static_mutex_unlock(&srv->throttle_pools_mutex);
+			g_mutex_unlock(srv->action_mutex);
 			g_string_free(name, TRUE);
 			return pool;
 		}
 	}
 
 	if (rate == 0) {
-		g_static_mutex_unlock(&srv->throttle_pools_mutex);
+		g_mutex_unlock(srv->action_mutex);
 		return NULL;
 	}
 
@@ -53,7 +53,7 @@ liThrottlePool *li_throttle_pool_new(liServer *srv, GString *name, guint rate) {
 
 	g_array_append_val(srv->throttle_pools, pool);
 
-	g_static_mutex_unlock(&srv->throttle_pools_mutex);
+	g_mutex_unlock(srv->action_mutex);
 
 	return pool;
 }
@@ -64,14 +64,14 @@ void li_throttle_pool_free(liServer *srv, liThrottlePool *pool) {
 	if (!g_atomic_int_dec_and_test(&pool->refcount))
 		return;
 
-	g_static_mutex_lock(&srv->throttle_pools_mutex);
+	g_mutex_lock(srv->action_mutex);
 	for (i = 0; i < srv->throttle_pools->len; i++) {
 		if (pool == g_array_index(srv->throttle_pools, liThrottlePool*, i)) {
 			g_array_remove_index_fast(srv->throttle_pools, i);
 			break;
 		}
 	}
-	g_static_mutex_unlock(&srv->throttle_pools_mutex);
+	g_mutex_unlock(srv->action_mutex);
 
 	if (pool->worker_queues) {
 		for (i = 0; i < srv->worker_count; i++) {

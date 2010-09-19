@@ -131,6 +131,8 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 
 	srv->mainaction = NULL;
 
+	srv->action_mutex = g_mutex_new();
+
 	srv->exiting = FALSE;
 
 	srv->ts_formats = g_array_new(FALSE, TRUE, sizeof(GString*));
@@ -140,7 +142,6 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	li_server_ts_format_add(srv, g_string_new("%a, %d %b %Y %H:%M:%S GMT"));
 
 	srv->throttle_pools = g_array_new(FALSE, TRUE, sizeof(liThrottlePool*));
-	g_static_mutex_init(&srv->throttle_pools_mutex);
 
 	li_log_init(srv);
 
@@ -220,7 +221,6 @@ void li_server_free(liServer* srv) {
 			li_throttle_pool_free(srv, g_array_index(srv->throttle_pools, liThrottlePool*, i));
 		}
 		g_array_free(srv->throttle_pools, TRUE);
-		g_static_mutex_free(&srv->throttle_pools_mutex);
 	}
 
 	if (srv->acon) {
@@ -280,6 +280,8 @@ void li_server_free(liServer* srv) {
 	li_server_plugins_free(srv);
 	g_array_free(srv->li_plugins_handle_close, TRUE);
 	g_array_free(srv->li_plugins_handle_vrclose, TRUE);
+
+	g_mutex_free(srv->action_mutex);
 
 #ifdef LIGHTY_OS_LINUX
 	li_value_free(srv->workers_cpu_affinity);
