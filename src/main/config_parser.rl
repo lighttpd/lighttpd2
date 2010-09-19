@@ -344,37 +344,31 @@
 			o = li_value_new_list();
 			g_array_append_val(o->data.list, l);
 			g_array_append_val(o->data.list, r);
-		}
-		else if (l->type == LI_VALUE_NUMBER && r->type == LI_VALUE_NUMBER) {
+		} else if (l->type == LI_VALUE_NUMBER && r->type == LI_VALUE_NUMBER) {
 			switch (op) {
 				case '+': o = li_value_new_number(l->data.number + r->data.number); break;
 				case '-': o = li_value_new_number(l->data.number - r->data.number); break;
 				case '*': o = li_value_new_number(l->data.number * r->data.number); break;
 				case '/': o = li_value_new_number(l->data.number / r->data.number); break;
 			}
-		}
-		else if (l->type == LI_VALUE_STRING) {
+		} else if (l->type == LI_VALUE_STRING) {
 			o = l;
 			free_l = FALSE;
 
 			if (r->type == LI_VALUE_STRING && op == '+') {
 				/* str + str */
 				o->data.string = g_string_append_len(o->data.string, GSTR_LEN(r->data.string));
-			}
-			else if (r->type == LI_VALUE_NUMBER && op == '+') {
+			} else if (r->type == LI_VALUE_NUMBER && op == '+') {
 				/* str + int */
 				g_string_append_printf(o->data.string, "%" G_GINT64_FORMAT, r->data.number);
-			}
-			else if (r->type == LI_VALUE_NUMBER && op == '*') {
+			} else if (r->type == LI_VALUE_NUMBER && op == '*') {
 				/* str * int */
 				if (r->data.number < 0) {
 					ERROR(srv, "string multiplication with negative number (%" G_GINT64_FORMAT ")?", r->data.number);
 					return FALSE;
-				}
-				else if (r->data.number == 0) {
+				} else if (r->data.number == 0) {
 					o->data.string = g_string_truncate(o->data.string, 0);
-				}
-				else {
+				} else {
 					GString *str;
 					str = g_string_new_len(l->data.string->str, l->data.string->len);
 					for (gint i = 1; i < r->data.number; i++)
@@ -384,8 +378,7 @@
 			}
 			else
 				o = NULL;
-		}
-		else if (l->type == LI_VALUE_LIST) {
+		} else if (l->type == LI_VALUE_LIST) {
 			if (op == '+') {
 				/* append r to the end of l */
 				free_l = FALSE; /* use l as the new o */
@@ -393,8 +386,7 @@
 				o = l;
 
 				g_array_append_val(l->data.list, r);
-			}
-			else if (op == '*') {
+			} else if (op == '*') {
 				/* merge l and r */
 				if (r->type == LI_VALUE_LIST) {
 					/* merge lists */
@@ -473,19 +465,31 @@
 			}
 
 			r = li_value_copy(t);
-		}
-		else if (g_str_has_prefix(o->data.string->str, "env.")) {
+		} else if (g_str_equal(o->data.string->str, "sys.pid")) {
+			r = li_value_new_number(getpid());
+		} else if (g_str_equal(o->data.string->str, "sys.cwd")) {
+			gchar cwd[1024];
+
+			if (NULL != getcwd(cwd, 1023)) {
+				r = li_value_new_string(g_string_new(cwd));
+			} else {
+				ERROR(srv, "failed to get CWD: %s", g_strerror(errno));
+				li_value_free(o);
+				return FALSE;
+			}
+		} else if (g_str_equal(o->data.string->str, "sys.version")) {
+			r = li_value_new_string(g_string_new(PACKAGE_VERSION));
+		} else if (g_str_has_prefix(o->data.string->str, "sys.env.")) {
 			/* look up string in environment, push value onto stack */
-			gchar *env = getenv(o->data.string->str + 4);
+			gchar *env = getenv(o->data.string->str + sizeof("sys.env.") - 1);
 			if (env == NULL) {
-				ERROR(srv, "unknown environment variable: %s", o->data.string->str + 4);
+				ERROR(srv, "unknown environment variable: %s", o->data.string->str + sizeof("sys.env.") - 1);
 				li_value_free(o);
 				return FALSE;
 			}
 
 			r = li_value_new_string(g_string_new(env));
-		}
-		else {
+		} else {
 			/* real action, lookup hashtable and create new action value */
 			liAction *a;
 			a = g_hash_table_lookup(ctx->action_blocks, o->data.string);
@@ -509,8 +513,7 @@
 				case '<': ctx->op = LI_CONFIG_COND_LT; break;
 				case '>': ctx->op = LI_CONFIG_COND_GT; break;
 			}
-		}
-		else {
+		} else {
 			     if (*ctx->mark == '>' && *(ctx->mark+1) == '=') ctx->op = LI_CONFIG_COND_GE;
 			else if (*ctx->mark == '<' && *(ctx->mark+1) == '=') ctx->op = LI_CONFIG_COND_LE;
 			else if (*ctx->mark == '=' && *(ctx->mark+1) == '=') ctx->op = LI_CONFIG_COND_EQ;
@@ -553,8 +556,7 @@
 			}
 
 			g_hash_table_insert(ctx->uservars, str, val);
-		}
-		else if (ctx->in_setup_block) {
+		} else if (ctx->in_setup_block) {
 			/* in setup { } block, override default values for options */
 
 			if (!li_plugin_set_default_option(srv, name->data.string->str, val)) {
@@ -565,8 +567,7 @@
 			}
 
 			li_value_free(val);
-		}
-		else {
+		} else {
 			/* normal assignment */
 			a = li_option_action(srv, srv->main_worker, name->data.string->str, val);
 			li_value_free(val);
@@ -594,18 +595,15 @@
 		_printf("got function: %s; in line %zd\n", name->data.string->str, ctx->line);
 
 		if (g_str_equal(name->data.string->str, "break")) {
-		}
-		else if (g_str_equal(name->data.string->str, "__halt")) {
-		}
-		else {
+		} else if (g_str_equal(name->data.string->str, "__halt")) {
+		} else {
 			if (ctx->in_setup_block) {
 				/* we are in the setup { } block, call setups and don't append to action list */
 				if (!li_call_setup(srv, name->data.string->str, NULL)) {
 					li_value_free(name);
 					return FALSE;
 				}
-			}
-			else {
+			} else {
 				/* lookup hashtable of defined actions */
 				a = g_hash_table_lookup(ctx->action_blocks, name->data.string);
 
@@ -727,8 +725,7 @@
 			g_pattern_spec_free(pattern);
 			g_dir_close(dir);
 			li_value_free(val);
-		}
-		else if (g_str_equal(name->data.string->str, "include_shell")) {
+		} else if (g_str_equal(name->data.string->str, "include_shell")) {
 			if (val->type != LI_VALUE_STRING) {
 				WARNING(srv, "include_shell directive takes a string as parameter, %s given", li_value_type_string(val->type));
 				li_value_free(name);
@@ -1203,27 +1200,8 @@ static liConfigParserContext *config_parser_context_new(liServer *srv, GList *ct
 		ctx->uservars = ((liConfigParserContext*) ctx_stack->data)->uservars;
 	}
 	else {
-		GString *str;
-		liValue *o;
 		ctx->action_blocks = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
 		ctx->uservars = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
-
-		/* initialize var.PID */
-		/* TODO: what if pid_t is not a 32bit integer? */
-		o = li_value_new_number(getpid());
-		str = g_string_new_len(CONST_STR_LEN("var.PID"));
-			g_hash_table_insert(ctx->uservars, str, o);
-
-		/* initialize var.CWD */
-		str = g_string_sized_new(1023);
-		if (NULL != getcwd(str->str, 1022)) {
-			g_string_set_size(str, strlen(str->str));
-			o = li_value_new_string(str);
-			str = g_string_new_len(CONST_STR_LEN("var.CWD"));
-			g_hash_table_insert(ctx->uservars, str, o);
-		}
-		else
-			g_string_free(str, TRUE);
 
 		ctx->action_list_stack = g_queue_new();
 		ctx->option_stack = g_queue_new();
