@@ -603,12 +603,20 @@ void li_server_out_of_fds(liServer *srv) {
 guint li_server_ts_format_add(liServer *srv, GString* format) {
 	/* check if not already registered */
 	guint i;
+
+	g_mutex_lock(srv->action_mutex);
+
 	for (i = 0; i < srv->ts_formats->len; i++) {
-		if (g_string_equal(g_array_index(srv->ts_formats, GString*, i), format))
+		if (g_string_equal(g_array_index(srv->ts_formats, GString*, i), format)) {
+			g_mutex_unlock(srv->action_mutex);
 			return i;
+		}
 	}
 
 	g_array_append_val(srv->ts_formats, format);
+
+	g_mutex_unlock(srv->action_mutex);
+
 	return i;
 }
 
