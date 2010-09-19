@@ -103,7 +103,6 @@ static mod_limit_context* mod_limit_context_new(mod_limit_context_type type, gin
 	ctx->action_limit_reached = action_limit_reached;
 	ctx->plugin = plugin;
 	ctx->refcount = 1;
-	ctx->mutex = (type == ML_TYPE_CON) ? NULL : g_mutex_new();
 
 	switch (type) {
 	case ML_TYPE_CON:
@@ -111,6 +110,7 @@ static mod_limit_context* mod_limit_context_new(mod_limit_context_type type, gin
 		break;
 	case ML_TYPE_CON_IP:
 		ctx->pool.con_ip = li_radixtree_new();
+		ctx->mutex = g_mutex_new();
 		break;
 	case ML_TYPE_REQ:
 		ctx->pool.req.num = 0;
@@ -118,6 +118,7 @@ static mod_limit_context* mod_limit_context_new(mod_limit_context_type type, gin
 		break;
 	case ML_TYPE_REQ_IP:
 		ctx->pool.req_ip = li_radixtree_new();
+		ctx->mutex = g_mutex_new();
 		break;
 	}
 
@@ -182,9 +183,9 @@ static void mod_limit_vrclose(liVRequest *vr, liPlugin *p) {
 		switch (ctx->type) {
 		case ML_TYPE_CON:
 			g_atomic_int_add(&ctx->pool.con, -1);
-			g_atomic_int_add(&ctx->refcount, -1);
 			break;
 		case ML_TYPE_CON_IP:
+			g_mutex_lock(ctx->mutex);
 			cons = GPOINTER_TO_INT(li_radixtree_lookup_exact(ctx->pool.con_ip, remote_addr.addr, remote_addr.len));
 			cons--;
 			if (!cons) {
@@ -192,10 +193,14 @@ static void mod_limit_vrclose(liVRequest *vr, liPlugin *p) {
 			} else {
 				li_radixtree_insert(ctx->pool.con_ip, remote_addr.addr, remote_addr.len, GINT_TO_POINTER(cons));
 			}
-			g_atomic_int_add(&ctx->refcount, -1);
+			g_mutex_unlock(ctx->mutex);
 			break;
 		default:
 			break;
+		}
+
+		if (g_atomic_int_dec_and_test(&ctx->refcount)) {
+			mod_limit_context_free(vr->wrk->srv, ctx);
 		}
 	}
 
@@ -229,8 +234,6 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 			g_atomic_int_add(&ctx->pool.con, -1);
 			limit_reached = TRUE;
 			VR_DEBUG(vr, "limit.con: limit reached (%d active connections)", ctx->limit);
-		} else {
-			g_atomic_int_inc(&ctx->refcount);
 		}
 		break;
 	case ML_TYPE_CON_IP:
@@ -238,7 +241,6 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 		cons = GPOINTER_TO_INT(li_radixtree_lookup_exact(ctx->pool.con_ip, remote_addr.addr, remote_addr.len));
 		if (cons < ctx->limit) {
 			li_radixtree_insert(ctx->pool.con_ip, remote_addr.addr, remote_addr.len, GINT_TO_POINTER(cons+1));
-			g_atomic_int_inc(&ctx->refcount);
 		} else {
 			limit_reached = TRUE;
 			VR_DEBUG(vr, "limit.con_ip: limit reached (%d active connections)", ctx->limit);
@@ -251,14 +253,11 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 			/* reset pool */
 			ctx->pool.req.ts = CUR_TS(vr->wrk);
 			ctx->pool.req.num = 1;
-			g_atomic_int_inc(&ctx->refcount);
 		} else {
 			ctx->pool.req.num++;
 			if (ctx->pool.req.num > ctx->limit) {
 				limit_reached = TRUE;
 				VR_DEBUG(vr, "limit.req: limit reached (%d req/s)", ctx->limit);
-			} else {
-				g_atomic_int_inc(&ctx->refcount);
 			}
 		}
 		g_mutex_unlock(ctx->mutex);
@@ -275,10 +274,8 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 			rid->timeout_elem.data = rid;
 			li_radixtree_insert(ctx->pool.req_ip, remote_addr.addr, remote_addr.len, rid);
 			li_waitqueue_push(&(((mod_limit_data*)ctx->plugin->data)->timeout_queues[vr->wrk->ndx]), &rid->timeout_elem);
-			g_atomic_int_inc(&ctx->refcount);
 		} else if (rid->requests < ctx->limit) {
 			rid->requests++;
-			g_atomic_int_inc(&ctx->refcount);
 		} else {
 			limit_reached = TRUE;
 			VR_DEBUG(vr, "limit.req_ip: limit reached (%d req/s)", ctx->limit);
@@ -302,15 +299,18 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 		}
 	} else {
 		g_ptr_array_add(arr, ctx);
+		g_atomic_int_inc(&ctx->refcount);
 	}
 
 	return LI_HANDLER_GO_ON;
 }
 
 static void mod_limit_action_free(liServer *srv, gpointer param) {
-	UNUSED(srv);
+	mod_limit_context *ctx = param;
 
-	mod_limit_context_free(srv, param);
+	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
+		mod_limit_context_free(srv, ctx);
+	}
 }
 
 static liAction* mod_limit_action_create(liServer *srv, liPlugin *p, mod_limit_context_type type, liValue *val) {
