@@ -91,7 +91,7 @@ AC_SUBST(LIBEV_LIBS)
 
 dnl Check for lua
 AC_MSG_CHECKING(for lua)
-AC_ARG_WITH(lua, AC_HELP_STRING([--with-lua],[lua engine for mod_magnet]),
+AC_ARG_WITH(lua, AC_HELP_STRING([--with-lua],[lua engine (recommended)]),
 [WITH_LUA=$withval],[WITH_LUA=no])
 
 AC_MSG_RESULT($WITH_LUA)
