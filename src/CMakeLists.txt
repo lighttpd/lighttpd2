@@ -439,5 +439,6 @@ IF(BUILD_UNIT_TESTS)
 	ADD_TEST_BINARY(Utils-UnitTest test-utils unittests/test-utils.c)
 	ADD_TEST_BINARY(Chunk-UnitTest test-chunk unittests/test-chunk.c)
 	ADD_TEST_BINARY(RangeParser-UnitTest test-range-parser unittests/test-range-parser.c)
+	ADD_TEST_BINARY(Radix-UnitTest test-radix unittests/test-radix.c)
 
 ENDIF(BUILD_UNIT_TESTS)

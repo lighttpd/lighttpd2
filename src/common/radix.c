@@ -8,7 +8,7 @@ typedef guint32 rdxBase;
 #define RDXBITS (sizeof(rdxBase)*8)
 
 /* 1^(width) 0^(RDXBITS-width): "1..10..0" */
-#define RDX_MASK(width) ( bits ? ~(  (((rdxBase)1) << (RDXBITS - width)) - 1  ) : 0 )
+#define RDX_MASK(width) ( width ? ~(  (((rdxBase)1) << (RDXBITS - width)) - 1  ) : 0 )
 
 #define INPUT_SIZE(bits) ( bits ? (bits+RDXBITS-1) / RDXBITS : 1 )
 #define INPUT_CHARS(bits) ( (bits+7) / 8 )
@@ -18,8 +18,8 @@ struct liRadixNode{
 	rdxBase key;
 	guint32 width;
 	gpointer data;
-	liRadixNode *right;
-	liRadixNode *left;
+	liRadixNode *right; /* "1" bit */
+	liRadixNode *left; /* "0" bit */
 };
 
 struct liRadixTree {
