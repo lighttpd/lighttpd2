@@ -485,6 +485,15 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 #endif
 #ifdef HAVE_SYS_UN_H
 	case AF_UNIX:
+		if (-1 == unlink(addr->addr->un.sun_path)) {
+			switch (errno) {
+			case ENOENT:
+				break;
+			default:
+				ERROR(srv, "removing old socket '%s' failed: %s\n", str->str, g_strerror(errno));
+				return -1;
+			}
+		}
 		if (-1 == (s = socket(AF_UNIX, SOCK_STREAM, 0))) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
 			return -1;

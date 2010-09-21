@@ -21,6 +21,16 @@ int li_angel_fake_listen(liServer *srv, GString *str) {
 		un->sun_family = AF_UNIX;
 		strcpy(un->sun_path, str->str + 5);
 
+		if (-1 == unlink(un->sun_path)) {
+			switch (errno) {
+			case ENOENT:
+				break;
+			default:
+				ERROR(srv, "removing old socket '%s' failed: %s\n", str->str, g_strerror(errno));
+				g_free(un);
+				return -1;
+			}
+		}
 		if (-1 == (s = socket(AF_UNIX, SOCK_STREAM, 0))) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
 			g_free(un);
