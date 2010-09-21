@@ -69,7 +69,7 @@ struct liWorker {
 	struct ev_loop *loop;
 	ev_prepare loop_prepare;
 	/* ev_check loop_check; */
-	ev_async worker_stop_watcher, worker_suspend_watcher, worker_exit_watcher;
+	ev_async worker_stop_watcher, worker_stopping_watcher, worker_suspend_watcher, worker_exit_watcher;
 
 	GQueue log_queue;
 
@@ -101,6 +101,8 @@ struct liWorker {
 	ev_async new_con_watcher;
 	GAsyncQueue *new_con_queue;
 
+	liServerStateWait wait_for_stop_connections;
+
 	ev_timer stats_watcher;
 	liStatistics stats;
 
@@ -122,6 +124,7 @@ LI_API void li_worker_free(liWorker *wrk);
 
 LI_API void li_worker_run(liWorker *wrk);
 LI_API void li_worker_stop(liWorker *context, liWorker *wrk);
+LI_API void li_worker_stopping(liWorker *context, liWorker *wrk);
 LI_API void li_worker_suspend(liWorker *context, liWorker *wrk);
 LI_API void li_worker_exit(liWorker *context, liWorker *wrk);
 

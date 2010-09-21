@@ -231,7 +231,16 @@ static void li_worker_stop_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	li_worker_stop(wrk, wrk);
 }
 
-/* stop worker watcher */
+/* stopping worker watcher */
+static void li_worker_stopping_cb(struct ev_loop *loop, ev_async *w, int revents) {
+	liWorker *wrk = (liWorker*) w->data;
+	UNUSED(loop);
+	UNUSED(revents);
+
+	li_worker_stopping(wrk, wrk);
+}
+
+/* suspend worker watcher */
 static void li_worker_suspend_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	liWorker *wrk = (liWorker*) w->data;
 	UNUSED(loop);
@@ -383,6 +392,10 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	wrk->worker_stop_watcher.data = wrk;
 	ev_async_start(wrk->loop, &wrk->worker_stop_watcher);
 
+	ev_init(&wrk->worker_stopping_watcher, li_worker_stopping_cb);
+	wrk->worker_stopping_watcher.data = wrk;
+	ev_async_start(wrk->loop, &wrk->worker_stopping_watcher);
+
 	ev_init(&wrk->worker_suspend_watcher, li_worker_suspend_cb);
 	wrk->worker_suspend_watcher.data = wrk;
 	ev_async_start(wrk->loop, &wrk->worker_suspend_watcher);
@@ -516,6 +529,7 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 		li_plugins_worker_stop(wrk);
 
 		ev_async_stop(wrk->loop, &wrk->worker_stop_watcher);
+		ev_async_stop(wrk->loop, &wrk->worker_stopping_watcher);
 		ev_async_stop(wrk->loop, &wrk->worker_suspend_watcher);
 		ev_async_stop(wrk->loop, &wrk->new_con_watcher);
 		li_waitqueue_stop(&wrk->io_timeout_queue);
@@ -542,6 +556,36 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 		}
 	} else {
 		ev_async_send(wrk->loop, &wrk->worker_stop_watcher);
+	}
+}
+
+void li_worker_stopping(liWorker *context, liWorker *wrk) {
+	liServer *srv = context->srv;
+	guint i;
+
+	if (context == srv->main_worker) {
+		li_server_state_wait(srv, &wrk->wait_for_stop_connections);
+	}
+
+	if (context == wrk) {
+		/* li_plugins_worker_stopping(wrk); ??? */
+
+		/* close keep alive connections */
+		for (i = wrk->connections_active; i-- > 0;) {
+			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
+			if (con->state == LI_CON_STATE_KEEP_ALIVE) {
+				li_worker_con_put(con);
+			}
+		}
+
+		li_worker_check_keepalive(wrk);
+
+		li_worker_new_con_cb(wrk->loop, &wrk->new_con_watcher, 0); /* handle remaining new connections */
+		if (0 == g_atomic_int_get(&wrk->connection_load) && wrk->wait_for_stop_connections.active) {
+			li_server_state_ready(srv, &wrk->wait_for_stop_connections);
+		}
+	} else {
+		ev_async_send(wrk->loop, &wrk->worker_stopping_watcher);
 	}
 }
 
@@ -644,5 +688,9 @@ void li_worker_con_put(liConnection *con) {
 	} else {
 		/* above treshold, update timestamp */
 		wrk->connections_gc_ts = now;
+	}
+
+	if (wrk->wait_for_stop_connections.active && 0 == g_atomic_int_get((gint*) &wrk->connection_load)) {
+		li_server_state_ready(wrk->srv, &wrk->wait_for_stop_connections);
 	}
 }

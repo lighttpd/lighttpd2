@@ -731,11 +731,8 @@ static void li_server_start_transition(liServer *srv, liServerState state) {
 		for (i = 0; i < srv->worker_count; i++) {
 			liWorker *wrk;
 			wrk = g_array_index(srv->workers, liWorker*, i);
-			li_worker_stop(srv->main_worker, wrk);
+			li_worker_stopping(srv->main_worker, wrk);
 		}
-
-		li_log_thread_wakeup(srv);
-		li_server_reached_state(srv, LI_SERVER_STOPPING);
 		break;
 	case LI_SERVER_DOWN:
 		/* wait */
@@ -773,6 +770,7 @@ void li_server_reached_state(liServer *srv, liServerState state) {
 	liServerState want_state = li_server_next_state(srv);
 	liServerState old_state = srv->state;
 	GList *swlink;
+	guint i;
 
 	if (state != want_state) return;
 	if (state == srv->state) return;
@@ -818,7 +816,16 @@ void li_server_reached_state(liServer *srv, liServerState state) {
 	case LI_SERVER_RUNNING:
 		break;
 	case LI_SERVER_SUSPENDING:
+		break;
 	case LI_SERVER_STOPPING:
+		/* stop all workers */
+		for (i = 0; i < srv->worker_count; i++) {
+			liWorker *wrk;
+			wrk = g_array_index(srv->workers, liWorker*, i);
+			li_worker_stop(srv->main_worker, wrk);
+		}
+
+		li_log_thread_wakeup(srv);
 		break;
 	case LI_SERVER_DOWN:
 		/* li_server_exit(srv); */
