@@ -704,11 +704,15 @@ static gboolean ip_in_net(liConditionRValue *target, liConditionRValue *network)
 		if (network->type == LI_COND_VALUE_SOCKET_IPV4) {
 			return li_ipv4_in_ipv4_net(target->ipv4.addr, network->ipv4.addr, network->ipv4.networkmask);
 		} else if (network->type == LI_COND_VALUE_SOCKET_IPV6) {
-			return li_ipv4_in_ipv6_net(target->ipv4.addr, network->ipv6.addr, network->ipv6.network);
+			/* strict matches only */
+			/* return li_ipv4_in_ipv6_net(target->ipv4.addr, network->ipv6.addr, network->ipv6.network); */
+			return FALSE;
 		}
 	} else if (target->type == LI_COND_VALUE_SOCKET_IPV6) {
 		if (network->type == LI_COND_VALUE_SOCKET_IPV4) {
-			return li_ipv6_in_ipv4_net(target->ipv6.addr, network->ipv4.addr, network->ipv4.networkmask);
+			/* strict matches only */
+			/* return li_ipv6_in_ipv4_net(target->ipv6.addr, network->ipv4.addr, network->ipv4.networkmask); */
+			return FALSE;
 		} else if (network->type == LI_COND_VALUE_SOCKET_IPV6) {
 			return li_ipv6_in_ipv6_net(target->ipv6.addr, network->ipv6.addr, network->ipv6.network);
 		}

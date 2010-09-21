@@ -342,10 +342,13 @@ static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSo
 					if (!li_ipv4_in_ipv4_net(ipv4->sin_addr.s_addr, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
 					if ((mask->value.ipv4.port != port) && (mask->value.ipv4.port != 0 || (port != 80 && port != 443))) continue;
 					return TRUE;
+/* strict matches only */
+#if 0
 				case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
 					if (!li_ipv4_in_ipv6_net(ipv4->sin_addr.s_addr, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
 					if ((mask->value.ipv6.port != port) && (mask->value.ipv6.port != 0 || (port != 80 && port != 443))) continue;
 					return TRUE;
+#endif
 				default:
 					continue;
 				}
@@ -364,10 +367,13 @@ static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSo
 			for (i = 0; i < config->listen_masks->len; i++) {
 				mask = g_ptr_array_index(config->listen_masks, i);
 				switch (mask->type) {
+/* strict matches only */
+#if 0
 				case LI_PLUGIN_CORE_LISTEN_MASK_IPV4:
 					if (!li_ipv6_in_ipv4_net(ipv6->sin6_addr.s6_addr, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
 					if ((mask->value.ipv4.port != port) && (mask->value.ipv4.port != 0 || (port != 80 && port != 443))) continue;
 					return TRUE;
+#endif
 				case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
 					if (!li_ipv6_in_ipv6_net(ipv6->sin6_addr.s6_addr, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
 					if ((mask->value.ipv6.port != port) && (mask->value.ipv6.port != 0 || (port != 80 && port != 443))) continue;
