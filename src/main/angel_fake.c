@@ -11,6 +11,38 @@ int li_angel_fake_listen(liServer *srv, GString *str) {
 #endif
 	guint16 port;
 
+#ifdef HAVE_SYS_UN_H
+	if (0 == strncmp(str->str, "unix:/", 6)) {
+		int s;
+		struct sockaddr_un *un;
+		socklen_t slen = str->len + 1 - 5 + sizeof(un->sun_family);
+
+		un = g_malloc0(slen);
+		un->sun_family = AF_UNIX;
+		strcpy(un->sun_path, str->str + 5);
+
+		if (-1 == (s = socket(AF_UNIX, SOCK_STREAM, 0))) {
+			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
+			g_free(un);
+			return -1;
+		}
+		if (-1 == bind(s, (struct sockaddr*) un, slen)) {
+			close(s);
+			ERROR(srv, "Couldn't bind socket to '%s': %s", str->str, g_strerror(errno));
+			g_free(un);
+			return -1;
+		}
+		if (-1 == listen(s, 1000)) {
+			close(s);
+			ERROR(srv, "Couldn't listen on '%s': %s", str->str, g_strerror(errno));
+			g_free(un);
+			return -1;
+		}
+		g_free(un);
+		DEBUG(srv, "listen to unix socket: '%s'", str->str);
+		return s;
+	} else
+#endif
 	if (li_parse_ipv4(str->str, &ipv4, NULL, &port)) {
 		int s, v;
 		struct sockaddr_in addr;

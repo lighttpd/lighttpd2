@@ -9,6 +9,7 @@ typedef struct listen_ref_resource listen_ref_resource;
 # define DEFAULT_LIBEXECDIR "/usr/local/lib/lighttpd2"
 #endif
 
+#include <fnmatch.h>
 
 struct listen_socket {
 	gint refcount;
@@ -384,7 +385,19 @@ static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSo
 #ifdef HAVE_SYS_UN_H
 	case AF_UNIX: {
 		if (config->listen_masks->len) {
-			/* TODO: support unix addresses */
+			const gchar *fname = addr->addr->un.sun_path;
+
+			for (i = 0; i < config->listen_masks->len; i++) {
+				mask = g_ptr_array_index(config->listen_masks, i);
+				switch (mask->type) {
+				case LI_PLUGIN_CORE_LISTEN_MASK_UNIX:
+					if (fnmatch(mask->value.unix_socket.path->str, fname, FNM_PERIOD | FNM_PATHNAME)) continue;
+					return TRUE;
+				default:
+					continue;
+				}
+			}
+			return FALSE;
 		} else {
 			return FALSE; /* don't allow unix by default */
 		}
@@ -466,9 +479,22 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 #endif
 #ifdef HAVE_SYS_UN_H
 	case AF_UNIX:
-		ERROR(srv, "Unix sockets not supported: %s", str->str);
-		/* TODO: support unix addresses */
-		break;
+		if (-1 == (s = socket(AF_UNIX, SOCK_STREAM, 0))) {
+			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
+			return -1;
+		}
+		if (-1 == bind(s, &addr->addr->plain, addr->len)) {
+			close(s);
+			ERROR(srv, "Couldn't bind socket to '%s': %s", str->str, g_strerror(errno));
+			return -1;
+		}
+		if (-1 == listen(s, 1000)) {
+			close(s);
+			ERROR(srv, "Couldn't listen on '%s': %s", str->str, g_strerror(errno));
+			return -1;
+		}
+		DEBUG(srv, "listen to unix socket: '%s'", str->str);
+		return s;
 #endif
 	default:
 		ERROR(srv, "Address family %i not supported", addr->addr->plain.sa_family);
