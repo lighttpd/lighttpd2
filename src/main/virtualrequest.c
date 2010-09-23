@@ -192,6 +192,7 @@ liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
 
 	vr->throttle.wqueue_elem.data = vr;
 	vr->throttle.pool.lnk.data = vr;
+	vr->throttle.ip.lnk.data = vr;
 
 	return vr;
 }

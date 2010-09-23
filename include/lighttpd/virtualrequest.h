@@ -134,7 +134,10 @@ struct liVRequest {
 			gint magazine;
 		} pool;
 		struct {
-			gchar unused; /* this struct is unused for now */
+			liThrottlePool *ptr;
+			GList lnk;
+			GQueue *queue;
+			gint magazine;
 		} ip;
 		struct {
 			gint rate; /* maximum transfer rate in bytes per second, 0 if unlimited */

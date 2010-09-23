@@ -142,6 +142,7 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	li_server_ts_format_add(srv, g_string_new("%a, %d %b %Y %H:%M:%S GMT"));
 
 	srv->throttle_pools = g_array_new(FALSE, TRUE, sizeof(liThrottlePool*));
+	srv->throttle_ip_pools = li_radixtree_new();
 
 	li_log_init(srv);
 
@@ -221,6 +222,7 @@ void li_server_free(liServer* srv) {
 			li_throttle_pool_free(srv, g_array_index(srv->throttle_pools, liThrottlePool*, i));
 		}
 		g_array_free(srv->throttle_pools, TRUE);
+		li_radixtree_free(srv->throttle_ip_pools, NULL, NULL);
 	}
 
 	if (srv->acon) {

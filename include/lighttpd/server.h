@@ -133,6 +133,7 @@ struct liServer {
 	gdouble io_timeout;
 
 	GArray *throttle_pools;
+	liRadixTree *throttle_ip_pools;
 
 	gdouble stat_cache_ttl;
 	gint tasklet_pool_threads;

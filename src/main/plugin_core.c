@@ -1616,6 +1616,13 @@ static liAction* core_buffer_in(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	return li_action_new_function(core_handle_buffer_in, NULL, NULL, GINT_TO_POINTER((gint) limit));
 }
 
+
+static void core_throttle_pool_free(liServer *srv, gpointer param) {
+	UNUSED(srv);
+
+	li_throttle_pool_free(srv, param);
+}
+
 static liHandlerResult core_handle_throttle_pool(liVRequest *vr, gpointer param, gpointer *context) {
 	liThrottlePool *pool = param;
 
@@ -1665,7 +1672,7 @@ static liAction* core_throttle_pool(liServer *srv, liWorker *wrk, liPlugin* p, l
 		rate = 0;
 	}
 
-	pool = li_throttle_pool_new(srv, name, rate);
+	pool = li_throttle_pool_new(srv, LI_THROTTLE_POOL_NAME, name, rate);
 
 	if (!pool) {
 		ERROR(srv, "io.throttle_pool: rate for pool '%s' hasn't been defined", name->str);
@@ -1673,11 +1680,49 @@ static liAction* core_throttle_pool(liServer *srv, liWorker *wrk, liPlugin* p, l
 	}
 
 	if (rate != pool->rate && rate != 0) {
-		ERROR(srv, "io.throttle_pool: pool '%s' already defined but with different rate (%ukbyte/s)", pool->name->str, pool->rate);
+		ERROR(srv, "io.throttle_pool: pool '%s' already defined but with different rate (%ukbyte/s)", pool->data.name->str, pool->rate);
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_throttle_pool, NULL, NULL, pool);
+	return li_action_new_function(core_handle_throttle_pool, NULL, core_throttle_pool_free, pool);
+}
+
+static liHandlerResult core_handle_throttle_ip(liVRequest *vr, gpointer param, gpointer *context) {
+	liThrottlePool *pool;
+	gint rate = GPOINTER_TO_INT(param);
+
+	UNUSED(context);
+
+	pool = li_throttle_pool_new(vr->wrk->srv, LI_THROTTLE_POOL_IP, &vr->coninfo->remote_addr, rate);
+	li_throttle_pool_acquire(vr, pool);
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_throttle_ip(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	gint64 rate;
+
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	if (val->type != LI_VALUE_NUMBER) {
+		ERROR(srv, "'io.throttle_ip' action expects a positiv integer as parameter, %s given", li_value_type_string(val->type));
+		return NULL;
+	}
+
+
+	rate = val->data.number;
+
+	if (rate < 32*1024) {
+		ERROR(srv, "io.throttle_pool: rate %"G_GINT64_FORMAT" is too low (32kbyte/s minimum)", rate);
+		return NULL;
+	}
+
+	if (rate > 0xFFFFFFFF) {
+		ERROR(srv, "io.throttle_pool: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", rate);
+		return NULL;
+	}
+
+	return li_action_new_function(core_handle_throttle_ip, NULL, NULL, GINT_TO_POINTER(rate));
 }
 
 static void core_throttle_connection_free(liServer *srv, gpointer param) {
@@ -1835,7 +1880,7 @@ static const liPluginAction actions[] = {
 	{ "io.buffer_in", core_buffer_in, NULL },
 	{ "io.throttle", core_throttle_connection, NULL },
 	{ "io.throttle_pool", core_throttle_pool, NULL },
-	/*{ "io.throttle_ip", core_throttle_ip, NULL },*/
+	{ "io.throttle_ip", core_throttle_ip, NULL },
 
 	{ NULL, NULL, NULL }
 };
