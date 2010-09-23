@@ -64,6 +64,8 @@
 
 #include <lighttpd/base.h>
 
+#include <lighttpd/lighttpd-glue.h>
+
 LI_API gboolean mod_progress_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_progress_free(liModules *mods, liModule *mod);
 

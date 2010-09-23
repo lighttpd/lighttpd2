@@ -68,9 +68,7 @@
 #include <lighttpd/collect.h>
 #include <lighttpd/network.h>
 #include <lighttpd/etag.h>
-#include <lighttpd/lighttpd-glue.h>
 #include <lighttpd/utils.h>
-#include <lighttpd/lighttpd-glue.h>
 
 #define SERVER_VERSION ((guint) 0x01FF0000)
 

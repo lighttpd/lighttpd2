@@ -2,6 +2,8 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
+#include <lighttpd/lighttpd-glue.h>
+
 void li_response_init(liResponse *resp) {
 	resp->headers = li_http_headers_new();
 	resp->http_status = 0;

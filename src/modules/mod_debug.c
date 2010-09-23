@@ -35,6 +35,8 @@
 
 #include <lighttpd/base.h>
 
+#include <lighttpd/lighttpd-glue.h>
+
 #ifdef WITH_PROFILER
 # include <lighttpd/profiler.h>
 #endif

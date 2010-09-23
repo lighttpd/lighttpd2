@@ -1,6 +1,7 @@
 
 #include <lighttpd/base.h>
-#include <lighttpd/plugin_core.h>
+
+#include <lighttpd/lighttpd-glue.h>
 
 #define SET_LEN_AND_RETURN_STR(x) \
 	do { \

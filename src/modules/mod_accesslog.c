@@ -36,6 +36,8 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
+#include <lighttpd/lighttpd-glue.h>
+
 LI_API gboolean mod_accesslog_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_accesslog_free(liModules *mods, liModule *mod);
 

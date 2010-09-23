@@ -1,10 +1,6 @@
 #ifndef _LIGHTTPD_LIGHTTPD_GLUE_H_
 #define _LIGHTTPD_LIGHTTPD_GLUE_H_
 
-#ifndef _LIGHTTPD_BASE_H_
-#error Please include <lighttpd/base.h> instead of this file
-#endif
-
 /* returns the description for a given http status code and sets the len to the length of the returned string */
 LI_API gchar *li_http_status_string(guint status_code, guint *len);
 /* returns the liHttpMethod enum entry matching the given string */
