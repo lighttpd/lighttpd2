@@ -39,6 +39,8 @@
 
 #include <lighttpd/plugin_core.h>
 
+#include <lighttpd/lighttpd-glue.h>
+
 #ifdef HAVE_SYS_RESOURCE_H
 # include <sys/resource.h>
 #endif
