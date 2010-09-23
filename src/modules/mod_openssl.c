@@ -36,11 +36,42 @@ typedef struct openssl_context openssl_context;
 
 struct openssl_connection_ctx {
 	SSL *ssl;
+	liConnection *con;
+
+	int con_events;
+	liJob con_handle_events_job;
 };
 
 struct openssl_context {
 	SSL_CTX *ssl_ctx;
 };
+
+static void openssl_con_handle_events_cb(liJob *job) {
+	openssl_connection_ctx *conctx = LI_CONTAINER_OF(job, openssl_connection_ctx, con_handle_events_job);
+	liConnection *con = conctx->con;
+
+	connection_handle_io(con);
+}
+
+static void openssl_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
+	liConnection *con = (liConnection*) w->data;
+	openssl_connection_ctx *conctx = con->srv_sock_data;
+
+	if (revents & EV_ERROR) {
+		/* if this happens, we have a serious bug in the event handling */
+		VR_ERROR(con->mainvr, "%s", "EV_ERROR encountered, dropping connection!");
+		li_connection_error(con);
+		return;
+	}
+
+	con->can_read = TRUE;
+	con->can_write = TRUE;
+
+	/* disable all events; they will get reactivated later */
+	li_ev_io_set_events(loop, w, 0);
+
+	li_job_now(&con->wrk->jobqueue, &conctx->con_handle_events_job);
+}
 
 static gboolean openssl_con_new(liConnection *con) {
 	liServer *srv = con->srv;
@@ -50,6 +81,9 @@ static gboolean openssl_con_new(liConnection *con) {
 	con->srv_sock_data = NULL;
 
 	conctx->ssl = SSL_new(ctx->ssl_ctx);
+	conctx->con = con;
+	li_job_init(&conctx->con_handle_events_job, openssl_con_handle_events_cb);
+	conctx->con_events = 0;
 
 	if (NULL == conctx->ssl) {
 		ERROR(srv, "SSL_new: %s", ERR_error_string(ERR_get_error(), NULL));
@@ -65,6 +99,8 @@ static gboolean openssl_con_new(liConnection *con) {
 
 	con->srv_sock_data = conctx;
 	con->info.is_ssl = TRUE;
+
+	ev_set_cb(&con->sock_watcher, openssl_io_cb);
 
 	return TRUE;
 
@@ -91,8 +127,20 @@ static void openssl_con_close(liConnection *con) {
 
 	con->srv_sock_data = NULL;
 	con->info.is_ssl = FALSE;
+	li_job_clear(&conctx->con_handle_events_job);
 
 	g_slice_free(openssl_connection_ctx, conctx);
+}
+
+static void openssl_update_events(liConnection *con, int events) {
+	openssl_connection_ctx *conctx = con->srv_sock_data;
+
+	/* new events -> add them to socket watcher too */
+	if (0 != (events & ~conctx->con_events)) {
+		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, events);
+	}
+
+	conctx->con_events = events;
 }
 
 static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
@@ -134,7 +182,10 @@ static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 
 			switch ((ssl_r = SSL_get_error(conctx->ssl, r))) {
 			case SSL_ERROR_WANT_READ:
+				li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_READ);
+				return LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 			case SSL_ERROR_WANT_WRITE:
+				li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
 				return LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 			case SSL_ERROR_SYSCALL:
 				/* perhaps we have error waiting in our error-queue */
@@ -242,9 +293,17 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 
 			err = SSL_get_error(conctx->ssl, r);
 
-			if (SSL_ERROR_WANT_READ == err || SSL_ERROR_WANT_WRITE == err) {
+			switch (err) {
+			case SSL_ERROR_WANT_READ:
+				li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_READ);
 				/* ignore requirement that we should pass the same buffer again */
 				return (len > 0) ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
+			case SSL_ERROR_WANT_WRITE:
+				li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
+				/* ignore requirement that we should pass the same buffer again */
+				return (len > 0) ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
+			default:
+				break;
 			}
 
 			switch (err) {
@@ -361,6 +420,7 @@ static void openssl_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 	srv_sock->new_cb = openssl_con_new;
 	srv_sock->close_cb = openssl_con_close;
 	srv_sock->release_cb = openssl_sock_release;
+	srv_sock->update_events_cb = openssl_update_events;
 }
 
 static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {

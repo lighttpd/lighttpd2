@@ -80,4 +80,6 @@ LI_API gchar *li_connection_state_str(liConnectionState state);
 /* returns NULL if the vrequest doesn't belong to a liConnection* object */
 LI_API liConnection* li_connection_from_vrequest(liVRequest *vr);
 
+LI_API void connection_handle_io(liConnection *con);
+
 #endif

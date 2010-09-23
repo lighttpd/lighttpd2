@@ -15,6 +15,7 @@ typedef gboolean (*liConnectionNewCB)(liConnection *con);
 typedef void (*liConnectionCloseCB)(liConnection *con);
 typedef liNetworkStatus (*liConnectionWriteCB)(liConnection *con, goffset write_max);
 typedef liNetworkStatus (*liConnectionReadCB)(liConnection *con);
+typedef void (*liServerSocketUpdateEventsCB)(liConnection *con, int events);
 typedef void (*liServerSocketReleaseCB)(liServerSocket *srv_sock);
 
 typedef void (*liServerStateWaitCancelled)(liServer *srv, liServerStateWait *w);
@@ -42,6 +43,7 @@ struct liServerSocket {
 	liConnectionNewCB new_cb;
 	liConnectionCloseCB close_cb;
 	liServerSocketReleaseCB release_cb;
+	liServerSocketUpdateEventsCB update_events_cb;
 };
 
 struct liServerStateWait {

@@ -8,17 +8,25 @@ static void li_connection_internal_error(liConnection *con);
 static void update_io_events(liConnection *con) {
 	int events = 0;
 
-	if (!con->can_read && (con->state != LI_CON_STATE_HANDLE_MAINVR || con->mainvr->state >= LI_VRS_READ_CONTENT) && !con->in->is_closed) {
-		events = events | EV_READ;
-	}
+	if (LI_CON_STATE_KEEP_ALIVE == con->state) {
+		events = EV_READ;
+	} else {
+		if (!con->can_read && (con->state != LI_CON_STATE_HANDLE_MAINVR || con->mainvr->state >= LI_VRS_READ_CONTENT) && !con->in->is_closed) {
+			events = events | EV_READ;
+		}
 
-	if (!con->can_write && con->raw_out->length > 0) {
-		if (!con->mainvr->throttled || con->mainvr->throttle.magazine > 0) {
-			events = events | EV_WRITE;
+		if (!con->can_write && con->raw_out->length > 0) {
+			if (!con->mainvr->throttled || con->mainvr->throttle.magazine > 0) {
+				events = events | EV_WRITE;
+			}
 		}
 	}
 
-	li_ev_io_set_events(con->wrk->loop, &con->sock_watcher, events);
+	if (con->srv_sock->update_events_cb) {
+		con->srv_sock->update_events_cb(con, events);
+	} else {
+		li_ev_io_set_events(con->wrk->loop, &con->sock_watcher, events);
+	}
 }
 
 static void parse_request_body(liConnection *con) {
@@ -380,21 +388,27 @@ static gboolean connection_try_write(liConnection *con) {
 	return TRUE;
 }
 
-static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	liConnection *con = (liConnection*) w->data;
-	UNUSED(loop);
-
+void connection_handle_io(liConnection *con) {
 	/* ensure that the connection is always in the io timeout queue */
 	if (!con->io_timeout_elem.queued)
 		li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
-
-	if (revents & EV_READ) con->can_read = TRUE;
-	if (revents & EV_WRITE) con->can_write = TRUE;
 
 	if (con->can_read)
 		if (!connection_try_read(con)) return;
 	if (con->can_write)
 		if (!connection_try_write(con)) return;
+
+	if (!check_response_done(con)) return;
+
+	update_io_events(con);
+}
+
+static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
+	liConnection *con = (liConnection*) w->data;
+	UNUSED(loop);
+
+	if (revents & EV_READ) con->can_read = TRUE;
+	if (revents & EV_WRITE) con->can_write = TRUE;
 
 	if (revents & EV_ERROR) {
 		/* if this happens, we have a serious bug in the event handling */
@@ -403,9 +417,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		return;
 	}
 
-	if (!check_response_done(con)) return;
-
-	update_io_events(con);
+	connection_handle_io(con);
 }
 
 static void connection_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) {
@@ -577,6 +589,7 @@ void li_connection_reset(liConnection *con) {
 		}
 	}
 	ev_io_set(&con->sock_watcher, -1, 0);
+	ev_set_cb(&con->sock_watcher, connection_cb);
 
 	li_chunkqueue_reset(con->raw_in);
 	li_chunkqueue_reset(con->raw_out);
@@ -665,7 +678,7 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;
 
-	li_ev_io_set_events(con->wrk->loop, &con->sock_watcher, EV_READ);
+	update_io_events(con);
 	con->info.keep_alive = TRUE;
 
 	con->raw_out->is_closed = FALSE;
