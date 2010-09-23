@@ -1,4 +1,5 @@
 #include <lighttpd/base.h>
+#include <lighttpd/encoding.h>
 
 liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 	GArray *pattern;
