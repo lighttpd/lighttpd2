@@ -50,17 +50,18 @@ local function wsgi(uri_prefix, act)
 end
 
 
--- try to find a file for the current url with ".html" prefix,
--- if url doesn't already belong to a file and has not already ".html" prefix
+-- try to find a file for the current url with ".html" suffix,
+-- if url doesn't already belong to a file and has not already ".html" suffix
 -- example:
 --   core.cached_html;
 local _cached_html -- cache action as it doesn't have parameters
 local function cached_html()
 	if not _cached_html then
-		_cached_html = action.lua.handler(basepath .. 'core__cached_html.lua')
+		local lua_cached_html = action.lua.handler(basepath .. 'core__cached_html.lua')
+		_cached_html = action.when(physical.is_file:isnot(), action.when(physical.path:notsuffix('.html'), lua_cached_html))
 	end
 
-	return action.when(physical.is_file:isnot(), action.when(physical.path:notsuffix('.html'), try_cached_html))
+	return _cached_html
 end
 
 -- Usage
