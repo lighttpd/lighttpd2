@@ -14,8 +14,7 @@ liNetworkStatus li_network_backend_write(liVRequest *vr, int fd, liChunkQueue *c
 			return did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_FATAL_ERROR;
 
 		ci = li_chunkqueue_iter(cq);
-		/* TODO: handle SIGBUS */
-		switch (li_chunkiter_read_mmap(vr, ci, 0, blocksize, &block_data, &block_len)) {
+		switch (li_chunkiter_readvr, ci, 0, blocksize, &block_data, &block_len)) {
 		case LI_HANDLER_GO_ON:
 			break;
 		case LI_HANDLER_ERROR:
