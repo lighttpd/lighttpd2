@@ -3,22 +3,6 @@
 
 /* liPattern are a parsed representation of a string that can contain various placeholders like $n, %n, %{var} or {enc:var} */
 
-typedef struct {
-	enum {
-		PATTERN_STRING,		/* literal */
-		PATTERN_NTH,		/* $n */
-		PATTERN_NTH_PREV,	/* %n */
-		PATTERN_VAR,		/* %{req.foo} */
-		PATTERN_VAR_ENCODED	/* %{enc:req.foo} */
-	} type;
-
-	union {
-		GString *str;		/* PATTERN_STRING */
-		guint8 ndx;			/* PATTERN_NTH and PATTERN_NTH_PREV */
-		liConditionLValue *lvalue;	/* PATTERN_VAR and PATTERN_VAR_ENCODED */
-	} data;
-} liPatternPart;
-
 /* liPattern is a GArray in disguise */
 typedef GArray liPattern;
 

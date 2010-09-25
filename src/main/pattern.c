@@ -1,6 +1,22 @@
 #include <lighttpd/base.h>
 #include <lighttpd/encoding.h>
 
+typedef struct {
+	enum {
+		PATTERN_STRING,		/* literal */
+		PATTERN_NTH,		/* $n */
+		PATTERN_NTH_PREV,	/* %n */
+		PATTERN_VAR,		/* %{req.foo} */
+		PATTERN_VAR_ENCODED	/* %{enc:req.foo} */
+	} type;
+
+	union {
+		GString *str;		/* PATTERN_STRING */
+		guint8 ndx;			/* PATTERN_NTH and PATTERN_NTH_PREV */
+		liConditionLValue *lvalue;	/* PATTERN_VAR and PATTERN_VAR_ENCODED */
+	} data;
+} liPatternPart;
+
 liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 	GArray *pattern;
 	liPatternPart part;
@@ -54,7 +70,7 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 						gchar *key_c, *key_start;
 						guint key_len = 0;
 
-						/* search for clsoing ']' */
+						/* search for closing ']' */
 						for (key_start = key_c = lval_c+1; *key_c != '\0' && *key_c != ']'; key_c++) {
 							key_len++;
 						}
@@ -197,9 +213,12 @@ void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatter
 }
 
 void li_pattern_array_cb(GString *pattern_result, guint8 nth_ndx, gpointer data) {
-	GString *str = g_array_index((GArray*)data, GString*, nth_ndx);
+	GArray *a = data;
 
-	g_string_append_len(pattern_result, GSTR_LEN(str));
+	if (nth_ndx < a->len) {
+		GString *str = g_array_index(a, GString*, nth_ndx);
+		g_string_append_len(pattern_result, GSTR_LEN(str));
+	}
 }
 
 void li_pattern_regex_cb(GString *pattern_result, guint8 nth_ndx, gpointer data) {
