@@ -50,8 +50,9 @@
  *     - implement rewrite_optimized which reorders rules according to hitcount
  *     - implement rewrite_raw which uses the raw uri
  *
- * Author:
+ * Authors:
  *     Copyright (c) 2009 Thomas Porzelt
+ *     Copyright (c) 2010 Stefan Bühler
  * License:
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
@@ -62,256 +63,115 @@
 LI_API gboolean mod_rewrite_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_rewrite_free(liModules *mods, liModule *mod);
 
+typedef struct rewrite_plugin_data rewrite_plugin_data;
 struct rewrite_plugin_data {
 	GPtrArray *tmp_strings; /* array of (GString*) */
 };
-typedef struct rewrite_plugin_data rewrite_plugin_data;
 
-struct rewrite_part {
-	enum {
-		REWRITE_PART_STRING,
-		REWRITE_PART_CAPTURED,
-		REWRITE_PART_CAPTURED_PREV,
-		REWRITE_PART_VAR,
-		REWRITE_PART_VAR_ENCODED,
-		REWRITE_PART_QUERYSTRING
-	} type;
-	union {
-		GString *str;
-		guint8 ndx;
-		liCondLValue cond_lval;
-	} data;
-};
-typedef struct rewrite_part rewrite_part;
-
-struct rewrite_rule {
-	GArray *parts;
-	GRegex *regex;
-	gboolean has_querystring;
-};
 typedef struct rewrite_rule rewrite_rule;
+struct rewrite_rule {
+	liPattern *path, *querystring;
+	GRegex *regex;
+};
 
+typedef struct rewrite_data rewrite_data;
 struct rewrite_data {
 	GArray *rules;
 	liPlugin *p;
 };
-typedef struct rewrite_data rewrite_data;
 
+static gboolean rewrite_rule_parse(liServer *srv, GString *regex, GString *str, rewrite_rule *rule) {
+	gchar *qs;
 
+	rule->path = rule->querystring = NULL;
+	rule->regex = NULL;
 
-static void rewrite_parts_free(GArray *parts) {
-	guint i;
+	/* find "not-escaped" ? */
+	for (qs = str->str; *qs; qs++) {
+		if ('\\' == *qs) {
+			qs++;
+			if (!*qs) break;
+		} else if ('?' == *qs) break;
+	}
+	if (!*qs) qs = NULL;
 
-	for (i = 0; i < parts->len; i++) {
-		rewrite_part *rp = &g_array_index(parts, rewrite_part, i);
-
-		switch (rp->type) {
-		case REWRITE_PART_STRING: g_string_free(rp->data.str, TRUE); break;
-		default: break;
+	if (NULL != qs) {
+		*qs = '\0'; /* restore later */
+		rule->querystring = li_pattern_new(srv, qs+1);
+		if (NULL == rule->querystring) {
+			goto error;
 		}
 	}
 
-	g_array_free(parts, TRUE);
-}
+	rule->path = li_pattern_new(srv, str->str);
+	if (NULL == rule->path) {
+		goto error;
+	}
 
-static GArray *rewrite_parts_parse(GString *str, gboolean *has_querystring) {
-	rewrite_part rp;
-	gboolean encoded;
-	gchar *c = str->str;
-	GArray *parts = g_array_new(FALSE, FALSE, sizeof(rewrite_part));
+	if (NULL != regex) {
+		GError *err = NULL;
+		rule->regex = g_regex_new(regex->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
 
-	for (;;) {
-		if (*c == '\0') {
-			break;
-		} else if (*c == '?') {
-			/* querystring */
-			rp.type = REWRITE_PART_QUERYSTRING;
-			g_array_append_val(parts, rp);
-			c++;
-			*has_querystring = TRUE;
-		} else if (*c == '$') {
-			c++;
-			if (*c >= '0' && *c <= '9') {
-				/* $n backreference */
-				rp.type = REWRITE_PART_CAPTURED;
-				rp.data.ndx = *c - '0';
-				g_array_append_val(parts, rp);
-				c++;
-			} else {
-				/* parse error */
-				rewrite_parts_free(parts);
-				return NULL;
-			}
-		} else if (*c == '%') {
-			c++;
-			if (*c >= '0' && *c <= '9') {
-				/* %n backreference */
-				rp.type = REWRITE_PART_CAPTURED_PREV;
-				rp.data.ndx = *c - '0';
-				g_array_append_val(parts, rp);
-				c++;
-			} else if (*c == '{') {
-				/* %{var} */
-				guint len;
-
-				c++;
-				encoded = FALSE;
-
-				if (g_str_has_prefix(c, "enc:")) {
-					c += sizeof("enc:")-1;
-					encoded = TRUE;
-				}
-
-				for (len = 0; *c != '\0' && *c != '}'; c++)
-					len++;
-
-				if (*c == '\0') {
-					/* parse error */
-					rewrite_parts_free(parts);
-					return NULL;
-				}
-
-				rp.data.cond_lval = li_cond_lvalue_from_string(c-len, len);
-
-				if (rp.data.cond_lval == LI_COMP_UNKNOWN) {
-					/* parse error */
-					rewrite_parts_free(parts);
-					return NULL;
-				}
-
-				if (len && *c == '}') {
-					rp.type = encoded ? REWRITE_PART_VAR_ENCODED : REWRITE_PART_VAR;
-					g_array_append_val(parts, rp);
-					c++;
-				} else {
-					/* parse error */
-					rewrite_parts_free(parts);
-					return NULL;
-				}
-			} else {
-				/* parse error */
-				rewrite_parts_free(parts);
-				return NULL;
-			}
-		} else {
-			/* string */
-			gchar *first = c;
-			c++;
-
-			for (;;) {
-				if (*c == '\0' || *c == '?' || *c == '$' || *c == '%') {
-					break;
-				} else if (*c == '\\') {
-					c++;
-					if (*c == '\\' || *c == '?' || *c == '$' || *c == '%') {
-						c++;
-					} else {
-						/* parse error */
-						rewrite_parts_free(parts);
-						return NULL;
-					}
-				} else {
-					c++;
-				}
-			}
-
-			rp.type = REWRITE_PART_STRING;
-			rp.data.str= g_string_new_len(first, c - first);
-			g_array_append_val(parts, rp);
+		if (NULL == rule->regex || NULL != err) {
+			ERROR(srv, "rewrite: error compiling regex \"%s\": %s", regex->str, NULL != err ? err->message : "unknown error");
+			g_error_free(err);
+			goto error;
 		}
 	}
 
-	return parts;
+	if (NULL != qs) {
+		*qs = '?';
+	}
+
+	return TRUE;
+
+error:
+	if (NULL != rule->querystring) {
+		li_pattern_free(rule->querystring);
+		rule->querystring = NULL;
+	}
+	if (NULL != rule->path) {
+		li_pattern_free(rule->path);
+		rule->path = NULL;
+	}
+	if (NULL != rule->regex) {
+		g_regex_unref(rule->regex);
+		rule->regex = NULL;
+	}
+
+	if (NULL != qs) {
+		*qs = '?';
+	}
+
+	return FALSE;
 }
 
-static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *dest_query, GRegex *regex, GArray *parts, gboolean raw) {
-	guint i;
-	GString *str;
-	GString str_stack;
+static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *dest_query, rewrite_rule *rule) {
 	gchar *path;
-	gint start_pos, end_pos;
-	gboolean encoded;
-	GString *dest = dest_path;
 	GMatchInfo *match_info = NULL;
+	GMatchInfo *prev_match_info = NULL;
 
-	if (raw)
-		path = vr->request.uri.raw_path->str;
-	else
-		path = vr->request.uri.path->str;
+	path = vr->request.uri.path->str;
 
-	if (regex && !g_regex_match(regex, path, 0, &match_info)) {
-		if (match_info)
+	if (NULL != rule->regex && !g_regex_match(rule->regex, path, 0, &match_info)) {
+		if (NULL != match_info) {
 			g_match_info_free(match_info);
+		}
 
 		return FALSE;
+	}
+
+	if (vr->action_stack.regex_stack->len) {
+		GArray *rs = vr->action_stack.regex_stack;
+		prev_match_info = g_array_index(rs, liActionRegexStackElement, rs->len - 1).match_info;
 	}
 
 	g_string_truncate(dest_path, 0);
 	g_string_truncate(dest_query, 0);
 
-	if (!parts->len) {
-		if (match_info)
-			g_match_info_free(match_info);
-
-		return TRUE;
-	}
-
-	for (i = 0; i < parts->len; i++) {
-		rewrite_part *rp = &g_array_index(parts, rewrite_part, i);
-		encoded = FALSE;
-
-		switch (rp->type) {
-		case REWRITE_PART_STRING: g_string_append_len(dest, GSTR_LEN(rp->data.str)); break;
-		case REWRITE_PART_CAPTURED:
-			if (regex && g_match_info_fetch_pos(match_info, rp->data.ndx, &start_pos, &end_pos) && start_pos != -1)
-				g_string_append_len(dest, path + start_pos, end_pos - start_pos);
-
-			break;
-		case REWRITE_PART_CAPTURED_PREV:
-			if (vr->action_stack.regex_stack->len) {
-				GArray *rs = vr->action_stack.regex_stack;
-				liActionRegexStackElement *arse = &g_array_index(rs, liActionRegexStackElement, rs->len - 1);
-
-				if (arse->string && g_match_info_fetch_pos(arse->match_info, rp->data.ndx, &start_pos, &end_pos) && start_pos != -1)
-					g_string_append_len(dest, arse->string->str + start_pos, end_pos - start_pos);
-			}
-			break;
-		case REWRITE_PART_VAR_ENCODED:
-			encoded = TRUE;
-			/* fall through */
-		case REWRITE_PART_VAR:
-
-			switch (rp->data.cond_lval) {
-			case LI_COMP_REQUEST_LOCALIP: str = vr->coninfo->local_addr_str; break;
-			case LI_COMP_REQUEST_REMOTEIP: str = vr->coninfo->remote_addr_str; break;
-			case LI_COMP_REQUEST_SCHEME:
-				if (vr->coninfo->is_ssl)
-					str_stack = li_const_gstring(CONST_STR_LEN("https"));
-				else
-					str_stack = li_const_gstring(CONST_STR_LEN("http"));
-				str = &str_stack;
-				break;
-			case LI_COMP_REQUEST_PATH: str = vr->request.uri.path; break;
-			case LI_COMP_REQUEST_HOST: str = vr->request.uri.host; break;
-			case LI_COMP_REQUEST_QUERY_STRING: str = vr->request.uri.query; break;
-			case LI_COMP_REQUEST_METHOD: str = vr->request.http_method_str; break;
-			case LI_COMP_REQUEST_CONTENT_LENGTH:
-				g_string_printf(vr->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
-				str = vr->wrk->tmp_str;
-				break;
-			default: continue;
-			}
-
-			if (encoded)
-				li_string_encode_append(str->str, dest, LI_ENCODING_URI);
-			else
-				g_string_append_len(dest, GSTR_LEN(str));
-
-			break;
-		case REWRITE_PART_QUERYSTRING:
-			dest = dest_query;
-			break;
-		}
+	li_pattern_eval(vr, dest_path, rule->path, li_pattern_regex_cb, match_info, li_pattern_regex_cb, prev_match_info);
+	if (NULL != rule->querystring) {
+		li_pattern_eval(vr, dest_query, rule->querystring, li_pattern_regex_cb, match_info, li_pattern_regex_cb, prev_match_info);
 	}
 
 	g_match_info_free(match_info);
@@ -329,25 +189,28 @@ static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context
 	UNUSED(context);
 
 	for (i = 0; i < rd->rules->len; i++) {
+		GString *dest_path = vr->wrk->tmp_str;
+		GString *dest_query = g_ptr_array_index(rpd->tmp_strings, vr->wrk->ndx);
+
 		rule = &g_array_index(rd->rules, rewrite_rule, i);
 
-		if (rewrite_internal(vr, vr->wrk->tmp_str, g_ptr_array_index(rpd->tmp_strings, vr->wrk->ndx), rule->regex, rule->parts, FALSE)) {
+		if (rewrite_internal(vr, dest_path, dest_query, rule)) {
 			/* regex matched */
 			if (debug) {
 				VR_DEBUG(vr, "rewrite: path \"%s\" => \"%s\", query \"%s\" => \"%s\"",
-					vr->request.uri.path->str, vr->wrk->tmp_str->str,
-					vr->request.uri.query->str, ((GString*)g_ptr_array_index(rpd->tmp_strings, vr->wrk->ndx))->str
+					vr->request.uri.path->str, dest_path->str,
+					vr->request.uri.query->str, dest_query->str
 				);
 			}
 
 			/* change request path */
 			g_string_truncate(vr->request.uri.path, 0);
-			g_string_append_len(vr->request.uri.path, GSTR_LEN(vr->wrk->tmp_str));
+			g_string_append_len(vr->request.uri.path, GSTR_LEN(dest_path));
 
 			/* change request query */
-			if (rule->has_querystring) {
+			if (NULL != rule->querystring) {
 				g_string_truncate(vr->request.uri.query, 0);
-				g_string_append_len(vr->request.uri.query, GSTR_LEN((GString*)g_ptr_array_index(rpd->tmp_strings, vr->wrk->ndx)));
+				g_string_append_len(vr->request.uri.query, GSTR_LEN(dest_query));
 			}
 
 			/* stop at first matching regex */
@@ -367,10 +230,12 @@ static void rewrite_free(liServer *srv, gpointer param) {
 	for (i = 0; i < rd->rules->len; i++) {
 		rewrite_rule *rule = &g_array_index(rd->rules, rewrite_rule, i);
 
-		rewrite_parts_free(rule->parts);
+		li_pattern_free(rule->path);
+		li_pattern_free(rule->querystring);
 
-		if (rule->regex)
+		if (rule->regex) {
 			g_regex_unref(rule->regex);
+		}
 	}
 
 	g_array_free(rd->rules, TRUE);
@@ -382,9 +247,7 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	liValue *v;
 	guint i;
 	rewrite_data *rd;
-	rewrite_rule rule;
 	rewrite_plugin_data *rpd = p->data;
-	GError *err = NULL;
 
 	UNUSED(wrk);
 	UNUSED(userdata);
@@ -408,11 +271,9 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 
 	if (val->type == LI_VALUE_STRING) {
 		/* rewrite "/foo/bar"; */
-		rule.has_querystring = FALSE;
-		rule.parts = rewrite_parts_parse(val->data.string, &rule.has_querystring);
-		rule.regex = NULL;
+		rewrite_rule rule = { NULL, NULL, NULL };
 
-		if (!rule.parts) {
+		if (!rewrite_rule_parse(srv, NULL, val->data.string, &rule)) {
 			rewrite_free(NULL, rd);
 			ERROR(srv, "rewrite: error parsing rule \"%s\"", val->data.string->str);
 			return NULL;
@@ -421,22 +282,10 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 		g_array_append_val(rd->rules, rule);
 	} else if (arr->len == 2 && g_array_index(arr, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(arr, liValue*, 1)->type == LI_VALUE_STRING) {
 		/* only one rule */
-		rule.has_querystring = FALSE;
-		rule.parts = rewrite_parts_parse(g_array_index(arr, liValue*, 1)->data.string, &rule.has_querystring);
+		rewrite_rule rule = { NULL, NULL, NULL };
 
-		if (!rule.parts) {
+		if (!rewrite_rule_parse(srv, g_array_index(arr, liValue*, 0)->data.string, g_array_index(arr, liValue*, 1)->data.string, &rule)) {
 			rewrite_free(NULL, rd);
-			ERROR(srv, "rewrite: error parsing rule \"%s\"", g_array_index(arr, liValue*, 1)->data.string->str);
-			return NULL;
-		}
-
-		rule.regex = g_regex_new(g_array_index(arr, liValue*, 0)->data.string->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
-
-		if (!rule.regex || err) {
-			rewrite_free(NULL, rd);
-			rewrite_parts_free(rule.parts);
-			ERROR(srv, "rewrite: error compiling regex \"%s\": %s", g_array_index(arr, liValue*, 0)->data.string->str, err->message);
-			g_error_free(err);
 			return NULL;
 		}
 
@@ -444,6 +293,7 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	} else {
 		/* probably multiple rules */
 		for (i = 0; i < arr->len; i++) {
+			rewrite_rule rule = { NULL, NULL, NULL };
 			v = g_array_index(arr, liValue*, i);
 
 			if (v->type != LI_VALUE_LIST || v->data.list->len != 2 ||
@@ -454,29 +304,15 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 				return NULL;
 			}
 
-			rule.has_querystring = FALSE;
-			rule.parts = rewrite_parts_parse(g_array_index(v->data.list, liValue*, 1)->data.string, &rule.has_querystring);
 
-			if (!rule.parts) {
+			if (!rewrite_rule_parse(srv, g_array_index(v->data.list, liValue*, 0)->data.string, g_array_index(v->data.list, liValue*, 1)->data.string, &rule)) {
 				rewrite_free(NULL, rd);
-				ERROR(srv, "rewrite: error parsing rule \"%s\"", g_array_index(v->data.list, liValue*, 1)->data.string->str);
-				return NULL;
-			}
-
-			rule.regex = g_regex_new(g_array_index(v->data.list, liValue*, 0)->data.string->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
-
-			if (!rule.regex || err) {
-				rewrite_free(NULL, rd);
-				rewrite_parts_free(rule.parts);
-				ERROR(srv, "rewrite: error compiling regex \"%s\": %s", g_array_index(v->data.list, liValue*, 0)->data.string->str, err->message);
-				g_error_free(err);
 				return NULL;
 			}
 
 			g_array_append_val(rd->rules, rule);
 		}
 	}
-
 
 	return li_action_new_function(rewrite, NULL, rewrite_free, rd);
 }
