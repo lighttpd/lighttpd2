@@ -45,8 +45,9 @@
  * Todo:
  *     none
  *
- * Author:
+ * Authors:
  *     Copyright (c) 2009 Thomas Porzelt
+ *     Copyright (c) 2010 Stefan Bühler
  * License:
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
@@ -57,24 +58,9 @@
 LI_API gboolean mod_redirect_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_redirect_free(liModules *mods, liModule *mod);
 
-struct redirect_part {
-	enum {
-		REDIRECT_PART_STRING,
-		REDIRECT_PART_CAPTURED,
-		REDIRECT_PART_CAPTURED_PREV,
-		REDIRECT_PART_VAR,
-		REDIRECT_PART_VAR_ENCODED
-	} type;
-	union {
-		GString *str;
-		guint8 ndx;
-		liCondLValue cond_lval;
-	} data;
-};
-typedef struct redirect_part redirect_part;
-
+typedef struct redirect_rule redirect_rule;
 struct redirect_rule {
-	GArray *parts;
+	liPattern *pattern;
 	GRegex *regex;
 	enum {
 		REDIRECT_ABSOLUTE_URI,
@@ -83,252 +69,116 @@ struct redirect_rule {
 		REDIRECT_RELATIVE_QUERY
 	} type;
 };
-typedef struct redirect_rule redirect_rule;
 
+typedef struct redirect_data redirect_data;
 struct redirect_data {
 	GArray *rules;
 	liPlugin *p;
 };
-typedef struct redirect_data redirect_data;
 
+static gboolean redirect_rule_parse(liServer *srv, GString *regex, GString *str, redirect_rule *rule) {
+	gchar *regex_str = regex->str;
 
+	rule->pattern = NULL;
+	rule->regex = NULL;
+	rule->type = REDIRECT_ABSOLUTE_URI;
 
-static void redirect_parts_free(GArray *parts) {
-	guint i;
+	if (regex_str[0] == '/') {
+		rule->type = REDIRECT_ABSOLUTE_PATH;
+	} else if (regex_str[0] == '?') {
+		rule->type = REDIRECT_RELATIVE_QUERY;
+	} else if (g_str_has_prefix(regex_str, "./")) {
+		regex_str += 2;
+		rule->type = REDIRECT_RELATIVE_PATH;
+	}
 
-	for (i = 0; i < parts->len; i++) {
-		redirect_part *rp = &g_array_index(parts, redirect_part, i);
+	rule->pattern = li_pattern_new(srv, str->str);
+	if (NULL == rule->pattern) {
+		goto error;
+	}
 
-		switch (rp->type) {
-		case REDIRECT_PART_STRING: g_string_free(rp->data.str, TRUE); break;
-		default: break;
+	if (NULL != regex) {
+		GError *err = NULL;
+		rule->regex = g_regex_new(regex->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
+
+		if (NULL == rule->regex || NULL != err) {
+			ERROR(srv, "redirect: error compiling regex \"%s\": %s", regex->str, NULL != err ? err->message : "unknown error");
+			g_error_free(err);
+			goto error;
 		}
 	}
 
-	g_array_free(parts, TRUE);
-}
+	return TRUE;
 
-static GArray *redirect_parts_parse(GString *str) {
-	redirect_part rp;
-	gboolean encoded;
-	gchar *c = str->str;
-	GArray *parts = g_array_new(FALSE, FALSE, sizeof(redirect_part));
-
-	for (;;) {
-		if (*c == '\0') {
-			break;
-		} else if (*c == '$') {
-			c++;
-			if (*c >= '0' && *c <= '9') {
-				/* $n backreference */
-				rp.type = REDIRECT_PART_CAPTURED;
-				rp.data.ndx = *c - '0';
-				g_array_append_val(parts, rp);
-				c++;
-			} else {
-				/* parse error */
-				redirect_parts_free(parts);
-				return NULL;
-			}
-		} else if (*c == '%') {
-			c++;
-			if (*c >= '0' && *c <= '9') {
-				/* %n backreference */
-				rp.type = REDIRECT_PART_CAPTURED_PREV;
-				rp.data.ndx = *c - '0';
-				g_array_append_val(parts, rp);
-				c++;
-			} else if (*c == '{') {
-				/* %{var} */
-				guint len;
-
-				c++;
-				encoded = FALSE;
-
-				if (g_str_has_prefix(c, "enc:")) {
-					c += sizeof("enc:")-1;
-					encoded = TRUE;
-				}
-
-				for (len = 0; *c != '\0' && *c != '}'; c++)
-					len++;
-
-				if (*c == '\0') {
-					/* parse error */
-					redirect_parts_free(parts);
-					return NULL;
-				}
-
-				rp.data.cond_lval = li_cond_lvalue_from_string(c-len, len);
-
-				if (rp.data.cond_lval == LI_COMP_UNKNOWN) {
-					/* parse error */
-					redirect_parts_free(parts);
-					return NULL;
-				}
-
-				if (len && *c == '}') {
-					rp.type = encoded ? REDIRECT_PART_VAR_ENCODED : REDIRECT_PART_VAR;
-					g_array_append_val(parts, rp);
-					c++;
-				} else {
-					/* parse error */
-					redirect_parts_free(parts);
-					return NULL;
-				}
-			} else {
-				/* parse error */
-				redirect_parts_free(parts);
-				return NULL;
-			}
-		} else {
-			/* string */
-			gchar *first = c;
-			c++;
-
-			for (;;) {
-				if (*c == '\0' || *c == '$' || *c == '%') {
-					break;
-				} else if (*c == '\\') {
-					c++;
-					if (*c == '\\' || *c == '$' || *c == '%') {
-						c++;
-					} else {
-						/* parse error */
-						redirect_parts_free(parts);
-						return NULL;
-					}
-				} else {
-					c++;
-				}
-			}
-
-			rp.type = REDIRECT_PART_STRING;
-			rp.data.str= g_string_new_len(first, c - first);
-			g_array_append_val(parts, rp);
-		}
+error:
+	if (NULL != rule->pattern) {
+		li_pattern_free(rule->pattern);
+		rule->pattern = NULL;
+	}
+	if (NULL != rule->regex) {
+		g_regex_unref(rule->regex);
+		rule->regex = NULL;
 	}
 
-	return parts;
+	return FALSE;
 }
 
-static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *rule, gboolean raw) {
-	guint i;
-	GString *str;
-	GString str_stack;
+static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *rule) {
 	gchar *path;
-	gchar *c;
-	gint start_pos, end_pos;
-	gboolean encoded;
-	GRegex *regex = rule->regex;
-	GArray *parts = rule->parts;
 	GMatchInfo *match_info = NULL;
+	GMatchInfo *prev_match_info = NULL;
 
-	if (raw)
-		path = vr->request.uri.raw_path->str;
-	else
-		path = vr->request.uri.path->str;
+	path = vr->request.uri.path->str;
 
-	if (regex && !g_regex_match(regex, path, 0, &match_info)) {
-		if (match_info)
+	if (NULL != rule->regex && !g_regex_match(rule->regex, path, 0, &match_info)) {
+		if (match_info) {
 			g_match_info_free(match_info);
+		}
 
 		return FALSE;
 	}
 
 	g_string_truncate(dest, 0);
 
-	if (!parts->len || g_array_index(parts, redirect_part, 0).type != REDIRECT_PART_VAR || g_array_index(parts, redirect_part, 0).data.cond_lval != LI_COMP_REQUEST_SCHEME) {
-		switch (rule->type) {
-		case REDIRECT_ABSOLUTE_URI:
-			/* http://example.tld/foo/bar?baz */
-			break;
-		case REDIRECT_ABSOLUTE_PATH:
-			/* /foo/bar?baz */
-			g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
-			g_string_append_len(dest, CONST_STR_LEN("://"));
-			g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
-			break;
-		case REDIRECT_RELATIVE_PATH:
-			/* foo/bar?baz */
-			g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
-			g_string_append_len(dest, CONST_STR_LEN("://"));
-			g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
-			/* search for last slash /foo/bar */
-			for (c = (vr->request.uri.path->str + vr->request.uri.path->len - 1); c > vr->request.uri.path->str; c--) {
-				if (*c == '/')
-					break;
+	switch (rule->type) {
+	case REDIRECT_ABSOLUTE_URI:
+		/* http://example.tld/foo/bar?baz */
+		break;
+	case REDIRECT_ABSOLUTE_PATH:
+		/* /foo/bar?baz */
+		g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
+		g_string_append_len(dest, CONST_STR_LEN("://"));
+		g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
+		break;
+	case REDIRECT_RELATIVE_PATH:
+		/* foo/bar?baz */
+		g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
+		g_string_append_len(dest, CONST_STR_LEN("://"));
+		g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
+		/* search for last slash /foo/bar */
+		{
+			gchar *c;
+			for (c = (vr->request.uri.path->str + vr->request.uri.path->len); c-- > vr->request.uri.path->str;) {
+				if (*c == '/') break;
 			}
 
 			g_string_append_len(dest, vr->request.uri.path->str, c - vr->request.uri.path->str + 1);
-			break;
-		case REDIRECT_RELATIVE_QUERY:
-			/* ?bar */
-			g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
-			g_string_append_len(dest, CONST_STR_LEN("://"));
-			g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
-			g_string_append_len(dest, GSTR_LEN(vr->request.uri.path));
-			break;
 		}
+		break;
+	case REDIRECT_RELATIVE_QUERY:
+		/* ?bar */
+		g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
+		g_string_append_len(dest, CONST_STR_LEN("://"));
+		g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
+		g_string_append_len(dest, GSTR_LEN(vr->request.uri.path));
+		break;
 	}
 
-	for (i = 0; i < parts->len; i++) {
-		redirect_part *rp = &g_array_index(parts, redirect_part, i);
-		encoded = FALSE;
+	li_pattern_eval(vr, dest, rule->pattern, li_pattern_regex_cb, match_info, li_pattern_regex_cb, prev_match_info);
 
-		switch (rp->type) {
-		case REDIRECT_PART_STRING: g_string_append_len(dest, GSTR_LEN(rp->data.str)); break;
-		case REDIRECT_PART_CAPTURED:
-			if (regex && g_match_info_fetch_pos(match_info, rp->data.ndx, &start_pos, &end_pos) && start_pos != -1)
-				g_string_append_len(dest, path + start_pos, end_pos - start_pos);
-
-			break;
-		case REDIRECT_PART_CAPTURED_PREV:
-			if (vr->action_stack.regex_stack->len) {
-				GArray *rs = vr->action_stack.regex_stack;
-				liActionRegexStackElement *arse = &g_array_index(rs, liActionRegexStackElement, rs->len - 1);
-
-				if (arse->string && g_match_info_fetch_pos(arse->match_info, rp->data.ndx, &start_pos, &end_pos) && start_pos != -1)
-					g_string_append_len(dest, arse->string->str + start_pos, end_pos - start_pos);
-			}
-			break;
-		case REDIRECT_PART_VAR_ENCODED:
-			encoded = TRUE;
-			/* fall through */
-		case REDIRECT_PART_VAR:
-
-			switch (rp->data.cond_lval) {
-			case LI_COMP_REQUEST_LOCALIP: str = vr->coninfo->local_addr_str; break;
-			case LI_COMP_REQUEST_REMOTEIP: str = vr->coninfo->remote_addr_str; break;
-			case LI_COMP_REQUEST_SCHEME:
-				if (vr->coninfo->is_ssl)
-					str_stack = li_const_gstring(CONST_STR_LEN("https"));
-				else
-					str_stack = li_const_gstring(CONST_STR_LEN("http"));
-				str = &str_stack;
-				break;
-			case LI_COMP_REQUEST_PATH: str = vr->request.uri.path; break;
-			case LI_COMP_REQUEST_HOST: str = vr->request.uri.host; break;
-			case LI_COMP_REQUEST_QUERY_STRING: str = vr->request.uri.query; break;
-			case LI_COMP_REQUEST_METHOD: str = vr->request.http_method_str; break;
-			case LI_COMP_REQUEST_CONTENT_LENGTH:
-				g_string_printf(vr->wrk->tmp_str, "%"L_GOFFSET_FORMAT, vr->request.content_length);
-				str = vr->wrk->tmp_str;
-				break;
-			default: continue;
-			}
-
-			if (encoded)
-				li_string_encode_append(str->str, dest, LI_ENCODING_URI);
-			else
-				g_string_append_len(dest, GSTR_LEN(str));
-
-			break;
-		}
-	}
-
-	if (match_info)
+	if (match_info) {
 		g_match_info_free(match_info);
+	}
 
 	return TRUE;
 }
@@ -347,13 +197,13 @@ static liHandlerResult redirect(liVRequest *vr, gpointer param, gpointer *contex
 	for (i = 0; i < rd->rules->len; i++) {
 		rule = &g_array_index(rd->rules, redirect_rule, i);
 
-		if (redirect_internal(vr, dest, rule, FALSE)) {
+		if (redirect_internal(vr, dest, rule)) {
 			/* regex matched */
-			if (debug)
+			if (debug) {
 				VR_DEBUG(vr, "redirect: \"%s\"", dest->str);
+			}
 
-			if (!li_vrequest_handle_direct(vr))
-				return LI_HANDLER_ERROR;
+			if (!li_vrequest_handle_direct(vr)) return LI_HANDLER_ERROR;
 
 			vr->response.http_status = 301;
 			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Location"), GSTR_LEN(dest));
@@ -375,9 +225,9 @@ static void redirect_free(liServer *srv, gpointer param) {
 	for (i = 0; i < rd->rules->len; i++) {
 		redirect_rule *rule = &g_array_index(rd->rules, redirect_rule, i);
 
-		redirect_parts_free(rule->parts);
+		li_pattern_free(rule->pattern);
 
-		if (rule->regex)
+		if (NULL != rule->regex)
 			g_regex_unref(rule->regex);
 	}
 
@@ -391,7 +241,6 @@ static liAction* redirect_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 	guint i;
 	redirect_data *rd;
 	redirect_rule rule;
-	GError *err = NULL;
 
 	UNUSED(wrk);
 	UNUSED(userdata);
@@ -409,55 +258,16 @@ static liAction* redirect_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 
 	if (val->type == LI_VALUE_STRING) {
 		/* redirect "/foo/bar"; */
-		if (g_str_has_prefix(val->data.string->str, "http://"))
-			rule.type = REDIRECT_ABSOLUTE_URI;
-		else if (g_str_has_prefix(val->data.string->str, "https://"))
-			rule.type = REDIRECT_ABSOLUTE_URI;
-		else if (val->data.string->str[0] == '/')
-			rule.type = REDIRECT_ABSOLUTE_PATH;
-		else if (val->data.string->str[0] == '?')
-			rule.type = REDIRECT_RELATIVE_QUERY;
-		else
-			rule.type = REDIRECT_RELATIVE_PATH;
-
-		rule.parts = redirect_parts_parse(val->data.string);
-		rule.regex = NULL;
-
-		if (!rule.parts) {
+		if (!redirect_rule_parse(srv, NULL, val->data.string, &rule)) {
 			redirect_free(NULL, rd);
-			ERROR(srv, "redirect: error parsing rule \"%s\"", val->data.string->str);
 			return NULL;
 		}
 
 		g_array_append_val(rd->rules, rule);
 	} else if (arr->len == 2 && g_array_index(arr, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(arr, liValue*, 1)->type == LI_VALUE_STRING) {
 		/* only one rule */
-		if (g_str_has_prefix(g_array_index(arr, liValue*, 1)->data.string->str, "http://"))
-			rule.type = REDIRECT_ABSOLUTE_URI;
-		else if (g_str_has_prefix(g_array_index(arr, liValue*, 1)->data.string->str, "https://"))
-			rule.type = REDIRECT_ABSOLUTE_URI;
-		else if (g_array_index(arr, liValue*, 1)->data.string->str[0] == '/')
-			rule.type = REDIRECT_ABSOLUTE_PATH;
-		else if (g_array_index(arr, liValue*, 1)->data.string->str[0] == '?')
-			rule.type = REDIRECT_RELATIVE_QUERY;
-		else
-			rule.type = REDIRECT_RELATIVE_PATH;
-
-		rule.parts = redirect_parts_parse(g_array_index(arr, liValue*, 1)->data.string);
-
-		if (!rule.parts) {
+		if (!redirect_rule_parse(srv, g_array_index(arr, liValue*, 0)->data.string, g_array_index(arr, liValue*, 1)->data.string, &rule)) {
 			redirect_free(NULL, rd);
-			ERROR(srv, "redirect: error parsing rule \"%s\"", g_array_index(arr, liValue*, 1)->data.string->str);
-			return NULL;
-		}
-
-		rule.regex = g_regex_new(g_array_index(arr, liValue*, 0)->data.string->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
-
-		if (!rule.regex || err) {
-			redirect_free(NULL, rd);
-			redirect_parts_free(rule.parts);
-			ERROR(srv, "redirect: error compiling regex \"%s\": %s", g_array_index(arr, liValue*, 0)->data.string->str, err->message);
-			g_error_free(err);
 			return NULL;
 		}
 
@@ -475,32 +285,8 @@ static liAction* redirect_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 				return NULL;
 			}
 
-			if (g_str_has_prefix(g_array_index(v->data.list, liValue*, 1)->data.string->str, "http://"))
-				rule.type = REDIRECT_ABSOLUTE_URI;
-			else if (g_str_has_prefix(g_array_index(v->data.list, liValue*, 1)->data.string->str, "https://"))
-				rule.type = REDIRECT_ABSOLUTE_URI;
-			else if (g_array_index(v->data.list, liValue*, 1)->data.string->str[0] == '/')
-				rule.type = REDIRECT_ABSOLUTE_PATH;
-			else if (g_array_index(v->data.list, liValue*, 1)->data.string->str[0] == '?')
-				rule.type = REDIRECT_RELATIVE_QUERY;
-			else
-				rule.type = REDIRECT_RELATIVE_PATH;
-
-			rule.parts = redirect_parts_parse(g_array_index(v->data.list, liValue*, 1)->data.string);
-
-			if (!rule.parts) {
+			if (!redirect_rule_parse(srv, g_array_index(v->data.list, liValue*, 0)->data.string, g_array_index(v->data.list, liValue*, 1)->data.string, &rule)) {
 				redirect_free(NULL, rd);
-				ERROR(srv, "redirect: error parsing rule \"%s\"", g_array_index(v->data.list, liValue*, 1)->data.string->str);
-				return NULL;
-			}
-
-			rule.regex = g_regex_new(g_array_index(v->data.list, liValue*, 0)->data.string->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
-
-			if (!rule.regex || err) {
-				redirect_free(NULL, rd);
-				redirect_parts_free(rule.parts);
-				ERROR(srv, "redirect: error compiling regex \"%s\": %s", g_array_index(v->data.list, liValue*, 0)->data.string->str, err->message);
-				g_error_free(err);
 				return NULL;
 			}
 
