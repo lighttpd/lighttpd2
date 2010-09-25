@@ -2,14 +2,18 @@
 #include <lighttpd/angel_plugin_core.h>
 #include <lighttpd/ip_parsers.h>
 
+#include <fnmatch.h>
+#include <fcntl.h>
+
+#include <pwd.h>
+#include <grp.h>
+
 typedef struct listen_socket listen_socket;
 typedef struct listen_ref_resource listen_ref_resource;
 
 #ifndef DEFAULT_LIBEXECDIR
 # define DEFAULT_LIBEXECDIR "/usr/local/lib/lighttpd2"
 #endif
-
-#include <fnmatch.h>
 
 struct listen_socket {
 	gint refcount;
@@ -23,9 +27,6 @@ struct listen_ref_resource {
 
 	listen_socket *sock;
 };
-
-#include <pwd.h>
-#include <grp.h>
 
 static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 	GPtrArray *cmd, *env;
@@ -614,6 +615,59 @@ static void core_reached_state(liServer *srv, liPlugin *p, liInstance *i, gint32
 	}
 }
 
+static void core_log_open_file(liServer *srv, liPlugin *p, liInstance *i, gint32 id, GString *data) {
+	GError *err = NULL;
+	int fd = -1;
+	GArray *fds;
+
+	UNUSED(p);
+
+	DEBUG(srv, "core_log_open_file(%i) '%s'", id, data->str);
+
+	if (-1 == id) return; /* ignore simple calls */
+
+	li_path_simplify(data);
+
+	/* TODO: make path configurable */
+	if (g_str_has_prefix(data->str, "/var/log/lighttpd2/")) {
+		/* files can be read by everyone. if you don't like that, restrict access on the directory */
+		/* if you need group write access for a specific group, use chmod g+s on the directory */
+		/* "maybe-todo": add options for mode/owner/group */
+		fd = open(data->str, O_RDWR | O_CREAT | O_APPEND, 0664);
+		if (-1 == fd) {
+			int e = errno;
+			GString *error = g_string_sized_new(0);
+			g_string_printf(error, "Couldn't open log file '%s': '%s'", data->str, g_strerror(e));
+
+			ERROR(srv, "Couldn't open log file '%s': %s", data->str, g_strerror(e));
+
+			if (!li_angel_send_result(i->acon, id, error, NULL, NULL, &err)) {
+				ERROR(srv, "Couldn't send result: %s", err->message);
+				g_error_free(err);
+			}
+			return;
+		}
+	} else {
+		GString *error = g_string_sized_new(0);
+		g_string_printf(error, "Couldn't open log file '%s': path not allowed", data->str);
+
+		if (!li_angel_send_result(i->acon, id, error, NULL, NULL, &err)) {
+			ERROR(srv, "Couldn't send result: %s", err->message);
+			g_error_free(err);
+		}
+		return;
+	}
+
+	fds = g_array_new(FALSE, FALSE, sizeof(int));
+	g_array_append_val(fds, fd);
+
+	if (!li_angel_send_result(i->acon, id, NULL, NULL, fds, &err)) {
+		ERROR(srv, "Couldn't send result: %s", err->message);
+		g_error_free(err);
+		return;
+	}
+}
+
 static void core_clean(liServer *srv, liPlugin *p);
 static void core_free(liServer *srv, liPlugin *p) {
 	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
@@ -748,6 +802,7 @@ static gboolean core_init(liServer *srv, liPlugin *p) {
 
 	li_angel_plugin_add_angel_cb(p, "listen", core_listen);
 	li_angel_plugin_add_angel_cb(p, "reached-state", core_reached_state);
+	li_angel_plugin_add_angel_cb(p, "log-open-file", core_log_open_file);
 
 	ev_signal_init(&config->sig_hup, core_handle_sig_hup, SIGHUP);
 	config->sig_hup.data = config;

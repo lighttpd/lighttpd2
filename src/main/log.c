@@ -8,8 +8,7 @@
 
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+
 #include <stdarg.h>
 
 #define LOG_DEFAULT_TS_FORMAT "%d/%b/%Y %T %Z"
@@ -47,35 +46,32 @@ static liLog *log_open(liServer *srv, GString *path) {
 	else
 		log = NULL;
 
-	if (!log) {
+	if (NULL == log) {
 		/* log not open */
 		gint fd = -1;
-		liLogType type = li_log_type_from_path(path);
+		gchar *param = NULL;
+		liLogType type = li_log_type_from_path(path, &param);
+		GString sparam = { param, (param != NULL ? path->len - (param - path->str) : 0), 0 };
 
 		switch (type) {
 			case LI_LOG_TYPE_STDERR:
 				fd = STDERR_FILENO;
 				break;
 			case LI_LOG_TYPE_FILE:
-				/* todo: open via angel */
-				fd = open(path->str, O_RDWR | O_CREAT | O_APPEND, 0660);
-				if (fd == -1) {
-					int err = errno;
-					GString *str = g_string_sized_new(255);
-					g_string_append_printf(str, "(error) %s.%d: failed to open log file '%s': %s", LI_REMOVE_PATH(__FILE__), __LINE__, path->str, g_strerror(err));
-					/* li_log_write_stderr(srv, str->str, TRUE); */
-					g_string_free(str, TRUE);
-					return NULL;
-				}
+				/* TODO: open via angel */
+				fd = li_angel_fake_log_open_file(srv, &sparam);
 				break;
 			case LI_LOG_TYPE_PIPE:
+				ERROR(srv, "%s", "pipe logging not supported yet");
+				break;
 			case LI_LOG_TYPE_SYSLOG:
-				/* todo */
-				assert(NULL);
+				ERROR(srv, "%s", "syslog not supported yet");
+				break;
 			case LI_LOG_TYPE_NONE:
 				return NULL;
 		}
 
+		/* Even if -1 == fd we create an entry, so we don't throw an error every time */
 		log = g_slice_new0(liLog);
 		log->type = type;
 		log->path = g_string_new_len(GSTR_LEN(path));
@@ -95,7 +91,7 @@ static void log_close(liServer *srv, liLog *log) {
 	li_waitqueue_remove(&srv->logs.close_queue, &log->wqelem);
 
 	if (log->type == LI_LOG_TYPE_FILE || log->type == LI_LOG_TYPE_PIPE) {
-		close(log->fd);
+		if (-1 != log->fd) close(log->fd);
 	}
 
 	/*g_print("log_close(\"%s\")\n", log->path->str);*/
@@ -297,12 +293,7 @@ static GString *log_timestamp_format(liServer *srv, liLogTimestamp *ts) {
 
 static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	liServer *srv = (liServer*) w->data;
-	liLog *log;
-	liLogEntry *log_entry;
 	GList *queue_link, *queue_link_next;
-	GString *msg;
-	gssize bytes_written;
-	gssize write_res;
 
 	UNUSED(loop);
 	UNUSED(revents);
@@ -325,15 +316,11 @@ static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	g_static_mutex_unlock(&srv->logs.write_queue_mutex);
 
 	while (queue_link) {
-		log_entry = queue_link->data;
-		log = log_open(srv, log_entry->path);
-		msg = log_entry->msg;
-		bytes_written = 0;
-
-		if (!log) {
-			li_log_write_stderr(srv, log_entry->msg->str, TRUE);
-			goto next;
-		}
+		liLog *log;
+		liLogEntry *log_entry = queue_link->data;
+		GString *msg = log_entry->msg;
+		gssize bytes_written = 0;
+		gssize write_res;
 
 		if (log_entry->flags & LOG_FLAG_TIMESTAMP) {
 			log_timestamp_format(srv, log_entry->ts);
@@ -342,6 +329,13 @@ static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
 		}
 
 		g_string_append_len(msg, CONST_STR_LEN("\n"));
+
+		log = log_open(srv, log_entry->path);
+
+		if (NULL == log || -1 == log->fd) {
+			li_log_write_stderr(srv, msg->str, TRUE);
+			goto next;
+		}
 
 		/* todo: support for other logtargets than files */
 		while (bytes_written < (gssize)msg->len) {
@@ -371,7 +365,7 @@ static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
 			}
 		}
 
-		next:
+next:
 		queue_link_next = queue_link->next;
 		g_string_free(log_entry->path, TRUE);
 		g_string_free(log_entry->msg, TRUE);
@@ -393,37 +387,42 @@ static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	return;
 }
 
-liLogType li_log_type_from_path(GString *path) {
+#define RET(type, offset) do { if (NULL != param) *param = path->str + offset; return type; } while(0)
+#define RET_PAR(type, par) do { if (NULL != param) *param = par; return type; } while(0)
+#define TRY_SCHEME(scheme, type) do { if (g_str_has_prefix(path->str, scheme)) RET(type, sizeof(scheme)-1); } while(0)
+liLogType li_log_type_from_path(GString *path, gchar **param) {
 	if (path->len == 0)
 		return LI_LOG_TYPE_NONE;
 
-	/* look for scheme:// paths */
-	if (g_str_has_prefix(path->str, "file://"))
-		return LI_LOG_TYPE_FILE;
-	if (g_str_has_prefix(path->str, "pipe://"))
-		return LI_LOG_TYPE_PIPE;
-	if (g_str_has_prefix(path->str, "stderr://"))
-		return LI_LOG_TYPE_STDERR;
-	if (g_str_has_prefix(path->str, "syslog://"))
-		return LI_LOG_TYPE_SYSLOG;
+	/* look for scheme: paths */
+	TRY_SCHEME("file:", LI_LOG_TYPE_FILE);
+	TRY_SCHEME("pipe:", LI_LOG_TYPE_PIPE);
+	TRY_SCHEME("stderr:", LI_LOG_TYPE_STDERR);
+	TRY_SCHEME("syslog:", LI_LOG_TYPE_SYSLOG);
 
 	/* targets starting with a slash are absolute paths and therefor file targets */
 	if (*path->str == '/')
-		return LI_LOG_TYPE_FILE;
+		RET(LI_LOG_TYPE_FILE, 0);
 
 	/* targets starting with a pipe are ... pipes! */
-	if (*path->str == '|')
-		return LI_LOG_TYPE_PIPE;
+	if (*path->str == '|') {
+		guint i = 1;
+		while (path->str[i] == ' ') i++; /* skip spaces */
+		RET(LI_LOG_TYPE_PIPE, i);
+	}
 
 	if (g_str_equal(path->str, "stderr"))
-		return LI_LOG_TYPE_STDERR;
+		RET_PAR(LI_LOG_TYPE_STDERR, NULL);
 
 	if (g_str_equal(path->str, "syslog"))
-		return LI_LOG_TYPE_SYSLOG;
+		RET_PAR(LI_LOG_TYPE_SYSLOG, NULL);
 
 	/* fall back to stderr */
-	return LI_LOG_TYPE_STDERR;
+	RET_PAR(LI_LOG_TYPE_STDERR, NULL);
 }
+#undef RET
+#undef RET_PAR
+#undef TRY_SCHEME
 
 liLogLevel li_log_level_from_string(GString *str) {
 	if (g_str_equal(str->str, "debug"))

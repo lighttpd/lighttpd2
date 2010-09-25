@@ -32,7 +32,7 @@ static void angel_close_cb(liAngelConnection *acon, GError *err) {
 	liServer *srv = acon->data;
 	ERROR(srv, "li_fatal: angel connection close: %s", err ? err->message : g_strerror(errno));
 	if (err) g_error_free(err);
-	exit(1);
+	abort();
 }
 
 void li_angel_setup(liServer *srv) {
@@ -116,4 +116,69 @@ void li_angel_listen(liServer *srv, GString *str, liAngelListenCB cb, gpointer d
 /* send log messages while startup to angel */
 void li_angel_log(liServer *srv, GString *str) {
 	li_angel_fake_log(srv, str);
+}
+
+typedef struct angel_log_cb_ctx angel_log_cb_ctx;
+struct angel_log_cb_ctx {
+	liServer *srv;
+	liAngelLogOpen cb;
+	gpointer data;
+	GString *logname;
+};
+
+static void li_angel_log_open_cb(liAngelCall *acall, gpointer pctx, gboolean timeout, GString *error, GString *data, GArray *fds) {
+	angel_log_cb_ctx ctx = * (angel_log_cb_ctx*) pctx;
+	liServer *srv = ctx.srv;
+	UNUSED(data);
+
+	li_angel_call_free(acall);
+	g_slice_free(angel_log_cb_ctx, pctx);
+
+	if (timeout) {
+		ERROR(srv, "Couldn't open log file '%s': timeout", ctx.logname->str);
+		goto failed;
+	}
+
+	if (error->len > 0) {
+		ERROR(srv, "Couldn't open log file '%s': %s", ctx.logname->str, error->str);
+		goto failed;
+	}
+
+	if (NULL == fds || fds->len != 1) {
+		ERROR(srv, "Couldn't open log file '%s': no or too many filedescriptors (%i)", ctx.logname->str, (int) (NULL == fds ? 0 : fds->len));
+		goto failed;
+	}
+
+	ctx.cb(srv, g_array_index(fds, int, 0), ctx.data);
+	g_array_set_size(fds, 0);
+
+	goto cleanup;
+
+failed:
+	ctx.cb(srv, -1, ctx.data);
+
+cleanup:
+	g_string_free(ctx.logname, TRUE);
+}
+
+void li_angel_log_open_file(liServer *srv, GString *filename, liAngelLogOpen cb, gpointer data) {
+	if (srv->acon) {
+		liAngelCall *acall = li_angel_call_new(li_angel_log_open_cb, 10.0);
+		angel_log_cb_ctx *ctx = g_slice_new0(angel_log_cb_ctx);
+		GError *err = NULL;
+
+		ctx->srv = srv;
+		ctx->cb = cb;
+		ctx->data = data;
+		ctx->logname = g_string_new_len(GSTR_LEN(filename));
+
+		acall->context = ctx;
+		if (!li_angel_send_call(srv->acon, CONST_STR_LEN("core"), CONST_STR_LEN("log-open-file"), acall, g_string_new_len(GSTR_LEN(filename)), &err)) {
+			ERROR(srv, "couldn't send call: %s", err->message);
+			g_error_free(err);
+		}
+	} else {
+		int fd = li_angel_fake_log_open_file(srv, filename);
+		cb(srv, fd, data);
+	}
 }

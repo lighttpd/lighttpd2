@@ -90,8 +90,11 @@ struct liLogEntry {
 	GList queue_link;
 };
 
-/* determines the type of a log target by the path given. /absolute/path = file; |app = pipe; stderr = stderr; syslog = syslog */
-LI_API liLogType li_log_type_from_path(GString *path);
+/* determines the type of a log target by the path given. /absolute/path = file; |app = pipe; stderr = stderr; syslog = syslog;
+ * returns the begin of the parameter string in *param if param != NULL (filename for /absolute/path or file:///absolute/path)
+ *   *param is either NULL or points into the path string!
+ */
+LI_API liLogType li_log_type_from_path(GString *path, gchar **param);
 
 LI_API liLogLevel li_log_level_from_string(GString *str);
 LI_API gchar* li_log_level_str(liLogLevel log_level);

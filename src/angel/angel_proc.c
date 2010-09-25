@@ -193,7 +193,7 @@ liProc* li_proc_new(liServer *srv, gchar **args, gchar **env, uid_t uid, gid_t g
 			execve(args[0], args, env);
 
 		g_printerr("exec('%s') failed: %s\n", args[0], g_strerror(errno));
-		exit(-1);
+		abort();
 
 		break;
 	case -1:

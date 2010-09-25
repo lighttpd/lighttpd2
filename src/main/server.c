@@ -79,7 +79,7 @@ static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 		li_server_goto_state(srv, LI_SERVER_DOWN);
 	} else {
 		INFO(srv, "%s", "Got second signal, force shutdown");
-		exit(1);
+		abort();
 	}
 }
 

@@ -216,7 +216,7 @@ static void profiler_write(gchar *str, gint len) {
 		if (-1 == res) {
 			fputs("error writing to profiler output file\n", stderr);
 			fflush(stderr);
-			exit(1);
+			abort();
 		}
 
 		written += res;
@@ -237,7 +237,7 @@ void li_profiler_enable(gchar *output_path) {
 		if (-1 == profiler_output_fd) {
 			fputs("error opening profiler output file\n", stderr);
 			fflush(stderr);
-			exit(1);
+			abort();
 		}
 	}
 

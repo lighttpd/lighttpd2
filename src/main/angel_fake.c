@@ -3,6 +3,8 @@
 #include <lighttpd/angel.h>
 #include <lighttpd/ip_parsers.h>
 
+#include <fcntl.h>
+
 /* listen to a socket */
 int li_angel_fake_listen(liServer *srv, GString *str) {
 	guint32 ipv4;
@@ -163,4 +165,15 @@ gboolean li_angel_fake_log(liServer *srv, GString *str) {
 	}
 	g_string_free(str, TRUE);
 	return TRUE;
+}
+
+int li_angel_fake_log_open_file(liServer *srv, GString *filename) {
+	int fd;
+
+	fd = open(filename->str, O_RDWR | O_CREAT | O_APPEND, 0660);
+	if (-1 == fd) {
+		ERROR(srv, "failed to open log file '%s': %s", filename->str, g_strerror(errno));
+	}
+
+	return fd;
 }
