@@ -13,6 +13,8 @@
 
 /** config parser state machine **/
 
+static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *param);
+
 %%{
 	## ragel stuff
 	machine config_parser;
@@ -645,85 +647,13 @@
 		_printf("got function: %s %s; in line %zd\n", name->data.string->str, li_value_type_string(val->type), ctx->line);
 
 		if (g_str_equal(name->data.string->str, "include")) {
-			GPatternSpec *pattern;
-			GDir *dir;
-			gchar *pos;
-			const gchar *filename;
-			GString *path;
-			guint len;
-			GError *err = NULL;
-
 			li_value_free(name);
 
-			if (val->type != LI_VALUE_STRING || val->data.string->len == 0) {
-				WARNING(srv,  "include directive takes a non-empty string as parameter, %s given", li_value_type_string(val->type));
+			if (!config_parser_include(srv, ctx_stack, val->data.string->str)) {
 				li_value_free(val);
 				return FALSE;
 			}
 
-			/* split path into dirname and filename/pattern. e.g. /etc/lighttpd/vhost_*.conf => /etc/lighttpd/ and vhost_*.conf */
-
-			if (val->data.string->str[0] == G_DIR_SEPARATOR) {
-				/* absolute path */
-				pos = strrchr(val->data.string->str, G_DIR_SEPARATOR);
-				path = g_string_new_len(val->data.string->str, pos - val->data.string->str + 1);
-				pattern = g_pattern_spec_new(pos+1);
-			} else {
-				/* relative path */
-				pos = strrchr(ctx->filename, G_DIR_SEPARATOR);
-
-				if (pos) {
-					path = g_string_new_len(ctx->filename, pos - ctx->filename + 1);
-				} else {
-					/* current working directory */
-					path = g_string_new_len(CONST_STR_LEN("." G_DIR_SEPARATOR_S));
-				}
-
-				pos = strrchr(val->data.string->str, G_DIR_SEPARATOR);
-
-				if (pos) {
-					g_string_append_len(path, val->data.string->str, pos - val->data.string->str + 1);
-					pattern = g_pattern_spec_new(pos+1);
-				} else {
-					pattern = g_pattern_spec_new(val->data.string->str);
-				}
-			}
-
-			/* we got a path, check for matching names */
-			dir = g_dir_open(path->str, 0, &err);
-
-			if (!dir) {
-				ERROR(srv, "include: could not open directory \"%s\": %s", path->str, err->message);
-				g_string_free(path, TRUE);
-				li_value_free(val);
-				g_error_free(err);
-				g_pattern_spec_free(pattern);
-				return FALSE;
-			}
-
-			len = path->len;
-
-			/* loop through all filenames in the directory and include matching ones */
-			while (NULL != (filename = g_dir_read_name(dir))) {
-				if (!g_pattern_match_string(pattern, filename))
-					continue;
-
-				g_string_append(path, filename);
-
-				if (!li_config_parser_file(srv, ctx_stack, path->str)) {
-					g_string_free(path, TRUE);
-					g_pattern_spec_free(pattern);
-					g_dir_close(dir);
-					li_value_free(val);
-					return FALSE;
-				}
-
-				g_string_truncate(path, len);
-			}
-
-			g_string_free(path, TRUE);
-			g_pattern_spec_free(pattern);
-			g_dir_close(dir);
 			li_value_free(val);
 		} else if (g_str_equal(name->data.string->str, "include_shell")) {
 			if (val->type != LI_VALUE_STRING) {
@@ -1390,6 +1320,94 @@ static gboolean config_parser_buffer(liServer *srv, GList *ctx_stack) {
 		/* parse error */
 		WARNING(srv, "parse error in line %zd of \"%s\" at character '%c' (0x%.2x)", ctx->line, ctx->filename, *ctx->p, *ctx->p);
 		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *param) {
+	GPatternSpec *pattern;
+	GDir *dir;
+	gchar *pos;
+	const gchar *filename;
+	GString *path;
+	guint len;
+	liConfigParserContext *ctx = (liConfigParserContext*) ctx_stack->data;
+	GError *err = NULL;
+	gboolean found_file = FALSE;
+
+
+	/* check if we got a pattern or just normal filename */
+	if (!strchr(param, '*') && !strchr(param, '?')) {
+		/* no pattern */
+		return li_config_parser_file(srv, ctx_stack, param);
+	}
+
+	/* check for absolute or relative path to split directory and file name */
+	if (param[0] == G_DIR_SEPARATOR) {
+		/* absolute path */
+		pos = strrchr(param, G_DIR_SEPARATOR);
+		path = g_string_new_len(param, pos -param + 1);
+		pattern = g_pattern_spec_new(pos+1);
+	} else {
+		/* relative path */
+		pos = strrchr(ctx->filename, G_DIR_SEPARATOR);
+
+		if (pos) {
+			path = g_string_new_len(ctx->filename, pos - ctx->filename + 1);
+		} else {
+			/* current working directory */
+			path = g_string_new_len(CONST_STR_LEN("." G_DIR_SEPARATOR_S));
+		}
+
+		pos = strrchr(param, G_DIR_SEPARATOR);
+
+		if (pos) {
+			g_string_append_len(path, param, pos - param + 1);
+			pattern = g_pattern_spec_new(pos+1);
+		} else {
+			pattern = g_pattern_spec_new(param);
+		}
+	}
+
+	/* we got the directory, check for matching names */
+	dir = g_dir_open(path->str, 0, &err);
+
+	if (!dir) {
+		ERROR(srv, "include: could not open directory \"%s\": %s", path->str, err->message);
+		g_string_free(path, TRUE);
+		g_error_free(err);
+		g_pattern_spec_free(pattern);
+		return FALSE;
+	}
+
+	len = path->len;
+
+	/* loop through all filenames in the directory and include matching ones */
+	while (NULL != (filename = g_dir_read_name(dir))) {
+		if (!g_pattern_match_string(pattern, filename))
+			continue;
+
+		found_file = TRUE;
+
+		g_string_append(path, filename);
+
+		if (!li_config_parser_file(srv, ctx_stack, path->str)) {
+			g_string_free(path, TRUE);
+			g_pattern_spec_free(pattern);
+			g_dir_close(dir);
+			return FALSE;
+		}
+
+		g_string_truncate(path, len);
+	}
+
+	g_string_free(path, TRUE);
+	g_pattern_spec_free(pattern);
+	g_dir_close(dir);
+
+	if (!found_file) {
+		WARNING(srv, "include: no matching file found for path \"%s\"", param);
 	}
 
 	return TRUE;
