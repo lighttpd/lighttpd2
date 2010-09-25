@@ -79,6 +79,8 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 				if (*c != '}') {
 					/* parse error */
 					ERROR(srv, "could not parse pattern: \"%s\"", str);
+					if (key)
+						g_string_free(key, TRUE);
 					li_pattern_free((liPattern*)pattern);
 					return NULL;
 				}
