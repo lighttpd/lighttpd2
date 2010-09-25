@@ -158,9 +158,11 @@ static void send_request(liMemcachedCon *con, int_request *req) {
 	case REQ_SET:
 		/* set <key> <flags> <exptime> <bytes>\r\n */
 
-		g_string_printf(con->tmpstr, "set %s %"G_GUINT32_FORMAT" %"G_GUINT64_FORMAT" %"G_GSIZE_FORMAT"\r\n", req->key->str, req->flags, (guint64) req->ttl, req->data->used);
+		g_string_printf(con->tmpstr, "set %s %"G_GUINT32_FORMAT" %"G_GUINT64_FORMAT" %"G_GSIZE_FORMAT"\r\n", req->key->str, req->flags, (guint64) req->ttl, req->data ? req->data->used : 0);
 		send_queue_push_gstring(&con->out, con->tmpstr, &con->buf);
-		send_queue_push_buffer(&con->out, req->data, 0, req->data->used);
+		if (NULL != req->data) {
+			send_queue_push_buffer(&con->out, req->data, 0, req->data->used);
+		}
 		g_string_assign(con->tmpstr, "\r\n");
 		send_queue_push_gstring(&con->out, con->tmpstr, &con->buf);
 		break;
@@ -905,8 +907,10 @@ liMemcachedRequest* li_memcached_set(liMemcachedCon *con, GString *key, guint32 
 	req->key = g_string_new_len(GSTR_LEN(key));
 	req->flags = flags;
 	req->ttl = ttl;
-	li_buffer_acquire(data);
-	req->data = data;
+	if (NULL != data) {
+		li_buffer_acquire(data);
+		req->data = data;
+	}
 
 	if (!push_request(con, req, err)) {
 		free_request(con, req);
