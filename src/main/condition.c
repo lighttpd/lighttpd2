@@ -620,14 +620,26 @@ static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liConditio
 		*res = !g_str_has_suffix(val, cond->rvalue.string->str);
 		break;
 	case LI_CONFIG_COND_MATCH:
-		*res = g_regex_match(cond->rvalue.regex, val, 0, &arse.match_info);
-		arse.string = (*res) ? g_string_new(val) : NULL;
-		g_array_append_val(vr->action_stack.regex_stack, arse);
+		arse.match_info = NULL;
+		arse.string = g_string_new(val); /* we have to copy the value, as match-info references it */
+		*res = g_regex_match(cond->rvalue.regex, arse.string->str, 0, &arse.match_info);
+		if (*res) {
+			g_array_append_val(vr->action_stack.regex_stack, arse);
+		} else {
+			g_match_info_free(arse.match_info);
+			g_string_free(arse.string, TRUE);
+		}
 		break;
 	case LI_CONFIG_COND_NOMATCH:
-		*res = !g_regex_match(cond->rvalue.regex, val, 0, &arse.match_info);
-		arse.string = NULL;
-		g_array_append_val(vr->action_stack.regex_stack, arse);
+		arse.match_info = NULL;
+		arse.string = g_string_new(val); /* we have to copy the value, as match-info references it */
+		*res = !g_regex_match(cond->rvalue.regex, arse.string->str, 0, &arse.match_info);
+		if (*res) {
+			g_match_info_free(arse.match_info);
+			g_string_free(arse.string, TRUE);
+		} else {
+			g_array_append_val(vr->action_stack.regex_stack, arse);
+		}
 		break;
 	case LI_CONFIG_COND_IP:
 	case LI_CONFIG_COND_NOTIP:

@@ -3,37 +3,105 @@
 
 typedef struct {
 	enum {
-		PATTERN_STRING,		/* literal */
-		PATTERN_NTH,		/* $n */
-		PATTERN_NTH_PREV,	/* %n */
-		PATTERN_VAR,		/* %{req.foo} */
-		PATTERN_VAR_ENCODED	/* %{enc:req.foo} */
+		PATTERN_STRING,     /* literal */
+		PATTERN_NTH,        /* $n */
+		PATTERN_NTH_PREV,   /* %n */
+		PATTERN_VAR,        /* %{req.foo} */
+		PATTERN_VAR_ENCODED /* %{enc:req.foo} */
 	} type;
 
 	union {
-		GString *str;		/* PATTERN_STRING */
-		guint8 ndx;			/* PATTERN_NTH and PATTERN_NTH_PREV */
-		liConditionLValue *lvalue;	/* PATTERN_VAR and PATTERN_VAR_ENCODED */
+		/* PATTERN_STRING */
+		GString *str;
+		/* PATTERN_NTH and PATTERN_NTH_PREV */
+		struct {
+			guint from, to;
+		} range;
+		/* PATTERN_VAR and PATTERN_VAR_ENCODED */
+		liConditionLValue *lvalue;
 	} data;
 } liPatternPart;
+
+static gboolean parse_range(liServer *srv, liPatternPart *part, const gchar **str, const gchar *origstr) {
+	guint64 val;
+	gchar *endc = NULL;
+	const gchar *c = *str;
+
+	c++; /* skip '[' */
+	if (*c == '-') {
+		if (c[1] == ']') {
+			/* parse error */
+			ERROR(srv, "could not parse pattern, empty range %%[-]: \"%s\"", origstr);
+			return FALSE;
+		}
+		part->data.range.from = G_MAXUINT;
+	} else if (*c == ']') {
+		/* parse error */
+		ERROR(srv, "could not parse pattern, empty range %%[]: \"%s\"", origstr);
+		return FALSE;
+	} else {
+		errno = 0;
+		val = g_ascii_strtoull(c, &endc, 10);
+		if (0 != errno || val > G_MAXUINT) {
+			ERROR(srv, "could not parse pattern, range overflow: \"%s\"", origstr);
+			return FALSE;
+		} else if (endc == c || (*endc != '-' && *endc != ']')) {
+			ERROR(srv, "could not parse pattern, invalid range: \"%s\"", origstr);
+			return FALSE;
+		}
+		part->data.range.from = val;
+	}
+
+	part->data.range.to = part->data.range.from;
+
+	if (*c == '-') {
+		c++;
+		if (*c == ']') {
+			part->data.range.to = G_MAXUINT;
+		} else {
+			errno = 0;
+			val = g_ascii_strtoull(c, &endc, 10);
+			if (0 != errno || val > G_MAXUINT) {
+				ERROR(srv, "could not parse pattern, range overflow: \"%s\"", origstr);
+				return FALSE;
+			} else if (endc == c || (*endc != ']')) {
+				ERROR(srv, "could not parse pattern, invalid range: \"%s\"", origstr);
+				return FALSE;
+			}
+			part->data.range.to = val;
+		}
+	}
+
+	c++; /* skip ']' */
+
+	*str = c;
+	return TRUE;
+}
 
 liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 	GArray *pattern;
 	liPatternPart part;
-	gchar *c;
+	const gchar *c;
 	gboolean encoded;
 
 	pattern = g_array_new(FALSE, TRUE, sizeof(liPatternPart));
 
-	for (c = (gchar*)str; *c;) {
+	for (c = str; *c;) {
 		if (*c == '$') {
 			/* $n, PATTERN_NTH */
 			c++;
 			if (*c >= '0' && *c <= '9') {
 				part.type = PATTERN_NTH;
-				part.data.ndx = *c - '0';
+				part.data.range.from = part.data.range.to = *c - '0';
 				g_array_append_val(pattern, part);
 				c++;
+			} else if ('[' == *c) {
+				part.type = PATTERN_NTH;
+				if (!parse_range(srv, &part, &c, str)) {
+					li_pattern_free((liPattern*)pattern);
+					return NULL;
+				}
+				g_array_append_val(pattern, part);
 			} else {
 				/* parse error */
 				ERROR(srv, "could not parse pattern: \"%s\"", str);
@@ -45,12 +113,19 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 			if (*c >= '0' && *c <= '9') {
 				/* %n, PATTERN_NTH_PREV */
 				part.type = PATTERN_NTH_PREV;
-				part.data.ndx = *c - '0';
+				part.data.range.from = part.data.range.to = *c - '0';
 				g_array_append_val(pattern, part);
 				c++;
+			} else if ('[' == *c) {
+				part.type = PATTERN_NTH_PREV;
+				if (!parse_range(srv, &part, &c, str)) {
+					li_pattern_free((liPattern*)pattern);
+					return NULL;
+				}
+				g_array_append_val(pattern, part);
 			} else if (*c == '{') {
 				/* %{var}, PATTERN_VAR */
-				gchar *lval_c, *lval_start;
+				const gchar *lval_c, *lval_start;
 				guint lval_len = 0;
 				GString *key = NULL;
 
@@ -67,7 +142,7 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 				for (lval_start = lval_c; *lval_c != '\0' && *lval_c != '}'; lval_c++) {
 					/* got a key */
 					if (*lval_c == '[') {
-						gchar *key_c, *key_start;
+						const gchar *key_c, *key_start;
 						guint key_len = 0;
 
 						/* search for closing ']' */
@@ -120,7 +195,7 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 			}
 		} else {
 			/* string */
-			gchar *first;
+			const gchar *first;
 
 			part.type = PATTERN_STRING;
 			part.data.str= g_string_sized_new(0);
@@ -187,23 +262,28 @@ void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatter
 			g_string_append_len(dest, GSTR_LEN(part->data.str));
 			break;
 		case PATTERN_NTH:
-			if (nth_callback)
-				nth_callback(dest, part->data.ndx, nth_data);
+			if (NULL != nth_callback) {
+				nth_callback(dest, part->data.range.from, part->data.range.to, nth_data);
+			}
 			break;
 		case PATTERN_NTH_PREV:
-			if (nth_prev_callback)
-				nth_prev_callback(dest, part->data.ndx, nth_prev_data);
+			if (NULL != nth_prev_callback) {
+				nth_prev_callback(dest, part->data.range.from, part->data.range.to, nth_prev_data);
+			}
 			break;
 		case PATTERN_VAR_ENCODED:
 			encoded = TRUE;
 			/* fall through */
 		case PATTERN_VAR:
+			if (vr == NULL) continue;
+
 			res = li_condition_get_value(vr, part->data.lvalue, &cond_val, LI_COND_VALUE_HINT_STRING);
 			if (res == LI_HANDLER_GO_ON) {
-				if (encoded)
+				if (encoded) {
 					li_string_encode_append(li_condition_value_to_string(vr, &cond_val), dest, LI_ENCODING_URI);
-				else
+				} else {
 					g_string_append(dest, li_condition_value_to_string(vr, &cond_val));
+				}
 			}
 
 			break;
@@ -211,22 +291,51 @@ void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatter
 	}
 }
 
-void li_pattern_array_cb(GString *pattern_result, guint8 nth_ndx, gpointer data) {
+void li_pattern_array_cb(GString *pattern_result, guint from, guint to, gpointer data) {
 	GArray *a = data;
+	guint i;
 
-	if (nth_ndx < a->len) {
-		GString *str = g_array_index(a, GString*, nth_ndx);
-		g_string_append_len(pattern_result, GSTR_LEN(str));
+	if (NULL == a || 0 == a->len) return;
+
+	if (G_LIKELY(from <= to)) {
+		to = MIN(to, a->len - 1);
+		for (i = from; i <= to; i++) {
+			GString *str = g_array_index(a, GString*, i);
+			if (NULL != str) {
+				g_string_append_len(pattern_result, GSTR_LEN(str));
+			}
+		}
+	} else {
+		from = MIN(from, a->len - 1); /* => from+1 is defined */
+		for (i = from + 1; i-- >= to; ) {
+			GString *str = g_array_index(a, GString*, i);
+			if (NULL != str) {
+				g_string_append_len(pattern_result, GSTR_LEN(str));
+			}
+		}
 	}
 }
 
-void li_pattern_regex_cb(GString *pattern_result, guint8 nth_ndx, gpointer data) {
-	gint start_pos, end_pos;
+void li_pattern_regex_cb(GString *pattern_result, guint from, guint to, gpointer data) {
 	GMatchInfo *match_info = data;
+	guint i;
+	gint start_pos, end_pos;
 
-	if (!match_info)
-		return;
+	if (NULL == match_info) return;
 
-	if (g_match_info_fetch_pos(match_info, (gint)nth_ndx, &start_pos, &end_pos))
-		g_string_append_len(pattern_result, g_match_info_get_string(match_info) + start_pos, end_pos - start_pos);
+	if (G_LIKELY(from <= to)) {
+		to = MIN(to, G_MAXINT);
+		for (i = from; i <= to; i++) {
+			if (g_match_info_fetch_pos(match_info, (gint) i, &start_pos, &end_pos)) {
+				g_string_append_len(pattern_result, g_match_info_get_string(match_info) + start_pos, end_pos - start_pos);
+			}
+		}
+	} else {
+		from = MIN(from, G_MAXINT); /* => from+1 is defined */
+		for (i = from + 1; i-- >= to; ) {
+			if (g_match_info_fetch_pos(match_info, (gint) i, &start_pos, &end_pos)) {
+				g_string_append_len(pattern_result, g_match_info_get_string(match_info) + start_pos, end_pos - start_pos);
+			}
+		}
+	}
 }

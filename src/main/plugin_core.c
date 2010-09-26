@@ -151,29 +151,53 @@ static gboolean core_setup_set(liServer *srv, liPlugin* p, liValue *val, gpointe
 	return li_plugin_set_default_option(srv, val_name->data.string->str, val_val);
 }
 
-static void core_docroot_nth_cb(GString *pattern_result, guint8 nth_ndx, gpointer data) {
-	/* $n means n-th part of hostname from end divided by dots */
-	gchar *c, *end;
-	guint i = 0;
-	GString *str = data;
+typedef struct docroot_split docroot_split;
+struct docroot_split {
+	GString *hostname;
+	gchar** splits;
+	guint split_len;
+};
 
-	if (nth_ndx == 0) {
-		g_string_append_len(pattern_result, GSTR_LEN(str));
+static void core_docroot_nth_cb(GString *pattern_result, guint to, guint from, gpointer data) {
+	/* $n means n-th part of hostname from end divided by dots */
+	/* range is interpreted reversed !!! */
+	gboolean first = TRUE;
+	guint i;
+	docroot_split *ctx = data;
+
+	if (0 == ctx->hostname->len) return;
+
+	/* ranges including 0 will only get the complete hostname */
+	if (0 == from || 0 == to) {
+		g_string_append_len(pattern_result, GSTR_LEN(ctx->hostname));
 		return;
 	}
 
-	end = str->str + str->len - 1;
+	if (NULL == ctx->splits) {
+		ctx->splits = g_strsplit_set(ctx->hostname->str, ".", 31);
+		ctx->split_len = g_strv_length(ctx->splits);
+	}
 
-	for (c = end; c > str->str; c--) {
-		if (*c == '.') {
-			i++;
+	if (0 == ctx->split_len) return;
 
-			if (i == nth_ndx) {
-				g_string_append_len(pattern_result, c+1, end - c);
-				return;
+	from = MAX(from, ctx->split_len);
+	to = MAX(to, ctx->split_len);
+
+	if (from <= to) {
+		for (i = from; i <= to; i++) {
+			if (first) {
+				first = FALSE;
+				g_string_append_len(pattern_result, CONST_STR_LEN("."));
 			}
-
-			end = c-1;
+			g_string_append(pattern_result, ctx->splits[ctx->split_len - i]);
+		}
+	} else {
+		for (i = from+1; i-- >= to; ) {
+			if (first) {
+				first = FALSE;
+				g_string_append_len(pattern_result, CONST_STR_LEN("."));
+			}
+			g_string_append(pattern_result, ctx->splits[ctx->split_len - i]);
 		}
 	}
 }
@@ -182,6 +206,7 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 	guint i;
 	GMatchInfo *match_info = NULL;
 	GArray *arr = param;
+	docroot_split dsplit = { vr->request.uri.host, NULL, 0 };
 
 	g_string_truncate(vr->physical.doc_root, 0);
 
@@ -205,7 +230,7 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 
 
 		g_string_truncate(vr->physical.doc_root, 0);
-		li_pattern_eval(vr, vr->physical.doc_root, g_array_index(arr, liPattern*, i), core_docroot_nth_cb, vr->request.uri.host, li_pattern_regex_cb, match_info);
+		li_pattern_eval(vr, vr->physical.doc_root, g_array_index(arr, liPattern*, i), core_docroot_nth_cb, &dsplit, li_pattern_regex_cb, match_info);
 
 		if (i == arr->len - 1) break; /* don't stat, we'll use the last entry anyway */
 
@@ -217,6 +242,7 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "docroot: waiting for async: \"%s\"", vr->physical.doc_root->str);
 			}
+			g_strfreev(dsplit.splits);
 			return LI_HANDLER_WAIT_FOR_EVENT;
 		default:
 			/* not found, try next pattern */
@@ -226,6 +252,8 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 			continue;
 		}
 	}
+
+	g_strfreev(dsplit.splits);
 
 	/* build physical path: docroot + uri.path */
 	g_string_truncate(vr->physical.path, 0);
