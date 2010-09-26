@@ -78,6 +78,7 @@ typedef struct rewrite_data rewrite_data;
 struct rewrite_data {
 	GArray *rules;
 	liPlugin *p;
+	gboolean raw;
 };
 
 static gboolean rewrite_rule_parse(liServer *srv, GString *regex, GString *str, rewrite_rule *rule) {
@@ -146,12 +147,16 @@ error:
 	return FALSE;
 }
 
-static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *dest_query, rewrite_rule *rule) {
+static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *dest_query, rewrite_rule *rule, gboolean raw) {
 	gchar *path;
 	GMatchInfo *match_info = NULL;
 	GMatchInfo *prev_match_info = NULL;
 
-	path = vr->request.uri.path->str;
+	if (raw) {
+		path = vr->request.uri.raw_path->str;
+	} else {
+		path = vr->request.uri.path->str;
+	}
 
 	if (NULL != rule->regex && !g_regex_match(rule->regex, path, 0, &match_info)) {
 		if (NULL != match_info) {
@@ -194,7 +199,7 @@ static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context
 
 		rule = &g_array_index(rd->rules, rewrite_rule, i);
 
-		if (rewrite_internal(vr, dest_path, dest_query, rule)) {
+		if (rewrite_internal(vr, dest_path, dest_query, rule, rd->raw)) {
 			/* regex matched */
 			if (debug) {
 				VR_DEBUG(vr, "rewrite: path \"%s\" => \"%s\", query \"%s\" => \"%s\"",
@@ -250,7 +255,6 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	rewrite_plugin_data *rpd = p->data;
 
 	UNUSED(wrk);
-	UNUSED(userdata);
 
 	if (!val || !(val->type == LI_VALUE_STRING || val->type == LI_VALUE_LIST)) {
 		ERROR(srv, "%s", "rewrite expects a either a string, a tuple of strings or a list of string tuples");
@@ -266,6 +270,7 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	rd = g_slice_new(rewrite_data);
 	rd->p = p;
 	rd->rules = g_array_new(FALSE, FALSE, sizeof(rewrite_rule));
+	rd->raw = GPOINTER_TO_INT(userdata);
 
 	arr = val->data.list;
 
@@ -326,7 +331,8 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
-	{ "rewrite", rewrite_create, NULL },
+	{ "rewrite", rewrite_create, GINT_TO_POINTER(FALSE) },
+	{ "rewrite_raw", rewrite_create, GINT_TO_POINTER(TRUE) },
 
 	{ NULL, NULL, NULL }
 };
