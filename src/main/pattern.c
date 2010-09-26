@@ -120,29 +120,28 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 			}
 		} else {
 			/* string */
-			gchar *first = c;
-			c++;
+			gchar *first;
 
-			for (;;) {
-				if (*c == '\0' || *c == '?' || *c == '$' || *c == '%') {
-					break;
-				} else if (*c == '\\') {
+			part.type = PATTERN_STRING;
+			part.data.str= g_string_sized_new(0);
+
+			/* copy every chunk between escapes into dest buffer */
+			for (first = c ; *c && '?' != *c && '$' != *c && '%' != *c; c++) {
+				if (*c == '\\') {
+					if (first != c) g_string_append_len(part.data.str, first, c - first);
 					c++;
-					if (*c == '\\' || *c == '?' || *c == '$' || *c == '%') {
-						c++;
-					} else {
+					first = c;
+					if (*c != '\\' && *c != '?' && *c != '$' && *c != '%') {
 						/* parse error */
-						ERROR(srv, "could not parse pattern: \"%s\"", str);
+						ERROR(srv, "could not parse pattern: invalid escape in \"%s\"", str);
+						g_string_free(part.data.str, TRUE);
 						li_pattern_free((liPattern*)pattern);
 						return NULL;
 					}
-				} else {
-					c++;
 				}
 			}
+			if (first != c) g_string_append_len(part.data.str, first, c - first);
 
-			part.type = PATTERN_STRING;
-			part.data.str= g_string_new_len(first, c - first);
 			g_array_append_val(pattern, part);
 		}
 	}
