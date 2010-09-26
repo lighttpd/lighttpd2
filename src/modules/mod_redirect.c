@@ -77,22 +77,22 @@ struct redirect_data {
 };
 
 static gboolean redirect_rule_parse(liServer *srv, GString *regex, GString *str, redirect_rule *rule) {
-	gchar *regex_str = regex->str;
+	gchar *pattern_str = str->str;
 
 	rule->pattern = NULL;
 	rule->regex = NULL;
 	rule->type = REDIRECT_ABSOLUTE_URI;
 
-	if (regex_str[0] == '/') {
+	if (pattern_str[0] == '/') {
 		rule->type = REDIRECT_ABSOLUTE_PATH;
-	} else if (regex_str[0] == '?') {
+	} else if (pattern_str[0] == '?') {
 		rule->type = REDIRECT_RELATIVE_QUERY;
-	} else if (g_str_has_prefix(regex_str, "./")) {
-		regex_str += 2;
+	} else if (g_str_has_prefix(pattern_str, "./")) {
+		pattern_str += 2;
 		rule->type = REDIRECT_RELATIVE_PATH;
 	}
 
-	rule->pattern = li_pattern_new(srv, str->str);
+	rule->pattern = li_pattern_new(srv, pattern_str);
 	if (NULL == rule->pattern) {
 		goto error;
 	}
