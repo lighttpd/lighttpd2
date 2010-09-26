@@ -25,7 +25,7 @@
  *     deflate.debug <boolean>
  *
  * Actions:
- *     deflate [ "encodings": "deflate,gzip,bzip2", "blocksize": 4096, "output-buffer": 4096 ];
+ *     deflate [ "encodings": "deflate,gzip,bzip2", "blocksize": 4096, "output-buffer": 4096, "compression-level": 1 ];
  *       - options are all optional, default values shown in line above :)
  *
  * Example config:
@@ -33,6 +33,7 @@
  *
  * Author:
  *     Copyright (c) 2009 Stefan Bühler
+ *     Copyright (c) 2010 Thomas Porzelt
  */
 
 #include <lighttpd/base.h>
@@ -78,7 +79,7 @@ typedef struct deflate_config deflate_config;
 struct deflate_config {
 	liPlugin *p;
 	guint allowed_encodings;
-	guint blocksize, output_buffer;
+	guint blocksize, output_buffer, compression_level;
 };
 
 /**********************************************************************************/
@@ -125,7 +126,7 @@ static void deflate_context_zlib_free(deflate_context_zlib *ctx) {
 static deflate_context_zlib* deflate_context_zlib_create(liVRequest *vr, deflate_config *conf, gboolean is_gzip) {
 	deflate_context_zlib *ctx = g_slice_new0(deflate_context_zlib);
 	z_stream *z = &ctx->z;
-	guint compression_level = Z_DEFAULT_COMPRESSION;
+	guint compression_level = conf->compression_level;
 	guint window_size = -MAX_WBITS; /* supress zlib-header */
 	guint mem_level = 8;
 
@@ -342,7 +343,7 @@ static void deflate_context_bzip2_free(deflate_context_bzip2 *ctx) {
 static deflate_context_bzip2* deflate_context_bzip2_create(liVRequest *vr, deflate_config *conf) {
 	deflate_context_bzip2 *ctx = g_slice_new0(deflate_context_bzip2);
 	bz_stream *bz = &ctx->bz;
-	guint compression_level = 9;
+	guint compression_level = conf->compression_level;
 
 	ctx->conf = *conf;
 
@@ -663,7 +664,8 @@ static void deflate_free(liServer *srv, gpointer param) {
 static const GString
 	don_encodings = { CONST_STR_LEN("encodings"), 0 },
 	don_blocksize = { CONST_STR_LEN("blocksize"), 0 },
-	don_outputbuffer = { CONST_STR_LEN("output-buffer"), 0 }
+	don_outputbuffer = { CONST_STR_LEN("output-buffer"), 0 },
+	don_compression_level = { CONST_STR_LEN("compression-level"), 0 }
 ;
 
 static liAction* deflate_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
@@ -680,6 +682,7 @@ static liAction* deflate_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	conf->allowed_encodings = encoding_available_mask;
 	conf->blocksize = 16*1024;
 	conf->output_buffer = 4*1024;
+	conf->compression_level = 1;
 
 	if (val) {
 		GHashTable *ht = val->data.hash;
@@ -709,6 +712,12 @@ static liAction* deflate_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 					goto option_failed;
 				}
 				conf->output_buffer = value->data.number;
+			} else if (g_string_equal(key, &don_compression_level)) {
+				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0 || value->data.number > 9) {
+					ERROR(srv, "deflate option '%s' expects an integer between 1 and 9 as parameter", don_compression_level.str);
+					goto option_failed;
+				}
+				conf->compression_level = value->data.number;
 			} else {
 				ERROR(srv, "unknown option for deflate '%s'", key->str);
 				goto option_failed;
