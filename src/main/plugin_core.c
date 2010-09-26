@@ -874,11 +874,17 @@ static void core_log_write_free(liServer *srv, gpointer param) {
 static liHandlerResult core_handle_log_write(liVRequest *vr, gpointer param, gpointer *context) {
 	liPattern *pattern = param;
 	GString *str = g_string_sized_new(127);
+	GMatchInfo *match_info = NULL;
+
+	if (vr->action_stack.regex_stack->len) {
+		GArray *rs = vr->action_stack.regex_stack;
+		match_info = g_array_index(rs, liActionRegexStackElement, rs->len - 1).match_info;
+	}
 
 	UNUSED(context);
 
-	/* eval pattern, ignore $n and %n */
-	li_pattern_eval(vr, str, pattern, NULL, NULL, NULL, NULL);
+	/* eval pattern, ignore $n */
+	li_pattern_eval(vr, str, pattern, NULL, NULL, li_pattern_regex_cb, match_info);
 
 	VR_INFO(vr, "%s", str->str);
 	g_string_free(str, TRUE);
@@ -940,11 +946,17 @@ static void core_env_set_free(liServer *srv, gpointer param) {
 
 static liHandlerResult core_handle_env_set(liVRequest *vr, gpointer param, gpointer *context) {
 	GArray *arr = param;
+	GMatchInfo *match_info = NULL;
 
 	UNUSED(context);
 
+	if (vr->action_stack.regex_stack->len) {
+		GArray *rs = vr->action_stack.regex_stack;
+		match_info = g_array_index(rs, liActionRegexStackElement, rs->len - 1).match_info;
+	}
+
 	g_string_truncate(vr->wrk->tmp_str, 0);
-	li_pattern_eval(vr, vr->wrk->tmp_str, g_array_index(arr, liPattern*, 1), NULL, NULL, NULL, NULL);
+	li_pattern_eval(vr, vr->wrk->tmp_str, g_array_index(arr, liPattern*, 1), NULL, NULL, li_pattern_regex_cb, match_info);
 	li_environment_set(&vr->env, GSTR_LEN(g_array_index(arr, liValue*, 0)->data.string), GSTR_LEN(vr->wrk->tmp_str));
 
 	return LI_HANDLER_GO_ON;
@@ -975,11 +987,17 @@ static liAction* core_env_set(liServer *srv, liWorker *wrk, liPlugin* p, liValue
 
 static liHandlerResult core_handle_env_add(liVRequest *vr, gpointer param, gpointer *context) {
 	GArray *arr = param;
+	GMatchInfo *match_info = NULL;
 
 	UNUSED(context);
 
+	if (vr->action_stack.regex_stack->len) {
+		GArray *rs = vr->action_stack.regex_stack;
+		match_info = g_array_index(rs, liActionRegexStackElement, rs->len - 1).match_info;
+	}
+
 	g_string_truncate(vr->wrk->tmp_str, 0);
-	li_pattern_eval(vr, vr->wrk->tmp_str, g_array_index(arr, liPattern*, 1), NULL, NULL, NULL, NULL);
+	li_pattern_eval(vr, vr->wrk->tmp_str, g_array_index(arr, liPattern*, 1), NULL, NULL, li_pattern_regex_cb, match_info);
 	li_environment_insert(&vr->env, GSTR_LEN(g_array_index(arr, liValue*, 0)->data.string), GSTR_LEN(vr->wrk->tmp_str));
 
 	return LI_HANDLER_GO_ON;
