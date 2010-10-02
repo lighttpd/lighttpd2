@@ -347,5 +347,6 @@ AC_CONFIG_FILES([Makefile \
 	src/modules/Makefile \
 	src/unittests/Makefile \
 	src/lighttpd2.pc \
+	tests/Makefile \
 ])
 AC_OUTPUT

@@ -10,3 +10,5 @@ SET(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 ENABLE_TESTING()
 
 ADD_SUBDIRECTORY(src build)
+
+add_subdirectory(tests)
