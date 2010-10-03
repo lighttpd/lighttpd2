@@ -862,6 +862,109 @@ void li_apr_sha1_base64(GString *dest, const GString *passwd) {
 	g_free(digest_base64);
 }
 
+/*  The basic algorithm for this "apr-md5-crypt" comes from
+ *  the FreeBSD 3.0 MD5 crypt() function, and was licensed as
+ *  "BEER-WARE" from Poul-Henning Kamp.
+ *
+ *  This is a complete rewrite to use glib functions.
+ *
+ *  Note: security by obscurity is not real security - this
+ *    still is "just" md5, don't trust it.
+ */
+
+#define APR1_MAGIC "$apr1$"
+
+static void md5_crypt_to64(GString *dest, guint number, guint len) {
+	static const gchar code[] = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+	for ( ; len-- > 0; ) {
+		g_string_append_len(dest, code + (number & 63), 1);
+		number /= 64;
+	}
+}
+
+void li_apr_md5_crypt(GString *dest, const GString *password, const GString *salt) {
+	guint i;
+	GChecksum *md5sum;
+	gsize digestlen = g_checksum_type_get_length(G_CHECKSUM_MD5);
+	guint8 digest[digestlen];
+
+	GString rsalt = { GSTR_LEN(salt), 0 };
+	if (li_string_prefix(&rsalt, CONST_STR_LEN(APR1_MAGIC))) {
+		rsalt.str += sizeof(APR1_MAGIC)-1;
+		rsalt.len -= sizeof(APR1_MAGIC)-1;
+	}
+	if (rsalt.len > 8) rsalt.len = 8;
+	for (i = 0; i < rsalt.len && rsalt.str[i] != '$'; i++) ;
+	rsalt.len = i;
+
+	md5sum = g_checksum_new(G_CHECKSUM_MD5);
+
+	g_checksum_update(md5sum, GUSTR_LEN(password));
+	g_checksum_update(md5sum, (guchar*) rsalt.str, rsalt.len);
+	g_checksum_update(md5sum, GUSTR_LEN(password));
+	g_checksum_get_digest(md5sum, digest, &digestlen);
+
+	g_checksum_reset(md5sum);
+
+	g_checksum_update(md5sum, GUSTR_LEN(password));
+	g_checksum_update(md5sum, CONST_USTR_LEN(APR1_MAGIC));
+	g_checksum_update(md5sum, (guchar*) rsalt.str, rsalt.len);
+
+	for (i = password->len / 16; i-- > 0; ) {
+		g_checksum_update(md5sum, digest, digestlen);
+	}
+	g_checksum_update(md5sum, digest, password->len % 16);
+
+	for (i = password->len; i != 0; i /= 2) {
+		if (i % 2) {
+			g_checksum_update(md5sum, (guchar*) "", 1);
+		} else {
+			g_checksum_update(md5sum, (guchar*) password->str, 1);
+		}
+	}
+	g_checksum_get_digest(md5sum, digest, &digestlen);
+
+	for (i = 0; i < 1000; i++) {
+		g_checksum_reset(md5sum);
+
+		if (i % 2) {
+			g_checksum_update(md5sum, GUSTR_LEN(password));
+		} else {
+			g_checksum_update(md5sum, digest, digestlen);
+		}
+
+		if (i % 3) {
+			g_checksum_update(md5sum, (guchar*) rsalt.str, rsalt.len);
+		}
+
+		if (i % 7) {
+			g_checksum_update(md5sum, GUSTR_LEN(password));
+		}
+
+		if (i % 2) {
+			g_checksum_update(md5sum, digest, digestlen);
+		} else {
+			g_checksum_update(md5sum, GUSTR_LEN(password));
+		}
+
+		g_checksum_get_digest(md5sum, digest, &digestlen);
+	}
+
+	g_checksum_free(md5sum);
+
+	li_g_string_clear(dest);
+	g_string_append_len(dest, CONST_STR_LEN(APR1_MAGIC));
+	g_string_append_len(dest, rsalt.str, rsalt.len);
+	g_string_append_len(dest, CONST_STR_LEN("$"));
+	md5_crypt_to64(dest, (digest[ 0] << 16) | (digest[ 6] << 8) | digest[12], 4);
+	md5_crypt_to64(dest, (digest[ 1] << 16) | (digest[ 7] << 8) | digest[13], 4);
+	md5_crypt_to64(dest, (digest[ 2] << 16) | (digest[ 8] << 8) | digest[14], 4);
+	md5_crypt_to64(dest, (digest[ 3] << 16) | (digest[ 9] << 8) | digest[15], 4);
+	md5_crypt_to64(dest, (digest[ 4] << 16) | (digest[10] << 8) | digest[ 5], 4);
+	md5_crypt_to64(dest,                       digest[11]                   , 2);
+}
+
+
 void li_g_queue_merge(GQueue *dest, GQueue *src) {
 	assert(dest != src);
 	if (g_queue_is_empty(src)) return; /* nothing to do */

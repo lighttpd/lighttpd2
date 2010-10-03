@@ -7,7 +7,7 @@ import traceback
 
 from service import *
 
-__all__ = [ "Env", "Tests", "TestBase" ]
+__all__ = [ "Env", "Tests", "TestBase", "GroupTest" ]
 
 class Dict(object):
 	pass
@@ -34,7 +34,7 @@ def vhostname(testname):
 
 # basic interface
 class TestBase(object):
-	config = "defaultaction;"
+	config = None
 	name = None
 	vhost = None
 	runnable = True
@@ -89,6 +89,8 @@ var.vhosts = var.vhosts + [ "%s" : ${
 			self._cleanupFile(f)
 		for d in self._test_cleanup_dirs:
 			self._cleanupDir(d)
+		self._test_cleanup_files = []
+		self._test_cleanup_dirs = []
 
 	def _cleanupFile(self, fname):
 		self.tests.CleanupFile(fname)
@@ -122,6 +124,36 @@ var.vhosts = var.vhosts + [ "%s" : ${
 
 	def Cleanup(self):
 		pass
+
+def class2testname(name):
+	if name.startswith("Test"): name = name[4:]
+	return name
+
+class GroupTest(TestBase):
+	runnable = False
+
+	def __init__(self):
+		super(GroupTest, self).__init__()
+		self.subtests = []
+		for c in self.group:
+			t = c()
+			self.subtests.append(t)
+
+	def _register(self, tests):
+		super(GroupTest, self)._register(tests)
+		for t in self.subtests:
+			if None == t.name:
+				t.name = self.name + class2testname(t.__class__.__name__) + '/'
+			if None == t.vhost:
+				t.vhost = self.vhost
+			t._register(tests)
+
+	def _cleanup(self):
+		for t in self.subtests:
+			if t._test_failed:
+				self._test_failed = True
+		super(GroupTest, self)._cleanup()
+
 
 class Tests(object):
 	def __init__(self):
@@ -295,7 +327,11 @@ allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
 
 	def _cleanupfile(self, fname):
 		if self.prepared_files.has_key(fname):
-			os.remove(os.path.join(Env.dir, fname))
+			try:
+				os.remove(os.path.join(Env.dir, fname))
+			except Exception as e:
+				print >>sys.stderr, "Couldn't delete file '%s': %s" % (fname, e)
+				return False
 			return True
 		else:
 			return False
@@ -310,7 +346,10 @@ allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
 	def _cleanupdir(self, dirname):
 		self.prepared_dirs[dirname] -= 1
 		if 0 == self.prepared_dirs[dirname]:
-			os.rmdir(os.path.join(Env.dir, dirname))
+			try:
+				os.rmdir(os.path.join(Env.dir, dirname))
+			except Exception as e:
+				print >>sys.stderr, "Couldn't delete directory '%s': %s" % (dirname, e)
 
 	def PrepareFile(self, fname, content):
 		path = filter(lambda x: x != '', fname.split('/'))

@@ -15,6 +15,7 @@ class CurlRequest(TestBase):
 	URL = None
 	SCHEME = "http"
 	PORT = 0 # offset to Env.port
+	AUTH = None
 
 	EXPECT_RESPONSE_BODY = None
 	EXPECT_RESPONSE_CODE = None
@@ -56,6 +57,11 @@ class CurlRequest(TestBase):
 		c.setopt(pycurl.WRITEFUNCTION, b.write)
 		c.setopt(pycurl.HEADERFUNCTION, self._recv_header)
 
+		if None != self.AUTH:
+			c.setopt(pycurl.USERPWD, self.AUTH)
+			c.setopt(pycurl.FOLLOWLOCATION, 1)
+			c.setopt(pycurl.MAXREDIRS, 5)
+
 		self.curl = c
 		self.buffer = b
 
@@ -78,6 +84,8 @@ class CurlRequest(TestBase):
 
 	def dump(self):
 		c = self.curl
+		sys.stdout.flush()
+		print >> sys.stdout, "Dumping request for test '%s'" % self.name
 		print >> sys.stdout, "Curl request: URL = %s://%s:%i%s" % (self.SCHEME, self.vhost, Env.port + self.PORT, self.URL)
 		print >> sys.stdout, "Curl response code: %i " % (c.getinfo(pycurl.RESPONSE_CODE))
 		print >> sys.stdout, "Curl response headers:"
@@ -85,6 +93,7 @@ class CurlRequest(TestBase):
 			print >> sys.stdout, "  %s: %s" % (k, v)
 		print >> sys.stdout, "Curl response body:"
 		print >> sys.stdout, self.buffer.getvalue()
+		sys.stdout.flush()
 
 	def _checkResponse(self):
 		c = self.curl

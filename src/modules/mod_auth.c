@@ -75,7 +75,7 @@ LI_API gboolean mod_auth_free(liModules *mods, liModule *mod);
 typedef struct AuthBasicData AuthBasicData;
 
 /* GStrings may be fake, only use ->str and ->len; but they are \0 terminated */
-typedef gboolean (*AuthBasicBackend)(liVRequest *vr, const GString *username, const GString *password, AuthBasicData *bdata);
+typedef gboolean (*AuthBasicBackend)(liVRequest *vr, const GString *username, const GString *password, AuthBasicData *bdata, gboolean debug);
 
 struct AuthBasicData {
 	liPlugin *p;
@@ -245,7 +245,7 @@ static AuthFile* auth_file_new(liWorker *wrk, const GString *path, gboolean has_
 	return f;
 }
 
-static gboolean auth_backend_plain(liVRequest *vr, const GString *username, const GString *password, AuthBasicData *bdata) {
+static gboolean auth_backend_plain(liVRequest *vr, const GString *username, const GString *password, AuthBasicData *bdata, gboolean debug) {
 	const char *pass;
 	AuthFileData *afd = auth_file_get_data(vr->wrk, bdata->data);
 	gboolean res = FALSE;
@@ -254,11 +254,18 @@ static gboolean auth_backend_plain(liVRequest *vr, const GString *username, cons
 
 	/* unknown user? */
 	if (!(pass = g_hash_table_lookup(afd->users, username->str))) {
+		if (debug) {
+			VR_DEBUG(vr, "User \"%s\" not found", username->str);
+		}
 		goto out;
 	}
 
 	/* wrong password? */
-	if (!g_str_equal(password->str, pass)) {
+	if (0 != g_strcmp0(password->str, pass)) {
+		if (debug) {
+			VR_DEBUG(vr, "Password \"%s\" doesn't match \"%s\" for user \"%s\"", password->str, pass, username->str);
+		}
+
 		goto out;
 	}
 
@@ -270,7 +277,7 @@ out:
 	return res;
 }
 
-static gboolean auth_backend_htpasswd(liVRequest *vr, const GString *username, const GString *password, AuthBasicData *bdata) {
+static gboolean auth_backend_htpasswd(liVRequest *vr, const GString *username, const GString *password, AuthBasicData *bdata, gboolean debug) {
 	const char *pass;
 	AuthFileData *afd = auth_file_get_data(vr->wrk, bdata->data);
 	gboolean res = FALSE;
@@ -279,17 +286,30 @@ static gboolean auth_backend_htpasswd(liVRequest *vr, const GString *username, c
 
 	/* unknown user? */
 	if (!(pass = g_hash_table_lookup(afd->users, username->str))) {
+		if (debug) {
+			VR_DEBUG(vr, "User \"%s\" not found", username->str);
+		}
 		goto out;
 	}
 
 	if (g_str_has_prefix(pass, "$apr1$")) {
-		/* We don't support this stupid method. Run around your house 1000 times and use sha1 next time */
-		goto out;
+		const GString salt = { (gchar*) pass, strlen(pass), 0 };
+		li_apr_md5_crypt(vr->wrk->tmp_str, password, &salt);
+
+		if (0 != g_strcmp0(pass, vr->wrk->tmp_str->str)) {
+			if (debug) {
+				VR_DEBUG(vr, "Password apr-md5 crypt \"%s\" doesn't match \"%s\" for user \"%s\"", vr->wrk->tmp_str->str, pass, username->str);
+			}
+			goto out;
+		}
 	} else
 	if (g_str_has_prefix(pass, "{SHA}")) {
 		li_apr_sha1_base64(vr->wrk->tmp_str, password);
 
-		if (g_str_equal(password->str, vr->wrk->tmp_str->str)) {
+		if (0 != g_strcmp0(pass, vr->wrk->tmp_str->str)) {
+			if (debug) {
+				VR_DEBUG(vr, "Password apr-sha1 crypt \"%s\" doesn't match \"%s\" for user \"%s\"", vr->wrk->tmp_str->str, pass, username->str);
+			}
 			goto out;
 		}
 	}
@@ -301,7 +321,10 @@ static gboolean auth_backend_htpasswd(liVRequest *vr, const GString *username, c
 		memset(&buffer, 0, sizeof(buffer));
 		crypted = crypt_r(password->str, pass, &buffer);
 
-		if (g_str_equal(pass, crypted)) {
+		if (0 != g_strcmp0(pass, crypted)) {
+			if (debug) {
+				VR_DEBUG(vr, "Password crypt \"%s\" doesn't match \"%s\" for user \"%s\"", crypted, pass, username->str);
+			}
 			goto out;
 		}
 	}
@@ -315,7 +338,7 @@ out:
 	return res;
 }
 
-static gboolean auth_backend_htdigest(liVRequest *vr, const GString *username, const GString *password, AuthBasicData *bdata) {
+static gboolean auth_backend_htdigest(liVRequest *vr, const GString *username, const GString *password, AuthBasicData *bdata, gboolean debug) {
 	const char *pass, *realm;
 	AuthFileData *afd = auth_file_get_data(vr->wrk, bdata->data);
 	GChecksum *md5sum;
@@ -325,6 +348,9 @@ static gboolean auth_backend_htdigest(liVRequest *vr, const GString *username, c
 
 	/* unknown user? */
 	if (!(pass = g_hash_table_lookup(afd->users, username->str))) {
+		if (debug) {
+			VR_DEBUG(vr, "User \"%s\" not found", username->str);
+		}
 		goto out;
 	}
 
@@ -333,6 +359,9 @@ static gboolean auth_backend_htdigest(liVRequest *vr, const GString *username, c
 
 	/* no realm/wrong realm? */
 	if (NULL == pass || 0 != strncmp(realm, bdata->realm->str, bdata->realm->len)) {
+		if (debug) {
+			VR_DEBUG(vr, "Realm for user \"%s\" doesn't match", username->str);
+		}
 		goto out;
 	}
 	pass++;
@@ -347,6 +376,10 @@ static gboolean auth_backend_htdigest(liVRequest *vr, const GString *username, c
 	/* wrong password? */
 	if (g_str_equal(pass, g_checksum_get_string(md5sum))) {
 		res = TRUE;
+	} else {
+		if (debug) {
+			VR_DEBUG(vr, "Password digest \"%s\" doesn't match \"%s\" for user \"%s\"", g_checksum_get_string(md5sum), pass, username->str);
+		}
 	}
 
 	g_checksum_free(md5sum);
@@ -401,14 +434,14 @@ static liHandlerResult auth_basic(liVRequest *vr, gpointer param, gpointer *cont
 		} else {
 			GString user = li_const_gstring(username, password - username - 1);
 			GString pass = li_const_gstring(password, len - (password - username));
-			if (bdata->backend(vr, &user, &pass, bdata)) {
+			if (bdata->backend(vr, &user, &pass, bdata, debug)) {
 				auth_ok = TRUE;
 
 				li_environment_set(&vr->env, CONST_STR_LEN("REMOTE_USER"), username, password - username - 1);
 				li_environment_set(&vr->env, CONST_STR_LEN("AUTH_TYPE"), CONST_STR_LEN("Basic"));
 			} else {
 				if (debug) {
-					VR_DEBUG(vr, "wrong authorization info from client for realm \"%s\"", bdata->realm->str);
+					VR_DEBUG(vr, "wrong authorization info from client on realm \"%s\" (user: \"%s\")", bdata->realm->str, username);
 				}
 			}
 			g_free(decoded);

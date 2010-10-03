@@ -39,7 +39,7 @@ static void test_send_fd(void) {
 	close(rfd);
 }
 
-static void test_apr_sha1_base64(void) {
+static void test_apr_sha1_base64_1(void) {
 	GString *dest = g_string_sized_new(0);
 	GString pass = li_const_gstring(CONST_STR_LEN("bar"));
 
@@ -48,11 +48,32 @@ static void test_apr_sha1_base64(void) {
 	g_assert_cmpstr(dest->str, ==, "{SHA}Ys23Ag/5IOWqZCw9QGaVDdHwH00=");
 }
 
+static void test_apr_sha1_base64_2(void) {
+	GString *dest = g_string_sized_new(0);
+	GString pass = li_const_gstring(CONST_STR_LEN("pass4"));
+
+	li_apr_sha1_base64(dest, &pass);
+
+	g_assert_cmpstr(dest->str, ==, "{SHA}LbTBgR9CRYKpD41+53mVzwGNlEM=");
+}
+
+static void test_apr_md5_crypt(void) {
+	GString *dest = g_string_sized_new(0);
+	GString hash = li_const_gstring(CONST_STR_LEN("$apr1$mhpONdUp$xSRcAbK2F6hLFUzW59tzW/"));
+	GString pass = li_const_gstring(CONST_STR_LEN("pass1"));
+
+	li_apr_md5_crypt(dest, &pass, &hash);
+
+	g_assert_cmpstr(dest->str, ==, hash.str);
+}
+
 int main(int argc, char **argv) {
 	g_test_init(&argc, &argv, NULL);
 
 	g_test_add_func("/utils/send_fd", test_send_fd);
-	g_test_add_func("/utils/apr_sha1_base64", test_apr_sha1_base64);
+	g_test_add_func("/utils/apr_sha1_base64/1", test_apr_sha1_base64_1);
+	g_test_add_func("/utils/apr_sha1_base64/2", test_apr_sha1_base64_2);
+	g_test_add_func("/utils/apr_md5_crypt", test_apr_md5_crypt);
 
 	return g_test_run();
 }

@@ -41,7 +41,10 @@ class LogFile(object):
 	def close(self, *args, **kwargs): return self.file.close(*args, **kwargs)
 	def fileno(self, *args, **kwargs):
 		pass
-	def flush(self, *args, **kwargs): return self.file.flush(*args, **kwargs)
+	def flush(self, *args, **kwargs):
+		for (p, f) in self.clones.items():
+			f.flush(*args, **kwargs)
+		return self.file.flush(*args, **kwargs)
 	def isatty(self, *args, **kwargs): return False
 	def next(self, *args, **kwargs): return self.file.next(*args, **kwargs)
 

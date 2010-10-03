@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import sys
-
 from base import *
 from requests import *
 
