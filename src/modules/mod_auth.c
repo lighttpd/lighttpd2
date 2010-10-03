@@ -27,7 +27,7 @@
  *     auth.htpasswd ["method": method, "realm": realm, "file": path, "ttl": 10];
  *         - requires authentication using a htpasswd file containing user:encrypted_password pairs seperated by newlines (\n)
  *         - passwords are encrypted using crypt(3), use the htpasswd binary from apache to manage the file
- *           + hashes starting with "$apr1$" are NOT supported (htpasswd -m)
+ *           + hashes starting with "$apr1$" ARE supported (htpasswd -m)
  *           + hashes starting with "{SHA}" ARE supported (followed by sha1_base64(password), htpasswd -s)
  *         - only supports "basic" method
  *     auth.htdigest ["method": method, "realm": realm, "file": path, "ttl": 10];
