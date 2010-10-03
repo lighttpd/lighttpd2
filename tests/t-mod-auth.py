@@ -65,7 +65,6 @@ class TestDigestSuccess(CurlRequest):
 	AUTH = "user5:pass5"
 
 class Test(GroupTest):
-	vhost = "mod-auth"
 	group = [
 		TestAprMd5Fail, TestAprMd5Success,
 		TestCryptFail, TestCryptSuccess,

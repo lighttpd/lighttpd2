@@ -1,5 +1,46 @@
 # -*- coding: utf-8 -*-
 
+"""
+Howto write a test case:
+
+Create a file "t-*.py" for your testcase and add a "Test" class to it, like:
+
+from base import *
+from requests import *
+
+class Test(CurlRequest):
+	...
+
+There are some basic test classes you can derive from:
+ * TestBase
+ * GroupTest
+ * CurlRequest
+
+Each test class can provide Prepare, Run and Cleanup handlers (CurlRequest already provides a Run handler).
+
+A test intance has the following attributes:
+ * config: vhost config (error/access log and vhost handling gets added)
+ * name: unique test name, has a sane default
+ * vhost: the vhost name; must be unique if a config is provided;
+   GroupTest will set the vhost of subtests to the vhost of the GroupTest
+   if the subtest doesn't provide a config
+ * runnable: whether to call Run
+
+You can create files and directories in Prepare with TestBase.{PrepareVHostFile,PrepareFile,PrepareDir};
+they will get removed on cleanup automatically (if the test was successful).
+
+GroupTest:
+ * set the group attribute to a list of "subtest" classes (like CurlRequest)
+
+CurlRequest:
+set some attributes like:
+ * URL = "/test.txt"
+ * EXPECT_RESPONSE_CODE = 200
+and the class will do everything for you. have a look at the class if you
+need more details :)
+"""
+
+
 import os
 import imp
 import sys
@@ -144,7 +185,7 @@ class GroupTest(TestBase):
 		for t in self.subtests:
 			if None == t.name:
 				t.name = self.name + class2testname(t.__class__.__name__) + '/'
-			if None == t.vhost:
+			if None == t.vhost and None == t.config:
 				t.vhost = self.vhost
 			t._register(tests)
 
