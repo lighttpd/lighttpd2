@@ -2,7 +2,7 @@
 
 import time
 
-__all__ = [ 'LogFile' ]
+__all__ = [ 'LogFile', 'RemoveEscapeSeq' ]
 
 ATTRS = [ 'closed', 'encoding', 'errors', 'mode', 'name', 'newlines', 'softspace' ]
 
@@ -81,6 +81,74 @@ class LogFile(object):
 		for l in lines[:-1]:
 			self._write(l + '\n')
 		self._write(lines[-1])
+	def writelines(self, *args):
+		return self.write(''.join(args))
+	def xreadlines(self, *args, **kwargs): return self.file.xreadlines(*args, **kwargs)
+
+class RemoveEscapeSeq(object):
+	def __init__(self, file):
+		self.file = file
+		self.escape_open = False
+
+	def __enter__(self, *args, **kwargs): return self.file.__enter__(*args, **kwargs)
+	def __exit__(self, *args, **kwargs): return self.file.__exit__(*args, **kwargs)
+	def __iter__(self, *args, **kwargs): return self.file.__iter__(*args, **kwargs)
+	def __repr__(self, *args, **kwargs): return self.file.__repr__(*args, **kwargs)
+
+	def __delattr__(self, name):
+		if name in ATTRS:
+			return delattr(self.file, name)
+		else:
+			return super(RemoveEscapeSeq, self).__delattr__(name, value)
+	def __getattr__(self, name):
+		if name in ATTRS:
+			return getattr(self.file, name)
+		else:
+			return super(RemoveEscapeSeq, self).__getattr__(name, value)
+	def __getattribute__(self, name):
+		if name in ATTRS:
+			return self.file.__getattribute__(name)
+		else:
+			return object.__getattribute__(self, name)
+	def __setattr__(self, name, value):
+		if name in ATTRS:
+			return setattr(self.file, name, value)
+		else:
+			return super(RemoveEscapeSeq, self).__setattr__(name, value)
+
+	def close(self, *args, **kwargs): return self.file.close(*args, **kwargs)
+	def fileno(self, *args, **kwargs):
+		pass
+	def flush(self, *args, **kwargs): return self.file.flush(*args, **kwargs)
+	def isatty(self, *args, **kwargs): return False
+	def next(self, *args, **kwargs): return self.file.next(*args, **kwargs)
+	def read(self, *args, **kwargs): return self.file.read(*args, **kwargs)
+	def readinto(self, *args, **kwargs): return self.file.readinto(*args, **kwargs)
+	def readline(self, *args, **kwargs): return self.file.readline(*args, **kwargs)
+	def readlines(self, *args, **kwargs): return self.file.readlines(*args, **kwargs)
+
+	def seek(self, *args, **kwargs):
+		pass
+	def tell(self, *args, **kwargs): return self.file.tell(*args, **kwargs)
+	def truncate(self, *args, **kwargs):
+		pass
+	def write(self, str):
+		while str != "":
+			if self.escape_open:
+				l = str.split('m', 1)
+				if len(l) == 2:
+					self.escape_open = False
+					str = l[1]
+				else:
+					return
+			else:
+				l = str.split('\033', 1)
+				self.file.write(l[0])
+				if len(l) == 2:
+					self.escape_open = True
+					str = l[1]
+				else:
+					return
 	def writelines(self, *args):
 		return self.write(''.join(args))
 	def xreadlines(self, *args, **kwargs): return self.file.xreadlines(*args, **kwargs)

@@ -3,7 +3,7 @@
 
 import os
 import sys
-from logfile import LogFile
+from logfile import LogFile, RemoveEscapeSeq
 
 from base import Env, Tests
 
@@ -52,11 +52,13 @@ Env.sourcedir = os.path.abspath(os.path.dirname(__file__))
 Env.luadir = os.path.join(os.path.dirname(Env.sourcedir), "doc")
 Env.debugRequests = options.debug_requests
 Env.strace = options.strace
+Env.color = sys.stdin.isatty()
 
 Env.dir = mkdtemp(dir = os.getcwd())
 Env.defaultwww = os.path.join(Env.dir, "www", "default")
 
 Env.log = open(os.path.join(Env.dir, "tests.log"), "w")
+if Env.color: Env.log = RemoveEscapeSeq(Env.log)
 sys.stderr = LogFile(sys.stderr, **{ "[stderr]": Env.log })
 sys.stdout = LogFile(sys.stdout, **{ "[stdout]": Env.log })
 Env.log = LogFile(Env.log)

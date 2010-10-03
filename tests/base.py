@@ -25,6 +25,7 @@ A test intance has the following attributes:
    GroupTest will set the vhost of subtests to the vhost of the GroupTest
    if the subtest doesn't provide a config
  * runnable: whether to call Run
+ * todo: whether the test is expected to fail
 
 You can create files and directories in Prepare with TestBase.{PrepareVHostFile,PrepareFile,PrepareDir};
 they will get removed on cleanup automatically (if the test was successful).
@@ -79,6 +80,7 @@ class TestBase(object):
 	name = None
 	vhost = None
 	runnable = True
+	todo = False
 
 	def __init__(self):
 		self._test_cleanup_files = []
@@ -119,7 +121,7 @@ var.vhosts = var.vhosts + [ "%s" : ${
 			print >> sys.stderr, "Test %s failed:" % (self.name)
 			print >> sys.stderr, traceback.format_exc(10)
 		print >> Env.log, "[Done] Running test %s [result=%s]" % (self.name, failed and "Failed" or "Succeeded")
-		self._test_failed = failed
+		self._test_failed = failed and not self.todo
 		return not failed
 
 	def _cleanup(self):
@@ -210,11 +212,17 @@ class Tests(object):
 		self.tests = [] # all tests (we always prepare/cleanup all tests)
 		self.tests_dict = { }
 		self.config = None
+		self.testname_len = 60
 
 		self.prepared_dirs = { }
 		self.prepared_files = { }
 
 		self.failed = False
+
+		self.stat_pass = 0
+		self.stat_fail = 0
+		self.stat_todo = 0
+		self.stat_done = 0
 
 		self.add_service(Lighttpd())
 
@@ -223,11 +231,12 @@ class Tests(object):
 		if self.tests_dict.has_key(name):
 			raise BaseException("Test '%s' already defined" % name)
 		self.tests_dict[name] = test
-		for f in self.tests_filter:
-			if name.startswith(f):
-				if test.runnable:
+		if test.runnable:
+			for f in self.tests_filter:
+				if name.startswith(f):
 					self.run.append(test)
-				break
+					self.testname_len = max(self.testname_len, len(name))
+					break
 		self.tests.append(test)
 
 	def add_service(self, service):
@@ -322,13 +331,47 @@ allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
 				raise
 		print >> Env.log, "[Done] Preparing services"
 
+	def _progress(self, i, n):
+		s = str(n)
+		return ("[{0:>%i}" % len(s)).format(i) + "/" + s + "]"
 
 	def Run(self):
+		COLOR_RESET = Env.color and "\033[0m" or ""
+		COLOR_BLUE = Env.color and "\033[1;34m" or ""
+		COLOR_GREEN = Env.color and "\033[1;32m" or ""
+		COLOR_YELLOW = Env.color and "\033[1;33m" or ""
+		COLOR_RED = Env.color and "\033[1;38m" or ""
+		COLOR_CYAN = Env.color and "\033[1;36m" or ""
+
+		PASS = COLOR_GREEN + "[PASS]" + COLOR_RESET
+		FAIL = COLOR_RED + "[FAIL]" + COLOR_RESET
+		TODO = COLOR_YELLOW + "[TODO]" + COLOR_RESET
+		DONE = COLOR_YELLOW + "[DONE]" + COLOR_RESET
+
+		testcount = len(self.run)
 		print >> Env.log, "[Start] Running tests"
+		fmt =  COLOR_BLUE + " {0:<%i}   " % self.testname_len
 		failed = False
+		i = 1
 		for t in self.run:
-			if not t._run(): failed = True
+			result = t._run()
+			if t.todo:
+				print >> sys.stdout, COLOR_CYAN + self._progress(i, testcount) + fmt.format(t.name) + (result and DONE or TODO)
+				if result:
+					self.stat_done += 1
+				else:
+					self.stat_todo += 1
+			else:
+				print >> sys.stdout, COLOR_CYAN + self._progress(i, testcount) + fmt.format(t.name) + (result and PASS or FAIL)
+				if result:
+					self.stat_pass += 1
+				else:
+					self.stat_fail += 1
+					failed = True
+			i += 1
 		self.failed = failed
+		print >> sys.stdout, ("%i out of %i tests passed (%.2f%%), %i tests failed, %i todo items, %i todo items are ready" %
+			(self.stat_pass, testcount, (100.0 * self.stat_pass)/testcount, self.stat_fail, self.stat_todo, self.stat_done))
 		print >> Env.log, "[Done] Running tests [result=%s]" % (failed and "Failed" or "Succeeded")
 		return not failed
 

@@ -84,16 +84,16 @@ class CurlRequest(TestBase):
 
 	def dump(self):
 		c = self.curl
-		sys.stdout.flush()
-		print >> sys.stdout, "Dumping request for test '%s'" % self.name
-		print >> sys.stdout, "Curl request: URL = %s://%s:%i%s" % (self.SCHEME, self.vhost, Env.port + self.PORT, self.URL)
-		print >> sys.stdout, "Curl response code: %i " % (c.getinfo(pycurl.RESPONSE_CODE))
-		print >> sys.stdout, "Curl response headers:"
+		Env.log.flush()
+		print >> Env.log, "Dumping request for test '%s'" % self.name
+		print >> Env.log, "Curl request: URL = %s://%s:%i%s" % (self.SCHEME, self.vhost, Env.port + self.PORT, self.URL)
+		print >> Env.log, "Curl response code: %i " % (c.getinfo(pycurl.RESPONSE_CODE))
+		print >> Env.log, "Curl response headers:"
 		for (k, v) in self.resp_header_list:
-			print >> sys.stdout, "  %s: %s" % (k, v)
-		print >> sys.stdout, "Curl response body:"
-		print >> sys.stdout, self.buffer.getvalue()
-		sys.stdout.flush()
+			print >> Env.log, "  %s: %s" % (k, v)
+		print >> Env.log, "Curl response body:"
+		print >> Env.log, self.buffer.getvalue()
+		Env.log.flush()
 
 	def _checkResponse(self):
 		c = self.curl
