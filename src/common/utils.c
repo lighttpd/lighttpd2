@@ -903,9 +903,9 @@ void li_apr_md5_crypt(GString *dest, const GString *password, const GString *sal
 	g_checksum_update(md5sum, (guchar*) rsalt.str, rsalt.len);
 	g_checksum_update(md5sum, GUSTR_LEN(password));
 	g_checksum_get_digest(md5sum, digest, &digestlen);
+	g_checksum_free(md5sum);
 
-	g_checksum_reset(md5sum);
-
+	md5sum = g_checksum_new(G_CHECKSUM_MD5);
 	g_checksum_update(md5sum, GUSTR_LEN(password));
 	g_checksum_update(md5sum, CONST_USTR_LEN(APR1_MAGIC));
 	g_checksum_update(md5sum, (guchar*) rsalt.str, rsalt.len);
@@ -923,9 +923,10 @@ void li_apr_md5_crypt(GString *dest, const GString *password, const GString *sal
 		}
 	}
 	g_checksum_get_digest(md5sum, digest, &digestlen);
+	g_checksum_free(md5sum);
 
 	for (i = 0; i < 1000; i++) {
-		g_checksum_reset(md5sum);
+		md5sum = g_checksum_new(G_CHECKSUM_MD5);
 
 		if (i % 2) {
 			g_checksum_update(md5sum, GUSTR_LEN(password));
@@ -948,9 +949,9 @@ void li_apr_md5_crypt(GString *dest, const GString *password, const GString *sal
 		}
 
 		g_checksum_get_digest(md5sum, digest, &digestlen);
-	}
 
-	g_checksum_free(md5sum);
+		g_checksum_free(md5sum);
+	}
 
 	li_g_string_clear(dest);
 	g_string_append_len(dest, CONST_STR_LEN(APR1_MAGIC));
