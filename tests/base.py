@@ -20,6 +20,7 @@ Each test class can provide Prepare, Run and Cleanup handlers (CurlRequest alrea
 
 A test intance has the following attributes:
  * config: vhost config (error/access log and vhost handling gets added)
+ * plain_config: gets added before all vhost configs (define global actions here)
  * name: unique test name, has a sane default
  * vhost: the vhost name; must be unique if a config is provided;
    GroupTest will set the vhost of subtests to the vhost of the GroupTest
@@ -72,11 +73,12 @@ def load_test_file(name):
 	return module
 
 def vhostname(testname):
-	return testname[1:-1].replace('/', '.')
+	return testname[1:-1].replace('/', '.').lower()
 
 # basic interface
 class TestBase(object):
 	config = None
+	plain_config = None
 	name = None
 	vhost = None
 	runnable = True
@@ -96,18 +98,22 @@ class TestBase(object):
 
 	def _prepare(self):
 		self.Prepare()
+		if None != self.plain_config:
+			self.tests.append_config(("\n# %s \n" % (self.name)) + self.plain_config)
 		if None != self.config:
 			errorlog = self.PrepareFile("log/error.log-%s" % self.vhost, "")
 			accesslog = self.PrepareFile("log/access.log-%s" % self.vhost, "")
 			config = """
+# %s
+
 var.vhosts = var.vhosts + [ "%s" : ${
 		log = [ "*": "file:%s" ];
 		accesslog = "%s";
 %s
 	}
 ];
-""" % (self.vhost, errorlog, accesslog, self.config)
-			self.tests.append_config(config)
+""" % (self.name, self.vhost, errorlog, accesslog, self.config)
+			self.tests.append_vhosts_config(config)
 
 	def _run(self):
 		failed = False
@@ -212,6 +218,7 @@ class Tests(object):
 		self.tests = [] # all tests (we always prepare/cleanup all tests)
 		self.tests_dict = { }
 		self.config = None
+		self.vhosts_config = None
 		self.testname_len = 60
 
 		self.prepared_dirs = { }
@@ -247,6 +254,11 @@ class Tests(object):
 		if None == self.config:
 			raise BaseException("Not prepared for adding config")
 		self.config += config
+
+	def append_vhosts_config(self, config):
+		if None == self.vhosts_config:
+			raise BaseException("Not prepared for adding config")
+		self.vhosts_config += config
 
 	def LoadTests(self):
 		files = os.listdir(Env.sourcedir)
@@ -302,9 +314,13 @@ var.vhosts = [ "default": ${{
 }} ];
 """.format(Env = Env, errorlog = errorlog, accesslog = accesslog)
 
+		self.vhosts_config = ""
+
 		for t in self.tests:
 			print >> Env.log, "[Start] Preparing test '%s'" % (t.name)
 			t._prepare()
+
+		self.config += self.vhosts_config
 
 		self.config += """
 vhost.map var.vhosts;
@@ -340,7 +356,7 @@ allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
 		COLOR_BLUE = Env.color and "\033[1;34m" or ""
 		COLOR_GREEN = Env.color and "\033[1;32m" or ""
 		COLOR_YELLOW = Env.color and "\033[1;33m" or ""
-		COLOR_RED = Env.color and "\033[1;38m" or ""
+		COLOR_RED = Env.color and "\033[1;31m" or ""
 		COLOR_CYAN = Env.color and "\033[1;36m" or ""
 
 		PASS = COLOR_GREEN + "[PASS]" + COLOR_RESET
@@ -369,6 +385,9 @@ allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
 					self.stat_fail += 1
 					failed = True
 			i += 1
+			Env.log.flush()
+			sys.stdout.flush()
+			sys.stderr.flush()
 		self.failed = failed
 		print >> sys.stdout, ("%i out of %i tests passed (%.2f%%), %i tests failed, %i todo items, %i todo items are ready" %
 			(self.stat_pass, testcount, (100.0 * self.stat_pass)/testcount, self.stat_fail, self.stat_todo, self.stat_done))
