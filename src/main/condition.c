@@ -19,6 +19,8 @@ static const liConditionValueType cond_value_hints[] = {
 	/* LI_COMP_PHYSICAL_ISDIR: */ LI_COND_VALUE_HINT_BOOL,
 	/* LI_COMP_PHYSICAL_ISFILE: */ LI_COND_VALUE_HINT_BOOL,
 	/* LI_COMP_RESPONSE_STATUS: */ LI_COND_VALUE_HINT_NUMBER,
+	/* LI_COMP_PHYSICAL_DOCROOT: */ LI_COND_VALUE_HINT_STRING,
+	/* LI_COMP_PHYSICAL_PATHINFO: */ LI_COND_VALUE_HINT_STRING,
 
 	/* LI_COMP_REQUEST_HEADER: */ LI_COND_VALUE_HINT_ANY,
 	/* LI_COMP_RESPONSE_HEADER: */ LI_COND_VALUE_HINT_ANY,
@@ -156,6 +158,14 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 		if (r == LI_HANDLER_GO_ON) { /* not found -> size "-1" */
 			res->data.number = (gint64) st.st_size;
 		}
+		break;
+	case LI_COMP_PHYSICAL_DOCROOT:
+		res->match_type = LI_COND_VALUE_HINT_STRING;
+		res->data.str = vr->physical.doc_root->str;
+		break;
+	case LI_COMP_PHYSICAL_PATHINFO:
+		res->match_type = LI_COND_VALUE_HINT_STRING;
+		res->data.str = vr->physical.pathinfo->str;
 		break;
 	case LI_COMP_RESPONSE_STATUS:
 		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
@@ -466,6 +476,8 @@ const char* li_cond_lvalue_to_string(liCondLValue t) {
 	case LI_COMP_PHYSICAL_SIZE: return "physical.size";
 	case LI_COMP_PHYSICAL_ISDIR: return "physical.is_dir";
 	case LI_COMP_PHYSICAL_ISFILE: return "physical.is_file";
+	case LI_COMP_PHYSICAL_DOCROOT: return "physical.docroot";
+	case LI_COMP_PHYSICAL_PATHINFO: return "physical.pathinfo";
 	case LI_COMP_RESPONSE_STATUS: return "response.status";
 	case LI_COMP_REQUEST_HEADER: return "request.header";
 	case LI_COMP_RESPONSE_HEADER: return "response.header";
@@ -537,6 +549,10 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 			return LI_COMP_PHYSICAL_ISFILE;
 		else if (strncmp(c, "is_dir", len) == 0)
 			return LI_COMP_PHYSICAL_ISDIR;
+		else if (strncmp(c, "docroot", len) == 0)
+			return LI_COMP_PHYSICAL_DOCROOT;
+		else if (strncmp(c, "pathinfo", len) == 0)
+			return LI_COMP_PHYSICAL_PATHINFO;
 	} else if (g_str_has_prefix(c, "resp")) {
 		if (g_str_has_prefix(c, "resp.")) {
 			c += sizeof("resp.")-1;
