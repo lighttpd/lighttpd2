@@ -76,6 +76,9 @@ class CurlRequest(TestBase):
 			if not Env.debugRequests:
 				self.dump()
 			raise
+		finally:
+			c.close()
+			self.curl = None
 
 		return True
 
