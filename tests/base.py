@@ -151,8 +151,9 @@ var.vhosts = var.vhosts + [ "%s" : ${
 				print >> Env.log, "Test %s failed:" % (self.name)
 				print >> Env.log, traceback.format_exc(10)
 			else:
-				print >> sys.stderr, "Test %s failed:" % (self.name)
-				print >> sys.stderr, traceback.format_exc(10)
+				print >> sys.stderr, "Test %s failed: %s" % (self.name, e)
+				print >> Env.log, "Test %s failed:" % (self.name)
+				print >> Env.log, traceback.format_exc(10)
 		print >> Env.log, "[Done] Running test %s [result=%s]" % (self.name, failed and "Failed" or "Succeeded")
 		self._test_failed = failed and not self.todo
 		return not failed
