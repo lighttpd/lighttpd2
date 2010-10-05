@@ -180,21 +180,23 @@ static void core_docroot_nth_cb(GString *pattern_result, guint to, guint from, g
 
 	if (0 == ctx->split_len) return;
 
-	from = MAX(from, ctx->split_len);
-	to = MAX(to, ctx->split_len);
+	from = MIN(from, ctx->split_len);
+	to = MIN(to, ctx->split_len);
 
 	if (from <= to) {
 		for (i = from; i <= to; i++) {
 			if (first) {
 				first = FALSE;
+			} else {
 				g_string_append_len(pattern_result, CONST_STR_LEN("."));
 			}
 			g_string_append(pattern_result, ctx->splits[ctx->split_len - i]);
 		}
 	} else {
-		for (i = from+1; i-- >= to; ) {
+		for (i = from; i >= to; i--) { /* to > 0, so no underflow in i possible */
 			if (first) {
 				first = FALSE;
+			} else {
 				g_string_append_len(pattern_result, CONST_STR_LEN("."));
 			}
 			g_string_append(pattern_result, ctx->splits[ctx->split_len - i]);

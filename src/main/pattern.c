@@ -50,6 +50,7 @@ static gboolean parse_range(liServer *srv, liPatternPart *part, const gchar **st
 			return FALSE;
 		}
 		part->data.range.from = val;
+		c = endc;
 	}
 
 	part->data.range.to = part->data.range.from;
@@ -69,6 +70,7 @@ static gboolean parse_range(liServer *srv, liPatternPart *part, const gchar **st
 				return FALSE;
 			}
 			part->data.range.to = val;
+			c = endc;
 		}
 	}
 
