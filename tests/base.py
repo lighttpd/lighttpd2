@@ -145,7 +145,7 @@ var.vhosts = var.vhosts + [ "%s" : ${
 					print >> Env.log, "Test %s failed" % (self.name)
 				else:
 					print >> sys.stderr, "Test %s failed" % (self.name)
-		except Exception as e:
+		except Exception, e:
 			failed = True
 			if self.todo:
 				print >> Env.log, "Test %s failed:" % (self.name)
@@ -467,7 +467,7 @@ allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
 		if self.prepared_files.has_key(fname):
 			try:
 				os.remove(os.path.join(Env.dir, fname))
-			except Exception as e:
+			except Exception, e:
 				print >>sys.stderr, "Couldn't delete file '%s': %s" % (fname, e)
 				return False
 			return True
@@ -486,7 +486,7 @@ allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
 		if 0 == self.prepared_dirs[dirname]:
 			try:
 				os.rmdir(os.path.join(Env.dir, dirname))
-			except Exception as e:
+			except Exception, e:
 				print >>sys.stderr, "Couldn't delete directory '%s': %s" % (dirname, e)
 
 	def PrepareFile(self, fname, content):
