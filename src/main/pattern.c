@@ -334,7 +334,7 @@ void li_pattern_regex_cb(GString *pattern_result, guint from, guint to, gpointer
 		}
 	} else {
 		from = MIN(from, G_MAXINT); /* => from+1 is defined */
-		for (i = from + 1; i-- >= to; ) {
+		for (i = from + 1; --i >= to; ) {
 			if (g_match_info_fetch_pos(match_info, (gint) i, &start_pos, &end_pos)) {
 				g_string_append_len(pattern_result, g_match_info_get_string(match_info) + start_pos, end_pos - start_pos);
 			}

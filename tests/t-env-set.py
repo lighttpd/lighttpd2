@@ -14,7 +14,6 @@ if req.path =~ "(.*)" {
 	URL = "/path/?a_simple_query"
 	EXPECT_RESPONSE_BODY = "/path/"
 	EXPECT_RESPONSE_CODE = 200
-	todo = True
 
 class TestPatternCaptureRange(CurlRequest):
 	# use capture from previous regex conditional
@@ -27,7 +26,6 @@ if req.path =~ "/([^/]*)/(.*)" {
 	URL = "/path/xyz"
 	EXPECT_RESPONSE_BODY = "pathxyz"
 	EXPECT_RESPONSE_CODE = 200
-	todo = True
 
 class TestPatternCaptureRevRange(CurlRequest):
 	# use capture from previous regex conditional
@@ -40,7 +38,6 @@ if req.path =~ "/([^/]*)/(.*)" {
 	URL = "/path/xyz"
 	EXPECT_RESPONSE_BODY = "xyzpath"
 	EXPECT_RESPONSE_CODE = 200
-	todo = True
 
 class TestPatternEncodingPath(CurlRequest):
 	# encoding path
@@ -77,6 +74,8 @@ show_env_info;
 class Test(GroupTest):
 	group = [
 		TestPatternCapture,
+		TestPatternCaptureRange,
+		TestPatternCaptureRevRange,
 		TestPatternEncodingPath,
 		TestPatternCombine,
 		TestPatternEscape,
