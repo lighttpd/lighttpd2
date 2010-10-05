@@ -49,6 +49,7 @@ import imp
 import sys
 import traceback
 import re
+import subprocess
 
 from service import *
 
@@ -516,7 +517,22 @@ allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
 class Lighttpd(Service):
 	name = "lighttpd"
 
+	def TestConfig(self):
+		logfile = open(self.log, "w")
+		inp = self.devnull()
+		args = [Env.worker, '-m', Env.plugindir, '-c', Env.lighttpdconf, '-t']
+		print >> Env.log, "Testing lighttpd config: %s" % (' '.join(args))
+		proc = subprocess.Popen(args, stdin = inp, stdout = logfile, stderr = logfile, close_fds = True)
+		if None != inp: inp.close()
+		logfile.close()
+		status = proc.wait()
+		if 0 != status:
+			os.system("cat '%s'" % self.log)
+			raise BaseException("testing lighttpd config failed with returncode %i" % (status))
+
 	def Prepare(self):
+		self.TestConfig()
+
 		self.portfree(Env.port)
 		if Env.no_angel:
 			self.fork(Env.worker, '-m', Env.plugindir, '-c', Env.lighttpdconf)

@@ -9,7 +9,7 @@ import signal
 
 import base
 
-__all__ = [ "Service", "ServiceException" ]
+__all__ = [ "Service", "ServiceException", "devnull" ]
 
 class ServiceException(Exception):
 	def __init__(self, value): self.value = value
@@ -36,11 +36,13 @@ class Service(object):
 		self.tests = None
 		self.failed = False
 
+	def devnull(self):
+		return devnull()
+
 	def fork(self, *args):
 		if None == self.name:
 			raise ServiceException("Service needs a name!")
-		log = self.tests.PrepareFile("log/service-%s.log" % self.name, "")
-		logfile = open(log, "w")
+		logfile = open(self.log, "w")
 		inp = devnull()
 
 		if base.Env.strace:
@@ -99,6 +101,7 @@ class Service(object):
 				raise ServiceException("Timeout: cannot establish a connection to service %s on port %i" % (self.name, port))
 
 	def _prepare(self):
+		self.log = self.tests.PrepareFile("log/service-%s.log" % self.name, "")
 		self.failed = True
 		self.Prepare()
 		self.failed = False
