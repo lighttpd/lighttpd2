@@ -39,8 +39,21 @@ env.set "INFO" => "%{req.query}";
 show_env_info;
 """
 
+class TestBadRequest1(CurlRequest):
+	# unencoded query
+	URL = "/?complicated?query= $"
+	EXPECT_RESPONSE_CODE = 400
+
+class ProvideStatus(TestBase):
+	runnable = False
+	vhost = "status"
+	config = """
+setup { module_load "mod_status"; }
+status.info;
+"""
+
 class Test(GroupTest):
-	group = [TestSimpleRequest,TestSimpleInfo]
+	group = [TestSimpleRequest,TestSimpleInfo,TestBadRequest1,ProvideStatus]
 
 	def Prepare(self):
 		self.PrepareFile("www/default/test.txt", TEST_TXT)

@@ -73,7 +73,7 @@ def load_test_file(name):
 	return module
 
 def vhostname(testname):
-	return testname[1:-1].replace('/', '.').lower()
+	return '.'.join(reversed(testname[1:-1].split('/'))).lower()
 
 # basic interface
 class TestBase(object):
@@ -121,11 +121,18 @@ var.vhosts = var.vhosts + [ "%s" : ${
 		try:
 			if not self.Run():
 				failed = True
-				print >> sys.stderr, "Test %s failed" % (self.name)
+				if self.todo:
+					print >> Env.log, "Test %s failed" % (self.name)
+				else:
+					print >> sys.stderr, "Test %s failed" % (self.name)
 		except Exception as e:
 			failed = True
-			print >> sys.stderr, "Test %s failed:" % (self.name)
-			print >> sys.stderr, traceback.format_exc(10)
+			if self.todo:
+				print >> Env.log, "Test %s failed:" % (self.name)
+				print >> Env.log, traceback.format_exc(10)
+			else:
+				print >> sys.stderr, "Test %s failed:" % (self.name)
+				print >> sys.stderr, traceback.format_exc(10)
 		print >> Env.log, "[Done] Running test %s [result=%s]" % (self.name, failed and "Failed" or "Succeeded")
 		self._test_failed = failed and not self.todo
 		return not failed
@@ -485,5 +492,8 @@ class Lighttpd(Service):
 
 	def Prepare(self):
 		self.portfree(Env.port)
-		self.fork(Env.angel, '-m', Env.plugindir, '-c', Env.angelconf)
+		if Env.no_angel:
+			self.fork(Env.worker, '-m', Env.plugindir, '-c', Env.lighttpdconf)
+		else:
+			self.fork(Env.angel, '-m', Env.plugindir, '-c', Env.angelconf)
 		self.waitconnect(Env.port)

@@ -64,6 +64,7 @@ static void forward_response_body(liConnection *con) {
 				li_connection_internal_error(con);
 				return;
 			}
+			li_vrequest_joblist_append(vr);
 		}
 
 		if (con->raw_out->is_closed) {

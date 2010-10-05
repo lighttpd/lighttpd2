@@ -33,6 +33,7 @@ parser.add_option("-t", "--test", help = "Run specific test", action = "append",
 parser.add_option("-c", "--force-cleanup", help = "Keep no temporary files (overwrites -k)", action = "store_true", default = False)
 parser.add_option("-s", "--strace", help = "Strace services", action = "store_true", default = False)
 parser.add_option("--debug-requests", help = "Dump requests", action = "store_true", default = False)
+parser.add_option("--no-angel", help = "Spawn lighttpd worker directly", action = "store_true", default = False)
 
 (options, args) = parser.parse_args()
 
@@ -53,6 +54,7 @@ Env.luadir = os.path.join(os.path.dirname(Env.sourcedir), "doc")
 Env.debugRequests = options.debug_requests
 Env.strace = options.strace
 Env.color = sys.stdin.isatty()
+Env.no_angel = options.no_angel
 
 Env.dir = mkdtemp(dir = os.getcwd())
 Env.defaultwww = os.path.join(Env.dir, "www", "default")
