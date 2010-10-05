@@ -27,6 +27,7 @@ A test intance has the following attributes:
    if the subtest doesn't provide a config
  * runnable: whether to call Run
  * todo: whether the test is expected to fail
+ * subdomains: whether a config should be used for (^|\.)vhost (i.e. vhost and all subdomains)
 
 You can create files and directories in Prepare with TestBase.{PrepareVHostFile,PrepareFile,PrepareDir};
 they will get removed on cleanup automatically (if the test was successful).
@@ -47,6 +48,7 @@ import os
 import imp
 import sys
 import traceback
+import re
 
 from service import *
 
@@ -75,6 +77,9 @@ def load_test_file(name):
 def vhostname(testname):
 	return '.'.join(reversed(testname[1:-1].split('/'))).lower()
 
+def regex_subvhosts(vhost):
+	return '(^|\\.)' + re.escape(vhost)
+
 # basic interface
 class TestBase(object):
 	config = None
@@ -83,6 +88,7 @@ class TestBase(object):
 	vhost = None
 	runnable = True
 	todo = False
+	subdomains = False # set to true to match all subdomains too
 
 	def __init__(self):
 		self._test_cleanup_files = []
@@ -103,7 +109,19 @@ class TestBase(object):
 		if None != self.config:
 			errorlog = self.PrepareFile("log/error.log-%s" % self.vhost, "")
 			accesslog = self.PrepareFile("log/access.log-%s" % self.vhost, "")
-			config = """
+			if self.subdomains:
+				config = """
+# %s
+
+var.reg_vhosts = var.reg_vhosts + [ "%s" : ${
+		log = [ "*": "file:%s" ];
+		accesslog = "%s";
+%s
+	}
+];
+""" % (self.name, regex_subvhosts(self.vhost), errorlog, accesslog, self.config)
+			else:
+				config = """
 # %s
 
 var.vhosts = var.vhosts + [ "%s" : ${
@@ -113,6 +131,7 @@ var.vhosts = var.vhosts + [ "%s" : ${
 	}
 ];
 """ % (self.name, self.vhost, errorlog, accesslog, self.config)
+
 			self.tests.append_vhosts_config(config)
 
 	def _run(self):
@@ -316,9 +335,8 @@ defaultaction {{
 	docroot "{Env.defaultwww}";
 }}
 
-var.vhosts = [ "default": ${{
-	defaultaction;
-}} ];
+var.vhosts = [];
+var.reg_vhosts = [];
 """.format(Env = Env, errorlog = errorlog, accesslog = accesslog)
 
 		self.vhosts_config = ""
@@ -330,6 +348,14 @@ var.vhosts = [ "default": ${{
 		self.config += self.vhosts_config
 
 		self.config += """
+
+var.reg_vhosts = var.reg_vhosts + [ "default": ${
+	defaultaction;
+} ];
+var.vhosts = var.vhosts + [ "default": ${
+	vhost.map_regex var.reg_vhosts;
+} ];
+
 vhost.map var.vhosts;
 """
 		Env.lighttpdconf = self.PrepareFile("conf/lighttpd.conf", self.config)
