@@ -24,6 +24,7 @@ def devnull():
 	
 
 straceargs = [ 'strace', '-tt', '-f', '-s', '4096', '-o' ]
+trussargs = [ 'truss', '-d', '-f', '-s', '4096', '-o' ]
 
 def preexec():
 	os.setsid()
@@ -48,6 +49,9 @@ class Service(object):
 		if base.Env.strace:
 			slog = self.tests.PrepareFile("log/strace-%s.log" % self.name, "")
 			args = straceargs + [ slog ] + list(args)
+		elif base.Env.truss:
+			tlog = self.tests.PrepareFile("log/truss-%s.log" % self.name, "")
+			args = trussargs + [ tlog ] + list(args)
 
 		print >> base.Env.log, "Spawning '%s': %s" % (self.name, ' '.join(args))
 		proc = subprocess.Popen(args, stdin = inp, stdout = logfile, stderr = logfile, close_fds = True, preexec_fn = preexec)
@@ -112,6 +116,7 @@ class Service(object):
 			return
 		self.tests.CleanupFile("log/service-%s.log" % self.name)
 		self.tests.CleanupFile("log/strace-%s.log" % self.name)
+		self.tests.CleanupFile("log/truss-%s.log" % self.name)
 		self.Cleanup()
 
 	def _stop(self):

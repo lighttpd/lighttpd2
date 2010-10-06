@@ -31,7 +31,8 @@ parser.add_option("-k", "--no-cleanup", help = "Keep temporary files, no cleanup
 parser.add_option("-p", "--port", help = "Use [port,port+7] as tcp ports on 127.0.0.1 (default: 8088; use 0 for random port)", default = 8088, type = "int")
 parser.add_option("-t", "--test", help = "Run specific test", action = "append", dest = "tests", default = [])
 parser.add_option("-c", "--force-cleanup", help = "Keep no temporary files (overwrites -k)", action = "store_true", default = False)
-parser.add_option("-s", "--strace", help = "Strace services", action = "store_true", default = False)
+parser.add_option("--strace", help = "Strace services", action = "store_true", default = False)
+parser.add_option("--truss", help = "Truss services", action = "store_true", default = False)
 parser.add_option("--debug-requests", help = "Dump requests", action = "store_true", default = False)
 parser.add_option("--no-angel", help = "Spawn lighttpd worker directly", action = "store_true", default = False)
 
@@ -53,6 +54,7 @@ Env.sourcedir = os.path.abspath(os.path.dirname(__file__))
 Env.luadir = os.path.join(os.path.dirname(Env.sourcedir), "doc")
 Env.debugRequests = options.debug_requests
 Env.strace = options.strace
+Env.truss = options.truss
 Env.color = sys.stdin.isatty()
 Env.no_angel = options.no_angel
 
