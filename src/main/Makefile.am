@@ -68,7 +68,7 @@ endif
 if WITH_PROFILER
 lighttpd_shared_src+= profiler.c
 endif
-EXTRA_lighttpd2_worker_SOURCES=$(lua_src) profiler.c
+EXTRA_liblighttpd2_shared_la_SOURCES=$(lua_src) profiler.c
 
 BUILT_SOURCES=config_parser.c http_range_parser.c http_request_parser.c http_response_parser.c url_parser.c
 
