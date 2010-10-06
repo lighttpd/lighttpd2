@@ -401,6 +401,10 @@ allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
 
 		testcount = len(self.run)
 		print >> Env.log, "[Start] Running tests"
+		Env.log.flush()
+		sys.stdout.flush()
+		sys.stderr.flush()
+
 		fmt =  COLOR_BLUE + " {0:<%i}   " % self.testname_len
 		failed = False
 		i = 1
@@ -427,6 +431,11 @@ allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
 		print >> sys.stdout, ("%i out of %i tests passed (%.2f%%), %i tests failed, %i todo items, %i todo items are ready" %
 			(self.stat_pass, testcount, (100.0 * self.stat_pass)/testcount, self.stat_fail, self.stat_todo, self.stat_done))
 		print >> Env.log, "[Done] Running tests [result=%s]" % (failed and "Failed" or "Succeeded")
+
+		Env.log.flush()
+		sys.stdout.flush()
+		sys.stderr.flush()
+
 		return not failed
 
 	def Cleanup(self):
