@@ -446,6 +446,7 @@ static liHandlerResult balancer_act_select(liVRequest *vr, gboolean backlog_prov
 	}
 
 	_balancer_context_select_backend(b, context, be_ndx);
+	be = &g_array_index(b->backends, backend, be_ndx);
 
 	g_mutex_unlock(b->lock);
 
