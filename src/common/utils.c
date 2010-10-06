@@ -155,19 +155,20 @@ gint li_send_fd(gint s, gint fd) { /* write fd to unix socket s */
 gint li_receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
 	struct iovec iov;
 	struct msghdr msg;
+	ssize_t r;
 #ifdef CMSG_FIRSTHDR
 	union fdmsg cmsg;
 	struct cmsghdr* h;
 #endif
 	gint _fd;
-	gchar x[100];
+	gchar x = '\0';
 	gchar name[100];
 
 	memset(&msg, 0, sizeof(msg));
 	memset(&iov, 0, sizeof(iov));
 
-	iov.iov_base = x;
-	iov.iov_len = 100;
+	iov.iov_base = &x;
+	iov.iov_len = 1;
 	msg.msg_name = name;
 	msg.msg_namelen = 100;
 #ifdef CMSG_FIRSTHDR
@@ -193,7 +194,7 @@ gint li_receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
 #endif
 
 	for (;;) {
-		if (recvmsg(s, &msg, 0) == -1) {
+		if (-1 == (r = recvmsg(s, &msg, 0))) {
 			switch (errno) {
 			case EINTR: continue;
 #if EAGAIN != EWOULDBLOCK
@@ -207,15 +208,24 @@ gint li_receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
 		break;
 	}
 
+	if (1 != r || x != 'x') {
+#ifdef EPROTO
+		errno = EPROTO;
+#else
+		errno = EINVAL;
+#endif
+		return -1;
+	}
+
 #ifdef CMSG_FIRSTHDR
 	h = CMSG_FIRSTHDR(&msg);
 
 	if (!h || h->cmsg_len != CMSG_LEN(sizeof(gint)) || h->cmsg_level != SOL_SOCKET || h->cmsg_type != SCM_RIGHTS) {
-	#ifdef EPROTO
+#ifdef EPROTO
 		errno = EPROTO;
-	#else
+#else
 		errno = EINVAL;
-	#endif
+#endif
 		return -1;
 	}
 
