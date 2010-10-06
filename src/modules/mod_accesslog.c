@@ -234,12 +234,12 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 	liResponse *resp = &vr->response;
 	liRequest *req = &vr->request;
 	liPhysical *phys = &vr->physical;
-	gchar *tmp_str = NULL;
-	GString *tmp_gstr = g_string_sized_new(127);
-	GString *tmp_gstr2 = NULL;
-	guint len = 0;
 
 	for (guint i = 0; i < format->len; i++) {
+		GString *tmp_gstr2 = NULL;
+		gchar *tmp_str = NULL;
+		guint len = 0;
+
 		al_format_entry *e = &g_array_index(format, al_format_entry, i);
 		if (e->type == AL_ENTRY_FORMAT) {
 			switch (e->format.type) {
@@ -267,7 +267,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 			case AL_FORMAT_ENV:
 				tmp_gstr2 = li_environment_get(&vr->env, GSTR_LEN(e->key));
 				if (tmp_gstr2)
-					al_append_escaped(str, tmp_gstr);
+					al_append_escaped(str, tmp_gstr2);
 				else
 					g_string_append_c(str, '-');
 				break;
@@ -278,9 +278,9 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_REQUEST_HEADER:
-				li_http_header_get_all(tmp_gstr, req->headers, GSTR_LEN(e->key));
-				if (tmp_gstr->len)
-					al_append_escaped(str, tmp_gstr);
+				li_http_header_get_all(vr->wrk->tmp_str, req->headers, GSTR_LEN(e->key));
+				if (vr->wrk->tmp_str->len)
+					al_append_escaped(str, vr->wrk->tmp_str);
 				else
 					g_string_append_c(str, '-');
 				break;
@@ -288,9 +288,9 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(req->http_method_str));
 				break;
 			case AL_FORMAT_RESPONSE_HEADER:
-				li_http_header_get_all(tmp_gstr, resp->headers, GSTR_LEN(e->key));
-				if (tmp_gstr->len)
-					al_append_escaped(str, tmp_gstr);
+				li_http_header_get_all(vr->wrk->tmp_str, resp->headers, GSTR_LEN(e->key));
+				if (vr->wrk->tmp_str->len)
+					al_append_escaped(str, vr->wrk->tmp_str);
 				else
 					g_string_append_c(str, '-');
 				break;
@@ -335,7 +335,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 			case AL_FORMAT_AUTHED_USER:
 				tmp_gstr2 = li_environment_get(&vr->env, CONST_STR_LEN("REMOTE_USER"));
 				if (tmp_gstr2)
-					g_string_append_len(str, GSTR_LEN(tmp_gstr));
+					g_string_append_len(str, GSTR_LEN(tmp_gstr2));
 				else
 					g_string_append_c(str, '-');
 				break;
@@ -384,8 +384,6 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 			g_string_append_len(str, GSTR_LEN(e->key));
 		}
 	}
-
-	g_string_free(tmp_gstr, TRUE);
 
 	return str;
 }
