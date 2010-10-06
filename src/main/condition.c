@@ -596,6 +596,8 @@ static liHandlerResult li_condition_check_eval_bool(liVRequest *vr, liCondition 
 	case LI_COND_VALUE_HINT_SOCKADDR:
 		val = TRUE; /* just.. don't do this. */
 		break;
+	default:
+		return LI_HANDLER_ERROR;
 	}
 
 	*res = !cond->rvalue.b ^ val;

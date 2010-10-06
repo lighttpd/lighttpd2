@@ -2024,6 +2024,9 @@ static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk
 			ERROR(srv, "couldn't set cpu affinity mask for worker #%u: %s", wrk->ndx, g_strerror(errno));
 		}
 	}
+#else
+	UNUSED(srv);
+	UNUSED(wrk);
 #endif
 }
 
