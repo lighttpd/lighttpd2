@@ -305,6 +305,7 @@ AC_ARG_ENABLE(profiler,
 
 AM_CONDITIONAL([WITH_PROFILER], [test "x$profiler" = "xyes"])
 
+dnl search for crypt_r and (fallback) for crypt
 save_LIBS=$LIBS
 LIBS=
 AC_SEARCH_LIBS(crypt_r,crypt,[
@@ -314,6 +315,14 @@ AC_SEARCH_LIBS(crypt_r,crypt,[
   ])
 
   CRYPT_LIB=$LIBS
+],[
+  AC_SEARCH_LIBS(crypt,crypt,[
+    AC_CHECK_HEADERS([crypt.h],[
+      AC_DEFINE([HAVE_CRYPT_H], [1], [crypt.h])
+    ])
+
+    CRYPT_LIB=$LIBS
+  ])
 ])
 LIBS=$save_LIBS
 AC_SUBST(CRYPT_LIB)

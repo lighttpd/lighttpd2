@@ -65,10 +65,6 @@
 
 #include <lighttpd/plugin_core.h>
 
-#ifdef HAVE_CRYPT_H
-# include <crypt.h>
-#endif
-
 LI_API gboolean mod_auth_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_auth_free(liModules *mods, liModule *mod);
 
@@ -284,8 +280,8 @@ static gboolean auth_backend_htpasswd(liVRequest *vr, const GString *username, c
 
 	if (NULL == afd) return FALSE;
 
-	/* unknown user? */
-	if (!(pass = g_hash_table_lookup(afd->users, username->str))) {
+	/* unknown user or empty crypt? */
+	if (NULL == (pass = g_hash_table_lookup(afd->users, username->str)) || '\0' == pass[0]) {
 		if (debug) {
 			VR_DEBUG(vr, "User \"%s\" not found", username->str);
 		}
@@ -302,8 +298,7 @@ static gboolean auth_backend_htpasswd(liVRequest *vr, const GString *username, c
 			}
 			goto out;
 		}
-	} else
-	if (g_str_has_prefix(pass, "{SHA}")) {
+	} else if (g_str_has_prefix(pass, "{SHA}")) {
 		li_apr_sha1_base64(vr->wrk->tmp_str, password);
 
 		if (0 != g_strcmp0(pass, vr->wrk->tmp_str->str)) {
@@ -312,23 +307,17 @@ static gboolean auth_backend_htpasswd(liVRequest *vr, const GString *username, c
 			}
 			goto out;
 		}
-	}
-#ifdef HAVE_CRYPT_R
-	else {
-		struct crypt_data buffer;
-		const gchar *crypted;
+	} else {
+		const GString salt = { (gchar*) pass, strlen(pass), 0 };
+		li_safe_crypt(vr->wrk->tmp_str, password, &salt);
 
-		memset(&buffer, 0, sizeof(buffer));
-		crypted = crypt_r(password->str, pass, &buffer);
-
-		if (0 != g_strcmp0(pass, crypted)) {
+		if (0 != g_strcmp0(pass, vr->wrk->tmp_str->str)) {
 			if (debug) {
-				VR_DEBUG(vr, "Password crypt \"%s\" doesn't match \"%s\" for user \"%s\"", crypted, pass, username->str);
+				VR_DEBUG(vr, "Password crypt \"%s\" doesn't match \"%s\" for user \"%s\"", vr->wrk->tmp_str->str, pass, username->str);
 			}
 			goto out;
 		}
 	}
-#endif
 
 	res = TRUE;
 

@@ -1955,7 +1955,7 @@ static const liPluginAngel angelcbs[] = {
 };
 #include <sys/types.h>
 
-static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) {
+static void plugin_core_prepare(liServer *srv, liPlugin *p) {
 	guint i;
 
 	UNUSED(p);
@@ -1978,6 +1978,10 @@ static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk
 		}
 	}
 	g_mutex_unlock(srv->action_mutex);
+}
+
+static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) {
+	UNUSED(p);
 
 #if defined(LIGHTY_OS_LINUX)
 	/* sched_setaffinity is only available on linux */
@@ -2003,6 +2007,8 @@ static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk
 			CPU_SET(v->data.number, &mask);
 			DEBUG(srv, "binding worker #%u to cpu %u", wrk->ndx+1, (guint)v->data.number);
 		} else {
+			guint i;
+
 			g_string_truncate(wrk->tmp_str, 0);
 			arr = v->data.list;
 
@@ -2030,5 +2036,6 @@ void li_plugin_core_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->setups = setups;
 	p->angelcbs = angelcbs;
 
+	p->handle_prepare = plugin_core_prepare;
 	p->handle_prepare_worker = plugin_core_prepare_worker;
 }

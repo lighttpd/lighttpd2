@@ -16,8 +16,8 @@
 #include <stdio.h>
 #include <fcntl.h>
 
-#if 0
-#include <stropts.h>
+#ifdef HAVE_CRYPT_H
+# include <crypt.h>
 #endif
 
 /* for send/li_receive_fd */
@@ -963,6 +963,29 @@ void li_apr_md5_crypt(GString *dest, const GString *password, const GString *sal
 	md5_crypt_to64(dest, (digest[ 3] << 16) | (digest[ 9] << 8) | digest[15], 4);
 	md5_crypt_to64(dest, (digest[ 4] << 16) | (digest[10] << 8) | digest[ 5], 4);
 	md5_crypt_to64(dest,                       digest[11]                   , 2);
+}
+
+void li_safe_crypt(GString *dest, const GString *password, const GString *salt) {
+	if (g_str_has_prefix(salt->str, "$apr1$")) {
+		li_apr_md5_crypt(dest, password, salt);
+	} else {
+#ifdef HAVE_CRYPT_R
+		struct crypt_data buffer;
+
+		memset(&buffer, 0, sizeof(buffer));
+
+		g_string_assign(dest, crypt_r(password->str, salt->str, &buffer));
+#else
+		/* This is an acceptable hack: any library that uses crypt() itself is "broken"
+		 * for threaded usage anyway; and our own usage is protected.
+		 */
+		static GStaticMutex crypt_mutex = G_STATIC_MUTEX_INIT;
+
+		g_static_mutex_lock(&crypt_mutex);
+		g_string_assign(crypt(password->str, salt->str));
+		g_static_mutex_unlock(&crypt_mutex);
+#endif
+	}
 }
 
 

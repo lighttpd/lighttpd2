@@ -101,6 +101,8 @@ LI_API gsize li_dirent_buf_size(DIR * dirp);
 LI_API void li_apr_sha1_base64(GString *dest, const GString *passwd);
 LI_API void li_apr_md5_crypt(GString *dest, const GString *password, const GString *salt);
 
+LI_API void li_safe_crypt(GString *dest, const GString *password, const GString *salt);
+
 INLINE GString* _li_g_string_append_len(GString *s, const gchar *val, gssize len);
 INLINE void li_g_string_clear(GString *s);
 
