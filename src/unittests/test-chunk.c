@@ -3,11 +3,13 @@
 
 #define perror(msg) g_error("(%s:%i) %s failed: %s", __FILE__, __LINE__, msg, g_strerror(errno))
 
+#if 0
 static liChunkQueue* cq_from_str(const gchar *s, size_t len) {
 	liChunkQueue *cq = li_chunkqueue_new();
 	li_chunkqueue_append_mem(cq, s, len);
 	return cq;
 }
+#endif
 
 static void cq_load_str(liChunkQueue *cq, const gchar *s, size_t len) {
 	li_chunkqueue_reset(cq);

@@ -339,10 +339,10 @@ static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) 
 						send_item->value.fds.pos++;
 						continue;
 					case -1: /* Fatal error, connection has to be closed */
-							li_ev_safe_ref_and_stop(ev_async_stop, loop, &acon->out_notify_watcher);
-							li_ev_safe_ref_and_stop(ev_io_stop, loop, &acon->fd_watcher);
-							acon->close_cb(acon, NULL); /* TODO: set err */
-							return;
+						li_ev_safe_ref_and_stop(ev_async_stop, loop, &acon->out_notify_watcher);
+						li_ev_safe_ref_and_stop(ev_io_stop, loop, &acon->fd_watcher);
+						acon->close_cb(acon, NULL); /* TODO: set err */
+						return;
 					case -2: goto write_eagain;
 					}
 				}

@@ -5,7 +5,7 @@
 
 static void test_send_fd(void) {
 	int pipefds[2], sockfd[2], rfd = -1;
-	char buf[6];
+	char buf[5];
 
 	if (-1 == pipe(pipefds)) {
 		perror("pipe");
@@ -15,26 +15,47 @@ static void test_send_fd(void) {
 		perror("socketpair");
 	}
 
+	/* try sending fd */
 	if (-1 == li_send_fd(sockfd[0], pipefds[0])) {
 		perror("li_send_fd");
 	}
 
+	/* check whether we still can send normal data after fd */
+	write(sockfd[0], CONST_STR_LEN("abcx"));
+
+	/* make sure we can close the fd before the other end received it */
+	close(pipefds[0]);
+
+	/* check receiving fd */
 	if (-1 == li_receive_fd(sockfd[1], &rfd)) {
 		perror("li_receive_fd");
 	}
 
-	write(pipefds[1], CONST_STR_LEN("test\0"));
+	/* check whether we still can receive normal data after fd */
+	buf[0] = '\0';
+	if (-1 == read(sockfd[1], buf, 5)) {
+		perror("read");
+	}
+	buf[4] = '\0';
 
+	g_test_message("received on socket: %s", buf);
+
+	g_assert_cmpstr(buf, ==, "abcx");
+
+	/* check whether pipe still works after receiving end was passed */
+	write(pipefds[1], CONST_STR_LEN("test"));
+
+	buf[0] = '\0';
 	if (-1 == read(rfd, buf, 5)) {
 		perror("read");
 	}
+	buf[4] = '\0';
 
-	buf[5] = '\0';
-	g_test_message("received: %s", buf);
+	g_test_message("received on pipe: %s", buf);
 
 	g_assert_cmpstr(buf, ==, "test");
 
-	close(pipefds[0]); close(pipefds[1]);
+	close(pipefds[1]);
 	close(sockfd[0]); close(sockfd[1]);
 	close(rfd);
 }
