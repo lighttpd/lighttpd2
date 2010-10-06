@@ -982,7 +982,7 @@ void li_safe_crypt(GString *dest, const GString *password, const GString *salt) 
 		static GStaticMutex crypt_mutex = G_STATIC_MUTEX_INIT;
 
 		g_static_mutex_lock(&crypt_mutex);
-		g_string_assign(crypt(password->str, salt->str));
+		g_string_assign(dest, crypt(password->str, salt->str));
 		g_static_mutex_unlock(&crypt_mutex);
 #endif
 	}
