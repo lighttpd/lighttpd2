@@ -41,7 +41,6 @@ liNetworkStatus li_network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffs
 #ifdef TCP_CORK
 	int corked = 0;
 #endif
-	goffset write_bytes, wrote;
 
 #ifdef TCP_CORK
 	/* Linux: put a cork into the socket as we want to combine the write() calls
@@ -53,14 +52,12 @@ liNetworkStatus li_network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffs
 	}
 #endif
 
-	write_bytes = write_max;
 	/* TODO: add setup-option to select the backend */
 #ifdef USE_SENDFILE
-	res = li_network_write_sendfile(vr, fd, cq, &write_bytes);
+	res = li_network_write_sendfile(vr, fd, cq, &write_max);
 #else
-	res = li_network_write_writev(vr, fd, cq, &write_bytes);
+	res = li_network_write_writev(vr, fd, cq, &write_max);
 #endif
-	wrote = write_max - write_bytes;
 
 #ifdef TCP_CORK
 	if (corked) {

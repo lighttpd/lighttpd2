@@ -398,7 +398,6 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 		guint datebuflen;
 		struct tm tm;
 		gboolean hide;
-		gboolean have_header = FALSE, have_readme = FALSE;
 
 		if (!li_vrequest_handle_direct(vr)) {
 			li_stat_cache_entry_release(vr, sce);
@@ -462,10 +461,8 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 				g_array_append_val(directories, i);
 			} else {
 				if ((dd->include_header || dd->hide_header) && g_str_equal(sced->path, "HEADER.txt")) {
-					if (dd->include_header && sced->st.st_size > 0 && sced->st.st_size < MAX_INCLUDE_FILE_SIZE) have_header = TRUE;
 					if (dd->hide_header) continue;
 				} else if ((dd->include_readme || dd->hide_readme) && g_str_equal(sced->path, "README.txt")) {
-					if (dd->include_readme && sced->st.st_size > 0 && sced->st.st_size < MAX_INCLUDE_FILE_SIZE) have_readme = TRUE;
 					if (dd->hide_readme) continue;
 				}
 				g_array_append_val(files, i);

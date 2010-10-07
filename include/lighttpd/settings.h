@@ -53,8 +53,10 @@
 #define CONST_STR_LEN(x) (x), (sizeof(x) - 1)
 #define CONST_USTR_LEN(x) ((const guchar*) (x)), (sizeof(x) - 1)
 
-#define GSTR_LEN(x) ((x) ? (x)->str : ""), ((x) ? (x)->len : 0)
-#define GUSTR_LEN(x) (const guchar*) ((x) ? (x)->str : ""), (x) ? (x)->len : 0
+#define GSTR_SAFE_LEN(x) ((x) ? (x)->str : ""), ((x) ? (x)->len : 0)
+#define GUSTR_SAFE_LEN(x) (const guchar*) ((x) ? (x)->str : ""), (x) ? (x)->len : 0
+#define GSTR_LEN(x) ((x)->str), ((x)->len)
+#define GUSTR_LEN(x) ((const guchar*) ((x)->str)), ((x)->len)
 #define GSTR_SAFE_STR(x) ((x && x->str) ? x->str : "(null)")
 
 #include <assert.h>

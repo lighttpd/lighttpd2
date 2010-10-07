@@ -921,7 +921,6 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				/* 'and' */
 				g_queue_pop_head(ctx->condition_stack);
 				cond = g_queue_pop_head(ctx->condition_stack);
-				action_last_and = a;
 				/* mark target pointer as 'and' */
 				a = li_action_new_condition(cond, (liAction*)((uintptr_t)a | 0x1), NULL);
 				_printf("new AND condition action: %p, target: %p, else: %p\n", (void*)a, (void*)action_last_and, NULL);

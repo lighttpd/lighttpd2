@@ -278,11 +278,9 @@ void li_throttle_cb(liWaitQueue *wq, gpointer data) {
 	liWaitQueueElem *wqe;
 	liVRequest *vr;
 	liWorker *wrk;
-	ev_tstamp now;
 	gint supply;
 
 	wrk = data;
-	now = ev_now(wrk->loop);
 
 	while (NULL != (wqe = li_waitqueue_pop(wq))) {
 		vr = wqe->data;

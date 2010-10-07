@@ -394,7 +394,7 @@ gboolean li_querystring_find(const GString *querystring, const gchar *key, const
 	gchar delim = '\0';
 	gchar *end = querystring->str + querystring->len;
 	gchar *start = querystring->str;
-	gchar *c = querystring->str;
+	gchar *c;
 
 	/* search for key */
 	for (c = querystring->str; c != end; c++) {

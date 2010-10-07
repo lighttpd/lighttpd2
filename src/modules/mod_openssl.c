@@ -177,10 +177,9 @@ static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 
 		ERR_clear_error();
 		if ((r = SSL_write(conctx->ssl, block_data, block_len)) <= 0) {
-			int ssl_r;
 			unsigned long err;
 
-			switch ((ssl_r = SSL_get_error(conctx->ssl, r))) {
+			switch (SSL_get_error(conctx->ssl, r)) {
 			case SSL_ERROR_WANT_READ:
 				li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_READ);
 				return LI_NETWORK_STATUS_WAIT_FOR_EVENT;

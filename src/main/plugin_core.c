@@ -73,7 +73,7 @@ static liAction* core_when(liServer *srv, liWorker *wrk, liPlugin* p, liValue *v
 	val_act = g_array_index(val->data.list, liValue*, 1);
 
 	if (NULL == val_cond || val_cond->type != LI_VALUE_CONDITION) {
-		ERROR(srv, "expected condition as first parameter, got %s", li_value_type_string(val_cond->type));
+		ERROR(srv, "expected condition as first parameter, got %s", NULL == val_cond ? "NULL" : li_value_type_string(val_cond->type));
 		return NULL;
 	}
 	if (NULL == val_act || val_act->type == LI_VALUE_NONE) {

@@ -41,10 +41,7 @@ static void li_log_write_stderr(liServer *srv, const gchar *msg, gboolean newlin
 static liLog *log_open(liServer *srv, GString *path) {
 	liLog *log;
 
-	if (path)
-		log = li_radixtree_lookup_exact(srv->logs.targets, path->str, path->len * 8);
-	else
-		log = NULL;
+	log = li_radixtree_lookup_exact(srv->logs.targets, path->str, path->len * 8);
 
 	if (NULL == log) {
 		/* log not open */
@@ -128,9 +125,6 @@ void li_log_init(liServer *srv) {
 }
 
 void li_log_cleanup(liServer *srv) {
-	guint i;
-	liLogTimestamp *ts;
-
 	/* wait for logging thread to exit */
 	if (g_atomic_int_get(&srv->logs.thread_alive) == TRUE)
 	{
@@ -140,12 +134,8 @@ void li_log_cleanup(liServer *srv) {
 
 	li_radixtree_free(srv->logs.targets, NULL, NULL);
 
-	for (i = 0; i < srv->logs.timestamps->len; i++) {
-		ts = g_array_index(srv->logs.timestamps, liLogTimestamp*, i);
-		/*g_print("ts #%d refcount: %d\n", i, ts->refcount);*/
-		if (li_log_timestamp_free(srv, g_array_index(srv->logs.timestamps, liLogTimestamp*, 0)))
-			i--;
-	}
+	/* we allocated the first entry, lets release only that one */
+	li_log_timestamp_free(srv, g_array_index(srv->logs.timestamps, liLogTimestamp*, 0));
 
 	g_array_free(srv->logs.timestamps, TRUE);
 	ev_loop_destroy(srv->logs.loop);
@@ -522,7 +512,7 @@ gboolean li_log_timestamp_free(liServer *srv, liLogTimestamp *ts) {
 		g_mutex_lock(srv->action_mutex);
 
 		for (guint i = 0; i < srv->logs.timestamps->len; i++) {
-			if (g_string_equal(g_array_index(srv->logs.timestamps, liLogTimestamp*, i)->format, ts->format)) {
+			if (g_array_index(srv->logs.timestamps, liLogTimestamp*, i) == ts) {
 				g_array_remove_index_fast(srv->logs.timestamps, i);
 				break;
 			}
