@@ -151,9 +151,8 @@ typedef struct {
 	} data;
 } liConditionValue;
 
-/* uses wrk->tmp_str for temporary (and returned) strings */
-LI_API liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue, liConditionValue *res, liConditionValueType prefer);
-/* uses wrk->tmp_str for temporary (and returned) strings, no conflict with the tmp string from li_condition_get_value */
-LI_API gchar const* li_condition_value_to_string(liVRequest *vr, liConditionValue *value);
+LI_API liHandlerResult li_condition_get_value(GString *tmpstr, liVRequest *vr, liConditionLValue *lvalue, liConditionValue *res, liConditionValueType prefer);
+/* tmpstr can be the same as for li_condition_get_value */
+LI_API gchar const* li_condition_value_to_string(GString *tmpstr, liConditionValue *value);
 
 #endif

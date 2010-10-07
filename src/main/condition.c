@@ -30,8 +30,8 @@ static const liConditionValueType cond_value_hints[] = {
 };
 #endif
 
-/* uses wrk->tmp_str for temporary (and returned) strings */
-liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue, liConditionValue *res, liConditionValueType prefer) {
+/* uses tmpstr for temporary (and returned) strings */
+liHandlerResult li_condition_get_value(GString *tmpstr, liVRequest *vr, liConditionLValue *lvalue, liConditionValue *res, liConditionValueType prefer) {
 	liConInfo *coninfo = vr->coninfo;
 	liHandlerResult r;
 	struct stat st;
@@ -174,14 +174,14 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 		break;
 	case LI_COMP_REQUEST_HEADER:
 		res->match_type = LI_COND_VALUE_HINT_STRING;
-		li_http_header_get_all(vr->wrk->tmp_str, vr->request.headers, GSTR_LEN(lvalue->key));
-		res->data.str = vr->wrk->tmp_str->str;
+		li_http_header_get_all(tmpstr, vr->request.headers, GSTR_LEN(lvalue->key));
+		res->data.str = tmpstr->str;
 		break;
 	case LI_COMP_RESPONSE_HEADER:
 		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 		res->match_type = LI_COND_VALUE_HINT_STRING;
-		li_http_header_get_all(vr->wrk->tmp_str, vr->response.headers, GSTR_LEN(lvalue->key));
-		res->data.str = vr->wrk->tmp_str->str;
+		li_http_header_get_all(tmpstr, vr->response.headers, GSTR_LEN(lvalue->key));
+		res->data.str = tmpstr->str;
 		break;
 	case LI_COMP_ENVIRONMENT:
 		res->match_type = LI_COND_VALUE_HINT_STRING;
@@ -198,7 +198,7 @@ liHandlerResult li_condition_get_value(liVRequest *vr, liConditionLValue *lvalue
 	return LI_HANDLER_GO_ON;
 }
 
-gchar const* li_condition_value_to_string(liVRequest *vr, liConditionValue *value) {
+gchar const* li_condition_value_to_string(GString *tmpstr, liConditionValue *value) {
 	switch (value->match_type) {
 	case LI_COND_VALUE_HINT_ANY:
 	case LI_COND_VALUE_HINT_STRING:
@@ -206,11 +206,11 @@ gchar const* li_condition_value_to_string(liVRequest *vr, liConditionValue *valu
 	case LI_COND_VALUE_HINT_BOOL:
 		return value->data.bool ? "TRUE" : "FALSE";
 	case LI_COND_VALUE_HINT_NUMBER:
-		g_string_printf(vr->wrk->tmp_str, "%"L_GOFFSET_FORMAT, value->data.number);
-		return vr->wrk->tmp_str->str;
+		g_string_printf(tmpstr, "%"L_GOFFSET_FORMAT, value->data.number);
+		return tmpstr->str;
 	case LI_COND_VALUE_HINT_SOCKADDR:
-		li_sockaddr_to_string(value->data.addr, vr->wrk->tmp_str, TRUE);
-		return vr->wrk->tmp_str->str;
+		li_sockaddr_to_string(value->data.addr, tmpstr, TRUE);
+		return tmpstr->str;
 	}
 	return "";
 }
@@ -579,7 +579,7 @@ static liHandlerResult li_condition_check_eval_bool(liVRequest *vr, liCondition 
 	liHandlerResult r;
 	*res = FALSE;
 
-	r = li_condition_get_value(vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_BOOL);
+	r = li_condition_get_value(vr->wrk->tmp_str, vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_BOOL);
 	if (r != LI_HANDLER_GO_ON) return r;
 
 	switch (match_val.match_type) {
@@ -613,10 +613,10 @@ static liHandlerResult li_condition_check_eval_string(liVRequest *vr, liConditio
 	const char *val = "";
 	*res = FALSE;
 
-	r = li_condition_get_value(vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_STRING);
+	r = li_condition_get_value(vr->wrk->tmp_str, vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_STRING);
 	if (r != LI_HANDLER_GO_ON) return r;
 
-	val = li_condition_value_to_string(vr, &match_val);
+	val = li_condition_value_to_string(vr->wrk->tmp_str, &match_val);
 
 	switch (cond->op) {
 	case LI_CONFIG_COND_EQ:
@@ -679,7 +679,7 @@ static liHandlerResult li_condition_check_eval_int(liVRequest *vr, liCondition *
 	liHandlerResult r;
 	*res = FALSE;
 
-	r = li_condition_get_value(vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_NUMBER);
+	r = li_condition_get_value(vr->wrk->tmp_str, vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_NUMBER);
 	if (r != LI_HANDLER_GO_ON) return r;
 
 	switch (match_val.match_type) {
@@ -756,7 +756,7 @@ static liHandlerResult li_condition_check_eval_ip(liVRequest *vr, liCondition *c
 	liHandlerResult r;
 	liConditionRValue ipval;
 
-	r = li_condition_get_value(vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_SOCKADDR);
+	r = li_condition_get_value(vr->wrk->tmp_str, vr, cond->lvalue, &match_val, LI_COND_VALUE_HINT_SOCKADDR);
 	if (r != LI_HANDLER_GO_ON) return r;
 
 	*res = (cond->op == LI_CONFIG_COND_NOTIP);

@@ -15,6 +15,7 @@ typedef void (*liPatternCB) (GString *pattern_result, guint from, guint to, gpoi
 LI_API liPattern *li_pattern_new(liServer *srv, const gchar* str);
 LI_API void li_pattern_free(liPattern *pattern);
 
+/* you can use vr->wrk->tmp_str as dest! */
 LI_API void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatternCB nth_callback, gpointer nth_data, liPatternCB nth_prev_callback, gpointer nth_prev_data);
 
 /* default array callback, expects a GArray* containing GString* elements */

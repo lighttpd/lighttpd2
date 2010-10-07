@@ -37,6 +37,7 @@
  */
 
 #include <lighttpd/base.h>
+#include <lighttpd/pattern.h>
 #include <lighttpd/plugin_core.h>
 
 #include <lighttpd/memcached.h>
@@ -235,22 +236,18 @@ option_failed:
 	return NULL;
 }
 
-static GString* mc_ctx_build_key(memcached_ctx *ctx, liVRequest *vr) {
+static void mc_ctx_build_key(GString *dest, memcached_ctx *ctx, liVRequest *vr) {
 	GMatchInfo *match_info = NULL;
-	GString *key = g_string_sized_new(255);
-
-	g_string_truncate(key, 0);
 
 	if (vr->action_stack.regex_stack->len) {
 		GArray *rs = vr->action_stack.regex_stack;
 		match_info = g_array_index(rs, liActionRegexStackElement, rs->len - 1).match_info;
 	}
 
-	li_pattern_eval(vr, key, ctx->pattern, NULL, NULL, li_pattern_regex_cb, match_info);
+	g_string_truncate(dest, 0);
+	li_pattern_eval(vr, dest, ctx->pattern, NULL, NULL, li_pattern_regex_cb, match_info);
 
-	li_memcached_mutate_key(key);
-
-	return key;
+	li_memcached_mutate_key(dest);
 }
 
 static liMemcachedCon* mc_ctx_prepare(memcached_ctx *ctx, liWorker *wrk) {
@@ -356,7 +353,6 @@ static liHandlerResult mc_handle_lookup(liVRequest *vr, gpointer param, gpointer
 		return LI_HANDLER_GO_ON;
 	} else {
 		liMemcachedCon *con;
-		GString *key;
 		GError *err = NULL;
 
 		if (li_vrequest_is_handled(vr)) {
@@ -367,15 +363,14 @@ static liHandlerResult mc_handle_lookup(liVRequest *vr, gpointer param, gpointer
 		}
 
 		con = mc_ctx_prepare(ctx, vr->wrk);
-		key = mc_ctx_build_key(ctx, vr);
+		mc_ctx_build_key(vr->wrk->tmp_str, ctx, vr);
 
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-			VR_DEBUG(vr, "memcached.lookup: looking up key '%s'", key->str);
+			VR_DEBUG(vr, "memcached.lookup: looking up key '%s'", vr->wrk->tmp_str->str);
 		}
 
 		req = g_slice_new0(memcache_request);
-		req->req = li_memcached_get(con, key, memcache_callback, req, &err);
-		g_string_free(key, TRUE);
+		req->req = li_memcached_get(con, vr->wrk->tmp_str, memcache_callback, req, &err);
 
 		if (NULL == req->req) {
 			if (NULL != err) {
@@ -481,7 +476,6 @@ static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 		/* finally: store response in memcached */
 
 		liMemcachedCon *con;
-		GString *key;
 		GError *err = NULL;
 		liMemcachedRequest *req;
 		memcached_ctx *ctx = mf->ctx;
@@ -489,14 +483,13 @@ static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 		f->out->is_closed = TRUE;
 
 		con = mc_ctx_prepare(ctx, vr->wrk);
-		key = mc_ctx_build_key(ctx, vr);
+		mc_ctx_build_key(vr->wrk->tmp_str, ctx, vr);
 
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-			VR_DEBUG(vr, "memcached.store: storing response for key '%s'", key->str);
+			VR_DEBUG(vr, "memcached.store: storing response for key '%s'", vr->wrk->tmp_str->str);
 		}
 
-		req = li_memcached_set(con, key, ctx->flags, ctx->ttl, mf->buf, NULL, NULL, &err);
-		g_string_free(key, TRUE);
+		req = li_memcached_set(con, vr->wrk->tmp_str, ctx->flags, ctx->ttl, mf->buf, NULL, NULL, &err);
 		li_buffer_release(mf->buf);
 		mf->buf = NULL;
 

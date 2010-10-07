@@ -1,5 +1,7 @@
 
 #include <lighttpd/base.h>
+#include <lighttpd/pattern.h>
+
 #include <lighttpd/plugin_core.h>
 
 #include <lighttpd/version.h>
@@ -873,7 +875,6 @@ static void core_log_write_free(liServer *srv, gpointer param) {
 
 static liHandlerResult core_handle_log_write(liVRequest *vr, gpointer param, gpointer *context) {
 	liPattern *pattern = param;
-	GString *str = g_string_sized_new(127);
 	GMatchInfo *match_info = NULL;
 
 	if (vr->action_stack.regex_stack->len) {
@@ -884,10 +885,9 @@ static liHandlerResult core_handle_log_write(liVRequest *vr, gpointer param, gpo
 	UNUSED(context);
 
 	/* eval pattern, ignore $n */
-	li_pattern_eval(vr, str, pattern, NULL, NULL, li_pattern_regex_cb, match_info);
+	li_pattern_eval(vr, vr->wrk->tmp_str, pattern, NULL, NULL, li_pattern_regex_cb, match_info);
 
-	VR_INFO(vr, "%s", str->str);
-	g_string_free(str, TRUE);
+	VR_INFO(vr, "%s", vr->wrk->tmp_str->str);
 
 	return LI_HANDLER_GO_ON;
 }
@@ -1458,119 +1458,78 @@ static gboolean core_option_etag_use_parse(liServer *srv, liWorker *wrk, liPlugi
 	return TRUE;
 }
 
-static liHandlerResult core_handle_header_add(liVRequest *vr, gpointer param, gpointer *context) {
-	GArray *l = (GArray*)param;
-	GString *k = g_array_index(l, liValue*, 0)->data.string;
-	GString *v = g_array_index(l, liValue*, 1)->data.string;
-	UNUSED(param);
-	UNUSED(context);
+typedef void (*header_cb)(liHttpHeaders *headers, const gchar *key, size_t keylen, const gchar *val, size_t valuelen);
 
-	li_http_header_insert(vr->response.headers, GSTR_LEN(k), GSTR_LEN(v));
-
-	return LI_HANDLER_GO_ON;
-}
+typedef struct header_ctx header_ctx;
+struct header_ctx {
+	GString *key;
+	liPattern *value;
+	header_cb cb;
+};
 
 static void core_header_free(liServer *srv, gpointer param) {
+	header_ctx *ctx = param;
+
 	UNUSED(srv);
-	li_value_list_free(param);
+
+	g_string_free(ctx->key, TRUE);
+	li_pattern_free(ctx->value);
+	g_slice_free(header_ctx, ctx);
+}
+
+static liHandlerResult core_handle_header(liVRequest *vr, gpointer param, gpointer *context) {
+	header_ctx *ctx = param;
+	GMatchInfo *match_info = NULL;
+
+	UNUSED(context);
+
+	if (vr->action_stack.regex_stack->len) {
+		GArray *rs = vr->action_stack.regex_stack;
+		match_info = g_array_index(rs, liActionRegexStackElement, rs->len - 1).match_info;
+	}
+
+	g_string_truncate(vr->wrk->tmp_str, 0);
+	li_pattern_eval(vr, vr->wrk->tmp_str, ctx->value, NULL, NULL, li_pattern_regex_cb, match_info);
+
+	ctx->cb(vr->response.headers, GSTR_LEN(ctx->key), GSTR_LEN(vr->wrk->tmp_str));
+
+	return LI_HANDLER_GO_ON;
 }
 
 static liAction* core_header_add(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	GArray *l;
-	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+	liPattern *pat;
+	header_ctx *ctx;
+	UNUSED(wrk); UNUSED(p);
 
 	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "'header.add' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
+		ERROR(srv, "'header.add/append/overwrite' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
 		return NULL;
 	}
 
 	l = val->data.list;
 
 	if (l->len != 2) {
-		ERROR(srv, "'header.add' action expects a string tuple as parameter, list has %u entries", l->len);
+		ERROR(srv, "'header.add/append/overwrite' action expects a string tuple as parameter, list has %u entries", l->len);
 		return NULL;
 	}
 
 	if (g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING || g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING) {
-		ERROR(srv, "%s", "'header.add' action expects a string tuple as parameter");
+		ERROR(srv, "%s", "'header.add/append/overwrite' action expects a string tuple as parameter");
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_header_add, NULL, core_header_free, li_value_extract_list(val));
-}
-
-
-static liHandlerResult core_handle_header_append(liVRequest *vr, gpointer param, gpointer *context) {
-	GArray *l = (GArray*)param;
-	GString *k = g_array_index(l, liValue*, 0)->data.string;
-	GString *v = g_array_index(l, liValue*, 1)->data.string;
-	UNUSED(param);
-	UNUSED(context);
-
-	li_http_header_append(vr->response.headers, GSTR_LEN(k), GSTR_LEN(v));
-
-	return LI_HANDLER_GO_ON;
-}
-
-static liAction* core_header_append(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	GArray *l;
-	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
-
-	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "'header.append' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
+	if (NULL == (pat = li_pattern_new(srv, g_array_index(l, liValue*, 1)->data.string->str))) {
+		ERROR(srv, "%s", "'header.add/append/overwrite': parsing value pattern failed");
 		return NULL;
 	}
 
-	l = val->data.list;
+	ctx = g_slice_new(header_ctx);
+	ctx->key = li_value_extract_string(g_array_index(l, liValue*, 0));
+	ctx->value = pat;
+	ctx->cb = (header_cb)(intptr_t)userdata;
 
-	if (l->len != 2) {
-		ERROR(srv, "'header.append' action expects a string tuple as parameter, list has %u entries", l->len);
-		return NULL;
-	}
-
-	if (g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING || g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING) {
-		ERROR(srv, "%s", "'header.append' action expects a string tuple as parameter");
-		return NULL;
-	}
-
-	return li_action_new_function(core_handle_header_append, NULL, core_header_free, li_value_extract_list(val));
-}
-
-
-static liHandlerResult core_handle_header_overwrite(liVRequest *vr, gpointer param, gpointer *context) {
-	GArray *l = (GArray*)param;
-	GString *k = g_array_index(l, liValue*, 0)->data.string;
-	GString *v = g_array_index(l, liValue*, 1)->data.string;
-	UNUSED(param);
-	UNUSED(context);
-
-	li_http_header_overwrite(vr->response.headers, GSTR_LEN(k), GSTR_LEN(v));
-
-	return LI_HANDLER_GO_ON;
-}
-
-static liAction* core_header_overwrite(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	GArray *l;
-	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
-
-	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "'header.overwrite' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
-		return NULL;
-	}
-
-	l = val->data.list;
-
-	if (l->len != 2) {
-		ERROR(srv, "'header.overwrite' action expects a string tuple as parameter, list has %u entries", l->len);
-		return NULL;
-	}
-
-	if (g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING || g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING) {
-		ERROR(srv, "%s", "'header.overwrite' action expects a string tuple as parameter");
-		return NULL;
-	}
-
-	return li_action_new_function(core_handle_header_overwrite, NULL, core_header_free, li_value_extract_list(val));
+	return li_action_new_function(core_handle_header, NULL, core_header_free, ctx);
 }
 
 static void core_header_remove_free(liServer *srv, gpointer param) {
@@ -1919,9 +1878,9 @@ static const liPluginAction actions[] = {
 	{ "env.remove", core_env_remove, NULL },
 	{ "env.clear", core_env_clear, NULL },
 
-	{ "header.add", core_header_add, NULL },
-	{ "header.append", core_header_append, NULL },
-	{ "header.overwrite", core_header_overwrite, NULL },
+	{ "header.add", core_header_add, (void*)(intptr_t)li_http_header_insert },
+	{ "header.append", core_header_add, (void*)(intptr_t)li_http_header_append },
+	{ "header.overwrite", core_header_add, (void*)(intptr_t)li_http_header_overwrite },
 	{ "header.remove", core_header_remove, NULL },
 
 	{ "io.buffer_out", core_buffer_out, NULL },

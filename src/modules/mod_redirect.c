@@ -54,6 +54,7 @@
 
 #include <lighttpd/base.h>
 #include <lighttpd/encoding.h>
+#include <lighttpd/pattern.h>
 
 LI_API gboolean mod_redirect_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_redirect_free(liModules *mods, liModule *mod);

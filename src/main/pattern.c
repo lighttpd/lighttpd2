@@ -1,5 +1,6 @@
 #include <lighttpd/base.h>
 #include <lighttpd/encoding.h>
+#include <lighttpd/pattern.h>
 
 typedef struct {
 	enum {
@@ -254,6 +255,7 @@ void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatter
 	liHandlerResult res;
 	liConditionValue cond_val;
 	GArray *arr = (GArray*) pattern;
+	GString *tmpstr = NULL;
 
 	for (i = 0; i < arr->len; i++) {
 		liPatternPart *part = &g_array_index(arr, liPatternPart, i);
@@ -279,18 +281,22 @@ void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatter
 		case PATTERN_VAR:
 			if (vr == NULL) continue;
 
-			res = li_condition_get_value(vr, part->data.lvalue, &cond_val, LI_COND_VALUE_HINT_STRING);
+			if (NULL == tmpstr) tmpstr = g_string_sized_new(127);
+
+			res = li_condition_get_value(tmpstr, vr, part->data.lvalue, &cond_val, LI_COND_VALUE_HINT_STRING);
 			if (res == LI_HANDLER_GO_ON) {
 				if (encoded) {
-					li_string_encode_append(li_condition_value_to_string(vr, &cond_val), dest, LI_ENCODING_URI);
+					li_string_encode_append(li_condition_value_to_string(tmpstr, &cond_val), dest, LI_ENCODING_URI);
 				} else {
-					g_string_append(dest, li_condition_value_to_string(vr, &cond_val));
+					g_string_append(dest, li_condition_value_to_string(tmpstr, &cond_val));
 				}
 			}
 
 			break;
 		}
 	}
+
+	if (NULL != tmpstr) g_string_free(tmpstr, TRUE);
 }
 
 void li_pattern_array_cb(GString *pattern_result, guint from, guint to, gpointer data) {
