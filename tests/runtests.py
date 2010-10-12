@@ -11,6 +11,23 @@ from optparse import OptionParser
 
 from tempfile import mkdtemp
 
+
+def which(program):
+	def is_exe(fpath):
+		return os.path.exists(fpath) and os.access(fpath, os.X_OK)
+
+	fpath, fname = os.path.split(program)
+	if fpath:
+		if is_exe(program):
+			return program
+	else:
+		for path in os.environ["PATH"].split(os.pathsep):
+			exe_file = os.path.join(path, program)
+			if is_exe(exe_file):
+				return exe_file
+
+	return None
+
 def find_port(port):
 	if port >= 1024 and port < (65536-8):
 		return port
@@ -55,8 +72,17 @@ Env.luadir = os.path.join(os.path.dirname(Env.sourcedir), "doc")
 Env.debugRequests = options.debug_requests
 Env.strace = options.strace
 Env.truss = options.truss
-Env.color = sys.stdin.isatty()
 Env.no_angel = options.no_angel
+
+Env.color = sys.stdin.isatty()
+Env.COLOR_RESET = Env.color and "\033[0m" or ""
+Env.COLOR_BLUE = Env.color and "\033[1;34m" or ""
+Env.COLOR_GREEN = Env.color and "\033[1;32m" or ""
+Env.COLOR_YELLOW = Env.color and "\033[1;33m" or ""
+Env.COLOR_RED = Env.color and "\033[1;31m" or ""
+Env.COLOR_CYAN = Env.color and "\033[1;36m" or ""
+
+Env.fcgi_cgi = which('fcgi-cgi')
 
 Env.dir = mkdtemp(dir = os.getcwd())
 Env.defaultwww = os.path.join(Env.dir, "www", "default")

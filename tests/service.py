@@ -9,7 +9,7 @@ import signal
 
 import base
 
-__all__ = [ "Service", "ServiceException", "devnull" ]
+__all__ = [ "Service", "ServiceException", "devnull", "Lighttpd", "FastCGI" ]
 
 class ServiceException(Exception):
 	def __init__(self, value): self.value = value
@@ -40,11 +40,15 @@ class Service(object):
 	def devnull(self):
 		return devnull()
 
-	def fork(self, *args):
+	def fork(self, *args, **kwargs):
+		if kwargs.has_key('inp'):
+			inp = kwargs['inp']
+		else:
+			inp = devnull()
+
 		if None == self.name:
 			raise ServiceException("Service needs a name!")
 		logfile = open(self.log, "w")
-		inp = devnull()
 
 		if base.Env.strace:
 			slog = self.tests.PrepareFile("log/strace-%s.log" % self.name, "")
@@ -131,3 +135,51 @@ class Service(object):
 
 	def Stop(self):
 		pass
+
+class Lighttpd(Service):
+	name = "lighttpd"
+
+	def TestConfig(self):
+		logfile = open(self.log, "w")
+		inp = self.devnull()
+		args = [base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf, '-t']
+		print >> base.Env.log, "Testing lighttpd config: %s" % (' '.join(args))
+		proc = subprocess.Popen(args, stdin = inp, stdout = logfile, stderr = logfile, close_fds = True)
+		if None != inp: inp.close()
+		logfile.close()
+		status = proc.wait()
+		if 0 != status:
+			os.system("cat '%s'" % self.log)
+			raise BaseException("testing lighttpd config failed with returncode %i" % (status))
+
+	def Prepare(self):
+		self.TestConfig()
+
+		self.portfree(base.Env.port)
+		if base.Env.no_angel:
+			self.fork(base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf)
+		else:
+			self.fork(base.Env.angel, '-m', base.Env.plugindir, '-c', base.Env.angelconf)
+		self.waitconnect(base.Env.port)
+
+class FastCGI(Service):
+	binary = [None]
+
+	def __init__(self):
+		self.sockfile = os.path.join(base.Env.dir, "tmp", "sockets", self.name + ".sock")
+		super(FastCGI, self).__init__()
+
+	def Prepare(self):
+		sockdir = self.tests.PrepareDir(os.path.join("tmp", "sockets"))
+		sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+		sock.bind(self.sockfile)
+		sock.listen(8)
+		self.fork(*self.binary, inp = sock)
+
+	def Cleanup(self):
+		if None != self.sockfile:
+			try:
+				os.remove(self.sockfile)
+			except BaseException, e:
+				print >>sys.stderr, "Couldn't delete socket '%s': %s" % (self.sockfile, e)
+		self.tests.CleanupDir(os.path.join("tmp", "sockets"))
