@@ -103,6 +103,9 @@ class TestBase(object):
 		self.vhostdir = os.path.join(Env.dir, 'www', 'vhosts', self.vhost)
 		if self.FeatureCheck():
 			tests.add_test(self)
+			return True
+		else:
+			return False
 
 	def _prepare(self):
 		self.Prepare()
@@ -226,7 +229,8 @@ class GroupTest(TestBase):
 			self.subtests.append(t)
 
 	def _register(self, tests):
-		super(GroupTest, self)._register(tests)
+		if not super(GroupTest, self)._register(tests):
+			return False
 		for t in self.subtests:
 			if None == t.name:
 				t.name = self.name + class2testname(t.__class__.__name__) + '/'
