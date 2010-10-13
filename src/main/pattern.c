@@ -204,7 +204,7 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 			part.data.str= g_string_sized_new(0);
 
 			/* copy every chunk between escapes into dest buffer */
-			for (first = c ; *c && '?' != *c && '$' != *c && '%' != *c; c++) {
+			for (first = c ; *c && '$' != *c && '%' != *c; c++) {
 				if (*c == '\\') {
 					if (first != c) g_string_append_len(part.data.str, first, c - first);
 					c++;
