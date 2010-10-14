@@ -10,6 +10,7 @@ common_src= \
 	idlist.c \
 	ip_parsers.c \
 	jobqueue.c \
+	memcached.c \
 	mempool.c \
 	module.c \
 	radix.c \
