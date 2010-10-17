@@ -172,7 +172,7 @@ class FastCGI(Service):
 	def Prepare(self):
 		sockdir = self.tests.PrepareDir(os.path.join("tmp", "sockets"))
 		sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-		sock.bind(self.sockfile)
+		sock.bind(os.path.relpath(self.sockfile))
 		sock.listen(8)
 		self.fork(*self.binary, inp = sock)
 
