@@ -84,7 +84,7 @@ Env.COLOR_CYAN = Env.color and "\033[1;36m" or ""
 
 Env.fcgi_cgi = which('fcgi-cgi')
 
-Env.dir = mkdtemp(dir = os.getcwd())
+Env.dir = mkdtemp(suffix='-l2-tests')
 Env.defaultwww = os.path.join(Env.dir, "www", "default")
 
 Env.log = open(os.path.join(Env.dir, "tests.log"), "w")
