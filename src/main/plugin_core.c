@@ -1925,14 +1925,16 @@ static void plugin_core_prepare(liServer *srv, liPlugin *p) {
 		liThrottlePool *pool = g_array_index(srv->throttle_pools, liThrottlePool*, i);
 
 		if (!pool->worker_queues) {
+			guint j;
+
 			pool->worker_magazine = g_new0(gint, srv->worker_count);
 			pool->worker_last_rearm = g_new0(gint, srv->worker_count);
 			pool->worker_num_cons_queued = g_new0(gint, srv->worker_count);
 			pool->worker_queues = g_new0(GQueue*, srv->worker_count);
 
-			for (i = 0; i < srv->worker_count; i++) {
-				pool->worker_queues[i] = g_queue_new();
-				pool->worker_last_rearm[i] = pool->last_rearm;
+			for (j = 0; j < srv->worker_count; j++) {
+				pool->worker_queues[j] = g_queue_new();
+				pool->worker_last_rearm[j] = pool->last_rearm;
 			}
 		}
 	}
