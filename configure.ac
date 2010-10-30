@@ -49,25 +49,25 @@ AC_SUBST(pkglibdir)
 
 # libexecdir
 libexecdir=$libexecdir/lighttpd2
-AC_SUBST(libexecdir)
+AC_SUBST([libexecdir])
 
 # Checks for libraries.
 
 # glib/gthread (gthread includes glib)
-PKG_CHECK_MODULES(GTHREAD, gthread-2.0 >= 2.16.0, [],[AC_MSG_ERROR("gthread-2.0 >= 2.16.0 not found")])
+PKG_CHECK_MODULES([GTHREAD], [gthread-2.0 >= 2.16.0], [],[AC_MSG_ERROR("gthread-2.0 >= 2.16.0 not found")])
 # gmodule
-PKG_CHECK_MODULES(GMODULE, gmodule-2.0 >= 2.16.0, [],[AC_MSG_ERROR("gmodule-2.0 >= 2.16.0 not found")])
+PKG_CHECK_MODULES([GMODULE], [gmodule-2.0 >= 2.16.0], [],[AC_MSG_ERROR("gmodule-2.0 >= 2.16.0 not found")])
 
-AC_MSG_CHECKING(for libev support)
-AC_ARG_WITH(libev,
-    AC_HELP_STRING([--with-libev@<:@=PATH@:>@],[Search for libev in PATH/include and PATH/lib]),
+AC_MSG_CHECKING([for libev support])
+AC_ARG_WITH([libev],
+    [AC_HELP_STRING([--with-libev@<:@=PATH@:>@],[Search for libev in PATH/include and PATH/lib])],
     [WITH_LIBEV=$withval],[WITH_LIBEV=yes])
 
 LIBEV_CFLAGS=""
 LIBEV_LIBS=""
 
-PKG_CHECK_MODULES(LIBEV, libev, [], [
-	dnl no pkg-config for libev, searching manually:
+PKG_CHECK_MODULES([LIBEV], [libev], [], [
+	# no pkg-config for libev, searching manually:
 
 	if test "$WITH_LIBEV" != "yes"; then
 		LIBEV_CFLAGS="-I$WITH_LIBEV/include"
@@ -86,15 +86,15 @@ PKG_CHECK_MODULES(LIBEV, libev, [], [
 	fi
 ])
 
-AC_SUBST(LIBEV_CFLAGS)
-AC_SUBST(LIBEV_LIBS)
+AC_SUBST([LIBEV_CFLAGS])
+AC_SUBST([LIBEV_LIBS])
 
 dnl Check for lua
-AC_MSG_CHECKING(for lua)
-AC_ARG_WITH(lua, AC_HELP_STRING([--with-lua],[lua engine (recommended)]),
+AC_MSG_CHECKING([for lua])
+AC_ARG_WITH([lua], [AC_HELP_STRING([--with-lua],[lua engine (recommended)])],
 [WITH_LUA=$withval],[WITH_LUA=no])
 
-AC_MSG_RESULT($WITH_LUA)
+AC_MSG_RESULT([$WITH_LUA])
 if test "$WITH_LUA" != "no"; then
  # try pkgconfig
  if test "$WITH_LUA" = "yes"; then
@@ -103,17 +103,17 @@ if test "$WITH_LUA" != "no"; then
     LUAPC=$WITH_LUA
   fi
 
- PKG_CHECK_MODULES(LUA, $LUAPC >= 5.1, [
+ PKG_CHECK_MODULES([LUA], [$LUAPC >= 5.1], [
    AC_DEFINE([HAVE_LUA], [1], [liblua])
    AC_DEFINE([HAVE_LUA_H], [1], [lua.h])
  ],[
  # for debian based systems
- PKG_CHECK_MODULES(LUA, lua5.1 >= 5.1, [
+ PKG_CHECK_MODULES([LUA], [lua5.1 >= 5.1], [
    AC_DEFINE([HAVE_LUA], [1], [liblua])
    AC_DEFINE([HAVE_LUA_H], [1], [lua.h])
  ],[
  # for freebsd
- PKG_CHECK_MODULES(LUA, lua-5.1 >= 5.1, [
+ PKG_CHECK_MODULES([LUA], [lua-5.1 >= 5.1], [
    AC_DEFINE([HAVE_LUA], [1], [liblua])
    AC_DEFINE([HAVE_LUA_H], [1], [lua.h])
  ],[
@@ -122,8 +122,8 @@ if test "$WITH_LUA" != "no"; then
  ])
  ])
 
- AC_SUBST(LUA_CFLAGS)
- AC_SUBST(LUA_LIBS)
+ AC_SUBST([LUA_CFLAGS])
+ AC_SUBST([LUA_LIBS])
  USE_LUA=true
 fi
 
@@ -164,40 +164,40 @@ AC_CHECK_FUNCS([ \
 
 dnl Check for IPv6 support
 
-AC_ARG_ENABLE(ipv6,
- AC_HELP_STRING([--disable-ipv6],[disable IPv6 support]),
+AC_ARG_ENABLE([ipv6],
+ [AC_HELP_STRING([--disable-ipv6],[disable IPv6 support])],
  [case "${enableval}" in
    yes) ipv6=true ;;
     no) ipv6=false ;;
-     *) AC_MSG_ERROR(bad value ${enableval} for --enable-ipv6) ;;
+     *) AC_MSG_ERROR([bad value ${enableval} for --enable-ipv6]) ;;
   esac],[ipv6=true])
 
 if test x$ipv6 = xtrue; then
-  AC_CACHE_CHECK([for IPv6 support], ac_cv_ipv6_support,
+  AC_CACHE_CHECK([for IPv6 support], [ac_cv_ipv6_support],
   [AC_TRY_LINK([ #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>], [struct sockaddr_in6 s; struct in6_addr t=in6addr_any; int i=AF_INET6; s; t.s6_addr[0] = 0; ],
   [ac_cv_ipv6_support=yes], [ac_cv_ipv6_support=no])])
 
   if test "$ac_cv_ipv6_support" = yes; then
-    AC_DEFINE(HAVE_IPV6,1,[Whether to enable IPv6 support])
+    AC_DEFINE([HAVE_IPV6],[1],[Whether to enable IPv6 support])
   fi
 fi
 
 dnl Check for struct sockaddr_storage
 
-AC_CACHE_CHECK([for struct sockaddr_storage support], ac_cv_sockaddr_storage_support,
+AC_CACHE_CHECK([for struct sockaddr_storage support], [ac_cv_sockaddr_storage_support],
   [AC_TRY_LINK([ #include <sys/socket.h> ], [struct sockaddr_storage s; ],
   [ac_cv_sockaddr_storage_support=yes], [ac_cv_sockaddr_storage_support=no])])
 
 if test "ac_cv_sockaddr_storage_support" = yes; then
-  AC_DEFINE(HAVE_SOCKADDR_STORAGE,1,[Whether we have struct sockaddr_storage])
+  AC_DEFINE([HAVE_SOCKADDR_STORAGE],[1],[Whether we have struct sockaddr_storage])
 fi
 
 
 dnl Check for openssl
-AC_MSG_CHECKING(for OpenSSL)
-AC_ARG_WITH(openssl,
+AC_MSG_CHECKING([for OpenSSL])
+AC_ARG_WITH([openssl],
     AC_HELP_STRING([--with-openssl@<:@=DIR@:>@],[Include openssl support (default no)]),
     [WITH_OPENSSL=$withval],[WITH_OPENSSL=no])
 
@@ -215,18 +215,18 @@ else
 fi
 AC_MSG_RESULT([$use_openssl])
 
-AC_ARG_WITH(openssl-includes,
-  AC_HELP_STRING([--with-openssl-includes=DIR],[OpenSSL includes]),
+AC_ARG_WITH([openssl-includes],
+  [AC_HELP_STRING([--with-openssl-includes=DIR],[OpenSSL includes])],
   [ use_openssl=yes OPENSSL_CFLAGS="-I$withval" ]
 )
 
-AC_ARG_WITH(openssl-libs,
-  AC_HELP_STRING([--with-openssl-libs=DIR],[OpenSSL libraries]),
+AC_ARG_WITH([openssl-libs],
+  [AC_HELP_STRING([--with-openssl-libs=DIR],[OpenSSL libraries])],
   [ use_openssl=yes OPENSSL_LIBS="-L$withval" ]
 )
 
-AC_ARG_WITH(kerberos5,
-  AC_HELP_STRING([--with-kerberos5],[use Kerberos5 support with OpenSSL]),
+AC_ARG_WITH([kerberos5],
+  [AC_HELP_STRING([--with-kerberos5],[use Kerberos5 support with OpenSSL])],
   [ use_kerberos=yes ], [use_kerberos=no]
 )
 
@@ -237,21 +237,21 @@ if test "x$use_openssl" = "xyes"; then
 
   AC_CHECK_HEADERS([openssl/ssl.h])
   OLDLIBS="$LIBS"
-  AC_CHECK_LIB(crypto, BIO_f_base64, [
-    AC_CHECK_LIB(ssl, SSL_new, [
+  AC_CHECK_LIB([crypto], [BIO_f_base64], [
+    AC_CHECK_LIB([ssl], [SSL_new], [
       OPENSSL_LIBS="$OPENSSL_LIBS -lssl -lcrypto"
       have_openssl=yes
-      AC_DEFINE(HAVE_OPENSSL, [], [Have openssl])
+      AC_DEFINE([HAVE_OPENSSL], [], [Have openssl])
     ], [], [ -lcrypto "$DL_LIB" ])
   ], [], [])
   LIBS="$OLDLIBS"
 
   if test "x$have_openssl" != "xyes"; then
-    AC_MSG_ERROR(Couldn't find openssl)
+    AC_MSG_ERROR([Couldn't find openssl])
   fi
 
-  AC_SUBST(OPENSSL_CFLAGS)
-  AC_SUBST(OPENSSL_LIBS)
+  AC_SUBST([OPENSSL_CFLAGS])
+  AC_SUBST([OPENSSL_LIBS])
 fi
 
 AM_CONDITIONAL([USE_OPENSSL], [test "x$have_openssl" = "xyes"])
@@ -261,13 +261,13 @@ AM_CONDITIONAL([USE_OPENSSL], [test "x$have_openssl" = "xyes"])
 use_mod_deflate=no
 
 # check for zlib
-AC_MSG_CHECKING(for zlib support)
-AC_ARG_WITH(zlib, AC_HELP_STRING([--with-zlib],[Enable zlib support for mod_deflate]),
+AC_MSG_CHECKING([for zlib support])
+AC_ARG_WITH([zlib], [AC_HELP_STRING([--with-zlib],[Enable zlib support for mod_deflate])],
     [WITH_ZLIB=$withval],[WITH_ZLIB=yes])
 AC_MSG_RESULT([$WITH_ZLIB])
 
 if test "$WITH_BZIP2" != "no"; then
-  AC_CHECK_LIB(z, deflate, [
+  AC_CHECK_LIB([z], [deflate], [
     AC_CHECK_HEADERS([zlib.h],[
       Z_LIB=-lz
       use_mod_deflate=yes
@@ -275,17 +275,17 @@ if test "$WITH_BZIP2" != "no"; then
     ])
   ])
 fi
-AC_SUBST(Z_LIB)
+AC_SUBST([Z_LIB])
 
 
 # check for bzip2
-AC_MSG_CHECKING(for bzip2 support)
-AC_ARG_WITH(bzip2, AC_HELP_STRING([--with-bzip2],[Enable bzip2 support for mod_deflate]),
+AC_MSG_CHECKING([for bzip2 support])
+AC_ARG_WITH([bzip2], [AC_HELP_STRING([--with-bzip2],[Enable bzip2 support for mod_deflate])],
     [WITH_BZIP2=$withval],[WITH_BZIP2=yes])
 AC_MSG_RESULT([$WITH_BZIP2])
 
 if test "$WITH_BZIP2" != "no"; then
-  AC_CHECK_LIB(bz2, BZ2_bzCompress, [
+  AC_CHECK_LIB([bz2], [BZ2_bzCompress], [
     AC_CHECK_HEADERS([bzlib.h],[
       BZ_LIB=-lbz2
       use_mod_deflate=yes
@@ -293,22 +293,23 @@ if test "$WITH_BZIP2" != "no"; then
     ])
   ])
 fi
-AC_SUBST(BZ_LIB)
+AC_SUBST([BZ_LIB])
 
 AM_CONDITIONAL([USE_MOD_DEFLATE], [test "x$use_mod_deflate" = "xyes"])
 
-AC_ARG_ENABLE(profiler,
- AC_HELP_STRING([--enable-profiler],[enable memory profiler support]),[
+AC_ARG_ENABLE([profiler],
+ [AC_HELP_STRING([--enable-profiler],[enable memory profiler support])],[
    profiler=yes
    AC_DEFINE([WITH_PROFILER], [1], [profiler])
-   AC_CHECK_HEADERS([execinfo.h])],[])
+   AC_CHECK_HEADERS([execinfo.h])
+ ],[])
 
 AM_CONDITIONAL([WITH_PROFILER], [test "x$profiler" = "xyes"])
 
 dnl search for crypt_r and (fallback) for crypt
 save_LIBS=$LIBS
 LIBS=
-AC_SEARCH_LIBS(crypt_r,crypt,[
+AC_SEARCH_LIBS([crypt_r],[crypt],[
   AC_DEFINE([HAVE_CRYPT_R], [1], [crypt_r])
   AC_CHECK_HEADERS([crypt.h],[
     AC_DEFINE([HAVE_CRYPT_H], [1], [crypt.h])
@@ -316,7 +317,7 @@ AC_SEARCH_LIBS(crypt_r,crypt,[
 
   CRYPT_LIB=$LIBS
 ],[
-  AC_SEARCH_LIBS(crypt,crypt,[
+  AC_SEARCH_LIBS([crypt],[crypt],[
     AC_CHECK_HEADERS([crypt.h],[
       AC_DEFINE([HAVE_CRYPT_H], [1], [crypt.h])
     ])
@@ -325,7 +326,7 @@ AC_SEARCH_LIBS(crypt_r,crypt,[
   ])
 ])
 LIBS=$save_LIBS
-AC_SUBST(CRYPT_LIB)
+AC_SUBST([CRYPT_LIB])
 
 
 # check for extra compiler options (warning options)
@@ -333,12 +334,12 @@ if test "${GCC}" = "yes"; then
     CFLAGS="${CFLAGS} -Wall -W -Wshadow -pedantic -std=gnu99"
 fi
 
-AC_ARG_ENABLE(extra-warnings,
- AC_HELP_STRING([--enable-extra-warnings],[enable extra warnings (gcc specific)]),
+AC_ARG_ENABLE([extra-warnings],
+ [AC_HELP_STRING([--enable-extra-warnings],[enable extra warnings (gcc specific)])],
  [case "${enableval}" in
    yes) extrawarnings=true ;;
     no) extrawarnings=false ;;
-     *) AC_MSG_ERROR(bad value ${enableval} for --enable-extra-warnings) ;;
+     *) AC_MSG_ERROR([bad value ${enableval} for --enable-extra-warnings]) ;;
   esac],[extrawarnings=false])
 
 if test x$extrawarnings = xtrue; then
