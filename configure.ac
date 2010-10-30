@@ -1,8 +1,8 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.61)
-AC_INIT([lighttpd], [2.0.0], [contact@lighttpd.net])
+AC_PREREQ([2.61])
+AC_INIT([lighttpd],[2.0.0],[contact@lighttpd.net])
 AC_CONFIG_SRCDIR([src/main/lighttpd_worker.c])
 AC_CONFIG_HEADER([include/lighttpd/config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -22,7 +22,7 @@ dnl libtool
 AC_DISABLE_STATIC
 AC_ENABLE_SHARED
 
-AC_PROG_LIBTOOL
+LT_INIT
 
 # Checks for header files.
 AC_HEADER_STDC
@@ -60,7 +60,7 @@ PKG_CHECK_MODULES([GMODULE], [gmodule-2.0 >= 2.16.0], [],[AC_MSG_ERROR("gmodule-
 
 AC_MSG_CHECKING([for libev support])
 AC_ARG_WITH([libev],
-    [AC_HELP_STRING([--with-libev@<:@=PATH@:>@],[Search for libev in PATH/include and PATH/lib])],
+    [AS_HELP_STRING([--with-libev@<:@=PATH@:>@],[Search for libev in PATH/include and PATH/lib])],
     [WITH_LIBEV=$withval],[WITH_LIBEV=yes])
 
 LIBEV_CFLAGS=""
@@ -91,7 +91,7 @@ AC_SUBST([LIBEV_LIBS])
 
 dnl Check for lua
 AC_MSG_CHECKING([for lua])
-AC_ARG_WITH([lua], [AC_HELP_STRING([--with-lua],[lua engine (recommended)])],
+AC_ARG_WITH([lua], [AS_HELP_STRING([--with-lua],[lua engine (recommended)])],
 [WITH_LUA=$withval],[WITH_LUA=no])
 
 AC_MSG_RESULT([$WITH_LUA])
@@ -165,7 +165,7 @@ AC_CHECK_FUNCS([ \
 dnl Check for IPv6 support
 
 AC_ARG_ENABLE([ipv6],
- [AC_HELP_STRING([--disable-ipv6],[disable IPv6 support])],
+ [AS_HELP_STRING([--disable-ipv6],[disable IPv6 support])],
  [case "${enableval}" in
    yes) ipv6=true ;;
     no) ipv6=false ;;
@@ -174,10 +174,9 @@ AC_ARG_ENABLE([ipv6],
 
 if test x$ipv6 = xtrue; then
   AC_CACHE_CHECK([for IPv6 support], [ac_cv_ipv6_support],
-  [AC_TRY_LINK([ #include <sys/types.h>
+  [AC_LINK_IFELSE([AC_LANG_PROGRAM([[ #include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>], [struct sockaddr_in6 s; struct in6_addr t=in6addr_any; int i=AF_INET6; s; t.s6_addr[0] = 0; ],
-  [ac_cv_ipv6_support=yes], [ac_cv_ipv6_support=no])])
+#include <netinet/in.h>]], [[struct sockaddr_in6 s; struct in6_addr t=in6addr_any; int i=AF_INET6; s; t.s6_addr[0] = 0; ]])],[ac_cv_ipv6_support=yes],[ac_cv_ipv6_support=no])])
 
   if test "$ac_cv_ipv6_support" = yes; then
     AC_DEFINE([HAVE_IPV6],[1],[Whether to enable IPv6 support])
@@ -187,8 +186,7 @@ fi
 dnl Check for struct sockaddr_storage
 
 AC_CACHE_CHECK([for struct sockaddr_storage support], [ac_cv_sockaddr_storage_support],
-  [AC_TRY_LINK([ #include <sys/socket.h> ], [struct sockaddr_storage s; ],
-  [ac_cv_sockaddr_storage_support=yes], [ac_cv_sockaddr_storage_support=no])])
+  [AC_LINK_IFELSE([AC_LANG_PROGRAM([[ #include <sys/socket.h> ]], [[struct sockaddr_storage s; ]])],[ac_cv_sockaddr_storage_support=yes],[ac_cv_sockaddr_storage_support=no])])
 
 if test "ac_cv_sockaddr_storage_support" = yes; then
   AC_DEFINE([HAVE_SOCKADDR_STORAGE],[1],[Whether we have struct sockaddr_storage])
@@ -198,7 +196,7 @@ fi
 dnl Check for openssl
 AC_MSG_CHECKING([for OpenSSL])
 AC_ARG_WITH([openssl],
-    AC_HELP_STRING([--with-openssl@<:@=DIR@:>@],[Include openssl support (default no)]),
+    AS_HELP_STRING([--with-openssl@<:@=DIR@:>@],[Include openssl support (default no)]),
     [WITH_OPENSSL=$withval],[WITH_OPENSSL=no])
 
 OPENSSL_CFLAGS=""
@@ -216,17 +214,17 @@ fi
 AC_MSG_RESULT([$use_openssl])
 
 AC_ARG_WITH([openssl-includes],
-  [AC_HELP_STRING([--with-openssl-includes=DIR],[OpenSSL includes])],
+  [AS_HELP_STRING([--with-openssl-includes=DIR],[OpenSSL includes])],
   [ use_openssl=yes OPENSSL_CFLAGS="-I$withval" ]
 )
 
 AC_ARG_WITH([openssl-libs],
-  [AC_HELP_STRING([--with-openssl-libs=DIR],[OpenSSL libraries])],
+  [AS_HELP_STRING([--with-openssl-libs=DIR],[OpenSSL libraries])],
   [ use_openssl=yes OPENSSL_LIBS="-L$withval" ]
 )
 
 AC_ARG_WITH([kerberos5],
-  [AC_HELP_STRING([--with-kerberos5],[use Kerberos5 support with OpenSSL])],
+  [AS_HELP_STRING([--with-kerberos5],[use Kerberos5 support with OpenSSL])],
   [ use_kerberos=yes ], [use_kerberos=no]
 )
 
@@ -262,7 +260,7 @@ use_mod_deflate=no
 
 # check for zlib
 AC_MSG_CHECKING([for zlib support])
-AC_ARG_WITH([zlib], [AC_HELP_STRING([--with-zlib],[Enable zlib support for mod_deflate])],
+AC_ARG_WITH([zlib], [AS_HELP_STRING([--with-zlib],[Enable zlib support for mod_deflate])],
     [WITH_ZLIB=$withval],[WITH_ZLIB=yes])
 AC_MSG_RESULT([$WITH_ZLIB])
 
@@ -280,7 +278,7 @@ AC_SUBST([Z_LIB])
 
 # check for bzip2
 AC_MSG_CHECKING([for bzip2 support])
-AC_ARG_WITH([bzip2], [AC_HELP_STRING([--with-bzip2],[Enable bzip2 support for mod_deflate])],
+AC_ARG_WITH([bzip2], [AS_HELP_STRING([--with-bzip2],[Enable bzip2 support for mod_deflate])],
     [WITH_BZIP2=$withval],[WITH_BZIP2=yes])
 AC_MSG_RESULT([$WITH_BZIP2])
 
@@ -298,7 +296,7 @@ AC_SUBST([BZ_LIB])
 AM_CONDITIONAL([USE_MOD_DEFLATE], [test "x$use_mod_deflate" = "xyes"])
 
 AC_ARG_ENABLE([profiler],
- [AC_HELP_STRING([--enable-profiler],[enable memory profiler support])],[
+ [AS_HELP_STRING([--enable-profiler],[enable memory profiler support])],[
    profiler=yes
    AC_DEFINE([WITH_PROFILER], [1], [profiler])
    AC_CHECK_HEADERS([execinfo.h])
@@ -335,7 +333,7 @@ if test "${GCC}" = "yes"; then
 fi
 
 AC_ARG_ENABLE([extra-warnings],
- [AC_HELP_STRING([--enable-extra-warnings],[enable extra warnings (gcc specific)])],
+ [AS_HELP_STRING([--enable-extra-warnings],[enable extra warnings (gcc specific)])],
  [case "${enableval}" in
    yes) extrawarnings=true ;;
     no) extrawarnings=false ;;
