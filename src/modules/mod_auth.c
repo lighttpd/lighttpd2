@@ -585,11 +585,11 @@ static liAction* auth_htdigest_create(liServer *srv, liWorker *wrk, liPlugin* p,
 }
 
 static liHandlerResult auth_handle_deny(liVRequest *vr, gpointer param, gpointer *context) {
-	AuthBasicData *bdata = param;
+	liPlugin *p = param;
 	UNUSED(context);
 
 	if (!li_vrequest_handle_direct(vr)) {
-		if (_OPTION(vr, bdata->p, 0).boolean || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		if (_OPTION(vr, p, 0).boolean || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "skipping auth.deny as request is already handled with current status %i", vr->response.http_status);
 		}
 		return LI_HANDLER_GO_ON;
@@ -603,7 +603,6 @@ static liHandlerResult auth_handle_deny(liVRequest *vr, gpointer param, gpointer
 static liAction* auth_deny(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(srv);
 	UNUSED(wrk);
-	UNUSED(p);
 	UNUSED(userdata);
 
 	if (val) {
@@ -611,7 +610,7 @@ static liAction* auth_deny(liServer *srv, liWorker *wrk, liPlugin* p, liValue *v
 		return NULL;
 	}
 
-	return li_action_new_function(auth_handle_deny, NULL, NULL, NULL);
+	return li_action_new_function(auth_handle_deny, NULL, NULL, p);
 }
 
 static const liPluginOption options[] = {
