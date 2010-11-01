@@ -6,6 +6,8 @@
 
 #include <lighttpd/base.h>
 
+static void li_throttle_pool_rearm(liWorker *wrk, liThrottlePool *pool);
+
 liThrottlePool *li_throttle_pool_new(liServer *srv, liThrottlePoolType type, gpointer param, guint rate) {
 	liThrottlePool *pool;
 	guint i;
@@ -145,6 +147,9 @@ void li_throttle_pool_acquire(liVRequest *vr, liThrottlePool *pool) {
 	}
 
 	vr->throttled = TRUE;
+
+	li_throttle_pool_rearm(vr->wrk, pool);
+	li_throttle_update(vr, 0, 0);
 }
 
 void li_throttle_pool_release(liVRequest *vr, liThrottlePool *pool) {
