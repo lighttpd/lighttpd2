@@ -255,6 +255,8 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 			}
 			continue;
 		}
+
+		break;
 	}
 
 	g_strfreev(dsplit.splits);
