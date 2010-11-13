@@ -64,6 +64,10 @@ class TestDigestSuccess(CurlRequest):
 	EXPECT_RESPONSE_CODE = 200
 	AUTH = "user5:pass5"
 
+class TestDeny(CurlRequest):
+	URL = "/test.txt?deny"
+	EXPECT_RESPONSE_CODE = 403
+
 class Test(GroupTest):
 	group = [
 		TestAprMd5Fail, TestAprMd5Success,
@@ -71,6 +75,7 @@ class Test(GroupTest):
 		TestPlainFail, TestPlainSuccess,
 		TestAprSha1Fail, TestAprSha1Success,
 		TestDigestFail, TestDigestSuccess,
+		TestDeny,
 	]
 
 	def Prepare(self):
@@ -85,6 +90,8 @@ class Test(GroupTest):
 				auth.plain ["method": "basic", "realm": "Basic Auth Realm", "file": "{passwdfile}", "ttl": 10];
 			}} else if req.query == "digest" {{
 				auth.htdigest ["method": "basic", "realm": "Realm1", "file": "{digestfile}", "ttl": 10];
+			}} else if req.query == "deny" {{
+				auth.deny;
 			}} else {{
 				auth.htpasswd ["method": "basic", "realm": "Basic Auth Realm", "file": "{passwdfile}", "ttl": 10];
 			}}
