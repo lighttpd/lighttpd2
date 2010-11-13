@@ -595,7 +595,7 @@ static liHandlerResult auth_handle_deny(liVRequest *vr, gpointer param, gpointer
 		return LI_HANDLER_GO_ON;
 	}
 
-	vr->response.http_status = 401;
+	vr->response.http_status = 403;
 
 	return LI_HANDLER_GO_ON;
 }
