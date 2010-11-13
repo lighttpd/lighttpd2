@@ -27,12 +27,24 @@ class TestSubdirFixedRange(CurlRequest):
 	EXPECT_RESPONSE_BODY = "/var/www/basic-docroot/xyz.abc/htdocs"
 	EXPECT_RESPONSE_CODE = 200
 
+class TestCascade(CurlRequest):
+	URL = "/?cascade"
+	EXPECT_RESPONSE_BODY = "/"
+	EXPECT_RESPONSE_CODE = 200
+
+class TestCascadeFallback(CurlRequest):
+	URL = "/?cascade-fallback"
+	EXPECT_RESPONSE_BODY = "/var/www/fallback/htdocs"
+	EXPECT_RESPONSE_CODE = 200
+
 class Test(GroupTest):
 	group = [
 		TestSimple,
 		TestSubdir,
 		TestSubdirOpenRange,
 		TestSubdirFixedRange,
+		TestCascade,
+		TestCascadeFallback
 	]
 
 	vhost = "basic-docroot"
@@ -47,6 +59,10 @@ if req.query == "simple" {
 	docroot "/var/www/$1/$[2-]/htdocs";
 } else if req.query == "subdir-fixed-range" {
 	docroot "/var/www/$1/$[2-3]/htdocs";
+} else if req.query == "cascade" {
+	docroot ("/","/var/www/fallback/htdocs");
+} else if req.query == "cascade-fallback" {
+	docroot ("_","/var/www/fallback/htdocs");
 }
 
 env.set "INFO" => "%{phys.docroot}";
