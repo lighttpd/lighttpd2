@@ -233,6 +233,9 @@ static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 		write_max -= r;
 	} while (r == block_len && write_max > 0);
 
+	if (0 != cq->length) {
+		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
+	}
 	return LI_NETWORK_STATUS_SUCCESS;
 }
 
