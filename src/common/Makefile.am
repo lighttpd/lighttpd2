@@ -23,7 +23,7 @@ common_src= \
 BUILT_SOURCES=ip_parsers.c
 
 ip_parsers.c: ip_parsers.rl
-	ragel -C -T1 -o $@ $<
+	$(RAGEL) -C -T1 -o $@ $<
 
 EXTRA_DIST=ip_parsers.rl
 

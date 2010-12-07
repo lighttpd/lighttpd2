@@ -73,15 +73,15 @@ EXTRA_liblighttpd2_shared_la_SOURCES=$(lua_src) profiler.c
 BUILT_SOURCES=config_parser.c http_range_parser.c http_request_parser.c http_response_parser.c url_parser.c
 
 config_parser.c: config_parser.rl
-	ragel -C -T0 -o $@ $<
+	$(RAGEL) -C -T0 -o $@ $<
 http_range_parser.c: http_range_parser.rl
-	ragel -C -T1 -o $@ $<
+	$(RAGEL) -C -T1 -o $@ $<
 http_request_parser.c: http_request_parser.rl
-	ragel -C -T1 -o $@ $<
+	$(RAGEL) -C -T1 -o $@ $<
 http_response_parser.c: http_response_parser.rl
-	ragel -C -T1 -o $@ $<
+	$(RAGEL) -C -T1 -o $@ $<
 url_parser.c: url_parser.rl
-	ragel -C -T1 -o $@ $<
+	$(RAGEL) -C -T1 -o $@ $<
 
 EXTRA_DIST=config_parser.rl http_range_parser.rl http_request_parser.rl  http_response_parser.rl url_parser.rl
 

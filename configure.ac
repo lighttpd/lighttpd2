@@ -18,9 +18,16 @@ AC_PROG_MAKE_SET
 AC_PROG_INSTALL
 # AC_PROG_RANLIB
 
+AC_PATH_PROG([RAGEL], [ragel], [
+	AC_MSG_ERROR([ragel not found])
+])
+AC_SUBST([RAGEL])
+
 dnl libtool
 AC_DISABLE_STATIC
 AC_ENABLE_SHARED
+
+m4_ifndef([PKG_PROG_PKG_CONFIG], [m4_fatal([pkg-config not installed])])
 
 LT_INIT
 

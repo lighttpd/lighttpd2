@@ -16,7 +16,7 @@ lighttpd_angel_shared_src= \
 BUILT_SOURCES=angel_config_parser.c
 
 angel_config_parser.c: angel_config_parser.rl
-	ragel -C -T1 -o $@ $<
+	$(RAGEL) -C -T1 -o $@ $<
 
 EXTRA_DIST=angel_config_parser.rl
 
