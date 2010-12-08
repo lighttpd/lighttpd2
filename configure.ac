@@ -29,7 +29,9 @@ AC_ENABLE_SHARED
 
 m4_ifndef([PKG_PROG_PKG_CONFIG], [m4_fatal([pkg-config not installed])])
 
-LT_INIT
+m4_ifndef([AC_PROG_LIBTOOL], [m4_fatal([libtool not installed])])
+
+AC_PROG_LIBTOOL
 
 # Checks for header files.
 AC_HEADER_STDC
