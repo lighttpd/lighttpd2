@@ -139,6 +139,11 @@ static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *
 		return FALSE;
 	}
 
+	if (vr->action_stack.regex_stack->len) {
+		GArray *rs = vr->action_stack.regex_stack;
+		prev_match_info = g_array_index(rs, liActionRegexStackElement, rs->len - 1).match_info;
+	}
+
 	g_string_truncate(dest, 0);
 
 	switch (rule->type) {
