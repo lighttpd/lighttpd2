@@ -338,6 +338,9 @@ void li_throttle_cb(liWaitQueue *wq, gpointer data) {
 		}
 
 		vr->coninfo->callbacks->handle_check_io(vr);
+
+		if (vr->throttle.magazine <= 0)
+			li_throttle_update(vr, 0, 0);
 	}
 	li_waitqueue_update(wq);
 }
