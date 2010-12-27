@@ -436,13 +436,14 @@ static liHandlerResult scgi_statemachine(liVRequest *vr, scgi_connection *scon) 
 			case EINPROGRESS:
 			case EALREADY:
 			case EINTR:
-			case EISCONN:
 				scon->state = SS_CONNECTING;
 				return LI_HANDLER_GO_ON;
 			case EAGAIN: /* backend overloaded */
 				scgi_close(vr, p);
 				li_vrequest_backend_overloaded(vr);
 				return LI_HANDLER_GO_ON;
+			case EISCONN:
+				break;
 			default:
 				VR_ERROR(vr, "Couldn't connect to '%s': %s",
 					li_sockaddr_to_string(scon->ctx->socket, vr->wrk->tmp_str, TRUE)->str,

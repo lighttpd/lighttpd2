@@ -295,9 +295,10 @@ static void memcached_connect(liMemcachedCon *con) {
 			case EINPROGRESS:
 			case EALREADY:
 			case EINTR:
-			case EISCONN:
 				memcached_start_io(con);
 				li_ev_io_add_events(con->loop, &con->con_watcher, EV_READ | EV_WRITE);
+				break;
+			case EISCONN:
 				break;
 			default:
 				g_clear_error(&con->err);

@@ -330,13 +330,14 @@ static liHandlerResult proxy_statemachine(liVRequest *vr, proxy_connection *pcon
 			case EINPROGRESS:
 			case EALREADY:
 			case EINTR:
-			case EISCONN:
 				pcon->state = SS_CONNECTING;
 				return LI_HANDLER_GO_ON;
 			case EAGAIN: /* backend overloaded */
 				proxy_close(vr, p);
 				li_vrequest_backend_overloaded(vr);
 				return LI_HANDLER_GO_ON;
+			case EISCONN:
+				break;
 			default:
 				VR_ERROR(vr, "Couldn't connect to '%s': %s",
 					li_sockaddr_to_string(pcon->ctx->socket, vr->wrk->tmp_str, TRUE)->str,

@@ -683,13 +683,14 @@ static liHandlerResult fastcgi_statemachine(liVRequest *vr, fastcgi_connection *
 			case EINPROGRESS:
 			case EALREADY:
 			case EINTR:
-			case EISCONN:
 				fcon->state = FS_CONNECTING;
 				return LI_HANDLER_GO_ON;
 			case EAGAIN: /* backend overloaded */
 				fastcgi_close(vr, p);
 				li_vrequest_backend_overloaded(vr);
 				return LI_HANDLER_GO_ON;
+			case EISCONN:
+				break;
 			default:
 				if (errno != g_atomic_int_get(&fcon->ctx->last_errno)) {
 					g_atomic_int_set(&fcon->ctx->last_errno, errno);
