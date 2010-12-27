@@ -330,6 +330,7 @@ static liHandlerResult proxy_statemachine(liVRequest *vr, proxy_connection *pcon
 			case EINPROGRESS:
 			case EALREADY:
 			case EINTR:
+			case EISCONN:
 				pcon->state = SS_CONNECTING;
 				return LI_HANDLER_GO_ON;
 			case EAGAIN: /* backend overloaded */

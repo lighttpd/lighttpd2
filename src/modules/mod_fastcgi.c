@@ -683,6 +683,7 @@ static liHandlerResult fastcgi_statemachine(liVRequest *vr, fastcgi_connection *
 			case EINPROGRESS:
 			case EALREADY:
 			case EINTR:
+			case EISCONN:
 				fcon->state = FS_CONNECTING;
 				return LI_HANDLER_GO_ON;
 			case EAGAIN: /* backend overloaded */

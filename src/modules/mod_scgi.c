@@ -436,6 +436,7 @@ static liHandlerResult scgi_statemachine(liVRequest *vr, scgi_connection *scon) 
 			case EINPROGRESS:
 			case EALREADY:
 			case EINTR:
+			case EISCONN:
 				scon->state = SS_CONNECTING;
 				return LI_HANDLER_GO_ON;
 			case EAGAIN: /* backend overloaded */
