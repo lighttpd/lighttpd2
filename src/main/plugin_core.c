@@ -1404,7 +1404,7 @@ static gboolean core_option_mime_types_parse(liServer *srv, liWorker *wrk, liPlu
 			return FALSE;
 		}
 
-		li_mimetype_insert(node, v1->data.string, li_value_extract_string(v2), 0);
+		li_mimetype_insert(node, v1->data.string, li_value_extract_string(v2));
 	}
 
 	return TRUE;

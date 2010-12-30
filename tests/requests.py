@@ -121,7 +121,7 @@ class CurlRequest(TestBase):
 				raise CurlRequestException("Didn't get wanted response header '%s'" % (k))
 			v1 = self.resp_headers[k]
 			if v1 != v:
-				raise CurlRequestException("Unexpected response header '%s' = '%s' (wanted '%s')" % (k, v, v1))
+				raise CurlRequestException("Unexpected response header '%s' = '%s' (wanted '%s')" % (k, v1, v))
 
 		return True
 
