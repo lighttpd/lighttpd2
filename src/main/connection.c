@@ -598,9 +598,9 @@ void li_connection_reset(liConnection *con) {
 	li_buffer_release(con->raw_in_buffer);
 	con->raw_in_buffer = NULL;
 
-	li_throttle_reset(con->mainvr);
-
 	li_vrequest_reset(con->mainvr, FALSE);
+
+	li_throttle_reset(con->mainvr);
 
 	/* restore chunkqueue limits */
 	li_chunkqueue_set_limit(con->raw_in, con->in->limit);
