@@ -409,23 +409,24 @@ static liHandlerResult vrequest_do_handle_actions(liVRequest *vr) {
 	case LI_HANDLER_WAIT_FOR_EVENT:
 		return LI_HANDLER_WAIT_FOR_EVENT;
 	case LI_HANDLER_ERROR:
-		li_vrequest_error(vr);
 		return LI_HANDLER_ERROR;
 	}
 	return LI_HANDLER_GO_ON;
 }
 
 
-static gboolean vrequest_do_handle_read(liVRequest *vr) {
+static G_GNUC_WARN_UNUSED_RESULT gboolean vrequest_do_handle_read(liVRequest *vr) {
 	if (vr->backend && vr->backend->handle_request_body) {
 		goffset lim_avail;
 
 		if (vr->in->is_closed) vr->in_memory->is_closed = TRUE;
 		if (!filters_handle_out_close(vr, &vr->filters_in)) {
 			li_vrequest_error(vr);
+			return FALSE;
 		}
 		if (!filters_run(vr, &vr->filters_in)) {
 			li_vrequest_error(vr);
+			return FALSE;
 		}
 
 		if (vr->in_buffer_state.tempfile || vr->request.content_length < 0 || vr->request.content_length > 64*1024 ||
@@ -440,7 +441,7 @@ static gboolean vrequest_do_handle_read(liVRequest *vr) {
 				return FALSE;
 			case LI_HANDLER_ERROR:
 				li_vrequest_error(vr);
-				break;
+				return FALSE;
 			}
 		} else {
 			li_chunkqueue_steal_all(vr->in, vr->in_memory);
@@ -457,7 +458,7 @@ static gboolean vrequest_do_handle_read(liVRequest *vr) {
 			return FALSE;
 		case LI_HANDLER_ERROR:
 			li_vrequest_error(vr);
-			break;
+			return FALSE;
 		}
 	} else {
 		li_chunkqueue_skip_all(vr->vr_in);
@@ -466,34 +467,23 @@ static gboolean vrequest_do_handle_read(liVRequest *vr) {
 	return TRUE;
 }
 
-static void vrequest_do_handle_write(liVRequest *vr) {
+static G_GNUC_WARN_UNUSED_RESULT gboolean vrequest_do_handle_write(liVRequest *vr) {
 	if (!filters_handle_out_close(vr, &vr->filters_out)) {
 		li_vrequest_error(vr);
-		return;
+		return FALSE;
 	}
 	if (!filters_run(vr, &vr->filters_out)) {
 		li_vrequest_error(vr);
-		return;
+		return FALSE;
 	}
 
-	switch (vr->coninfo->callbacks->handle_response_body(vr)) {
-	case LI_HANDLER_GO_ON:
-		break;
-	case LI_HANDLER_COMEBACK:
-		li_vrequest_joblist_append(vr); /* come back later */
-		return;
-	case LI_HANDLER_WAIT_FOR_EVENT:
-		return;
-	case LI_HANDLER_ERROR:
-		li_vrequest_error(vr);
-		break;
-	}
-	return;
+	if (!vr->coninfo->callbacks->handle_response_body(vr)) return FALSE;
+
+	return TRUE;
 }
 
 void li_vrequest_state_machine(liVRequest *vr) {
 	gboolean done = FALSE;
-	liHandlerResult res;
 	do {
 		switch (vr->state) {
 		case LI_VRS_CLEAN:
@@ -514,33 +504,22 @@ void li_vrequest_state_machine(liVRequest *vr) {
 				if (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS) return;
 				break; /* go on to get post data/response headers if request is already handled */
 			case LI_HANDLER_ERROR:
+				li_vrequest_error(vr);
 				return;
 			}
-			res = vr->coninfo->callbacks->handle_request_headers(vr);
-			switch (res) {
-			case LI_HANDLER_GO_ON:
-				if (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS) {
-					if (vr->request.http_method == LI_HTTP_METHOD_OPTIONS) {
-						vr->response.http_status = 200;
-						li_http_header_append(vr->response.headers, CONST_STR_LEN("Allow"), CONST_STR_LEN("OPTIONS, GET, HEAD, POST"));
-					} else {
-						/* unhandled request */
-						vr->response.http_status = 404;
-					}
-					li_vrequest_handle_direct(vr);
+
+			if (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS) {
+				if (vr->request.http_method == LI_HTTP_METHOD_OPTIONS) {
+					vr->response.http_status = 200;
+					li_http_header_append(vr->response.headers, CONST_STR_LEN("Allow"), CONST_STR_LEN("OPTIONS, GET, HEAD, POST"));
+				} else {
+					/* unhandled request */
+					vr->response.http_status = 404;
 				}
-				break;
-			case LI_HANDLER_COMEBACK:
-				li_vrequest_joblist_append(vr); /* come back later */
-				done = TRUE;
-				break;
-			case LI_HANDLER_WAIT_FOR_EVENT:
-				done = (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS);
-				break;
-			case LI_HANDLER_ERROR:
-				li_vrequest_error(vr);
-				break;
+				li_vrequest_handle_direct(vr);
 			}
+
+			if (!vr->coninfo->callbacks->handle_request_headers(vr)) return;
 			break;
 
 		case LI_VRS_READ_CONTENT:
@@ -563,32 +542,19 @@ void li_vrequest_state_machine(liVRequest *vr) {
 			case LI_HANDLER_WAIT_FOR_EVENT:
 				return; /* wait to handle response headers */
 			case LI_HANDLER_ERROR:
+				li_vrequest_error(vr);
 				return;
 			}
-			res = vr->coninfo->callbacks->handle_response_headers(vr);
-			switch (res) {
-			case LI_HANDLER_GO_ON:
-				vr->state = LI_VRS_WRITE_CONTENT;
-				break;
-			case LI_HANDLER_COMEBACK:
-				li_vrequest_joblist_append(vr); /* come back later */
-				done = TRUE;
-				break;
-			case LI_HANDLER_WAIT_FOR_EVENT:
-				done = (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS);
-				break;
-			case LI_HANDLER_ERROR:
-				li_vrequest_error(vr);
-				break;
-			}
+			if (!vr->coninfo->callbacks->handle_response_headers(vr)) return;
+			vr->state = LI_VRS_WRITE_CONTENT;
 			break;
 
 		case LI_VRS_WRITE_CONTENT:
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "%s", "write content");
 			}
-			vrequest_do_handle_read(vr);
-			vrequest_do_handle_write(vr);
+			if (!vrequest_do_handle_read(vr)) return;
+			if (!vrequest_do_handle_write(vr)) return;
 			done = TRUE;
 			break;
 
@@ -596,9 +562,8 @@ void li_vrequest_state_machine(liVRequest *vr) {
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "%s", "error");
 			}
-			/* this will probably reset the vrequest, so stop handling after it */
-			vr->coninfo->callbacks->handle_response_error(vr);
-			return;
+			if (!vr->coninfo->callbacks->handle_response_error(vr)) return;
+			return; /* stop anyway */
 		}
 	} while (!done);
 }

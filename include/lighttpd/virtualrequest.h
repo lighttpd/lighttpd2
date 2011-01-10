@@ -36,7 +36,7 @@ typedef enum {
 
 typedef liHandlerResult (*liFilterHandlerCB)(liVRequest *vr, liFilter *f);
 typedef void (*liFilterFreeCB)(liVRequest *vr, liFilter *f);
-typedef liHandlerResult (*liVRequestHandlerCB)(liVRequest *vr);
+typedef G_GNUC_WARN_UNUSED_RESULT gboolean (*liVRequestHandlerCB)(liVRequest *vr);
 typedef liHandlerResult (*liVRequestPluginHandlerCB)(liVRequest *vr, liPlugin *p);
 typedef gboolean (*liVRequestCheckIOCB)(liVRequest *vr);
 

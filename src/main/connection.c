@@ -3,7 +3,7 @@
 #include <lighttpd/plugin_core.h>
 
 static void li_connection_reset_keep_alive(liConnection *con);
-static void li_connection_internal_error(liConnection *con);
+static G_GNUC_WARN_UNUSED_RESULT gboolean li_connection_internal_error(liConnection *con);
 
 static void update_io_events(liConnection *con) {
 	int events = 0;
@@ -51,7 +51,7 @@ static void parse_request_body(liConnection *con) {
 	}
 }
 
-static void forward_response_body(liConnection *con) {
+static G_GNUC_WARN_UNUSED_RESULT gboolean forward_response_body(liConnection *con) {
 	liVRequest *vr = con->mainvr;
 	if (con->state >= LI_CON_STATE_HANDLE_MAINVR) {
 		if (!con->response_headers_sent) {
@@ -61,8 +61,7 @@ static void forward_response_body(liConnection *con) {
 			con->response_headers_sent = TRUE;
 			if (!li_response_send_headers(con)) {
 				con->response_headers_sent = FALSE;
-				li_connection_internal_error(con);
-				return;
+				return li_connection_internal_error(con);
 			}
 			li_vrequest_joblist_append(vr);
 		}
@@ -80,6 +79,8 @@ static void forward_response_body(liConnection *con) {
 			con->info.out_queue_length = con->raw_out->length;
 		}
 	}
+
+	return TRUE;
 }
 
 /* don't use con afterwards */
@@ -132,13 +133,14 @@ void li_connection_error(liConnection *con) {
 	li_worker_con_put(con);
 }
 
-static void li_connection_internal_error(liConnection *con) {
+static G_GNUC_WARN_UNUSED_RESULT gboolean li_connection_internal_error(liConnection *con) {
 	liVRequest *vr = con->mainvr;
 	if (con->response_headers_sent) {
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "%s", "Couldn't send '500 Internal Error': headers already sent");
 		}
 		li_connection_error(con);
+		return FALSE;
 	} else {
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "%s", "internal error");
@@ -154,11 +156,11 @@ static void li_connection_internal_error(liConnection *con) {
 		li_chunkqueue_reset(con->out);
 		con->out->is_closed = TRUE;
 		con->in->is_closed = TRUE;
-		forward_response_body(con);
+		return forward_response_body(con);
 	}
 }
 
-static gboolean connection_handle_read(liConnection *con) {
+static G_GNUC_WARN_UNUSED_RESULT gboolean connection_handle_read(liConnection *con) {
 	liVRequest *vr = con->mainvr;
 
 	if (con->raw_in->length == 0) return TRUE;
@@ -210,7 +212,7 @@ static gboolean connection_handle_read(liConnection *con) {
 			li_vrequest_handle_direct(con->mainvr);
 			con->state = LI_CON_STATE_WRITE;
 			con->in->is_closed = TRUE;
-			forward_response_body(con);
+			if (!forward_response_body(con)) return FALSE;
 			return TRUE;
 		}
 
@@ -234,7 +236,7 @@ static gboolean connection_handle_read(liConnection *con) {
 			li_vrequest_handle_direct(con->mainvr);
 			con->state = LI_CON_STATE_WRITE;
 			con->in->is_closed = TRUE;
-			forward_response_body(con);
+			if (!forward_response_body(con)) return FALSE;
 			return TRUE;
 		}
 
@@ -249,7 +251,7 @@ static gboolean connection_handle_read(liConnection *con) {
 			con->state = LI_CON_STATE_WRITE;
 			con->info.keep_alive = FALSE;
 			con->in->is_closed = TRUE;
-			forward_response_body(con);
+			if (!forward_response_body(con)) return FALSE;
 		} else {
 			/* When does a client ask for 100 Continue? probably not while trying to ddos us
 			 * as post content probably goes to a dynamic backend anyway, we don't
@@ -283,7 +285,7 @@ static void connection_update_io_timeout(liConnection *con) {
 	}
 }
 
-static gboolean connection_try_read(liConnection *con) {
+static G_GNUC_WARN_UNUSED_RESULT gboolean connection_try_read(liConnection *con) {
 	liNetworkStatus res;
 
 	/* con->can_read = TRUE; */
@@ -329,7 +331,7 @@ static gboolean connection_try_read(liConnection *con) {
 	return TRUE;
 }
 
-static gboolean connection_try_write(liConnection *con) {
+static G_GNUC_WARN_UNUSED_RESULT gboolean connection_try_write(liConnection *con) {
 	liNetworkStatus res;
 
 	con->can_write = TRUE;
@@ -427,7 +429,7 @@ static void connection_keepalive_cb(struct ev_loop *loop, ev_timer *w, int reven
 	li_worker_con_put(con);
 }
 
-static liHandlerResult mainvr_handle_response_headers(liVRequest *vr) {
+static G_GNUC_WARN_UNUSED_RESULT gboolean mainvr_handle_response_headers(liVRequest *vr) {
 	liConnection *con = LI_CONTAINER_OF(vr->coninfo, liConnection, info);
 	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "%s", "read request/handle response header");
@@ -443,12 +445,12 @@ static liHandlerResult mainvr_handle_response_headers(liVRequest *vr) {
 
 	update_io_events(con);
 
-	return LI_HANDLER_GO_ON;
+	return TRUE;
 }
 
-static liHandlerResult mainvr_handle_response_body(liVRequest *vr) {
+static G_GNUC_WARN_UNUSED_RESULT gboolean mainvr_handle_response_body(liVRequest *vr) {
 	liConnection *con = LI_CONTAINER_OF(vr->coninfo, liConnection, info);
-	if (!check_response_done(con)) return LI_HANDLER_GO_ON;
+	if (!check_response_done(con)) return TRUE;
 
 	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "%s", "write response");
@@ -458,22 +460,22 @@ static liHandlerResult mainvr_handle_response_body(liVRequest *vr) {
 		if (!connection_try_read(con)) return FALSE;
 
 	parse_request_body(con);
-	forward_response_body(con);
+	if (!forward_response_body(con)) return FALSE;
 
 	if (con->can_write)
 		if (!connection_try_write(con)) return FALSE;
 
-	if (!check_response_done(con)) return LI_HANDLER_GO_ON;
+	if (!check_response_done(con)) return TRUE;
 
 	update_io_events(con);
 
-	return LI_HANDLER_GO_ON;
+	return TRUE;
 }
 
-static liHandlerResult mainvr_handle_response_error(liVRequest *vr) {
+static G_GNUC_WARN_UNUSED_RESULT gboolean mainvr_handle_response_error(liVRequest *vr) {
 	liConnection *con = LI_CONTAINER_OF(vr->coninfo, liConnection, info);
 
-	li_connection_internal_error(con);
+	if (!li_connection_internal_error(con)) return FALSE;
 
 	if (con->can_read)
 		if (!connection_try_read(con)) return FALSE;
@@ -482,10 +484,10 @@ static liHandlerResult mainvr_handle_response_error(liVRequest *vr) {
 
 	update_io_events(con);
 
-	return LI_HANDLER_GO_ON;
+	return FALSE;
 }
 
-static liHandlerResult mainvr_handle_request_headers(liVRequest *vr) {
+static G_GNUC_WARN_UNUSED_RESULT gboolean mainvr_handle_request_headers(liVRequest *vr) {
 	liConnection *con = LI_CONTAINER_OF(vr->coninfo, liConnection, info);
 
 	/* start reading input */
@@ -495,7 +497,7 @@ static liHandlerResult mainvr_handle_request_headers(liVRequest *vr) {
 	parse_request_body(con);
 	update_io_events(con);
 
-	return LI_HANDLER_GO_ON;
+	return TRUE;
 }
 
 static gboolean mainvr_handle_check_io(liVRequest *vr) {
@@ -707,7 +709,7 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 
 	if (con->raw_in->length != 0) {
 		/* start handling next request if data is already available */
-		connection_handle_read(con);
+		if (!connection_handle_read(con)) return;
 	}
 }
 
