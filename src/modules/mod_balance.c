@@ -1,8 +1,8 @@
 /*
- * mod_balancer - balance between different backends
+ * mod_balance - balance between different backends
  *
  * Description:
- *     mod_balancer balances between different backends;
+ *     mod_balance balances between different backends;
  *
  * Setups:
  *     none
@@ -26,8 +26,8 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
-LI_API gboolean mod_balancer_init(liModules *mods, liModule *mod);
-LI_API gboolean mod_balancer_free(liModules *mods, liModule *mod);
+LI_API gboolean mod_balance_init(liModules *mods, liModule *mod);
+LI_API gboolean mod_balance_free(liModules *mods, liModule *mod);
 
 typedef enum {
 	BE_ALIVE,
@@ -329,7 +329,7 @@ static void _balancer_context_select_backend(balancer *b, gpointer *context, gin
 }
 
 static liHandlerResult balancer_act_select(liVRequest *vr, gboolean backlog_provided, gpointer param, gpointer *context) {
-	balancer *b = (balancer*) param;
+	balancer *b = param;
 	bcontext *bc = *context;
 	gint be_ndx, load;
 	guint i, j;
@@ -460,7 +460,7 @@ static liHandlerResult balancer_act_select(liVRequest *vr, gboolean backlog_prov
 }
 
 static liHandlerResult balancer_act_fallback(liVRequest *vr, gboolean backlog_provided, gpointer param, gpointer *context, liBackendError error) {
-	balancer *b = (balancer*) param;
+	balancer *b = param;
 	bcontext *bc = *context;
 	backend *be;
 	gboolean debug = _OPTION(vr, b->p, 0).boolean;
@@ -497,7 +497,7 @@ static liHandlerResult balancer_act_fallback(liVRequest *vr, gboolean backlog_pr
 }
 
 static liHandlerResult balancer_act_finished(liVRequest *vr, gpointer param, gpointer context) {
-	balancer *b = (balancer*) param;
+	balancer *b = param;
 	bcontext *bc = context;
 	gboolean debug = _OPTION(vr, b->p, 0).boolean;
 
@@ -543,14 +543,14 @@ static liAction* balancer_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 }
 
 static const liPluginOption options[] = {
-	{ "balancer.debug", LI_VALUE_BOOLEAN, FALSE, NULL },
+	{ "balance.debug", LI_VALUE_BOOLEAN, FALSE, NULL },
 
 	{ NULL, 0, 0, NULL }
 };
 
 static const liPluginAction actions[] = {
-	{ "balancer.rr", balancer_create, GINT_TO_POINTER(BM_ROUNDROBIN) },
-	{ "balancer.sqf", balancer_create, GINT_TO_POINTER(BM_SQF) },
+	{ "balance.rr", balancer_create, GINT_TO_POINTER(BM_ROUNDROBIN) },
+	{ "balance.sqf", balancer_create, GINT_TO_POINTER(BM_SQF) },
 	{ NULL, NULL, NULL }
 };
 
@@ -568,15 +568,15 @@ static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
 }
 
 
-gboolean mod_balancer_init(liModules *mods, liModule *mod) {
+gboolean mod_balance_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
 
-	mod->config = li_plugin_register(mods->main, "mod_balancer", plugin_init, NULL);
+	mod->config = li_plugin_register(mods->main, "mod_balance", plugin_init, NULL);
 
 	return mod->config != NULL;
 }
 
-gboolean mod_balancer_free(liModules *mods, liModule *mod) {
+gboolean mod_balance_free(liModules *mods, liModule *mod) {
 	if (mod->config)
 		li_plugin_free(mods->main, mod->config);
 

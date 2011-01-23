@@ -33,7 +33,7 @@ def build(bld):
 	lighty_mod(bld, 'mod_access', 'mod_access.c')
 	lighty_mod(bld, 'mod_accesslog', 'mod_accesslog.c')
 	lighty_mod(bld, 'mod_auth', 'mod_auth.c')
-	lighty_mod(bld, 'mod_balancer', 'mod_balancer.c')
+	lighty_mod(bld, 'mod_balance', 'mod_balance.c')
 	lighty_mod(bld, 'mod_cache_disk_etag', 'mod_cache_disk_etag.c')
 	uselib = []
 	if env['HAVE_ZLIB'] == 1:
