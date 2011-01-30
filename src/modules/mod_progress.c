@@ -445,7 +445,7 @@ static gboolean progress_methods_parse(liServer *srv, liWorker *wrk, liPlugin *p
 
 	/* default value */
 	if (!val) {
-		oval->number = 1 << LI_HTTP_METHOD_GET;
+		oval->number = 1 << LI_HTTP_METHOD_POST;
 		return TRUE;
 	}
 
@@ -511,8 +511,8 @@ static void progress_prepare(liServer *srv, liPlugin *p) {
 
 
 static const liPluginOption options[] = {
-	{ "progress.debug", LI_VALUE_BOOLEAN, 0, NULL },
-	{ "progress.methods", LI_VALUE_LIST, (1 << LI_HTTP_METHOD_POST), progress_methods_parse },
+	{ "progress.debug", LI_VALUE_BOOLEAN, FALSE, NULL },
+	{ "progress.methods", LI_VALUE_LIST, 0, progress_methods_parse },
 
 	{ NULL, 0, 0, NULL }
 };

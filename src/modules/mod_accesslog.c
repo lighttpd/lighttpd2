@@ -180,12 +180,12 @@ static al_format al_get_format(gchar c) {
 		return NULL; \
 	} while (0)
 
-static GArray *al_parse_format(liServer *srv, GString *formatstr) {
+static GArray *al_parse_format(liServer *srv, const gchar *formatstr) {
 	GArray *arr = g_array_new(FALSE, TRUE, sizeof(al_format_entry));
 	al_format_entry e;
-	gchar *c, *k;
+	const gchar *c, *k;
 
-	for (c = formatstr->str; *c != '\0';) {
+	for (c = formatstr; *c != '\0';) {
 
 		if (*c == '%') {
 			c++;
@@ -466,15 +466,13 @@ static gboolean al_option_accesslog_format_parse(liServer *srv, liWorker *wrk, l
 
 	if (!val) {
 		/* default */
-		return TRUE;
-	}
-
-	if (val->type != LI_VALUE_STRING) {
+		arr = al_parse_format(srv, AL_DEFAULT_FORMAT);
+	} else if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "accesslog.format option expects a string as parameter, %s given", li_value_type_string(val->type));
 		return FALSE;
+	} else {
+		arr = al_parse_format(srv, val->data.string->str);
 	}
-
-	arr = al_parse_format(srv, val->data.string);
 
 	if (!arr) {
 		ERROR(srv, "%s", "failed to parse accesslog format");
@@ -489,7 +487,7 @@ static gboolean al_option_accesslog_format_parse(liServer *srv, liWorker *wrk, l
 
 static const liPluginOptionPtr optionptrs[] = {
 	{ "accesslog", LI_VALUE_NONE, NULL, al_option_accesslog_parse, al_option_accesslog_free },
-	{ "accesslog.format", LI_VALUE_STRING, AL_DEFAULT_FORMAT, al_option_accesslog_format_parse, al_option_accesslog_format_free },
+	{ "accesslog.format", LI_VALUE_STRING, NULL, al_option_accesslog_format_parse, al_option_accesslog_format_free },
 
 	{ NULL, 0, NULL, NULL, NULL }
 };
