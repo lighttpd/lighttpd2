@@ -287,8 +287,8 @@ static int hex2int(unsigned char hex) {
 }
 
 void li_url_decode(GString *path) {
-	char *src, *dst, c;
-	src = dst = path->str;
+	unsigned char *src, *dst, c;
+	src = dst = (unsigned char*) path->str;
 	for ( ; *src; src++) {
 		c = *src;
 		if (c == '%') {
@@ -309,7 +309,7 @@ void li_url_decode(GString *path) {
 			*(dst++) = c;
 		}
 	}
-	g_string_set_size(path, dst - path->str);
+	g_string_set_size(path, dst - (unsigned char*) path->str);
 }
 
 /* Remove "/../", "//", "/./" parts from path.

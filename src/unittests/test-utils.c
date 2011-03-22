@@ -121,6 +121,8 @@ static void test_apr_sha1_base64_1(void) {
 	li_apr_sha1_base64(dest, &pass);
 
 	g_assert_cmpstr(dest->str, ==, "{SHA}Ys23Ag/5IOWqZCw9QGaVDdHwH00=");
+
+	g_string_free(dest, TRUE);
 }
 
 static void test_apr_sha1_base64_2(void) {
@@ -130,6 +132,8 @@ static void test_apr_sha1_base64_2(void) {
 	li_apr_sha1_base64(dest, &pass);
 
 	g_assert_cmpstr(dest->str, ==, "{SHA}LbTBgR9CRYKpD41+53mVzwGNlEM=");
+
+	g_string_free(dest, TRUE);
 }
 
 static void test_apr_md5_crypt(void) {
@@ -140,6 +144,19 @@ static void test_apr_md5_crypt(void) {
 	li_apr_md5_crypt(dest, &pass, &hash);
 
 	g_assert_cmpstr(dest->str, ==, hash.str);
+
+	g_string_free(dest, TRUE);
+}
+
+static void test_url_decode(void) {
+	GString *url = g_string_new_len(CONST_STR_LEN("/umlaut/path/%C3%A4%C3%B6%C3%BC%C3%9F"));
+	GString decoded_url = li_const_gstring(CONST_STR_LEN("/umlaut/path/äöüß"));
+
+	li_url_decode(url);
+
+	g_assert_cmpstr(url->str, ==, decoded_url.str);
+
+	g_string_free(url, TRUE);
 }
 
 int main(int argc, char **argv) {
@@ -150,6 +167,7 @@ int main(int argc, char **argv) {
 	g_test_add_func("/utils/apr_sha1_base64/1", test_apr_sha1_base64_1);
 	g_test_add_func("/utils/apr_sha1_base64/2", test_apr_sha1_base64_2);
 	g_test_add_func("/utils/apr_md5_crypt", test_apr_md5_crypt);
+	g_test_add_func("/utils/url_decode", test_url_decode);
 
 	return g_test_run();
 }
