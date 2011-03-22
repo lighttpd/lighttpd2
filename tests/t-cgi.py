@@ -11,9 +11,9 @@ class CGI(FastCGI):
 
 SCRIPT_PATHINFO="""#!/bin/sh
 
-echo -en 'Status: 200\\r\\nContent-Type: text/plain\\r\\n\\r\\n'
+printf 'Status: 200\\r\\nContent-Type: text/plain\\r\\n\\r\\n'
 
-echo -n ${PATH_INFO}
+printf '%s' "${PATH_INFO}"
 
 """
 
