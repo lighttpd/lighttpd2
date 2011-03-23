@@ -18,9 +18,10 @@ AC_PROG_MAKE_SET
 AC_PROG_INSTALL
 # AC_PROG_RANLIB
 
-AC_PATH_PROG([RAGEL], [ragel], [
+AC_PATH_PROG([RAGEL], [ragel])
+if test "x$RAGEL" = "x"; then
 	AC_MSG_ERROR([ragel not found])
-])
+fi
 AC_SUBST([RAGEL])
 
 dnl libtool
@@ -86,7 +87,7 @@ PKG_CHECK_MODULES([LIBEV], [libev], [], [
 			AC_CHECK_LIB([ev], [ev_time], [
 					LIBEV_LIBS="-lev"
 				],[
-				AC_MSG_ERROR([libev not found])
+					AC_MSG_ERROR([libev not found])
 				]
 			)],[
 				AC_MSG_ERROR([libev not found])
