@@ -9,22 +9,31 @@ class CGI(FastCGI):
 	binary = [ Env.fcgi_cgi ]
 
 
-SCRIPT_PATHINFO="""#!/bin/sh
+SCRIPT_ENVCHECK="""#!/bin/sh
 
 printf 'Status: 200\\r\\nContent-Type: text/plain\\r\\n\\r\\n'
 
-printf '%s' "${PATH_INFO}"
+envvar=${QUERY_STRING}
+eval val='$'${envvar}
+
+printf '%s' "${val}"
 
 """
 
 class TestPathInfo1(CurlRequest):
-	URL = "/pathinfo.cgi/abc/xyz"
+	URL = "/envcheck.cgi/abc/xyz?PATH_INFO"
 	EXPECT_RESPONSE_BODY = "/abc/xyz"
+	EXPECT_RESPONSE_CODE = 200
+
+class TestRequestUri1(CurlRequest):
+	URL = "/envcheck.cgi/abc/xyz?REQUEST_URI"
+	EXPECT_RESPONSE_BODY = "/envcheck.cgi/abc/xyz?REQUEST_URI"
 	EXPECT_RESPONSE_CODE = 200
 
 class Test(GroupTest):
 	group = [
 		TestPathInfo1,
+		TestRequestUri1,
 	]
 
 	config = """
@@ -53,4 +62,4 @@ cgi {{
 		return True
 
 	def Prepare(self):
-		self.PrepareVHostFile("pathinfo.cgi", SCRIPT_PATHINFO, mode = 0755)
+		self.PrepareVHostFile("envcheck.cgi", SCRIPT_ENVCHECK, mode = 0755)

@@ -26,6 +26,7 @@
 	}
 	action save_query {
 		g_string_append_len(uri->query, mark, fpc - mark);
+		g_string_append_len(uri->raw_path, mark-1, fpc - mark+1); /* include '?' in append */
 	}
 	action save_scheme {
 		g_string_append_len(uri->scheme, mark, fpc - mark);
