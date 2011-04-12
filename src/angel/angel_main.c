@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
 	gchar const *const def_module_dir = DEFAULT_LIBDIR;
 	gchar const *module_dir = def_module_dir;
 	gboolean module_resident = FALSE;
-	gchar const *config_path = NULL, *pidfile = NULL;
+	gchar const *config_path = NULL;
 
 	gboolean res;
 	int result = 0;
@@ -38,8 +38,6 @@ int main(int argc, char *argv[]) {
 		{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_path, "filename/path of the config", "PATH" },
 		{ "module-dir", 'm', 0, G_OPTION_ARG_STRING, &module_dir, "module directory [default: " DEFAULT_LIBDIR "]", "PATH" },
 		{ "module-resident", 0, 0, G_OPTION_ARG_NONE, &module_resident, "never unload modules (e.g. for valgrind)", NULL },
-		/* { "no-daemon", 'n', 0, G_OPTION_ARG_NONE, &no_fork, "Don't fork (for daemontools)", NULL }, */
-		{ "pid-file", 0, 0, G_OPTION_ARG_STRING, &pidfile, "Location of the pid file (only valid in daemon mode)", "PATH" },
 		{ "version", 'v', 0, G_OPTION_ARG_NONE, &show_version, "show version and exit", NULL },
 		{ NULL, 0, 0, 0, NULL, NULL, NULL }
 	};
