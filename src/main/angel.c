@@ -86,7 +86,7 @@ static void li_angel_listen_cb(liAngelCall *acall, gpointer pctx, gboolean timeo
 /* listen to a socket */
 void li_angel_listen(liServer *srv, GString *str, liAngelListenCB cb, gpointer data) {
 	if (srv->acon) {
-		liAngelCall *acall = li_angel_call_new(li_angel_listen_cb, 10.0);
+		liAngelCall *acall = li_angel_call_new(li_angel_listen_cb, 20.0);
 		angel_listen_cb_ctx *ctx = g_slice_new0(angel_listen_cb_ctx);
 		GError *err = NULL;
 
