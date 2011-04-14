@@ -37,7 +37,7 @@ local function wsgi(uri_prefix, act)
 		return nil
 	end
 
-	local uri_len = uri_prefix:len()
+	local uri_len = uri_prefix:len()+1
 
 	local function wsgi_rewrite(vr)
 		vr.phys.pathinfo = vr.req.uri.path:sub(uri_len)
