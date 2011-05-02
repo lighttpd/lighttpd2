@@ -623,7 +623,9 @@ liSocketAddress li_sockaddr_from_string(const GString *str, guint tcp_default_po
 
 #ifdef HAVE_SYS_UN_H
 	if (0 == strncmp(str->str, "unix:/", 6)) {
-		saddr.len = str->len + 1 - 5 + sizeof(saddr.addr->un.sun_family);
+		/* try to support larger unix socket names than what fits in the default sockaddr_un struct */
+		saddr.len = str->len + 1 - 5 + sizeof(saddr.addr->un) - sizeof(saddr.addr->un.sun_path);
+		if (saddr.len < sizeof(saddr.addr->un)) saddr.len = sizeof(saddr.addr->un);
 		saddr.addr = (liSockAddr*) g_slice_alloc0(saddr.len);
 		saddr.addr->un.sun_family = AF_UNIX;
 		strcpy(saddr.addr->un.sun_path, str->str + 5);
