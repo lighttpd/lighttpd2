@@ -36,6 +36,8 @@ struct liServerSocket {
 	liServer *srv;
 	ev_io watcher;
 
+	liSocketAddress local_addr;
+
 	/* Custom sockets (ssl) */
 	gpointer data;
 	liConnectionWriteCB write_cb;

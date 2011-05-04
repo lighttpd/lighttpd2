@@ -146,6 +146,7 @@
 #cmakedefine  HAVE_STRPTIME
 #cmakedefine  HAVE_SYSLOG
 #cmakedefine  HAVE_WRITEV
+#cmakedefine  HAVE_ACCEPT4
 
 /* libcrypt */
 #cmakedefine  HAVE_LIBCRYPT

@@ -19,6 +19,7 @@ static void state_ready_cb(struct ev_loop *loop, struct ev_async *w, int revents
 static liServerSocket* server_socket_new(int fd) {
 	liServerSocket *sock = g_slice_new0(liServerSocket);
 
+	sock->local_addr = li_sockaddr_local_from_socket(fd);
 	sock->refcount = 1;
 	sock->watcher.data = sock;
 	li_fd_init(fd);
@@ -430,7 +431,19 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		}
 
 		l = sizeof(sa);
+
+#ifdef HAVE_ACCEPT4
+		if (-1 == (s = accept4(w->fd, &sa.plain, &l, SOCK_NONBLOCK))) {
+			if (ENOSYS != errno) break;
+
+			/* fallback */
+			if (-1 == (s = accept(w->fd, &sa.plain, &l))) break;
+			li_fd_no_block(s); /* we don't fork, don't care about FD_CLOEXEC */
+		}
+#else
 		if (-1 == (s = accept(w->fd, &sa.plain, &l))) break;
+		li_fd_no_block(s); /* we don't fork, don't care about FD_CLOEXEC */
+#endif
 
 		wrk = srv->main_worker;
 		min_load = g_atomic_int_get(&wrk->connection_load);
@@ -442,8 +455,6 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		} else {
 			remote_addr = li_sockaddr_remote_from_socket(s);
 		}
-
-		li_fd_no_block(s); /* we don't fork, don't care about FD_CLOEXEC */
 
 		for (i = 1; i < srv->worker_count; i++) {
 			liWorker *wt = g_array_index(srv->workers, liWorker*, i);

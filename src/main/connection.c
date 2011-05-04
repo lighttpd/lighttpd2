@@ -766,7 +766,7 @@ void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, 
 	con->info.remote_addr = remote_addr;
 	li_sockaddr_to_string(remote_addr, con->info.remote_addr_str, FALSE);
 
-	con->info.local_addr = li_sockaddr_local_from_socket(s);
+	con->info.local_addr = li_sockaddr_dup(srv_sock->local_addr);
 	li_sockaddr_to_string(con->info.local_addr, con->info.local_addr_str, FALSE);
 
 	li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);

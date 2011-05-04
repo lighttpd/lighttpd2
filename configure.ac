@@ -170,6 +170,7 @@ AC_CHECK_FUNCS([ \
 	sendfile64 \
 	sendfilev \
 	writev \
+	accept4 \
 ])
 
 dnl Check for IPv6 support
