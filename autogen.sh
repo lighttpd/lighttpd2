@@ -1,7 +1,11 @@
 #!/bin/sh
 # Run this to generate all the initial makefiles, etc.
 
-LIBTOOLIZE=${LIBTOOLIZE:-libtoolize}
+if which glibtoolize >/dev/null 2>&1; then
+  LIBTOOLIZE=${LIBTOOLIZE:-glibtoolize}
+else
+  LIBTOOLIZE=${LIBTOOLIZE:-libtoolize}
+fi
 LIBTOOLIZE_FLAGS="--copy --force"
 ACLOCAL=${ACLOCAL:-aclocal}
 AUTOHEADER=${AUTOHEADER:-autoheader}
