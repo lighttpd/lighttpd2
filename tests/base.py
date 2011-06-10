@@ -114,6 +114,10 @@ class TestBase(object):
 		if None != self.config:
 			errorlog = self.PrepareFile("log/error.log-%s" % self.vhost, "")
 			accesslog = self.PrepareFile("log/access.log-%s" % self.vhost, "")
+			if None != self.vhostdir:
+				docroot = 'docroot "%s";' % self.vhostdir
+			else:
+				docroot = ''
 			if self.subdomains:
 				config = """
 # %s
@@ -121,11 +125,11 @@ class TestBase(object):
 var.reg_vhosts = var.reg_vhosts + [ "%s" : ${
 		log = [ "*": "file:%s" ];
 		accesslog = "%s";
-		docroot "%s";
+		%s
 %s
 	}
 ];
-""" % (self.name, regex_subvhosts(self.vhost), errorlog, accesslog, self.vhostdir, self.config)
+""" % (self.name, regex_subvhosts(self.vhost), errorlog, accesslog, docroot, self.config)
 			else:
 				config = """
 # %s
@@ -133,11 +137,11 @@ var.reg_vhosts = var.reg_vhosts + [ "%s" : ${
 var.vhosts = var.vhosts + [ "%s" : ${
 		log = [ "*": "file:%s" ];
 		accesslog = "%s";
-		docroot "%s";
+		%s
 %s
 	}
 ];
-""" % (self.name, self.vhost, errorlog, accesslog, self.vhostdir, self.config)
+""" % (self.name, self.vhost, errorlog, accesslog, docroot, self.config)
 
 			self.tests.append_vhosts_config(config)
 
