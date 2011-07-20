@@ -887,6 +887,7 @@ static liHandlerResult core_handle_log_write(liVRequest *vr, gpointer param, gpo
 	UNUSED(context);
 
 	/* eval pattern, ignore $n */
+	g_string_truncate(vr->wrk->tmp_str, 0);
 	li_pattern_eval(vr, vr->wrk->tmp_str, pattern, NULL, NULL, li_pattern_regex_cb, match_info);
 
 	VR_INFO(vr, "%s", vr->wrk->tmp_str->str);
