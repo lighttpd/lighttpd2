@@ -8,17 +8,16 @@ static void job_queue_run(liJobQueue* jq, int loops) {
 	int i;
 
 	for (i = 0; i < loops; i++) {
-		GQueue q = jq->queue;
+		GQueue *q = &jq->queue;
 		GList *l;
 		liJob *job;
+		guint todo = q->length;
 
 		INC_GEN(jq);
 
-		if (q.length == 0) return;
+		if (0 == todo) return;
 
-		g_queue_init(&jq->queue); /* reset queue, elements are in q */
-
-		while (NULL != (l = g_queue_pop_head_link(&q))) {
+		while ((todo-- > 0) && (NULL != (l = g_queue_pop_head_link(q)))) {
 			job = LI_CONTAINER_OF(l, liJob, link);
 			job->generation = jq->generation;
 			job->link.data = NULL;
