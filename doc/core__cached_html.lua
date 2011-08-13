@@ -1,5 +1,10 @@
 local function try_cached_html(vr)
-	local p = vr.phys.path .. '.html'
+	local p = vr.phys.path
+	if p:sub(-1) == '/' then
+		p = p:sub(0, -2) .. '.html'
+	else
+		p = p .. '.html'
+	end
 	st, res = vr:stat(p)
 	if st and st.is_file then
 		-- found the file
