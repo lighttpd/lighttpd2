@@ -22,6 +22,7 @@ struct liConfigParserContext {
 	gchar *mark;
 	gboolean in_setup_block;
 
+	gboolean action_call_with_param;
 
 	gboolean condition_with_key;
 	gboolean condition_nonbool;
@@ -35,9 +36,9 @@ struct liConfigParserContext {
 	GHashTable *uservars; /* var.foo */
 
 	GQueue *action_list_stack; /* first entry is current action list */
-	GQueue *option_stack; /* stack of liValue* */
-	GQueue *condition_stack; /* stack of condition* */
+	GQueue *value_stack; /* stack of liValue* */
 	GQueue *value_op_stack; /* stack of gchar* */
+	GQueue *condition_stack; /* stack of condition* */
 
 	/* information about currenty parsed file */
 	gchar *filename;

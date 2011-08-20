@@ -44,7 +44,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		liValue *o;
 
 		o = li_value_new_bool(*ctx->mark == 't' ? TRUE : FALSE);
-		g_queue_push_head(ctx->option_stack, o);
+		g_queue_push_head(ctx->value_stack, o);
 
 		_printf("got boolean %s in line %zd\n", *ctx->mark == 't' ? "true" : "false", ctx->line);
 	}
@@ -58,7 +58,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		o = li_value_new_number(i);
 		/* push value onto stack */
-		g_queue_push_head(ctx->option_stack, o);
+		g_queue_push_head(ctx->value_stack, o);
 
 		_printf("got integer %" G_GINT64_FORMAT " in line %zd\n", i, ctx->line);
 	}
@@ -67,7 +67,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		liValue *o;
 		GString *str;
 
-		o = g_queue_peek_head(ctx->option_stack);
+		o = g_queue_peek_head(ctx->value_stack);
 
 		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
 
@@ -146,7 +146,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		}
 
 		o = li_value_new_string(str);
-		g_queue_push_head(ctx->option_stack, o);
+		g_queue_push_head(ctx->value_stack, o);
 
 		_printf("got string %s", "");
 		for (gchar *c = ctx->mark + 1; c < fpc - 1; c++) _printf("%c", *c);
@@ -159,7 +159,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		/* create new list value and put it on stack, list entries are put in it by getting the previous value from the stack */
 		o = li_value_new_list();
-		g_queue_push_head(ctx->option_stack, o);
+		g_queue_push_head(ctx->value_stack, o);
 
 		fcall list_scanner;
 	}
@@ -168,9 +168,9 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		liValue *o, *l;
 
 		/* pop current value from stack and append it to the new top of the stack value (the list) */
-		o = g_queue_pop_head(ctx->option_stack);
+		o = g_queue_pop_head(ctx->value_stack);
 
-		l = g_queue_peek_head(ctx->option_stack);
+		l = g_queue_peek_head(ctx->value_stack);
 		assert(l->type == LI_VALUE_LIST);
 
 		g_array_append_val(l->data.list, o);
@@ -187,7 +187,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		/* create new hash value and put it on stack, if a key-value pair is encountered, get it by walking 2 steps back the stack */
 		o = li_value_new_hash();
-		g_queue_push_head(ctx->option_stack, o);
+		g_queue_push_head(ctx->value_stack, o);
 
 		fcall hash_scanner;
 	}
@@ -196,9 +196,9 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		liValue *k, *v, *h; /* key value hashtable */
 		GString *str;
 
-		v = g_queue_pop_head(ctx->option_stack);
-		k = g_queue_pop_head(ctx->option_stack);
-		h = g_queue_peek_head(ctx->option_stack);
+		v = g_queue_pop_head(ctx->value_stack);
+		k = g_queue_pop_head(ctx->value_stack);
+		h = g_queue_peek_head(ctx->value_stack);
 
 		/* duplicate key so value can be free'd */
 		str = g_string_new_len(k->data.string->str, k->data.string->len);
@@ -234,8 +234,8 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		liValue *k, *v, *l;
 		/* we have a key and a value on the stack; convert them to a list with 2 elements */
 
-		v = g_queue_pop_head(ctx->option_stack);
-		k = g_queue_pop_head(ctx->option_stack);
+		v = g_queue_pop_head(ctx->value_stack);
+		k = g_queue_pop_head(ctx->value_stack);
 
 		l = li_value_new_list();
 
@@ -245,7 +245,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		_printf("key-value pair: %s => %s in line %zd\n", li_value_type_string(k->type), li_value_type_string(v->type), ctx->line);
 
 		/* push list on the stack */
-		g_queue_push_head(ctx->option_stack, l);
+		g_queue_push_head(ctx->value_stack, l);
 
 		/* fpc--; */
 
@@ -255,7 +255,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	action liValue {
 		liValue *o;
 
-		o = g_queue_peek_head(ctx->option_stack);
+		o = g_queue_peek_head(ctx->value_stack);
 
 		/* check if we need to cast the value */
 		if (ctx->cast != LI_CFG_PARSER_CAST_NONE) {
@@ -333,8 +333,8 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		free_l = free_r = TRUE;
 
-		r = g_queue_pop_head(ctx->option_stack);
-		l = g_queue_pop_head(ctx->option_stack);
+		r = g_queue_pop_head(ctx->value_stack);
+		l = g_queue_pop_head(ctx->value_stack);
 		o = NULL;
 
 		op = *(gchar*)g_queue_pop_head(ctx->value_op_stack);
@@ -433,7 +433,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		if (free_r)
 			li_value_free(r);
 
-		g_queue_push_head(ctx->option_stack, o);
+		g_queue_push_head(ctx->value_stack, o);
 	}
 
 	action varname {
@@ -443,7 +443,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
 		o = li_value_new_string(str);
-		g_queue_push_head(ctx->option_stack, o);
+		g_queue_push_head(ctx->value_stack, o);
 		_printf("got varname %s\n", str->str);
 	}
 
@@ -451,7 +451,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		/* varname is on the stack */
 		liValue *o, *r, *t;
 
-		o = g_queue_pop_head(ctx->option_stack);
+		o = g_queue_pop_head(ctx->value_stack);
 
 		_printf("got actionref: %s in line %zd\n", o->data.string->str, ctx->line);
 
@@ -505,7 +505,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			r = li_value_new_action(srv, a);
 		}
 
-		g_queue_push_head(ctx->option_stack, r);
+		g_queue_push_head(ctx->value_stack, r);
 		li_value_free(o);
 	}
 
@@ -532,23 +532,129 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	}
 
 	# statements
-	action assignment {
+	action action_call_noparam {
+		ctx->action_call_with_param = FALSE;
+	}
+
+	action action_call_param {
+		ctx->action_call_with_param = TRUE;
+	}
+
+	action action_call {
 		liValue *val, *name;
 		liAction *a, *al;
 
-		/* top of the stack is the value, then the varname as string value */
-		val = g_queue_pop_head(ctx->option_stack);
-		name = g_queue_pop_head(ctx->option_stack);
+		if (ctx->action_call_with_param) {
+			/* top of the stack is the value, then the varname as string value */
+			val = g_queue_pop_head(ctx->value_stack);
+			name = g_queue_pop_head(ctx->value_stack);
+		} else {
+			val = NULL;
+			name = g_queue_pop_head(ctx->value_stack);
+		}
+
+		ctx->action_call_with_param = FALSE;
 
 		assert(name->type == LI_VALUE_STRING);
 
-		_printf("got assignment: %s = %s; in line %zd\n", name->data.string->str, li_value_type_string(val->type), ctx->line);
+		_printf("got action call: %s %s; in line %zd\n", name->data.string->str, val ? li_value_type_string(val->type) : "<none>", ctx->line);
 
-		if (g_str_has_prefix(name->data.string->str, "var.")) {
+		/* internal functions */
+		if (g_str_equal(name->data.string->str, "include")) {
+			li_value_free(name);
+
+			if (!val) {
+				WARNING(srv, "%s", "include directive takes a string as parameter");
+				return FALSE;
+			}
+
+			if (!config_parser_include(srv, ctx_stack, val->data.string->str)) {
+				li_value_free(val);
+				return FALSE;
+			}
+
+			li_value_free(val);
+		} else if (g_str_equal(name->data.string->str, "include_shell")) {
+			li_value_free(name);
+
+			if (!val) {
+				WARNING(srv, "%s", "include_shell directive takes a string as parameter");
+				return FALSE;
+			}
+
+			if (val->type != LI_VALUE_STRING) {
+				WARNING(srv, "include_shell directive takes a string as parameter, %s given", li_value_type_string(val->type));
+				li_value_free(val);
+				return FALSE;
+			}
+
+			if (!config_parser_shell(srv, ctx_stack, val->data.string->str)) {
+				li_value_free(val);
+				return FALSE;
+			}
+
+			li_value_free(val);
+		}
+#ifdef HAVE_LUA_H
+		else if (g_str_equal(name->data.string->str, "include_lua")) {
+			li_value_free(name);
+
+			if (!val) {
+				WARNING(srv, "%s", "include_lua directive takes a string as parameter");
+				return FALSE;
+			}
+
+			if (val->type != LI_VALUE_STRING) {
+				WARNING(srv, "include_lua directive takes a string as parameter, %s given", li_value_type_string(val->type));
+				li_value_free(val);
+				return FALSE;
+			}
+
+			if (!li_config_lua_load(srv->L, srv, srv->main_worker, val->data.string->str, &a, TRUE, NULL)) {
+				ERROR(srv, "include_lua '%s' failed", val->data.string->str);
+				li_value_free(val);
+				return FALSE;
+			}
+
+			/* include lua doesn't need to produce an action */
+			if (a != NULL) {
+				al = g_queue_peek_head(ctx->action_list_stack);
+				g_array_append_val(al->data.list, a);
+			}
+
+			li_value_free(val);
+		}
+#endif
+		else if (g_str_has_prefix(name->data.string->str, "__")) {
+			if (g_str_equal(name->data.string->str + 2, "print")) {
+				if (!val) {
+					WARNING(srv, "%s", "__print directive needs a parameter");
+					return FALSE;
+				}
+
+				GString *tmpstr = li_value_to_string(val);
+				DEBUG(srv, "%s:%zd type: %s, value: %s", ctx->filename, ctx->line, li_value_type_string(val->type), tmpstr->str);
+				g_string_free(tmpstr, TRUE);
+			}
+
+			li_value_free(name);
+			if (val)
+				li_value_free(val);
+		} else if (g_str_has_prefix(name->data.string->str, "var.")) {
 			/* assignment vor user defined variable, insert into hashtable */
 			gpointer old_key;
 			gpointer old_val;
-			GString *str = li_value_extract_string(name);
+			GString *str;
+
+			_printf("%s", "... which is a user defined var\n");
+
+			if (!val) {
+				WARNING(srv, "%s", "var. definitions expect a parameter");
+				li_value_free(name);
+				return FALSE;
+			}
+
+			str = li_value_extract_string(name);
 
 			/* free old key and value if we are overwriting it */
 			if (g_hash_table_lookup_extended(ctx->uservars, str, &old_key, &old_val)) {
@@ -558,168 +664,63 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			}
 
 			g_hash_table_insert(ctx->uservars, str, val);
-		} else if (ctx->in_setup_block) {
-			/* in setup { } block, override default values for options */
-
-			if (!li_plugin_set_default_option(srv, name->data.string->str, val)) {
-				ERROR(srv, "failed overriding default value for option \"%s\"", name->data.string->str);
-				li_value_free(name);
-				li_value_free(val);
-				return FALSE;
-			}
-
-			li_value_free(val);
-		} else {
-			/* normal assignment */
-			a = li_option_action(srv, srv->main_worker, name->data.string->str, val);
-			li_value_free(val);
-
-			if (a == NULL) {
-				li_value_free(name);
-				return FALSE;
-			}
-
-			al = g_queue_peek_head(ctx->action_list_stack);
-			g_array_append_val(al->data.list, a);
-		}
-
-		li_value_free(name);
-	}
-
-	action function_noparam {
-		liValue *name;
-		liAction *a, *al;
-
-		name = g_queue_pop_head(ctx->option_stack);
-
-		assert(name->type == LI_VALUE_STRING);
-
-		_printf("got function: %s; in line %zd\n", name->data.string->str, ctx->line);
-
-		if (g_str_equal(name->data.string->str, "break")) {
-		} else if (g_str_equal(name->data.string->str, "__halt")) {
-		} else {
-			if (ctx->in_setup_block) {
-				/* we are in the setup { } block, call setups and don't append to action list */
-				if (!li_call_setup(srv, name->data.string->str, NULL)) {
-					li_value_free(name);
-					return FALSE;
-				}
-			} else {
-				/* lookup hashtable of defined actions */
-				a = g_hash_table_lookup(ctx->action_blocks, name->data.string);
-
-				if (a == NULL) {
-					a = li_create_action(srv, srv->main_worker, name->data.string->str, NULL);
-				} else {
-					li_action_acquire(a);
-				}
-
-				if (a == NULL) {
-					li_value_free(name);
-					return FALSE;
-				}
-
-				if (a == NULL) {
-					li_value_free(name);
-					return FALSE;
-				}
-
-				al = g_queue_peek_head(ctx->action_list_stack);
-				g_array_append_val(al->data.list, a);
-			}
-		}
-
-		li_value_free(name);
-	}
-
-	action function_param {
-		/* similar to assignment */
-		liValue *val, *name;
-		liAction *a, *al;
-
-		/* top of the stack is the value, then the varname as string value */
-		val = g_queue_pop_head(ctx->option_stack);
-		name = g_queue_pop_head(ctx->option_stack);
-
-		assert(name->type == LI_VALUE_STRING);
-
-		_printf("got function: %s %s; in line %zd\n", name->data.string->str, li_value_type_string(val->type), ctx->line);
-
-		if (g_str_equal(name->data.string->str, "include")) {
-			li_value_free(name);
-
-			if (!config_parser_include(srv, ctx_stack, val->data.string->str)) {
-				li_value_free(val);
-				return FALSE;
-			}
-
-			li_value_free(val);
-		} else if (g_str_equal(name->data.string->str, "include_shell")) {
-			if (val->type != LI_VALUE_STRING) {
-				WARNING(srv, "include_shell directive takes a string as parameter, %s given", li_value_type_string(val->type));
-				li_value_free(name);
-				li_value_free(val);
-				return FALSE;
-			}
-
-			if (!config_parser_shell(srv, ctx_stack, val->data.string->str)) {
-				li_value_free(name);
-				li_value_free(val);
-				return FALSE;
-			}
-
-			li_value_free(val);
-		}
-#ifdef HAVE_LUA_H
-		else if (g_str_equal(name->data.string->str, "include_lua")) {
-			if (val->type != LI_VALUE_STRING) {
-				WARNING(srv, "include_lua directive takes a string as parameter, %s given", li_value_type_string(val->type));
-				li_value_free(name);
-				li_value_free(val);
-				return FALSE;
-			}
-
-			if (!li_config_lua_load(srv->L, srv, srv->main_worker, val->data.string->str, &a, TRUE, NULL)) {
-				ERROR(srv, "include_lua '%s' failed", val->data.string->str);
-				li_value_free(name);
-				li_value_free(val);
-				return FALSE;
-			}
-			li_value_free(name);
-			li_value_free(val);
-
-			/* include lua doesn't need to produce an action */
-			if (a != NULL) {
-				al = g_queue_peek_head(ctx->action_list_stack);
-				g_array_append_val(al->data.list, a);
-			}
-		}
-#endif
-		/* internal functions */
-		else if (g_str_has_prefix(name->data.string->str, "__")) {
-			if (g_str_equal(name->data.string->str + 2, "print")) {
-				GString *tmpstr = li_value_to_string(val);
-				DEBUG(srv, "%s:%zd type: %s, value: %s", ctx->filename, ctx->line, li_value_type_string(val->type), tmpstr->str);
-				g_string_free(tmpstr, TRUE);
-			}
-
-			li_value_free(val);
 			li_value_free(name);
 		}
-		/* normal function action */
+		/* normal action call */
 		else {
-			if (ctx->in_setup_block) {
-				/* we are in the setup { } block, call setups and don't append to action list */
-				if (!li_call_setup(srv, name->data.string->str, val)) {
+			/* user defined action */
+			if (NULL != (a = g_hash_table_lookup(ctx->action_blocks, name->data.string))) {
+				_printf("%s", "... which is a user defined action\n");
+
+				if (val) {
+					WARNING(srv, "%s", "user defined actions don't take a parameter");
 					li_value_free(name);
 					li_value_free(val);
 					return FALSE;
+				} else if (ctx->in_setup_block) {
+					WARNING(srv, "%s", "user defined actions can't be called in a setup block");
+					li_value_free(name);
+					return FALSE;
 				}
 
-				li_value_free(val);
+				li_action_acquire(a);
+				al = g_queue_peek_head(ctx->action_list_stack);
+				g_array_append_val(al->data.list, a);
 			}
-			else {
+			/* setup action */
+			else if (NULL != g_hash_table_lookup(srv->setups, name->data.string->str)) {
+				_printf("%s", "... which is a setup action\n");
+
+				if (!ctx->in_setup_block) {
+					WARNING(srv, "action %s can only be called in a setup block", name->data.string->str);
+					li_value_free(name);
+					if (val)
+						li_value_free(val);
+					return FALSE;
+				}
+
+				if (!li_call_setup(srv, name->data.string->str, val)) {
+					li_value_free(name);
+					if (val)
+						li_value_free(val);
+					return FALSE;
+				}
+
+				if (val)
+					li_value_free(val);
+			}
+			/* normal action */
+			else if (NULL != g_hash_table_lookup(srv->actions, name->data.string->str)) {
+				_printf("%s", "... which is a normal action\n");
+
+				if (ctx->in_setup_block) {
+					WARNING(srv, "action %s can't be called in a setup block", name->data.string->str);
+					li_value_free(name);
+					if (val)
+						li_value_free(val);
+					return FALSE;
+				}
+
 				al = g_queue_peek_head(ctx->action_list_stack);
 				a = li_create_action(srv, srv->main_worker, name->data.string->str, val);
 				li_value_free(val);
@@ -731,77 +732,116 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 				g_array_append_val(al->data.list, a);
 			}
+			/* option assignment */
+			else if (NULL != g_hash_table_lookup(srv->optionptrs, name->data.string->str) || NULL != g_hash_table_lookup(srv->options, name->data.string->str)) {
+				_printf("%s", "... which is an option assignment\n");
+
+				if (!val) {
+					WARNING(srv, "action %s takes a parameter", name->data.string->str);
+					li_value_free(name);
+					return FALSE;
+				}
+
+				if (ctx->in_setup_block) {
+					/* in setup { } block, override default values for options */
+					if (!li_plugin_set_default_option(srv, name->data.string->str, val)) {
+						ERROR(srv, "failed overriding default value for option \"%s\"", name->data.string->str);
+						li_value_free(name);
+						li_value_free(val);
+						return FALSE;
+					}
+
+					li_value_free(val);
+				} else {
+					/* normal assignment */
+					a = li_option_action(srv, srv->main_worker, name->data.string->str, val);
+					li_value_free(val);
+
+					if (a == NULL) {
+						li_value_free(name);
+						return FALSE;
+					}
+
+					al = g_queue_peek_head(ctx->action_list_stack);
+					g_array_append_val(al->data.list, a);
+				}
+			} else {
+				WARNING(srv, "unknown action %s", name->data.string->str);
+				if (val)
+					li_value_free(val);
+				li_value_free(name);
+				return FALSE;
+			}
 
 			li_value_free(name);
 		}
 	}
 
+	action setup_block_start {
+		_printf("setup block start in line %zd\n", ctx->line);
+		ctx->in_setup_block = TRUE;
+	}
+
+	action setup_block_end {
+		liValue *v;
+
+		_printf("setup block end in line %zd\n", ctx->line);
+		/* pop option stack */
+		v = g_queue_pop_head(ctx->value_stack);
+		li_value_free(v);
+		ctx->in_setup_block = FALSE;
+	}
+
+	action action_definition {
+		liValue *name, *v;
+		liAction *al;
+		GString *str;
+
+		/* we have the action list and then the name on the option stack */
+		v = g_queue_pop_head(ctx->value_stack);
+		assert(v->type == LI_VALUE_ACTION);
+		name = g_queue_pop_head(ctx->value_stack);
+		assert(name->type == LI_VALUE_STRING);
+
+		if (ctx->in_setup_block) {
+			ERROR(srv, "%s", "no action block definition inside the setup block allowed");
+			li_value_free(v);
+			li_value_free(name);
+			return FALSE;
+		}
+
+		_printf("action block definition %s in line %zd\n", name->data.string->str, ctx->line);
+
+		al = li_value_extract_action(v);
+		str = g_string_new_len(name->data.string->str, name->data.string->len);
+		g_hash_table_insert(ctx->action_blocks, str, al);
+
+		li_value_free(v);
+		li_value_free(name);
+	}
+
 	action action_block_start {
-		liValue *o;
 		liAction *al;
 
-		o = g_queue_pop_head(ctx->option_stack);
-		assert(o->type == LI_VALUE_STRING);
-
-		if (ctx->in_setup_block) {
-			ERROR(srv, "%s", "no block inside the setup block allowed");
-			return FALSE;
-		}
-
-		if (g_str_equal(o->data.string->str, "setup")) {
-			_printf("entered setup block in line %zd\n", ctx->line);
-			ctx->in_setup_block = TRUE;
-		}
-		else {
-			GString *str;
-
-			_printf("action block %s in line %zd\n", o->data.string->str, ctx->line);
-
-			/* create new action list and put it on the stack */
-			al = li_action_new_list();
-			g_queue_push_head(ctx->action_list_stack, al);
-			/* insert into hashtable for later lookups */
-			str = g_string_new_len(o->data.string->str, o->data.string->len);
-			g_hash_table_insert(ctx->action_blocks, str, al);
-		}
-
-		li_value_free(o);
-	}
-
-	action action_block_end {
-		if (ctx->in_setup_block) {
-			ctx->in_setup_block = FALSE;
-		}
-		else {
-			/* pop action list stack */
-			g_queue_pop_head(ctx->action_list_stack);
-
-		}
-	}
-
-	action action_block_noname_start {
-		liAction *al;
-
-		if (ctx->in_setup_block) {
-			ERROR(srv, "%s", "no block inside the setup block allowed");
-			return FALSE;
-		}
-
-		_printf("action block in line %zd\n", ctx->line);
+		_printf("action block start in line %zd\n", ctx->line);
 
 		/* create new action list and put it on the stack */
 		al = li_action_new_list();
 		g_queue_push_head(ctx->action_list_stack, al);
+
+		fcall block_scanner;
 	}
 
-	action action_block_noname_end {
+	action action_block_end {
 		liValue *v;
 		liAction *a;
+
+		_printf("action block end in line %zd\n", ctx->line);
 
 		/* pop action list stack */
 		a = g_queue_pop_head(ctx->action_list_stack);
 		v = li_value_new_action(srv, a);
-		g_queue_push_head(ctx->option_stack, v);
+		g_queue_push_head(ctx->value_stack, v);
 	}
 
 	action cond_key { ctx->condition_with_key = TRUE; _printf("%s", "cond_key\n"); }
@@ -809,6 +849,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		_printf("%s", "and_or: ");
 		for (gchar *c = ctx->mark; c < fpc; c++) _printf("%c", *c);
 		_printf("%s", "\n");
+
 		/* we use spacial values 0x1 and 0x2 to indicate "and" or "or" on the condition stack */
 		if (strncmp(ctx->mark, "and", fpc - ctx->mark) == 0) {
 			/* we got an 'or', push special value 0x1 on condition stack */
@@ -830,9 +871,9 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		/* if condition is nonbool, then it has a value and maybe a key too on the stack */
 		if (ctx->condition_nonbool) {
-			val = g_queue_pop_head(ctx->option_stack);
+			val = g_queue_pop_head(ctx->value_stack);
 			if (ctx->condition_with_key)
-				key = g_queue_pop_head(ctx->option_stack);
+				key = g_queue_pop_head(ctx->value_stack);
 			else
 				key = NULL;
 		} else {
@@ -841,7 +882,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		}
 
 		/* pop varname from stack, this will be the lval */
-		varname = g_queue_pop_head(ctx->option_stack);
+		varname = g_queue_pop_head(ctx->value_stack);
 		assert(varname->type == LI_VALUE_STRING);
 
 		if (ctx->condition_nonbool) {
@@ -904,37 +945,56 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		ctx->condition_nonbool = FALSE;
 		ctx->condition_negated = FALSE;
 	}
-	action conditions {
-		liAction *a, *target_action, *action_list, *action_last_and;
-		liCondition *cond, *cond_next;
 
+	action cond_if {
+		liValue *v;
+		liAction *a, *target_action, *action_list, *action_last_or;
+		liCondition *cond, *cond_operator;
+		guint i;
+		GArray *arr;
+
+		arr = g_array_new(FALSE, TRUE, sizeof(liAction*));
 		cond = g_queue_pop_head(ctx->condition_stack);
-		target_action = g_queue_pop_head(ctx->action_list_stack);
+		v = g_queue_pop_head(ctx->value_stack);
+		target_action = li_value_extract_action(v);
+		li_value_free(v);
 		action_list = g_queue_peek_head(ctx->action_list_stack);
 
 		a = li_action_new_condition(cond, target_action, NULL);
-		action_last_and = a;
+		g_array_append_val(arr, a);
+		action_last_or = NULL;
 		_printf("new condition action: %p, target: %p\n", (void*)a, (void*)target_action);
 
-		while (NULL != (cond_next = g_queue_peek_head(ctx->condition_stack))) {
-			if (cond_next == GINT_TO_POINTER(0x1)) {
+		while (NULL != (cond_operator = g_queue_pop_head(ctx->condition_stack))) {
+			cond = g_queue_pop_head(ctx->condition_stack);
+
+			if (cond_operator == GINT_TO_POINTER(0x1)) {
 				/* 'and' */
-				g_queue_pop_head(ctx->condition_stack);
-				cond = g_queue_pop_head(ctx->condition_stack);
 				/* mark target pointer as 'and' */
-				a = li_action_new_condition(cond, (liAction*)((uintptr_t)a | 0x1), NULL);
-				_printf("new AND condition action: %p, target: %p, else: %p\n", (void*)a, (void*)action_last_and, NULL);
-				action_last_and = a;
-			} else if (cond_next == GINT_TO_POINTER(0x2)) {
+				liAction *trgt = a;
+				li_action_acquire(trgt);
+				if (action_last_or)
+					li_action_acquire(action_last_or);
+				a = li_action_new_condition(cond, trgt, action_last_or);
+				_printf("new AND condition action: %p, target: %p, else: %p\n", (void*)a, (void*)trgt, (void*)action_last_or);
+				g_array_append_val(arr, a);
+			} else if (cond_operator == GINT_TO_POINTER(0x2)) {
 				/* 'or' */
-				g_queue_pop_head(ctx->condition_stack);
-				cond = g_queue_pop_head(ctx->condition_stack);
-				a = li_action_new_condition(cond, target_action, action_last_and);
-				_printf("new OR condition action: %p, target: %p, else: %p\n", (void*)a, (void*)target_action, (void*)action_last_and);
+				action_last_or = a;
+				li_action_acquire(target_action);
+				if (action_last_or)
+					li_action_acquire(action_last_or);
+				a = li_action_new_condition(cond, target_action, action_last_or);
+				_printf("new OR condition action: %p, target: %p, else: %p\n", (void*)a, (void*)target_action, (void*)action_last_or);
+				g_array_append_val(arr, a);
 			} else {
-				break;
+				assert(FALSE);
 			}
 		}
+
+		for (i = 0; i < arr->len - 1; i++)
+			li_action_release(srv, g_array_index(arr, liAction*, i));
+		g_array_free(arr, TRUE);
 
 		g_array_append_val(action_list->data.list, a);
 	}
@@ -947,27 +1007,49 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			- get last action from action list
 			- put current action list as target_else of the last action
 		*/
-		liAction *action_list, *target, *cond, *cond_and;
+		liValue *v;
+		liAction *action_list, *target, *a;
+		GQueue *stack = g_queue_new();
 
-		target = g_queue_pop_head(ctx->action_list_stack);
+		v = g_queue_pop_head(ctx->value_stack);
+		target = li_value_extract_action(v);
+		li_value_free(v);
 		action_list = g_queue_peek_head(ctx->action_list_stack);
 		/* last action in the list is our condition */
-		cond = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
+		a = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
 
-		/* loop over all actions until we find the last without target_else */
+		/* loop over all actions and patch all target_else which are NULL */
 		while (TRUE) {
-			for (cond_and = cond; (uintptr_t)cond_and->data.condition.target & 0x1; cond_and = cond_and->data.condition.target) {
-				cond_and->data.condition.target = (liAction*)((uintptr_t)cond_and->data.condition.target & (~0x1));
-				cond_and->data.condition.target->data.condition.target_else = target;
+			if (a == NULL || a->type != LI_ACTION_TCONDITION || a == target) {
+				if (NULL == (a = g_queue_pop_head(stack)))
+					break;
+
+				continue;
 			}
 
-			if (cond->data.condition.target_else)
-				cond = cond->data.condition.target_else;
-			else
-				break;
+			_printf("a: %p ? %p : %p\n", (void*)a, (void*)a->data.condition.target, (void*)a->data.condition.target_else);
+
+			if (!a->data.condition.target_else) {
+				_printf("%s", "patching condition for else\n");
+				a->data.condition.target_else = target;
+				li_action_acquire(target);
+			} else {
+				g_queue_push_head(stack, a->data.condition.target);
+				a = a->data.condition.target_else;
+				continue;
+			}
+
+			if (a->data.condition.target) {
+				g_queue_push_head(stack, a->data.condition.target_else);
+				a = a->data.condition.target;
+				continue;
+			}
+
+			a = g_queue_pop_head(stack);
 		}
 
-		cond->data.condition.target_else = target;
+		li_action_release(srv, target);
+		g_queue_free(stack);
 		_printf("got cond_else in line %zd\n", ctx->line);
 	}
 
@@ -979,53 +1061,58 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			- get second last action from action list, this is the condition to modify
 			- put target action as target_else of the last condition
 		*/
-		liAction *action_list, *target, *cond, *cond_and;
+		liAction *action_list, *target, *a;
+		GQueue *stack = g_queue_new();
 
 		/* remove current condition action from list and put it as the else target of the previous condition action */
 		action_list = g_queue_peek_head(ctx->action_list_stack);
 		target = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
-		cond = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 2);
+		a = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 2);
 		g_array_remove_index(action_list->data.list, action_list->data.list->len - 1);
 
-		/* loop over all actions until we find the last without target_else */
+		/* loop over all actions and patch all target_else which are NULL */
 		while (TRUE) {
-			for (cond_and = cond; (uintptr_t)cond_and->data.condition.target & 0x1; cond_and = cond_and->data.condition.target) {
+			if (a == NULL || a->type != LI_ACTION_TCONDITION || a == target) {
+				if (NULL == (a = g_queue_pop_head(stack)))
+					break;
 
-				cond_and->data.condition.target = (liAction*)((uintptr_t)cond_and->data.condition.target & (~0x1));
-				cond_and->data.condition.target->data.condition.target_else = target;
+				continue;
 			}
 
-			if (cond->data.condition.target_else)
-				cond = cond->data.condition.target_else;
-			else
-				break;
+			_printf("a: %p ? %p : %p\n", (void*)a, (void*)a->data.condition.target, (void*)a->data.condition.target_else);
+
+			if (!a->data.condition.target_else) {
+				_printf("%s", "patching condition for else\n");
+				a->data.condition.target_else = target;
+				li_action_acquire(target);
+			} else {
+				g_queue_push_head(stack, a->data.condition.target);
+				a = a->data.condition.target_else;
+				continue;
+			}
+
+			if (a->data.condition.target) {
+				g_queue_push_head(stack, a->data.condition.target_else);
+				a = a->data.condition.target;
+				continue;
+			}
+
+			a = g_queue_pop_head(stack);
 		}
 
-		cond->data.condition.target_else = target;
+		li_action_release(srv, target);
+		g_queue_free(stack);
 		_printf("got cond_else_if in line %zd\n", ctx->line);
 	}
 
 	action condition_chain {
-		liAction *action_list, *cond, *cond_and;
+		liAction *action_list, *cond;
+
 		action_list = g_queue_peek_head(ctx->action_list_stack);
 		/* last action in the list is our condition */
 		cond = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
 
 		_printf("got condition_chain in line %zd\n", ctx->line);
-
-		/* loop over all actions looking for 'and' markers and clear them */
-		while (cond && cond->type == LI_ACTION_TCONDITION) {
-			_printf("condition: %p if: %p else: %p\n", (void*)cond, (void*)cond->data.condition.target, (void*)cond->data.condition.target_else);
-			for (cond_and = cond; cond_and && (cond_and->type == LI_ACTION_TCONDITION) &&  (uintptr_t)cond_and->data.condition.target & 0x1; cond_and = cond_and->data.condition.target) {
-				cond_and->data.condition.target = (liAction*)((uintptr_t)cond_and->data.condition.target & (~0x1));
-				_printf("condition_and: %p if: %p else: %p\n", (void*)cond_and, (void*)cond_and->data.condition.target, (void*)cond_and->data.condition.target_else);
-			}
-
-			if (cond->data.condition.target_else)
-				cond = cond->data.condition.target_else;
-			else
-				break;
-		}
 	}
 
 
@@ -1040,8 +1127,6 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	ws = ( '\t' | ' ' );
 	comment = ( '#' (any - line)* line );
 	noise = ( ws | line | comment );
-
-	block = ( '{' >block_start );
 
 	# basic types
 	boolean = ( 'true' | 'false' ) %boolean;
@@ -1059,7 +1144,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	# casts
 	cast = ( 'cast(' ( 'int' %{ctx->cast = LI_CFG_PARSER_CAST_INT;} | 'str' %{ctx->cast = LI_CFG_PARSER_CAST_STR;} ) ')' ws* );
 
-	keywords = ( 'true' | 'false' | 'if' | 'else' );
+	keywords = ( 'true' | 'false' | 'if' | 'else' | 'setup' | 'action' );
 
 	# advanced types
 	varname = ( '__' ? (alpha ( alnum | [._] )*) - keywords ) >mark %varname;
@@ -1067,13 +1152,13 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	list = ( '(' >list_start );
 	hash = ( '[' >hash_start );
 
-	action_block = ( varname noise* block >action_block_start ) %action_block_end;
-	action_block_noname = ( '$' block > action_block_noname_start ) %action_block_noname_end;
+	action_block = ( '{' >action_block_start ) %action_block_end;
+	setup_block = ( 'setup' noise+ action_block >setup_block_start ) %setup_block_end;
 
-	value = ( ( boolean | integer | string | list | hash | actionref | action_block_noname ) >mark ) %liValue;
+	value = ( ( boolean | integer | string | list | hash | actionref | action_block ) >mark ) %liValue;
 	value_statement_op = ( '+' | '-' | '*' | '/' | '=>' ) >mark >value_statement_op;
 	value_statement = ( noise* cast? value (ws* value_statement_op ws* cast? value %value_statement)* noise* );
-	hash_elem = ( noise* string >mark noise* ':' value_statement );
+	hash_elem = ( noise* string >mark noise* '=>' value_statement );
 
 	# conditions
 	cond_lval = ( varname );
@@ -1083,17 +1168,17 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	cond_operator = ( '==' | '!=' | '=^' | '!^' | '=$' | '!$' | '<' | '<=' | '>' | '>=' | '=~' | '!~' | '=/' | '!/' ) >mark %operator;
 	cond_and_or = ( 'and' | 'or' ) >mark %cond_and_or;
 	condition = ( cond_negated? cond_lval cond_key? ws+ ( cond_operator ws+ cond_rval  )? ) <: '' %condition;
-	conditions = ( 'if' noise+ condition ( cond_and_or noise+ condition )* block >action_block_noname_start ) %conditions;
-	cond_else_if = ( 'else' noise+ conditions ) %cond_else_if;
-	cond_else = ( 'else' noise+ block >action_block_noname_start ) %cond_else;
-	condition_chain = ( conditions (noise+ cond_else_if)* (noise+ cond_else)? ) %condition_chain;
+	cond_if = ( 'if' noise+ condition ( cond_and_or noise+ condition )* action_block ) %cond_if;
+	cond_else_if = ( 'else' noise+ cond_if ) %cond_else_if;
+	cond_else = ( 'else' noise+ action_block ) %cond_else;
+	condition_chain = ( cond_if (noise+ cond_else_if)* (noise+ cond_else)? ) %condition_chain;
 
 	# statements
-	assignment = ( varname ws* '=' ws* value_statement ';' ) %assignment;
-	function_noparam = ( varname ws* ';' ) %function_noparam;
-	function_param = ( varname ws+ value_statement ';') %function_param;
-	function = ( function_noparam | function_param );
-	statement = ( assignment | function | condition_chain | action_block );
+	action_definition = ( 'action' ws+ varname noise+ action_block ) %action_definition;
+	action_call_noparam = ( varname ws* ';' ) %action_call_noparam;
+	action_call_param = ( varname ws+ value_statement ';' ) %action_call_param;
+	action_call = ( action_call_noparam | action_call_param ) %action_call;
+	statement = ( action_call | action_definition | condition_chain | setup_block );
 
 	# scanner
 	list_scanner := ( ((value_statement %list_push ( ',' value_statement %list_push )*)  | noise*) ')' >list_end );
@@ -1121,7 +1206,7 @@ static liConfigParserContext *config_parser_context_new(liServer *srv, GList *ct
 	if (ctx_stack != NULL) {
 		/* inherit old stacks */
 		ctx->action_list_stack = ((liConfigParserContext*) ctx_stack->data)->action_list_stack;
-		ctx->option_stack = ((liConfigParserContext*) ctx_stack->data)->option_stack;
+		ctx->value_stack = ((liConfigParserContext*) ctx_stack->data)->value_stack;
 		ctx->condition_stack = ((liConfigParserContext*) ctx_stack->data)->condition_stack;
 		ctx->value_op_stack = ((liConfigParserContext*) ctx_stack->data)->value_op_stack;
 
@@ -1133,7 +1218,7 @@ static liConfigParserContext *config_parser_context_new(liServer *srv, GList *ct
 		ctx->uservars = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
 
 		ctx->action_list_stack = g_queue_new();
-		ctx->option_stack = g_queue_new();
+		ctx->value_stack = g_queue_new();
 		ctx->condition_stack = g_queue_new();
 		ctx->value_op_stack = g_queue_new();
 	}
@@ -1145,9 +1230,9 @@ static void config_parser_context_free(liServer *srv, liConfigParserContext *ctx
 	g_free(ctx->stack);
 
 	if (free_queues) {
-		if (g_queue_get_length(ctx->option_stack) > 0) {
+		if (g_queue_get_length(ctx->value_stack) > 0) {
 			liValue *o;
-			while ((o = g_queue_pop_head(ctx->option_stack)))
+			while ((o = g_queue_pop_head(ctx->value_stack)))
 				li_value_free(o);
 		}
 
@@ -1158,7 +1243,7 @@ static void config_parser_context_free(liServer *srv, liConfigParserContext *ctx
 		}
 
 		g_queue_free(ctx->action_list_stack);
-		g_queue_free(ctx->option_stack);
+		g_queue_free(ctx->value_stack);
 		g_queue_free(ctx->condition_stack);
 		g_queue_free(ctx->value_op_stack);
 	}
@@ -1443,8 +1528,8 @@ gboolean li_config_parse(liServer *srv, const gchar *config_path) {
 	micros = (d - s - millis) %1000;
 	DEBUG(srv, "parsed config file in %lus, %lums, %luus", s, millis, micros);
 
-	if (g_queue_get_length(ctx->option_stack) != 0 || g_queue_get_length(ctx->action_list_stack) != 1)
-		DEBUG(srv, "option_stack: %u action_list_stack: %u (should be 0:1)", g_queue_get_length(ctx->option_stack), g_queue_get_length(ctx->action_list_stack));
+	if (g_queue_get_length(ctx->value_stack) != 0 || g_queue_get_length(ctx->action_list_stack) != 1)
+		DEBUG(srv, "value_stack: %u action_list_stack: %u (should be 0:1)", g_queue_get_length(ctx->value_stack), g_queue_get_length(ctx->action_list_stack));
 
 	li_config_parser_finish(srv, ctx_stack, FALSE);
 
