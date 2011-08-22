@@ -55,7 +55,8 @@
 	HT = '\t';
 	DQUOTE = '"';
 
-	CRLF = CR LF;
+	# RFC 2616 requires CRLF = CR LF; but some clients only send us LF (openssl s_client, blackberry?)
+	CRLF = (CR LF | LF);
 	LWS = CRLF? (SP | HT)+; # linear white space
 	TEXT = (OCTET - CTL) | LWS;
 	HEX = [a-fA-F0-9];
