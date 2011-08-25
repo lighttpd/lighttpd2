@@ -627,12 +627,13 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 #endif
 		else if (g_str_has_prefix(name->data.string->str, "__")) {
 			if (g_str_equal(name->data.string->str + 2, "print")) {
+				GString *tmpstr;
 				if (!val) {
 					WARNING(srv, "%s", "__print directive needs a parameter");
 					return FALSE;
 				}
 
-				GString *tmpstr = li_value_to_string(val);
+				tmpstr = li_value_to_string(val);
 				DEBUG(srv, "%s:%zd type: %s, value: %s", ctx->filename, ctx->line, li_value_type_string(val->type), tmpstr->str);
 				g_string_free(tmpstr, TRUE);
 			}
@@ -966,12 +967,14 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		_printf("new condition action: %p, target: %p\n", (void*)a, (void*)target_action);
 
 		while (NULL != (cond_operator = g_queue_pop_head(ctx->condition_stack))) {
-			cond = g_queue_pop_head(ctx->condition_stack);
 
 			if (cond_operator == GINT_TO_POINTER(0x1)) {
 				/* 'and' */
 				/* mark target pointer as 'and' */
 				liAction *trgt = a;
+
+				cond = g_queue_pop_head(ctx->condition_stack);
+
 				li_action_acquire(trgt);
 				if (action_last_or)
 					li_action_acquire(action_last_or);
@@ -979,6 +982,8 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				_printf("new AND condition action: %p, target: %p, else: %p\n", (void*)a, (void*)trgt, (void*)action_last_or);
 				g_array_append_val(arr, a);
 			} else if (cond_operator == GINT_TO_POINTER(0x2)) {
+				cond = g_queue_pop_head(ctx->condition_stack);
+
 				/* 'or' */
 				action_last_or = a;
 				li_action_acquire(target_action);
@@ -988,7 +993,8 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				_printf("new OR condition action: %p, target: %p, else: %p\n", (void*)a, (void*)target_action, (void*)action_last_or);
 				g_array_append_val(arr, a);
 			} else {
-				assert(FALSE);
+				g_queue_push_head(ctx->condition_stack, cond_operator);
+				break;
 			}
 		}
 
@@ -1106,12 +1112,13 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	}
 
 	action condition_chain {
+#if 0
 		liAction *action_list, *cond;
 
 		action_list = g_queue_peek_head(ctx->action_list_stack);
 		/* last action in the list is our condition */
 		cond = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
-
+#endif
 		_printf("got condition_chain in line %zd\n", ctx->line);
 	}
 
