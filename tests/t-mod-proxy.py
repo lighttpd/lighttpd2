@@ -35,7 +35,7 @@ class Test(GroupTest):
 		self.plain_config = """
 setup {{ module_load "mod_proxy"; }}
 
-set_host_header_basic_gets_lua {{
+set_host_header_basic_gets_lua = {{
 	lua.handler "{set_host_header_lua}";
-}}
+}};
 """.format(set_host_header_lua = set_host_header_lua)

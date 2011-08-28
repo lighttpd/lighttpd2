@@ -53,9 +53,9 @@ if phys.exists and phys.path =$ ".cgi" {
 		self.plain_config = """
 setup {{ module_load "mod_fastcgi"; }}
 
-cgi {{
+cgi = {{
 	fastcgi "unix:{socket}";
-}}
+}};
 """.format(socket = cgi.sockfile)
 
 		self.tests.add_service(cgi)

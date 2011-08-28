@@ -122,9 +122,9 @@ class TestBase(object):
 				config = """
 # %s
 
-var.reg_vhosts = var.reg_vhosts + [ "%s" : ${
-		log = [ "*": "file:%s" ];
-		accesslog = "%s";
+var.reg_vhosts = var.reg_vhosts + [ "%s" => {
+		log [ "*" => "file:%s" ];
+		accesslog "%s";
 		%s
 %s
 	}
@@ -134,9 +134,9 @@ var.reg_vhosts = var.reg_vhosts + [ "%s" : ${
 				config = """
 # %s
 
-var.vhosts = var.vhosts + [ "%s" : ${
-		log = [ "*": "file:%s" ];
-		accesslog = "%s";
+var.vhosts = var.vhosts + [ "%s" => {
+		log [ "*" => "file:%s" ];
+		accesslog "%s";
 		%s
 %s
 	}
@@ -339,20 +339,20 @@ setup {{
 	);
 
 	listen "127.0.0.1:{Env.port}";
-	log = [ "*": "stderr" ];
+	log [ "*" => "stderr" ];
 
 	lua.plugin "{Env.luadir}/core.lua";
 	lua.plugin "{Env.luadir}/secdownload.lua";
 
-	accesslog.format = "%h %V %u %t \\"%r\\" %>s %b \\"%{{Referer}}i\\" \\"%{{User-Agent}}i\\"";
-	accesslog = "{accesslog}";
+	accesslog.format "%h %V %u %t \\"%r\\" %>s %b \\"%{{Referer}}i\\" \\"%{{User-Agent}}i\\"";
+	accesslog "{accesslog}";
 }}
 
-log = [ "*": "file:{errorlog}" ];
+log [ "*" => "file:{errorlog}" ];
 
-defaultaction {{
+defaultaction = {{
 	docroot "{Env.defaultwww}";
-}}
+}};
 
 var.vhosts = [];
 var.reg_vhosts = [];
@@ -368,10 +368,10 @@ var.reg_vhosts = [];
 
 		self.config += """
 
-var.reg_vhosts = var.reg_vhosts + [ "default": ${
+var.reg_vhosts = var.reg_vhosts + [ "default" => {
 	defaultaction;
 } ];
-var.vhosts = var.vhosts + [ "default": ${
+var.vhosts = var.vhosts + [ "default" => {
 	vhost.map_regex var.reg_vhosts;
 } ];
 

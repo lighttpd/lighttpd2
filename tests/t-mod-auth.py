@@ -85,15 +85,15 @@ class Test(GroupTest):
 		self.config = """
 			setup {{ module_load ( "mod_auth" ); }}
 
-			auth.debug = true;
+			auth.debug true;
 			if req.query == "plain" {{
-				auth.plain ["method": "basic", "realm": "Basic Auth Realm", "file": "{passwdfile}", "ttl": 10];
+				auth.plain ["method" => "basic", "realm" => "Basic Auth Realm", "file" => "{passwdfile}", "ttl" => 10];
 			}} else if req.query == "digest" {{
-				auth.htdigest ["method": "basic", "realm": "Realm1", "file": "{digestfile}", "ttl": 10];
+				auth.htdigest ["method" => "basic", "realm" => "Realm1", "file" => "{digestfile}", "ttl" => 10];
 			}} else if req.query == "deny" {{
 				auth.deny;
 			}} else {{
-				auth.htpasswd ["method": "basic", "realm": "Basic Auth Realm", "file": "{passwdfile}", "ttl": 10];
+				auth.htpasswd ["method" => "basic", "realm" => "Basic Auth Realm", "file" => "{passwdfile}", "ttl" => 10];
 			}}
 
 			defaultaction;

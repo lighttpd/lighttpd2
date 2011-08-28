@@ -30,7 +30,7 @@ class Test(GroupTest):
 		self.PrepareVHostFile("test.xt", "")
 		self.PrepareVHostFile("test.rxt", "")
 		self.config = """
-mime_types = (
+mime_types (
 	".txt" => "text/plain; charset=utf-8",
 	".xt" => "text/plain",
 	".rxt" => "text/strange",

@@ -59,7 +59,7 @@ class Test(GroupTest):
 		self.PrepareFile("www/default/test.txt", TEST_TXT)
 		show_env_info_lua = self.PrepareFile("lua/show_env_info.lua", LUA_SHOW_ENV_INFO)
 		self.plain_config = """
-show_env_info {{
+show_env_info = {{
 	lua.handler "{show_env_info_lua}";
-}}
+}};
 """.format(show_env_info_lua = show_env_info_lua)
