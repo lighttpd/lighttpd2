@@ -552,6 +552,11 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		if (g_str_equal(name->data.string->str, "include")) {
 			li_value_free(name);
 
+			if (ctx->in_setup_block) {
+				WARNING(srv, "%s", "include directives not supported in setup blocks");
+				return FALSE;
+			}
+
 			if (!val) {
 				WARNING(srv, "%s", "include directive takes a string as parameter");
 				return FALSE;
@@ -565,6 +570,11 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			li_value_free(val);
 		} else if (g_str_equal(name->data.string->str, "include_shell")) {
 			li_value_free(name);
+
+			if (ctx->in_setup_block) {
+				WARNING(srv, "%s", "include directives not supported in setup blocks");
+				return FALSE;
+			}
 
 			if (!val) {
 				WARNING(srv, "%s", "include_shell directive takes a string as parameter");
@@ -587,6 +597,11 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 #ifdef HAVE_LUA_H
 		else if (g_str_equal(name->data.string->str, "include_lua")) {
 			li_value_free(name);
+
+			if (ctx->in_setup_block) {
+				WARNING(srv, "%s", "include directives not supported in setup blocks");
+				return FALSE;
+			}
 
 			if (!val) {
 				WARNING(srv, "%s", "include_lua directive takes a string as parameter");
@@ -751,6 +766,12 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 	action setup_block_start {
 		_printf("setup block start in line %zd\n", ctx->line);
+
+		if (ctx->in_setup_block) {
+			WARNING(srv, "%s", "already in a setup block");
+			return FALSE;
+		}
+
 		ctx->in_setup_block = TRUE;
 	}
 
