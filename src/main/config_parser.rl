@@ -791,6 +791,13 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			return FALSE;
 		}
 
+		if (NULL != g_hash_table_lookup(srv->options, name->data.string->str)) {
+			WARNING(srv, "cannot define uservar with name '%s', an option with same name exists already", name->data.string->str);
+			li_value_free(name);
+			li_value_free(v);
+			return FALSE;
+		}
+
 		if (NULL != g_hash_table_lookup(srv->optionptrs, name->data.string->str)) {
 			WARNING(srv, "cannot define uservar with name '%s', an option with same name exists already", name->data.string->str);
 			li_value_free(name);
