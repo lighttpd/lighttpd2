@@ -449,64 +449,53 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 	action actionref {
 		/* varname is on the stack */
-		liValue *o, *r, *t;
+		liValue *name, *v;
 
-		o = g_queue_pop_head(ctx->value_stack);
+		name = g_queue_pop_head(ctx->value_stack);
+		assert(name->type == LI_VALUE_STRING);
 
-		_printf("got actionref: %s in line %zd\n", o->data.string->str, ctx->line);
+		_printf("got actionref: %s in line %zd\n", name->data.string->str, ctx->line);
 
-		/* action refs starting with "var." are user defined variables */
-		if (g_str_has_prefix(o->data.string->str, "var.")) {
-			/* look up var in hashtable, copy and push value onto stack */
-			t = g_hash_table_lookup(ctx->uservars, o->data.string);
-
-			if (t == NULL) {
-				WARNING(srv, "unknown variable '%s'", o->data.string->str);
-				li_value_free(o);
-				return FALSE;
-			}
-
-			r = li_value_copy(t);
-		} else if (g_str_equal(o->data.string->str, "sys.pid")) {
-			r = li_value_new_number(getpid());
-		} else if (g_str_equal(o->data.string->str, "sys.cwd")) {
+		/* there are some special variables that we just create here */
+		if (g_str_equal(name->data.string->str, "sys.pid")) {
+			v = li_value_new_number(getpid());
+		} else if (g_str_equal(name->data.string->str, "sys.cwd")) {
 			gchar cwd[1024];
 
 			if (NULL != getcwd(cwd, 1023)) {
-				r = li_value_new_string(g_string_new(cwd));
+				v = li_value_new_string(g_string_new(cwd));
 			} else {
 				ERROR(srv, "failed to get CWD: %s", g_strerror(errno));
-				li_value_free(o);
+				li_value_free(name);
 				return FALSE;
 			}
-		} else if (g_str_equal(o->data.string->str, "sys.version")) {
-			r = li_value_new_string(g_string_new(PACKAGE_VERSION));
-		} else if (g_str_has_prefix(o->data.string->str, "sys.env.")) {
+		} else if (g_str_equal(name->data.string->str, "sys.version")) {
+			v = li_value_new_string(g_string_new(PACKAGE_VERSION));
+		} else if (g_str_has_prefix(name->data.string->str, "sys.env.")) {
 			/* look up string in environment, push value onto stack */
-			gchar *env = getenv(o->data.string->str + sizeof("sys.env.") - 1);
+			gchar *env = getenv(name->data.string->str + sizeof("sys.env.") - 1);
 			if (env == NULL) {
-				ERROR(srv, "unknown environment variable: %s", o->data.string->str + sizeof("sys.env.") - 1);
-				li_value_free(o);
+				ERROR(srv, "unknown environment variable: %s", name->data.string->str + sizeof("sys.env.") - 1);
+				li_value_free(name);
 				return FALSE;
 			}
 
-			r = li_value_new_string(g_string_new(env));
+			v = li_value_new_string(g_string_new(env));
 		} else {
-			/* real action, lookup hashtable and create new action value */
-			liAction *a;
-			a = g_hash_table_lookup(ctx->action_blocks, o->data.string);
+			/* look up uservar in hashtable, copy and push value onto stack */
+			v = g_hash_table_lookup(ctx->uservars, name->data.string);
 
-			if (a == NULL) {
-				WARNING(srv,  "unknown action block referenced: %s", o->data.string->str);
+			if (v == NULL) {
+				WARNING(srv, "unknown uservar '%s'", name->data.string->str);
+				li_value_free(name);
 				return FALSE;
 			}
 
-			li_action_acquire(a);
-			r = li_value_new_action(srv, a);
+			v = li_value_copy(v);
 		}
 
-		g_queue_push_head(ctx->value_stack, r);
-		li_value_free(o);
+		g_queue_push_head(ctx->value_stack, v);
+		li_value_free(name);
 	}
 
 	action operator {
@@ -541,7 +530,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	}
 
 	action action_call {
-		liValue *val, *name;
+		liValue *val, *name, *uservar;
 		liAction *a, *al;
 
 		if (ctx->action_call_with_param) {
@@ -641,39 +630,20 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			li_value_free(name);
 			if (val)
 				li_value_free(val);
-		} else if (g_str_has_prefix(name->data.string->str, "var.")) {
-			/* assignment vor user defined variable, insert into hashtable */
-			gpointer old_key;
-			gpointer old_val;
-			GString *str;
-
-			_printf("%s", "... which is a user defined var\n");
-
-			if (!val) {
-				WARNING(srv, "%s", "var. definitions expect a parameter");
-				li_value_free(name);
-				return FALSE;
-			}
-
-			str = li_value_extract_string(name);
-
-			/* free old key and value if we are overwriting it */
-			if (g_hash_table_lookup_extended(ctx->uservars, str, &old_key, &old_val)) {
-				g_hash_table_remove(ctx->uservars, str);
-				g_string_free(old_key, TRUE);
-				li_value_free(old_val);
-			}
-
-			g_hash_table_insert(ctx->uservars, str, val);
-			li_value_free(name);
 		}
 		/* normal action call */
 		else {
 			/* user defined action */
-			if (NULL != (a = g_hash_table_lookup(ctx->action_blocks, name->data.string))) {
+			if (NULL != (uservar = g_hash_table_lookup(ctx->uservars, name->data.string))) {
 				_printf("%s", "... which is a user defined action\n");
 
-				if (val) {
+				if (uservar->type != LI_VALUE_ACTION) {
+					WARNING(srv, "value of type action expected, got %s", li_value_type_string(uservar->type));
+					li_value_free(name);
+					if (val)
+						li_value_free(val);
+					return FALSE;
+				} else if (val) {
 					WARNING(srv, "%s", "user defined actions don't take a parameter");
 					li_value_free(name);
 					li_value_free(val);
@@ -684,6 +654,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 					return FALSE;
 				}
 
+				a = uservar->data.val_action.action;
 				li_action_acquire(a);
 				al = g_queue_peek_head(ctx->action_list_stack);
 				g_array_append_val(al->data.list, a);
@@ -793,31 +764,50 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		ctx->in_setup_block = FALSE;
 	}
 
-	action action_definition {
+	action uservar_definition {
+		/* assignment vor user defined variable, insert into hashtable */
 		liValue *name, *v;
-		liAction *al;
 		GString *str;
+		gpointer old_key;
+		gpointer old_val;
 
-		/* we have the action list and then the name on the option stack */
 		v = g_queue_pop_head(ctx->value_stack);
-		assert(v->type == LI_VALUE_ACTION);
 		name = g_queue_pop_head(ctx->value_stack);
 		assert(name->type == LI_VALUE_STRING);
 
-		if (ctx->in_setup_block) {
-			ERROR(srv, "%s", "no action block definition inside the setup block allowed");
-			li_value_free(v);
+		_printf("uservar definition %s = %s in line %zd\n", name->data.string->str, li_value_type_string(v->type), ctx->line);
+
+		if (NULL != g_hash_table_lookup(srv->setups, name->data.string->str)) {
+			WARNING(srv, "cannot define uservar with name '%s', a setup action with same name exists already", name->data.string->str);
 			li_value_free(name);
+			li_value_free(v);
 			return FALSE;
 		}
 
-		_printf("action block definition %s in line %zd\n", name->data.string->str, ctx->line);
+		if (NULL != g_hash_table_lookup(srv->actions, name->data.string->str)) {
+			WARNING(srv, "cannot define uservar with name '%s', an action with same name exists already", name->data.string->str);
+			li_value_free(name);
+			li_value_free(v);
+			return FALSE;
+		}
 
-		al = li_value_extract_action(v);
-		str = g_string_new_len(name->data.string->str, name->data.string->len);
-		g_hash_table_insert(ctx->action_blocks, str, al);
+		if (NULL != g_hash_table_lookup(srv->optionptrs, name->data.string->str)) {
+			WARNING(srv, "cannot define uservar with name '%s', an option with same name exists already", name->data.string->str);
+			li_value_free(name);
+			li_value_free(v);
+			return FALSE;
+		}
 
-		li_value_free(v);
+		str = li_value_extract_string(name);
+
+		/* free old key and value if we are overwriting it */
+		if (g_hash_table_lookup_extended(ctx->uservars, str, &old_key, &old_val)) {
+			g_hash_table_remove(ctx->uservars, str);
+			g_string_free(old_key, TRUE);
+			li_value_free(old_val);
+		}
+
+		g_hash_table_insert(ctx->uservars, str, v);
 		li_value_free(name);
 	}
 
@@ -1181,11 +1171,11 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	condition_chain = ( cond_if (noise+ cond_else_if)* (noise+ cond_else)? ) %condition_chain;
 
 	# statements
-	action_definition = ( 'action' ws+ varname noise+ action_block ) %action_definition;
+	uservar_definition = ( varname ws+ '=' ws+ value_statement ';' ) %uservar_definition;
 	action_call_noparam = ( varname ws* ';' ) %action_call_noparam;
 	action_call_param = ( varname ws+ value_statement ';' ) %action_call_param;
 	action_call = ( action_call_noparam | action_call_param ) %action_call;
-	statement = ( action_call | action_definition | condition_chain | setup_block );
+	statement = ( action_call | uservar_definition | condition_chain | setup_block );
 
 	# scanner
 	list_scanner := ( ((value_statement %list_push ( ',' value_statement %list_push )*)  | noise*) ')' >list_end );
@@ -1216,12 +1206,9 @@ static liConfigParserContext *config_parser_context_new(liServer *srv, GList *ct
 		ctx->value_stack = ((liConfigParserContext*) ctx_stack->data)->value_stack;
 		ctx->condition_stack = ((liConfigParserContext*) ctx_stack->data)->condition_stack;
 		ctx->value_op_stack = ((liConfigParserContext*) ctx_stack->data)->value_op_stack;
-
-		ctx->action_blocks = ((liConfigParserContext*) ctx_stack->data)->action_blocks;
 		ctx->uservars = ((liConfigParserContext*) ctx_stack->data)->uservars;
 	}
 	else {
-		ctx->action_blocks = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
 		ctx->uservars = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
 
 		ctx->action_list_stack = g_queue_new();
@@ -1286,15 +1273,6 @@ void li_config_parser_finish(liServer *srv, GList *ctx_stack, gboolean free_all)
 	if (free_all) {
 		ctx = (liConfigParserContext*) ctx_stack->data;
 
-		g_hash_table_iter_init(&iter, ctx->action_blocks);
-
-		while (g_hash_table_iter_next(&iter, &key, &val)) {
-			li_action_release(srv, val);
-			g_string_free(key, TRUE);
-		}
-
-		g_hash_table_destroy(ctx->action_blocks);
-
 		g_hash_table_iter_init(&iter, ctx->uservars);
 
 		while (g_hash_table_iter_next(&iter, &key, &val)) {
@@ -1303,7 +1281,6 @@ void li_config_parser_finish(liServer *srv, GList *ctx_stack, gboolean free_all)
 		}
 
 		g_hash_table_destroy(ctx->uservars);
-
 
 
 		config_parser_context_free(srv, ctx, TRUE);

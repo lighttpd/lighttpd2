@@ -32,8 +32,7 @@ struct liConfigParserContext {
 
 	liCastType cast;
 
-	GHashTable *action_blocks; /* foo { } */
-	GHashTable *uservars; /* var.foo */
+	GHashTable *uservars; /* foo = ...; */
 
 	GQueue *action_list_stack; /* first entry is current action list */
 	GQueue *value_stack; /* stack of liValue* */
