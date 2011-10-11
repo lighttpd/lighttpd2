@@ -99,6 +99,20 @@ PKG_CHECK_MODULES([LIBEV], [libev], [], [
 AC_SUBST([LIBEV_CFLAGS])
 AC_SUBST([LIBEV_LIBS])
 
+dnl Large File Support
+
+AC_ARG_ENABLE([lfs],
+ [AS_HELP_STRING([--disable-lfs],[disable large file support])],
+ [case "${enableval}" in
+   yes) lfs=true ;;
+    no) lfs=false ;;
+     *) AC_MSG_ERROR([bad value ${enableval} for --enable-lfs]) ;;
+  esac],[lfs=true])
+
+if test x$lfs = xtrue; then
+  CFLAGS="${CFLAGS} -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGE_FILES"
+fi
+
 dnl Check for lua
 AC_MSG_CHECKING([for lua])
 AC_ARG_WITH([lua], [AS_HELP_STRING([--with-lua],[lua engine (recommended)])],
