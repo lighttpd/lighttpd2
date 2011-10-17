@@ -8,7 +8,7 @@ class TestHeaderAdd(CurlRequest):
 	config = """
 header.add "Test-Header" => "%{req.query}";
 header.add "Test-Header" => "%{req.path}";
-blank;
+respond;
 """
 	URL = "/path?simple_query"
 
@@ -24,7 +24,7 @@ class TestHeaderAppend(CurlRequest):
 	config = """
 header.append "Test-Header" => "%{req.query}";
 header.append "Test-Header" => "%{req.path}";
-blank;
+respond;
 """
 	URL = "/path?simple_query"
 
@@ -40,7 +40,7 @@ class TestHeaderOverwrite(CurlRequest):
 	config = """
 header.overwrite "Test-Header" => "%{req.query}";
 header.overwrite "Test-Header" => "%{req.path}";
-blank;
+respond;
 """
 	URL = "/path?simple_query"
 
@@ -56,7 +56,7 @@ class TestHeaderRemove(CurlRequest):
 	config = """
 header.add "Test-Header" => "%{req.query}";
 header.remove "Test-Header";
-blank;
+respond;
 """
 	URL = "/path?simple_query"
 

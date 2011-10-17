@@ -914,26 +914,87 @@ static liAction* core_log_write(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 }
 
 
-static liHandlerResult core_handle_blank(liVRequest *vr, gpointer param, gpointer *context) {
-	UNUSED(param);
+typedef struct respond_param respond_param;
+struct respond_param {
+	guint status_code;
+	liPattern *pattern;
+};
+
+static void core_respond_free(liServer *srv, gpointer param) {
+	respond_param *rp = param;
+
+	UNUSED(srv);
+
+	if (rp->pattern)
+		li_pattern_free(rp->pattern);
+
+	g_slice_free(respond_param, rp);
+}
+
+static liHandlerResult core_handle_respond(liVRequest *vr, gpointer param, gpointer *context) {
+	respond_param *rp = param;
+
 	UNUSED(context);
 
-	if (!li_vrequest_handle_direct(vr)) return LI_HANDLER_GO_ON;
+	if (!li_vrequest_handle_direct(vr))
+		return LI_HANDLER_GO_ON;
 
-	vr->response.http_status = 200;
+	vr->response.http_status = rp->status_code;
+
+	if (!li_http_header_lookup(vr->response.headers, CONST_STR_LEN("content-type")))
+		li_http_header_insert(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/plain"));
+
+	if (rp->pattern) {
+		g_string_truncate(vr->wrk->tmp_str, 0);
+		li_pattern_eval(vr, vr->wrk->tmp_str, rp->pattern, NULL, NULL, NULL, NULL);
+		li_chunkqueue_append_mem(vr->out, GSTR_LEN(vr->wrk->tmp_str));
+	}
 
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_blank(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* core_respond(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	respond_param *rp;
+
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val) {
-		ERROR(srv, "%s", "'blank' action doesn't have parameters");
+	rp = g_slice_new(respond_param);
+
+	if (!val) {
+		// respond;
+		rp->status_code = 200;
+		rp->pattern = NULL;
+	} else if (val->type == LI_VALUE_STRING) {
+		// respond "foo";
+		rp->status_code = 200;
+		rp->pattern = li_pattern_new(srv, val->data.string->str);
+
+		if (!rp->pattern) {
+			g_slice_free(respond_param, rp);
+			ERROR(srv, "%s", "'respond' action takes an optional string as parameter");
+			return NULL;
+		}
+	} else if (val->type == LI_VALUE_NUMBER) {
+		// respond 404;
+		rp->status_code = val->data.number;
+		rp->pattern = NULL;
+	} else if (val->type == LI_VALUE_LIST && val->data.list->len == 2 && g_array_index(val->data.list, liValue*, 0)->type == LI_VALUE_NUMBER && g_array_index(val->data.list, liValue*, 1)->type == LI_VALUE_STRING) {
+		// respond 200 => "foo";
+		rp->status_code = g_array_index(val->data.list, liValue*, 0)->data.number;
+		rp->pattern = li_pattern_new(srv, g_array_index(val->data.list, liValue*, 1)->data.string->str);
+
+		if (!rp->pattern) {
+			g_slice_free(respond_param, rp);
+			ERROR(srv, "%s", "'respond' action takes an optional string as parameter");
+			return NULL;
+		}
+	} else {
+		g_slice_free(respond_param, rp);
+		ERROR(srv, "%s", "'respond' action takes an optional string as parameter");
 		return NULL;
 	}
 
-	return li_action_new_function(core_handle_blank, NULL, NULL, NULL);
+	return li_action_new_function(core_handle_respond, NULL, core_respond_free, rp);
 }
 
 
@@ -1874,7 +1935,7 @@ static const liPluginAction actions[] = {
 
 	{ "log.write", core_log_write, NULL },
 
-	{ "blank", core_blank, NULL },
+	{ "respond", core_respond, NULL },
 
 	{ "env.set", core_env_set, NULL },
 	{ "env.add", core_env_add, NULL },
