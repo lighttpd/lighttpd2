@@ -17,6 +17,7 @@
  *  The status page accepts parameters in the query-string:
  *   - mode=runtimes : show runtime information
  *   - format=plain : returns "short" information in plain text format, easy to parse
+ *   - auto : returns "legacy" plain text format, for 1.5 migration or apache_ munin plugins
  *
  * Example config:
  *     req.path == "/srv-status" {
@@ -50,8 +51,12 @@ LI_API gboolean mod_status_free(liModules *mods, liModule *mod);
 
 static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_info, GPtrArray *result, guint uptime, liStatistics *totals, guint total_connections, guint *connection_count);
 static GString *status_info_plain(liVRequest *vr, guint uptime, liStatistics *totals, guint total_connections, guint *connection_count);
+static GString *status_info_auto(liVRequest *vr, guint uptime, liStatistics *totals, guint *connection_count);
 static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p);
 static gint str_comp(gconstpointer a, gconstpointer b);
+
+/* auto format constants */
+static gchar liConnectionState_short[] = "_Kqrhw";
 
 /* html snippet constants */
 static const gchar html_header[] =
@@ -518,6 +523,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		if (li_querystring_find(vr->request.uri.query, CONST_STR_LEN("format"), &val, &len) && strncmp(val, "plain", len) == 0) {
 			/* show plain text page */
 			html = status_info_plain(vr, uptime, &totals, total_connections, &connection_count[0]);
+		} else if (li_strncase_equal(vr->request.uri.query, CONST_STR_LEN("auto"))) {
+			/* show auto text page */
+			html = status_info_auto(vr, uptime, &totals, &connection_count[0]);
 		} else {
 			/* show full html page */
 			html = status_info_full(vr, p, short_info, result, uptime, &totals, total_connections, &connection_count[0]);
@@ -877,6 +885,44 @@ static GString *status_info_plain(liVRequest *vr, guint uptime, liStatistics *to
 	li_string_append_int(html, mod_status_response_codes[3]);
 	g_string_append_len(html, CONST_STR_LEN("\nstatus_5xx: "));
 	li_string_append_int(html, mod_status_response_codes[4]);
+
+	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/plain"));
+
+	return html;
+}
+
+static GString *status_info_auto(liVRequest *vr, guint uptime, liStatistics *totals, guint *connection_count) {
+	GString *html;
+	guint i, j;
+
+	html = g_string_sized_new(1024 - 1);
+
+	/* absolute values */
+	g_string_append_len(html, CONST_STR_LEN("Total Accesses: "));
+	li_string_append_int(html, totals->requests);
+	g_string_append_len(html, CONST_STR_LEN("\nTotal kBytes: "));
+	li_string_append_int(html, totals->bytes_out / 1024);
+	g_string_append_len(html, CONST_STR_LEN("\nUptime: "));
+	li_string_append_int(html, (gint64)uptime);
+	/* connection states */
+	g_string_append_len(html, CONST_STR_LEN("\nBusyServers: "));
+	li_string_append_int(html, connection_count[2]+connection_count[3]+connection_count[4]+connection_count[5]);
+	g_string_append_len(html, CONST_STR_LEN("\nIdleServers: "));
+	li_string_append_int(html, connection_count[0]+connection_count[1]);
+	/* average since start */
+	g_string_append_len(html, CONST_STR_LEN("\nTraffic: "));
+	li_string_append_int(html, totals->bytes_out / uptime);
+	/* average last 5 seconds */
+	g_string_append_len(html, CONST_STR_LEN("\nTraffic5s: "));
+	li_string_append_int(html, totals->bytes_out_5s_diff / 5);
+	/* output scoreboard */
+	g_string_append_len(html, CONST_STR_LEN("\nScoreboard: "));
+	for (i = 0; i < 6; i++) {
+		for (j = 0; j < connection_count[i]; j++) {
+			g_string_append_c(html, liConnectionState_short[i]);
+		}
+	}
+	g_string_append_len(html, CONST_STR_LEN("\n"));
 
 	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/plain"));
 
