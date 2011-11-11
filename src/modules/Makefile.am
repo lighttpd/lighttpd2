@@ -1,7 +1,7 @@
 install_libs =
 
 common_cflags = -I$(top_srcdir)/include -I$(top_builddir)/include
-common_cflags += $(GTHREAD_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS) $(OPENSSL_CFLAGS)
+common_cflags += $(GTHREAD_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS)
 common_libs = $(GTHREAD_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
 common_ldflags = -module -export-dynamic -avoid-version -no-undefined $(common_libs)
 common_libadd = ../common/liblighttpd2-common.la ../main/liblighttpd2-shared.la
@@ -43,8 +43,8 @@ libmod_debug_la_LIBADD = $(common_libadd)
 if USE_MOD_DEFLATE
 install_libs += libmod_deflate.la
 libmod_deflate_la_SOURCES = mod_deflate.c
-libmod_deflate_la_LDFLAGS = $(common_ldflags) $(Z_LIB) $(BZ_LIB)
-libmod_deflate_la_LIBADD = $(common_libadd)
+libmod_deflate_la_LDFLAGS = $(common_ldflags)
+libmod_deflate_la_LIBADD = $(common_libadd) $(Z_LIB) $(BZ_LIB)
 endif
 
 install_libs += libmod_dirlist.la
@@ -72,6 +72,14 @@ libmod_fortune_la_SOURCES = mod_fortune.c
 libmod_fortune_la_LDFLAGS = $(common_ldflags)
 libmod_fortune_la_LIBADD = $(common_libadd)
 
+if USE_GNUTLS
+install_libs += libmod_gnutls.la
+libmod_gnutls_la_CPPFLAGS = $(AM_CPPFLAGS) $(GNUTLS_CFLAGS)
+libmod_gnutls_la_SOURCES = mod_gnutls.c
+libmod_gnutls_la_LDFLAGS = $(common_ldflags)
+libmod_gnutls_la_LIBADD = $(common_libadd) $(GNUTLS__LIB)
+endif
+
 install_libs += libmod_limit.la
 libmod_limit_la_SOURCES = mod_limit.c
 libmod_limit_la_LDFLAGS = $(common_ldflags)
@@ -92,9 +100,10 @@ libmod_memcached_la_LIBADD = $(common_libadd)
 
 if USE_OPENSSL
 install_libs += libmod_openssl.la
+libmod_openssl_la_CPPFLAGS =  $(AM_CPPFLAGS) $(OPENSSL_CFLAGS)
 libmod_openssl_la_SOURCES = mod_openssl.c
-libmod_openssl_la_LDFLAGS = $(common_ldflags) $(OPENSSL_LIBS)
-libmod_openssl_la_LIBADD = $(common_libadd)
+libmod_openssl_la_LDFLAGS = $(common_ldflags)
+libmod_openssl_la_LIBADD = $(common_libadd) $(OPENSSL_LIBS)
 endif
 
 install_libs += libmod_progress.la

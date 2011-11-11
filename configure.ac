@@ -113,6 +113,23 @@ if test x$lfs = xtrue; then
   CFLAGS="${CFLAGS} -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGE_FILES"
 fi
 
+dnl Check for gnutls
+AC_ARG_WITH([gnutls], [AS_HELP_STRING([--with-gnutls],[gnutls library for ssl/tls])],
+[WITH_GNUTLS=$withval],[WITH_GNUTLS=no])
+
+if test "$WITH_GNUTLS" != "no"; then
+ PKG_CHECK_MODULES([GNUTLS], [gnutls],[],[
+  AC_MSG_ERROR([gnutls not found])
+ ])
+
+ AC_SUBST([GNUTLS_CFLAGS])
+ AC_SUBST([GNUTLS_LIBS])
+ USE_GNUTLS=true
+fi
+
+AM_CONDITIONAL([USE_GNUTLS], [test "$USE_GNUTLS" = "true"])
+
+
 dnl Check for lua
 AC_MSG_CHECKING([for lua])
 AC_ARG_WITH([lua], [AS_HELP_STRING([--with-lua],[lua engine (recommended)])],
