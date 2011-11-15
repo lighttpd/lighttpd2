@@ -343,6 +343,7 @@ void li_vrequest_handle_request_body(liVRequest *vr) {
 
 /* received all response headers/status code - call once from your indirect handler */
 void li_vrequest_handle_response_headers(liVRequest *vr) {
+	li_http_header_remove(vr->response.headers, CONST_STR_LEN("Connection"));
 	if (LI_VRS_HANDLE_RESPONSE_HEADERS > vr->state) {
 		vr->state = LI_VRS_HANDLE_RESPONSE_HEADERS;
 	}
