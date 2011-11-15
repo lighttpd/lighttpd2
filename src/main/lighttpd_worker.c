@@ -55,8 +55,7 @@ int main(int argc, char *argv[]) {
 			/*g_mem_set_vtable(glib_mem_profiler_table);*/
 			li_profiler_enable(profile_mem);
 			atexit(li_profiler_finish);
-			atexit(li_profiler_dump);
-			/*atexit(profiler_dump_table);*/
+			/*atexit(li_profiler_dump);*/
 		}
 	}
 #endif

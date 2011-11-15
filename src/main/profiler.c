@@ -21,15 +21,25 @@
 #endif
 
 #define PROFILER_HASHTABLE_SIZE 65521
-
+#define PROFILER_STACKFRAMES 36
 
 typedef struct profiler_block profiler_block;
 struct profiler_block {
 	gpointer addr;
 	gsize size;
 	profiler_block *next;
-	void *stackframes[12];
+	void *stackframes[PROFILER_STACKFRAMES];
 	gint stackframes_num;
+};
+
+typedef struct profiler_stackframe profiler_stackframe;
+struct profiler_stackframe {
+	gpointer addr;
+	gsize size;
+	guint blocks;
+	gchar *symbol;
+	profiler_stackframe *next;
+	profiler_stackframe *children;
 };
 
 
@@ -80,7 +90,7 @@ static void profiler_hashtable_insert(gpointer addr, gsize size) {
 	block->addr = addr;
 	block->size = size;
 #ifdef HAVE_EXECINFO_H
-	block->stackframes_num = backtrace(block->stackframes, 12);
+	block->stackframes_num = backtrace(block->stackframes, PROFILER_STACKFRAMES);
 #endif
 
 	block->next = profiler_hashtable[hash % PROFILER_HASHTABLE_SIZE];
@@ -276,14 +286,75 @@ void li_profiler_finish() {
 	free(profiler_hashtable);
 }
 
-void li_profiler_dump() {
-	profiler_block *block;
-	guint i;
-	gint len;
+
+static void profiler_dump_frame(guint level, profiler_stackframe *frame, gsize minsize) {
 	gchar str[1024];
+	gint len;
+	gboolean swapped;
+	profiler_stackframe *f;
+
+	/* sort this tree level according to total allocated size. yes, bubblesort. */
+	do {
+		profiler_stackframe *f1, *f2;
+
+		swapped = FALSE;
+
+		for (f1 = frame, f2 = frame->next; f1 != NULL && f2 != NULL; f1 = f2, f2 = f2->next) {
+			if (f2->size > f1->size) {
+				profiler_stackframe tmp = *f1;
+
+				f1->addr = f2->addr;
+				f1->blocks = f2->blocks;
+				f1->size = f2->size;
+				f1->children = f2->children;
+				f1->symbol = f2->symbol;
+
+				f2->addr = tmp.addr;
+				f2->blocks = tmp.blocks;
+				f2->size = tmp.size;
+				f2->children = tmp.children;
+				f2->symbol = tmp.symbol;
+
+				swapped = TRUE;
+			}
+		}
+	} while (swapped);
+
+	while (frame) {
+		if (frame->size >= minsize) {
+			/* indention */
+			memset(str, ' ', level*4);
+			profiler_write(str, level*4);
+			len = sprintf(str,
+				"%"G_GSIZE_FORMAT" %s in %u blocks @ %p %s\n",
+				(frame->size > 1024) ? frame->size / 1024 : frame->size,
+				(frame->size > 1024) ? "kilobytes" : "bytes",
+				frame->blocks,
+				frame->addr, frame->symbol
+			);
+			profiler_write(str, len);
+		}
+
+		if (frame->children)
+			profiler_dump_frame(level+1, frame->children, minsize);
+
+		f = frame->next;
+		free(frame->symbol);
+		free(frame);
+		frame = f;
+	}
+}
+
+void li_profiler_dump(gint minsize) {
+	profiler_stackframe *tree_cur, *frame;
+	gchar **symbols;
+	gint i, j, len;
+	profiler_block *block;
 	struct stat st;
-	gsize leaked_size = 0;
-	guint leaked_num = 0;
+	gchar str[1024];
+	gsize total_size = 0;
+	guint total_blocks = 0;
+	profiler_stackframe *tree = calloc(1, sizeof(profiler_stackframe));
 
 	g_static_mutex_lock(&profiler_mutex);
 
@@ -295,33 +366,63 @@ void li_profiler_dump() {
 
 	for (i = 0; i < PROFILER_HASHTABLE_SIZE; i++) {
 		for (block = profiler_hashtable[i]; block != NULL; block = block->next) {
-			leaked_num++;
-			leaked_size += block->size;
-			len = sprintf(str, "--------------- unfreed block of %"G_GSIZE_FORMAT" bytes @ %p ---------------\n", block->size, block->addr);
-			profiler_write(str, len);
+			total_size += block->size;
+			total_blocks++;
+
 #ifdef HAVE_EXECINFO_H
-			backtrace_symbols_fd(block->stackframes, block->stackframes_num, profiler_output_fd);
+			/* resolve all symbols */
+			symbols = backtrace_symbols(block->stackframes, block->stackframes_num);
+
+			tree_cur = tree;
+
+			for (j = block->stackframes_num-1; j >= 0; j--) {
+				for (frame = tree_cur->children; frame != NULL; frame = frame->next) {
+					if (block->stackframes[j] == frame->addr) {
+						frame->blocks++;
+						frame->size += block->size;
+						break;
+					}
+				}
+
+				if (!frame) {
+					frame = malloc(sizeof(profiler_stackframe));
+					frame->addr = block->stackframes[j];
+					frame->blocks = 1;
+					frame->size = block->size;
+					frame->symbol = strdup(symbols[j]);
+					frame->children = NULL;
+					frame->next = tree_cur->children;
+					tree_cur->children = frame;
+				}
+
+				tree_cur = frame;
+			}
+
+			free(symbols);
 #endif
+
 		}
 	}
 
+#ifdef HAVE_EXECINFO_H
+	profiler_dump_frame(0, tree->children, minsize);
+#endif
+
 	len = sprintf(str,
-		"--------------- memory profiler stats ---------------\n"
-		"leaked objects:\t\t%u\n"
-		"leaked bytes:\t\t%"G_GSIZE_FORMAT" %s\n",
-		leaked_num,
-		(leaked_size > 1024) ? leaked_size / 1024 : leaked_size,
-		(leaked_size > 1024) ? "kilobytes" : "bytes"
+		"--------------- memory profiler summary ---------------\n"
+		"total blocks: %u\n"
+		"total size:   %"G_GSIZE_FORMAT" %s\n",
+		total_blocks,
+		(total_size > 1024) ? total_size / 1024 : total_size,
+		(total_size > 1024) ? "kilobytes" : "bytes"
 	);
 	profiler_write(str, len);
 
 	len = sprintf(str, "--------------- memory profiler dump end ---------------\n");
+
+	free(tree);
+
 	profiler_write(str, len);
 
 	g_static_mutex_unlock(&profiler_mutex);
-
-}
-
-void li_profiler_dump_table() {
-
 }

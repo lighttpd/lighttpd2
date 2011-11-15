@@ -17,7 +17,6 @@ struct liProfilerMem {
 
 LI_API void li_profiler_enable(gchar *output_path); /* enables the profiler */
 LI_API void li_profiler_finish();
-LI_API void li_profiler_dump(); /* dumps memory statistics to stdout */
-LI_API void li_profiler_dump_table();
+LI_API void li_profiler_dump(gint minsize); /* dumps memory statistics to file specified in LI_PROFILE_MEM env var */
 
 #endif

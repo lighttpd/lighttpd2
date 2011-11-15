@@ -28,7 +28,7 @@
  *     - more debug actions (for other stuff than connections)
  *
  * Author:
- *     Copyright (c) 2009 Thomas Porzelt
+ *     Copyright (c) 2009-2011 Thomas Porzelt
  * License:
  *     MIT, see COPYING file in the lighttpd 2 tree
  */
@@ -333,25 +333,31 @@ static liAction* debug_show_connections_create(liServer *srv, liWorker *wrk, liP
 
 #ifdef WITH_PROFILER
 static liHandlerResult debug_profiler_dump(liVRequest *vr, gpointer param, gpointer *context) {
-	UNUSED(vr); UNUSED(param); UNUSED(context);
+	gint minsize = GPOINTER_TO_INT(param);
+
+	UNUSED(vr); UNUSED(context);
 
 	if (!getenv("LIGHTY_PROFILE_MEM"))
 		return LI_HANDLER_GO_ON;
 
-	li_profiler_dump();
+	li_profiler_dump(minsize);
 
 	return LI_HANDLER_GO_ON;
 }
 
 static liAction* debug_profiler_dump_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	UNUSED(wrk); UNUSED(userdata);
+	gpointer ptr;
 
-	if (val) {
-		ERROR(srv, "%s", "debug.profiler_dump doesn't expect any parameters");
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	if (val && val->type != LI_VALUE_NUMBER) {
+		ERROR(srv, "%s", "debug.profiler_dump takes an optional integer (minsize) as parameter");
 		return NULL;
 	}
 
-	return li_action_new_function(debug_profiler_dump, NULL, NULL, p);
+	ptr = GINT_TO_POINTER(val ? val->data.number : 10240);
+
+	return li_action_new_function(debug_profiler_dump, NULL, NULL, ptr);
 }
 #endif
 
