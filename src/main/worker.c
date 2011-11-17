@@ -641,12 +641,16 @@ static liConnection* worker_con_get(liWorker *wrk) {
 	} else {
 		con = g_array_index(wrk->connections, liConnection*, wrk->connections_active);
 	}
+
 	g_atomic_int_inc((gint*) &wrk->connections_active);
+
+	if (wrk->connections_active > wrk->connections_active_max_5min)
+		wrk->connections_active_max_5min = wrk->connections_active;
+
 	return con;
 }
 
 void li_worker_con_put(liConnection *con) {
-	guint threshold;
 	liWorker *wrk = con->wrk;
 	ev_tstamp now = CUR_TS(wrk);
 
@@ -671,24 +675,20 @@ void li_worker_con_put(liConnection *con) {
 
 	li_connection_reset(con);
 
-	/* free unused connections if it makes sense (more than 30% unused, if longer than 5min, free 15%) */
-	threshold = (wrk->connections->len * 7) / 10;
-	if (wrk->connections_active < threshold && wrk->connections->len > 10) {
-		/* below treshold but for how long? */
-		if ((now - wrk->connections_gc_ts) > 300.0) {
-		/* free unused cons */
-			guint i;
-			threshold = (wrk->connections->len * 85) / 100;
-			for (i = wrk->connections->len; i > threshold; i--) {
-				li_connection_free(g_array_index(wrk->connections, liConnection*, i-1));
-				g_array_index(wrk->connections, liConnection*, i-1) = NULL;
-			}
-			wrk->connections->len = threshold;
+	/* free unused connections. we keep max(connections_active) for the past 5min allocated */
+	if ((now - wrk->connections_gc_ts) > 10.0) {
+		guint i;
+
+		for (i = wrk->connections->len; i > wrk->connections_active_max_5min; i--) {
+			li_connection_free(g_array_index(wrk->connections, liConnection*, i-1));
+			g_array_index(wrk->connections, liConnection*, i-1) = NULL;
 		}
-	} else {
-		/* above treshold, update timestamp */
+
+		wrk->connections->len = wrk->connections_active_max_5min;
+		wrk->connections_active_max_5min = wrk->connections_active;
 		wrk->connections_gc_ts = now;
 	}
+
 
 	if (wrk->wait_for_stop_connections.active && 0 == g_atomic_int_get((gint*) &wrk->connection_load)) {
 		li_server_state_ready(wrk->srv, &wrk->wait_for_stop_connections);

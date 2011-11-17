@@ -76,6 +76,7 @@ struct liWorker {
 	guint connections_active; /** 0..con_act-1: active connections, con_act..used-1: free connections
 	                            * use with atomic, read direct from local worker context
 	                            */
+	guint connections_active_max_5min; /** max() of active connections during the last 5 minutes */
 	GArray *connections;      /** array of (connection*), use only from local worker context */
 	ev_tstamp connections_gc_ts;
 
