@@ -58,13 +58,6 @@ def build(bld):
 		worker.c
 	'''
 
-	if bld.env['WITH_PROFILER'] == 1:
-		if sys.platform.startswith('freebsd'):
-			libs += ['execinfo']
-		source += '''
-			profiler.c
-		'''
-
 	if bld.env['USE_LUA'] == 1:
 		libs += ['lua']
 		source += '''

@@ -20,6 +20,11 @@ common_src= \
 	utils.c \
 	waitqueue.c
 
+if WITH_PROFILER
+common_src+= profiler.c
+endif
+EXTRA_liblighttpd2_common_la_SOURCES=$(lua_src) profiler.c
+
 BUILT_SOURCES=ip_parsers.c
 
 ip_parsers.c: ip_parsers.rl

@@ -33,6 +33,14 @@ def build(bld):
 		utils.c
 		waitqueue.c
 	'''
+
+	if bld.env['WITH_PROFILER'] == 1:
+		if sys.platform.startswith('freebsd'):
+			libs += ['execinfo']
+		source += '''
+			profiler.c
+		'''
+
 	if sys.platform.startswith('freebsd'):
 		libs = ['kvm']
 	else:
