@@ -676,7 +676,7 @@ void li_worker_con_put(liConnection *con) {
 	li_connection_reset(con);
 
 	/* free unused connections. we keep max(connections_active) for the past 5min allocated */
-	if ((now - wrk->connections_gc_ts) > 10.0) {
+	if ((now - wrk->connections_gc_ts) > 300.0) {
 		guint i;
 
 		for (i = wrk->connections->len; i > wrk->connections_active_max_5min; i--) {
