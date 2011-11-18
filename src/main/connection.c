@@ -294,10 +294,23 @@ static G_GNUC_WARN_UNUSED_RESULT gboolean connection_try_read(liConnection *con)
 		goffset transferred;
 		transferred = con->raw_in->length;
 
+		if (NULL == con->raw_in_buffer && NULL != con->wrk->network_read_buf) {
+			/* reuse worker buf if needed */
+			con->raw_in_buffer = con->wrk->network_read_buf;
+			con->wrk->network_read_buf = NULL;
+		}
+
 		if (con->srv_sock->read_cb) {
 			res = con->srv_sock->read_cb(con);
 		} else {
 			res = li_network_read(con->mainvr, con->sock_watcher.fd, con->raw_in, &con->raw_in_buffer);
+		}
+
+		if (NULL == con->wrk->network_read_buf && NULL != con->raw_in_buffer
+		    && 1 == g_atomic_int_get(&con->raw_in_buffer->refcount)) {
+			/* move buffer back to worker if we didn't use it */
+			con->wrk->network_read_buf = con->raw_in_buffer;
+			con->raw_in_buffer = NULL;
 		}
 
 		transferred = con->raw_in->length - transferred;

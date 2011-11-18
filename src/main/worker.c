@@ -426,7 +426,7 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 
 	wrk->tasklets = li_tasklet_pool_new(wrk->loop, srv->tasklet_pool_threads);
 
-	wrk->network_read_buf = g_byte_array_sized_new(0);
+	wrk->network_read_buf = NULL;
 
 	return wrk;
 }
@@ -492,7 +492,7 @@ void li_worker_free(liWorker *wrk) {
 	wrk->L = NULL;
 #endif
 
-	g_byte_array_free(wrk->network_read_buf, TRUE);
+	li_buffer_release(wrk->network_read_buf);
 
 	g_slice_free(liWorker, wrk);
 }

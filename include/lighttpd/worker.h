@@ -117,7 +117,7 @@ struct liWorker {
 
 	liStatCache *stat_cache;
 
-	GByteArray *network_read_buf; /** internal temporary buffer for network.c */
+	liBuffer *network_read_buf; /** available buffer - steal it if you need it, can be NULL. refcount must be 1, no other references. */
 };
 
 LI_API liWorker* li_worker_new(liServer *srv, struct ev_loop *loop);
