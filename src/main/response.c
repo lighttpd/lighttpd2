@@ -147,7 +147,7 @@ static gchar *li_response_error_description(guint status_code, guint *len) {
 	);
 	case 402: SET_LEN_AND_RETURN_STR("<p>Insert coint.</p>");
 	case 403: SET_LEN_AND_RETURN_STR("<p>You don't have permission to access the requested resource.</p>");
-	case 404: SET_LEN_AND_RETURN_STR("<p>The requested resource was not found.<br>Make sure you entered the correct URL in your browser.</p>\n");
+	case 404: SET_LEN_AND_RETURN_STR("<p>The requested resource was not found.<br>Make sure you entered the correct URL in your browser.</p>");
 	case 405: SET_LEN_AND_RETURN_STR("<p>The requested method is not allowed for this resource.</p>");
 	case 406: SET_LEN_AND_RETURN_STR("<p>An appropriate representation of the requested resource could not be found.</p>");
 	case 407: SET_LEN_AND_RETURN_STR(
@@ -174,13 +174,13 @@ static gchar *li_response_error_description(guint status_code, guint *len) {
 	case 424: SET_LEN_AND_RETURN_STR("<p>The method could not be performed on the resource because the requested action depended on another action and that other action failed.</p>");
 	case 426: SET_LEN_AND_RETURN_STR("<p>This resource should be accessed via SSL.</p>");
 	/* 5XX server error */
-	case 500: SET_LEN_AND_RETURN_STR("<p>The server encountered an internal error and was unable to complete your request.</p");
+	case 500: SET_LEN_AND_RETURN_STR("<p>The server encountered an internal error and was unable to complete your request.</p>");
 	case 501: SET_LEN_AND_RETURN_STR("<p>The request method is not supported by this server.</p>");
 	case 502: SET_LEN_AND_RETURN_STR("<p>The proxy server received an invalid response from an upstream server.</p>");
 	case 503: SET_LEN_AND_RETURN_STR("<p>The server is temporarily unable to service your request due to maintenance downtime or capacity problems.<br>Please try again later.</p>");
 	case 504: SET_LEN_AND_RETURN_STR("<p>The proxy server did not receive a timely response from the upstream server.</p>");
 	case 505: SET_LEN_AND_RETURN_STR("<p>The requested http version is not supported by this server.</p>");
-	case 506: SET_LEN_AND_RETURN_STR("<p>A variant for the requested resource is itself a negotiable resource.</p");
+	case 506: SET_LEN_AND_RETURN_STR("<p>A variant for the requested resource is itself a negotiable resource.</p>");
 	case 507: SET_LEN_AND_RETURN_STR("<p>The request could not be fullfilled because of insufficient storage available on the server.</p>");
 	case 509: SET_LEN_AND_RETURN_STR("<p>The available bandwidth limit for this resource has been reached.</p>");
 	case 510: SET_LEN_AND_RETURN_STR("<p>A mandatory extension policy in the request is not accepted by the server for this resource.</p>");
