@@ -100,6 +100,8 @@ gboolean li_response_send_headers(liConnection *con) {
 
 		for (iter = g_queue_peek_head_link(&vr->response.headers->entries); iter; iter = g_list_next(iter)) {
 			header = (liHttpHeader*) iter->data;
+			/* ignore connection headers from backends. set con->info.keep_alive = FALSE to disable keep-alive */
+			if (li_http_header_key_is(header, CONST_STR_LEN("connection"))) continue;
 			g_string_append_len(head, GSTR_LEN(header->data));
 			g_string_append_len(head, CONST_STR_LEN("\r\n"));
 			if (!have_date && li_http_header_key_is(header, CONST_STR_LEN("date"))) have_date = TRUE;
