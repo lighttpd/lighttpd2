@@ -1866,6 +1866,124 @@ static liAction* core_throttle_connection(liServer *srv, liWorker *wrk, liPlugin
 	return li_action_new_function(core_handle_throttle_connection, NULL, core_throttle_connection_free, param);
 }
 
+typedef struct core_map_data core_map_data;
+struct core_map_data {
+	liPattern *pattern;
+	GHashTable *hash;
+	liAction *default_action;
+};
+static void core_map_free(liServer *srv, gpointer param) {
+	core_map_data *md = param;
+
+	UNUSED(srv);
+
+	if (md->default_action)
+		li_action_release(srv, md->default_action);
+
+	li_pattern_free(md->pattern);
+	g_hash_table_destroy(md->hash);
+	g_slice_free(core_map_data, md);
+}
+
+static liHandlerResult core_handle_map(liVRequest *vr, gpointer param, gpointer *context) {
+	liValue *v;
+	core_map_data *md = param;
+
+	UNUSED(context);
+
+	g_string_truncate(vr->wrk->tmp_str, 0);
+	li_pattern_eval(vr, vr->wrk->tmp_str, md->pattern, NULL, NULL, NULL, NULL);
+
+	v = g_hash_table_lookup(md->hash, vr->wrk->tmp_str);
+	if (v)
+		li_action_enter(vr, v->data.val_action.action);
+	else if (md->default_action)
+		li_action_enter(vr, md->default_action);
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_map(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	core_map_data *md;
+	guint i;
+	liValue *list, *l, *r, *v;
+	liPattern *pattern;
+
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	if (!val || val->type != LI_VALUE_LIST || val->data.list->len != 2) {
+		ERROR(srv, "%s", "'map' action expects a string => (list of key => action pairs) as parameter");
+		return NULL;
+	}
+
+	l = g_array_index(val->data.list, liValue*, 0);
+	r = g_array_index(val->data.list, liValue*, 1);
+	if (l->type != LI_VALUE_STRING || r->type != LI_VALUE_LIST) {
+		ERROR(srv, "%s", "'map' action expects a string => (list of key => action pairs) as parameter");
+		return NULL;
+	}
+
+	pattern = li_pattern_new(srv, l->data.string->str);
+	if (!pattern) {
+		ERROR(srv, "'map' action: failed to compile pattern '%s'", l->data.string->str);
+		return NULL;
+	}
+
+	md = g_slice_new(core_map_data);
+	md->pattern = pattern;
+	md->default_action = NULL;
+	md->hash = g_hash_table_new_full(
+		(GHashFunc) g_string_hash, (GEqualFunc) g_string_equal,
+		(GDestroyNotify) li_string_destroy_notify, (GDestroyNotify) li_value_free);
+
+	list = r;
+
+	for (i = 0; i < list->data.list->len; i++) {
+		v = g_array_index(list->data.list, liValue*, i);
+
+		if (v->type != LI_VALUE_LIST || v->data.list->len != 2) {
+			ERROR(srv, "%s", "'map' action expects a string => (list of key => action pairs) as parameter");
+			core_map_free(srv, md);
+			return NULL;
+		}
+
+		l = g_array_index(v->data.list, liValue*, 0);
+		r = g_array_index(v->data.list, liValue*, 1);
+
+		if (r->type != LI_VALUE_ACTION) {
+			ERROR(srv, "%s", "'map' action expects a string => (list of key => action pairs) as parameter");
+			core_map_free(srv, md);
+			return NULL;
+		}
+
+		if (l->type == LI_VALUE_NONE) {
+			/* default action */
+			md->default_action = li_value_extract_action(r);
+		} else if (l->type == LI_VALUE_STRING) {
+			/* string => action */
+			g_hash_table_insert(md->hash, li_value_extract_string(l), li_value_copy(r));
+		} else if (l->type == LI_VALUE_LIST) {
+			/* (string, string, ...) => action */
+			guint j;
+			liValue *v2;
+
+			for (j = 0; j < l->data.list->len; j++) {
+				v2 = g_array_index(l->data.list, liValue*, j);
+
+				if (v2->type != LI_VALUE_STRING) {
+					ERROR(srv, "%s", "'map' action expects a string => (list of key => action pairs) as parameter");
+					core_map_free(srv, md);
+					return NULL;
+				}
+
+				g_hash_table_insert(md->hash, li_value_extract_string(v2), li_value_copy(r));
+			}
+		}
+	}
+
+	return li_action_new_function(core_handle_map, NULL, core_map_free, md);
+}
+
 static void core_warmup(liServer *srv, liPlugin *p, gint32 id, GString *data) {
 	UNUSED(p);
 	UNUSED(id);
@@ -1952,6 +2070,8 @@ static const liPluginAction actions[] = {
 	{ "io.throttle", core_throttle_connection, NULL },
 	{ "io.throttle_pool", core_throttle_pool, NULL },
 	{ "io.throttle_ip", core_throttle_ip, NULL },
+
+	{ "map", core_map, NULL },
 
 	{ NULL, NULL, NULL }
 };
