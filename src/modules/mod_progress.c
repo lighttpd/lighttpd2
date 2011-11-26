@@ -543,6 +543,7 @@ static void plugin_progress_free(liServer *srv, liPlugin *p) {
 	}
 
 	g_slice_free1(sizeof(mod_progress_worker_data) * srv->worker_count, pd->worker_data);
+	g_slice_free(mod_progress_data, pd);
 }
 
 static void plugin_progress_init(liServer *srv, liPlugin *p, gpointer userdata) {
