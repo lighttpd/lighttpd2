@@ -1,6 +1,10 @@
 
 #include <lighttpd/mempool.h>
 
+#ifdef WITH_PROFILER
+#include <lighttpd/profiler.h>
+#endif
+
 /*
  * available #defines:
  * - MEMPOOL_MALLOC
@@ -166,10 +170,17 @@ static inline void* mp_alloc_page(gsize size) {
 		g_error ("%s: failed to allocate %"G_GSIZE_FORMAT" bytes with mmap", G_STRLOC, size);
 	}
 # else
-	if (G_UNLIKELY(NULL == (ptr = malloc(size)))) {
+	if (G_UNLIKELY(NULL == (ptr = g_malloc(size)))) {
 		g_error ("%s: failed to allocate %"G_GSIZE_FORMAT" bytes", G_STRLOC, size);
 	}
 # endif
+
+#ifdef WITH_PROFILER
+	if (G_UNLIKELY(li_profiler_enabled)) {
+		li_profiler_hashtable_insert((gpointer)ptr, size);
+	}
+#endif
+
 	return ptr;
 }
 
@@ -178,8 +189,14 @@ static inline void mp_free_page(const void *ptr, gsize size) {
 # ifdef MAP_ANON
 	munmap((void*) ptr, size);
 # else
-	free(ptr);
+	g_free(ptr);
 # endif
+
+#ifdef WITH_PROFILER
+	if (G_UNLIKELY(li_profiler_enabled)) {
+		li_profiler_hashtable_remove((gpointer)ptr);
+	}
+#endif
 }
 
 /* how many chunks in an arey for a chunk size? */
