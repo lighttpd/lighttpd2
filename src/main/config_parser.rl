@@ -50,57 +50,57 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	}
 
 	action boolean {
-		liValue *o;
+		liValue *v;
 
-		o = li_value_new_bool(*ctx->mark == 't' ? TRUE : FALSE);
-		g_queue_push_head(ctx->value_stack, o);
+		v = li_value_new_bool(*ctx->mark == 't' ? TRUE : FALSE);
+		g_queue_push_head(ctx->value_stack, v);
 
 		_printf("got boolean %s in line %zd\n", *ctx->mark == 't' ? "true" : "false", ctx->line);
 	}
 
 	action integer {
-		liValue *o;
+		liValue *v;
 		gint64 i = 0;
 
 		for (gchar *c = ctx->mark; c < fpc; c++)
 			i = i * 10 + *c - 48;
 
-		o = li_value_new_number(i);
+		v = li_value_new_number(i);
 		/* push value onto stack */
-		g_queue_push_head(ctx->value_stack, o);
+		g_queue_push_head(ctx->value_stack, v);
 
 		_printf("got integer %" G_GINT64_FORMAT " in line %zd\n", i, ctx->line);
 	}
 
 	action integer_suffix {
-		liValue *o;
+		liValue *v;
 		GString *str;
 
-		o = g_queue_peek_head(ctx->value_stack);
+		v = g_queue_peek_head(ctx->value_stack);
 
 		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
 
-		     if (g_str_equal(str->str, "kbyte")) o->data.number *= 1024;
-		else if (g_str_equal(str->str, "mbyte")) o->data.number *= 1024 * 1024;
-		else if (g_str_equal(str->str, "gbyte")) o->data.number *= 1024 * 1024 * 1024;
-		else if (g_str_equal(str->str, "tbyte")) o->data.number *= 1024 * 1024 * 1024 * G_GINT64_CONSTANT(1024);
+		     if (g_str_equal(str->str, "kbyte")) v->data.number *= 1024;
+		else if (g_str_equal(str->str, "mbyte")) v->data.number *= 1024 * 1024;
+		else if (g_str_equal(str->str, "gbyte")) v->data.number *= 1024 * 1024 * 1024;
+		else if (g_str_equal(str->str, "tbyte")) v->data.number *= 1024 * 1024 * 1024 * G_GINT64_CONSTANT(1024);
 
-		else if (g_str_equal(str->str, "kbit")) o->data.number *= 1024 / 8;
-		else if (g_str_equal(str->str, "mbit")) o->data.number *= 1024 * 1024 / 8;
-		else if (g_str_equal(str->str, "gbit")) o->data.number *= 1024 * 1024 * 1024 / 8;
-		else if (g_str_equal(str->str, "tbit")) o->data.number *= 1024 * 1024 * 1024 * G_GINT64_CONSTANT(1024) / 8;
+		else if (g_str_equal(str->str, "kbit")) v->data.number *= 1024 / 8;
+		else if (g_str_equal(str->str, "mbit")) v->data.number *= 1024 * 1024 / 8;
+		else if (g_str_equal(str->str, "gbit")) v->data.number *= 1024 * 1024 * 1024 / 8;
+		else if (g_str_equal(str->str, "tbit")) v->data.number *= 1024 * 1024 * 1024 * G_GINT64_CONSTANT(1024) / 8;
 
-		else if (g_str_equal(str->str, "min")) o->data.number *= 60;
-		else if (g_str_equal(str->str, "hours")) o->data.number *= 60 * 60;
-		else if (g_str_equal(str->str, "days")) o->data.number *= 60 * 60 * 24;
+		else if (g_str_equal(str->str, "min")) v->data.number *= 60;
+		else if (g_str_equal(str->str, "hours")) v->data.number *= 60 * 60;
+		else if (g_str_equal(str->str, "days")) v->data.number *= 60 * 60 * 24;
 
 		g_string_free(str, TRUE);
 
-		_printf("got int with suffix: %" G_GINT64_FORMAT "\n", o->data.number);
+		_printf("got int with suffix: %" G_GINT64_FORMAT "\n", v->data.number);
 	}
 
 	action string {
-		liValue *o;
+		liValue *v;
 		GString *str;
 		gchar ch;
 
@@ -154,8 +154,8 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			}
 		}
 
-		o = li_value_new_string(str);
-		g_queue_push_head(ctx->value_stack, o);
+		v = li_value_new_string(str);
+		g_queue_push_head(ctx->value_stack, v);
 
 		_printf("got string %s", "");
 		for (gchar *c = ctx->mark + 1; c < fpc - 1; c++) _printf("%c", *c);
@@ -164,27 +164,27 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 	# advanced types
 	action list_start {
-		liValue *o;
+		liValue *v;
 
 		/* create new list value and put it on stack, list entries are put in it by getting the previous value from the stack */
-		o = li_value_new_list();
-		g_queue_push_head(ctx->value_stack, o);
+		v = li_value_new_list();
+		g_queue_push_head(ctx->value_stack, v);
 
 		fcall list_scanner;
 	}
 
 	action list_push {
-		liValue *o, *l;
+		liValue *v, *l;
 
 		/* pop current value from stack and append it to the new top of the stack value (the list) */
-		o = g_queue_pop_head(ctx->value_stack);
+		v = g_queue_pop_head(ctx->value_stack);
 
 		l = g_queue_peek_head(ctx->value_stack);
 		assert(l->type == LI_VALUE_LIST);
 
-		g_array_append_val(l->data.list, o);
+		g_array_append_val(l->data.list, v);
 
-		_printf("list_push %s\n", li_value_type_string(o->type));
+		_printf("list_push %s\n", li_value_type_string(v->type));
 	}
 
 	action list_end {
@@ -192,11 +192,11 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	}
 
 	action hash_start {
-		liValue *o;
+		liValue *v;
 
 		/* create new hash value and put it on stack, if a key-value pair is encountered, get it by walking 2 steps back the stack */
-		o = li_value_new_hash();
-		g_queue_push_head(ctx->value_stack, o);
+		v = li_value_new_hash();
+		g_queue_push_head(ctx->value_stack, v);
 
 		fcall hash_scanner;
 	}
@@ -262,9 +262,9 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	}
 
 	action liValue {
-		liValue *o;
+		liValue *v;
 
-		o = g_queue_peek_head(ctx->value_stack);
+		v = g_queue_peek_head(ctx->value_stack);
 
 		/* check if we need to cast the value */
 		if (ctx->cast != LI_CFG_PARSER_CAST_NONE) {
@@ -274,18 +274,18 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				guint i = 0;
 				gboolean negative = FALSE;
 
-				if (o->type != LI_VALUE_STRING) {
-					ERROR(srv, "can only cast strings to integers, %s given", li_value_type_string(o->type));
+				if (v->type != LI_VALUE_STRING) {
+					ERROR(srv, "can only cast strings to integers, %s given", li_value_type_string(v->type));
 					return FALSE;
 				}
 
-				if (o->data.string->str[0] == '-') {
+				if (v->data.string->str[0] == '-') {
 					negative = TRUE;
 					i++;
 				}
 
-				for (; i < o->data.string->len; i++) {
-					gchar c = o->data.string->str[i];
+				for (; i < v->data.string->len; i++) {
+					gchar c = v->data.string->str[i];
 					if (c < '0' || c > '9') {
 						ERROR(srv, "%s", "cast(int) parameter doesn't look like a numerical string");
 						return FALSE;
@@ -296,29 +296,29 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				if (negative)
 					x *= -1;
 
-				g_string_free(o->data.string, TRUE);
-				o->data.number = x;
-				o->type = LI_VALUE_NUMBER;
+				g_string_free(v->data.string, TRUE);
+				v->data.number = x;
+				v->type = LI_VALUE_NUMBER;
 			}
 			else if (ctx->cast == LI_CFG_PARSER_CAST_STR) {
 				/* cast integer to string */
 				GString *str;
 
-				if (o->type != LI_VALUE_NUMBER) {
-					ERROR(srv, "can only cast integers to strings, %s given", li_value_type_string(o->type));
+				if (v->type != LI_VALUE_NUMBER) {
+					ERROR(srv, "can only cast integers to strings, %s given", li_value_type_string(v->type));
 					return FALSE;
 				}
 
 				str = g_string_sized_new(0);
-				g_string_printf(str, "%" G_GINT64_FORMAT, o->data.number);
-				o->data.string = str;
-				o->type = LI_VALUE_STRING;
+				g_string_printf(str, "%" G_GINT64_FORMAT, v->data.number);
+				v->data.string = str;
+				v->type = LI_VALUE_STRING;
 			}
 
 			ctx->cast = LI_CFG_PARSER_CAST_NONE;
 		}
 
-		_printf("value (%s) in line %zd\n", li_value_type_string(o->type), ctx->line);
+		_printf("value (%s) in line %zd\n", li_value_type_string(v->type), ctx->line);
 	}
 
 	action value_statement_start {
@@ -336,7 +336,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	action value_statement {
 		/* value (+|-|*|/) value */
 		/* compute new value out of the two */
-		liValue *l, *r, *o;
+		liValue *l, *r, *v;
 		gboolean free_l, free_r;
 		gchar op;
 
@@ -344,7 +344,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		r = g_queue_pop_head(ctx->value_stack);
 		l = g_queue_pop_head(ctx->value_stack);
-		o = NULL;
+		v = NULL;
 
 		op = *(gchar*)g_queue_pop_head(ctx->value_op_stack);
 
@@ -352,49 +352,49 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			/* value => value */
 			free_l = FALSE;
 			free_r = FALSE;
-			o = li_value_new_list();
-			g_array_append_val(o->data.list, l);
-			g_array_append_val(o->data.list, r);
+			v = li_value_new_list();
+			g_array_append_val(v->data.list, l);
+			g_array_append_val(v->data.list, r);
 		} else if (l->type == LI_VALUE_NUMBER && r->type == LI_VALUE_NUMBER) {
 			switch (op) {
-				case '+': o = li_value_new_number(l->data.number + r->data.number); break;
-				case '-': o = li_value_new_number(l->data.number - r->data.number); break;
-				case '*': o = li_value_new_number(l->data.number * r->data.number); break;
-				case '/': o = li_value_new_number(l->data.number / r->data.number); break;
+				case '+': v = li_value_new_number(l->data.number + r->data.number); break;
+				case '-': v = li_value_new_number(l->data.number - r->data.number); break;
+				case '*': v = li_value_new_number(l->data.number * r->data.number); break;
+				case '/': v = li_value_new_number(l->data.number / r->data.number); break;
 			}
 		} else if (l->type == LI_VALUE_STRING) {
-			o = l;
+			v = l;
 			free_l = FALSE;
 
 			if (r->type == LI_VALUE_STRING && op == '+') {
 				/* str + str */
-				o->data.string = g_string_append_len(o->data.string, GSTR_LEN(r->data.string));
+				v->data.string = g_string_append_len(v->data.string, GSTR_LEN(r->data.string));
 			} else if (r->type == LI_VALUE_NUMBER && op == '+') {
 				/* str + int */
-				g_string_append_printf(o->data.string, "%" G_GINT64_FORMAT, r->data.number);
+				g_string_append_printf(v->data.string, "%" G_GINT64_FORMAT, r->data.number);
 			} else if (r->type == LI_VALUE_NUMBER && op == '*') {
 				/* str * int */
 				if (r->data.number < 0) {
 					ERROR(srv, "string multiplication with negative number (%" G_GINT64_FORMAT ")?", r->data.number);
 					return FALSE;
 				} else if (r->data.number == 0) {
-					o->data.string = g_string_truncate(o->data.string, 0);
+					v->data.string = g_string_truncate(v->data.string, 0);
 				} else {
 					GString *str;
 					str = g_string_new_len(l->data.string->str, l->data.string->len);
 					for (gint i = 1; i < r->data.number; i++)
-						o->data.string = g_string_append_len(o->data.string, str->str, str->len);
+						v->data.string = g_string_append_len(v->data.string, str->str, str->len);
 					g_string_free(str, TRUE);
 				}
 			}
 			else
-				o = NULL;
+				v = NULL;
 		} else if (l->type == LI_VALUE_LIST) {
 			if (op == '+') {
 				/* append r to the end of l */
 				free_l = FALSE; /* use l as the new o */
 				free_r = FALSE; /* r gets appended to o */
-				o = l;
+				v = l;
 
 				g_array_append_val(l->data.list, r);
 			} else if (op == '*') {
@@ -404,7 +404,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 					free_l = FALSE;
 					g_array_append_vals(l->data.list, r->data.list->data, r->data.list->len);
 					g_array_set_size(r->data.list, 0);
-					o = l;
+					v = l;
 				}
 			}
 		}
@@ -413,16 +413,16 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			GHashTableIter iter;
 			gpointer key, val;
 			free_l = FALSE; /* keep l, it's the new o */
-			o = l;
+			v = l;
 
 			g_hash_table_iter_init(&iter, r->data.hash);
 			while (g_hash_table_iter_next(&iter, &key, &val)) {
-				g_hash_table_insert(o->data.hash, key, val);
+				g_hash_table_insert(v->data.hash, key, val);
 				g_hash_table_iter_steal(&iter); /* steal key->value so it doesn't get deleted when destroying r */
 			}
 		}
 
-		if (o == NULL) {
+		if (v == NULL) {
 			WARNING(srv, "erronous value statement: %s %c %s in line %zd\n",
 				li_value_type_string(l->type), op,
 				li_value_type_string(r->type), ctx->line);
@@ -434,7 +434,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			op,
 			op == '=' ?  ">" : "",
 			li_value_type_string(r->type),
-			li_value_type_string(o->type),
+			li_value_type_string(v->type),
 			ctx->line);
 
 		if (free_l)
@@ -442,17 +442,17 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		if (free_r)
 			li_value_free(r);
 
-		g_queue_push_head(ctx->value_stack, o);
+		g_queue_push_head(ctx->value_stack, v);
 	}
 
 	action varname {
 		/* varname, push it as string value onto the stack */
-		liValue *o;
+		liValue *v;
 		GString *str;
 
 		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
-		o = li_value_new_string(str);
-		g_queue_push_head(ctx->value_stack, o);
+		v = li_value_new_string(str);
+		g_queue_push_head(ctx->value_stack, v);
 		_printf("got varname %s\n", str->str);
 	}
 
@@ -1263,9 +1263,9 @@ static void config_parser_context_free(liServer *srv, liConfigParserContext *ctx
 
 	if (free_queues) {
 		if (g_queue_get_length(ctx->value_stack) > 0) {
-			liValue *o;
-			while ((o = g_queue_pop_head(ctx->value_stack)))
-				li_value_free(o);
+			liValue *v;
+			while ((v = g_queue_pop_head(ctx->value_stack)))
+				li_value_free(v);
 		}
 
 		if (g_queue_get_length(ctx->condition_stack) > 0) {
