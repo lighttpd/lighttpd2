@@ -40,6 +40,15 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	action mark { ctx->mark = fpc; }
 
 	# basic types
+	action none {
+		liValue *v;
+
+		v = li_value_new_none();
+		g_queue_push_head(ctx->value_stack, v);
+
+		_printf("got 'none' value in line %zd\n", ctx->line);
+	}
+
 	action boolean {
 		liValue *o;
 
@@ -1154,6 +1163,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	noise = ( ws | line | comment );
 
 	# basic types
+	none = ( 'none' | 'default' ) %none;
 	boolean = ( 'true' | 'false' ) %boolean;
 	integer_suffix_bytes = ( 'byte' | 'kbyte' | 'mbyte' | 'gbyte' | 'tbyte' | 'pbyte' );
 	integer_suffix_bits = ( 'bit' | 'kbit' | 'mbit' | 'gbit' | 'tbit' | 'pbit' );
@@ -1169,7 +1179,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	# casts
 	cast = ( 'cast(' ( 'int' %{ctx->cast = LI_CFG_PARSER_CAST_INT;} | 'str' %{ctx->cast = LI_CFG_PARSER_CAST_STR;} ) ')' ws* );
 
-	keywords = ( 'true' | 'false' | 'if' | 'else' | 'setup' | 'action' );
+	keywords = ( 'true' | 'false' | 'if' | 'else' | 'setup' | 'none' | 'default' );
 
 	# advanced types
 	varname = ( '__' ? (alpha ( alnum | [._] )*) - keywords ) >mark %varname;
@@ -1180,7 +1190,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 	action_block = ( '{' >action_block_start ) %action_block_end;
 	setup_block = ( 'setup' noise+ action_block >setup_block_start ) %setup_block_end;
 
-	value = ( ( boolean | integer | string | list | hash | actionref | action_block ) >mark ) %liValue;
+	value = ( ( none | boolean | integer | string | list | hash | actionref | action_block ) >mark ) %liValue;
 	value_statement_op = ( '+' | '-' | '*' | '/' | '=>' ) >mark >value_statement_op;
 	value_statement = ( noise* cast? value (ws* value_statement_op ws* cast? value %value_statement)* noise* );
 	hash_elem = ( noise* string >mark noise* '=>' value_statement );
