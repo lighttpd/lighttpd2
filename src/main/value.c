@@ -67,11 +67,23 @@ liValue* li_value_new_condition(liServer *srv, liCondition *c) {
 	return v;
 }
 
+void li_value_list_append(liValue *list, liValue *item) {
+	assert(LI_VALUE_LIST == list->type);
+	g_array_append_val(list->data.list, item);
+}
+
+void li_value_wrap_in_list(liValue *val) {
+	liValue *item = li_value_extract(val);
+	val->type = LI_VALUE_LIST;
+	val->data.list = g_array_new(FALSE, TRUE, sizeof(liValue*));
+	g_array_append_val(val->data.list, item);
+}
+
 liValue* li_value_copy(liValue* val) {
 	liValue *n;
 
 	switch (val->type) {
-	case LI_VALUE_NONE: n = li_value_new_bool(FALSE); n->type = LI_VALUE_NONE; return n; /* hack */
+	case LI_VALUE_NONE: return li_value_new_none();
 	case LI_VALUE_BOOLEAN: return li_value_new_bool(val->data.boolean);
 	case LI_VALUE_NUMBER: return li_value_new_number(val->data.number);
 	case LI_VALUE_STRING: return li_value_new_string(g_string_new_len(GSTR_LEN(val->data.string)));
@@ -297,4 +309,11 @@ liCondition* li_value_extract_condition(liValue *val) {
 	if (val->type != LI_VALUE_CONDITION) return NULL;
 	val->type = LI_VALUE_NONE;
 	return val->data.val_cond.cond;
+}
+
+liValue* li_value_extract(liValue *val) {
+	liValue *v = li_value_new_none();
+	*v = *val;
+	val->type = LI_VALUE_NONE;
+	return v;
 }

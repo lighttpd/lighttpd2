@@ -35,6 +35,11 @@ LI_API liValue* li_value_new_hash();
 LI_API liValue* li_value_new_action(liServer *srv, liAction *a);
 LI_API liValue* li_value_new_condition(liServer *srv, liCondition *c);
 
+LI_API void li_value_list_append(liValue *list, liValue *item); /* list MUST be of type LIST */
+
+/* wraps current content in a list with 1 entry */
+LI_API void li_value_wrap_in_list(liValue *val);
+
 LI_API liValue* li_value_copy(liValue* val);
 LI_API void li_value_free(liValue* val);
 
@@ -54,5 +59,8 @@ LI_API GArray* li_value_extract_list(liValue *val);
 LI_API GHashTable* li_value_extract_hash(liValue *val);
 LI_API liAction* li_value_extract_action(liValue *val);
 LI_API liCondition* li_value_extract_condition(liValue *val);
+
+/* move the value content to a new value, set the old type to none */
+LI_API liValue* li_value_extract(liValue *val);
 
 #endif
