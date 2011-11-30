@@ -5,19 +5,24 @@
  *     mod_openssl listens on separate sockets for ssl connections (https://...)
  *
  * Setups:
- *     openssl    - setup a ssl socket; takes a hash of following parameters:
- *       listen     - (mandatory) the socket address (same as standard listen)
- *       pemfile    - (mandatory) contains key and direct certificate for the key (PEM format)
- *       ca-file    - contains certificate chain
- *       ciphers    - contains colon separated list of allowed ciphers
- *       allow-ssl2 - boolean option to allow ssl2 (disabled by default)
+ *     openssl        - setup a ssl socket; takes a hash of following parameters:
+ *       listen         - (mandatory) the socket address (same as standard listen)
+ *       pemfile        - (mandatory) contains key and direct certificate for the key (PEM format)
+ *       ca-file        - contains certificate chain
+ *       ciphers        - contains colon separated list of allowed ciphers
+ *       allow-ssl2     - (boolean) allow ssl2 (default: disabled)
+ *       verify         - (boolean) enable client certificate verification (default: false)
+ *       verify-any     - (boolean) allow all CAs and self-signed certificates (for manual checking, default: false)
+ *       verify-depth   - (number) sets client verification depth (default: 1)
+ *       verify-require - (boolean) abort clients failing verification (default: false)
+ *       client-ca-file - (string) path to file containing client CA certificates
  *
  * Example config:
  *     setup openssl [ "listen": "0.0.0.0:8443", "pemfile": "server.pem" ];
  *     setup openssl [ "listen": "[::]:8443", "pemfile": "server.pem" ];
  *
  * Author:
- *     Copyright (c) 2009 Stefan Bühler
+ *     Copyright (c) 2009 Stefan Bühler, Joe Presbrey
  */
 
 #include <lighttpd/base.h>
@@ -425,17 +430,21 @@ static void openssl_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 	srv_sock->update_events_cb = openssl_update_events;
 }
 
+static int openssl_verify_any_cb(int ok, X509_STORE_CTX *ctx) { UNUSED(ok); UNUSED(ctx); return 1; }
+
 static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	openssl_context *ctx;
 	GHashTableIter hti;
 	gpointer hkey, hvalue;
 	GString *htkey;
 	liValue *htval;
+	STACK_OF(X509_NAME) *client_ca_list;
 
 	/* options */
-	const char *pemfile = NULL, *ca_file = NULL, *ciphers = NULL;
+	const char *ciphers = NULL, *pemfile = NULL, *ca_file = NULL, *client_ca_file = NULL;
 	GString *ipstr = NULL;
-	gboolean allow_ssl2 = FALSE;
+	gboolean allow_ssl2 = FALSE, verify_any = FALSE;
+	gint verify_mode = 0, verify_depth = 1;
 
 	UNUSED(p); UNUSED(userdata);
 
@@ -478,6 +487,38 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 				return FALSE;
 			}
 			allow_ssl2 = htval->data.boolean;
+		} else if (g_str_equal(htkey->str, "verify")) {
+			if (htval->type != LI_VALUE_BOOLEAN) {
+				ERROR(srv, "%s", "openssl verify expects a boolean as parameter");
+				return FALSE;
+			}
+			if (htval->data.boolean)
+				verify_mode |= SSL_VERIFY_PEER;
+		} else if (g_str_equal(htkey->str, "verify-any")) {
+			if (htval->type != LI_VALUE_BOOLEAN) {
+				ERROR(srv, "%s", "openssl verify-any expects a boolean as parameter");
+				return FALSE;
+			}
+			verify_any = htval->data.boolean;
+		} else if (g_str_equal(htkey->str, "verify-depth")) {
+			if (htval->type != LI_VALUE_NUMBER) {
+				ERROR(srv, "%s", "openssl verify-depth expects a number as parameter");
+				return FALSE;
+			}
+			verify_depth = htval->data.number;
+		} else if (g_str_equal(htkey->str, "verify-require")) {
+			if (htval->type != LI_VALUE_BOOLEAN) {
+				ERROR(srv, "%s", "openssl verify-require expects a boolean as parameter");
+				return FALSE;
+			}
+			if (htval->data.boolean)
+				verify_mode |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+		} else if (g_str_equal(htkey->str, "client-ca-file")) {
+			if (htval->type != LI_VALUE_STRING) {
+				ERROR(srv, "%s", "openssl client-ca-file expects a string as parameter");
+				return FALSE;
+			}
+			client_ca_file = htval->data.string->str;
 		}
 	}
 
@@ -537,6 +578,27 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		ERROR(srv, "SSL: Private key '%s' does not match the certificate public key, reason: %s", pemfile,
 			ERR_error_string(ERR_get_error(), NULL));
 		goto error_free_socket;
+	}
+
+	if (verify_mode) {
+		if (SSL_CTX_set_session_id_context(ctx->ssl_ctx, (void*) &srv, sizeof(srv)) != 1) {
+			ERROR(srv, "SSL_CTX_set_session_id_context(): %s", ERR_error_string(ERR_get_error(), NULL));
+			goto error_free_socket;
+		}
+		SSL_CTX_set_verify(ctx->ssl_ctx, verify_mode, verify_any ? openssl_verify_any_cb : NULL);
+		SSL_CTX_set_verify_depth(ctx->ssl_ctx, verify_depth);
+	}
+
+	if (client_ca_file) {
+		if (SSL_CTX_load_verify_locations(ctx->ssl_ctx, client_ca_file, NULL) != 1) {
+			ERROR(srv, "SSL_CTX_load_verify_locations('%s'): %s", client_ca_file, ERR_error_string(ERR_get_error(), NULL));
+			goto error_free_socket;
+		}
+		if ((client_ca_list = SSL_load_client_CA_file(client_ca_file)) == NULL) {
+			ERROR(srv, "SSL_load_client_CA_file('%s'): %s", client_ca_file, ERR_error_string(ERR_get_error(), NULL));
+			goto error_free_socket;
+		}
+		SSL_CTX_set_client_CA_list(ctx->ssl_ctx, client_ca_list);
 	}
 
 	SSL_CTX_set_default_read_ahead(ctx->ssl_ctx, 1);
