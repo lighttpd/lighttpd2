@@ -17,9 +17,18 @@
  *       verify-require - (boolean) abort clients failing verification (default: false)
  *       client-ca-file - (string) path to file containing client CA certificates
  *
+ * Actions:
+ *     openssl.setenv [options] - set SSL environment strings
+ *         options: (list), may contain strings:
+ *             "client"      - set SSL_CLIENT_S_DN_ short-named entries
+ *             "client-cert" - set SSL_CLIENT_CERT to client certificate PEM
+ *             "server"      - set SSL_SERVER_S_DN_ short-named entries
+ *             "server-cert" - set SSL_SERVER_CERT to server certificate PEM
+ *
  * Example config:
  *     setup openssl [ "listen": "0.0.0.0:8443", "pemfile": "server.pem" ];
  *     setup openssl [ "listen": "[::]:8443", "pemfile": "server.pem" ];
+ *     openssl.setenv "client";
  *
  * Author:
  *     Copyright (c) 2009 Stefan Bühler, Joe Presbrey
@@ -50,6 +59,15 @@ struct openssl_connection_ctx {
 struct openssl_context {
 	SSL_CTX *ssl_ctx;
 };
+
+enum {
+	SE_CLIENT      = 0x1,
+	SE_CLIENT_CERT = 0x2,
+	SE_SERVER      = 0x4,
+	SE_SERVER_CERT = 0x8
+};
+
+static const char openssl_setenv_config_error[] = "openssl.setenv expects a string or a list of strings consisting of: client, client-cert, server, server-cert";
 
 static void openssl_con_handle_events_cb(liJob *job) {
 	openssl_connection_ctx *conctx = LI_CONTAINER_OF(job, openssl_connection_ctx, con_handle_events_job);
@@ -407,6 +425,110 @@ static void openssl_sock_release(liServerSocket *srv_sock) {
 	g_slice_free(openssl_context, ctx);
 }
 
+static void openssl_setenv_X509_add_entries(liVRequest *vr, X509 *x509, const gchar *prefix, guint prefix_len) {
+	guint i, j;
+	GString *k = vr->wrk->tmp_str;
+
+	X509_NAME *xn = X509_get_subject_name(x509);
+	X509_NAME_ENTRY *xe;
+	const char * xobjsn;
+
+	g_string_truncate(k, 0);
+	g_string_append_len(k, prefix, prefix_len);
+
+	for (i = 0, j = X509_NAME_entry_count(xn); i < j; ++i) {
+		if (!(xe = X509_NAME_get_entry(xn, i))
+			|| !(xobjsn = OBJ_nid2sn(OBJ_obj2nid((ASN1_OBJECT*)X509_NAME_ENTRY_get_object(xe)))))
+			continue;
+		g_string_truncate(k, prefix_len);
+		g_string_append(k, xobjsn);
+		li_environment_set(&vr->env, GSTR_LEN(k), (const gchar *)xe->value->data, xe->value->length);
+	}
+}
+
+static void openssl_setenv_X509_add_PEM(liVRequest *vr, X509 *x509, const gchar *key, guint key_len) {
+	gint n;
+	GString *v = vr->wrk->tmp_str;
+
+	BIO *bio;
+	if (NULL != (bio = BIO_new(BIO_s_mem()))) {
+		PEM_write_bio_X509(bio, x509);
+		n = BIO_pending(bio);
+		g_string_set_size(v, n);
+		BIO_read(bio, v->str, n);
+		BIO_free(bio);
+		li_environment_set(&vr->env, key, key_len, GSTR_LEN(v));
+	}
+}
+
+static liHandlerResult openssl_setenv(liVRequest *vr, gpointer param, gpointer *context) {
+	liConnection *con;
+	openssl_connection_ctx *conctx;
+	SSL *ssl;
+	X509 *x0=NULL, *x1=NULL;
+	guint params = GPOINTER_TO_UINT(param);
+
+	UNUSED(context);
+
+	if (!(con = li_connection_from_vrequest(vr))
+		|| !(con->srv_sock && con->srv_sock->new_cb == openssl_con_new)
+		|| !(conctx = con->srv_sock_data)
+		|| !(ssl = conctx->ssl))
+		return LI_HANDLER_GO_ON;
+
+	if ((params & SE_CLIENT) && (x1 || (x1 = SSL_get_peer_certificate(ssl))))
+		openssl_setenv_X509_add_entries(vr, x1, CONST_STR_LEN("SSL_CLIENT_S_DN_"));
+	if ((params & SE_CLIENT_CERT) && (x1 || (x1 = SSL_get_peer_certificate(ssl))))
+		openssl_setenv_X509_add_PEM(vr, x1, CONST_STR_LEN("SSL_CLIENT_CERT"));
+	if ((params & SE_SERVER) && (x0 || (x0 = SSL_get_certificate(ssl))))
+		openssl_setenv_X509_add_entries(vr, x0, CONST_STR_LEN("SSL_SERVER_S_DN_"));
+	if ((params & SE_SERVER_CERT) && (x0 || (x0 = SSL_get_certificate(ssl))))
+		openssl_setenv_X509_add_PEM(vr, x0, CONST_STR_LEN("SSL_SERVER_CERT"));
+
+	/* only peer increases ref count */
+	if (x1) X509_free(x1);
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* openssl_setenv_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	guint i;
+	liValue *v;
+	guint params = 0;
+
+	UNUSED(srv); UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	if (val && val->type == LI_VALUE_STRING)
+		li_value_wrap_in_list(val);
+
+	if (!val || val->type != LI_VALUE_LIST) {
+		ERROR(srv, "%s", openssl_setenv_config_error);
+		return NULL;
+	}
+
+	for (i = 0; i < val->data.list->len; i++) {
+		v = g_array_index(val->data.list, liValue*, i);
+		if (v->type != LI_VALUE_STRING) {
+			ERROR(srv, "%s", openssl_setenv_config_error);
+			return NULL;
+		}
+		if (li_strncase_equal(v->data.string, CONST_STR_LEN("client"))) {
+			params |= SE_CLIENT;
+		} else if (li_strncase_equal(v->data.string, CONST_STR_LEN("client-cert"))) {
+			params |= SE_CLIENT_CERT;
+		} else if (li_strncase_equal(v->data.string, CONST_STR_LEN("server"))) {
+			params |= SE_SERVER;
+		} else if (li_strncase_equal(v->data.string, CONST_STR_LEN("server-cert"))) {
+			params |= SE_SERVER_CERT;
+		} else {
+			ERROR(srv, "%s", openssl_setenv_config_error);
+			return NULL;
+		}
+	}
+
+	return li_action_new_function(openssl_setenv, NULL, NULL, GUINT_TO_POINTER(params));
+}
+
 static void openssl_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 	openssl_context *ctx = data;
 	liServerSocket *srv_sock;
@@ -622,6 +744,8 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginAction actions[] = {
+	{ "openssl.setenv", openssl_setenv_create, NULL },
+
 	{ NULL, NULL, NULL }
 };
 
