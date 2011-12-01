@@ -10,7 +10,7 @@
  *       pemfile        - (mandatory) contains key and direct certificate for the key (PEM format)
  *       ca-file        - contains certificate chain
  *       ciphers        - contains colon separated list of allowed ciphers
- *       allow-ssl2     - (boolean) allow ssl2 (default: disabled)
+ *       options        - (list of strings) set OpenSSL-specific options (default: NO_SSLv2, CIPHER_SERVER_PREFERENCE)
  *       verify         - (boolean) enable client certificate verification (default: false)
  *       verify-any     - (boolean) allow all CAs and self-signed certificates (for manual checking, default: false)
  *       verify-depth   - (number) sets client verification depth (default: 1)
@@ -552,6 +552,82 @@ static void openssl_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 	srv_sock->update_events_cb = openssl_update_events;
 }
 
+static int openssl_options_set_string(guint options, GString *s) {
+	struct {
+		char *name;
+		long value;
+	} option_string[] = {
+		{"MICROSOFT_SESS_ID_BUG", SSL_OP_MICROSOFT_SESS_ID_BUG},
+		{"NETSCAPE_CHALLENGE_BUG", SSL_OP_NETSCAPE_CHALLENGE_BUG},
+#ifdef SSL_OP_LEGACY_SERVER_CONNECT
+		{"LEGACY_SERVER_CONNECT", SSL_OP_LEGACY_SERVER_CONNECT},
+#endif
+		{"NETSCAPE_REUSE_CIPHER_CHANGE_BUG", SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG},
+		{"SSLREF2_REUSE_CERT_TYPE_BUG", SSL_OP_SSLREF2_REUSE_CERT_TYPE_BUG},
+		{"MICROSOFT_BIG_SSLV3_BUFFER", SSL_OP_MICROSOFT_BIG_SSLV3_BUFFER},
+		{"MSIE_SSLV2_RSA_PADDING", SSL_OP_MSIE_SSLV2_RSA_PADDING},
+		{"SSLEAY_080_CLIENT_DH_BUG", SSL_OP_SSLEAY_080_CLIENT_DH_BUG},
+		{"TLS_D5_BUG", SSL_OP_TLS_D5_BUG},
+		{"TLS_BLOCK_PADDING_BUG", SSL_OP_TLS_BLOCK_PADDING_BUG},
+#ifdef SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS
+		{"DONT_INSERT_EMPTY_FRAGMENTS", SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS},
+#endif
+		{"ALL", SSL_OP_ALL},
+#ifdef SSL_OP_NO_QUERY_MTU
+		{"NO_QUERY_MTU", SSL_OP_NO_QUERY_MTU},
+#endif
+#ifdef SSL_OP_COOKIE_EXCHANGE
+		{"COOKIE_EXCHANGE", SSL_OP_COOKIE_EXCHANGE},
+#endif
+#ifdef SSL_OP_NO_TICKET
+		{"NO_TICKET", SSL_OP_NO_TICKET},
+#endif
+#ifdef SSL_OP_CISCO_ANYCONNECT
+		{"CISCO_ANYCONNECT", SSL_OP_CISCO_ANYCONNECT},
+#endif
+#ifdef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION
+		{"NO_SESSION_RESUMPTION_ON_RENEGOTIATION", SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION},
+#endif
+#ifdef SSL_OP_NO_COMPRESSION
+		{"NO_COMPRESSION", SSL_OP_NO_COMPRESSION},
+#endif
+#ifdef SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION
+		{"ALLOW_UNSAFE_LEGACY_RENEGOTIATION", SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION},
+#endif
+#ifdef SSL_OP_SINGLE_ECDH_USE
+		{"SINGLE_ECDH_USE", SSL_OP_SINGLE_ECDH_USE},
+#endif
+		{"SINGLE_DH_USE", SSL_OP_SINGLE_DH_USE},
+		{"EPHEMERAL_RSA", SSL_OP_EPHEMERAL_RSA},
+#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
+		{"CIPHER_SERVER_PREFERENCE", SSL_OP_CIPHER_SERVER_PREFERENCE},
+#endif
+		{"TLS_ROLLBACK_BUG", SSL_OP_TLS_ROLLBACK_BUG},
+		{"NO_SSLv2", SSL_OP_NO_SSLv2},
+		{"NO_SSLv3", SSL_OP_NO_SSLv3},
+		{"NO_TLSv1", SSL_OP_NO_TLSv1},
+		{"PKCS1_CHECK_1", SSL_OP_PKCS1_CHECK_1},
+		{"PKCS1_CHECK_2", SSL_OP_PKCS1_CHECK_2},
+		{"NETSCAPE_CA_DN_BUG", SSL_OP_NETSCAPE_CA_DN_BUG},
+		{"NETSCAPE_DEMO_CIPHER_CHANGE_BUG", SSL_OP_NETSCAPE_DEMO_CIPHER_CHANGE_BUG},
+#ifdef SSL_OP_CRYPTOPRO_TLSEXT_BUG
+		{"CRYPTOPRO_TLSEXT_BUG", SSL_OP_CRYPTOPRO_TLSEXT_BUG},
+#endif
+		{NULL, 0}
+	}, *option;
+	if (0 == g_ascii_strncasecmp(s->str, CONST_STR_LEN("SSLv2")))
+		options &= ~SSL_OP_NO_SSLv2;
+	else if (0 == g_ascii_strncasecmp(s->str, CONST_STR_LEN("NO_CIPHER_SERVER_PREFERENCE")))
+		options &= ~SSL_OP_CIPHER_SERVER_PREFERENCE;
+	else
+		for (option = option_string; option->name; ++option)
+			if (0 == g_ascii_strncasecmp(s->str, option->name, strlen(option->name))) {
+				options |= option->value;
+				break;
+			}
+	return options;
+}
+
 static int openssl_verify_any_cb(int ok, X509_STORE_CTX *ctx) { UNUSED(ok); UNUSED(ctx); return 1; }
 
 static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
@@ -561,12 +637,19 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 	GString *htkey;
 	liValue *htval;
 	STACK_OF(X509_NAME) *client_ca_list;
+	guint i, j;
+	liValue *v;
 
-	/* options */
-	const char *ciphers = NULL, *pemfile = NULL, *ca_file = NULL, *client_ca_file = NULL;
+	/* setup defaults */
 	GString *ipstr = NULL;
-	gboolean allow_ssl2 = FALSE, verify_any = FALSE;
-	gint verify_mode = 0, verify_depth = 1;
+	const char
+		*ciphers = "ECDHE-RSA-AES256-SHA384:AES256-SHA256:RC4-SHA:RC4:HIGH:!MD5:!aNULL:!EDH:!AESGCM:!SSLv2",
+		*pemfile = NULL, *ca_file = NULL, *client_ca_file = NULL;
+	guint
+		options = SSL_OP_NO_SSLv2 | SSL_OP_CIPHER_SERVER_PREFERENCE,
+		verify_mode = 0, verify_depth = 1;
+	gboolean
+		verify_any = FALSE;
 
 	UNUSED(p); UNUSED(userdata);
 
@@ -603,12 +686,23 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 				return FALSE;
 			}
 			ciphers = htval->data.string->str;
-		} else if (g_str_equal(htkey->str, "allow-ssl2")) {
-			if (htval->type != LI_VALUE_BOOLEAN) {
-				ERROR(srv, "%s", "openssl allow-ssl2 expects a boolean as parameter");
+		} else if (g_str_equal(htkey->str, "options")) {
+			if (htval->type != LI_VALUE_LIST) {
+				ERROR(srv, "%s", "openssl options expects a list of strings as parameter");
 				return FALSE;
 			}
-			allow_ssl2 = htval->data.boolean;
+			for (i = 0; i < htval->data.list->len; i++) {
+				v = g_array_index(htval->data.list, liValue*, i);
+				if (v->type != LI_VALUE_STRING) {
+					ERROR(srv, "%s", "openssl options expects a list of strings as parameter");
+					return FALSE;
+				}
+				if (options == (j = openssl_options_set_string(options, v->data.string))) {
+					ERROR(srv, "openssl option unknown: %s", v->data.string->str);
+					return FALSE;
+				}
+				options = j;
+			}
 		} else if (g_str_equal(htkey->str, "verify")) {
 			if (htval->type != LI_VALUE_BOOLEAN) {
 				ERROR(srv, "%s", "openssl verify expects a boolean as parameter");
@@ -661,12 +755,9 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		goto error_free_socket;
 	}
 
-	if (!allow_ssl2) {
-		/* disable SSLv2 */
-		if (0 == (SSL_OP_NO_SSLv2 & SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_NO_SSLv2))) {
-			ERROR(srv, "SSL_CTX_set_options(SSL_OP_NO_SSLv2): %s", ERR_error_string(ERR_get_error(), NULL));
-			goto error_free_socket;
-		}
+	if (!SSL_CTX_set_options(ctx->ssl_ctx, options)) {
+		ERROR(srv, "SSL_CTX_set_options(%x): %s", options, ERR_error_string(ERR_get_error(), NULL));
+		goto error_free_socket;
 	}
 
 	if (ciphers) {
