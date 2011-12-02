@@ -34,7 +34,7 @@
  *     openssl.setenv "client";
  *
  * Author:
- *     Copyright (c) 2009 Stefan Bühler, Joe Presbrey
+ *     Copyright (c) 2009-2011 Stefan Bühler, Joe Presbrey
  */
 
 #include <lighttpd/base.h>
@@ -57,6 +57,9 @@ struct openssl_connection_ctx {
 
 	int con_events;
 	liJob con_handle_events_job;
+
+	unsigned int initial_handshaked_finished;
+	unsigned int client_initiated_renegotiation;
 };
 
 struct openssl_context {
@@ -107,9 +110,12 @@ static gboolean openssl_con_new(liConnection *con) {
 	con->srv_sock_data = NULL;
 
 	conctx->ssl = SSL_new(ctx->ssl_ctx);
+	SSL_set_app_data(conctx->ssl, conctx);
 	conctx->con = con;
 	li_job_init(&conctx->con_handle_events_job, openssl_con_handle_events_cb);
 	conctx->con_events = 0;
+	conctx->initial_handshaked_finished = 0;
+	conctx->client_initiated_renegotiation = 0;
 
 	if (NULL == conctx->ssl) {
 		ERROR(srv, "SSL_new: %s", ERR_error_string(ERR_get_error(), NULL));
@@ -169,6 +175,109 @@ static void openssl_update_events(liConnection *con, int events) {
 	conctx->con_events = events;
 }
 
+static void openssl_info_callback(const SSL *ssl, int where, int ret) {
+	UNUSED(ret);
+
+	if (0 != (where & SSL_CB_HANDSHAKE_START)) {
+		openssl_connection_ctx *conctx = SSL_get_app_data(ssl);
+		if (conctx->initial_handshaked_finished) {
+			conctx->client_initiated_renegotiation = TRUE;
+		}
+	}
+}
+
+static liNetworkStatus openssl_handle_error(liConnection *con, openssl_connection_ctx *conctx, const char *sslfunc, off_t len, int r) {
+	int oerrno = errno, err;
+	gboolean was_fatal;
+
+	err = SSL_get_error(conctx->ssl, r);
+
+	switch (err) {
+	case SSL_ERROR_WANT_READ:
+		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_READ);
+		/* ignore requirement that we should pass the same buffer again */
+		return (len > 0) ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
+	case SSL_ERROR_WANT_WRITE:
+		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
+		/* ignore requirement that we should pass the same buffer again */
+		return (len > 0) ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
+	case SSL_ERROR_SYSCALL:
+		/**
+			* man SSL_get_error()
+			*
+			* SSL_ERROR_SYSCALL
+			*   Some I/O error occurred.  The OpenSSL error queue may contain more
+			*   information on the error.  If the error queue is empty (i.e.
+			*   ERR_get_error() returns 0), ret can be used to find out more about
+			*   the error: If ret == 0, an EOF was observed that violates the
+			*   protocol.  If ret == -1, the underlying BIO reported an I/O error
+			*   (for socket I/O on Unix systems, consult errno for details).
+			*
+			*/
+		while (0 != (err = ERR_get_error())) {
+			VR_ERROR(con->mainvr, "%s(%i): %s", sslfunc,
+				con->sock_watcher.fd,
+				ERR_error_string(err, NULL));
+		}
+
+		switch (oerrno) {
+		case EPIPE:
+		case ECONNRESET:
+			return LI_NETWORK_STATUS_CONNECTION_CLOSE;
+		}
+
+		if (0 != r || oerrno != 0) {
+			VR_ERROR(con->mainvr, "%s(%i) returned %i: %s", sslfunc,
+				con->sock_watcher.fd,
+				r,
+				g_strerror(oerrno));
+			return LI_NETWORK_STATUS_FATAL_ERROR;
+		} else {
+			return LI_NETWORK_STATUS_CONNECTION_CLOSE;
+		}
+
+		break;
+	case SSL_ERROR_ZERO_RETURN:
+		/* clean shutdown on the remote side */
+		return LI_NETWORK_STATUS_CONNECTION_CLOSE;
+	default:
+		was_fatal = FALSE;
+
+		while((err = ERR_get_error())) {
+			switch (ERR_GET_REASON(err)) {
+			case SSL_R_SSL_HANDSHAKE_FAILURE:
+			case SSL_R_TLSV1_ALERT_UNKNOWN_CA:
+			case SSL_R_SSLV3_ALERT_CERTIFICATE_UNKNOWN:
+			case SSL_R_SSLV3_ALERT_BAD_CERTIFICATE:
+			case SSL_R_NO_SHARED_CIPHER:
+			case SSL_R_UNKNOWN_PROTOCOL:
+				/* TODO: if (!con->conf.log_ssl_noise) */ continue;
+				break;
+			default:
+				was_fatal = TRUE;
+				break;
+			}
+			/* get all errors from the error-queue */
+			VR_ERROR(con->mainvr, "%s(%i): %s", sslfunc,
+				con->sock_watcher.fd,
+				ERR_error_string(err, NULL));
+		}
+		if (!was_fatal) return LI_NETWORK_STATUS_CONNECTION_CLOSE;
+		return LI_NETWORK_STATUS_FATAL_ERROR;
+	}
+}
+
+static liNetworkStatus openssl_do_handshake(liConnection *con, openssl_connection_ctx *conctx) {
+	int r = SSL_do_handshake(conctx->ssl);
+	if (1 == r) {
+		conctx->initial_handshaked_finished = 1;
+		conctx->ssl->s3->flags |= SSL3_FLAGS_NO_RENEGOTIATE_CIPHERS;
+		return LI_NETWORK_STATUS_SUCCESS;
+	} else {
+		return openssl_handle_error(con, conctx, "SSL_do_handshake", 0, r);
+	}
+}
+
 static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	char *block_data;
@@ -177,6 +286,11 @@ static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 	liChunkIter ci;
 	liChunkQueue *cq = con->raw_out;
 	openssl_connection_ctx *conctx = con->srv_sock_data;
+
+	if (!conctx->initial_handshaked_finished) {
+		liNetworkStatus res = openssl_do_handshake(con, conctx);
+		if (res != LI_NETWORK_STATUS_SUCCESS) return res;
+	}
 
 	do {
 		if (0 == cq->length)
@@ -202,57 +316,13 @@ static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 		 */
 
 		ERR_clear_error();
-		if ((r = SSL_write(conctx->ssl, block_data, block_len)) <= 0) {
-			unsigned long err;
-
-			switch (SSL_get_error(conctx->ssl, r)) {
-			case SSL_ERROR_WANT_READ:
-				li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_READ);
-				return LI_NETWORK_STATUS_WAIT_FOR_EVENT;
-			case SSL_ERROR_WANT_WRITE:
-				li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
-				return LI_NETWORK_STATUS_WAIT_FOR_EVENT;
-			case SSL_ERROR_SYSCALL:
-				/* perhaps we have error waiting in our error-queue */
-				if (0 != (err = ERR_get_error())) {
-					do {
-						VR_ERROR(con->mainvr, "SSL_write(%i): %s",
-							con->sock_watcher.fd,
-							ERR_error_string(err, NULL));
-					} while (0 != (err = ERR_get_error()));
-				} else if (r == -1) {
-					/* no, but we have errno */
-					switch(errno) {
-					case EPIPE:
-					case ECONNRESET:
-						return LI_NETWORK_STATUS_CONNECTION_CLOSE;
-					default:
-						VR_ERROR(con->mainvr, "SSL_write(%i): %s",
-							con->sock_watcher.fd,
-							g_strerror(errno));
-						break;
-					}
-				} else {
-					/* neither error-queue nor errno ? */
-					VR_ERROR(con->mainvr, "SSL_write(%i): %s",
-						con->sock_watcher.fd,
-						"Unexpected eof");
-					return LI_NETWORK_STATUS_CONNECTION_CLOSE;
-				}
-
-				return LI_NETWORK_STATUS_FATAL_ERROR;
-			case SSL_ERROR_ZERO_RETURN:
-				/* clean shutdown on the remote side */
-				return LI_NETWORK_STATUS_CONNECTION_CLOSE;
-			default:
-				while (0 != (err = ERR_get_error())) {
-					VR_ERROR(con->mainvr, "SSL_write(%i): %s",
-						con->sock_watcher.fd,
-						ERR_error_string(err, NULL));
-				}
-
-				return LI_NETWORK_STATUS_FATAL_ERROR;
-			}
+		r = SSL_write(conctx->ssl, block_data, block_len);
+		if (conctx->client_initiated_renegotiation) {
+			VR_ERROR(con->mainvr, "%s", "SSL: client initiated renegotitation, closing connection");
+			return LI_NETWORK_STATUS_FATAL_ERROR;
+		}
+		if (r <= 0) {
+			return openssl_handle_error(con, conctx, "SSL_write", 0, r);
 		}
 
 		li_chunkqueue_skip(cq, r);
@@ -273,6 +343,11 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 	off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
 	off_t len = 0;
+
+	if (!conctx->initial_handshaked_finished) {
+		liNetworkStatus res = openssl_do_handshake(con, conctx);
+		if (res != LI_NETWORK_STATUS_SUCCESS) return res;
+	}
 
 	if (cq->limit && cq->limit->limit > 0) {
 		if (max_read > cq->limit->limit - cq->limit->current) {
@@ -315,84 +390,12 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 		assert(con->raw_in_buffer == buf);
 
 		r = SSL_read(conctx->ssl, buf->addr + buf->used, buf->alloc_size - buf->used);
-		if (r < 0) {
-			int oerrno = errno, err;
-			gboolean was_fatal;
-
-			err = SSL_get_error(conctx->ssl, r);
-
-			switch (err) {
-			case SSL_ERROR_WANT_READ:
-				li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_READ);
-				/* ignore requirement that we should pass the same buffer again */
-				return (len > 0) ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
-			case SSL_ERROR_WANT_WRITE:
-				li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
-				/* ignore requirement that we should pass the same buffer again */
-				return (len > 0) ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
-			default:
-				break;
-			}
-
-			switch (err) {
-			case SSL_ERROR_SYSCALL:
-				/**
-				 * man SSL_get_error()
-				 *
-				 * SSL_ERROR_SYSCALL
-				 *   Some I/O error occurred.  The OpenSSL error queue may contain more
-				 *   information on the error.  If the error queue is empty (i.e.
-				 *   ERR_get_error() returns 0), ret can be used to find out more about
-				 *   the error: If ret == 0, an EOF was observed that violates the
-				 *   protocol.  If ret == -1, the underlying BIO reported an I/O error
-				 *   (for socket I/O on Unix systems, consult errno for details).
-				 *
-				 */
-				while (0 != (err = ERR_get_error())) {
-					VR_ERROR(con->mainvr, "SSL_read(%i): %s",
-						con->sock_watcher.fd,
-						ERR_error_string(err, NULL));
-				}
-
-				switch (oerrno) {
-				case EPIPE:
-				case ECONNRESET:
-					return LI_NETWORK_STATUS_CONNECTION_CLOSE;
-				}
-
-				VR_ERROR(con->mainvr, "SSL_read(%i): %s",
-					con->sock_watcher.fd,
-					g_strerror(oerrno));
-
-				break;
-			case SSL_ERROR_ZERO_RETURN:
-				/* clean shutdown on the remote side */
-				return LI_NETWORK_STATUS_CONNECTION_CLOSE;
-			default:
-				was_fatal = FALSE;
-
-				while((err = ERR_get_error())) {
-					switch (ERR_GET_REASON(err)) {
-					case SSL_R_SSL_HANDSHAKE_FAILURE:
-					case SSL_R_TLSV1_ALERT_UNKNOWN_CA:
-					case SSL_R_SSLV3_ALERT_CERTIFICATE_UNKNOWN:
-					case SSL_R_SSLV3_ALERT_BAD_CERTIFICATE:
-						/* TODO: if (!con->conf.log_ssl_noise) */ continue;
-						break;
-					default:
-						was_fatal = TRUE;
-						break;
-					}
-					/* get all errors from the error-queue */
-					VR_ERROR(con->mainvr, "SSL_read(%i): %s",
-						con->sock_watcher.fd,
-						ERR_error_string(err, NULL));
-				}
-				if (!was_fatal) return LI_NETWORK_STATUS_CONNECTION_CLOSE;
-				break;
-			}
-
+		if (conctx->client_initiated_renegotiation) {
+			VR_ERROR(con->mainvr, "%s", "SSL: client initiated renegotitation, closing connection");
 			return LI_NETWORK_STATUS_FATAL_ERROR;
+		}
+		if (r < 0) {
+			return openssl_handle_error(con, conctx, "SSL_read", len, r);
 		} else if (r == 0) {
 			return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 		}
@@ -772,6 +775,8 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		ERROR(srv, "SSL_CTX_new: %s", ERR_error_string(ERR_get_error(), NULL));
 		goto error_free_socket;
 	}
+
+	SSL_CTX_set_info_callback(ctx->ssl_ctx, openssl_info_callback);
 
 	if (!SSL_CTX_set_options(ctx->ssl_ctx, options)) {
 		ERROR(srv, "SSL_CTX_set_options(%lx): %s", options, ERR_error_string(ERR_get_error(), NULL));
