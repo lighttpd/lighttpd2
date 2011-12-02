@@ -665,7 +665,11 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		*ciphers = "ECDHE-RSA-AES256-SHA384:AES256-SHA256:RC4-SHA:RC4:HIGH:!MD5:!aNULL:!EDH:!AESGCM",
 		*pemfile = NULL, *ca_file = NULL, *client_ca_file = NULL;
 	long
-		options = SSL_OP_NO_SSLv2 | SSL_OP_CIPHER_SERVER_PREFERENCE | SSL_OP_NO_COMPRESSION;
+		options = SSL_OP_NO_SSLv2 | SSL_OP_CIPHER_SERVER_PREFERENCE
+#ifdef SSL_OP_NO_COMPRESSION
+			| SSL_OP_NO_COMPRESSION
+#endif
+		;
 	guint
 		verify_mode = 0, verify_depth = 1;
 	gboolean
