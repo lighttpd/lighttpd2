@@ -688,7 +688,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 
 		if (g_str_equal(htkey->str, "listen")) {
 			if (htval->type != LI_VALUE_STRING) {
-				ERROR(srv, "%s", "openssl pemfile expects a string as parameter");
+				ERROR(srv, "%s", "openssl listen expects a string as parameter");
 				return FALSE;
 			}
 			ipstr = htval->data.string;
