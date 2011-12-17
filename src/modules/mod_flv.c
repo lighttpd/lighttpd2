@@ -70,16 +70,11 @@ static liHandlerResult flv(liVRequest *vr, gpointer param, gpointer *context) {
 	if (res == LI_HANDLER_ERROR) {
 		/* open or fstat failed */
 
-		if (fd != -1) {
-			while(-1 == close(fd)) {
-				if (errno != EINTR)
-					break;
-			}
-		}
+		if (fd != -1)
+			close(fd);
 
-		if (!li_vrequest_handle_direct(vr)) {
+		if (!li_vrequest_handle_direct(vr))
 			return LI_HANDLER_ERROR;
-		}
 
 		switch (err) {
 		case ENOENT:
@@ -94,25 +89,16 @@ static liHandlerResult flv(liVRequest *vr, gpointer param, gpointer *context) {
 			return LI_HANDLER_ERROR;
 		}
 	} else if (S_ISDIR(st.st_mode)) {
-		if (fd != -1) {
-			while(-1 == close(fd)) {
-				if (errno != EINTR)
-					break;
-			}
-		}
+		if (fd != -1)
+			close(fd);
 
 		return LI_HANDLER_GO_ON;
 	} else if (!S_ISREG(st.st_mode)) {
-		if (fd != -1) {
-			while(-1 == close(fd)) {
-				if (errno != EINTR)
-					break;
-			}
-		}
+		if (fd != -1)
+			close(fd);
 
-		if (!li_vrequest_handle_direct(vr)) {
+		if (!li_vrequest_handle_direct(vr))
 			return LI_HANDLER_ERROR;
-		}
 
 		vr->response.http_status = 403;
 	} else {
@@ -123,10 +109,8 @@ static liHandlerResult flv(liVRequest *vr, gpointer param, gpointer *context) {
 #endif
 
 		if (!li_vrequest_handle_direct(vr)) {
-			while(-1 == close(fd)) {
-				if (errno != EINTR)
-					break;
-			}
+			close(fd);
+
 			return LI_HANDLER_ERROR;
 		}
 
@@ -147,10 +131,7 @@ static liHandlerResult flv(liVRequest *vr, gpointer param, gpointer *context) {
 		li_etag_set_header(vr, &st, &cachable);
 		if (cachable) {
 			vr->response.http_status = 304;
-			while(-1 == close(fd)) {
-				if (errno != EINTR)
-					break;
-			}
+			close(fd);
 			return LI_HANDLER_GO_ON;
 		}
 
