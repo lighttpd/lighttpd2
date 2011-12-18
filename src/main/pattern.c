@@ -155,7 +155,7 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 
 						if (key_len == 0 || *key_c != ']' || *(key_c+1) != '}') {
 							/* parse error */
-							ERROR(srv, "could not parse pattern: \"%s\"", str);
+							ERROR(srv, "could not parse pattern (invalid key): \"%s\"", str);
 							li_pattern_free((liPattern*)pattern);
 							return NULL;
 						}
@@ -172,7 +172,7 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 
 				if (*c != '}') {
 					/* parse error */
-					ERROR(srv, "could not parse pattern: \"%s\"", str);
+					ERROR(srv, "could not parse pattern (missing '}'): \"%s\"", str);
 					if (key)
 						g_string_free(key, TRUE);
 					li_pattern_free((liPattern*)pattern);
@@ -186,13 +186,13 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 
 				if (part.data.lvalue->type == LI_COMP_UNKNOWN) {
 					/* parse error */
-					ERROR(srv, "could not parse pattern: \"%s\"", str);
+					ERROR(srv, "could not parse pattern (unknown condition lvalue): \"%s\"", str);
 					li_pattern_free((liPattern*)pattern);
 					return NULL;
 				}
 			} else {
 				/* parse error */
-				ERROR(srv, "could not parse pattern: \"%s\"", str);
+				ERROR(srv, "could not parse pattern (unepexcted character after '%%'): \"%s\"", str);
 				li_pattern_free((liPattern*)pattern);
 				return NULL;
 			}

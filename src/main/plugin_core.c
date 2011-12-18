@@ -306,6 +306,7 @@ static liAction* core_docroot(liServer *srv, liWorker *wrk, liPlugin* p, liValue
 
 	if (val->type == LI_VALUE_STRING) {
 		pattern = li_pattern_new(srv, val->data.string->str);
+		if (NULL == pattern) return FALSE;
 		g_array_append_val(arr, pattern);
 	} else {
 		for (i = 0; i < val->data.list->len; i++) {
@@ -317,6 +318,10 @@ static liAction* core_docroot(liServer *srv, liWorker *wrk, liPlugin* p, liValue
 			}
 
 			pattern = li_pattern_new(srv, v->data.string->str);
+			if (NULL == pattern) {
+				core_docroot_free(srv, arr);
+				return FALSE;
+			}
 			g_array_append_val(arr, pattern);
 		}
 	}
