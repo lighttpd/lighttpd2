@@ -81,9 +81,10 @@
 	# Comment = "(" ( CText | Quoted_Pair | Comment )* ")";
 	# CText   = TEXT - [()];
 
-	Quoted_Pair    = "\\" CHAR;
+	# we don't allow escaping control chars (the RFC does)
+	Quoted_Pair    = "\\" (CHAR - CTL);
 	Comment        = ( TEXT | Quoted_Pair )*;
-	QDText         = TEXT - DQUOTE;
+	QDText         = TEXT -- (DQUOTE | "\\");
 	Quoted_String   = DQUOTE ( QDText | Quoted_Pair )* DQUOTE;
 
 	HTTP_Version = (

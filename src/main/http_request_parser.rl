@@ -19,7 +19,10 @@
 	action mark { ctx->mark = GETMARK(fpc); }
 	action done { fbreak; }
 
-	action method { getStringTo(fpc, ctx->request->http_method_str); }
+	action method {
+		getStringTo(fpc, ctx->request->http_method_str);
+		ctx->request->http_method = li_http_method_from_string(GSTR_LEN(ctx->request->http_method_str));
+	}
 	action uri { getStringTo(fpc, ctx->request->uri.raw); }
 
 	action header_key {
@@ -68,9 +71,10 @@
 	# Comment = "(" ( CText | Quoted_Pair | Comment )* ")";
 	# CText   = TEXT - [()];
 
-	Quoted_Pair    = "\\" CHAR;
+	# we don't allow escaping control chars (the RFC does)
+	Quoted_Pair    = "\\" (CHAR - CTL);
 	Comment        = ( TEXT | Quoted_Pair )*;
-	QDText         = TEXT - DQUOTE;
+	QDText         = TEXT -- (DQUOTE | "\\");
 	Quoted_String   = DQUOTE ( QDText | Quoted_Pair )* DQUOTE;
 
 	HTTP_Version = (
@@ -90,30 +94,7 @@
 	Path_Segments = Segment ("/" Segment)*;
 	Abs_Path = "/" Path_Segments;
 
-	Method = (
-		  "GET"       %{ ctx->request->http_method = LI_HTTP_METHOD_GET; }
-		| "POST"      %{ ctx->request->http_method = LI_HTTP_METHOD_POST; }
-		| "HEAD"      %{ ctx->request->http_method = LI_HTTP_METHOD_HEAD; }
-		| "OPTIONS"   %{ ctx->request->http_method = LI_HTTP_METHOD_OPTIONS; }
-		| "PROPFIND"  %{ ctx->request->http_method = LI_HTTP_METHOD_PROPFIND; }
-		| "MKCOL"     %{ ctx->request->http_method = LI_HTTP_METHOD_MKCOL; }
-		| "PUT"       %{ ctx->request->http_method = LI_HTTP_METHOD_PUT; }
-		| "DELETE"    %{ ctx->request->http_method = LI_HTTP_METHOD_DELETE; }
-		| "COPY"      %{ ctx->request->http_method = LI_HTTP_METHOD_COPY; }
-		| "MOVE"      %{ ctx->request->http_method = LI_HTTP_METHOD_MOVE; }
-		| "PROPPATCH" %{ ctx->request->http_method = LI_HTTP_METHOD_PROPPATCH; }
-		| "REPORT"    %{ ctx->request->http_method = LI_HTTP_METHOD_REPORT; }
-		| "CHECKOUT"  %{ ctx->request->http_method = LI_HTTP_METHOD_CHECKOUT; }
-		| "CHECKIN"   %{ ctx->request->http_method = LI_HTTP_METHOD_CHECKIN; }
-		| "VERSION-CONTROL" %{ ctx->request->http_method = LI_HTTP_METHOD_VERSION_CONTROL; }
-		| "UNCHECKOUT"      %{ ctx->request->http_method = LI_HTTP_METHOD_UNCHECKOUT; }
-		| "MKACTIVITY"      %{ ctx->request->http_method = LI_HTTP_METHOD_MKACTIVITY; }
-		| "MERGE"     %{ ctx->request->http_method = LI_HTTP_METHOD_MERGE; }
-		| "LOCK"      %{ ctx->request->http_method = LI_HTTP_METHOD_LOCK; }
-		| "UNLOCK"    %{ ctx->request->http_method = LI_HTTP_METHOD_UNLOCK; }
-		| "LABEL"     %{ ctx->request->http_method = LI_HTTP_METHOD_LABEL; }
-		| "CONNECT"   %{ ctx->request->http_method = LI_HTTP_METHOD_CONNECT; }
-		| Token ) >mark >{ ctx->request->http_method = LI_HTTP_METHOD_UNSET; } %method;
+	Method = Token >mark >{ ctx->request->http_method = LI_HTTP_METHOD_UNSET; } %method;
 
 	Request_URI = ("*" | ( any - CTL - SP )+) >mark %uri;
 	Request_Line = Method " " Request_URI " " HTTP_Version CRLF;
