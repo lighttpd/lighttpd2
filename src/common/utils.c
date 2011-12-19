@@ -246,23 +246,23 @@ gint li_receive_fd(gint s, gint *fd) { /* read fd from unix socket s */
 
 void li_ev_io_add_events(struct ev_loop *loop, ev_io *watcher, int events) {
 	if ((watcher->events & events) == events) return;
-	ev_io_stop(loop, watcher);
+	if (loop != NULL) ev_io_stop(loop, watcher);
 	ev_io_set(watcher, watcher->fd, watcher->events | events);
-	ev_io_start(loop, watcher);
+	if (loop != NULL) ev_io_start(loop, watcher);
 }
 
 void li_ev_io_rem_events(struct ev_loop *loop, ev_io *watcher, int events) {
 	if (0 == (watcher->events & events)) return;
-	ev_io_stop(loop, watcher);
+	if (loop != NULL) ev_io_stop(loop, watcher);
 	ev_io_set(watcher, watcher->fd, watcher->events & ~events);
-	ev_io_start(loop, watcher);
+	if (loop != NULL) ev_io_start(loop, watcher);
 }
 
 void li_ev_io_set_events(struct ev_loop *loop, ev_io *watcher, int events) {
 	if (events == (watcher->events & (EV_READ | EV_WRITE))) return;
-	ev_io_stop(loop, watcher);
+	if (loop != NULL) ev_io_stop(loop, watcher);
 	ev_io_set(watcher, watcher->fd, (watcher->events & ~(EV_READ | EV_WRITE)) | events);
-	ev_io_start(loop, watcher);
+	if (loop != NULL) ev_io_start(loop, watcher);
 }
 
 
