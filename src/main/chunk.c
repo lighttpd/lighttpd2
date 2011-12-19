@@ -464,13 +464,15 @@ void li_chunkqueue_use_limit(liChunkQueue *cq, liVRequest *vr) {
 }
 
 void li_chunkqueue_set_limit(liChunkQueue *cq, liCQLimit* cql) {
-	gboolean upd_limit = (cql != cq->limit);
 	goffset memusage = cq->mem_usage;
+
+	if (cql == cq->limit) return;
+
 	if (cql) li_cqlimit_acquire(cql);
-	if (upd_limit) cqlimit_update(cq, -memusage);
+	cqlimit_update(cq, -memusage);
 	li_cqlimit_release(cq->limit);
 	cq->limit = cql;
-	if (upd_limit) cqlimit_update(cq, memusage);
+	cqlimit_update(cq, memusage);
 }
 
 /* return -1 for unlimited, 0 for full and n > 0 for n bytes free */
