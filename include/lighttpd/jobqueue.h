@@ -42,6 +42,7 @@ LI_API void li_job_queue_clear(liJobQueue *jq); /* runs until all jobs are done 
 
 LI_API void li_job_init(liJob *job, liJobCB callback);
 LI_API void li_job_reset(liJob *job);
+LI_API void li_job_stop(liJob *job); /* remove job from queue if active and detach references */
 LI_API void li_job_clear(liJob *job);
 
 /* marks the job for later execution */

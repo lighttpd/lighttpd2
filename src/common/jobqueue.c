@@ -128,6 +128,21 @@ void li_job_reset(liJob *job) {
 	}
 }
 
+void li_job_stop(liJob *job) {
+	if (NULL != job->link.data) {
+		liJobQueue *jq = job->link.data;
+
+		g_queue_unlink(&jq->queue, &job->link);
+		job->link.data = NULL;
+	}
+
+	if (NULL != job->ref) {
+		job->ref->job = NULL;
+		li_job_ref_release(job->ref);
+		job->ref = NULL;
+	}
+}
+
 void li_job_clear(liJob *job) {
 	if (NULL != job->link.data) {
 		liJobQueue *jq = job->link.data;
