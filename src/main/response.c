@@ -74,11 +74,11 @@ gboolean li_response_send_headers(liConnection *con) {
 	if (vr->request.http_version == LI_HTTP_VERSION_1_1) {
 		g_string_append_len(head, CONST_STR_LEN("HTTP/1.1 "));
 		if (!con->info.keep_alive)
-			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Connection"), CONST_STR_LEN("close"));
+			g_string_append_len(head, "Connection: close"); /* connection header entries are ignored, send it directly */
 	} else {
 		g_string_append_len(head, CONST_STR_LEN("HTTP/1.0 "));
 		if (con->info.keep_alive)
-			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Connection"), CONST_STR_LEN("keep-alive"));
+			g_string_append_len(head, "Connection: keep-alive"); /* connection header entries are ignored, send it directly */
 	}
 
 	{
