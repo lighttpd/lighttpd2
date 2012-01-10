@@ -73,12 +73,8 @@ gboolean li_response_send_headers(liConnection *con) {
 	/* Status line */
 	if (vr->request.http_version == LI_HTTP_VERSION_1_1) {
 		g_string_append_len(head, CONST_STR_LEN("HTTP/1.1 "));
-		if (!con->info.keep_alive)
-			g_string_append_len(head, CONST_STR_LEN("Connection: close")); /* connection header entries are ignored, send it directly */
 	} else {
 		g_string_append_len(head, CONST_STR_LEN("HTTP/1.0 "));
-		if (con->info.keep_alive)
-			g_string_append_len(head, CONST_STR_LEN("Connection: keep-alive")); /* connection header entries are ignored, send it directly */
 	}
 
 	{
@@ -90,6 +86,15 @@ gboolean li_response_send_headers(liConnection *con) {
 		g_string_append_len(head, status_str, 4);
 		g_string_append_len(head, str, len);
 		g_string_append_len(head, CONST_STR_LEN("\r\n"));
+	}
+
+	/* connection header, if needed. connection entries in the list are ignored below, send them directly */
+	if (vr->request.http_version == LI_HTTP_VERSION_1_1) {
+		if (!con->info.keep_alive)
+			g_string_append_len(head, CONST_STR_LEN("Connection: close\r\n"));
+	} else {
+		if (con->info.keep_alive)
+			g_string_append_len(head, CONST_STR_LEN("Connection: keep-alive\r\n"));
 	}
 
 	/* Append headers */
