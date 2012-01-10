@@ -1,6 +1,7 @@
 
 #include <lighttpd/base.h>
 #include <lighttpd/http_request_parser.h>
+#include <lighttpd/lighttpd-glue.h>
 
 /** Machine **/
 
