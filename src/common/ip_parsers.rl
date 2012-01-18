@@ -15,7 +15,7 @@
 	ipv4_data = octet "." octet "." octet "." octet;
 	netmask = "/" decint %{
 		if (tmpval > 32) { res = FALSE; fbreak; }
-		*netmask = htonl(~((1 << (32-tmpval)) - 1));
+		*netmask = htonl(tmpval ? ~((1 << (32-tmpval)) - 1) : 0);
 	};
 	port = ":" decint %{
 		if (tmpval > 65535) { res = FALSE; fbreak; }
