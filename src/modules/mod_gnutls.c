@@ -59,19 +59,19 @@ static mod_context *mod_gnutls_context_new(liServer *srv) {
 	int r;
 
 	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_allocate_credentials(&ctx->server_cert))) {
-		ERROR(srv, "gnutls_certificate_allocate_credentials failed(%s): %s\n",
+		ERROR(srv, "gnutls_certificate_allocate_credentials failed(%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error0;
 	}
 
 	if (GNUTLS_E_SUCCESS != (r = gnutls_priority_init(&ctx->server_priority, "NORMAL", NULL))) {
-		ERROR(srv, "gnutls_priority_init failed(%s): %s\n",
+		ERROR(srv, "gnutls_priority_init failed(%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error1;
 	}
 
 	if (GNUTLS_E_SUCCESS != (r = gnutls_priority_init(&ctx->server_priority_beast, "NORMAL:-CIPHER-ALL:+ARCFOUR-128", NULL))) {
-		ERROR(srv, "gnutls_priority_init failed(%s): %s\n",
+		ERROR(srv, "gnutls_priority_init failed(%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error2;
 	}
@@ -493,14 +493,14 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	ctx->protect_against_beast = protect_against_beast;
 
 	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_file(ctx->server_cert, pemfile, pemfile, GNUTLS_X509_FMT_PEM))) {
-		ERROR(srv, "gnutls_certificate_set_x509_key_file failed(certfile '%s', keyfile '%s', PEM) (%s): %s\n",
+		ERROR(srv, "gnutls_certificate_set_x509_key_file failed(certfile '%s', keyfile '%s', PEM) (%s): %s",
 			pemfile, pemfile,
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error_free_ctx;
 	}
 
 	if ((NULL != ca_file) && GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_trust_file(ctx->server_cert, ca_file, GNUTLS_X509_FMT_PEM))) {
-		ERROR(srv, "gnutls_certificate_set_x509_trust_file failed(cafile '%s', PEM) (%s): %s\n",
+		ERROR(srv, "gnutls_certificate_set_x509_trust_file failed(cafile '%s', PEM) (%s): %s",
 			ca_file,
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error_free_ctx;
@@ -512,7 +512,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		GString *s = srv->main_worker->tmp_str;
 
 		if (GNUTLS_E_SUCCESS != (r = gnutls_priority_init(&prio, priority, &errpos))) {
-			ERROR(srv, "gnutls_priority_init failed(priority '%s', error at '%s') (%s): %s\n",
+			ERROR(srv, "gnutls_priority_init failed(priority '%s', error at '%s') (%s): %s",
 				priority, errpos,
 				gnutls_strerror_name(r), gnutls_strerror(r));
 			goto error_free_ctx;
@@ -525,7 +525,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			g_string_assign(s, priority);
 			g_string_append_len(s, CONST_STR_LEN(":-CIPHER-ALL:+ARCFOUR-128"));
 			if (GNUTLS_E_SUCCESS != (r = gnutls_priority_init(&prio, priority, &errpos))) {
-				ERROR(srv, "gnutls_priority_init failed(priority '%s', error at '%s') (%s): %s\n",
+				ERROR(srv, "gnutls_priority_init failed(priority '%s', error at '%s') (%s): %s",
 					priority, errpos,
 					gnutls_strerror_name(r), gnutls_strerror(r));
 				goto error_free_ctx;
