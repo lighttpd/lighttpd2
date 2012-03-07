@@ -15,6 +15,7 @@ LI_API void li_angel_listen(liServer *srv, GString *str, liAngelListenCB cb, gpo
 LI_API void li_angel_log(liServer *srv, GString *str);
 
 LI_API void li_angel_log_open_file(liServer *srv, GString *filename, liAngelLogOpen, gpointer data);
+LI_API void li_angel_log_open_pipe(liServer *srv, GString *filename, liAngelLogOpen, gpointer data);
 
 /* angle_fake definitions, only for internal use */
 int li_angel_fake_listen(liServer *srv, GString *str);

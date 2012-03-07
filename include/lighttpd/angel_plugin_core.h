@@ -9,6 +9,7 @@ struct liPluginCoreConfig {
 	gboolean load_failed;
 	liInstanceConf *load_instconf;
 	GPtrArray *load_listen_masks;
+	GHashTable *load_pipes;
 
 	/* Running */
 	liInstanceConf *instconf;

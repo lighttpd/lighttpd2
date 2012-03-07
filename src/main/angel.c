@@ -182,3 +182,24 @@ void li_angel_log_open_file(liServer *srv, GString *filename, liAngelLogOpen cb,
 		cb(srv, fd, data);
 	}
 }
+
+void li_angel_log_open_pipe(liServer *srv, GString *pipename, liAngelLogOpen cb, gpointer data) {
+	if (srv->acon) {
+		liAngelCall *acall = li_angel_call_new(li_angel_log_open_cb, 10.0);
+		angel_log_cb_ctx *ctx = g_slice_new0(angel_log_cb_ctx);
+		GError *err = NULL;
+
+		ctx->srv = srv;
+		ctx->cb = cb;
+		ctx->data = data;
+		ctx->logname = g_string_new_len(GSTR_LEN(pipename));
+
+		acall->context = ctx;
+		if (!li_angel_send_call(srv->acon, CONST_STR_LEN("core"), CONST_STR_LEN("log-open-pipe"), acall, g_string_new_len(GSTR_LEN(pipename)), &err)) {
+			ERROR(srv, "couldn't send call: %s", err->message);
+			g_error_free(err);
+		}
+	} else {
+		ERROR(srv, "angel required for: %s", "log-open-pipe");
+	}
+}

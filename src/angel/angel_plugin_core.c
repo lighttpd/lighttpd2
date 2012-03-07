@@ -36,6 +36,7 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 	gid_t gid = -1;
 	GString *user = NULL;
 	gint64 rlim_core = -1, rlim_nofile = -1;
+	liValue *lv = NULL;
 
 	if (config->load_instconf) {
 		ERROR(srv, "%s", "Already configure the instance");
@@ -185,6 +186,13 @@ static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
 	if (options[9]) rlim_core = options[9]->data.number;
 	if (options[10]) rlim_nofile = options[10]->data.number;
 
+	if (options[11]) {
+		lv = li_value_copy(options[11]);
+		config->load_pipes = lv->data.hash;
+		lv->type = LI_VALUE_NONE;
+		li_value_free(lv);
+	}
+
 	g_ptr_array_add(cmd, NULL);
 	g_ptr_array_add(env, NULL);
 	cmdarr = (gchar**) g_ptr_array_free(cmd, FALSE);
@@ -204,6 +212,7 @@ static const liPluginItemOption core_instance_options[] = {
 	/*  8 */ { "copy-env", LI_VALUE_LIST, 0 },
 	/*  9 */ { "max-core-file-size", LI_VALUE_NUMBER, 0 },
 	/* 10 */ { "max-open-files", LI_VALUE_NUMBER, 0 },
+	/* 11 */ { "pipes", LI_VALUE_HASH, 0 },
 	{ NULL, 0, 0 }
 };
 
@@ -668,6 +677,75 @@ static void core_log_open_file(liServer *srv, liPlugin *p, liInstance *i, gint32
 	}
 }
 
+static void core_log_open_pipe(liServer *srv, liPlugin *p, liInstance *i, gint32 id, GString *data) {
+	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+	liValue *pipeval = NULL;
+
+	GError *err = NULL;
+	int fd = -1;
+	GArray *fds;
+
+	int to_log_fds[2];
+	pid_t pid;
+
+	DEBUG(srv, "core_log_open_pipe(%i, '%s')", id, data->str);
+
+	if (-1 == id) return; /* ignore simple calls */
+
+	pipeval = g_hash_table_lookup(config->load_pipes, data);
+	if (pipeval) {
+		if (!pipe(to_log_fds)) {
+			switch (pid = fork()) {
+				case 0:
+					close(STDIN_FILENO);
+					dup2(to_log_fds[0], STDIN_FILENO);
+					close(to_log_fds[0]);
+					close(to_log_fds[1]);
+					execl("/bin/sh", "sh", "-c", pipeval->data.string->str, (char*)NULL);
+					ERROR(srv, "core_log_open_pipe(%i, '%s'): execl failed (%s)", id, data->str, strerror(errno));
+					exit(-1);
+					break;
+				case -1:
+					ERROR(srv, "core_log_open_pipe(%i, '%s'): fork failed (%s)", id, data->str, strerror(errno));
+					break;
+				default:
+					close(to_log_fds[0]);
+					fd = to_log_fds[1];
+					break;
+			}
+		}
+		if (-1 == fd) {
+			int e = errno;
+			GString *error = g_string_sized_new(0);
+			g_string_printf(error, "Couldn't open log file '%s': '%s'", data->str, g_strerror(e));
+			ERROR(srv, "Couldn't open log file '%s': %s", data->str, g_strerror(e));
+			if (!li_angel_send_result(i->acon, id, error, NULL, NULL, &err)) {
+				ERROR(srv, "Couldn't send result: %s", err->message);
+				g_error_free(err);
+			}
+			return;
+		}
+	} else {
+		GString *error = g_string_sized_new(0);
+		g_string_printf(error, "Couldn't open log pipe '%s': unconfigured pipe", data->str);
+
+		if (!li_angel_send_result(i->acon, id, error, NULL, NULL, &err)) {
+			ERROR(srv, "Couldn't send result: %s", err->message);
+			g_error_free(err);
+		}
+		return;
+	}
+
+	fds = g_array_new(FALSE, FALSE, sizeof(int));
+	g_array_append_val(fds, fd);
+
+	if (!li_angel_send_result(i->acon, id, NULL, NULL, fds, &err)) {
+		ERROR(srv, "Couldn't send result: %s", err->message);
+		g_error_free(err);
+		return;
+	}
+}
+
 static void core_clean(liServer *srv, liPlugin *p);
 static void core_free(liServer *srv, liPlugin *p) {
 	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
@@ -693,6 +771,8 @@ static void core_free(liServer *srv, liPlugin *p) {
 	}
 	g_ptr_array_free(config->listen_masks, TRUE);
 	g_ptr_array_free(config->load_listen_masks, TRUE);
+	if (config->load_pipes != NULL)
+		g_hash_table_destroy(config->load_pipes);
 	g_hash_table_destroy(config->listen_sockets);
 	config->listen_masks = NULL;
 	config->load_listen_masks = NULL;
@@ -798,11 +878,13 @@ static gboolean core_init(liServer *srv, liPlugin *p) {
 
 	config->listen_masks = g_ptr_array_new();
 	config->load_listen_masks = g_ptr_array_new();
+	config->load_pipes = NULL;
 	config->listen_sockets = g_hash_table_new_full(li_hash_sockaddr, li_equal_sockaddr, NULL, _listen_socket_free);
 
 	li_angel_plugin_add_angel_cb(p, "listen", core_listen);
 	li_angel_plugin_add_angel_cb(p, "reached-state", core_reached_state);
 	li_angel_plugin_add_angel_cb(p, "log-open-file", core_log_open_file);
+	li_angel_plugin_add_angel_cb(p, "log-open-pipe", core_log_open_pipe);
 
 	ev_signal_init(&config->sig_hup, core_handle_sig_hup, SIGHUP);
 	config->sig_hup.data = config;
