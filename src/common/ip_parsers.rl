@@ -88,13 +88,13 @@ gboolean li_parse_ipv4(const char *str, guint32 *ip, guint32 *netmask, guint16 *
 	ipv4_data = octet "." octet "." octet "." octet;
 	pre_ipv4 = ipv4_data %{
 		if (prec > 6) { res = FALSE; fbreak; }
-		predata[prec++] = *(guint16*) (data);
-		predata[prec++] = *(guint16*) (data+2);
+		memcpy(&predata[prec], data, 4);
+		prec += 2;
 	};
 	post_ipv4 = ipv4_data %{
 		if (postc > 6) { res = FALSE; fbreak; }
-		postdata[postc++] = *(guint16*) (data);
-		postdata[postc++] = *(guint16*) (data+2);
+		memcpy(&postdata[postc], data, 4);
+		postc += 2;
 	};
 
 	ipv6_data = ((pregroup ":")+ | ":") ((":" @ { compressed = TRUE; } (postgroup ":")* (postgroup | post_ipv4)?) | (pregroup | pre_ipv4));
