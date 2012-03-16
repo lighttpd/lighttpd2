@@ -303,7 +303,12 @@ static G_GNUC_WARN_UNUSED_RESULT gboolean connection_try_read(liConnection *con)
 		if (con->srv_sock->read_cb) {
 			res = con->srv_sock->read_cb(con);
 		} else {
-			res = li_network_read(con->mainvr, con->sock_watcher.fd, con->raw_in, &con->raw_in_buffer);
+			GError *err = NULL;
+			res = li_network_read(con->sock_watcher.fd, con->raw_in, &con->raw_in_buffer, &err);
+			if (NULL != err) {
+				VR_ERROR(con->mainvr, "%s", err->message);
+				g_error_free(err);
+			}
 		}
 
 		if (NULL == con->wrk->network_read_buf && NULL != con->raw_in_buffer
@@ -366,7 +371,12 @@ static G_GNUC_WARN_UNUSED_RESULT gboolean connection_try_write(liConnection *con
 			if (con->srv_sock->write_cb) {
 				res = con->srv_sock->write_cb(con, write_max);
 			} else {
-				res = li_network_write(con->mainvr, con->sock_watcher.fd, con->raw_out, write_max);
+				GError *err = NULL;
+				res = li_network_write(con->sock_watcher.fd, con->raw_out, write_max, &err);
+				if (NULL != err) {
+					VR_ERROR(con->mainvr, "%s", err->message);
+					g_error_free(err);
+				}
 			}
 
 			transferred = transferred - con->raw_out->length;

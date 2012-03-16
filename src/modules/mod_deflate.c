@@ -217,13 +217,19 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 		char *data;
 		off_t len;
 		liChunkIter ci;
+		GError *err = NULL;
 
 		if (0 == f->in->length) break;
 
 		ci = li_chunkqueue_iter(f->in);
 
-		if (LI_HANDLER_GO_ON != (res = li_chunkiter_read(vr, ci, 0, blocksize, &data, &len)))
+		if (LI_HANDLER_GO_ON != (res = li_chunkiter_read(ci, 0, blocksize, &data, &len, &err))) {
+			if (NULL != err) {
+				VR_ERROR(vr, "Couldn't read data from chunkqueue: %s", err->message);
+				g_error_free(err);
+			}
 			return res;
+		}
 
 		if (ctx->is_gzip) {
 			ctx->crc = crc32(ctx->crc, (unsigned char*) data, len);
@@ -406,13 +412,19 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 		char *data;
 		off_t len;
 		liChunkIter ci;
+		GError *err = NULL;
 
 		if (0 == f->in->length) break;
 
 		ci = li_chunkqueue_iter(f->in);
 
-		if (LI_HANDLER_GO_ON != (res = li_chunkiter_read(vr, ci, 0, blocksize, &data, &len)))
+		if (LI_HANDLER_GO_ON != (res = li_chunkiter_read(ci, 0, blocksize, &data, &len, &err))) {
+			if (NULL != err) {
+				VR_ERROR(vr, "Couldn't read data from chunkqueue: %s", err->message);
+				g_error_free(err);
+			}
 			return res;
+		}
 
 		bz->next_in = data;
 		bz->avail_in = len;

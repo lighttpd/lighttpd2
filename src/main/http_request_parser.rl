@@ -5,10 +5,10 @@
 
 /** Machine **/
 
-#define _getString(M, FPC) (li_chunk_extract(vr, ctx->M, GETMARK(FPC)))
+#define _getString(M, FPC) (li_chunk_extract(ctx->M, LI_GETMARK(FPC), NULL))
 #define getString(FPC) _getString(mark, FPC)
 
-#define _getStringTo(M, FPC, s) (li_chunk_extract_to(vr, ctx->M, GETMARK(FPC), s))
+#define _getStringTo(M, FPC, s) (li_chunk_extract_to(ctx->M, LI_GETMARK(FPC), s, NULL))
 #define getStringTo(FPC, s) _getStringTo(mark, FPC, s)
 
 
@@ -17,7 +17,7 @@
 	machine li_http_request_parser;
 	variable cs ctx->chunk_ctx.cs;
 
-	action mark { ctx->mark = GETMARK(fpc); }
+	action mark { ctx->mark = LI_GETMARK(fpc); }
 	action done { fbreak; }
 
 	action method {
@@ -149,8 +149,15 @@ liHandlerResult li_http_request_parse(liVRequest *vr, liHttpRequestCtx *ctx) {
 
 	while (!li_http_request_parser_has_error(ctx) && !li_http_request_parser_is_finished(ctx)) {
 		char *p, *pe;
+		GError *err = NULL;
 
-		if (LI_HANDLER_GO_ON != (res = li_chunk_parser_next(vr, &ctx->chunk_ctx, &p, &pe))) return res;
+		if (LI_HANDLER_GO_ON != (res = li_chunk_parser_next(&ctx->chunk_ctx, &p, &pe, &err))) {
+			if (NULL != err) {
+				VR_ERROR(vr, "%s", err->message);
+				g_error_free(err);
+			}
+			return res;
+		}
 
 		%% write exec;
 

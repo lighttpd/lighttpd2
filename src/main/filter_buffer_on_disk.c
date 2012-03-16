@@ -68,6 +68,7 @@ liHandlerResult li_filter_buffer_on_disk(liVRequest *vr, liChunkQueue *out, liCh
 		liChunkIter ci;
 		off_t length, data_len;
 		char *data = NULL;
+		GError *err;
 
 		switch (c->type) {
 		case UNUSED_CHUNK: return LI_HANDLER_ERROR;
@@ -86,7 +87,12 @@ liHandlerResult li_filter_buffer_on_disk(liVRequest *vr, liChunkQueue *out, liCh
 			length = li_chunk_length(c);
 			ci = li_chunkqueue_iter(in);
 
-			if (LI_HANDLER_GO_ON != li_chunkiter_read(vr, ci, 0, length, &data, &data_len)) {
+			err = NULL;
+			if (LI_HANDLER_GO_ON != li_chunkiter_read(ci, 0, length, &data, &data_len, &err)) {
+				if (NULL != err) {
+					VR_ERROR(vr, "%s", err->message);
+					g_error_free(err);
+				}
 				return LI_HANDLER_ERROR;
 			}
 

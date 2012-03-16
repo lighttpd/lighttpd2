@@ -25,7 +25,7 @@
 #endif
 
 /* first chunk must be a STRING_CHUNK ! */
-liNetworkStatus li_network_backend_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
+liNetworkStatus li_network_backend_writev(int fd, liChunkQueue *cq, goffset *write_max, GError **err) {
 	off_t we_have;
 	ssize_t r;
 	gboolean did_write_something = FALSE;
@@ -83,7 +83,7 @@ liNetworkStatus li_network_backend_writev(liVRequest *vr, int fd, liChunkQueue *
 			case EINTR:
 				break; /* try again */
 			default:
-				VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
+				g_set_error(err, LI_NETWORK_ERROR, 0, "li_network_backend_writev: oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 				goto cleanup;
 			}
 		}
@@ -115,7 +115,7 @@ cleanup:
 	return res;
 }
 
-liNetworkStatus li_network_write_writev(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
+liNetworkStatus li_network_write_writev(int fd, liChunkQueue *cq, goffset *write_max, GError **err) {
 	if (cq->length == 0) return LI_NETWORK_STATUS_FATAL_ERROR;
 	do {
 		switch (li_chunkqueue_first_chunk(cq)->type) {

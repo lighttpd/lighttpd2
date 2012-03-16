@@ -18,7 +18,7 @@ static void cq_load_str(liChunkQueue *cq, const gchar *s, size_t len) {
 
 static void cq_assert_eq(liChunkQueue *cq, const gchar *s, size_t len) {
 	GString *buf = g_string_sized_new(cq->length);
-	g_assert(li_chunkqueue_extract_to(NULL, cq, cq->length, buf));
+	g_assert(li_chunkqueue_extract_to(cq, cq->length, buf, NULL));
 	g_assert(0 == memcmp(s, buf->str, len));
 	g_string_free(buf, TRUE);
 }

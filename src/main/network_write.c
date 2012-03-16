@@ -1,7 +1,7 @@
 
 #include <lighttpd/base.h>
 
-liNetworkStatus li_network_backend_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
+liNetworkStatus li_network_backend_write(int fd, liChunkQueue *cq, goffset *write_max, GError **err) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	char *block_data;
 	off_t block_len;
@@ -14,7 +14,7 @@ liNetworkStatus li_network_backend_write(liVRequest *vr, int fd, liChunkQueue *c
 			return did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_FATAL_ERROR;
 
 		ci = li_chunkqueue_iter(cq);
-		switch (li_chunkiter_read(vr, ci, 0, blocksize, &block_data, &block_len)) {
+		switch (li_chunkiter_read(ci, 0, blocksize, &block_data, &block_len, err)) {
 		case LI_HANDLER_GO_ON:
 			break;
 		case LI_HANDLER_ERROR:
@@ -34,7 +34,7 @@ liNetworkStatus li_network_backend_write(liVRequest *vr, int fd, liChunkQueue *c
 			case ETIMEDOUT:
 				return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
-				VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
+				g_set_error(err, LI_NETWORK_ERROR, 0, "li_network_backend_write: oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {

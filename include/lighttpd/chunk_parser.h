@@ -28,12 +28,12 @@ struct liChunkParserMark {
 LI_API void li_chunk_parser_init(liChunkParserCtx *ctx, liChunkQueue *cq);
 LI_API void li_chunk_parser_reset(liChunkParserCtx *ctx);
 LI_API liHandlerResult li_chunk_parser_prepare(liChunkParserCtx *ctx);
-LI_API liHandlerResult li_chunk_parser_next(liVRequest *vr, liChunkParserCtx *ctx, char **p, char **pe);
+LI_API liHandlerResult li_chunk_parser_next(liChunkParserCtx *ctx, char **p, char **pe, GError **err);
 LI_API void li_chunk_parser_done(liChunkParserCtx *ctx, goffset len);
 
 /* extract [from..to) */
-LI_API gboolean li_chunk_extract_to(liVRequest *vr, liChunkParserMark from, liChunkParserMark to, GString *dest);
-LI_API GString* li_chunk_extract(liVRequest *vr, liChunkParserMark from, liChunkParserMark to);
+LI_API gboolean li_chunk_extract_to(liChunkParserMark from, liChunkParserMark to, GString *dest, GError **err);
+LI_API GString* li_chunk_extract(liChunkParserMark from, liChunkParserMark to, GError **err);
 
 INLINE liChunkParserMark li_chunk_parser_getmark(liChunkParserCtx *ctx, const char *fpc);
 
@@ -49,6 +49,6 @@ INLINE liChunkParserMark li_chunk_parser_getmark(liChunkParserCtx *ctx, const ch
 	return m;
 }
 
-#define GETMARK(FPC) (li_chunk_parser_getmark(&ctx->chunk_ctx, FPC))
+#define LI_GETMARK(FPC) (li_chunk_parser_getmark(&ctx->chunk_ctx, FPC))
 
 #endif

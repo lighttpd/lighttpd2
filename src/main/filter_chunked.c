@@ -45,7 +45,12 @@ liHandlerResult li_filter_chunked_encode(liVRequest *vr, liChunkQueue *out, liCh
 
 #define read_char(c) do { \
 	while (!p || p >= pe) { \
-		res = li_chunk_parser_next(vr, &ctx, &p, &pe); \
+		GError *err = NULL; \
+		res = li_chunk_parser_next(&ctx, &p, &pe, &err); \
+		if (NULL != err) { \
+			VR_ERROR(vr, "%s", err->message); \
+			g_error_free(err); \
+		} \
 		if (res == LI_HANDLER_WAIT_FOR_EVENT && in->is_closed) { \
 			res = LI_HANDLER_ERROR; \
 		} \

@@ -4,6 +4,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+GQuark li_chunk_error_quark(void) {
+	return g_quark_from_string("g-chunk-error-quark");
+}
+
 /******************
  *   chunkfile    *
  ******************/
@@ -43,18 +47,20 @@ void li_chunkfile_release(liChunkFile *cf) {
 /* open the file cf->name if it is not already opened for reading
  * may return HANDLER_GO_ON, HANDLER_ERROR
  */
-liHandlerResult li_chunkfile_open(liVRequest *vr, liChunkFile *cf) {
-	if (!cf) return LI_HANDLER_ERROR;
+liHandlerResult li_chunkfile_open(liChunkFile *cf, GError **err) {
+	g_return_val_if_fail (err == NULL || *err == NULL, LI_HANDLER_ERROR);
+
+	if (NULL == cf) {
+		g_set_error(err, LI_CHUNK_ERROR, 0, "li_chunkfile_open: cf is NULL");
+		return LI_HANDLER_ERROR;
+	}
 	if (-1 != cf->fd) return LI_HANDLER_GO_ON;
-	if (!cf->name) {
-		VR_ERROR(vr, "%s", "Missing filename for FILE_CHUNK");
+	if (NULL == cf->name) {
+		g_set_error(err, LI_CHUNK_ERROR, 0, "li_chunkfile_open: Missing filename");
 		return LI_HANDLER_ERROR;
 	}
 	if (-1 == (cf->fd = open(cf->name->str, O_RDONLY))) {
-		if (EMFILE == errno) {
-			li_server_out_of_fds(vr->wrk->srv);
-		}
-		VR_ERROR(vr, "Couldn't open file '%s': %s", GSTR_SAFE_STR(cf->name), g_strerror(errno));
+		g_set_error(err, LI_CHUNK_ERROR, 0, "li_chunkfile_open: Couldn't open file '%s': %s", GSTR_SAFE_STR(cf->name), g_strerror(errno));
 		return LI_HANDLER_ERROR;
 	}
 #ifdef FD_CLOEXEC
@@ -64,7 +70,7 @@ liHandlerResult li_chunkfile_open(liVRequest *vr, liChunkFile *cf) {
 	/* tell the kernel that we want to stream the file */
 	if (-1 == posix_fadvise(cf->fd, 0, 0, POSIX_FADV_SEQUENTIAL)) {
 		if (ENOSYS != errno) {
-			VR_ERROR(vr, "posix_fadvise failed for '%s': %s (%i)", GSTR_SAFE_STR(cf->name), g_strerror(errno), cf->fd);
+			/* g_debug("posix_fadvise failed for '%s': %s (%i)", GSTR_SAFE_STR(cf->name), g_strerror(errno), cf->fd); */
 		}
 	}
 #endif
@@ -83,10 +89,12 @@ liHandlerResult li_chunkfile_open(liVRequest *vr, liChunkFile *cf) {
  * but needs to do io in case of FILE_CHUNK; the data is _not_ marked as "done"
  * may return HANDLER_GO_ON, HANDLER_ERROR
  */
-liHandlerResult li_chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
+liHandlerResult li_chunkiter_read(liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len, GError **err) {
 	liChunk *c = li_chunkiter_chunk(iter);
 	off_t we_have, our_start;
 	liHandlerResult res = LI_HANDLER_GO_ON;
+
+	g_return_val_if_fail (err == NULL || *err == NULL, LI_HANDLER_ERROR);
 
 	if (!c) return LI_HANDLER_ERROR;
 	if (!data_start || !data_len) return LI_HANDLER_ERROR;
@@ -106,7 +114,7 @@ liHandlerResult li_chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start,
 		*data_len = length;
 		break;
 	case FILE_CHUNK:
-		if (LI_HANDLER_GO_ON != (res = li_chunkfile_open(vr, c->data.file.file))) return res;
+		if (LI_HANDLER_GO_ON != (res = li_chunkfile_open(c->data.file.file, err))) return res;
 
 		if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
 
@@ -121,7 +129,7 @@ liHandlerResult li_chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start,
 read_chunk:
 		if (-1 == (we_have = pread(c->data.file.file->fd, c->mem->data, length, our_start))) {
 			if (EINTR == errno) goto read_chunk;
-			VR_ERROR(vr, "pread failed for '%s' (fd = %i): %s",
+			g_set_error(err, LI_CHUNK_ERROR, 0, "li_chunkiter_read: pread failed for '%s' (fd = %i): %s",
 				GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 				g_strerror(errno));
 			g_byte_array_free(c->mem, TRUE);
@@ -131,7 +139,7 @@ read_chunk:
 			/* may return less than requested bytes due to signals */
 			/* CON_TRACE(srv, "read return unexpected number of bytes"); */
 			if (we_have == 0) {
-				VR_ERROR(vr, "pread returned 0 bytes for '%s' (fd = %i): unexpected end of file?",
+				g_set_error(err, LI_CHUNK_ERROR, 0, "li_chunkiter_read: pread returned 0 bytes for '%s' (fd = %i): unexpected end of file?",
 					GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd);
 				g_byte_array_free(c->mem, TRUE);
 				c->mem = NULL;
@@ -154,11 +162,13 @@ read_chunk:
 /* same as li_chunkiter_read, but tries mmap() first and falls back to pread();
  * as accessing mmap()-ed areas may result in SIGBUS, you have to handle that signal somehow.
  */
-liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len) {
+liHandlerResult li_chunkiter_read_mmap(liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len, GError **err) {
 	liChunk *c = li_chunkiter_chunk(iter);
 	off_t we_want, we_have, our_start, our_offset;
 	liHandlerResult res = LI_HANDLER_GO_ON;
 	int mmap_errno = 0;
+
+	g_return_val_if_fail (err == NULL || *err == NULL, LI_HANDLER_ERROR);
 
 	if (!c) return LI_HANDLER_ERROR;
 	if (!data_start || !data_len) return LI_HANDLER_ERROR;
@@ -178,7 +188,7 @@ liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t s
 		*data_len = length;
 		break;
 	case FILE_CHUNK:
-		if (LI_HANDLER_GO_ON != (res = li_chunkfile_open(vr, c->data.file.file))) return res;
+		if (LI_HANDLER_GO_ON != (res = li_chunkfile_open(c->data.file.file, err))) return res;
 
 		if (length > MAX_MMAP_CHUNK) length = MAX_MMAP_CHUNK;
 
@@ -217,11 +227,11 @@ read_chunk:
 					if (EINTR == errno) goto read_chunk;
 					/* prefer the error of the first syscall */
 					if (0 != mmap_errno) {
-						VR_ERROR(vr, "mmap failed for '%s' (fd = %i): %s",
+						g_set_error(err, LI_CHUNK_ERROR, 0, "li_chunkiter_read_mmap: mmap failed for '%s' (fd = %i): %s",
 							GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 							g_strerror(mmap_errno));
 					} else {
-						VR_ERROR(vr, "pread failed for '%s' (fd = %i): %s",
+						g_set_error(err, LI_CHUNK_ERROR, 0, "li_chunkiter_read_mmap: pread failed for '%s' (fd = %i): %s",
 							GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 							g_strerror(errno));
 					}
@@ -241,9 +251,11 @@ read_chunk:
 				/* don't advise files < 64Kb */
 				if (c->data.file.mmap.length > (64*1024) &&
 					0 != madvise(c->data.file.mmap.data, c->data.file.mmap.length, MADV_WILLNEED)) {
-					VR_ERROR(vr, "madvise failed for '%s' (fd = %i): %s",
+					/*
+					g_debug("madvise failed for '%s' (fd = %i): %s",
 						GSTR_SAFE_STR(c->data.file.file->name), c->data.file.file->fd,
 						g_strerror(errno));
+					*/
 				}
 #endif
 			}
@@ -269,24 +281,6 @@ static liChunk* chunk_new() {
 	c->cq_link.data = c;
 	return c;
 }
-
-/*
-static void chunk_reset(chunk *c) {
-	if (!c) return;
-	c->type = UNUSED_CHUNK;
-	c->offset = 0;
-	if (c->data.str) g_string_free(c->data.str, TRUE);
-	c->data.str = NULL;
-	if (c->data.file.file) chunkfile_release(c->data.file.file);
-	c->data.file.file = NULL;
-	c->data.file.start = 0;
-	c->data.file.length = 0;
-	if (MAP_FAILED != c->data.file.mmap.data) munmap(c->data.file.mmap.data, c->data.file.mmap.length);
-	c->data.file.mmap.data = MAP_FAILED;
-	c->data.file.mmap.length = 0;
-	c->data.file.mmap.offset = 0;
-}
-*/
 
 static void chunk_free(liChunkQueue *cq, liChunk *c) {
 	if (!c) return;
@@ -815,9 +809,12 @@ goffset li_chunkqueue_skip_all(liChunkQueue *cq) {
 	return bytes;
 }
 
-gboolean li_chunkqueue_extract_to(liVRequest *vr, liChunkQueue *cq, goffset len, GString *dest) {
+gboolean li_chunkqueue_extract_to(liChunkQueue *cq, goffset len, GString *dest, GError **err) {
 	liChunkIter ci;
 	goffset coff, clen;
+
+	g_return_val_if_fail (err == NULL || *err == NULL, FALSE);
+
 	g_string_set_size(dest, 0);
 	if (len > cq->length) return FALSE;
 
@@ -829,7 +826,7 @@ gboolean li_chunkqueue_extract_to(liVRequest *vr, liChunkQueue *cq, goffset len,
 		while (coff < clen) {
 			gchar *buf;
 			off_t we_have;
-			if (LI_HANDLER_GO_ON != li_chunkiter_read(vr, ci, coff, len, &buf, &we_have)) goto error;
+			if (LI_HANDLER_GO_ON != li_chunkiter_read(ci, coff, len, &buf, &we_have, err)) goto error;
 			g_string_append_len(dest, buf, we_have);
 			coff += we_have;
 			len -= we_have;
@@ -845,9 +842,12 @@ error:
 	return FALSE;
 }
 
-gboolean li_chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *cq, goffset len, GByteArray *dest) {
+gboolean li_chunkqueue_extract_to_bytearr(liChunkQueue *cq, goffset len, GByteArray *dest, GError **err) {
 	liChunkIter ci;
 	goffset coff, clen;
+
+	g_return_val_if_fail (err == NULL || *err == NULL, FALSE);
+
 	g_byte_array_set_size(dest, 0);
 	if (len > cq->length) return FALSE;
 
@@ -862,7 +862,7 @@ gboolean li_chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *cq, goff
 		while (coff < clen) {
 			gchar *buf;
 			off_t we_have;
-			if (LI_HANDLER_GO_ON != li_chunkiter_read(vr, ci, coff, len, &buf, &we_have)) goto error;
+			if (LI_HANDLER_GO_ON != li_chunkiter_read(ci, coff, len, &buf, &we_have, err)) goto error;
 			g_byte_array_append(dest, (guint8*) buf, we_have);
 			coff += we_have;
 			len -= we_have;

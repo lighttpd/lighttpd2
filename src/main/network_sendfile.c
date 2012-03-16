@@ -11,11 +11,11 @@ typedef enum {
 	NSR_FATAL_ERROR
 } network_sendfile_result;
 
-static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote);
+static network_sendfile_result lighty_sendfile(int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote, GError **err);
 
 #if defined(USE_LINUX_SENDFILE)
 
-static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote) {
+static network_sendfile_result lighty_sendfile(int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote, GError **err) {
 	ssize_t r;
 	off_t file_offset = offset;
 
@@ -34,10 +34,9 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 			break; /* try again */
 		case EINVAL:
 		case ENOSYS:
-			/* TODO: print a warning? */
 			return NSR_FALLBACK;
 		default:
-			VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
+			g_set_error(err, LI_NETWORK_ERROR, 0, "lighty_sendfile(linux): oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 			return NSR_FATAL_ERROR;
 		}
 	}
@@ -47,7 +46,7 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 
 #elif defined(USE_FREEBSD_SENDFILE)
 
-static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote) {
+static network_sendfile_result lighty_sendfile(int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote, GError **err) {
 	off_t r = 0;
 
 	while (-1 == sendfile(filefd, fd, offset, len, NULL, &r, 0)) {
@@ -71,10 +70,9 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 		case EINVAL:
 		case EOPNOTSUPP:
 		case ENOTSOCK:
-			/* TODO: print a warning? */
 			return NSR_FALLBACK;
 		default:
-			VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
+			g_set_error(err, LI_NETWORK_ERROR, 0, "lighty_sendfile(freebsd): oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 			return NSR_FATAL_ERROR;
 		}
 	}
@@ -84,7 +82,7 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 
 #elif defined(USE_SOLARIS_SENDFILEV)
 
-static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote) {
+static network_sendfile_result lighty_sendfile(int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote, GError **err) {
 	sendfilevec_t fvec;
 
 	fvec.sfv_fd = filefd;
@@ -103,10 +101,9 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 			break; /* try again */
 		case EAFNOSUPPORT:
 		case EPROTOTYPE:
-			/* TODO: print a warning? */
 			return NSR_FALLBACK;
 		default:
-			VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
+			g_set_error(err, LI_NETWORK_ERROR, 0, "lighty_sendfile(solaris): oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 			return NSR_FATAL_ERROR;
 		}
 	}
@@ -115,7 +112,7 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 
 #elif defined(USE_OSX_SENDFILE)
 
-static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote) {
+static network_sendfile_result lighty_sendfile(int fd, int filefd, goffset offset, ssize_t len, ssize_t *wrote, GError **err) {
 	off_t bytes = len;
 
 	while (-1 == sendfile(filefd, fd, offset, &bytes, NULL, 0)) {
@@ -139,10 +136,9 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 		case ENOTSUP:
 		case EOPNOTSUPP:
 		case ENOTSOCK:
-			/* TODO: print a warning? */
 			return NSR_FALLBACK;
 		default:
-			VR_ERROR(vr, "oops, write to fd=%d failed: %s", fd, g_strerror(errno));
+			g_set_error(err, LI_NETWORK_ERROR, 0, "lighty_sendfile(osx): oops, write to fd=%d failed: %s", fd, g_strerror(errno));
 			return NSR_FATAL_ERROR;
 		}
 	}
@@ -155,7 +151,7 @@ static network_sendfile_result lighty_sendfile(liVRequest *vr, int fd, int filef
 
 
 /* first chunk must be a FILE_CHUNK ! */
-static liNetworkStatus network_backend_sendfile(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
+static liNetworkStatus network_backend_sendfile(int fd, liChunkQueue *cq, goffset *write_max, GError **err) {
 	off_t file_offset, toSend;
 	ssize_t r;
 	gboolean did_write_something = FALSE;
@@ -171,7 +167,7 @@ static liNetworkStatus network_backend_sendfile(liVRequest *vr, int fd, liChunkQ
 			return did_write_something ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_FATAL_ERROR;
 		}
 
-		switch (li_chunkfile_open(vr, c->data.file.file)) {
+		switch (li_chunkfile_open(c->data.file.file, err)) {
 		case LI_HANDLER_GO_ON:
 			break;
 		default:
@@ -183,7 +179,7 @@ static liNetworkStatus network_backend_sendfile(liVRequest *vr, int fd, liChunkQ
 		if (toSend > *write_max) toSend = *write_max;
 
 		r = 0;
-		switch (lighty_sendfile(vr, fd, c->data.file.file->fd, file_offset, toSend, &r)) {
+		switch (lighty_sendfile(fd, c->data.file.file->fd, file_offset, toSend, &r, err)) {
 		case NSR_SUCCESS:
 			li_chunkqueue_skip(cq, r);
 			*write_max -= r;
@@ -202,13 +198,13 @@ static liNetworkStatus network_backend_sendfile(liVRequest *vr, int fd, liChunkQ
 			/* don't care about cached stat - file is open */
 			struct stat st;
 			if (-1 == fstat(fd, &st)) {
-				VR_ERROR(vr, "Couldn't fstat file: %s", g_strerror(errno));
+				g_set_error(err, LI_NETWORK_ERROR, 0, "network_backend_sendfile: Couldn't fstat file: %s", g_strerror(errno));
 				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
 
 			if (file_offset > st.st_size) {
 				/* file shrinked, close the connection */
-				VR_ERROR(vr, "%s", "File shrinked, aborting");
+				g_set_error(err, LI_NETWORK_ERROR, 0, "network_backend_sendfile: File shrinked, aborting");
 				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
 			return LI_NETWORK_STATUS_WAIT_FOR_EVENT;
@@ -222,7 +218,7 @@ static liNetworkStatus network_backend_sendfile(liVRequest *vr, int fd, liChunkQ
 	return LI_NETWORK_STATUS_SUCCESS;
 }
 
-liNetworkStatus li_network_write_sendfile(liVRequest *vr, int fd, liChunkQueue *cq, goffset *write_max) {
+liNetworkStatus li_network_write_sendfile(int fd, liChunkQueue *cq, goffset *write_max, GError **err) {
 	if (cq->length == 0) return LI_NETWORK_STATUS_FATAL_ERROR;
 
 	do {

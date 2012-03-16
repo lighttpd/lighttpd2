@@ -479,7 +479,7 @@ static gboolean fastcgi_get_packet(fastcgi_connection *fcon) {
 		}
 	}
 
-	if (!li_chunkqueue_extract_to_bytearr(fcon->vr, fcon->fcgi_in, FCGI_HEADER_LEN, fcon->buf_in_record)) return FALSE; /* need more data */
+	if (!li_chunkqueue_extract_to_bytearr(fcon->fcgi_in, FCGI_HEADER_LEN, fcon->buf_in_record, NULL)) return FALSE; /* need more data */
 
 	data = (const unsigned char*) fcon->buf_in_record->data;
 	fcon->fcgi_in_record.version = data[0];
@@ -531,7 +531,7 @@ static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 			break;
 		case FCGI_STDERR:
 			len = fastcgi_available(fcon);
-			li_chunkqueue_extract_to(vr, fcon->fcgi_in, len, vr->wrk->tmp_str);
+			li_chunkqueue_extract_to(fcon->fcgi_in, len, vr->wrk->tmp_str, NULL);
 			if (OPTION(FASTCGI_OPTION_LOG_PLAIN_ERRORS).boolean) {
 				li_log_split_lines(vr->wrk->srv, vr->wrk, li_log_vr_map(vr), LI_LOG_LEVEL_BACKEND, 0, vr->wrk->tmp_str->str, "");
 			} else {
@@ -567,11 +567,17 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		if (fcon->fcgi_in->is_closed) {
 			li_ev_io_rem_events(loop, w, EV_READ);
 		} else {
-			switch (li_network_read(fcon->vr, w->fd, fcon->fcgi_in, &fcon->fcgi_in_buffer)) {
+			GError *err = NULL;
+			switch (li_network_read(w->fd, fcon->fcgi_in, &fcon->fcgi_in_buffer, &err)) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:
-				VR_ERROR(fcon->vr, "(%s) network read fatal error", fcon->ctx->socket_str->str);
+				if (NULL != err) {
+					VR_ERROR(fcon->vr, "(%s) network read fatal error: %s", fcon->ctx->socket_str->str, err->message);
+					g_error_free(err);
+				} else {
+					VR_ERROR(fcon->vr, "(%s) network read fatal error", fcon->ctx->socket_str->str);
+				}
 				li_vrequest_error(fcon->vr);
 				return;
 			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
@@ -589,11 +595,17 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	if (fcon->fd != -1 && (revents & EV_WRITE)) {
 		if (fcon->fcgi_out->length > 0) {
-			switch (li_network_write(fcon->vr, w->fd, fcon->fcgi_out, 256*1024)) {
+			GError *err = NULL;
+			switch (li_network_write(w->fd, fcon->fcgi_out, 256*1024, &err)) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:
-				VR_ERROR(fcon->vr, "(%s) network write fatal error", fcon->ctx->socket_str->str);
+				if (NULL != err) {
+					VR_ERROR(fcon->vr, "(%s) network write fatal error: %s", fcon->ctx->socket_str->str, err->message);
+					g_error_free(err);
+				} else {
+					VR_ERROR(fcon->vr, "(%s) network write fatal error", fcon->ctx->socket_str->str);
+				}
 				li_vrequest_error(fcon->vr);
 				return;
 			case LI_NETWORK_STATUS_CONNECTION_CLOSE:

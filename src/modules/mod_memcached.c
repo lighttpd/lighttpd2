@@ -451,13 +451,19 @@ static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 		off_t len;
 		liChunkIter ci;
 		liHandlerResult res;
+		GError *err = NULL;
 
 		if (0 == f->in->length) break;
 
 		ci = li_chunkqueue_iter(f->in);
 
-		if (LI_HANDLER_GO_ON != (res = li_chunkiter_read(vr, ci, 0, 16*1024, &data, &len)))
+		if (LI_HANDLER_GO_ON != (res = li_chunkiter_read(ci, 0, 16*1024, &data, &len, &err))) {
+			if (NULL != err) {
+				VR_ERROR(vr, "Couldn't read data from chunkqueue: %s", err->message);
+				g_error_free(err);
+			}
 			return res;
+		}
 
 		if ((gssize) (len + mf->buf->used) > (gssize) mf->ctx->maxsize) {
 			/* response too big, switch to "forward" mode */

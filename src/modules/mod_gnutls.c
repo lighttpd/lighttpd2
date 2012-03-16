@@ -272,6 +272,7 @@ static liNetworkStatus mod_gnutls_con_write(liConnection *con, goffset write_max
 	liChunkIter ci;
 	liChunkQueue *cq = con->raw_out;
 	mod_connection_ctx *conctx = con->srv_sock_data;
+	GError *err = NULL;
 
 	if (!conctx->initial_handshaked_finished) {
 		liNetworkStatus res = mod_gnutls_do_handshake(con, conctx);
@@ -279,14 +280,19 @@ static liNetworkStatus mod_gnutls_con_write(liConnection *con, goffset write_max
 	}
 
 	do {
-		if (0 == cq->length)
+		if (0 == cq->length) {
 			return LI_NETWORK_STATUS_SUCCESS;
+		}
 
 		ci = li_chunkqueue_iter(cq);
-		switch (li_chunkiter_read(con->mainvr, ci, 0, blocksize, &block_data, &block_len)) {
+		switch (li_chunkiter_read(ci, 0, blocksize, &block_data, &block_len, &err)) {
 		case LI_HANDLER_GO_ON:
 			break;
 		case LI_HANDLER_ERROR:
+			if (NULL != err) {
+				VR_ERROR(con->mainvr, "Couldn't read data from chunkqueue: %s", err->message);
+				g_error_free(err);
+			}
 		default:
 			return LI_NETWORK_STATUS_FATAL_ERROR;
 		}

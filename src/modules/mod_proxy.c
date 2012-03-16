@@ -228,11 +228,17 @@ static void proxy_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		if (pcon->proxy_in->is_closed) {
 			li_ev_io_rem_events(loop, w, EV_READ);
 		} else {
-			switch (li_network_read(pcon->vr, w->fd, pcon->proxy_in, &pcon->proxy_in_buffer)) {
+			GError *err = NULL;
+			switch (li_network_read(w->fd, pcon->proxy_in, &pcon->proxy_in_buffer, &err)) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:
-				VR_ERROR(pcon->vr, "(%s) network read fatal error", pcon->ctx->socket_str->str);
+				if (NULL != err) {
+					VR_ERROR(pcon->vr, "(%s) network read fatal error: %s", pcon->ctx->socket_str->str, err->message);
+					g_error_free(err);
+				} else {
+					VR_ERROR(pcon->vr, "(%s) network read fatal error", pcon->ctx->socket_str->str);
+				}
 				li_vrequest_error(pcon->vr);
 				return;
 			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
@@ -250,11 +256,17 @@ static void proxy_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	if (pcon->fd != -1 && (revents & EV_WRITE)) {
 		if (pcon->proxy_out->length > 0) {
-			switch (li_network_write(pcon->vr, w->fd, pcon->proxy_out, 256*1024)) {
+			GError *err = NULL;
+			switch (li_network_write(w->fd, pcon->proxy_out, 256*1024, &err)) {
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:
-				VR_ERROR(pcon->vr, "(%s) network write fatal error", pcon->ctx->socket_str->str);
+				if (NULL != err) {
+					VR_ERROR(pcon->vr, "(%s) network write fatal error: %s", pcon->ctx->socket_str->str, err->message);
+					g_error_free(err);
+				} else {
+					VR_ERROR(pcon->vr, "(%s) network write fatal error", pcon->ctx->socket_str->str);
+				}
 				li_vrequest_error(pcon->vr);
 				return;
 			case LI_NETWORK_STATUS_CONNECTION_CLOSE:

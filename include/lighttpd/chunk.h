@@ -50,7 +50,7 @@ struct liChunk {
 	GList cq_link;
 };
 
-typedef void (*liCQLimitNnotifyCB)(liVRequest *vr, gpointer context, gboolean locked);
+typedef void (*liCQLimitNotifyCB)(liVRequest *vr, gpointer context, gboolean locked);
 struct liCQLimit {
 	gint refcount;
 	liVRequest *vr;
@@ -60,7 +60,7 @@ struct liCQLimit {
 
 	ev_io *io_watcher;
 
-	liCQLimitNnotifyCB notify; /* callback to reactivate input */
+	liCQLimitNotifyCB notify; /* callback to reactivate input */
 	gpointer context;
 };
 
@@ -79,18 +79,21 @@ struct liChunkIter {
 	GList *element;
 };
 
+#define LI_CHUNK_ERROR li_chunk_error_quark()
+LI_API GQuark li_chunk_error_quark(void);
+
 /******************
  *   chunkfile    *
  ******************/
 
-liChunkFile *li_chunkfile_new(GString *name, int fd, gboolean is_temp);
-void li_chunkfile_acquire(liChunkFile *cf);
-void li_chunkfile_release(liChunkFile *cf);
+LI_API liChunkFile *li_chunkfile_new(GString *name, int fd, gboolean is_temp);
+LI_API void li_chunkfile_acquire(liChunkFile *cf);
+LI_API void li_chunkfile_release(liChunkFile *cf);
 
 /* open the file cf->name if it is not already opened for reading
  * may return HANDLER_GO_ON, HANDLER_ERROR
  */
-LI_API liHandlerResult li_chunkfile_open(liVRequest *vr, liChunkFile *cf);
+LI_API liHandlerResult li_chunkfile_open(liChunkFile *cf, GError **err);
 
 /******************
  * chunk iterator *
@@ -104,12 +107,12 @@ INLINE goffset li_chunkiter_length(liChunkIter iter);
  * but needs to do io in case of FILE_CHUNK; the data is _not_ marked as "done"
  * may return HANDLER_GO_ON, HANDLER_ERROR
  */
-LI_API liHandlerResult li_chunkiter_read(liVRequest *vr, liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len);
+LI_API liHandlerResult li_chunkiter_read(liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len, GError **err);
 
 /* same as li_chunkiter_read, but tries mmap() first and falls back to read();
  * as accessing mmap()-ed areas may result in SIGBUS, you have to handle that signal somehow.
  */
-LI_API liHandlerResult li_chunkiter_read_mmap(liVRequest *vr, liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len);
+LI_API liHandlerResult li_chunkiter_read_mmap(liChunkIter iter, off_t start, off_t length, char **data_start, off_t *data_len, GError **err);
 
 /******************
  *     chunk      *
@@ -198,8 +201,8 @@ INLINE liChunkIter li_chunkqueue_iter(liChunkQueue *cq);
 
 INLINE liChunk* li_chunkqueue_first_chunk(liChunkQueue *cq);
 
-LI_API gboolean li_chunkqueue_extract_to(liVRequest *vr, liChunkQueue *cq, goffset len, GString *dest);
-LI_API gboolean li_chunkqueue_extract_to_bytearr(liVRequest *vr, liChunkQueue *cq, goffset len, GByteArray *dest);
+LI_API gboolean li_chunkqueue_extract_to(liChunkQueue *cq, goffset len, GString *dest, GError **err);
+LI_API gboolean li_chunkqueue_extract_to_bytearr(liChunkQueue *cq, goffset len, GByteArray *dest, GError **err);
 
 /* helper functions to append to the last BUFFER_CHUNK of a chunkqueue */
 

@@ -2,6 +2,10 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
+GQuark li_network_error_quark(void) {
+	return g_quark_from_string("g-network-error-quark");
+}
+
 /** repeats write after EINTR */
 ssize_t li_net_write(int fd, void *buf, ssize_t nbyte) {
 	ssize_t r;
@@ -36,7 +40,7 @@ ssize_t li_net_read(int fd, void *buf, ssize_t nbyte) {
 	return r;
 }
 
-liNetworkStatus li_network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffset write_max) {
+liNetworkStatus li_network_write(int fd, liChunkQueue *cq, goffset write_max, GError **err) {
 	liNetworkStatus res;
 #ifdef TCP_CORK
 	int corked = 0;
@@ -54,9 +58,9 @@ liNetworkStatus li_network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffs
 
 	/* TODO: add setup-option to select the backend */
 #ifdef USE_SENDFILE
-	res = li_network_write_sendfile(vr, fd, cq, &write_max);
+	res = li_network_write_sendfile(fd, cq, &write_max, err);
 #else
-	res = li_network_write_writev(vr, fd, cq, &write_max);
+	res = li_network_write_writev(fd, cq, &write_max, err);
 #endif
 
 #ifdef TCP_CORK
@@ -69,7 +73,7 @@ liNetworkStatus li_network_write(liVRequest *vr, int fd, liChunkQueue *cq, goffs
 	return res;
 }
 
-liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq, liBuffer **buffer) {
+liNetworkStatus li_network_read(int fd, liChunkQueue *cq, liBuffer **buffer, GError **err) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
@@ -79,8 +83,8 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq, liBuff
 		if (max_read > cq->limit->limit - cq->limit->current) {
 			max_read = cq->limit->limit - cq->limit->current;
 			if (max_read <= 0) {
-				max_read = 0; /* we still have to read something */
-				VR_ERROR(vr, "%s", "li_network_read: fd should be disabled as chunkqueue is already full");
+				g_set_error(err, LI_NETWORK_ERROR, 0, "li_network_read: fd should be disabled as chunkqueue is already full, aborting connection.");
+				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
 		}
 	}
@@ -137,7 +141,7 @@ liNetworkStatus li_network_read(liVRequest *vr, int fd, liChunkQueue *cq, liBuff
 			case ETIMEDOUT:
 				return LI_NETWORK_STATUS_CONNECTION_CLOSE;
 			default:
-				VR_ERROR(vr, "oops, read from fd=%d failed: %s", fd, g_strerror(errno) );
+				g_set_error(err, LI_NETWORK_ERROR, 0, "li_network_read: oops, read from fd=%d failed: %s", fd, g_strerror(errno) );
 				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
 		} else if (0 == r) {
