@@ -48,7 +48,7 @@ gboolean li_lua_call_object(liServer *srv, liVRequest *vr, lua_State *L, const c
 
 	if (!lua_isfunction(L, -1)) {
 		if (!optional) {
-			_ERROR(srv, vr, "li_lua_call_object: method '%s' not found", method);
+			_VR_ERROR(srv, vr, "li_lua_call_object: method '%s' not found", method);
 		}
 		lua_pop(L, 1 + nargs);
 		return FALSE;
@@ -58,7 +58,7 @@ gboolean li_lua_call_object(liServer *srv, liVRequest *vr, lua_State *L, const c
 
 	errfunc = li_lua_push_traceback(L, nargs); /* +1 "errfunc" */
 	if (lua_pcall(L, nargs, nresults, errfunc)) { /* pops func and arguments, push result */
-		_ERROR(srv, vr, "lua_pcall(): %s", lua_tostring(L, -1));
+		_VR_ERROR(srv, vr, "lua_pcall(): %s", lua_tostring(L, -1));
 		lua_pop(L, 1); /* -1 */
 		result = FALSE;
 	} else {

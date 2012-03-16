@@ -39,6 +39,7 @@
 #include <lighttpd/waitqueue.h>
 #include <lighttpd/radix.h>
 
+#include <lighttpd/log.h>
 #include <lighttpd/server.h>
 #include <lighttpd/worker.h>
 #include <lighttpd/angel.h>
@@ -56,7 +57,6 @@
 #include <lighttpd/environment.h>
 #include <lighttpd/filter_buffer_on_disk.h>
 #include <lighttpd/virtualrequest.h>
-#include <lighttpd/log.h>
 #include <lighttpd/stat_cache.h>
 #include <lighttpd/throttle.h>
 #include <lighttpd/mimetype.h>

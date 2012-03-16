@@ -1323,20 +1323,19 @@ static gboolean core_option_log_parse(liServer *srv, liWorker *wrk, liPlugin *p,
 	liLogLevel level;
 	GString *path;
 	GString *level_str;
-	GArray *arr = g_array_sized_new(FALSE, TRUE, sizeof(GString*), 6);
+	liLogMap *logmap = li_log_map_new();
 	UNUSED(wrk);
 	UNUSED(p);
 	UNUSED(ndx);
 
-	*oval = arr;
-	g_array_set_size(arr, 6);
+	*oval = logmap;
 
 	/* default value */
 	if (!val) {
 		/* default: log LI_LOG_LEVEL_WARNING, LI_LOG_LEVEL_ERROR and LI_LOG_LEVEL_BACKEND to stderr */
-		g_array_index(arr, GString*, LI_LOG_LEVEL_WARNING) = g_string_new_len(CONST_STR_LEN("stderr"));
-		g_array_index(arr, GString*, LI_LOG_LEVEL_ERROR) = g_string_new_len(CONST_STR_LEN("stderr"));
-		g_array_index(arr, GString*, LI_LOG_LEVEL_BACKEND) = g_string_new_len(CONST_STR_LEN("stderr"));
+		g_array_index(logmap->arr, GString*, LI_LOG_LEVEL_WARNING) = g_string_new_len(CONST_STR_LEN("stderr"));
+		g_array_index(logmap->arr, GString*, LI_LOG_LEVEL_ERROR) = g_string_new_len(CONST_STR_LEN("stderr"));
+		g_array_index(logmap->arr, GString*, LI_LOG_LEVEL_BACKEND) = g_string_new_len(CONST_STR_LEN("stderr"));
 		return TRUE;
 	}
 
@@ -1344,7 +1343,7 @@ static gboolean core_option_log_parse(liServer *srv, liWorker *wrk, liPlugin *p,
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
 		if (((liValue*)v)->type != LI_VALUE_STRING) {
 			ERROR(srv, "log expects a hashtable with string values, %s given", li_value_type_string(((liValue*)v)->type));
-			g_array_free(arr, TRUE);
+			li_log_map_release(logmap);
 			return FALSE;
 		}
 
@@ -1352,17 +1351,20 @@ static gboolean core_option_log_parse(liServer *srv, liWorker *wrk, liPlugin *p,
 		level_str = (GString*)k;
 
 		if (g_str_equal(level_str->str, "*")) {
-			for (guint i = 0; i < arr->len; i++) {
+			for (guint i = 0; i < logmap->arr->len; i++) {
 				/* overwrite old path */
-				if (NULL != g_array_index(arr, GString*, i))
-					g_string_free(g_array_index(arr, GString*, i), TRUE);
+				if (NULL != g_array_index(logmap->arr, GString*, i)) {
+					g_string_free(g_array_index(logmap->arr, GString*, i), TRUE);
+				}
 
-				g_array_index(arr, GString*, i) = g_string_new_len(GSTR_LEN(path));
+				g_array_index(logmap->arr, GString*, i) = g_string_new_len(GSTR_LEN(path));
 			}
-		}
-		else {
+		} else {
 			level = li_log_level_from_string(level_str);
-			g_array_index(arr, GString*, level) = g_string_new_len(GSTR_LEN(path));;
+			if (NULL != g_array_index(logmap->arr, GString*, level)) {
+				g_string_free(g_array_index(logmap->arr, GString*, level), TRUE);
+			}
+			g_array_index(logmap->arr, GString*, level) = li_value_extract_string(v);
 		}
 	}
 
@@ -1370,38 +1372,26 @@ static gboolean core_option_log_parse(liServer *srv, liWorker *wrk, liPlugin *p,
 }
 
 static void core_option_log_free(liServer *srv, liPlugin *p, size_t ndx, gpointer oval) {
-	GArray *arr = oval;
+	liLogMap *logmap = oval;
 
 	UNUSED(srv);
 	UNUSED(p);
 	UNUSED(ndx);
 
-	if (!arr) return;
-
-	for (guint i = 0; i < arr->len; i++) {
-		if (NULL != g_array_index(arr, GString*, i))
-			g_string_free(g_array_index(arr, GString*, i), TRUE);
-	}
-	g_array_free(arr, TRUE);
+	li_log_map_release(logmap);
 }
 
-static gboolean core_option_log_timestamp_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
-	UNUSED(wrk);
+static gboolean core_setup_log_timestamp(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(p);
-	UNUSED(ndx);
+	UNUSED(userdata);
 
-	if (!val) return TRUE;
-	*oval = li_log_timestamp_new(srv, li_value_extract_string(val));
+	if (NULL != srv->logs.timestamp.format) {
+		g_string_free(srv->logs.timestamp.format, TRUE);
+	}
+	srv->logs.timestamp.format = li_value_extract_string(val);
+	srv->logs.timestamp.last_ts = 0;
 
 	return TRUE;
-}
-
-static void core_option_log_timestamp_free(liServer *srv, liPlugin *p, size_t ndx, gpointer oval) {
-	UNUSED(p);
-	UNUSED(ndx);
-
-	if (!oval) return;
-	li_log_timestamp_free(srv, oval);
 }
 
 static gboolean core_option_static_exclude_exts_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
@@ -2029,7 +2019,6 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginOptionPtr optionptrs[] = {
-	{ "log.timestamp", LI_VALUE_STRING, NULL, core_option_log_timestamp_parse, core_option_log_timestamp_free },
 	{ "log", LI_VALUE_HASH, NULL, core_option_log_parse, core_option_log_free },
 
 	{ "static.exclude_extensions", LI_VALUE_LIST, NULL, core_option_static_exclude_exts_parse, NULL },
@@ -2090,6 +2079,7 @@ static const liPluginSetup setups[] = {
 	{ "io.timeout", core_io_timeout, NULL },
 	{ "stat_cache.ttl", core_stat_cache_ttl, NULL },
 	{ "tasklet_pool.threads", core_tasklet_pool_threads, NULL },
+	{ "log.timestamp", core_setup_log_timestamp, NULL },
 
 	{ NULL, NULL, NULL }
 };

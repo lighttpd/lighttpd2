@@ -211,11 +211,11 @@ static void li_worker_prepare_cb(struct ev_loop *loop, ev_prepare *w, int revent
 	UNUSED(revents);
 
 	/* are there pending log entries? */
-	if (g_queue_get_length(&wrk->log_queue)) {
+	if (g_queue_get_length(&wrk->logs.log_queue)) {
 		/* take log entries from local queue, insert into global queue and notify log thread */
 		g_static_mutex_lock(&srv->logs.write_queue_mutex);
 
-		li_g_queue_merge(&srv->logs.write_queue, &wrk->log_queue);
+		li_g_queue_merge(&srv->logs.write_queue, &wrk->logs.log_queue);
 
 		g_static_mutex_unlock(&srv->logs.write_queue_mutex);
 		ev_async_send(srv->logs.loop, &srv->logs.watcher);

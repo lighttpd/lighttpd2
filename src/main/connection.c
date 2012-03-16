@@ -324,7 +324,7 @@ static G_GNUC_WARN_UNUSED_RESULT gboolean connection_try_read(liConnection *con)
 			if (!connection_handle_read(con)) return FALSE;
 			break;
 		case LI_NETWORK_STATUS_FATAL_ERROR:
-			_ERROR(con->srv, con->mainvr, "%s", "network read fatal error");
+			_VR_ERROR(con->srv, con->mainvr, "%s", "network read fatal error");
 			li_connection_error(con);
 			return FALSE;
 		case LI_NETWORK_STATUS_CONNECTION_CLOSE:
@@ -381,7 +381,7 @@ static G_GNUC_WARN_UNUSED_RESULT gboolean connection_try_write(liConnection *con
 			case LI_NETWORK_STATUS_SUCCESS:
 				break;
 			case LI_NETWORK_STATUS_FATAL_ERROR:
-				_ERROR(con->srv, con->mainvr, "%s", "network write fatal error");
+				_VR_ERROR(con->srv, con->mainvr, "%s", "network write fatal error");
 				li_connection_error(con);
 				return FALSE;
 			case LI_NETWORK_STATUS_CONNECTION_CLOSE:

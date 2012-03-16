@@ -195,7 +195,7 @@ gboolean li_request_validate_header(liConnection *con) {
 
 		r = g_ascii_strtoll(val, &err, 10);
 		if (*err != '\0') {
-			_DEBUG(con->srv, con->mainvr, "content-length is not a number: %s (Status: 400)", err);
+			_VR_DEBUG(con->srv, con->mainvr, "content-length is not a number: %s (Status: 400)", err);
 			bad_request(con, 400); /* bad request */
 			return FALSE;
 		}

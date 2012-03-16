@@ -397,7 +397,7 @@ static void al_handle_vrclose(liVRequest *vr, liPlugin *p) {
 
 	msg = al_format_log(vr, p->data, format);
 
-	li_log_write_direct(vr->wrk->srv, vr, log_path, msg);
+	li_log_write_direct(vr->wrk->srv, vr->wrk, log_path, msg);
 }
 
 

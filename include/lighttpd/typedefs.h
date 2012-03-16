@@ -92,9 +92,11 @@ typedef struct liHttpResponseCtx liHttpResponseCtx;
 
 /* log.h */
 
-typedef struct liLog liLog;
+typedef struct liLogTarget liLogTarget;
 typedef struct liLogEntry liLogEntry;
-typedef struct liLogTimestamp liLogTimestamp;
+typedef struct liLogServerData liLogServerData;
+typedef struct liLogWorkerData liLogWorkerData;
+typedef struct liLogMap liLogMap;
 
 typedef enum {
 	LI_LOG_LEVEL_DEBUG,

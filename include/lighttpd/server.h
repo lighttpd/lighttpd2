@@ -109,19 +109,7 @@ struct liServer {
 
 	gboolean exiting;         /** atomic access */
 
-	struct {
-		struct ev_loop *loop;
-		ev_async watcher;
-		liRadixTree *targets;    /** const gchar* path => (liLog*) */
-		liWaitQueue close_queue;
-		GQueue write_queue;
-		GStaticMutex write_queue_mutex;
-		GThread *thread;
-		gboolean thread_alive;
-		gboolean thread_finish;
-		gboolean thread_stop;
-		GArray *timestamps;
-	} logs;
+	liLogServerData logs;
 
 	ev_tstamp started;
 	GString *started_str;
