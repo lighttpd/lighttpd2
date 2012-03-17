@@ -1317,68 +1317,120 @@ static gboolean core_tasklet_pool_threads(liServer *srv, liPlugin* p, liValue *v
  * OPTIONS
  */
 
-static gboolean core_option_log_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
+static liLogMap* logmap_from_value(liServer *srv, liValue *val) {
+	liLogMap *log_map;
 	GHashTableIter iter;
 	gpointer k, v;
-	liLogLevel level;
+	int level;
 	GString *path;
 	GString *level_str;
-	liLogMap *logmap = li_log_map_new();
-	UNUSED(wrk);
-	UNUSED(p);
-	UNUSED(ndx);
 
-	*oval = logmap;
-
-	/* default value */
-	if (!val) {
-		/* default: log LI_LOG_LEVEL_WARNING, LI_LOG_LEVEL_ERROR and LI_LOG_LEVEL_BACKEND to stderr */
-		g_array_index(logmap->arr, GString*, LI_LOG_LEVEL_WARNING) = g_string_new_len(CONST_STR_LEN("stderr"));
-		g_array_index(logmap->arr, GString*, LI_LOG_LEVEL_ERROR) = g_string_new_len(CONST_STR_LEN("stderr"));
-		g_array_index(logmap->arr, GString*, LI_LOG_LEVEL_BACKEND) = g_string_new_len(CONST_STR_LEN("stderr"));
-		return TRUE;
+	if (NULL == val) {
+		return li_log_map_new_default();
 	}
+
+	if (val->type != LI_VALUE_HASH) return NULL;
+
+	log_map = li_log_map_new();
 
 	g_hash_table_iter_init(&iter, val->data.hash);
 	while (g_hash_table_iter_next(&iter, &k, &v)) {
 		if (((liValue*)v)->type != LI_VALUE_STRING) {
 			ERROR(srv, "log expects a hashtable with string values, %s given", li_value_type_string(((liValue*)v)->type));
-			li_log_map_release(logmap);
-			return FALSE;
+			li_log_map_release(log_map);
+			return NULL;
 		}
 
 		path = ((liValue*)v)->data.string;
 		level_str = (GString*)k;
 
 		if (g_str_equal(level_str->str, "*")) {
-			for (guint i = 0; i < logmap->arr->len; i++) {
+			for (guint i = 0; i < LI_LOG_LEVEL_COUNT; i++) {
 				/* overwrite old path */
-				if (NULL != g_array_index(logmap->arr, GString*, i)) {
-					g_string_free(g_array_index(logmap->arr, GString*, i), TRUE);
+				if (NULL != log_map->targets[i]) {
+					g_string_free(log_map->targets[i], TRUE);
 				}
 
-				g_array_index(logmap->arr, GString*, i) = g_string_new_len(GSTR_LEN(path));
+				log_map->targets[i] = g_string_new_len(GSTR_LEN(path));
 			}
 		} else {
 			level = li_log_level_from_string(level_str);
-			if (NULL != g_array_index(logmap->arr, GString*, level)) {
-				g_string_free(g_array_index(logmap->arr, GString*, level), TRUE);
+			if (-1 == level) {
+				ERROR(srv, "unknown log level '%s'", level_str->str);
+				li_log_map_release(log_map);
+				return NULL;
 			}
-			g_array_index(logmap->arr, GString*, level) = li_value_extract_string(v);
+			if (NULL != log_map->targets[level]) {
+				g_string_free(log_map->targets[level], TRUE);
+			}
+			log_map->targets[level] = li_value_extract_string(v);
 		}
 	}
 
-	return TRUE;
+	return log_map;
 }
 
-static void core_option_log_free(liServer *srv, liPlugin *p, size_t ndx, gpointer oval) {
-	liLogMap *logmap = oval;
+static void core_log_free(liServer *srv, gpointer param) {
+	liLogMap *log_map = param;
 
 	UNUSED(srv);
-	UNUSED(p);
-	UNUSED(ndx);
 
-	li_log_map_release(logmap);
+	li_log_map_release(log_map);
+}
+
+static liHandlerResult core_handle_log(liVRequest *vr, gpointer param, gpointer *context) {
+	liLogMap *log_map = param;
+
+	UNUSED(context);
+
+	li_log_context_set(&vr->log_context, log_map);
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_log(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	liLogMap *log_map;
+
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	if (!val) {
+		return li_action_new_function(core_handle_log, NULL, core_log_free, NULL);
+	}
+
+	if (val->type != LI_VALUE_HASH) {
+		ERROR(srv, "%s", "log expects a hashtable with string values");
+		return NULL;
+	}
+
+	log_map = logmap_from_value(srv, val);
+	if (NULL == log_map) return NULL;
+
+	return li_action_new_function(core_handle_log, NULL, core_log_free, log_map);
+}
+
+static gboolean core_setup_log(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	liLogMap *log_map;
+	UNUSED(p); UNUSED(userdata);
+
+	if (!val) {
+		log_map = li_log_map_new_default();
+		li_log_context_set(&srv->logs.log_context, log_map);
+		li_log_map_release(log_map);
+		return TRUE;
+	}
+
+	if (val->type != LI_VALUE_HASH) {
+		ERROR(srv, "%s", "log expects a hashtable with string values");
+		return FALSE;
+	}
+
+	log_map = logmap_from_value(srv, val);
+	if (NULL == log_map) return FALSE;
+
+	li_log_context_set(&srv->logs.log_context, log_map);
+	li_log_map_release(log_map);
+
+	return TRUE;
 }
 
 static gboolean core_setup_log_timestamp(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
@@ -2019,8 +2071,6 @@ static const liPluginOption options[] = {
 };
 
 static const liPluginOptionPtr optionptrs[] = {
-	{ "log", LI_VALUE_HASH, NULL, core_option_log_parse, core_option_log_free },
-
 	{ "static.exclude_extensions", LI_VALUE_LIST, NULL, core_option_static_exclude_exts_parse, NULL },
 
 	{ "server.name", LI_VALUE_STRING, NULL, NULL, NULL },
@@ -2045,6 +2095,7 @@ static const liPluginAction actions[] = {
 
 	{ "set_status", core_status, NULL },
 
+	{ "log", core_log, NULL },
 	{ "log.write", core_log_write, NULL },
 
 	{ "respond", core_respond, NULL },
@@ -2079,6 +2130,7 @@ static const liPluginSetup setups[] = {
 	{ "io.timeout", core_io_timeout, NULL },
 	{ "stat_cache.ttl", core_stat_cache_ttl, NULL },
 	{ "tasklet_pool.threads", core_tasklet_pool_threads, NULL },
+	{ "log", core_setup_log, NULL },
 	{ "log.timestamp", core_setup_log_timestamp, NULL },
 
 	{ NULL, NULL, NULL }

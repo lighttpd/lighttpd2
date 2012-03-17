@@ -97,15 +97,18 @@ typedef struct liLogEntry liLogEntry;
 typedef struct liLogServerData liLogServerData;
 typedef struct liLogWorkerData liLogWorkerData;
 typedef struct liLogMap liLogMap;
+typedef struct liLogContext liLogContext;
 
 typedef enum {
-	LI_LOG_LEVEL_DEBUG,
+	LI_LOG_LEVEL_DEBUG = 0,
 	LI_LOG_LEVEL_INFO,
 	LI_LOG_LEVEL_WARNING,
 	LI_LOG_LEVEL_ERROR,
 	LI_LOG_LEVEL_ABORT,
 	LI_LOG_LEVEL_BACKEND
 } liLogLevel;
+
+#define LI_LOG_LEVEL_COUNT (1 + (unsigned int) LI_LOG_LEVEL_BACKEND)
 
 typedef enum {
 	LI_LOG_TYPE_STDERR,

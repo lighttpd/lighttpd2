@@ -94,6 +94,8 @@ struct liVRequest {
 	liOptionValue *options;
 	liOptionPtrValue **optionptrs;
 
+	liLogContext log_context;
+
 	liVRequestState state;
 
 	ev_tstamp ts_started;

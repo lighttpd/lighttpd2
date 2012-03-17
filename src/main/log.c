@@ -121,6 +121,7 @@ void li_log_init(liServer *srv) {
 	srv->logs.thread_alive = FALSE;
 	g_queue_init(&srv->logs.write_queue);
 	g_static_mutex_init(&srv->logs.write_queue_mutex);
+	srv->logs.log_context.log_map = li_log_map_new_default();
 }
 
 void li_log_cleanup(liServer *srv) {
@@ -137,40 +138,59 @@ void li_log_cleanup(liServer *srv) {
 	g_string_free(srv->logs.timestamp.cached, TRUE);
 
 	ev_loop_destroy(srv->logs.loop);
+
+	li_log_context_set(&srv->logs.log_context, NULL);
 }
 
-LI_API liLogMap* li_log_map_new(void) {
+liLogMap* li_log_map_new(void) {
 	liLogMap *log_map = g_slice_new0(liLogMap);
 
 	log_map->refcount = 1;
-	log_map->arr = g_array_sized_new(FALSE, TRUE, sizeof(GString*), 6);
-	g_array_set_size(log_map->arr, 6);
 
 	return log_map;
 }
 
-LI_API void li_log_map_acquire(liLogMap *log_map) {
+liLogMap* li_log_map_new_default(void) {
+	liLogMap *log_map = li_log_map_new();
+
+	/* default: log LI_LOG_LEVEL_WARNING, LI_LOG_LEVEL_ERROR and LI_LOG_LEVEL_BACKEND to stderr */
+	log_map->targets[LI_LOG_LEVEL_WARNING] = g_string_new_len(CONST_STR_LEN("stderr"));
+	log_map->targets[LI_LOG_LEVEL_ERROR] = g_string_new_len(CONST_STR_LEN("stderr"));
+	log_map->targets[LI_LOG_LEVEL_BACKEND] = g_string_new_len(CONST_STR_LEN("stderr"));
+
+	return log_map;
+}
+
+void li_log_map_acquire(liLogMap *log_map) {
 	assert(g_atomic_int_get(&log_map->refcount) > 0);
 	g_atomic_int_inc(&log_map->refcount);
 }
 
-LI_API void li_log_map_release(liLogMap *log_map) {
+void li_log_map_release(liLogMap *log_map) {
 	if (!log_map) return;
 
 	assert(g_atomic_int_get(&log_map->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&log_map->refcount)) {
-		for (guint i = 0; i < log_map->arr->len; i++) {
-			if (NULL != g_array_index(log_map->arr, GString*, i))
-				g_string_free(g_array_index(log_map->arr, GString*, i), TRUE);
+		for (guint i = 0; i < LI_LOG_LEVEL_COUNT; ++i) {
+			if (NULL != log_map->targets[i]) {
+				g_string_free(log_map->targets[i], TRUE);
+			}
 		}
-		g_array_free(log_map->arr, TRUE);
 
 		g_slice_free(liLogMap, log_map);
 	}
 }
 
-liLogMap* li_log_vr_map(liVRequest *vr) {
-	return (NULL != vr) ? CORE_OPTIONPTR(LI_CORE_OPTION_LOG).ptr : NULL;
+void li_log_context_set(liLogContext *context, liLogMap *log_map) {
+	if (NULL == context || context->log_map == log_map) return;
+
+	li_log_map_release(context->log_map);
+	if (NULL != log_map) {
+		li_log_map_acquire(log_map);
+		context->log_map = log_map;
+	} else {
+		context->log_map = NULL;
+	}
 }
 
 gboolean li_log_write_direct(liServer *srv, liWorker *wrk, GString *path, GString *msg) {
@@ -199,23 +219,20 @@ gboolean li_log_write_direct(liServer *srv, liWorker *wrk, GString *path, GStrin
 	return TRUE;
 }
 
-gboolean li_log_write(liServer *srv, liWorker *wrk, liLogMap* log_map, liLogLevel log_level, guint flags, const gchar *fmt, ...) {
+gboolean li_log_write(liServer *srv, liWorker *wrk, liLogContext *context, liLogLevel log_level, guint flags, const gchar *fmt, ...) {
 	va_list ap;
 	GString *log_line;
 	liLogEntry *log_entry;
+	liLogMap *log_map = NULL;
 	GString *path;
 
 	if (!srv) srv = wrk->srv;
 
-	if (NULL == log_map) {
-		if (0 + LI_CORE_OPTION_LOG < srv->optionptr_def_values->len) {
-			liOptionPtrValue *oval = g_array_index(srv->optionptr_def_values, liOptionPtrValue*, 0 + LI_CORE_OPTION_LOG);
-			if (NULL != oval) log_map = oval->data.ptr;
-		}
-	}
+	if (NULL != context) log_map = context->log_map;
+	if (NULL == log_map) log_map = srv->logs.log_context.log_map;
 
-	if (log_map != NULL && log_level < log_map->arr->len) {
-		path = g_array_index(log_map->arr, GString*, log_level);
+	if (log_map != NULL && log_level < LI_LOG_LEVEL_COUNT) {
+		path = log_map->targets[log_level];
 	} else {
 		return FALSE;
 	}
@@ -428,7 +445,7 @@ liLogType li_log_type_from_path(GString *path, gchar **param) {
 #undef RET_PAR
 #undef TRY_SCHEME
 
-liLogLevel li_log_level_from_string(GString *str) {
+int li_log_level_from_string(GString *str) {
 	if (g_str_equal(str->str, "debug"))
 		return LI_LOG_LEVEL_DEBUG;
 	if (g_str_equal(str->str, "info"))
@@ -437,22 +454,24 @@ liLogLevel li_log_level_from_string(GString *str) {
 		return LI_LOG_LEVEL_WARNING;
 	if (g_str_equal(str->str, "error"))
 		return LI_LOG_LEVEL_ERROR;
+	if (g_str_equal(str->str, "abort"))
+		return LI_LOG_LEVEL_ABORT;
 	if (g_str_equal(str->str, "backend"))
 		return LI_LOG_LEVEL_BACKEND;
 
-	/* fall back to debug level */
-	return LI_LOG_LEVEL_DEBUG;
+	return -1;
 }
 
 gchar* li_log_level_str(liLogLevel log_level) {
 	switch (log_level) {
-		case LI_LOG_LEVEL_DEBUG:   return "debug";
-		case LI_LOG_LEVEL_INFO:    return "info";
-		case LI_LOG_LEVEL_WARNING: return "warning";
-		case LI_LOG_LEVEL_ERROR:   return "error";
-		case LI_LOG_LEVEL_BACKEND: return "backend";
-		default:                   return "unknown";
+	case LI_LOG_LEVEL_DEBUG:   return "debug";
+	case LI_LOG_LEVEL_INFO:    return "info";
+	case LI_LOG_LEVEL_WARNING: return "warning";
+	case LI_LOG_LEVEL_ERROR:   return "error";
+	case LI_LOG_LEVEL_ABORT:   return "abort";
+	case LI_LOG_LEVEL_BACKEND: return "backend";
 	}
+	return "unknown";
 }
 
 void li_log_thread_start(liServer *srv) {
@@ -492,7 +511,7 @@ void li_log_thread_wakeup(liServer *srv) {
 	ev_async_send(srv->logs.loop, &srv->logs.watcher);
 }
 
-void li_log_split_lines(liServer *srv, liWorker *wrk, liLogMap* log_map, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix) {
+void li_log_split_lines(liServer *srv, liWorker *wrk, liLogContext *context, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix) {
 	gchar *start;
 
 	start = txt;
@@ -500,7 +519,7 @@ void li_log_split_lines(liServer *srv, liWorker *wrk, liLogMap* log_map, liLogLe
 		if ('\r' == *txt || '\n' == *txt) {
 			*txt = '\0';
 			if (txt - start > 1) { /* skip empty lines*/
-				li_log_write(srv, wrk, log_map, log_level, flags, "%s%s", prefix, start);
+				li_log_write(srv, wrk, context, log_level, flags, "%s%s", prefix, start);
 			}
 			txt++;
 			while (*txt == '\n' || *txt == '\r') txt++;
@@ -510,11 +529,11 @@ void li_log_split_lines(liServer *srv, liWorker *wrk, liLogMap* log_map, liLogLe
 		}
 	}
 	if (txt - start > 1) { /* skip empty lines*/
-		li_log_write(srv, wrk, log_map, log_level, flags, "%s%s", prefix, start);
+		li_log_write(srv, wrk, context, log_level, flags, "%s%s", prefix, start);
 	}
 }
 
-void li_log_split_lines_(liServer *srv, liWorker *wrk, liLogMap* log_map, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) {
+void li_log_split_lines_(liServer *srv, liWorker *wrk, liLogContext *context, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) {
 	va_list ap;
 	GString *prefix;
 
@@ -523,7 +542,7 @@ void li_log_split_lines_(liServer *srv, liWorker *wrk, liLogMap* log_map, liLogL
 	g_string_vprintf(prefix, fmt, ap);
 	va_end(ap);
 
-	li_log_split_lines(srv, wrk, log_map, log_level, flags, txt, prefix->str);
+	li_log_split_lines(srv, wrk, context, log_level, flags, txt, prefix->str);
 
 	g_string_free(prefix, TRUE);
 }

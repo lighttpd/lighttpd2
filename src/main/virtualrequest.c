@@ -227,6 +227,7 @@ void li_vrequest_free(liVRequest* vr) {
 	}
 	g_slice_free1(srv->optionptr_def_values->len * sizeof(liOptionPtrValue*), vr->optionptrs);
 
+	li_log_context_set(&vr->log_context, NULL);
 
 	while (vr->stat_cache_entries->len > 0 ) {
 		liStatCacheEntry *sce = g_ptr_array_index(vr->stat_cache_entries, 0);
@@ -293,6 +294,8 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 			}
 		}
 	}
+
+	li_log_context_set(&vr->log_context, NULL);
 }
 
 void li_vrequest_error(liVRequest *vr) {

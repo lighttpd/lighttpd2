@@ -26,44 +26,44 @@
 		abort();\
 	} while(0)
 
-#define _ERROR(srv, wrk, log_map, fmt, ...) \
-	li_log_write(srv, wrk, log_map, LI_LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "(error) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+#define _ERROR(srv, wrk, ctx, fmt, ...) \
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "(error) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
-#define _WARNING(srv, wrk, log_map, fmt, ...) \
-	li_log_write(srv, wrk, log_map, LI_LOG_LEVEL_WARNING, LOG_FLAG_TIMESTAMP, "(warning) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+#define _WARNING(srv, wrk, ctx, fmt, ...) \
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_WARNING, LOG_FLAG_TIMESTAMP, "(warning) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
-#define _INFO(srv, wrk, log_map, fmt, ...) \
-	li_log_write(srv, wrk, log_map, LI_LOG_LEVEL_INFO, LOG_FLAG_TIMESTAMP, "(info) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+#define _INFO(srv, wrk, ctx, fmt, ...) \
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_INFO, LOG_FLAG_TIMESTAMP, "(info) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
-#define _DEBUG(srv, wrk, log_map, fmt, ...) \
-	li_log_write(srv, wrk, log_map, LI_LOG_LEVEL_DEBUG, LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+#define _DEBUG(srv, wrk, ctx, fmt, ...) \
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_DEBUG, LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
-#define _BACKEND(srv, wrk, log_map, fmt, ...) \
-	li_log_write(srv, wrk, log_map, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, fmt, __VA_ARGS__)
-#define _BACKEND_LINES(srv, wrk, log_map, txt, fmt, ...) \
-	li_log_split_lines_(srv, wrk, log_map, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, txt, fmt, __VA_ARGS__)
+#define _BACKEND(srv, wrk, ctx, fmt, ...) \
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, fmt, __VA_ARGS__)
+#define _BACKEND_LINES(srv, wrk, ctx, txt, fmt, ...) \
+	li_log_split_lines_(srv, wrk, ctx, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, txt, fmt, __VA_ARGS__)
 
-#define _GERROR(srv, wrk, log_map, error, fmt, ...) \
-	li_log_write(srv, wrk, log_map, LI_LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "(error) %s.%d: " fmt "\n  %s", LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__, error ? error->message : "Empty GError")
+#define _GERROR(srv, wrk, ctx, error, fmt, ...) \
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "(error) %s.%d: " fmt "\n  %s", LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__, error ? error->message : "Empty GError")
 
-#define VR_SEGFAULT(vr, fmt, ...) _SEGFAULT(vr->wrk->srv, vr->wrk, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define VR_ERROR(vr, fmt, ...)    _ERROR(vr->wrk->srv, vr->wrk, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define VR_WARNING(vr, fmt, ...)  _WARNING(vr->wrk->srv, vr->wrk, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define VR_INFO(vr, fmt, ...)     _INFO(vr->wrk->srv, vr->wrk, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define VR_DEBUG(vr, fmt, ...)    _DEBUG(vr->wrk->srv, vr->wrk, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define VR_BACKEND(vr, fmt, ...)  _BACKEND(vr->wrk->srv, vr->wrk, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define VR_BACKEND_LINES(vr, txt, fmt, ...) _BACKEND_LINES(vr->wrk->srv, vr->wrk, li_log_vr_map(vr), txt, fmt, __VA_ARGS__)
-#define VR_GERROR(vr, error, fmt, ...) _GERROR(vr->wrk->srv, vr->wrk, li_log_vr_map(vr), error, fmt, __VA_ARGS__)
+#define VR_SEGFAULT(vr, fmt, ...) _SEGFAULT(vr->wrk->srv, vr->wrk, &vr->log_context, fmt, __VA_ARGS__)
+#define VR_ERROR(vr, fmt, ...)    _ERROR(vr->wrk->srv, vr->wrk, &vr->log_context, fmt, __VA_ARGS__)
+#define VR_WARNING(vr, fmt, ...)  _WARNING(vr->wrk->srv, vr->wrk, &vr->log_context, fmt, __VA_ARGS__)
+#define VR_INFO(vr, fmt, ...)     _INFO(vr->wrk->srv, vr->wrk, &vr->log_context, fmt, __VA_ARGS__)
+#define VR_DEBUG(vr, fmt, ...)    _DEBUG(vr->wrk->srv, vr->wrk, &vr->log_context, fmt, __VA_ARGS__)
+#define VR_BACKEND(vr, fmt, ...)  _BACKEND(vr->wrk->srv, vr->wrk, &vr->log_context, fmt, __VA_ARGS__)
+#define VR_BACKEND_LINES(vr, txt, fmt, ...) _BACKEND_LINES(vr->wrk->srv, vr->wrk, &vr->log_context, txt, fmt, __VA_ARGS__)
+#define VR_GERROR(vr, error, fmt, ...) _GERROR(vr->wrk->srv, vr->wrk, &vr->log_context, error, fmt, __VA_ARGS__)
 
 /* vr may be NULL; if vr is NULL, srv must NOT be NULL */
-#define _VR_SEGFAULT(srv, vr, fmt, ...) _SEGFAULT(srv, NULL != vr ? vr->wrk : NULL, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define _VR_ERROR(srv, vr, fmt, ...)    _ERROR(srv, NULL != vr ? vr->wrk : NULL, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define _VR_WARNING(srv, vr, fmt, ...)  _WARNING(srv, NULL != vr ? vr->wrk : NULL, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define _VR_INFO(srv, vr, fmt, ...)     _INFO(srv, NULL != vr ? vr->wrk : NULL, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define _VR_DEBUG(srv, vr, fmt, ...)    _DEBUG(srv, NULL != vr ? vr->wrk : NULL, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define _VR_BACKEND(srv, vr, fmt, ...)  _BACKEND(srv, NULL != vr ? vr->wrk : NULL, li_log_vr_map(vr), fmt, __VA_ARGS__)
-#define _VR_BACKEND_LINES(srv, vr, txt, fmt, ...) _BACKEND_LINES(srv, NULL != vr ? vr->wrk : NULL, li_log_vr_map(vr), txt, fmt, __VA_ARGS__)
-#define _VR_GERROR(srv, vr, error, fmt, ...) _GERROR(srv, NULL != vr ? vr->wrk : NULL, li_log_vr_map(vr), error, fmt, __VA_ARGS__)
+#define _VR_SEGFAULT(srv, vr, fmt, ...) _SEGFAULT(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
+#define _VR_ERROR(srv, vr, fmt, ...)    _ERROR(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
+#define _VR_WARNING(srv, vr, fmt, ...)  _WARNING(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
+#define _VR_INFO(srv, vr, fmt, ...)     _INFO(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
+#define _VR_DEBUG(srv, vr, fmt, ...)    _DEBUG(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
+#define _VR_BACKEND(srv, vr, fmt, ...)  _BACKEND(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
+#define _VR_BACKEND_LINES(srv, vr, txt, fmt, ...) _BACKEND_LINES(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, txt, fmt, __VA_ARGS__)
+#define _VR_GERROR(srv, vr, error, fmt, ...) _GERROR(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, error, fmt, __VA_ARGS__)
 
 #define SEGFAULT(srv, fmt, ...)   _SEGFAULT(srv, NULL, NULL, fmt, __VA_ARGS__)
 #define ERROR(srv, fmt, ...)      _ERROR(srv, NULL, NULL, fmt, __VA_ARGS__)
@@ -77,6 +77,11 @@
 #define LOG_FLAG_NONE         (0x0)      /* default flag */
 #define LOG_FLAG_TIMESTAMP    (0x1)      /* prepend a timestamp to the log message */
 #define LOG_FLAG_NOLOCK       (0x1 << 1) /* for internal use only */
+
+/* embed this into structures that should have their own log context, like liVRequest and liServer.logs */
+struct liLogContext {
+	liLogMap *log_map;
+};
 
 struct liLogTarget {
 	liLogType type;
@@ -111,6 +116,8 @@ struct liLogServerData {
 		GString *format;
 		GString *cached;
 	} timestamp;
+
+	liLogContext log_context;
 };
 
 struct liLogWorkerData {
@@ -119,7 +126,7 @@ struct liLogWorkerData {
 
 struct liLogMap {
 	int refcount;
-	GArray *arr;
+	GString* targets[LI_LOG_LEVEL_COUNT];
 };
 
 /* determines the type of a log target by the path given. /absolute/path = file; |app = pipe; stderr = stderr; syslog = syslog;
@@ -128,7 +135,8 @@ struct liLogMap {
  */
 LI_API liLogType li_log_type_from_path(GString *path, gchar **param);
 
-LI_API liLogLevel li_log_level_from_string(GString *str);
+/* returns -1 for invalid names */
+LI_API int li_log_level_from_string(GString *str);
 LI_API gchar* li_log_level_str(liLogLevel log_level);
 
 /* log_new is used to create a new log target, if a log with the same path already exists, it is referenced instead */
@@ -143,18 +151,19 @@ LI_API void li_log_init(liServer *srv);
 LI_API void li_log_cleanup(liServer *srv);
 
 LI_API liLogMap* li_log_map_new(void);
+LI_API liLogMap* li_log_map_new_default(void);
 LI_API void li_log_map_acquire(liLogMap *log_map);
 LI_API void li_log_map_release(liLogMap *log_map);
 
-LI_API liLogMap* li_log_vr_map(liVRequest *vr);
+LI_API void li_log_context_set(liLogContext *context, liLogMap *log_map);
 
 LI_API gboolean li_log_write_direct(liServer *srv, liWorker *wrk, GString *path, GString *msg);
 /* li_log_write is used to write to the errorlog */
-LI_API gboolean li_log_write(liServer *srv, liWorker *wrk, liLogMap* log_map, liLogLevel log_level, guint flags, const gchar *fmt, ...) G_GNUC_PRINTF(6, 7);
+LI_API gboolean li_log_write(liServer *srv, liWorker *wrk, liLogContext* context, liLogLevel log_level, guint flags, const gchar *fmt, ...) G_GNUC_PRINTF(6, 7);
 
 /* replaces '\r' and '\n' with '\0' */
-LI_API void li_log_split_lines(liServer *srv, liWorker *wrk, liLogMap* log_map, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix);
-LI_API void li_log_split_lines_(liServer *srv, liWorker *wrk, liLogMap* log_map, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) G_GNUC_PRINTF(7, 8);
+LI_API void li_log_split_lines(liServer *srv, liWorker *wrk, liLogContext* context, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix);
+LI_API void li_log_split_lines_(liServer *srv, liWorker *wrk, liLogContext* context, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) G_GNUC_PRINTF(7, 8);
 
 
 #endif

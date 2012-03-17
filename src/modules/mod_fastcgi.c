@@ -533,7 +533,7 @@ static gboolean fastcgi_parse_response(fastcgi_connection *fcon) {
 			len = fastcgi_available(fcon);
 			li_chunkqueue_extract_to(fcon->fcgi_in, len, vr->wrk->tmp_str, NULL);
 			if (OPTION(FASTCGI_OPTION_LOG_PLAIN_ERRORS).boolean) {
-				li_log_split_lines(vr->wrk->srv, vr->wrk, li_log_vr_map(vr), LI_LOG_LEVEL_BACKEND, 0, vr->wrk->tmp_str->str, "");
+				li_log_split_lines(vr->wrk->srv, vr->wrk, &vr->log_context, LI_LOG_LEVEL_BACKEND, 0, vr->wrk->tmp_str->str, "");
 			} else {
 				VR_BACKEND_LINES(vr, vr->wrk->tmp_str->str, "(fcgi-stderr %s) ", fcon->ctx->socket_str->str);
 			}
