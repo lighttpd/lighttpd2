@@ -684,16 +684,8 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				g_array_append_val(al->data.list, a);
 			}
 			/* setup action */
-			else if (NULL != g_hash_table_lookup(srv->setups, name->data.string->str)) {
+			else if (ctx->in_setup_block && NULL != g_hash_table_lookup(srv->setups, name->data.string->str)) {
 				_printf("%s", "... which is a setup action\n");
-
-				if (!ctx->in_setup_block) {
-					WARNING(srv, "action %s can only be called in a setup block", name->data.string->str);
-					li_value_free(name);
-					if (val)
-						li_value_free(val);
-					return FALSE;
-				}
 
 				if (!li_call_setup(srv, name->data.string->str, val)) {
 					li_value_free(name);
@@ -706,16 +698,8 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 					li_value_free(val);
 			}
 			/* normal action */
-			else if (NULL != g_hash_table_lookup(srv->actions, name->data.string->str)) {
+			else if (!ctx->in_setup_block && NULL != g_hash_table_lookup(srv->actions, name->data.string->str)) {
 				_printf("%s", "... which is a normal action\n");
-
-				if (ctx->in_setup_block) {
-					WARNING(srv, "action %s can't be called in a setup block", name->data.string->str);
-					li_value_free(name);
-					if (val)
-						li_value_free(val);
-					return FALSE;
-				}
 
 				al = g_queue_peek_head(ctx->action_list_stack);
 				a = li_create_action(srv, srv->main_worker, name->data.string->str, val);
@@ -762,7 +746,13 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 					g_array_append_val(al->data.list, a);
 				}
 			} else {
-				WARNING(srv, "unknown action %s", name->data.string->str);
+				if (!ctx->in_setup_block && NULL != g_hash_table_lookup(srv->setups, name->data.string->str)) {
+					WARNING(srv, "action %s can only be called in a setup block", name->data.string->str);
+				} else if (ctx->in_setup_block && NULL != g_hash_table_lookup(srv->actions, name->data.string->str)) {
+					WARNING(srv, "action %s can't be called in a setup block", name->data.string->str);
+				} else {
+					WARNING(srv, "unknown action %s", name->data.string->str);
+				}
 				if (val)
 					li_value_free(val);
 				li_value_free(name);
