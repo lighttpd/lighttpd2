@@ -34,6 +34,9 @@ void li_server_socket_release(liServerSocket* sock) {
 	if (g_atomic_int_dec_and_test(&sock->refcount)) {
 		if (sock->release_cb) sock->release_cb(sock);
 
+		/* loop is already destroyed */
+		li_sockaddr_clear(&sock->local_addr);
+
 		g_slice_free(liServerSocket, sock);
 	}
 }
