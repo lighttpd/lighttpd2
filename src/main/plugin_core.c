@@ -731,7 +731,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 						break;
 					case LI_PARSE_HTTP_RANGE_INVALID:
 						done = TRUE;
-						li_chunkqueue_reset(vr->out);
+						li_chunkqueue_reset(vr->out); vr->out->is_closed = TRUE;
 						break;
 					case LI_PARSE_HTTP_RANGE_NOT_SATISFIABLE:
 						ranged_response = TRUE;
