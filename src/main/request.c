@@ -229,7 +229,7 @@ gboolean li_request_validate_header(liConnection *con) {
 
 		for ( ; l ; l = li_http_header_find_next(l, CONST_STR_LEN("expect")) ) {
 			hh = (liHttpHeader*) l->data;
-			if (0 == g_strcasecmp( LI_HEADER_VALUE(hh), "100-continue" )) {
+			if (0 == g_ascii_strcasecmp( LI_HEADER_VALUE(hh), "100-continue" )) {
 				expect_100_cont = TRUE;
 			} else {
 				/* we only support 100-continue */
