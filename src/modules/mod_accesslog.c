@@ -129,30 +129,28 @@ static void al_append_escaped(GString *log, GString *str) {
 	/* replaces non-printable chars with \xHH where HH is the hex representation of the byte */
 	/* exceptions: " => \", \ => \\, whitespace chars => \n \t etc. */
 	for (guint i = 0; i < str->len; i++) {
-		if (str->str[i] >= ' ' && str->str[i] <= '~') {
-			/* printable chars */
-			g_string_append_c(log, str->str[i]);
-		} else {
-			switch (str->str[i]) {
-			case '"': g_string_append_len(log, CONST_STR_LEN("\\\"")); break;
-			case '\\': g_string_append_len(log, CONST_STR_LEN("\\\\")); break;
-			case '\b': g_string_append_len(log, CONST_STR_LEN("\\b")); break;
-			case '\n': g_string_append_len(log, CONST_STR_LEN("\\n")); break;
-			case '\r': g_string_append_len(log, CONST_STR_LEN("\\r")); break;
-			case '\t': g_string_append_len(log, CONST_STR_LEN("\\t")); break;
-			case '\v': g_string_append_len(log, CONST_STR_LEN("\\v")); break;
-			default:
-				{
-					/* non printable char => \xHH */
-					gchar hh[5] = {'\\','x',0,0,0};
-					gchar h = str->str[i] / 16;
-					hh[2] = (h > 9) ? (h - 10 + 'A') : (h + '0');
-					h = str->str[i] % 16;
-					hh[3] = (h > 9) ? (h - 10 + 'A') : (h + '0');
-					g_string_append_len(log, &hh[0], 4);
-				}
-				break;
+		switch (str->str[i]) {
+		case '"': g_string_append_len(log, CONST_STR_LEN("\\\"")); break;
+		case '\\': g_string_append_len(log, CONST_STR_LEN("\\\\")); break;
+		case '\b': g_string_append_len(log, CONST_STR_LEN("\\b")); break;
+		case '\n': g_string_append_len(log, CONST_STR_LEN("\\n")); break;
+		case '\r': g_string_append_len(log, CONST_STR_LEN("\\r")); break;
+		case '\t': g_string_append_len(log, CONST_STR_LEN("\\t")); break;
+		case '\v': g_string_append_len(log, CONST_STR_LEN("\\v")); break;
+		default:
+			if (str->str[i] >= ' ' && str->str[i] <= '~') {
+				/* printable chars */
+				g_string_append_c(log, str->str[i]);
+			} else {
+				/* non printable char => \xHH */
+				gchar hh[5] = {'\\','x',0,0,0};
+				gchar h = str->str[i] / 16;
+				hh[2] = (h > 9) ? (h - 10 + 'A') : (h + '0');
+				h = str->str[i] % 16;
+				hh[3] = (h > 9) ? (h - 10 + 'A') : (h + '0');
+				g_string_append_len(log, &hh[0], 4);
 			}
+			break;
 		}
 	}
 }
