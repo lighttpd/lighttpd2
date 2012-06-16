@@ -21,7 +21,6 @@ static void li_log_write_stderr(liServer *srv, const gchar *msg, gboolean newlin
 	struct tm tm;
 	time_t now = (time_t) ev_time();
 	gchar buf[128];
-	GStaticMutex mtx = G_STATIC_MUTEX_INIT;
 
 	UNUSED(srv);
 
@@ -33,9 +32,7 @@ static void li_log_write_stderr(liServer *srv, const gchar *msg, gboolean newlin
 
 	buf[s] = '\0';
 
-	g_static_mutex_lock(&mtx);
 	g_printerr(newline ? "%s %s\n" : "%s %s", buf, msg);
-	g_static_mutex_unlock(&mtx);
 }
 
 static liLogTarget *log_open(liServer *srv, GString *path) {
