@@ -45,14 +45,18 @@ LI_API gboolean mod_deflate_free(liModules *mods, liModule *mod);
 /* encoding names */
 #define ENCODING_NAME_IDENTITY   "identity"
 #define ENCODING_NAME_GZIP       "gzip"
+#define ENCODING_NAME_X_GZIP     "x-gzip"
 #define ENCODING_NAME_DEFLATE    "deflate"
 #define ENCODING_NAME_COMPRESS   "compress"
 #define ENCODING_NAME_BZIP2      "bzip2"
+#define ENCODING_NAME_X_BZIP2    "x-bzip2"
 
 typedef enum {
 	ENCODING_IDENTITY,
 	ENCODING_BZIP2,
+	ENCODING_X_BZIP2,
 	ENCODING_GZIP,
+	ENCODING_X_GZIP,
 	ENCODING_DEFLATE,
 	ENCODING_COMPRESS
 } encodings;
@@ -60,7 +64,9 @@ typedef enum {
 static const char* encoding_names[] = {
 	"identity",
 	"bzip2",
+	"x-bzip2",
 	"gzip",
+	"x-gzip",
 	"deflate",
 	"compress",
 	NULL
@@ -68,10 +74,10 @@ static const char* encoding_names[] = {
 
 static const guint encoding_available_mask = 0
 #ifdef HAVE_BZIP
-	| (1 << ENCODING_BZIP2)
+	| (1 << ENCODING_BZIP2) | (1 << ENCODING_X_BZIP2)
 #endif
 #ifdef HAVE_ZLIB
-	| (1 << ENCODING_GZIP) | (1 << ENCODING_DEFLATE)
+	| (1 << ENCODING_GZIP) | (1 << ENCODING_X_GZIP) | (1 << ENCODING_DEFLATE)
 #endif
 ;
 
@@ -521,7 +527,8 @@ static guint header_to_endocing_mask(const gchar *s) {
 	guint encoding_mask = 0, i;
 
 	for (i = 1; encoding_names[i]; i++) {
-		if (strstr(s, encoding_names[i])) {
+		const gchar *p = strstr(s, encoding_names[i]);
+		if (NULL != p && (p == s || p[-1] == ' ' || p[-1] == ',')) {
 			encoding_mask |= 1 << i;
 		}
 	}
@@ -614,6 +621,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	case ENCODING_IDENTITY:
 		return LI_HANDLER_GO_ON;
 	case ENCODING_BZIP2:
+	case ENCODING_X_BZIP2:
 #ifdef HAVE_BZIP
 		if (cached_handle_etag(vr, debug, hh_etag, encoding_names[i])) return LI_HANDLER_GO_ON;
 		if (!is_head_request) {
@@ -626,6 +634,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 #endif
 		return LI_HANDLER_GO_ON;
 	case ENCODING_GZIP:
+	case ENCODING_X_GZIP:
 #ifdef HAVE_ZLIB
 		if (cached_handle_etag(vr, debug, hh_etag, encoding_names[i])) return LI_HANDLER_GO_ON;
 		if (!is_head_request) {
