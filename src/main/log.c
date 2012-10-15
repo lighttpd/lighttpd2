@@ -35,6 +35,16 @@ static void li_log_write_stderr(liServer *srv, const gchar *msg, gboolean newlin
 	g_printerr(newline ? "%s %s\n" : "%s %s", buf, msg);
 }
 
+static void log_open_pipe_cb(liServer *srv, int fd, gpointer data) {
+	liLogTarget *log;
+	log = data;
+
+	if (log == NULL)
+		ERROR(srv, "log_open_pipe_cb(%d, %s): no log found", fd, log->path->str);
+	else if (log->fd < 0)
+		log->fd = fd;
+}
+
 static liLogTarget *log_open(liServer *srv, GString *path) {
 	liLogTarget *log;
 
@@ -47,6 +57,14 @@ static liLogTarget *log_open(liServer *srv, GString *path) {
 		liLogType type = li_log_type_from_path(path, &param);
 		GString sparam = { param, (param != NULL ? path->len - (param - path->str) : 0), 0 };
 
+		if (type == LI_LOG_TYPE_NONE) return NULL;
+
+		/* Even if -1 == fd we create an entry, so we don't throw an error every time */
+		log = g_slice_new0(liLogTarget);
+		log->type = type;
+		log->path = g_string_new_len(GSTR_LEN(path));
+		log->wqelem.data = log;
+
 		switch (type) {
 			case LI_LOG_TYPE_STDERR:
 				fd = STDERR_FILENO;
@@ -56,21 +74,14 @@ static liLogTarget *log_open(liServer *srv, GString *path) {
 				fd = li_angel_fake_log_open_file(srv, &sparam);
 				break;
 			case LI_LOG_TYPE_PIPE:
-				ERROR(srv, "%s", "pipe logging not supported yet");
+				li_angel_log_open_pipe(srv, &sparam, log_open_pipe_cb, log);
 				break;
 			case LI_LOG_TYPE_SYSLOG:
 				ERROR(srv, "%s", "syslog not supported yet");
 				break;
-			case LI_LOG_TYPE_NONE:
-				return NULL;
 		}
 
-		/* Even if -1 == fd we create an entry, so we don't throw an error every time */
-		log = g_slice_new0(liLogTarget);
-		log->type = type;
-		log->path = g_string_new_len(GSTR_LEN(path));
 		log->fd = fd;
-		log->wqelem.data = log;
 		li_radixtree_insert(srv->logs.targets, log->path->str, log->path->len * 8, log);
 		/*g_print("log_open(\"%s\")\n", log->path->str);*/
 	}
@@ -371,6 +382,8 @@ static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
 						continue;
 				}
 
+				if (log->type == LI_LOG_TYPE_PIPE)
+					log_close(srv, log);
 				str = g_string_sized_new(63);
 				g_string_printf(str, "could not write to log '%s': %s\n", log_entry->path->str, g_strerror(err));
 				li_log_write_stderr(srv, str->str, TRUE);
