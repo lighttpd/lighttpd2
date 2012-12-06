@@ -66,7 +66,7 @@ struct liServer {
 	liServerState state_wait_for;
 	ev_async state_ready_watcher;
 
-	GMutex *lualock;
+	GStaticRecMutex lualock;
 	struct lua_State *L;     /** NULL if compiled without Lua */
 
 	liWorker *main_worker;

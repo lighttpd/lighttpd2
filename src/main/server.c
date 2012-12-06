@@ -110,7 +110,7 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	luaL_openlibs(srv->L);
 	li_lua_init(srv->L, srv, NULL);
 
-	srv->lualock = g_mutex_new();
+	g_static_rec_mutex_free(&srv->lualock);
 #else
 	srv->L = NULL;
 #endif
@@ -216,7 +216,7 @@ void li_server_free(liServer* srv) {
 #ifdef HAVE_LUA_H
 	lua_close(srv->L);
 	srv->L = NULL;
-	g_mutex_free(srv->lualock);
+	g_static_rec_mutex_free(&srv->lualock);
 #endif
 
 	/* free throttle pools */

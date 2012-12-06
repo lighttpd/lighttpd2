@@ -136,8 +136,13 @@ static liHandlerResult lua_action_cleanup(liVRequest *vr, gpointer param, gpoint
 
 static void lua_action_free(liServer *srv, gpointer param) {
 	lua_action_param *par = param;
-	lua_State *L = par->L;
-	gboolean dolock = (L == srv->L);
+	lua_State *L;
+	gboolean dolock;
+
+	if (!param) return;
+
+	L = par->L;
+	dolock = (L == srv->L);
 
 	if (dolock) li_lua_lock(srv);
 	luaL_unref(L, LUA_REGISTRYINDEX, par->func_ref);

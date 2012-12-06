@@ -4,8 +4,8 @@
 #include <lighttpd/base.h>
 #include <lua.h>
 
-#define li_lua_lock(srv) g_mutex_lock((srv)->lualock);
-#define li_lua_unlock(srv) g_mutex_unlock((srv)->lualock);
+#define li_lua_lock(srv) g_static_rec_mutex_lock(&(srv)->lualock);
+#define li_lua_unlock(srv) g_static_rec_mutex_unlock(&(srv)->lualock);
 
 LI_API void li_lua_init_chunk_mt(lua_State *L);
 LI_API liChunk* li_lua_get_chunk(lua_State *L, int ndx);
