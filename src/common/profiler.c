@@ -249,6 +249,10 @@ static void profiler_dump_frame(guint level, profiler_stackframe *frame, gsize m
 void li_profiler_enable(gchar *output_path) {
 	GMemVTable t;
 
+	/* force allocation of mutex data; newer glib versions allocate extra data */
+	g_static_mutex_lock(&profiler_mutex);
+	g_static_mutex_unlock(&profiler_mutex);
+
 	profiler_heap_base = sbrk(0);
 
 	if (g_str_equal(output_path, "stdout")) {
