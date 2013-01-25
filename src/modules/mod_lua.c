@@ -5,14 +5,14 @@
  *     mod_lua
  *
  * Setups:
- *     lua.plugin filename, [ options ], <lua-args>
+ *     lua.plugin (filename, [ options ], <lua-args>)
  *         - No options available yet, can be omitted
  *         - Can register setup.* and action.* callbacks (like any c module)
  *           via creating a setups / actions table in the global lua namespace
  * Options:
  *     none
  * Actions:
- *     lua.handler filename, [ "ttl": 300 ], <lua-args>
+ *     lua.handler (filename, [ "ttl": 300 ], <lua-args>)
  *         - Basically the same as include_lua (no setup.* calls allowed), but loads the script
  *           in a worker specific lua_State, so it doesn't use the server wide lua lock.
  *         - You can give a ttl, after which the file is checked for modifications
