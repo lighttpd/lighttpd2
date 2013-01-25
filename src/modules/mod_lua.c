@@ -110,7 +110,7 @@ static liHandlerResult lua_handle(liVRequest *vr, gpointer param, gpointer *cont
 
 	wc = &conf->worker_config[vr->wrk->ndx];
 
-	if (wc->act) timeout = (conf->ttl > 0 && wc->ts_loaded + conf->ttl >= CUR_TS(vr->wrk));
+	if (wc->act) timeout = (conf->ttl > 0 && wc->ts_loaded + conf->ttl < CUR_TS(vr->wrk));
 
 	if (!wc->act || timeout) {
 		int err;
@@ -127,8 +127,8 @@ static liHandlerResult lua_handle(liVRequest *vr, gpointer param, gpointer *cont
 			break;
 		}
 
+		wc->ts_loaded = CUR_TS(vr->wrk);
 		if (timeout && st.st_mtime <= wc->ts_loaded) {
-			wc->ts_loaded = CUR_TS(vr->wrk);
 			goto loaded;
 		}
 
