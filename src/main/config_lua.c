@@ -202,11 +202,11 @@ gboolean li_config_lua_load(lua_State *L, liServer *srv, liWorker *wrk, const gc
 	li_lua_new_globals(L);
 
 	if (0 != luaL_loadfile(L, filename)) {
-		ERROR(srv, "Loading script '%s' failed: %s", filename, lua_tostring(L, -1));
+		_ERROR(srv, wrk, NULL, "Loading script '%s' failed: %s", filename, lua_tostring(L, -1));
 		return FALSE;
 	}
 
-	DEBUG(srv, "Loaded config script '%s'", filename);
+	_DEBUG(srv, wrk, NULL, "Loaded config script '%s'", filename);
 
 	if (allow_setup) {
 		li_lua_config_publish_str_hash(srv, wrk, L, srv->setups, li_lua_config_handle_server_setup);
@@ -226,7 +226,7 @@ gboolean li_config_lua_load(lua_State *L, liServer *srv, liWorker *wrk, const gc
 
 	errfunc = li_lua_push_traceback(L, 2);
 	if (lua_pcall(L, 2, 0, errfunc)) {
-		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
+		_ERROR(srv, wrk, NULL, "lua_pcall(): %s", lua_tostring(L, -1));
 
 		/* cleanup stack */
 		if (lua_stack_top > lua_gettop(L)) {

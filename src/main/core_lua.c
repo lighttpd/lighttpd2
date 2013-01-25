@@ -124,9 +124,10 @@ GString* li_lua_print_get_string(lua_State *L, int from, int to) {
 
 static int li_lua_error(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
+	liWorker *wrk = lua_touserdata(L, lua_upvalueindex(2));
 	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
 
-	ERROR(srv, "(lua): %s", buf->str);
+	_ERROR(srv, wrk, NULL, "(lua): %s", buf->str);
 
 	g_string_free(buf, TRUE);
 
@@ -135,9 +136,10 @@ static int li_lua_error(lua_State *L) {
 
 static int li_lua_warning(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
+	liWorker *wrk = lua_touserdata(L, lua_upvalueindex(2));
 	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
 
-	WARNING(srv, "(lua): %s", buf->str);
+	_WARNING(srv, wrk, NULL, "(lua): %s", buf->str);
 
 	g_string_free(buf, TRUE);
 
@@ -146,9 +148,10 @@ static int li_lua_warning(lua_State *L) {
 
 static int li_lua_info(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
+	liWorker *wrk = lua_touserdata(L, lua_upvalueindex(2));
 	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
 
-	INFO(srv, "(lua): %s", buf->str);
+	_INFO(srv, wrk, NULL, "(lua): %s", buf->str);
 
 	g_string_free(buf, TRUE);
 
@@ -157,9 +160,10 @@ static int li_lua_info(lua_State *L) {
 
 static int li_lua_debug(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
+	liWorker *wrk = lua_touserdata(L, lua_upvalueindex(2));
 	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
 
-	DEBUG(srv, "(lua): %s", buf->str);
+	_DEBUG(srv, wrk, NULL, "(lua): %s", buf->str);
 
 	g_string_free(buf, TRUE);
 
@@ -265,21 +269,25 @@ void li_lua_init(lua_State *L, liServer *srv, liWorker *wrk) {
 	li_lua_init_filters(L, srv);
 
 	lua_pushlightuserdata(L, srv);
-	lua_pushcclosure(L, li_lua_error, 1);
+	lua_pushlightuserdata(L, wrk);
+	lua_pushcclosure(L, li_lua_error, 2);
 		lua_pushvalue(L, -1); /* overwrite global print too */
 		lua_setfield(L, LUA_GLOBALSINDEX, "print");
 	lua_setfield(L, -2, "print");
 
 	lua_pushlightuserdata(L, srv);
-	lua_pushcclosure(L, li_lua_warning, 1);
+	lua_pushlightuserdata(L, wrk);
+	lua_pushcclosure(L, li_lua_warning, 2);
 	lua_setfield(L, -2, "warning");
 
 	lua_pushlightuserdata(L, srv);
-	lua_pushcclosure(L, li_lua_info, 1);
+	lua_pushlightuserdata(L, wrk);
+	lua_pushcclosure(L, li_lua_info, 2);
 	lua_setfield(L, -2, "info");
 
 	lua_pushlightuserdata(L, srv);
-	lua_pushcclosure(L, li_lua_debug, 1);
+	lua_pushlightuserdata(L, wrk);
+	lua_pushcclosure(L, li_lua_debug, 2);
 	lua_setfield(L, -2, "debug");
 
 	lua_pushcclosure(L, li_lua_md5, 0);
