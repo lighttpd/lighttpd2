@@ -127,10 +127,10 @@ static liHandlerResult lua_handle(liVRequest *vr, gpointer param, gpointer *cont
 			break;
 		}
 
-		wc->ts_loaded = CUR_TS(vr->wrk);
 		if (timeout && st.st_mtime <= wc->ts_loaded) {
 			goto loaded;
 		}
+		wc->ts_loaded = CUR_TS(vr->wrk);
 
 		li_action_release(vr->wrk->srv, wc->act);
 		wc->act = NULL;
