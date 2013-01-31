@@ -115,6 +115,7 @@ static liHandlerResult lua_handle(liVRequest *vr, gpointer param, gpointer *cont
 	if (!wc->act || timeout) {
 		int err;
 		struct stat st;
+		time_t last_load;
 
 		res = li_stat_cache_get(vr, conf->filename, &st, &err, NULL);
 		switch (res) {
@@ -127,8 +128,9 @@ static liHandlerResult lua_handle(liVRequest *vr, gpointer param, gpointer *cont
 			break;
 		}
 
+		last_load = wc->ts_loaded;
 		wc->ts_loaded = CUR_TS(vr->wrk);
-		if (timeout && st.st_mtime <= wc->ts_loaded) {
+		if (timeout && st.st_mtime <= last_load) {
 			goto loaded;
 		}
 
