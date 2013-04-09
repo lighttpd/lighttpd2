@@ -53,6 +53,8 @@ class CurlRequest(TestBase):
 		c = pycurl.Curl()
 		c.setopt(pycurl.URL, self.SCHEME + ("://127.0.0.1:%i" % (Env.port + self.PORT)) + self.URL)
 		c.setopt(pycurl.HTTPHEADER, ["Host: " + self.vhost])
+		c.setopt(pycurl.NOSIGNAL, 1)
+		c.setopt(pycurl.TIMEOUT, 10)
 		b = StringIO.StringIO()
 		c.setopt(pycurl.WRITEFUNCTION, b.write)
 		c.setopt(pycurl.HEADERFUNCTION, self._recv_header)
