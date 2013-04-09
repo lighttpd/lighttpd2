@@ -7,6 +7,7 @@ Makefile
 m4
 aclocal.m4
 autom4te.cache
+compile
 config.guess
 config.sub
 configure
@@ -14,4 +15,5 @@ depcomp
 install-sh
 ltmain.sh
 missing
+mkinstalldirs
 include/lighttpd/config.h.in
