@@ -24,8 +24,14 @@
 	action status {
 		getStringTo(fpc, ctx->h_value);
 		ctx->response->http_status = atoi(ctx->h_value->str);
-		if (ctx->response->http_status >= 100 && ctx->response->http_status < 200) {
+		switch (ctx->response->http_status) {
+		case 100: /* Continue */
+		case 102: /* Processing */
 			ctx->drop_header = TRUE;
+			break;
+			/* don't ignore 101 Switching Protocols */
+		default:
+			break;
 		}
 	}
 
