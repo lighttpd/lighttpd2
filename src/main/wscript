@@ -22,6 +22,7 @@ def build(bld):
 		angel.c
 		angel_fake.c
 		base_lua.c
+		backends.c
 		chunk.c
 		chunk_parser.c
 		collect.c
