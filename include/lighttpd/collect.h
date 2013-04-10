@@ -28,6 +28,8 @@ typedef struct liCollectInfo liCollectInfo;
 
 /** li_collect_start returns NULL if the callback was called directly (e.g. for only one worker and ctx = wrk) */
 LI_API liCollectInfo* li_collect_start(liWorker *ctx, liCollectFuncCB func, gpointer fdata, liCollectCB cb, gpointer cbdata);
+/** li_collect_start_global uses srv->main_worker to call cb(), and never returns direclty */
+LI_API liCollectInfo* li_collect_start_global(liServer *srv, liCollectFuncCB func, gpointer fdata, liCollectCB cb, gpointer cbdata);
 LI_API void li_collect_break(liCollectInfo* ci); /** this will result in complete == FALSE in the callback; call it if cbdata gets invalid */
 
 /* internal functions */

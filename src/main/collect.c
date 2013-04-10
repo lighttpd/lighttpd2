@@ -74,9 +74,8 @@ static gboolean collect_send_result(liWorker *ctx, liCollectInfo *ci) {
 }
 
 /* returns true if callback was called directly */
-static gboolean collect_insert_func(liWorker *ctx, liCollectInfo *ci) {
+static gboolean collect_insert_func(liServer *srv, liWorker *ctx, liCollectInfo *ci) {
 	guint i;
-	liServer *srv = ctx->srv;
 	for (i = 0; i < srv->worker_count; i++) {
 		liWorker *wrk;
 		wrk = g_array_index(srv->workers, liWorker*, i);
@@ -97,9 +96,16 @@ static gboolean collect_insert_func(liWorker *ctx, liCollectInfo *ci) {
 
 liCollectInfo* li_collect_start(liWorker *ctx, liCollectFuncCB func, gpointer fdata, liCollectCB cb, gpointer cbdata) {
 	liCollectInfo *ci = collect_info_new(ctx, func, fdata, cb, cbdata);
-	if (collect_insert_func(ctx, ci)) return NULL; /* collect info is invalid now */
+	if (collect_insert_func(ctx->srv, ctx, ci)) return NULL; /* collect info is invalid now */
 	return ci;
 }
+
+liCollectInfo* li_collect_start_global(liServer *srv, liCollectFuncCB func, gpointer fdata, liCollectCB cb, gpointer cbdata) {
+	liCollectInfo *ci = collect_info_new(srv->main_worker, func, fdata, cb, cbdata);
+	if (collect_insert_func(srv, NULL, ci)) return NULL; /* collect info is invalid now */
+	return ci;
+}
+
 
 void li_collect_break(liCollectInfo* ci) {
 	ci->stopped = TRUE;
