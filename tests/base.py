@@ -383,6 +383,9 @@ instance {{
 	binary "{Env.worker}";
 	config "{Env.lighttpdconf}";
 	modules "{Env.plugindir}";
+
+#	env ( "G_SLICE=always-malloc", "G_DEBUG=gc-friendly" );
+#	wrapper ("/usr/bin/valgrind", "--leak-check=full", "--show-reachable=yes", "--leak-resolution=high" );
 }}
 
 allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
