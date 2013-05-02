@@ -743,6 +743,11 @@ static void li_server_start_transition(liServer *srv, liServerState state) {
 		/* wait for closed connections and plugins */
 		break;
 	case LI_SERVER_STOPPING:
+		{
+			liAction* mainaction = srv->mainaction;
+			srv->mainaction = NULL;
+			li_action_release(srv, mainaction);
+		}
 		/* stop all workers */
 		for (i = 0; i < srv->worker_count; i++) {
 			liWorker *wrk;
