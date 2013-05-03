@@ -318,6 +318,7 @@ static gboolean lua_plugin_handle_setup(liServer *srv, liPlugin *p, liValue *val
 	}
 	lua_remove(L, errfunc);
 
+	lua_gc(L, LUA_GCCOLLECT, 0);
 	li_lua_unlock(srv);
 
 	return res;
@@ -349,6 +350,7 @@ static liAction* lua_plugin_handle_action(liServer *srv, liWorker *wrk, liPlugin
 	}
 	lua_remove(L, errfunc);
 
+	lua_gc(L, LUA_GCCOLLECT, 0);
 	li_lua_unlock(srv);
 
 	return res;
@@ -524,6 +526,7 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 	g_ptr_array_add(mc->lua_plugins, newp);
 
 	li_lua_restore_globals(L);
+	lua_gc(L, LUA_GCCOLLECT, 0);
 	li_lua_unlock(srv);
 
 	lp->filename = filename;
@@ -533,6 +536,7 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 failed_unlock_lua:
 	lua_pop(L, lua_gettop(L) - lua_stack_top);
 	li_lua_restore_globals(L);
+	lua_gc(L, LUA_GCCOLLECT, 0);
 	li_lua_unlock(srv);
 
 	g_string_free(filename, TRUE);

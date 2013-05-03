@@ -249,6 +249,8 @@ gboolean li_config_lua_load(lua_State *L, liServer *srv, liWorker *wrk, const gc
 
 	li_lua_restore_globals(L);
 
+	lua_gc(L, LUA_GCCOLLECT, 0);
+
 	if (dolock) li_lua_unlock(srv);
 
 	return TRUE;
