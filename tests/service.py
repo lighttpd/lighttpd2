@@ -6,6 +6,7 @@ import subprocess
 import socket
 import select
 import signal
+import time
 
 import base
 
@@ -29,6 +30,16 @@ trussargs = [ 'truss', '-d', '-f', '-s', '4096', '-o' ]
 def preexec():
 	os.setsid()
 
+def procwait(proc, timeout = 3):
+	ts = time.time()
+	while True:
+		if proc.poll() is not None: return True
+		seconds_passed = time.time() - ts
+		if seconds_passed > timeout:
+			return False
+		time.sleep(0.1)
+
+
 class Service(object):
 	name = None
 
@@ -48,7 +59,10 @@ class Service(object):
 
 		if None == self.name:
 			raise ServiceException("Service needs a name!")
-		logfile = open(self.log, "w")
+		if base.Env.debug:
+			logfile = None
+		else:
+			logfile = open(self.log, "w")
 
 		if base.Env.strace:
 			slog = self.tests.PrepareFile("log/strace-%s.log" % self.name, "")
@@ -60,7 +74,7 @@ class Service(object):
 		print >> base.Env.log, "Spawning '%s': %s" % (self.name, ' '.join(args))
 		proc = subprocess.Popen(args, stdin = inp, stdout = logfile, stderr = logfile, close_fds = True, preexec_fn = preexec)
 		if None != inp: inp.close()
-		logfile.close()
+		if None != logfile: logfile.close()
 		self.proc = proc
 		atexit.register(self.kill)
 
@@ -76,7 +90,13 @@ class Service(object):
 			except:
 				pass
 			print >> base.Env.log, "Waiting for service '%s'" % (self.name)
-			proc.wait()
+			if base.Env.wait: proc.wait()
+			while not procwait(proc):
+				try:
+					os.killpg(proc.pid, signal.SIGINT)
+					proc.terminate()
+				except:
+					pass
 
 	def portfree(self, port):
 		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

@@ -52,6 +52,8 @@ parser.add_option("--strace", help = "Strace services", action = "store_true", d
 parser.add_option("--truss", help = "Truss services", action = "store_true", default = False)
 parser.add_option("--debug-requests", help = "Dump requests", action = "store_true", default = False)
 parser.add_option("--no-angel", help = "Spawn lighttpd worker directly", action = "store_true", default = False)
+parser.add_option("--debug", help = "Show service logs on console", action = "store_true", default = False)
+parser.add_option("--wait", help = "Wait for services to exit on first signal", action = "store_true", default = False)
 
 (options, args) = parser.parse_args()
 
@@ -73,6 +75,8 @@ Env.debugRequests = options.debug_requests
 Env.strace = options.strace
 Env.truss = options.truss
 Env.no_angel = options.no_angel
+Env.debug = options.debug
+Env.wait = options.wait
 
 Env.color = sys.stdin.isatty()
 Env.COLOR_RESET = Env.color and "\033[0m" or ""
