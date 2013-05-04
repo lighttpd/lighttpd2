@@ -142,18 +142,18 @@ int li_lua_config_handle_server_action(liServer *srv, liWorker *wrk, lua_State *
 	liServerAction *sa = (liServerAction*) _sa;
 	liValue *val;
 	liAction *a;
-	gboolean dolock = (L == srv->L);
+	liLuaState *LL = li_lua_state_get(L);
 
 	lua_checkstack(L, 16);
 	val = lua_params_to_value(srv, L);
 
-	if (dolock) li_lua_unlock(srv);
+	li_lua_unlock(LL);
 
 	/* TRACE(srv, "%s", "Creating action"); */
 	a = sa->create_action(srv, wrk, sa->p, val, sa->userdata);
 	li_value_free(val);
 
-	if (dolock) li_lua_lock(srv);
+	li_lua_lock(LL);
 
 	if (NULL == a) {
 		lua_pushstring(L, "creating action failed");
@@ -167,16 +167,16 @@ int li_lua_config_handle_server_setup(liServer *srv, liWorker *wrk, lua_State *L
 	liServerSetup *ss = (liServerSetup*) _ss;
 	liValue *val;
 	gboolean res;
-	gboolean dolock = (L == srv->L);
+	liLuaState *LL = li_lua_state_get(L);
 	UNUSED(wrk);
 
 	lua_checkstack(L, 16);
 	val = lua_params_to_value(srv, L);
 
-	if (dolock) li_lua_unlock(srv);
+	li_lua_unlock(LL);
 	/* TRACE(srv, "%s", "Calling setup"); */
 	res = ss->setup(srv, ss->p, val, ss->userdata);
-	if (dolock) li_lua_lock(srv);
+	li_lua_lock(LL);
 
 	if (!res) {
 		li_value_free(val);
@@ -188,14 +188,14 @@ int li_lua_config_handle_server_setup(liServer *srv, liWorker *wrk, lua_State *L
 	return 0;
 }
 
-gboolean li_config_lua_load(lua_State *L, liServer *srv, liWorker *wrk, const gchar *filename, liAction **pact, gboolean allow_setup, liValue *args) {
+gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const gchar *filename, liAction **pact, gboolean allow_setup, liValue *args) {
 	int errfunc;
 	int lua_stack_top;
-	gboolean dolock = (L == srv->L);
+	lua_State *L = LL->L;
 
 	*pact = NULL;
 
-	if (dolock) li_lua_lock(srv);
+	li_lua_lock(LL);
 
 	lua_stack_top = lua_gettop(L);
 
@@ -235,7 +235,7 @@ gboolean li_config_lua_load(lua_State *L, liServer *srv, liWorker *wrk, const gc
 
 		li_lua_restore_globals(L);
 
-		if (dolock) li_lua_unlock(srv);
+		li_lua_unlock(LL);
 
 		return FALSE;
 	}
@@ -251,7 +251,7 @@ gboolean li_config_lua_load(lua_State *L, liServer *srv, liWorker *wrk, const gc
 
 	lua_gc(L, LUA_GCCOLLECT, 0);
 
-	if (dolock) li_lua_unlock(srv);
+	li_lua_unlock(LL);
 
 	return TRUE;
 }

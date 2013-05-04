@@ -4,6 +4,18 @@
 #include <lualib.h>
 #include <lauxlib.h>
 
+liLuaState *li_lua_state_get(lua_State *L) {
+	liLuaState *LL;
+
+	lua_getfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_STATE); /* +1 */
+	LL = lua_touserdata(L, -1);
+	lua_pop(L, 1);
+
+	assert(LL != NULL && LL->L == L);
+
+	return LL;
+}
+
 /* replace a negative stack index with a positive one,
  * so that you don't need to care about push/pop
  */
@@ -87,7 +99,7 @@ int li_lua_metatable_index(lua_State *L) {
 static void li_lua_store_globals(lua_State *L) {
 	/* backup global table reference */
 	lua_pushvalue(L, LUA_GLOBALSINDEX); /* +1 */
-	lua_setfield(L, LUA_REGISTRYINDEX, "li_globals"); /* -1 */
+	lua_setfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_GLOBALS); /* -1 */
 }
 
 GString* li_lua_print_get_string(lua_State *L, int from, int to) {
@@ -245,7 +257,9 @@ static void lua_push_constants(lua_State *L, int ndx) {
 	lua_setfield(L, ndx, "HANDLER_ERROR");
 }
 
-void li_lua_init(lua_State *L, liServer *srv, liWorker *wrk) {
+void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
+	lua_State *L = LL->L;
+
 	li_lua_init_chunk_mt(L);
 	li_lua_init_coninfo_mt(L);
 	li_lua_init_environment_mt(L);
@@ -259,10 +273,10 @@ void li_lua_init(lua_State *L, liServer *srv, liWorker *wrk) {
 
 	/* prefer closure, but just in case */
 	lua_pushlightuserdata(L, srv);
-	lua_setfield(L, LUA_REGISTRYINDEX, "lighty.srv");
+	lua_setfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_SERVER);
 	if (NULL != wrk) {
 		lua_pushlightuserdata(L, wrk);
-		lua_setfield(L, LUA_REGISTRYINDEX, "lighty.wrk");
+		lua_setfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_WORKER);
 	}
 
 	lua_newtable(L); /* lighty. */
@@ -306,11 +320,11 @@ void li_lua_init(lua_State *L, liServer *srv, liWorker *wrk) {
 
 	li_lua_store_globals(L);
 
-	li_plugins_init_lua(L, srv, wrk);
+	li_plugins_init_lua(LL, srv, wrk);
 }
 
 void li_lua_restore_globals(lua_State *L) {
-	lua_getfield(L, LUA_REGISTRYINDEX, "li_globals"); /* +1 */
+	lua_getfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_GLOBALS); /* +1 */
 	lua_replace(L, LUA_GLOBALSINDEX); /* -1 */
 }
 

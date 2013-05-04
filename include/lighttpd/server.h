@@ -5,8 +5,6 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-struct lua_State;
-
 #ifndef LIGHTTPD_SERVER_MAGIC
 # define LIGHTTPD_SERVER_MAGIC ((guint)0x12AB34CD)
 #endif
@@ -66,8 +64,7 @@ struct liServer {
 	liServerState state_wait_for;
 	ev_async state_ready_watcher;
 
-	GStaticRecMutex lualock;
-	struct lua_State *L;     /** NULL if compiled without Lua */
+	liLuaState LL;
 
 	liWorker *main_worker;
 	guint worker_count;

@@ -152,23 +152,22 @@ int li_lua_push_filter(lua_State *L, liFilter *f) {
 
 typedef struct filter_lua_config filter_lua_config;
 struct filter_lua_config {
-	lua_State *L;
+	liLuaState *LL;
 	int class_ref;
 };
 
 typedef struct filter_lua_state filter_lua_state;
 struct filter_lua_state {
-	lua_State *L;
+	liLuaState *LL;
 	int object_ref;
 };
 
 static filter_lua_state* filter_lua_state_new(liVRequest *vr, filter_lua_config *config) {
 	int object_ref = LUA_NOREF;
 	liServer *srv = vr->wrk->srv;
-	lua_State *L = config->L;
-	gboolean dolock = (L == srv->L);
+	lua_State *L = config->LL->L;
 
-	if (dolock) li_lua_lock(srv);
+	li_lua_lock(config->LL);
 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, config->class_ref); /* +1 */
 	li_lua_push_vrequest(L, vr); /* +1 */
@@ -184,11 +183,11 @@ static filter_lua_state* filter_lua_state_new(liVRequest *vr, filter_lua_config 
 		li_vrequest_error(vr);
 	}
 
-	if (dolock) li_lua_unlock(srv);
+	li_lua_unlock(config->LL);
 
 	if (LUA_NOREF != object_ref) {
 		filter_lua_state *state = g_slice_new0(filter_lua_state);
-		state->L = L;
+		state->LL = config->LL;
 		state->object_ref = object_ref;
 
 		return state;
@@ -199,10 +198,9 @@ static filter_lua_state* filter_lua_state_new(liVRequest *vr, filter_lua_config 
 
 static void filter_lua_state_free(liVRequest *vr, filter_lua_state *state) {
 	liServer *srv = vr->wrk->srv;
-	lua_State *L = state->L;
-	gboolean dolock = (L == srv->L);
+	lua_State *L = state->LL->L;
 
-	if (dolock) li_lua_lock(srv);
+	li_lua_lock(state->LL);
 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, state->object_ref); /* +1 */
 	li_lua_push_vrequest(L, vr); /* +1 */
@@ -210,7 +208,7 @@ static void filter_lua_state_free(liVRequest *vr, filter_lua_state *state) {
 
 	luaL_unref(L, LUA_REGISTRYINDEX, state->object_ref);
 
-	if (dolock) li_lua_unlock(srv);
+	li_lua_unlock(state->LL);
 
 	g_slice_free(filter_lua_state, state);
 }
@@ -223,12 +221,10 @@ static void filter_lua_free(liVRequest *vr, liFilter *f) {
 
 static liHandlerResult filter_lua_handle(liVRequest *vr, liFilter *f) {
 	filter_lua_state *state = (filter_lua_state*) f->param;
-	liServer *srv = vr->wrk->srv;
-	lua_State *L = state->L;
-	gboolean dolock = (L == srv->L);
+	lua_State *L = state->LL->L;
 	liHandlerResult res;
 
-	if (dolock) li_lua_lock(srv);
+	li_lua_lock(state->LL);
 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, state->object_ref); /* +1 */
 	li_lua_push_vrequest(L, vr); /* +1 */
@@ -255,7 +251,7 @@ static liHandlerResult filter_lua_handle(liVRequest *vr, liFilter *f) {
 		res = LI_HANDLER_ERROR;
 	}
 
-	if (dolock) li_lua_unlock(srv);
+	li_lua_unlock(state->LL);
 
 	return res;
 }
@@ -286,17 +282,18 @@ static liHandlerResult filter_lua_out(liVRequest *vr, gpointer param, gpointer *
 
 static void filter_lua_action_free(liServer *srv, gpointer param) {
 	filter_lua_config *config = param;
-	lua_State *L = config->L;
-	gboolean dolock = (L == srv->L);
+	lua_State *L = config->LL->L;
+	UNUSED(srv);
 
-	if (dolock) li_lua_lock(srv);
+	li_lua_lock(config->LL);
 	luaL_unref(L, LUA_REGISTRYINDEX, config->class_ref);
-	if (dolock) li_lua_unlock(srv);
+	li_lua_unlock(config->LL);
 
 	g_slice_free(filter_lua_config, config);
 }
 
 static int filter_lua_action_create(lua_State *L, liActionFuncCB act_cb) {
+	liLuaState *LL = li_lua_state_get(L);
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
 	liAction *act;
 	filter_lua_config *config;
@@ -310,7 +307,7 @@ static int filter_lua_action_create(lua_State *L, liActionFuncCB act_cb) {
 	}
 
 	config = g_slice_new0(filter_lua_config);
-	config->L = L;
+	config->LL = LL;
 	config->class_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
 	act = li_action_new_function(act_cb, NULL, filter_lua_action_free, config);
@@ -337,11 +334,12 @@ void li_lua_init_filters(lua_State *L, liServer* srv) {
 
 liFilter* li_lua_vrequest_add_filter_in(lua_State *L, liVRequest *vr, int state_ndx) {
 	filter_lua_state *state;
+	liLuaState *LL = li_lua_state_get(L);
 
 	lua_pushvalue(L, state_ndx);
 
 	state = g_slice_new0(filter_lua_state);
-	state->L = L;
+	state->LL = LL;
 	state->object_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
 	return li_vrequest_add_filter_in(vr, filter_lua_handle, filter_lua_free, state);
@@ -349,11 +347,12 @@ liFilter* li_lua_vrequest_add_filter_in(lua_State *L, liVRequest *vr, int state_
 
 liFilter* li_lua_vrequest_add_filter_out(lua_State *L, liVRequest *vr, int state_ndx) {
 	filter_lua_state *state;
+	liLuaState *LL = li_lua_state_get(L);
 
 	lua_pushvalue(L, state_ndx);
 
 	state = g_slice_new0(filter_lua_state);
-	state->L = L;
+	state->LL = LL;
 	state->object_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
 	return li_vrequest_add_filter_out(vr, filter_lua_handle, filter_lua_free, state);

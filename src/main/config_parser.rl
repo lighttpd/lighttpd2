@@ -623,7 +623,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				return FALSE;
 			}
 
-			if (!li_config_lua_load(srv->L, srv, srv->main_worker, val->data.string->str, &a, TRUE, NULL)) {
+			if (!li_config_lua_load(&srv->LL, srv, srv->main_worker, val->data.string->str, &a, TRUE, NULL)) {
 				ERROR(srv, "include_lua '%s' failed", val->data.string->str);
 				li_value_free(val);
 				return FALSE;

@@ -24,8 +24,7 @@ typedef void     (*liPluginHandleCloseCB)   (liConnection *con, liPlugin *p);
 typedef liHandlerResult(*liPluginHandleVRequestCB)(liVRequest *vr, liPlugin *p);
 typedef void     (*liPluginHandleVRCloseCB) (liVRequest *vr, liPlugin *p);
 
-struct lua_State;
-typedef void     (*liPluginInitLua)(struct lua_State *L, liServer *srv, liWorker *wrk, liPlugin *p);
+typedef void     (*liPluginInitLua)(liLuaState *LL, liServer *srv, liWorker *wrk, liPlugin *p);
 
 
 struct liPlugin {
@@ -195,7 +194,7 @@ LI_API gboolean li_call_setup(liServer *srv, const char *name, liValue *val);
 /** free val after call */
 LI_API gboolean li_plugin_set_default_option(liServer *srv, const gchar* name, liValue *val);
 
-LI_API void li_plugins_init_lua(struct lua_State *L, liServer *srv, liWorker *wrk);
+LI_API void li_plugins_init_lua(liLuaState *LL, liServer *srv, liWorker *wrk);
 
 extern liOptionPtrValue li_option_ptr_zero;
 

@@ -21,6 +21,7 @@ def build(bld):
 		actions.c
 		angel.c
 		angel_fake.c
+		base_lua.c
 		chunk.c
 		chunk_parser.c
 		collect.c

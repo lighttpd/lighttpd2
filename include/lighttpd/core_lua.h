@@ -4,8 +4,15 @@
 #include <lighttpd/base.h>
 #include <lua.h>
 
-#define li_lua_lock(srv) g_static_rec_mutex_lock(&(srv)->lualock);
-#define li_lua_unlock(srv) g_static_rec_mutex_unlock(&(srv)->lualock);
+#define LI_LUA_REGISTRY_STATE   "lighttpd.state"
+#define LI_LUA_REGISTRY_SERVER  "lighttpd.server"
+#define LI_LUA_REGISTRY_WORKER  "lighttpd.worker"
+#define LI_LUA_REGISTRY_GLOBALS "lighttpd.globals"
+
+LI_API liLuaState *li_lua_state_get(lua_State *L);
+
+INLINE void li_lua_lock(liLuaState *LL);
+INLINE void li_lua_unlock(liLuaState *LL);
 
 LI_API void li_lua_init_chunk_mt(lua_State *L);
 LI_API liChunk* li_lua_get_chunk(lua_State *L, int ndx);
@@ -69,7 +76,7 @@ LI_API int li_lua_fixindex(lua_State *L, int ndx);
  */
 LI_API int li_lua_metatable_index(lua_State *L);
 
-LI_API void li_lua_init(lua_State* L, liServer* srv, liWorker* wrk);
+LI_API void li_lua_init2(liLuaState* LL, liServer* srv, liWorker* wrk);
 
 LI_API int li_lua_push_traceback(lua_State *L, int nargs);
 
@@ -99,5 +106,19 @@ LI_API int li_lua_ghashtable_gstring_pairs(lua_State *L, GHashTable *ht);
 
 /* internal: subrequests (vrequest metamethod) */
 LI_API int li_lua_vrequest_subrequest(lua_State *L);
+
+
+/* inline implementations */
+
+INLINE void li_lua_lock(liLuaState *LL) {
+	gboolean b;
+	g_static_rec_mutex_lock(&LL->lualock);
+	b = lua_checkstack(LL->L, LUA_MINSTACK);
+	assert(b);
+}
+
+INLINE void li_lua_unlock(liLuaState *LL) {
+	g_static_rec_mutex_unlock(&LL->lualock);
+}
 
 #endif

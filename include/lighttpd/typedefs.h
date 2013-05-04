@@ -46,6 +46,10 @@ typedef enum {
 	LI_BACKEND_DEAD
 } liBackendError;
 
+/* base_lua.h */
+
+typedef struct liLuaState liLuaState;
+
 /* chunk.h */
 
 typedef struct liChunkFile liChunkFile;

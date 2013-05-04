@@ -688,7 +688,7 @@ void li_plugins_stop_log(liServer *srv) { /* "suspend now" */
 	}
 }
 
-void li_plugins_init_lua(struct lua_State *L, liServer *srv, liWorker *wrk) {
+void li_plugins_init_lua(liLuaState *LL, liServer *srv, liWorker *wrk) {
 	GHashTableIter iter;
 	liPlugin *p;
 	gpointer v;
@@ -699,7 +699,7 @@ void li_plugins_init_lua(struct lua_State *L, liServer *srv, liWorker *wrk) {
 	while (g_hash_table_iter_next(&iter, NULL, &v)) {
 		p = (liPlugin*) v;
 		if (p->handle_init_lua) {
-			p->handle_init_lua(L, srv, wrk, p);
+			p->handle_init_lua(LL, srv, wrk, p);
 		}
 	}
 }

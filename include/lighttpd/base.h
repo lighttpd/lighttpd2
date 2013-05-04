@@ -39,6 +39,7 @@
 #include <lighttpd/waitqueue.h>
 #include <lighttpd/radix.h>
 
+#include <lighttpd/base_lua.h>
 #include <lighttpd/log.h>
 #include <lighttpd/server.h>
 #include <lighttpd/worker.h>

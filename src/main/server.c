@@ -2,12 +2,6 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
-#ifdef HAVE_LUA_H
-# include <lighttpd/core_lua.h>
-# include <lualib.h>
-# include <lauxlib.h>
-#endif
-
 #ifdef HAVE_SYS_RESOURCE_H
 # include <sys/resource.h>
 #endif
@@ -105,15 +99,7 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	ev_init(&srv->state_ready_watcher, state_ready_cb);
 	srv->state_ready_watcher.data = srv;
 
-#ifdef HAVE_LUA_H
-	srv->L = luaL_newstate();
-	luaL_openlibs(srv->L);
-	li_lua_init(srv->L, srv, NULL);
-
-	g_static_rec_mutex_free(&srv->lualock);
-#else
-	srv->L = NULL;
-#endif
+	li_lua_init(&srv->LL, srv, NULL);
 
 	srv->workers = g_array_new(FALSE, TRUE, sizeof(liWorker*));
 	srv->worker_count = 0;
@@ -213,11 +199,7 @@ void li_server_free(liServer* srv) {
 	li_ev_safe_ref_and_stop(ev_async_stop, srv->loop, &srv->state_ready_watcher);
 	g_mutex_free(srv->statelock);
 
-#ifdef HAVE_LUA_H
-	lua_close(srv->L);
-	srv->L = NULL;
-	g_static_rec_mutex_free(&srv->lualock);
-#endif
+	li_lua_clear(&srv->LL);
 
 	/* free throttle pools */
 	{
@@ -363,10 +345,8 @@ static gboolean li_server_worker_init(liServer *srv) {
 	ev_timer_start(loop, &srv->srv_1sec_timer);
 	ev_unref(loop); /* don't keep loop alive */
 
-#ifdef HAVE_LUA_H
-	li_plugins_init_lua(srv->L, srv, NULL);
-	li_plugins_init_lua(srv->main_worker->L, srv, srv->main_worker);
-#endif
+	li_plugins_init_lua(&srv->LL, srv, NULL);
+	li_plugins_init_lua(&srv->main_worker->LL, srv, srv->main_worker);
 
 	if (srv->worker_count < 1) srv->worker_count = 1;
 	g_array_set_size(srv->workers, srv->worker_count);
@@ -380,9 +360,7 @@ static gboolean li_server_worker_init(liServer *srv) {
 		wrk = g_array_index(srv->workers, liWorker*, i) = li_worker_new(srv, loop);
 		wrk->ndx = i;
 
-#ifdef HAVE_LUA_H
-	li_plugins_init_lua(wrk->L, srv, wrk);
-#endif
+		li_plugins_init_lua(&wrk->LL, srv, wrk);
 	}
 
 	return TRUE;

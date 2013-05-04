@@ -9,7 +9,7 @@ typedef struct liSubrequest liSubrequest;
 struct liSubrequest {
 	liWorker *wrk;
 
-	lua_State *L;
+	liLuaState *LL;
 	int func_notify_ref, func_error_ref;
 
 	liVRequest *vr;
@@ -197,13 +197,12 @@ static int li_lua_push_subrequest(lua_State *L, liSubrequest *sr) {
 
 static void subvr_run_lua(liSubrequest *sr, int func_ref) {
 	liServer *srv = sr->wrk->srv;
-	lua_State *L = sr->L;
-	gboolean dolock = (L == srv->L);
+	lua_State *L = sr->LL->L;
 	int errfunc;
 
 	if (NULL == L || LUA_REFNIL == func_ref) return;
 
-	if (dolock) li_lua_lock(srv);
+	li_lua_lock(sr->LL);
 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, func_ref);
 
@@ -216,28 +215,29 @@ static void subvr_run_lua(liSubrequest *sr, int func_ref) {
 	}
 	lua_remove(L, errfunc);
 
-	if (dolock) li_lua_unlock(srv);
+	li_lua_unlock(sr->LL);
 }
 
 static void subvr_release_lua(liSubrequest *sr) {
-	liServer *srv = sr->wrk->srv;
-	lua_State *L = sr->L;
-	gboolean dolock = (L == srv->L);
+	lua_State *L;
+	liLuaState *LL = sr->LL;
 
-	if (NULL == L) return;
+	if (NULL == LL) return;
 
-	sr->L = NULL;
+	L = LL->L;
+	sr->LL = NULL;
 
-	if (dolock) li_lua_lock(srv);
+	li_lua_lock(LL);
 
 	luaL_unref(L, LUA_REGISTRYINDEX, sr->func_notify_ref);
 	luaL_unref(L, LUA_REGISTRYINDEX, sr->func_error_ref);
 
-	if (dolock) li_lua_unlock(srv);
+	li_lua_unlock(LL);
 }
 
-static void subvr_bind_lua(liSubrequest *sr, lua_State *L, int notify_ndx, int error_ndx) {
-	sr->L = L;
+static void subvr_bind_lua(liSubrequest *sr, liLuaState *LL, int notify_ndx, int error_ndx) {
+	lua_State *L = LL->L;
+	sr->LL = LL;
 
 	lua_pushvalue(L, notify_ndx); /* +1 */
 	sr->func_notify_ref = luaL_ref(L, LUA_REGISTRYINDEX); /* -1 */
@@ -341,13 +341,14 @@ static liSubrequest* subrequest_new(liVRequest *vr) {
 
 static int lua_subrequest_gc(lua_State *L) {
 	liSubrequest *sr = li_lua_get_subrequest(L, 1);
-	liServer *srv = sr->wrk->srv;
-	gboolean dolock = (L == srv->L);
-
-	sr->L = NULL;
+	liLuaState *LL;
 
 	if (NULL == sr) return 0;
-	if (dolock) li_lua_unlock(srv); /* "pause" lua */
+
+	LL = sr->LL;
+	sr->LL = NULL;
+
+	li_lua_unlock(LL); /* "pause" lua */
 
 	if (sr->vr) {
 		li_vrequest_free(sr->vr);
@@ -364,7 +365,7 @@ static int lua_subrequest_gc(lua_State *L) {
 	li_job_async(sr->parentvr_ref);
 	li_job_ref_release(sr->parentvr_ref);
 
-	if (dolock) li_lua_lock(srv);
+	li_lua_lock(LL);
 
 	return 0;
 }
@@ -383,7 +384,7 @@ int li_lua_vrequest_subrequest(lua_State *L) {
 	sr = subrequest_new(vr);
 	if (NULL == sr) return 0;
 
-	subvr_bind_lua(sr, L, 3, 4);
+	subvr_bind_lua(sr, li_lua_state_get(L), 3, 4);
 
 	li_action_enter(sr->vr, a);
 	li_vrequest_handle_request_headers(sr->vr);

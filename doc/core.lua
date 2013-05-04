@@ -24,12 +24,12 @@ local basepath = filename:gsub("(.*/)(.*)", "%1")
 --   the basic CGI protocol)
 --
 --   Usage:
---     core.wsgi ( <url-prefix>, ${ <backend-actions>; } );
+--     core.wsgi ( <url-prefix>, { <backend-actions>; } );
 --
 --   Example: Trac in "/trac", listening via FastCGI on unix:/tmp/trac.socket
 --     You oviously have to load mod_fastcgi for this.
 --
---     core.wsgi ( "/trac", ${ fastcgi "unix:/tmp/trac.socket"; } );
+--     core.wsgi ( "/trac", { fastcgi "unix:/tmp/trac.socket"; } );
 
 local function wsgi(uri_prefix, act)
 	if type(uri_prefix) ~= "string" then

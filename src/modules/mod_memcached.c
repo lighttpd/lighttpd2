@@ -681,7 +681,7 @@ static void lua_memcache_callback(liMemcachedRequest *request, liMemcachedResult
 		liServer *srv;
 		int errfunc;
 
-		lua_getfield(L, LUA_REGISTRYINDEX, "lighty.srv");
+		lua_getfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_SERVER);
 		srv = lua_touserdata(L, -1);
 		lua_pop(L, 1);
 
@@ -1089,11 +1089,13 @@ static int mc_lua_new(lua_State *L) {
 	return li_lua_push_memcached_con(L, con);
 }
 
-static void mod_memcached_lua_init(lua_State *L, liServer *srv, liWorker *wrk, liPlugin *p) {
+static void mod_memcached_lua_init(liLuaState *LL, liServer *srv, liWorker *wrk, liPlugin *p) {
+	lua_State *L = LL->L;
 	UNUSED(srv);
 	UNUSED(p);
 
 	if (wrk) {
+		li_lua_lock(LL);
 		lua_newtable(L);                   /* { } */
 
 		lua_pushlightuserdata(L, wrk);
@@ -1101,6 +1103,7 @@ static void mod_memcached_lua_init(lua_State *L, liServer *srv, liWorker *wrk, l
 		lua_setfield(L, -2, "new");
 
 		lua_setfield(L, LUA_GLOBALSINDEX, "memcached");
+		li_lua_unlock(LL);
 	}
 }
 #endif

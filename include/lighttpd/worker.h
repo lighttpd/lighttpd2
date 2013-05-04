@@ -64,7 +64,7 @@ struct liWorker {
 	GThread *thread; /* managed by server.c */
 	guint ndx;       /* worker index */
 
-	struct lua_State *L;     /** NULL if compiled without Lua */
+	liLuaState LL;
 
 	struct ev_loop *loop;
 	ev_prepare loop_prepare;

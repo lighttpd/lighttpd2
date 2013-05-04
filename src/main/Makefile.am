@@ -8,6 +8,7 @@ lighttpd_shared_src= \
 	angel.c \
 	angel_fake.c \
 	actions.c \
+	base_lua.c \
 	chunk.c \
 	chunk_parser.c \
 	collect.c \

@@ -136,7 +136,7 @@ static liHandlerResult lua_handle(liVRequest *vr, gpointer param, gpointer *cont
 
 		li_action_release(vr->wrk->srv, wc->act);
 		wc->act = NULL;
-		if (!li_config_lua_load(vr->wrk->L, vr->wrk->srv, vr->wrk, conf->filename->str, &wc->act, FALSE, conf->args) || !wc->act) {
+		if (!li_config_lua_load(&vr->wrk->LL, vr->wrk->srv, vr->wrk, conf->filename->str, &wc->act, FALSE, conf->args) || !wc->act) {
 			VR_ERROR(vr, "lua.handler: couldn't load '%s'", conf->filename->str);
 			return LI_HANDLER_ERROR;
 		}
@@ -291,14 +291,14 @@ static int push_args(lua_State *L, liValue *val) {
 }
 
 static gboolean lua_plugin_handle_setup(liServer *srv, liPlugin *p, liValue *val, gpointer userdata) {
-	lua_State *L = srv->L;
+	lua_State *L = srv->LL.L;
 	int lua_ref = GPOINTER_TO_INT(userdata);
 	int nargs, errfunc;
 	gboolean res;
 
 	UNUSED(p);
 
-	li_lua_lock(srv);
+	li_lua_lock(&srv->LL);
 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
 	nargs = push_args(L, val);
@@ -319,20 +319,20 @@ static gboolean lua_plugin_handle_setup(liServer *srv, liPlugin *p, liValue *val
 	lua_remove(L, errfunc);
 
 	lua_gc(L, LUA_GCCOLLECT, 0);
-	li_lua_unlock(srv);
+	li_lua_unlock(&srv->LL);
 
 	return res;
 }
 
 static liAction* lua_plugin_handle_action(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	lua_State *L = srv->L;
+	lua_State *L = srv->LL.L;
 	int lua_ref = GPOINTER_TO_INT(userdata);
 	int nargs, errfunc;
 	liAction *res = NULL;
 
 	UNUSED(wrk); UNUSED(p);
 
-	li_lua_lock(srv);
+	li_lua_lock(&srv->LL);
 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
 	nargs = push_args(L, val);
@@ -351,16 +351,16 @@ static liAction* lua_plugin_handle_action(liServer *srv, liWorker *wrk, liPlugin
 	lua_remove(L, errfunc);
 
 	lua_gc(L, LUA_GCCOLLECT, 0);
-	li_lua_unlock(srv);
+	li_lua_unlock(&srv->LL);
 
 	return res;
 }
 
 static void lua_plugin_free_data(liServer *srv, luaPlugin *lp) {
-	lua_State *L = srv->L;
+	lua_State *L = srv->LL.L;
 	guint i;
 
-	if (L) li_lua_lock(srv);
+	if (L) li_lua_lock(&srv->LL);
 
 	for (i = 0; i < lp->actions->len; i++) {
 		liPluginAction *pa = &g_array_index(lp->actions, liPluginAction, i);
@@ -377,7 +377,7 @@ static void lua_plugin_free_data(liServer *srv, luaPlugin *lp) {
 	}
 	g_array_free(lp->setups, TRUE);
 
-	if (L) li_lua_unlock(srv);
+	if (L) li_lua_unlock(&srv->LL);
 
 	if (lp->filename)
 		g_string_free(lp->filename, TRUE);
@@ -472,12 +472,12 @@ static void lua_plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
 static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, liValue* args) {
 	int errfunc;
 	int lua_stack_top;
-	lua_State *L = srv->L;
+	lua_State *L = srv->LL.L;
 	luaPlugin *lp;
 	module_config *mc = p->data;
 	liPlugin *newp;
 
-	li_lua_lock(srv);
+	li_lua_lock(&srv->LL);
 
 	lua_stack_top = lua_gettop(L);
 
@@ -527,7 +527,7 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 
 	li_lua_restore_globals(L);
 	lua_gc(L, LUA_GCCOLLECT, 0);
-	li_lua_unlock(srv);
+	li_lua_unlock(&srv->LL);
 
 	lp->filename = filename;
 
@@ -537,7 +537,7 @@ failed_unlock_lua:
 	lua_pop(L, lua_gettop(L) - lua_stack_top);
 	li_lua_restore_globals(L);
 	lua_gc(L, LUA_GCCOLLECT, 0);
-	li_lua_unlock(srv);
+	li_lua_unlock(&srv->LL);
 
 	g_string_free(filename, TRUE);
 
