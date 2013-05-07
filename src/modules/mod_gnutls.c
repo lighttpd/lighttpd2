@@ -505,7 +505,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		goto error_free_ctx;
 	}
 
-	if ((NULL != ca_file) && GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_trust_file(ctx->server_cert, ca_file, GNUTLS_X509_FMT_PEM))) {
+	if ((NULL != ca_file) && 0 > (r = gnutls_certificate_set_x509_trust_file(ctx->server_cert, ca_file, GNUTLS_X509_FMT_PEM))) {
 		ERROR(srv, "gnutls_certificate_set_x509_trust_file failed(cafile '%s', PEM) (%s): %s",
 			ca_file,
 			gnutls_strerror_name(r), gnutls_strerror(r));
