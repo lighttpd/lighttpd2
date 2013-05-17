@@ -10,6 +10,8 @@ typedef guint32 rdxBase;
 /* 1^(width) 0^(RDXBITS-width): "1..10..0" */
 #define RDX_MASK(width) ( width ? ~(  (((rdxBase)1) << (RDXBITS - width)) - 1  ) : 0 )
 
+#define RDX_BIT(bit) (((rdxBase)1) << (RDXBITS - 1 - (bit)))
+
 #define INPUT_SIZE(bits) ( bits ? (bits+RDXBITS-1) / RDXBITS : 1 )
 #define INPUT_CHARS(bits) ( (bits+7) / 8 )
 
@@ -93,7 +95,7 @@ gpointer li_radixtree_insert(liRadixTree *tree, const void *key, guint32 bits, g
 			newnode = g_slice_new0(liRadixNode);
 			newnode->width = width;
 			newnode->key = current & mask;
-			if (node->key & (1 << (RDXBITS-width-1))) { /* current may not have a "next" bit */
+			if (node->key & RDX_BIT(width)) { /* current may not have a "next" bit */
 				newnode->right = node;
 				*nodeloc = newnode;
 				nodeloc = &newnode->left;
@@ -121,9 +123,9 @@ gpointer li_radixtree_insert(liRadixTree *tree, const void *key, guint32 bits, g
 			/* next "layer" */
 			current = input[++pos];
 			bits -= RDXBITS;
-			nodeloc = (current & (1 << (RDXBITS-1))) ? &node->right : &node->left;
+			nodeloc = (current & RDX_BIT(0)) ? &node->right : &node->left;
 		} else {
-			nodeloc = (current & (1 << (RDXBITS-node->width-1))) ? &node->right : &node->left;
+			nodeloc = (current & RDX_BIT(node->width)) ? &node->right : &node->left;
 		}
 	}
 
@@ -136,7 +138,7 @@ gpointer li_radixtree_insert(liRadixTree *tree, const void *key, guint32 bits, g
 		/* next "layer" */
 		current = input[++pos];
 		bits -= RDXBITS;
-		nodeloc = (current & (1 << (RDXBITS-1))) ? &node->right : &node->left;
+		nodeloc = (current & RDX_BIT(0)) ? &node->right : &node->left;
 	}
 
 	node = g_slice_new0(liRadixNode);
@@ -208,9 +210,9 @@ static gpointer radixtree_remove(liRadixNode **nodeptr, rdxBase *input, guint32 
 		/* next "layer" */
 		input++;
 		bits -= RDXBITS;
-		nextnode = (current & (1 << (RDXBITS-1))) ? &node->right : &node->left;
+		nextnode = (current & RDX_BIT(0)) ? &node->right : &node->left;
 	} else {
-		nextnode = (current & (1 << (RDXBITS-node->width-1))) ? &node->right : &node->left;
+		nextnode = (current & RDX_BIT(node->width)) ? &node->right : &node->left;
 	}
 
 	data = radixtree_remove(nextnode, input, bits);
@@ -260,9 +262,9 @@ gpointer li_radixtree_lookup(liRadixTree *tree, const void *key, guint32 bits) {
 			/* next "layer" */
 			current = input[++pos];
 			bits -= RDXBITS;
-			node = (current & (1 << (RDXBITS-1))) ? node->right : node->left;
+			node = (current & RDX_BIT(0)) ? node->right : node->left;
 		} else {
-			node = (current & (1 << (RDXBITS-node->width-1))) ? node->right : node->left;
+			node = (current & RDX_BIT(node->width)) ? node->right : node->left;
 		}
 	}
 
@@ -295,9 +297,9 @@ gpointer li_radixtree_lookup_exact(liRadixTree *tree, const void *key, guint32 b
 			/* next "layer" */
 			current = input[++pos];
 			bits -= RDXBITS;
-			node = (current & (1 << (RDXBITS-1))) ? node->right : node->left;
+			node = (current & RDX_BIT(0)) ? node->right : node->left;
 		} else {
-			node = (current & (1 << (RDXBITS-node->width-1))) ? node->right : node->left;
+			node = (current & RDX_BIT(node->width)) ? node->right : node->left;
 		}
 	}
 

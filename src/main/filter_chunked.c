@@ -15,11 +15,11 @@ static void http_chunk_append_len(liChunkQueue *cq, size_t len) {
 	/* i is the number of hex digits we have */
 	g_byte_array_set_size(a, i);
 
-	for (j = i-1, len = olen; j+1 > 0; j--) {
+	for (j = i, len = olen; j-- > 0; ) {
 		a->data[j] = (len & 0xf) + (((len & 0xf) <= 9) ? '0' : 'a' - 10);
 		len >>= 4;
 	}
-	g_byte_array_append(a, (guint8*) CONST_STR_LEN("\r\n"));
+	g_byte_array_append(a, CONST_USTR_LEN("\r\n"));
 
 	li_chunkqueue_append_bytearr(cq, a);
 }
