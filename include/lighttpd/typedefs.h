@@ -214,31 +214,6 @@ typedef struct liServer liServer;
 
 typedef struct liServerSocket liServerSocket;
 
-/* stream.h */
-
-typedef struct liStream liStream;
-typedef struct liIOStream liIOStream;
-
-typedef enum {
-	LI_STREAM_NEW_DATA, /* either new/more data in stream->source->cq, or more data to be generated */
-	LI_STREAM_NEW_CQLIMIT,
-	LI_STREAM_CONNECTED_DEST,
-	LI_STREAM_CONNECTED_SOURCE,
-	LI_STREAM_DISCONNECTED_DEST,
-	LI_STREAM_DISCONNECTED_SOURCE,
-	LI_STREAM_DESTROY
-} liStreamEvent;
-
-typedef enum {
-	LI_IOSTREAM_READ, /* should try reading */
-	LI_IOSTREAM_WRITE, /* should try writing */
-	LI_IOSTREAM_CONNECTED_DEST, /* stream_in connected dest */
-	LI_IOSTREAM_CONNECTED_SOURCE, /* stream_out connected source */
-	LI_IOSTREAM_DISCONNECTED_DEST, /* stream_in disconnected dest */
-	LI_IOSTREAM_DISCONNECTED_SOURCE, /* stream_out disconnected source */
-	LI_IOSTREAM_DESTROY /* stream_in and stream_out are down to refcount = 0 */
-} liIOStreamEvent;
-
 /* throttle.h */
 
 typedef struct liThrottlePool liThrottlePool;
