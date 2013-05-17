@@ -5,26 +5,7 @@
 #error Do not mix lighty with angel code
 #endif
 
-#define STRINGIFY(s) #s
-
 #include <lighttpd/settings.h>
-
-/* Next try to fix strict-alias warning */
-#undef ev_init
-#define ev_init(ev,cb_) do {                   \
-  ev_watcher *ew = (ev_watcher *)(void *)ev;   \
-  (ew)->active   =                             \
-  (ew)->pending  =                             \
-  (ew)->priority = 0;                          \
-  ev_set_cb ((ev), cb_);                       \
-} while (0)
-
-#undef ev_timer_set
-#define ev_timer_set(ev,after_,repeat_) do {   \
-  ev_watcher_time *ew = (ev_watcher_time *)(ev); \
-  ew->at = (after_);                           \
-  (ev)->repeat = (repeat_);                    \
-} while (0)
 
 #include <lighttpd/typedefs.h>
 #include <lighttpd/module.h>
