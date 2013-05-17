@@ -7,7 +7,7 @@ AC_CONFIG_SRCDIR([src/main/lighttpd_worker.c])
 AC_CONFIG_HEADER([include/lighttpd/config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
-AM_INIT_AUTOMAKE([-Wall -Wportability -Wno-override -Werror foreign dist-bzip2 tar-ustar])
+AM_INIT_AUTOMAKE([-Wall -Wno-portability -Wno-override -Werror foreign dist-bzip2 tar-ustar])
 
 dnl check environment
 AC_USE_SYSTEM_EXTENSIONS
@@ -17,6 +17,7 @@ AC_PROG_CC
 AC_PROG_MAKE_SET
 AC_PROG_INSTALL
 # AC_PROG_RANLIB
+AM_PROG_AR
 
 AC_PATH_PROG([RAGEL], [ragel])
 if test "x$RAGEL" = "x"; then
