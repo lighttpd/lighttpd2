@@ -842,17 +842,14 @@ error:
 	return FALSE;
 }
 
-gboolean li_chunkqueue_extract_to_bytearr(liChunkQueue *cq, goffset len, GByteArray *dest, GError **err) {
+gboolean li_chunkqueue_extract_to_memory(liChunkQueue *cq, goffset len, void *dest, GError **err) {
 	liChunkIter ci;
 	goffset coff, clen;
+	unsigned char *cdest = (unsigned char*) dest;
 
 	g_return_val_if_fail (err == NULL || *err == NULL, FALSE);
 
-	g_byte_array_set_size(dest, 0);
 	if (len > cq->length) return FALSE;
-
-	g_byte_array_set_size(dest, len);
-	g_byte_array_set_size(dest, 0);
 
 	ci = li_chunkqueue_iter(cq);
 
@@ -863,7 +860,8 @@ gboolean li_chunkqueue_extract_to_bytearr(liChunkQueue *cq, goffset len, GByteAr
 			gchar *buf;
 			off_t we_have;
 			if (LI_HANDLER_GO_ON != li_chunkiter_read(ci, coff, len, &buf, &we_have, err)) goto error;
-			g_byte_array_append(dest, (guint8*) buf, we_have);
+			memcpy(cdest, buf, we_have);
+			cdest += we_have;
 			coff += we_have;
 			len -= we_have;
 			if (len <= 0) return TRUE;
@@ -876,6 +874,21 @@ gboolean li_chunkqueue_extract_to_bytearr(liChunkQueue *cq, goffset len, GByteAr
 error:
 	g_byte_array_set_size(dest, 0);
 	return FALSE;
+}
+
+gboolean li_chunkqueue_extract_to_bytearr(liChunkQueue *cq, goffset len, GByteArray *dest, GError **err) {
+	g_return_val_if_fail (err == NULL || *err == NULL, FALSE);
+
+	if (len > cq->length) return FALSE;
+
+	g_byte_array_set_size(dest, len);
+
+	if (!li_chunkqueue_extract_to_memory(cq, len, dest->data, err)) {
+		g_byte_array_set_size(dest, 0);
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 /* helper functions to append to the last BUFFER_CHUNK of a chunkqueue */

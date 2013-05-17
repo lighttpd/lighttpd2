@@ -202,6 +202,7 @@ INLINE liChunkIter li_chunkqueue_iter(liChunkQueue *cq);
 INLINE liChunk* li_chunkqueue_first_chunk(liChunkQueue *cq);
 
 LI_API gboolean li_chunkqueue_extract_to(liChunkQueue *cq, goffset len, GString *dest, GError **err);
+LI_API gboolean li_chunkqueue_extract_to_memory(liChunkQueue *cq, goffset len, void *dest, GError **err);
 LI_API gboolean li_chunkqueue_extract_to_bytearr(liChunkQueue *cq, goffset len, GByteArray *dest, GError **err);
 
 /* helper functions to append to the last BUFFER_CHUNK of a chunkqueue */
