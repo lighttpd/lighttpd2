@@ -16,11 +16,13 @@
  *     scgi "127.0.0.1:9090"
  *
  * Author:
- *     Copyright (c) 2009 Stefan Bühler
+ *     Copyright (c) 2013 Stefan Bühler
  */
 
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
+#include <lighttpd/backends.h>
+#include <lighttpd/stream_http_response.h>
 
 
 LI_API gboolean mod_scgi_init(liModules *mods, liModule *mod);
@@ -30,121 +32,22 @@ LI_API gboolean mod_scgi_free(liModules *mods, liModule *mod);
 typedef struct scgi_connection scgi_connection;
 typedef struct scgi_context scgi_context;
 
+struct scgi_context {
+	gint refcount;
 
-typedef enum {
-	SS_WAIT_FOR_REQUEST,
-	SS_CONNECT,
-	SS_CONNECTING,
-	SS_CONNECTED,
-	SS_DONE
-} scgi_state;
+	liBackendPool *pool;
+
+	GString *socket_str;
+};
 
 
 struct scgi_connection {
 	scgi_context *ctx;
-	liVRequest *vr;
-	scgi_state state;
-	int fd;
-	ev_io fd_watcher;
-	liChunkQueue *scgi_in, *scgi_out;
-	liBuffer *scgi_in_buffer;
-
-	liHttpResponseCtx parse_response_ctx;
-	gboolean response_headers_finished;
-};
-
-struct scgi_context {
-	gint refcount;
-	liSocketAddress socket;
-	GString *socket_str;
-	guint timeout;
-	liPlugin *plugin;
+	liBackendConnection *bcon;
+	gpointer simple_socket_data;
 };
 
 /**********************************************************************************/
-
-static scgi_context* scgi_context_new(liServer *srv, liPlugin *p, GString *dest_socket) {
-	liSocketAddress saddr;
-	scgi_context* ctx;
-	saddr = li_sockaddr_from_string(dest_socket, 0);
-	if (NULL == saddr.addr) {
-		ERROR(srv, "Invalid socket address '%s'", dest_socket->str);
-		return NULL;
-	}
-	ctx = g_slice_new0(scgi_context);
-	ctx->refcount = 1;
-	ctx->socket = saddr;
-	ctx->timeout = 5;
-	ctx->plugin = p;
-	ctx->socket_str = g_string_new_len(GSTR_LEN(dest_socket));
-	return ctx;
-}
-
-static void scgi_context_release(scgi_context *ctx) {
-	if (!ctx) return;
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
-	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
-		li_sockaddr_clear(&ctx->socket);
-		g_string_free(ctx->socket_str, TRUE);
-		g_slice_free(scgi_context, ctx);
-	}
-}
-
-#if 0
-static void scgi_context_acquire(scgi_context *ctx) {
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
-	g_atomic_int_inc(&ctx->refcount);
-}
-
-static void scgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents);
-
-static scgi_connection* scgi_connection_new(liVRequest *vr, scgi_context *ctx) {
-	scgi_connection* scon = g_slice_new0(scgi_connection);
-
-	scgi_context_acquire(ctx);
-	scon->ctx = ctx;
-	scon->vr = vr;
-	scon->fd = -1;
-	ev_init(&scon->fd_watcher, scgi_fd_cb);
-	ev_io_set(&scon->fd_watcher, -1, 0);
-	scon->fd_watcher.data = scon;
-	scon->scgi_in = li_chunkqueue_new();
-	scon->scgi_out = li_chunkqueue_new();
-	scon->state = SS_WAIT_FOR_REQUEST;
-	li_http_response_parser_init(&scon->parse_response_ctx, &vr->response, scon->scgi_in, TRUE, FALSE);
-	scon->response_headers_finished = FALSE;
-	return scon;
-}
-
-static void scgi_connection_free(scgi_connection *scon) {
-	liVRequest *vr;
-	if (!scon) return;
-
-	vr = scon->vr;
-	ev_io_stop(vr->wrk->loop, &scon->fd_watcher);
-	scgi_context_release(scon->ctx);
-	if (scon->fd != -1) close(scon->fd);
-	li_vrequest_backend_finished(vr);
-
-	li_chunkqueue_free(scon->scgi_in);
-	li_chunkqueue_free(scon->scgi_out);
-	li_buffer_release(scon->scgi_in_buffer);
-
-	li_http_response_parser_clear(&scon->parse_response_ctx);
-
-	g_slice_free(scgi_connection, scon);
-}
-
-/**********************************************************************************/
-/* scgi stream helper */
-
-static void stream_send_chunks(liChunkQueue *out, liChunkQueue *in) {
-	li_chunkqueue_steal_all(out, in);
-
-	if (in->is_closed && !out->is_closed) {
-		out->is_closed = TRUE;
-	}
-}
 
 static gboolean append_key_value_pair(GByteArray *a, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	const guint8 z = 0;
@@ -154,8 +57,6 @@ static gboolean append_key_value_pair(GByteArray *a, const gchar *key, size_t ke
 	g_byte_array_append(a, &z, 1);
 	return TRUE;
 }
-
-/**********************************************************************************/
 
 static void scgi_env_add(GByteArray *buf, liEnvironmentDup *envdup, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	GString *sval;
@@ -262,7 +163,7 @@ static void fix_header_name(GString *str) {
 	}
 }
 
-static void scgi_send_env(liVRequest *vr, scgi_connection *scon) {
+static void scgi_send_env(liVRequest *vr, liChunkQueue *out) {
 	GByteArray *buf = g_byte_array_sized_new(0);
 	liEnvironmentDup *envdup;
 	GString *tmp = vr->wrk->tmp_str;
@@ -300,238 +201,172 @@ static void scgi_send_env(liVRequest *vr, scgi_connection *scon) {
 	li_environment_dup_free(envdup);
 
 	g_string_printf(tmp, "%u:", buf->len);
-	li_chunkqueue_append_mem(scon->scgi_out, GSTR_LEN(tmp));
+	li_chunkqueue_append_mem(out, GSTR_LEN(tmp));
 	{
 		const guint8 c = ',';
 		g_byte_array_append(buf, &c, 1);
 	}
-	li_chunkqueue_append_bytearr(scon->scgi_out, buf);
-}
-
-static void scgi_forward_request(liVRequest *vr, scgi_connection *scon) {
-	stream_send_chunks(scon->scgi_out, vr->in);
-	if (scon->scgi_out->length > 0)
-		li_ev_io_add_events(vr->wrk->loop, &scon->fd_watcher, EV_WRITE);
+	li_chunkqueue_append_bytearr(out, buf);
 }
 
 /**********************************************************************************/
 
-static liHandlerResult scgi_statemachine(liVRequest *vr, scgi_connection *scon);
+static void scgi_backend_free(liBackendPool *bpool) {
+	liBackendConfig *config = (liBackendConfig*) bpool->config;
+	li_sockaddr_clear(&config->sock_addr);
+	g_slice_free(liBackendConfig, config);
+}
 
-static void scgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	scgi_connection *scon = (scgi_connection*) w->data;
+static liBackendCallbacks scgi_backend_cbs = {
+	/* backend_detach_thread */ NULL, 
+	/* backend_attach_thread */ NULL,
+	/* backend_new */ NULL,
+	/* backend_close */ NULL,
+	scgi_backend_free
+};
 
-	if (scon->state == SS_CONNECTING) {
-		if (LI_HANDLER_GO_ON != scgi_statemachine(scon->vr, scon)) {
-			li_vrequest_error(scon->vr);
-		}
+
+static scgi_context* scgi_context_new(liServer *srv, GString *dest_socket) {
+	liSocketAddress saddr;
+	scgi_context* ctx;
+	liBackendConfig *config;
+
+	saddr = li_sockaddr_from_string(dest_socket, 0);
+	if (NULL == saddr.addr) {
+		ERROR(srv, "Invalid socket address '%s'", dest_socket->str);
+		return NULL;
+	}
+
+	config = g_slice_new0(liBackendConfig);
+	config->callbacks = &scgi_backend_cbs;
+	config->sock_addr = saddr;
+	config->max_connections = 0;
+	config->idle_timeout = 5;
+	config->connect_timeout = 5;
+	config->wait_timeout = 5;
+	config->disable_time = 0;
+	config->max_requests = 1;
+	config->watch_for_close = TRUE;
+
+	ctx = g_slice_new0(scgi_context);
+	ctx->refcount = 1;
+	ctx->pool = li_backend_pool_new(config);
+	ctx->socket_str = g_string_new_len(GSTR_LEN(dest_socket));
+
+	return ctx;
+}
+
+static void scgi_context_release(scgi_context *ctx) {
+	if (!ctx) return;
+	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
+		li_backend_pool_free(ctx->pool);
+		g_string_free(ctx->socket_str, TRUE);
+		g_slice_free(scgi_context, ctx);
+	}
+}
+
+static void scgi_context_acquire(scgi_context *ctx) {
+	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	g_atomic_int_inc(&ctx->refcount);
+}
+
+
+static void scgi_io_cb(liIOStream *stream, liIOStreamEvent event) {
+	scgi_connection *con = stream->data;
+
+	li_stream_simple_socket_io_cb_with_context(stream, event, &con->simple_socket_data);
+
+	switch (event) {
+	case LI_IOSTREAM_DESTROY:
+		li_stream_simple_socket_close(stream, FALSE);
+		con->bcon->watcher.fd = -1;
+
+		li_backend_put(stream->wrk, con->ctx->pool, con->bcon, TRUE);
+		con->bcon = NULL;
+
+		scgi_context_release(con->ctx);
+		g_slice_free(scgi_connection, con);
+
+		stream->data = NULL;
 		return;
+	default:
+		break;
 	}
 
-	if (revents & EV_READ) {
-		if (scon->scgi_in->is_closed) {
-			li_ev_io_rem_events(loop, w, EV_READ);
-		} else {
-			GError *err = NULL;
-			switch (li_network_read(w->fd, scon->scgi_in, &scon->scgi_in_buffer, &err)) {
-			case LI_NETWORK_STATUS_SUCCESS:
-				break;
-			case LI_NETWORK_STATUS_FATAL_ERROR:
-				if (NULL != err) {
-					VR_ERROR(scon->vr, "(%s) network read fatal error: %s", scon->ctx->socket_str->str, err->message);
-					g_error_free(err);
-				} else {
-					VR_ERROR(scon->vr, "(%s) network read fatal error", scon->ctx->socket_str->str);
-				}
-				li_vrequest_error(scon->vr);
-				return;
-			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
-				scon->scgi_in->is_closed = TRUE;
-				ev_io_stop(loop, w);
-				close(scon->fd);
-				scon->fd = -1;
-				li_vrequest_backend_finished(scon->vr);
-				break;
-			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
-				break;
-			}
-		}
-	}
-
-	if (scon->fd != -1 && (revents & EV_WRITE)) {
-		if (scon->scgi_out->length > 0) {
-			GError *err = NULL;
-			switch (li_network_write(w->fd, scon->scgi_out, 256*1024, &err)) {
-			case LI_NETWORK_STATUS_SUCCESS:
-				break;
-			case LI_NETWORK_STATUS_FATAL_ERROR:
-				if (NULL != err) {
-					VR_ERROR(scon->vr, "(%s) network write fatal error: %s", scon->ctx->socket_str->str, err->message);
-					g_error_free(err);
-				} else {
-					VR_ERROR(scon->vr, "(%s) network write fatal error", scon->ctx->socket_str->str);
-				}
-				li_vrequest_error(scon->vr);
-				return;
-			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
-				scon->scgi_in->is_closed = TRUE;
-				ev_io_stop(loop, w);
-				close(scon->fd);
-				scon->fd = -1;
-				li_vrequest_backend_finished(scon->vr);
-				break;
-			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
-				break;
-			}
-		}
-		if (scon->scgi_out->length == 0) {
-			li_ev_io_rem_events(loop, w, EV_WRITE);
-		}
-	}
-
-	if (!scon->response_headers_finished && LI_HANDLER_GO_ON == li_http_response_parse(scon->vr, &scon->parse_response_ctx)) {
-		scon->response_headers_finished = TRUE;
-		li_vrequest_handle_response_headers(scon->vr);
-	}
-
-	if (scon->response_headers_finished) {
-		li_chunkqueue_steal_all(scon->vr->out, scon->scgi_in);
-		scon->vr->out->is_closed = scon->scgi_in->is_closed;
-		li_vrequest_handle_response_body(scon->vr);
-	}
-
-	/* only possible if we didn't found a header */
-	if (scon->scgi_in->is_closed && !scon->vr->out->is_closed) {
-		VR_ERROR(scon->vr, "(%s) unexpected end-of-file (perhaps the scgi process died)", scon->ctx->socket_str->str);
-		li_vrequest_error(scon->vr);
+	if ((NULL == stream->stream_in.out || stream->stream_in.out->is_closed) &&
+		!(NULL == stream->stream_out.out || stream->stream_out.out->is_closed)) {
+		stream->stream_out.out->is_closed = TRUE;
+		li_stream_again_later(&stream->stream_out);
 	}
 }
 
+static void scgi_connection_new(liVRequest *vr, liBackendConnection *bcon, scgi_context *ctx) {
+	scgi_connection* scon = g_slice_new0(scgi_connection);
+	liIOStream *iostream;
+	liStream *outplug;
+	liStream *http_out;
+
+	scgi_context_acquire(ctx);
+	scon->ctx = ctx;
+	scon->bcon = bcon;
+	iostream = li_iostream_new(vr->wrk, bcon->watcher.fd, scgi_io_cb, scon);
+
+	/* insert scgi header before actual data */
+	outplug = li_stream_plug_new(&vr->wrk->jobqueue);
+
+	li_stream_connect(outplug, &iostream->stream_out);
+
+	scgi_send_env(vr, outplug->out);
+	li_stream_notify_later(outplug);
+
+	http_out = li_stream_http_response_handle(&iostream->stream_in, vr, TRUE, FALSE);
+
+	li_vrequest_handle_indirect(vr, NULL);
+	li_vrequest_indirect_connect(vr, outplug, http_out);
+
+	li_iostream_release(iostream);
+	li_stream_release(outplug);
+	li_stream_release(http_out);
+}
+
 /**********************************************************************************/
-/* state machine */
 
-static void scgi_close(liVRequest *vr, liPlugin *p);
+static liHandlerResult scgi_handle_abort(liVRequest *vr, gpointer param, gpointer context) {
+	scgi_context *ctx = (scgi_context*) param;
+	liBackendWait *bwait = context;
 
-static liHandlerResult scgi_statemachine(liVRequest *vr, scgi_connection *scon) {
-	liPlugin *p = scon->ctx->plugin;
-
-	switch (scon->state) {
-	case SS_WAIT_FOR_REQUEST:
-		/* wait until we have either all data or the cqlimit is full */
-		if (-1 == vr->request.content_length || vr->request.content_length != vr->in->length) {
-			if (0 != li_chunkqueue_limit_available(vr->in))
-				return LI_HANDLER_GO_ON;
-			VR_ERROR(scon->vr, "%s", "mod_scgi doesn't support uploads without content-length, and the chunkqueue limit was hit");
-			return LI_HANDLER_ERROR;
-		}
-		scon->state = SS_CONNECT;
-
-		/* fall through */
-	case SS_CONNECT:
-		do {
-			scon->fd = socket(scon->ctx->socket.addr->plain.sa_family, SOCK_STREAM, 0);
-		} while (-1 == scon->fd && errno == EINTR);
-		if (-1 == scon->fd) {
-			if (errno == EMFILE) {
-				li_server_out_of_fds(vr->wrk->srv);
-			}
-			VR_ERROR(vr, "Couldn't open socket: %s", g_strerror(errno));
-			return LI_HANDLER_ERROR;
-		}
-		li_fd_init(scon->fd);
-		ev_io_set(&scon->fd_watcher, scon->fd, EV_READ | EV_WRITE);
-		ev_io_start(vr->wrk->loop, &scon->fd_watcher);
-
-		/* fall through */
-	case SS_CONNECTING:
-		if (-1 == connect(scon->fd, &scon->ctx->socket.addr->plain, scon->ctx->socket.len)) {
-			switch (errno) {
-			case EINPROGRESS:
-			case EALREADY:
-			case EINTR:
-				scon->state = SS_CONNECTING;
-				return LI_HANDLER_GO_ON;
-			case EAGAIN: /* backend overloaded */
-				scgi_close(vr, p);
-				li_vrequest_backend_overloaded(vr);
-				return LI_HANDLER_GO_ON;
-			case EISCONN:
-				break;
-			default:
-				VR_ERROR(vr, "Couldn't connect to '%s': %s",
-					li_sockaddr_to_string(scon->ctx->socket, vr->wrk->tmp_str, TRUE)->str,
-					g_strerror(errno));
-				scgi_close(vr, p);
-				li_vrequest_backend_dead(vr);
-				return LI_HANDLER_GO_ON;
-			}
-		}
-
-		scon->state = SS_CONNECTED;
-
-		/* prepare stream */
-		scgi_send_env(vr, scon);
-
-		/* fall through */
-	case SS_CONNECTED:
-		scgi_forward_request(vr, scon);
-		break;
-
-	case SS_DONE:
-		break;
+	if (bwait != NULL) {
+		li_backend_wait_stop(vr, ctx->pool, &bwait);
 	}
 
 	return LI_HANDLER_GO_ON;
 }
 
-
-/**********************************************************************************/
-
 static liHandlerResult scgi_handle(liVRequest *vr, gpointer param, gpointer *context) {
+	liBackendWait *bwait = (liBackendWait*) *context;
+	liBackendConnection *bcon = NULL;
 	scgi_context *ctx = (scgi_context*) param;
-	scgi_connection *scon;
-	UNUSED(context);
-	if (!li_vrequest_handle_indirect(vr, ctx->plugin)) return LI_HANDLER_GO_ON;
 
-	scon = scgi_connection_new(vr, ctx);
-	if (!scon) {
-		return LI_HANDLER_ERROR;
+	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
+
+	switch (li_backend_get(vr, ctx->pool, &bcon, &bwait)) {
+	case LI_BACKEND_SUCCESS:
+		assert(NULL == bwait);
+		assert(NULL != bcon);
+		*context = bwait;
+		break;
+	case LI_BACKEND_WAIT:
+		assert(NULL != bwait);
+		*context = bwait;
+
+		return LI_HANDLER_WAIT_FOR_EVENT;
+	case LI_BACKEND_TIMEOUT:
+		li_vrequest_backend_dead(vr);
+		return LI_HANDLER_GO_ON;
 	}
-	g_ptr_array_index(vr->plugin_ctx, ctx->plugin->id) = scon;
 
-	li_chunkqueue_set_limit(scon->scgi_in, vr->out->limit);
-	li_chunkqueue_set_limit(scon->scgi_out, vr->in->limit);
-	if (vr->out->limit) vr->out->limit->io_watcher = &scon->fd_watcher;
-
-	return scgi_statemachine(vr, scon);
-}
-
-
-static liHandlerResult scgi_handle_request_body(liVRequest *vr, liPlugin *p) {
-	scgi_connection *scon = (scgi_connection*) g_ptr_array_index(vr->plugin_ctx, p->id);
-	if (!scon) return LI_HANDLER_ERROR;
-
-	return scgi_statemachine(vr, scon);
-}
-
-static void scgi_close(liVRequest *vr, liPlugin *p) {
-	scgi_connection *scon = (scgi_connection*) g_ptr_array_index(vr->plugin_ctx, p->id);
-	g_ptr_array_index(vr->plugin_ctx, p->id) = NULL;
-	if (scon) {
-		if (vr->out->limit) vr->out->limit->io_watcher = NULL;
-		scgi_connection_free(scon);
-	}
-}
-#endif
-
-static liHandlerResult scgi_handle(liVRequest *vr, gpointer param, gpointer *context) {
-	UNUSED(param);
-	UNUSED(context);
-
-	if (!li_vrequest_handle_direct(vr)) return LI_HANDLER_GO_ON;
-
-	vr->response.http_status = 503;
-
+	scgi_connection_new(vr, bcon, ctx);
 	return LI_HANDLER_GO_ON;
 }
 
@@ -544,17 +379,17 @@ static void scgi_free(liServer *srv, gpointer param) {
 
 static liAction* scgi_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	scgi_context *ctx;
-	UNUSED(wrk); UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata); UNUSED(p);
 
 	if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "scgi expects a string as parameter");
 		return FALSE;
 	}
 
-	ctx = scgi_context_new(srv, p, val->data.string);
-	if (!ctx) return NULL;
+	ctx = scgi_context_new(srv, val->data.string);
+	if (NULL == ctx) return NULL;
 
-	return li_action_new_function(scgi_handle, NULL, scgi_free, ctx);
+	return li_action_new_function(scgi_handle, scgi_handle_abort, scgi_free, ctx);
 }
 
 static const liPluginOption options[] = {
@@ -578,11 +413,6 @@ static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->options = options;
 	p->actions = actions;
 	p->setups = setups;
-
-#if 0
-	p->handle_request_body = scgi_handle_request_body;
-	p->handle_vrclose = scgi_close;
-#endif
 }
 
 
