@@ -19,11 +19,13 @@
  *     - keep-alive connections
  *
  * Author:
- *     Copyright (c) 2009 Stefan Bühler
+ *     Copyright (c) 2013 Stefan Bühler
  */
 
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
+#include <lighttpd/backends.h>
+#include <lighttpd/stream_http_response.h>
 
 
 LI_API gboolean mod_proxy_init(liModules *mods, liModule *mod);
@@ -33,125 +35,24 @@ LI_API gboolean mod_proxy_free(liModules *mods, liModule *mod);
 typedef struct proxy_connection proxy_connection;
 typedef struct proxy_context proxy_context;
 
+struct proxy_context {
+	gint refcount;
 
-typedef enum {
-	SS_WAIT_FOR_REQUEST,
-	SS_CONNECT,
-	SS_CONNECTING,
-	SS_CONNECTED,
-	SS_DONE
-} proxy_state;
+	liBackendPool *pool;
+
+	GString *socket_str;
+};
 
 
 struct proxy_connection {
 	proxy_context *ctx;
-	liVRequest *vr;
-	proxy_state state;
-	int fd;
-	ev_io fd_watcher;
-	liChunkQueue *proxy_in, *proxy_out;
-	liBuffer *proxy_in_buffer;
-
-	liHttpResponseCtx parse_response_ctx;
-	gboolean response_headers_finished;
-};
-
-struct proxy_context {
-	gint refcount;
-	liSocketAddress socket;
-	GString *socket_str;
-	guint timeout;
-	liPlugin *plugin;
+	liBackendConnection *bcon;
+	gpointer simple_socket_data;
 };
 
 /**********************************************************************************/
 
-static proxy_context* proxy_context_new(liServer *srv, liPlugin *p, GString *dest_socket) {
-	liSocketAddress saddr;
-	proxy_context* ctx;
-	saddr = li_sockaddr_from_string(dest_socket, 80);
-	if (NULL == saddr.addr) {
-		ERROR(srv, "Invalid socket address '%s'", dest_socket->str);
-		return NULL;
-	}
-	ctx = g_slice_new0(proxy_context);
-	ctx->refcount = 1;
-	ctx->socket = saddr;
-	ctx->timeout = 5;
-	ctx->plugin = p;
-	ctx->socket_str = g_string_new_len(GSTR_LEN(dest_socket));
-	return ctx;
-}
-
-static void proxy_context_release(proxy_context *ctx) {
-	if (!ctx) return;
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
-	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
-		li_sockaddr_clear(&ctx->socket);
-		g_string_free(ctx->socket_str, TRUE);
-		g_slice_free(proxy_context, ctx);
-	}
-}
-
-#if 0
-static void proxy_context_acquire(proxy_context *ctx) {
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
-	g_atomic_int_inc(&ctx->refcount);
-}
-
-static void proxy_fd_cb(struct ev_loop *loop, ev_io *w, int revents);
-
-static proxy_connection* proxy_connection_new(liVRequest *vr, proxy_context *ctx) {
-	proxy_connection* pcon = g_slice_new0(proxy_connection);
-
-	proxy_context_acquire(ctx);
-	pcon->ctx = ctx;
-	pcon->vr = vr;
-	pcon->fd = -1;
-	ev_init(&pcon->fd_watcher, proxy_fd_cb);
-	ev_io_set(&pcon->fd_watcher, -1, 0);
-	pcon->fd_watcher.data = pcon;
-	pcon->proxy_in = li_chunkqueue_new();
-	pcon->proxy_out = li_chunkqueue_new();
-	pcon->state = SS_WAIT_FOR_REQUEST;
-	li_http_response_parser_init(&pcon->parse_response_ctx, &vr->response, pcon->proxy_in, FALSE, FALSE);
-	pcon->response_headers_finished = FALSE;
-	return pcon;
-}
-
-static void proxy_connection_free(proxy_connection *pcon) {
-	liVRequest *vr;
-	if (!pcon) return;
-
-	vr = pcon->vr;
-	ev_io_stop(vr->wrk->loop, &pcon->fd_watcher);
-	proxy_context_release(pcon->ctx);
-	if (pcon->fd != -1) close(pcon->fd);
-	li_vrequest_backend_finished(vr);
-
-	li_chunkqueue_free(pcon->proxy_in);
-	li_chunkqueue_free(pcon->proxy_out);
-	li_buffer_release(pcon->proxy_in_buffer);
-
-	li_http_response_parser_clear(&pcon->parse_response_ctx);
-
-	g_slice_free(proxy_connection, pcon);
-}
-
-/**********************************************************************************/
-/* proxy stream helper */
-
-static void stream_send_chunks(liChunkQueue *out, liChunkQueue *in) {
-	li_chunkqueue_steal_all(out, in);
-
-	if (in->is_closed && !out->is_closed) {
-		out->is_closed = TRUE;
-	}
-}
-
-/**********************************************************************************/
-
-static void proxy_send_headers(liVRequest *vr, proxy_connection *pcon) {
+static void proxy_send_headers(liVRequest *vr, liChunkQueue *out) {
 	GString *head = g_string_sized_new(4095);
 	liHttpHeader *header;
 	GList *iter;
@@ -202,231 +103,168 @@ static void proxy_send_headers(liVRequest *vr, proxy_connection *pcon) {
 	/* terminate http header */
 	g_string_append_len(head, CONST_STR_LEN("\r\n"));
 
-	li_chunkqueue_append_string(pcon->proxy_out, head);
-}
-
-static void proxy_forward_request(liVRequest *vr, proxy_connection *pcon) {
-	stream_send_chunks(pcon->proxy_out, vr->in);
-	if (pcon->proxy_out->length > 0)
-		li_ev_io_add_events(vr->wrk->loop, &pcon->fd_watcher, EV_WRITE);
+	li_chunkqueue_append_string(out, head);
 }
 
 /**********************************************************************************/
 
-static liHandlerResult proxy_statemachine(liVRequest *vr, proxy_connection *pcon);
+static void proxy_backend_free(liBackendPool *bpool) {
+	liBackendConfig *config = (liBackendConfig*) bpool->config;
+	li_sockaddr_clear(&config->sock_addr);
+	g_slice_free(liBackendConfig, config);
+}
 
-static void proxy_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	proxy_connection *pcon = (proxy_connection*) w->data;
+static liBackendCallbacks proxy_backend_cbs = {
+	/* backend_detach_thread */ NULL, 
+	/* backend_attach_thread */ NULL,
+	/* backend_new */ NULL,
+	/* backend_close */ NULL,
+	proxy_backend_free
+};
 
-	if (pcon->state == SS_CONNECTING) {
-		if (LI_HANDLER_GO_ON != proxy_statemachine(pcon->vr, pcon)) {
-			li_vrequest_error(pcon->vr);
-		}
+
+static proxy_context* proxy_context_new(liServer *srv, GString *dest_socket) {
+	liSocketAddress saddr;
+	proxy_context* ctx;
+	liBackendConfig *config;
+
+	saddr = li_sockaddr_from_string(dest_socket, 0);
+	if (NULL == saddr.addr) {
+		ERROR(srv, "Invalid socket address '%s'", dest_socket->str);
+		return NULL;
+	}
+
+	config = g_slice_new0(liBackendConfig);
+	config->callbacks = &proxy_backend_cbs;
+	config->sock_addr = saddr;
+	config->max_connections = 0;
+	config->idle_timeout = 5;
+	config->connect_timeout = 5;
+	config->wait_timeout = 5;
+	config->disable_time = 0;
+	config->max_requests = 1;
+	config->watch_for_close = TRUE;
+
+	ctx = g_slice_new0(proxy_context);
+	ctx->refcount = 1;
+	ctx->pool = li_backend_pool_new(config);
+	ctx->socket_str = g_string_new_len(GSTR_LEN(dest_socket));
+
+	return ctx;
+}
+
+static void proxy_context_release(proxy_context *ctx) {
+	if (!ctx) return;
+	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
+		li_backend_pool_free(ctx->pool);
+		g_string_free(ctx->socket_str, TRUE);
+		g_slice_free(proxy_context, ctx);
+	}
+}
+
+static void proxy_context_acquire(proxy_context *ctx) {
+	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	g_atomic_int_inc(&ctx->refcount);
+}
+
+
+static void proxy_io_cb(liIOStream *stream, liIOStreamEvent event) {
+	proxy_connection *con = stream->data;
+	liWorker *wrk = li_worker_from_iostream(stream);
+
+	li_stream_simple_socket_io_cb_with_context(stream, event, &con->simple_socket_data);
+
+	switch (event) {
+	case LI_IOSTREAM_DESTROY:
+		li_stream_simple_socket_close(stream, FALSE);
+		li_event_io_set_fd(&con->bcon->watcher, -1);
+
+		li_backend_put(wrk, con->ctx->pool, con->bcon, TRUE);
+		con->bcon = NULL;
+
+		proxy_context_release(con->ctx);
+		g_slice_free(proxy_connection, con);
+
+		stream->data = NULL;
 		return;
+	default:
+		break;
 	}
 
-	if (revents & EV_READ) {
-		if (pcon->proxy_in->is_closed) {
-			li_ev_io_rem_events(loop, w, EV_READ);
-		} else {
-			GError *err = NULL;
-			switch (li_network_read(w->fd, pcon->proxy_in, &pcon->proxy_in_buffer, &err)) {
-			case LI_NETWORK_STATUS_SUCCESS:
-				break;
-			case LI_NETWORK_STATUS_FATAL_ERROR:
-				if (NULL != err) {
-					VR_ERROR(pcon->vr, "(%s) network read fatal error: %s", pcon->ctx->socket_str->str, err->message);
-					g_error_free(err);
-				} else {
-					VR_ERROR(pcon->vr, "(%s) network read fatal error", pcon->ctx->socket_str->str);
-				}
-				li_vrequest_error(pcon->vr);
-				return;
-			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
-				pcon->proxy_in->is_closed = TRUE;
-				ev_io_stop(loop, w);
-				close(pcon->fd);
-				pcon->fd = -1;
-				li_vrequest_backend_finished(pcon->vr);
-				break;
-			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
-				break;
-			}
-		}
-	}
-
-	if (pcon->fd != -1 && (revents & EV_WRITE)) {
-		if (pcon->proxy_out->length > 0) {
-			GError *err = NULL;
-			switch (li_network_write(w->fd, pcon->proxy_out, 256*1024, &err)) {
-			case LI_NETWORK_STATUS_SUCCESS:
-				break;
-			case LI_NETWORK_STATUS_FATAL_ERROR:
-				if (NULL != err) {
-					VR_ERROR(pcon->vr, "(%s) network write fatal error: %s", pcon->ctx->socket_str->str, err->message);
-					g_error_free(err);
-				} else {
-					VR_ERROR(pcon->vr, "(%s) network write fatal error", pcon->ctx->socket_str->str);
-				}
-				li_vrequest_error(pcon->vr);
-				return;
-			case LI_NETWORK_STATUS_CONNECTION_CLOSE:
-				pcon->proxy_in->is_closed = TRUE;
-				ev_io_stop(loop, w);
-				close(pcon->fd);
-				pcon->fd = -1;
-				li_vrequest_backend_finished(pcon->vr);
-				break;
-			case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
-				break;
-			}
-		}
-		if (pcon->proxy_out->length == 0) {
-			li_ev_io_rem_events(loop, w, EV_WRITE);
-		}
-	}
-
-	if (!pcon->response_headers_finished && LI_HANDLER_GO_ON == li_http_response_parse(pcon->vr, &pcon->parse_response_ctx)) {
-		/* "ignore" 1xx response headers */
-		if (!(pcon->vr->response.http_status >= 100 && pcon->vr->response.http_status < 200)) {
-			pcon->response_headers_finished = TRUE;
-			li_vrequest_handle_response_headers(pcon->vr);
-		}
-	}
-
-	if (pcon->response_headers_finished) {
-		li_chunkqueue_steal_all(pcon->vr->out, pcon->proxy_in);
-		pcon->vr->out->is_closed = pcon->proxy_in->is_closed;
-		li_vrequest_handle_response_body(pcon->vr);
-	}
-
-	/* only possible if we didn't found a header */
-	if (pcon->proxy_in->is_closed && !pcon->vr->out->is_closed) {
-		VR_ERROR(pcon->vr, "(%s) unexpected end-of-file (perhaps the proxy process died)", pcon->ctx->socket_str->str);
-		li_vrequest_error(pcon->vr);
+	if ((NULL == stream->stream_in.out || stream->stream_in.out->is_closed) &&
+		!(NULL == stream->stream_out.out || stream->stream_out.out->is_closed)) {
+		stream->stream_out.out->is_closed = TRUE;
+		li_stream_again_later(&stream->stream_out);
 	}
 }
 
+static void proxy_connection_new(liVRequest *vr, liBackendConnection *bcon, proxy_context *ctx) {
+	proxy_connection* scon = g_slice_new0(proxy_connection);
+	liIOStream *iostream;
+	liStream *outplug;
+	liStream *http_out;
+
+	proxy_context_acquire(ctx);
+	scon->ctx = ctx;
+	scon->bcon = bcon;
+	iostream = li_iostream_new(vr->wrk, li_event_io_fd(&bcon->watcher), proxy_io_cb, scon);
+
+	/* insert proxy header before actual data */
+	outplug = li_stream_plug_new(&vr->wrk->loop);
+
+	li_stream_connect(outplug, &iostream->stream_out);
+
+	proxy_send_headers(vr, outplug->out);
+	li_stream_notify_later(outplug);
+
+	http_out = li_stream_http_response_handle(&iostream->stream_in, vr, TRUE, FALSE);
+
+	li_vrequest_handle_indirect(vr, NULL);
+	li_vrequest_indirect_connect(vr, outplug, http_out);
+
+	li_iostream_release(iostream);
+	li_stream_release(outplug);
+	li_stream_release(http_out);
+}
+
 /**********************************************************************************/
-/* state machine */
 
-static void proxy_close(liVRequest *vr, liPlugin *p);
+static liHandlerResult proxy_handle_abort(liVRequest *vr, gpointer param, gpointer context) {
+	proxy_context *ctx = (proxy_context*) param;
+	liBackendWait *bwait = context;
 
-static liHandlerResult proxy_statemachine(liVRequest *vr, proxy_connection *pcon) {
-	liPlugin *p = pcon->ctx->plugin;
-
-	switch (pcon->state) {
-	case SS_WAIT_FOR_REQUEST:
-		/* do *not* wait until we have all data */
-		pcon->state = SS_CONNECT;
-
-		/* fall through */
-	case SS_CONNECT:
-		do {
-			pcon->fd = socket(pcon->ctx->socket.addr->plain.sa_family, SOCK_STREAM, 0);
-		} while (-1 == pcon->fd && errno == EINTR);
-		if (-1 == pcon->fd) {
-			if (errno == EMFILE) {
-				li_server_out_of_fds(vr->wrk->srv);
-			}
-			VR_ERROR(vr, "Couldn't open socket: %s", g_strerror(errno));
-			return LI_HANDLER_ERROR;
-		}
-		li_fd_init(pcon->fd);
-		ev_io_set(&pcon->fd_watcher, pcon->fd, EV_READ | EV_WRITE);
-		ev_io_start(vr->wrk->loop, &pcon->fd_watcher);
-
-		/* fall through */
-	case SS_CONNECTING:
-		if (-1 == connect(pcon->fd, &pcon->ctx->socket.addr->plain, pcon->ctx->socket.len)) {
-			switch (errno) {
-			case EINPROGRESS:
-			case EALREADY:
-			case EINTR:
-				pcon->state = SS_CONNECTING;
-				return LI_HANDLER_GO_ON;
-			case EAGAIN: /* backend overloaded */
-				proxy_close(vr, p);
-				li_vrequest_backend_overloaded(vr);
-				return LI_HANDLER_GO_ON;
-			case EISCONN:
-				break;
-			default:
-				VR_ERROR(vr, "Couldn't connect to '%s': %s",
-					li_sockaddr_to_string(pcon->ctx->socket, vr->wrk->tmp_str, TRUE)->str,
-					g_strerror(errno));
-				proxy_close(vr, p);
-				li_vrequest_backend_dead(vr);
-				return LI_HANDLER_GO_ON;
-			}
-		}
-
-		pcon->state = SS_CONNECTED;
-
-		/* prepare stream */
-		proxy_send_headers(vr, pcon);
-
-		/* fall through */
-	case SS_CONNECTED:
-		proxy_forward_request(vr, pcon);
-		break;
-
-	case SS_DONE:
-		break;
+	if (bwait != NULL) {
+		li_backend_wait_stop(vr, ctx->pool, &bwait);
 	}
 
 	return LI_HANDLER_GO_ON;
 }
 
-
-/**********************************************************************************/
-
 static liHandlerResult proxy_handle(liVRequest *vr, gpointer param, gpointer *context) {
+	liBackendWait *bwait = (liBackendWait*) *context;
+	liBackendConnection *bcon = NULL;
 	proxy_context *ctx = (proxy_context*) param;
-	proxy_connection *pcon;
-	UNUSED(context);
-	if (!li_vrequest_handle_indirect(vr, ctx->plugin)) return LI_HANDLER_GO_ON;
 
-	pcon = proxy_connection_new(vr, ctx);
-	if (!pcon) {
-		return LI_HANDLER_ERROR;
+	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
+
+	switch (li_backend_get(vr, ctx->pool, &bcon, &bwait)) {
+	case LI_BACKEND_SUCCESS:
+		assert(NULL == bwait);
+		assert(NULL != bcon);
+		*context = bwait;
+		break;
+	case LI_BACKEND_WAIT:
+		assert(NULL != bwait);
+		*context = bwait;
+
+		return LI_HANDLER_WAIT_FOR_EVENT;
+	case LI_BACKEND_TIMEOUT:
+		li_vrequest_backend_dead(vr);
+		return LI_HANDLER_GO_ON;
 	}
-	g_ptr_array_index(vr->plugin_ctx, ctx->plugin->id) = pcon;
 
-	li_chunkqueue_set_limit(pcon->proxy_in, vr->out->limit);
-	li_chunkqueue_set_limit(pcon->proxy_out, vr->in->limit);
-	if (vr->out->limit) vr->out->limit->io_watcher = &pcon->fd_watcher;
-
-	return proxy_statemachine(vr, pcon);
-}
-
-
-static liHandlerResult proxy_handle_request_body(liVRequest *vr, liPlugin *p) {
-	proxy_connection *pcon = (proxy_connection*) g_ptr_array_index(vr->plugin_ctx, p->id);
-	if (!pcon) return LI_HANDLER_ERROR;
-
-	return proxy_statemachine(vr, pcon);
-}
-
-static void proxy_close(liVRequest *vr, liPlugin *p) {
-	proxy_connection *pcon = (proxy_connection*) g_ptr_array_index(vr->plugin_ctx, p->id);
-	g_ptr_array_index(vr->plugin_ctx, p->id) = NULL;
-	if (pcon) {
-		if (vr->out->limit) vr->out->limit->io_watcher = NULL;
-		proxy_connection_free(pcon);
-	}
-}
-
-#endif
-
-static liHandlerResult proxy_handle(liVRequest *vr, gpointer param, gpointer *context) {
-	UNUSED(param);
-	UNUSED(context);
-
-	if (!li_vrequest_handle_direct(vr)) return LI_HANDLER_GO_ON;
-
-	vr->response.http_status = 503;
-
+	proxy_connection_new(vr, bcon, ctx);
 	return LI_HANDLER_GO_ON;
 }
 
@@ -439,17 +277,17 @@ static void proxy_free(liServer *srv, gpointer param) {
 
 static liAction* proxy_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	proxy_context *ctx;
-	UNUSED(wrk); UNUSED(userdata);
+	UNUSED(wrk); UNUSED(userdata); UNUSED(p);
 
 	if (val->type != LI_VALUE_STRING) {
 		ERROR(srv, "%s", "proxy expects a string as parameter");
 		return FALSE;
 	}
 
-	ctx = proxy_context_new(srv, p, val->data.string);
-	if (!ctx) return NULL;
+	ctx = proxy_context_new(srv, val->data.string);
+	if (NULL == ctx) return NULL;
 
-	return li_action_new_function(proxy_handle, NULL, proxy_free, ctx);
+	return li_action_new_function(proxy_handle, proxy_handle_abort, proxy_free, ctx);
 }
 
 static const liPluginOption options[] = {
@@ -473,11 +311,6 @@ static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->options = options;
 	p->actions = actions;
 	p->setups = setups;
-
-#if 0
-	p->handle_request_body = proxy_handle_request_body;
-	p->handle_vrclose = proxy_close;
-#endif
 }
 
 
