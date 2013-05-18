@@ -378,18 +378,25 @@ var.vhosts = var.vhosts + [ "default" => {
 vhost.map var.vhosts;
 """
 		Env.lighttpdconf = self.PrepareFile("conf/lighttpd.conf", self.config)
+
+		valgrindconfig = ""
+		if Env.valgrind:
+			valgrindconfig = """
+	env ( "G_SLICE=always-malloc", "G_DEBUG=gc-friendly,fatal-criticals" );
+	wrapper ("/usr/bin/valgrind" );
+#	wrapper ("/usr/bin/valgrind", "--leak-check=full", "--show-reachable=yes", "--leak-resolution=high" );
+"""
+
 		Env.angelconf = self.PrepareFile("conf/angel.conf", """
 instance {{
 	binary "{Env.worker}";
 	config "{Env.lighttpdconf}";
 	modules "{Env.plugindir}";
-
-#	env ( "G_SLICE=always-malloc", "G_DEBUG=gc-friendly" );
-#	wrapper ("/usr/bin/valgrind", "--leak-check=full", "--show-reachable=yes", "--leak-resolution=high" );
+{valgrindconfig}
 }}
 
 allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
-""".format(Env = Env))
+""".format(Env = Env, valgrindconfig = valgrindconfig))
 
 		print >> Env.log, "[Done] Preparing tests"
 

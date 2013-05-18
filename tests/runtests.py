@@ -54,6 +54,7 @@ parser.add_option("--debug-requests", help = "Dump requests", action = "store_tr
 parser.add_option("--no-angel", help = "Spawn lighttpd worker directly", action = "store_true", default = False)
 parser.add_option("--debug", help = "Show service logs on console", action = "store_true", default = False)
 parser.add_option("--wait", help = "Wait for services to exit on first signal", action = "store_true", default = False)
+parser.add_option("--valgrind", help = "Run worker with valgrind from angel", action = "store_true", default = False)
 
 (options, args) = parser.parse_args()
 
@@ -77,6 +78,7 @@ Env.truss = options.truss
 Env.no_angel = options.no_angel
 Env.debug = options.debug
 Env.wait = options.wait
+Env.valgrind = options.valgrind
 
 Env.color = sys.stdin.isatty()
 Env.COLOR_RESET = Env.color and "\033[0m" or ""
