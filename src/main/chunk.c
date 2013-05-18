@@ -322,10 +322,9 @@ static void chunk_free(liChunkQueue *cq, liChunk *c) {
 /******************
  *    cqlimit     *
  ******************/
-liCQLimit* li_cqlimit_new(struct ev_loop *loop) {
+liCQLimit* li_cqlimit_new() {
 	liCQLimit *cql = g_slice_new0(liCQLimit);
 	cql->refcount = 1;
-	cql->loop = loop;
 	cql->limit = -1;
 	return cql;
 }
@@ -355,8 +354,8 @@ void li_cqlimit_release(liCQLimit *cql) {
 
 static void cqlimit_lock(liCQLimit *cql) {
 	cql->locked = TRUE;
-	if (cql->io_watcher && cql->io_watcher->fd != -1) {
-		li_ev_io_rem_events(cql->loop, cql->io_watcher, EV_READ);
+	if (NULL != cql->io_watcher) {
+		li_event_io_rem_events(cql->io_watcher, LI_EV_READ);
 	}
 	if (cql->notify) {
 		cql->notify(cql->context, cql->locked);
@@ -365,8 +364,8 @@ static void cqlimit_lock(liCQLimit *cql) {
 
 static void cqlimit_unlock(liCQLimit *cql) {
 	cql->locked = FALSE;
-	if (cql->io_watcher && cql->io_watcher->fd != -1) {
-		li_ev_io_add_events(cql->loop, cql->io_watcher, EV_READ);
+	if (NULL != cql->io_watcher) {
+		li_event_io_add_events(cql->io_watcher, LI_EV_READ);
 	}
 	if (cql->notify) {
 		cql->notify(cql->context, cql->locked);
@@ -452,8 +451,8 @@ void li_chunkqueue_free(liChunkQueue *cq) {
 	g_slice_free(liChunkQueue, cq);
 }
 
-void li_chunkqueue_use_limit(liChunkQueue *cq, struct ev_loop *loop, goffset limit) {
-	if (!cq->limit) cq->limit = li_cqlimit_new(loop);
+void li_chunkqueue_use_limit(liChunkQueue *cq, goffset limit) {
+	if (!cq->limit) cq->limit = li_cqlimit_new();
 	li_cqlimit_set_limit(cq->limit, limit);
 }
 

@@ -147,7 +147,7 @@ static liNetworkStatus openssl_handle_error(liConnection *con, openssl_connectio
 			*/
 		while (0 != (err = ERR_get_error())) {
 			VR_ERROR(con->mainvr, "%s(%i): %s", sslfunc,
-				conctx->sock_stream->io_watcher.fd,
+				li_event_io_fd(&conctx->sock_stream->io_watcher),
 				ERR_error_string(err, NULL));
 		}
 
@@ -159,7 +159,7 @@ static liNetworkStatus openssl_handle_error(liConnection *con, openssl_connectio
 
 		if (0 != r || oerrno != 0) {
 			VR_ERROR(con->mainvr, "%s(%i) returned %i: %s", sslfunc,
-				conctx->sock_stream->io_watcher.fd,
+				li_event_io_fd(&conctx->sock_stream->io_watcher),
 				r,
 				g_strerror(oerrno));
 			return LI_NETWORK_STATUS_FATAL_ERROR;
@@ -190,7 +190,7 @@ static liNetworkStatus openssl_handle_error(liConnection *con, openssl_connectio
 			}
 			/* get all errors from the error-queue */
 			VR_ERROR(con->mainvr, "%s(%i): %s", sslfunc,
-				conctx->sock_stream->io_watcher.fd,
+				li_event_io_fd(&conctx->sock_stream->io_watcher),
 				ERR_error_string(err, NULL));
 		}
 		if (!was_fatal) return LI_NETWORK_STATUS_CONNECTION_CLOSE;

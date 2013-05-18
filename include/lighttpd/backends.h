@@ -21,9 +21,7 @@ typedef void (*liBackendCB)(liBackendPool *bpool);
 
 
 struct liBackendConnection {
-	/* must not keep a loop ref while the connection is not actively used,
-	 * get and put will do ref/unref if the watcher is active */
-	ev_io watcher;
+	liEventIO watcher;
 	gpointer data;
 };
 

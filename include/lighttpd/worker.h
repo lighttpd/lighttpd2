@@ -6,7 +6,7 @@
 #endif
 
 #include <lighttpd/tasklet.h>
-#include <lighttpd/jobqueue.h>
+#include <lighttpd/events.h>
 
 struct lua_State;
 
@@ -28,7 +28,7 @@ struct liStatistics {
 	guint64 bytes_in_5s;
 	guint64 bytes_in_5s_diff;
 	guint active_cons_5s;
-	ev_tstamp last_avg;
+	li_tstamp last_avg;
 
 	/* peak values from 5s avg */
 	struct {
@@ -41,16 +41,8 @@ struct liStatistics {
 	/* updated in timer */
 	guint64 last_requests;
 	double requests_per_sec;
-	ev_tstamp last_update;
+	li_tstamp last_update;
 };
-
-#define CUR_TS(wrk) ev_now((wrk)->loop)
-
-/* only locks if there is more than one worker */
-#define WORKER_LOCK(srv, lock) \
-	if ((srv)->worker_count > 1) g_static_rec_mutex_lock(lock)
-#define WORKER_UNLOCK(srv, lock) \
-	if ((srv)->worker_count > 1) g_static_rec_mutex_unlock(lock)
 
 typedef struct liWorkerTS liWorkerTS;
 struct liWorkerTS {
@@ -66,10 +58,10 @@ struct liWorker {
 
 	liLuaState LL;
 
-	struct ev_loop *loop;
-	ev_prepare loop_prepare;
+	liEventLoop loop;
+	liEventPrepare loop_prepare;
 	/* ev_check loop_check; */
-	ev_async worker_stop_watcher, worker_stopping_watcher, worker_suspend_watcher, worker_exit_watcher;
+	liEventAsync worker_stop_watcher, worker_stopping_watcher, worker_suspend_watcher, worker_exit_watcher;
 
 	liLogWorkerData logs;
 
@@ -80,12 +72,10 @@ struct liWorker {
 	GArray *connections;      /** array of (connection*), use only from local worker context */
 	ev_tstamp connections_gc_ts;
 
-	GQueue closing_sockets;   /** wait for EOF before shutdown(SHUT_RD) and close() */
-
 	GString *tmp_str;         /**< can be used everywhere for local temporary needed strings */
 
 	/* keep alive timeout queue */
-	ev_timer keep_alive_timer;
+	liEventTimer keep_alive_timer;
 	GQueue keep_alive_queue;
 
 	liWaitQueue io_timeout_queue;
@@ -99,19 +89,17 @@ struct liWorker {
 
 	/* incoming queues */
 	/*  - new connections (after accept) */
-	ev_async new_con_watcher;
+	liEventAsync new_con_watcher;
 	GAsyncQueue *new_con_queue;
 
 	liServerStateWait wait_for_stop_connections;
 
-	ev_timer stats_watcher;
+	liEventTimer stats_watcher;
 	liStatistics stats;
 
 	/* collect framework */
-	ev_async collect_watcher;
+	liEventAsync collect_watcher;
 	GAsyncQueue *collect_queue;
-
-	liJobQueue jobqueue;
 
 	liTaskletPool *tasklets;
 
@@ -121,7 +109,7 @@ struct liWorker {
 };
 
 LI_API liWorker* li_worker_new(liServer *srv, struct ev_loop *loop);
-LI_API void li_worker_free(liWorker *wrk);
+LI_API struct ev_loop* li_worker_free(liWorker *wrk);
 
 LI_API void li_worker_run(liWorker *wrk);
 LI_API void li_worker_stop(liWorker *context, liWorker *wrk);
@@ -140,5 +128,36 @@ LI_API void li_worker_add_closing_socket(liWorker *wrk, int fd);
 
 /* internal function to recycle connection */
 LI_API void li_worker_con_put(liConnection *con);
+
+INLINE li_tstamp li_cur_ts(liWorker *wrk);
+
+INLINE liWorker* li_worker_from_iostream(liIOStream *stream);
+INLINE liWorker* li_worker_from_stream(liStream *stream);
+
+
+
+/* inline implementations */
+
+INLINE li_tstamp li_cur_ts(liWorker *wrk) {
+	return li_event_now(&wrk->loop);
+}
+
+INLINE liWorker* li_worker_from_stream(liStream *stream) {
+	if (NULL == stream->loop) return NULL;
+	return LI_CONTAINER_OF(stream->loop, liWorker, loop);
+}
+
+INLINE liWorker* li_worker_from_iostream(liIOStream *stream) {
+	liWorker* wrk;
+	wrk = li_worker_from_stream(&stream->stream_in);
+	if (NULL != wrk) return wrk;
+	wrk = li_worker_from_stream(&stream->stream_out);
+	if (NULL != wrk) return wrk;
+	{
+		liEventLoop *loop = li_event_get_loop(&stream->io_watcher);
+		if (NULL == loop) return NULL;
+		return LI_CONTAINER_OF(loop, liWorker, loop);
+	}
+}
 
 #endif

@@ -6,8 +6,7 @@ typedef struct liTasklet liTasklet;
 struct liTaskletPool {
 	GThreadPool *threadpool;
 
-	struct ev_loop *loop;
-	ev_async finished_watcher;
+	liEventAsync finished_watcher;
 	GAsyncQueue *finished;
 
 	int threads;
@@ -25,11 +24,10 @@ struct liTasklet {
 	gpointer data;
 };
 
-static void finished_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	liTaskletPool *pool = w->data;
+static void finished_watcher_cb(liEventBase *watcher, int events) {
+	liTaskletPool *pool = LI_CONTAINER_OF(li_event_async_from(watcher), liTaskletPool, finished_watcher);
 	liTasklet *t;
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
 	pool->delete_later = -1;
 
@@ -53,18 +51,13 @@ static void run_tasklet(gpointer data, gpointer userdata) {
 
 	t->run_cb(t->data);
 	g_async_queue_push(pool->finished, t);
-	ev_async_send(pool->loop, &pool->finished_watcher);
+	li_event_async_send(&pool->finished_watcher);
 }
 
-liTaskletPool* li_tasklet_pool_new(struct ev_loop *loop, gint threads) {
+liTaskletPool* li_tasklet_pool_new(liEventLoop *loop, gint threads) {
 	liTaskletPool *pool = g_slice_new0(liTaskletPool);
 
-	pool->loop = loop;
-
-	ev_init(&pool->finished_watcher, finished_watcher_cb);
-	pool->finished_watcher.data = pool;
-	ev_async_start(pool->loop, &pool->finished_watcher);
-	ev_unref(pool->loop);
+	li_event_async_init(loop, &pool->finished_watcher, finished_watcher_cb);
 
 	pool->finished = g_async_queue_new();
 
@@ -86,8 +79,7 @@ void li_tasklet_pool_free(liTaskletPool *pool) {
 	g_async_queue_unref(pool->finished);
 	pool->finished = NULL;
 
-	ev_ref(pool->loop);
-	ev_async_stop(pool->loop, &pool->finished_watcher);
+	li_event_clear(&pool->finished_watcher);
 
 	if (-1 == pool->delete_later) {
 		pool->delete_later = 1;

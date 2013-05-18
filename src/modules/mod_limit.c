@@ -293,9 +293,9 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 		break;
 	case ML_TYPE_REQ:
 		g_mutex_lock(ctx->mutex);
-		if (CUR_TS(vr->wrk) - ctx->pool.req.ts > 1.0) {
+		if (li_cur_ts(vr->wrk) - ctx->pool.req.ts > 1.0) {
 			/* reset pool */
-			ctx->pool.req.ts = CUR_TS(vr->wrk);
+			ctx->pool.req.ts = li_cur_ts(vr->wrk);
 			ctx->pool.req.num = 1;
 		} else {
 			ctx->pool.req.num++;
@@ -453,7 +453,7 @@ static void mod_limit_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) 
 		mld = p->data;
 	}
 
-	li_waitqueue_init(&(mld->timeout_queues[wrk->ndx]), wrk->loop, mod_limit_timeout_callback, 1.0, NULL);
+	li_waitqueue_init(&(mld->timeout_queues[wrk->ndx]), &wrk->loop, mod_limit_timeout_callback, 1.0, NULL);
 }
 
 static void plugin_limit_free(liServer *srv, liPlugin *p) {

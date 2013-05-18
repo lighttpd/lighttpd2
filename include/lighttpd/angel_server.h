@@ -30,7 +30,7 @@ struct liInstance {
 	liInstanceConf *ic;
 
 	liProc *proc;
-	ev_child child_watcher;
+	liEventChild child_watcher;
 
 	liInstanceState s_cur, s_dest;
 
@@ -44,8 +44,8 @@ struct liInstance {
 struct liServer {
 	guint32 magic;            /** server magic version, check against LIGHTTPD_ANGEL_MAGIC in plugins */
 
-	struct ev_loop *loop;
-	ev_signal
+	liEventLoop loop;
+	liEventSignal
 		sig_w_INT,
 		sig_w_TERM,
 		sig_w_PIPE;

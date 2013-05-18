@@ -254,7 +254,7 @@ static liMemcachedCon* mc_ctx_prepare(memcached_ctx *ctx, liWorker *wrk) {
 	liMemcachedCon *con = ctx->worker_client_ctx[wrk->ndx];
 
 	if (!con) {
-		con = li_memcached_con_new(wrk->loop, ctx->addr);
+		con = li_memcached_con_new(&wrk->loop, ctx->addr);
 		ctx->worker_client_ctx[wrk->ndx] = con;
 	}
 
@@ -1085,7 +1085,7 @@ static int mc_lua_new(lua_State *L) {
 		lua_error(L);
 	}
 
-	con = li_memcached_con_new(wrk->loop, addr);
+	con = li_memcached_con_new(&wrk->loop, addr);
 	return li_lua_push_memcached_con(L, con);
 }
 

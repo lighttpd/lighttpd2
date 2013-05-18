@@ -7,115 +7,41 @@ static liConnection* worker_con_get(liWorker *wrk);
 
 /* closing sockets - wait for proper shutdown */
 
-typedef struct worker_closing_socket worker_closing_socket;
-
-struct worker_closing_socket {
-	liWorker *wrk;
-	GList *link;
-	int fd;
-	ev_tstamp close_timeout;
-};
-
-static void worker_close_socket_now(worker_closing_socket *scs) {
-	liWorker *wrk = scs->wrk;
-
-	/* shutdown(scs->fd, SHUT_RD); */ /* useless anyway */
-	close(scs->fd);
-	g_queue_delete_link(&wrk->closing_sockets, scs->link);
-	g_slice_free(worker_closing_socket, scs);
-}
-
-static void worker_closing_socket_cb(int revents, void* arg) {
-	worker_closing_socket *scs = (worker_closing_socket*) arg;
-	liWorker *wrk = scs->wrk;
-	ssize_t r;
-	ev_tstamp remaining = scs->close_timeout - ev_now(wrk->loop);
-
-	/* empty the input buffer, wait for EOF or timeout or a socket error to close it */
-	g_string_set_size(wrk->tmp_str, 1024);
-	for (;;) {
-		r = read(scs->fd, wrk->tmp_str->str, wrk->tmp_str->len);
-		if (0 == r) break; /* got EOF */
-		if (0 > r) { /* error */
-			switch (errno) {
-			case EINTR:
-				/* call read again */
-				continue;
-			case EAGAIN:
-#if EWOULDBLOCK != EAGAIN
-			case EWOULDBLOCK:
-#endif
-				/* check timeout: */
-				if (remaining > 0 && !(revents & EV_TIMEOUT)) {
-					/* wait again */
-					ev_once(wrk->loop, scs->fd, EV_READ, remaining, worker_closing_socket_cb, scs);
-					return;
-				}
-				/* timeout reached, break switch and loop */
-				break;
-			default:
-				/* real error (probably ECONNRESET or similar): break switch and loop */
-				/* no logging: there is no context anymore for the socket */
-				break;
-			}
-			break; /* end loop */
-		}
-	}
-
-	worker_close_socket_now(scs);
-}
-
 void li_worker_add_closing_socket(liWorker *wrk, int fd) {
-	worker_closing_socket *scs;
 	liServerState state = g_atomic_int_get(&wrk->srv->state);
 
 	if (-1 == fd) return;
 
-	shutdown(fd, SHUT_WR);
 	if (LI_SERVER_RUNNING != state && LI_SERVER_WARMUP != state) {
-		shutdown(fd, SHUT_RD);
+		shutdown(fd, SHUT_WR);
 		close(fd);
 		return;
 	}
 
-	scs = g_slice_new0(worker_closing_socket);
-	scs->wrk = wrk;
-	scs->fd = fd;
-	g_queue_push_tail(&wrk->closing_sockets, scs);
-	scs->link = g_queue_peek_tail_link(&wrk->closing_sockets);
-	scs->close_timeout = ev_now(wrk->loop) + 10.0;
-
-	ev_once(wrk->loop, fd, EV_READ, 10.0, worker_closing_socket_cb, scs);
-}
-
-/* Kill it - frees fd */
-static void worker_rem_closing_socket(liWorker *wrk, worker_closing_socket *scs) {
-	scs->close_timeout = ev_now(wrk->loop);
-	ev_feed_fd_event(wrk->loop, scs->fd, EV_READ);
+	li_event_add_closing_socket(&wrk->loop, fd);
 }
 
 /* Keep alive */
 
 void li_worker_check_keepalive(liWorker *wrk) {
-	ev_tstamp now = ev_now(wrk->loop);
+	li_tstamp now = li_cur_ts(wrk);
 
 	if (0 == wrk->keep_alive_queue.length) {
-		ev_timer_stop(wrk->loop, &wrk->keep_alive_timer);
+		li_event_stop(&wrk->keep_alive_timer);
 	} else {
-		wrk->keep_alive_timer.repeat = ((liConnection*)g_queue_peek_head(&wrk->keep_alive_queue))->keep_alive_data.timeout - now + 1;
-		ev_timer_again(wrk->loop, &wrk->keep_alive_timer);
+		li_tstamp timeout = ((liConnection*)g_queue_peek_head(&wrk->keep_alive_queue))->keep_alive_data.timeout - now + 1;
+		li_event_timer_once(&wrk->keep_alive_timer, timeout);
 	}
 }
 
-static void worker_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
-	ev_tstamp now = ev_now(wrk->loop);
+static void worker_keepalive_cb(liEventBase *watcher, int events) {
+	liWorker *wrk = LI_CONTAINER_OF(li_event_timer_from(watcher), liWorker, keep_alive_timer);
+	ev_tstamp now = li_cur_ts(wrk);
 	GQueue *q = &wrk->keep_alive_queue;
 	GList *l;
 	liConnection *con;
 
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
 	while ( NULL != (l = g_queue_peek_head_link(q)) &&
 	        (con = (liConnection*) l->data)->keep_alive_data.timeout <= now ) {
@@ -123,8 +49,7 @@ static void worker_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 		if (remaining > 0) {
 			g_queue_delete_link(q, l);
 			con->keep_alive_data.link = NULL;
-			ev_timer_set(&con->keep_alive_data.watcher, remaining, 0);
-			ev_timer_start(wrk->loop, &con->keep_alive_data.watcher);
+			li_event_timer_once(&con->keep_alive_data.watcher, remaining);
 		} else {
 			/* close it */
 			li_connection_reset(con);
@@ -132,10 +57,9 @@ static void worker_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 	}
 
 	if (NULL == l) {
-		ev_timer_stop(wrk->loop, &wrk->keep_alive_timer);
+		li_event_stop(&wrk->keep_alive_timer);
 	} else {
-		wrk->keep_alive_timer.repeat = con->keep_alive_data.timeout - now + 1;
-		ev_timer_again(wrk->loop, &wrk->keep_alive_timer);
+		li_event_timer_once(&wrk->keep_alive_timer, con->keep_alive_data.timeout - now + 1);
 	}
 }
 
@@ -144,7 +68,7 @@ static void worker_io_timeout_cb(liWaitQueue *wq, gpointer data) {
 	liWorker *wrk = data;
 	liConnection *con;
 	liWaitQueueElem *wqe;
-	ev_tstamp now = CUR_TS(wrk);
+	ev_tstamp now = li_cur_ts(wrk);
 
 	while ((wqe = li_waitqueue_pop(wq)) != NULL) {
 		liVRequest *vr;
@@ -166,7 +90,7 @@ GString *li_worker_current_timestamp(liWorker *wrk, liTimeFunc timefunc, guint f
 	gsize len;
 	struct tm tm;
 	liWorkerTS *wts;
-	time_t now = (time_t)CUR_TS(wrk);
+	time_t now = (time_t)li_cur_ts(wrk);
 	GArray *a;
 
 	if (timefunc == LI_GMTIME) {
@@ -200,11 +124,10 @@ GString *li_worker_current_timestamp(liWorker *wrk, liTimeFunc timefunc, guint f
 	return wts->str;
 }
 
-static void li_worker_prepare_cb(struct ev_loop *loop, ev_prepare *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
+static void li_worker_prepare_cb(liEventBase *watcher, int events) {
+	liWorker *wrk = LI_CONTAINER_OF(li_event_prepare_from(watcher), liWorker, loop_prepare);
 	liServer *srv = wrk->srv;
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
 	/* are there pending log entries? */
 	if (g_queue_get_length(&wrk->logs.log_queue)) {
@@ -214,42 +137,38 @@ static void li_worker_prepare_cb(struct ev_loop *loop, ev_prepare *w, int revent
 		li_g_queue_merge(&srv->logs.write_queue, &wrk->logs.log_queue);
 
 		g_static_mutex_unlock(&srv->logs.write_queue_mutex);
-		ev_async_send(srv->logs.loop, &srv->logs.watcher);
+		li_event_async_send(&srv->logs.watcher);
 	}
 }
 
 /* stop worker watcher */
-static void li_worker_stop_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
-	UNUSED(loop);
-	UNUSED(revents);
+static void li_worker_stop_cb(liEventBase *watcher, int events) {
+	liWorker *wrk = LI_CONTAINER_OF(li_event_async_from(watcher), liWorker, worker_stop_watcher);
+	UNUSED(events);
 
 	li_worker_stop(wrk, wrk);
 }
 
 /* stopping worker watcher */
-static void li_worker_stopping_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
-	UNUSED(loop);
-	UNUSED(revents);
+static void li_worker_stopping_cb(liEventBase *watcher, int events) {
+	liWorker *wrk = LI_CONTAINER_OF(li_event_async_from(watcher), liWorker, worker_stopping_watcher);
+	UNUSED(events);
 
 	li_worker_stopping(wrk, wrk);
 }
 
 /* suspend worker watcher */
-static void li_worker_suspend_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
-	UNUSED(loop);
-	UNUSED(revents);
+static void li_worker_suspend_cb(liEventBase *watcher, int events) {
+	liWorker *wrk = LI_CONTAINER_OF(li_event_async_from(watcher), liWorker, worker_suspend_watcher);
+	UNUSED(events);
 
 	li_worker_suspend(wrk, wrk);
 }
 
 /* exit worker watcher */
-static void li_worker_exit_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
-	UNUSED(loop);
-	UNUSED(revents);
+static void li_worker_exit_cb(liEventBase *watcher, int events) {
+	liWorker *wrk = LI_CONTAINER_OF(li_event_async_from(watcher), liWorker, worker_exit_watcher);
+	UNUSED(events);
 
 	li_worker_exit(wrk, wrk);
 }
@@ -273,15 +192,14 @@ void li_worker_new_con(liWorker *ctx, liWorker *wrk, liSocketAddress remote_addr
 		d->s = s;
 		d->srv_sock = srv_sock;
 		g_async_queue_push(wrk->new_con_queue, d);
-		ev_async_send(wrk->loop, &wrk->new_con_watcher);
+		li_event_async_send(&wrk->new_con_watcher);
 	}
 }
 
-static void li_worker_new_con_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
+static void li_worker_new_con_cb(liEventBase *watcher, int events) {
+	liWorker *wrk = LI_CONTAINER_OF(li_event_async_from(watcher), liWorker, new_con_watcher);
 	li_worker_new_con_data *d;
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
 	while (NULL != (d = g_async_queue_try_pop(wrk->new_con_queue))) {
 		li_worker_new_con(wrk, wrk, d->remote_addr, d->s, d->srv_sock);
@@ -290,11 +208,10 @@ static void li_worker_new_con_cb(struct ev_loop *loop, ev_async *w, int revents)
 }
 
 /* stats watcher */
-static void worker_stats_watcher_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
-	ev_tstamp now = ev_now(wrk->loop);
-	UNUSED(loop);
-	UNUSED(revents);
+static void worker_stats_watcher_cb(liEventBase *watcher, int events) {
+	liWorker *wrk = LI_CONTAINER_OF(li_event_timer_from(watcher), liWorker, stats_watcher);
+	ev_tstamp now = li_cur_ts(wrk);
+	UNUSED(events);
 
 	if (wrk->stats.last_update && now != wrk->stats.last_update) {
 		wrk->stats.requests_per_sec =
@@ -333,6 +250,9 @@ static void worker_stats_watcher_cb(struct ev_loop *loop, ev_timer *w, int reven
 
 	wrk->stats.last_requests = wrk->stats.requests;
 	wrk->stats.last_update = now;
+
+	/* and run again next second */
+	li_event_timer_once(&wrk->stats_watcher, 1);
 }
 
 /* init */
@@ -340,13 +260,12 @@ static void worker_stats_watcher_cb(struct ev_loop *loop, ev_timer *w, int reven
 liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	liWorker *wrk = g_slice_new0(liWorker);
 	wrk->srv = srv;
-	wrk->loop = loop;
+	li_event_loop_init(&wrk->loop, loop);
 
 	li_lua_init(&wrk->LL, srv, wrk);
 
 	g_queue_init(&wrk->keep_alive_queue);
-	ev_init(&wrk->keep_alive_timer, worker_keepalive_cb);
-	wrk->keep_alive_timer.data = wrk;
+	li_event_timer_init(&wrk->loop, &wrk->keep_alive_timer, worker_keepalive_cb);
 
 	wrk->connections_active = 0;
 	wrk->connections = g_array_new(FALSE, TRUE, sizeof(liConnection*));
@@ -368,63 +287,41 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 			g_array_index(wrk->timestamps_local, liWorkerTS, i).str = g_string_sized_new(255);
 	}
 
-	ev_init(&wrk->loop_prepare, li_worker_prepare_cb);
-	wrk->loop_prepare.data = wrk;
-	ev_prepare_start(wrk->loop, &wrk->loop_prepare);
-	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
+	li_event_prepare_init(&wrk->loop, &wrk->loop_prepare, li_worker_prepare_cb);
+	li_event_async_init(&wrk->loop, &wrk->worker_stop_watcher, li_worker_stop_cb);
+	li_event_async_init(&wrk->loop, &wrk->worker_stopping_watcher, li_worker_stopping_cb);
+	li_event_async_init(&wrk->loop, &wrk->worker_exit_watcher, li_worker_exit_cb);
+	li_event_async_init(&wrk->loop, &wrk->worker_suspend_watcher, li_worker_suspend_cb);
 
-	ev_init(&wrk->worker_exit_watcher, li_worker_exit_cb);
-	wrk->worker_exit_watcher.data = wrk;
-	ev_async_start(wrk->loop, &wrk->worker_exit_watcher);
-	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
-
-	ev_init(&wrk->worker_stop_watcher, li_worker_stop_cb);
-	wrk->worker_stop_watcher.data = wrk;
-	ev_async_start(wrk->loop, &wrk->worker_stop_watcher);
-
-	ev_init(&wrk->worker_stopping_watcher, li_worker_stopping_cb);
-	wrk->worker_stopping_watcher.data = wrk;
-	ev_async_start(wrk->loop, &wrk->worker_stopping_watcher);
-
-	ev_init(&wrk->worker_suspend_watcher, li_worker_suspend_cb);
-	wrk->worker_suspend_watcher.data = wrk;
-	ev_async_start(wrk->loop, &wrk->worker_suspend_watcher);
-
-	ev_init(&wrk->new_con_watcher, li_worker_new_con_cb);
-	wrk->new_con_watcher.data = wrk;
-	ev_async_start(wrk->loop, &wrk->new_con_watcher);
+	li_event_async_init(&wrk->loop, &wrk->new_con_watcher, li_worker_new_con_cb);
 	wrk->new_con_queue = g_async_queue_new();
 
-	ev_timer_init(&wrk->stats_watcher, worker_stats_watcher_cb, 1, 1);
-	wrk->stats_watcher.data = wrk;
-	ev_timer_start(wrk->loop, &wrk->stats_watcher);
-	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
+	li_event_timer_init(&wrk->loop, &wrk->stats_watcher, worker_stats_watcher_cb);
+	li_event_set_keep_loop_alive(&wrk->stats_watcher, FALSE);
+	li_event_timer_once(&wrk->stats_watcher, 1);
 
-	ev_init(&wrk->collect_watcher, li_collect_watcher_cb);
-	wrk->collect_watcher.data = wrk;
-	ev_async_start(wrk->loop, &wrk->collect_watcher);
+	li_event_async_init(&wrk->loop, &wrk->collect_watcher, li_collect_watcher_cb);
 	wrk->collect_queue = g_async_queue_new();
-	ev_unref(wrk->loop); /* this watcher shouldn't keep the loop alive */
 
 	/* io timeout timer */
-	li_waitqueue_init(&wrk->io_timeout_queue, wrk->loop, worker_io_timeout_cb, srv->io_timeout, wrk);
+	li_waitqueue_init(&wrk->io_timeout_queue, &wrk->loop, worker_io_timeout_cb, srv->io_timeout, wrk);
 
 	/* throttling */
-	li_waitqueue_init(&wrk->throttle_queue, wrk->loop, li_throttle_cb, ((gdouble)THROTTLE_GRANULARITY) / 1000, wrk);
+	li_waitqueue_init(&wrk->throttle_queue, &wrk->loop, li_throttle_cb, ((gdouble)THROTTLE_GRANULARITY) / 1000, wrk);
 
-	li_job_queue_init(&wrk->jobqueue, wrk->loop);
-
-	wrk->tasklets = li_tasklet_pool_new(wrk->loop, srv->tasklet_pool_threads);
+	wrk->tasklets = li_tasklet_pool_new(&wrk->loop, srv->tasklet_pool_threads);
 
 	wrk->network_read_buf = NULL;
 
 	return wrk;
 }
 
-void li_worker_free(liWorker *wrk) {
-	if (!wrk) return;
+struct ev_loop* li_worker_free(liWorker *wrk) {
+	struct ev_loop* evloop;
 
-	li_job_queue_clear(&wrk->jobqueue);
+	if (!wrk) return NULL;
+
+	li_job_queue_clear(&wrk->loop.jobqueue);
 
 	{ /* close connections */
 		guint i;
@@ -443,14 +340,6 @@ void li_worker_free(liWorker *wrk) {
 		g_array_free(wrk->connections, TRUE);
 	}
 
-	{ /* force closing sockets */
-		GList *iter;
-		for (iter = g_queue_peek_head_link(&wrk->closing_sockets); iter; iter = g_list_next(iter)) {
-			worker_close_socket_now((worker_closing_socket*) iter->data);
-		}
-		g_queue_clear(&wrk->closing_sockets);
-	}
-
 	{ /* free timestamps */
 		guint i;
 		for (i = 0; i < wrk->timestamps_gmt->len; i++) {
@@ -464,17 +353,23 @@ void li_worker_free(liWorker *wrk) {
 	li_waitqueue_stop(&wrk->io_timeout_queue);
 	li_waitqueue_stop(&wrk->throttle_queue);
 
-	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->worker_exit_watcher);
+	li_event_clear(&wrk->worker_stop_watcher);
+	li_event_clear(&wrk->worker_stopping_watcher);
+	li_event_clear(&wrk->worker_suspend_watcher);
+	li_event_clear(&wrk->worker_exit_watcher);
 
+	li_event_clear(&wrk->new_con_watcher);
 	g_async_queue_unref(wrk->new_con_queue);
+	wrk->new_con_queue = NULL;
 
-	li_ev_safe_ref_and_stop(ev_timer_stop, wrk->loop, &wrk->stats_watcher);
+	li_event_clear(&wrk->stats_watcher);
 
-	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->collect_watcher);
-	li_collect_watcher_cb(wrk->loop, &wrk->collect_watcher, 0);
+	li_collect_watcher_cb(&wrk->collect_watcher.base, 0);
+	li_event_clear(&wrk->collect_watcher);
 	g_async_queue_unref(wrk->collect_queue);
+	wrk->collect_queue = NULL;
 
-	li_ev_safe_ref_and_stop(ev_prepare_stop, wrk->loop, &wrk->loop_prepare);
+	li_event_clear(&wrk->loop_prepare);
 
 	g_string_free(wrk->tmp_str, TRUE);
 
@@ -486,7 +381,11 @@ void li_worker_free(liWorker *wrk) {
 
 	li_buffer_release(wrk->network_read_buf);
 
+	evloop = li_event_loop_clear(&wrk->loop);
+
 	g_slice_free(liWorker, wrk);
+
+	return evloop;
 }
 
 void li_worker_run(liWorker *wrk) {
@@ -511,7 +410,7 @@ void li_worker_run(liWorker *wrk) {
 	if (wrk->srv->stat_cache_ttl && !wrk->stat_cache)
 		wrk->stat_cache = li_stat_cache_new(wrk, wrk->srv->stat_cache_ttl);
 
-	ev_loop(wrk->loop, 0);
+	li_event_loop_run(&wrk->loop);
 }
 
 void li_worker_stop(liWorker *context, liWorker *wrk) {
@@ -520,13 +419,15 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 
 		li_plugins_worker_stop(wrk);
 
-		ev_async_stop(wrk->loop, &wrk->worker_stop_watcher);
-		ev_async_stop(wrk->loop, &wrk->worker_stopping_watcher);
-		ev_async_stop(wrk->loop, &wrk->worker_suspend_watcher);
-		ev_async_stop(wrk->loop, &wrk->new_con_watcher);
+		li_event_stop(&wrk->worker_stop_watcher);
+		li_event_stop(&wrk->worker_stopping_watcher);
+		li_event_stop(&wrk->worker_suspend_watcher);
+
+		li_event_stop(&wrk->new_con_watcher);
+
 		if (wrk->stat_cache)
 			li_waitqueue_stop(&wrk->stat_cache->delete_queue);
-		li_worker_new_con_cb(wrk->loop, &wrk->new_con_watcher, 0); /* handle remaining new connections */
+		li_worker_new_con_cb(&wrk->new_con_watcher.base, 0); /* handle remaining new connections */
 
 		/* close keep alive connections */
 		for (i = wrk->connections_active; i-- > 0;) {
@@ -538,14 +439,9 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 
 		li_worker_check_keepalive(wrk);
 
-		{ /* force closing sockets */
-			GList *iter;
-			for (iter = g_queue_peek_head_link(&wrk->closing_sockets); iter; iter = g_list_next(iter)) {
-				worker_rem_closing_socket(wrk, (worker_closing_socket*) iter->data);
-			}
-		}
+		li_event_loop_end(&wrk->loop);
 	} else {
-		ev_async_send(wrk->loop, &wrk->worker_stop_watcher);
+		li_event_async_send(&wrk->worker_stop_watcher);
 	}
 }
 
@@ -570,12 +466,14 @@ void li_worker_stopping(liWorker *context, liWorker *wrk) {
 
 		li_worker_check_keepalive(wrk);
 
-		li_worker_new_con_cb(wrk->loop, &wrk->new_con_watcher, 0); /* handle remaining new connections */
+		li_worker_new_con_cb(&wrk->new_con_watcher.base, 0); /* handle remaining new connections */
 		if (0 == g_atomic_int_get(&wrk->connection_load) && wrk->wait_for_stop_connections.active) {
 			li_server_state_ready(srv, &wrk->wait_for_stop_connections);
 		}
+
+		li_event_loop_force_close_sockets(&wrk->loop);
 	} else {
-		ev_async_send(wrk->loop, &wrk->worker_stopping_watcher);
+		li_event_async_send(&wrk->worker_stopping_watcher);
 	}
 }
 
@@ -593,12 +491,7 @@ void li_worker_suspend(liWorker *context, liWorker *wrk) {
 
 		li_worker_check_keepalive(wrk);
 
-		{ /* force closing sockets */
-			GList *iter;
-			for (iter = g_queue_peek_head_link(&wrk->closing_sockets); iter; iter = g_list_next(iter)) {
-				worker_rem_closing_socket(wrk, (worker_closing_socket*) iter->data);
-			}
-		}
+		li_event_loop_force_close_sockets(&wrk->loop);
 
 #if 0
 		ERROR(wrk->srv, "%i connections still active", (int) wrk->connections_active);
@@ -608,15 +501,15 @@ void li_worker_suspend(liWorker *context, liWorker *wrk) {
 		}
 #endif
 	} else {
-		ev_async_send(wrk->loop, &wrk->worker_suspend_watcher);
+		li_event_async_send(&wrk->worker_suspend_watcher);
 	}
 }
 
 void li_worker_exit(liWorker *context, liWorker *wrk) {
 	if (context == wrk) {
-		ev_unloop (wrk->loop, EVUNLOOP_ALL);
+		li_event_loop_exit(&wrk->loop);
 	} else {
-		ev_async_send(wrk->loop, &wrk->worker_exit_watcher);
+		li_event_async_send(&wrk->worker_exit_watcher);
 	}
 }
 
@@ -643,7 +536,7 @@ static liConnection* worker_con_get(liWorker *wrk) {
 
 void li_worker_con_put(liConnection *con) {
 	liWorker *wrk = con->wrk;
-	ev_tstamp now = CUR_TS(wrk);
+	ev_tstamp now = li_cur_ts(wrk);
 
 	if (-1 == (gint) con->idx)
 		/* already inactive connection */

@@ -181,7 +181,7 @@ static void li_throttle_pool_rearm(liWorker *wrk, liThrottlePool *pool) {
 	guint i;
 	GQueue *queue;
 	GList *lnk, *lnk_next;
-	guint now = THROTTLE_EVTSTAMP_TO_GINT(CUR_TS(wrk));
+	guint now = THROTTLE_EVTSTAMP_TO_GINT(li_cur_ts(wrk));
 
 	time_diff = now - pool->worker_last_rearm[wrk->ndx];
 	/* overflow after 31 days... */

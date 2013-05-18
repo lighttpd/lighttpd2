@@ -159,7 +159,7 @@ static liHandlerResult vhost_map_regex(liVRequest *vr, gpointer param, gpointer 
 		v = entry->action;
 
 		/* match found, update stats */
-		now = CUR_TS(vr->wrk);
+		now = li_cur_ts(vr->wrk);
 		entry->hits++;
 
 		if ((now - entry->tstamp) > 30.0) {

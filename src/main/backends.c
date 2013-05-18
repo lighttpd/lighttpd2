@@ -6,7 +6,7 @@ typedef struct liBackendWorkerPool liBackendWorkerPool;
 typedef struct liBackendPool_p liBackendPool_p;
 
 struct liBackendWait {
-	ev_tstamp ts_started;
+	li_tstamp ts_started;
 
 	/* 3 different states:
 	 *  - con != NULL: connection associated (may need to move between threads/...)
@@ -55,7 +55,7 @@ struct liBackendWorkerPool {
 	liBackendPool_p *pool;
 	liWorker *wrk;
 
-	ev_async wakeup;
+	liEventAsync wakeup;
 	guint active, reserved, idle, pending; /* [pool] connection counts */
 	/* attached connections (con->worker != NULL) may only be removed (and added) by the owning worker */
 	GPtrArray *connections; /* [pool] <liBackendConnection_p> ordered: active, reserved, idle */
@@ -64,7 +64,7 @@ struct liBackendWorkerPool {
 
 	/* waiting vrequests: per worker queue if there is no connection limit (<= 0) */
 	GQueue wait_queue; /* <liBackendWait> */
-	ev_timer wait_queue_timer;
+	liEventTimer wait_queue_timer;
 
 	gboolean initialized; /* [pool] only interesting if pool->initialized is false */
 };
@@ -81,13 +81,13 @@ struct liBackendPool_p {
 	GQueue wait_queue; /* <liBackendWait> */
 	/* ^^ should use timer in worker-pool? */
 
-	ev_tstamp ts_disabled_till;
+	li_tstamp ts_disabled_till;
 
 	gboolean initialized, shutdown;
 };
 
 static void S_backend_pool_distribute(liBackendPool_p *pool, liWorker *wrk);
-static void backend_con_watch_for_close_cb(struct ev_loop *loop, ev_io *watcher, int revents);
+static void backend_con_watch_for_close_cb(liEventBase *watcher, int events);
 
 static void _call_thread_cb(liBackendConnectionThreadCB cb, liBackendPool *bpool, liWorker *wrk, liBackendConnection *bcon) {
 	if (cb) cb(bpool, wrk, bcon);
@@ -237,14 +237,15 @@ static void S_backend_pool_worker_insert_connected(liBackendWorkerPool *wpool, i
 	liBackendConnection_p *con = backend_connection_new(wpool);
 	liBackendPool_p *pool = wpool->pool;
 
-	con->public.watcher.fd = fd;
+	li_event_io_init(&wpool->wrk->loop, &con->public.watcher, NULL, fd, 0);
+	li_event_set_keep_loop_alive(&con->public.watcher, FALSE);
 
 	BACKEND_THREAD_CB(new, pool, wpool->wrk, con);
 
 	if (pool->public.config->watch_for_close) {
-		ev_io_init(&con->public.watcher, backend_con_watch_for_close_cb, con->public.watcher.fd, EV_READ);
-		con->public.watcher.data = con;
-		li_ev_safe_unref_and_start(ev_io_start, wpool->wrk->loop, &con->public.watcher);
+		li_event_set_callback(&con->public.watcher, backend_con_watch_for_close_cb);
+		li_event_io_set_events(&con->public.watcher, LI_EV_READ);
+		li_event_start(&con->public.watcher);
 	}
 	li_waitqueue_push(&wpool->idle_queue, &con->timeout_elem);
 
@@ -256,7 +257,7 @@ static void S_backend_pool_failed(liBackendWorkerPool *wpool) {
 	GList *elem;
 
 	if (pool->public.config->disable_time > 0) {
-		pool->ts_disabled_till = ev_now(wpool->wrk->loop) + pool->public.config->disable_time;
+		pool->ts_disabled_till = li_cur_ts(wpool->wrk) + pool->public.config->disable_time;
 	}
 
 	while (NULL != (elem = g_queue_pop_head_link(&pool->wait_queue))) {
@@ -290,8 +291,8 @@ static void backend_pool_worker_connect_timeout(liWaitQueue *wq, gpointer data) 
 
 	while (NULL != (elem = li_waitqueue_pop(wq))) {
 		liBackendConnection_p *con = LI_CONTAINER_OF(elem, liBackendConnection_p, timeout_elem);
-		li_ev_safe_ref_and_stop(ev_io_stop, wpool->wrk->loop, &con->public.watcher);
-		close(con->public.watcher.fd);
+		li_event_clear(&con->public.watcher);
+		close(li_event_io_fd(&con->public.watcher));
 		g_slice_free(liBackendConnection_p, con);
 
 		ERROR(srv, "Couldn't connect to '%s': timeout",
@@ -309,19 +310,19 @@ static void backend_pool_worker_connect_timeout(liWaitQueue *wq, gpointer data) 
 	li_waitqueue_update(wq);
 }
 
-static void backend_con_watch_connect_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	liBackendConnection_p *con = w->data;
+static void backend_con_watch_connect_cb(liEventBase *watcher, int events) {
+	liEventIO *iowatcher = li_event_io_from(watcher);
+	liBackendConnection_p *con = LI_CONTAINER_OF(iowatcher, liBackendConnection_p, public.watcher);
 	liBackendPool_p *pool = con->pool;
 	const liBackendConfig *config = pool->public.config;
 	liBackendWorkerPool *wpool = &pool->worker_pools[con->worker->ndx];
 	liServer *srv = wpool->wrk->srv;
-	int fd = w->fd;
+	int fd = li_event_io_fd(iowatcher);
 	struct sockaddr addr;
 	socklen_t len;
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
-	ev_io_stop(wpool->wrk->loop, w);
+	li_event_stop(iowatcher);
 	li_waitqueue_remove(&wpool->connect_queue, &con->timeout_elem);
 
 	g_mutex_lock(pool->lock);
@@ -347,6 +348,7 @@ static void backend_con_watch_connect_cb(struct ev_loop *loop, ev_io *w, int rev
 			g_strerror(err));
 
 		close(fd);
+		li_event_clear(iowatcher);
 		g_slice_free(liBackendConnection_p, con);
 
 		--wpool->pending;
@@ -359,9 +361,9 @@ static void backend_con_watch_connect_cb(struct ev_loop *loop, ev_io *w, int rev
 		BACKEND_THREAD_CB(new, pool, wpool->wrk, con);
 
 		if (pool->public.config->watch_for_close) {
-			ev_io_init(&con->public.watcher, backend_con_watch_for_close_cb, con->public.watcher.fd, EV_READ);
-			con->public.watcher.data = con;
-			li_ev_safe_unref_and_start(ev_io_start, wpool->wrk->loop, &con->public.watcher);
+			li_event_set_callback(&con->public.watcher, backend_con_watch_for_close_cb);
+			li_event_io_set_events(&con->public.watcher, LI_EV_READ);
+			li_event_start(&con->public.watcher);
 		}
 		li_waitqueue_push(&wpool->idle_queue, &con->timeout_elem);
 
@@ -379,9 +381,9 @@ static void backend_con_watch_connect_cb(struct ev_loop *loop, ev_io *w, int rev
 static void S_backend_pool_worker_insert_pending(liBackendWorkerPool *wpool, int fd) {
 	liBackendConnection_p *con = backend_connection_new(wpool);
 
-	ev_io_init(&con->public.watcher, backend_con_watch_connect_cb, fd, EV_READ | EV_WRITE);
-	con->public.watcher.data = con;
-	li_ev_safe_unref_and_start(ev_io_start, wpool->wrk->loop, &con->public.watcher);
+	li_event_io_init(&wpool->wrk->loop, &con->public.watcher, backend_con_watch_connect_cb, fd, LI_EV_READ | LI_EV_WRITE);
+	li_event_set_keep_loop_alive(&con->public.watcher, FALSE);
+	li_event_start(&con->public.watcher);
 
 	++wpool->pending;
 	++wpool->pool->pending;
@@ -532,7 +534,7 @@ static void S_backend_pool_distribute(liBackendPool_p *pool, liWorker *wrk) {
 						con->worker_next = g_array_index(srv->workers, liWorker*, i);
 						S_backend_pool_worker_insert_con(pool, NULL, con);
 
-						ev_async_send(srcpool->wrk->loop, &srcpool->wakeup);
+						li_event_async_send(&srcpool->wakeup);
 					}
 				}
 			}
@@ -592,6 +594,7 @@ static void S_backend_wait_queue_unshift(GQueue *queue, GList *link) {
 static void backend_connection_close(liBackendPool_p *pool, liBackendConnection_p *con, gboolean have_lock) {
 	liWorker *wrk = con->worker; /* only close attached connections */
 	liBackendWorkerPool *wpool = &pool->worker_pools[wrk->ndx];
+	int fd;
 
 	if (!have_lock) g_mutex_lock(pool->lock);
 	S_backend_pool_worker_remove_con(pool, con);
@@ -611,24 +614,23 @@ static void backend_connection_close(liBackendPool_p *pool, liBackendConnection_
 	li_waitqueue_remove(&wpool->idle_queue, &con->timeout_elem);
 
 	BACKEND_THREAD_CB(close, pool, wrk, con);
-	if (-1 != con->public.watcher.fd) {
-		li_worker_add_closing_socket(wrk, con->public.watcher.fd);
-		con->public.watcher.fd = -1;
-	}
-	li_ev_safe_ref_and_stop(ev_io_stop, wrk->loop, &con->public.watcher);
+
+	fd = li_event_io_fd(&con->public.watcher);
+	li_event_clear(&con->public.watcher);
+	if (-1 != fd) li_worker_add_closing_socket(wrk, fd);
 
 	g_slice_free(liBackendConnection_p, con);
 }
 
-static void backend_con_watch_for_close_cb(struct ev_loop *loop, ev_io *watcher, int revents) {
-	liBackendConnection_p *con = watcher->data;
+static void backend_con_watch_for_close_cb(liEventBase *watcher, int events) {
+	liEventIO *iowatcher = li_event_io_from(watcher);
+	liBackendConnection_p *con = LI_CONTAINER_OF(iowatcher, liBackendConnection_p, public.watcher);
 	liBackendPool_p *pool = con->pool;
 	char c;
 	int r;
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
-	r = read(watcher->fd, &c, 1);
+	r = read(li_event_io_fd(iowatcher), &c, 1);
 	if (-1 == r && (EAGAIN == errno || EWOULDBLOCK == errno || EINTR == errno)) return;
 
 	/* TODO: log error when read data */
@@ -649,17 +651,12 @@ static void backend_pool_worker_run_reserved(liBackendWorkerPool *wpool) {
 			con->worker = wrk;
 			con->worker_next = NULL;
 
-			if (pool->public.config->watch_for_close) {
-				ev_io_stop(wrk->loop, &con->public.watcher);
-				ev_io_init(&con->public.watcher, backend_con_watch_for_close_cb, con->public.watcher.fd, EV_READ);
-				con->public.watcher.data = con;
-				li_ev_safe_unref_and_start(ev_io_start, wrk->loop, &con->public.watcher);
-			}
+			li_event_attach(&wrk->loop, &con->public.watcher);
 			li_waitqueue_push(&wpool->idle_queue, &con->timeout_elem);
 
 			BACKEND_THREAD_CB(attach_thread, pool, wrk, con);
 
-			if (-1 == con->public.watcher.fd) {
+			if (-1 == li_event_io_fd(&con->public.watcher)) {
 				backend_connection_close(pool, con, TRUE);
 				continue;
 			}
@@ -685,27 +682,25 @@ static void backend_pool_worker_run_reserved(liBackendWorkerPool *wpool) {
 			/* detach and send to target worker */
 			BACKEND_THREAD_CB(detach_thread, pool, wrk, con);
 
-			if (-1 == con->public.watcher.fd) {
+			if (-1 == li_event_io_fd(&con->public.watcher)) {
 				backend_connection_close(pool, con, TRUE);
 				continue;
 			}
+			li_event_detach(&con->public.watcher);
 
-			if (pool->public.config->watch_for_close) {
-				li_ev_safe_ref_and_stop(ev_io_stop, wrk->loop, &con->public.watcher);
-			}
 			li_waitqueue_remove(&wpool->idle_queue, &con->timeout_elem);
 			S_backend_pool_worker_insert_con(pool, con->worker_next, con);
 			con->worker = NULL;
-			ev_async_send(con->worker_next->loop, &pool->worker_pools[con->worker_next->ndx].wakeup);
+			li_event_async_send(&pool->worker_pools[con->worker_next->ndx].wakeup);
 		}
 	}
 	g_mutex_unlock(pool->lock);
 }
 
-static void backend_pool_worker_run(struct ev_loop *loop, ev_async *watcher, int revents) {
-	liBackendWorkerPool *wpool = watcher->data;
-	UNUSED(loop);
-	UNUSED(revents);
+static void backend_pool_worker_run(liEventBase *watcher, int events) {
+	liEventAsync *async_watcher = li_event_async_from(watcher);
+	liBackendWorkerPool *wpool = LI_CONTAINER_OF(async_watcher, liBackendWorkerPool, wakeup);
+	UNUSED(events);
 
 	backend_pool_worker_run_reserved(wpool);
 }
@@ -727,32 +722,27 @@ static void backend_pool_worker_idle_timeout(liWaitQueue *wq, gpointer data) {
 
 static void S_backend_pool_update_wait_queue_timer(liBackendWorkerPool *wpool) {
 	liBackendPool_p *pool = wpool->pool;
-	struct ev_loop *loop = wpool->wrk->loop;
-	ev_tstamp now = ev_now(loop);
 
 	if (pool->wait_queue.length > 0) {
+		li_tstamp now = li_cur_ts(wpool->wrk);
 		liBackendWait *bwait = LI_CONTAINER_OF(g_queue_peek_head_link(&pool->wait_queue), liBackendWait, link);
-		ev_tstamp repeat = bwait->ts_started + pool->public.config->wait_timeout - now;
+		li_tstamp repeat = bwait->ts_started + pool->public.config->wait_timeout - now;
 
-		if (repeat < 0.05)
-			repeat = 0.05;
+		if (repeat < 0.05) repeat = 0.05;
 
-		wpool->wait_queue_timer.repeat = repeat;
-		ev_timer_again(loop, &wpool->wait_queue_timer);
+		li_event_timer_once(&wpool->wait_queue_timer, repeat);
 	} else {
 		/* stop timer if queue empty */
-		ev_timer_stop(loop, &wpool->wait_queue_timer);
-		return;
+		li_event_stop(&wpool->wait_queue_timer);
 	}
 }
 
-static void backend_pool_wait_queue_timeout(struct ev_loop *loop, ev_timer *watcher, int revents) {
-	liBackendWorkerPool *wpool = watcher->data;
+static void backend_pool_wait_queue_timeout(liEventBase *watcher, int events) {
+	liBackendWorkerPool *wpool = LI_CONTAINER_OF(li_event_timer_from(watcher), liBackendWorkerPool, wait_queue_timer);
 	liBackendPool_p *pool = wpool->pool;
-	ev_tstamp due = ev_now(wpool->wrk->loop) - pool->public.config->wait_timeout;
+	li_tstamp due = li_cur_ts(wpool->wrk) - pool->public.config->wait_timeout;
 
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
 	g_mutex_lock(pool->lock);
 
@@ -780,15 +770,13 @@ static gpointer backend_pool_worker_init(liWorker *wrk, gpointer fdata) {
 
 	if (wpool->initialized) return NULL;
 
-	ev_async_init(&wpool->wakeup, backend_pool_worker_run);
-	wpool->wakeup.data = wpool;
-	ev_async_start(wrk->loop, &wpool->wakeup);
+	li_event_async_init(&wrk->loop, &wpool->wakeup, backend_pool_worker_run);
 	if (idle_timeout < 1) idle_timeout = 5;
-	li_waitqueue_init(&wpool->idle_queue, wrk->loop, backend_pool_worker_idle_timeout, idle_timeout, wpool);
-	li_waitqueue_init(&wpool->connect_queue, wrk->loop, backend_pool_worker_connect_timeout, pool->public.config->connect_timeout, wpool);
+	li_waitqueue_init(&wpool->idle_queue, &wrk->loop, backend_pool_worker_idle_timeout, idle_timeout, wpool);
+	li_waitqueue_init(&wpool->connect_queue, &wrk->loop, backend_pool_worker_connect_timeout, pool->public.config->connect_timeout, wpool);
 
-	ev_timer_init(&wpool->wait_queue_timer, backend_pool_wait_queue_timeout, 0, 0);
-	wpool->wait_queue_timer.data = wpool;
+	li_event_timer_init(&wrk->loop, &wpool->wait_queue_timer, backend_pool_wait_queue_timeout);
+	li_event_set_keep_loop_alive(&wpool->wait_queue_timer, FALSE);
 
 	wpool->initialized = TRUE;
 	return NULL;
@@ -832,8 +820,8 @@ static gpointer backend_pool_worker_shutdown(liWorker *wrk, gpointer fdata) {
 
 	backend_pool_worker_run_reserved(wpool);
 
-	ev_async_stop(wrk->loop, &wpool->wakeup);
-	ev_timer_stop(wrk->loop, &wpool->wait_queue_timer);
+	li_event_clear(&wpool->wakeup);
+	li_event_clear(&wpool->wait_queue_timer);
 
 	g_mutex_lock(pool->lock);
 
@@ -845,8 +833,9 @@ static gpointer backend_pool_worker_shutdown(liWorker *wrk, gpointer fdata) {
 
 	while (NULL != (elem = li_waitqueue_pop_force(&wpool->connect_queue))) {
 		liBackendConnection_p *con = LI_CONTAINER_OF(elem, liBackendConnection_p, timeout_elem);
-		li_ev_safe_ref_and_stop(ev_io_stop, wpool->wrk->loop, &con->public.watcher);
-		close(con->public.watcher.fd);
+		int fd = li_event_io_fd(&con->public.watcher);
+		li_event_clear(&con->public.watcher);
+		close(fd);
 		g_slice_free(liBackendConnection_p, con);
 
 		--wpool->pending;
@@ -935,7 +924,7 @@ liBackendResult li_backend_get(liVRequest *vr, liBackendPool *bpool, liBackendCo
 	if (*pbwait) {
 		bwait = *pbwait;
 		assert(vr == bwait->vr);
-	} else if (pool->ts_disabled_till > ev_now(vr->wrk->loop)) {
+	} else if (pool->ts_disabled_till > li_cur_ts(vr->wrk)) {
 		goto out;
 	} else {
 		if (wpool->idle > 0) {
@@ -945,10 +934,10 @@ liBackendResult li_backend_get(liVRequest *vr, liBackendPool *bpool, liBackendCo
 			S_backend_pool_worker_insert_con(pool, NULL, con);
 			*pbcon = &con->public;
 			result = LI_BACKEND_SUCCESS;
+			li_event_set_keep_loop_alive(&con->public.watcher, TRUE);
 			if (pool->public.config->watch_for_close) {
-				li_ev_safe_ref_and_stop(ev_io_stop, vr->wrk->loop, &con->public.watcher);
-			} else if (ev_is_active(&con->public.watcher)) {
-				ev_ref(vr->wrk->loop);
+				li_event_stop(&con->public.watcher);
+				li_event_set_callback(&con->public.watcher, NULL);
 			}
 			li_waitqueue_remove(&wpool->idle_queue, &con->timeout_elem);
 			goto out;
@@ -957,7 +946,7 @@ liBackendResult li_backend_get(liVRequest *vr, liBackendPool *bpool, liBackendCo
 		bwait = g_slice_new0(liBackendWait);
 		bwait->vr = vr;
 		bwait->vr_ref = li_vrequest_get_ref(vr);
-		bwait->ts_started = ev_now(vr->wrk->loop);
+		bwait->ts_started = li_cur_ts(vr->wrk);
 		*pbwait = bwait;
 
 		if (pool->public.config->max_connections <= 0) {
@@ -997,10 +986,10 @@ liBackendResult li_backend_get(liVRequest *vr, liBackendPool *bpool, liBackendCo
 		S_backend_pool_worker_insert_con(pool, NULL, con);
 
 		result = LI_BACKEND_SUCCESS;
+		li_event_set_keep_loop_alive(&con->public.watcher, TRUE);
 		if (pool->public.config->watch_for_close) {
-			li_ev_safe_ref_and_stop(ev_io_stop, vr->wrk->loop, &con->public.watcher);
-		} else if (ev_is_active(&con->public.watcher)) {
-			ev_ref(vr->wrk->loop);
+			li_event_stop(&con->public.watcher);
+			li_event_set_callback(&con->public.watcher, NULL);
 		}
 		li_waitqueue_remove(&wpool->idle_queue, &con->timeout_elem);
 		goto out;
@@ -1068,7 +1057,7 @@ void li_backend_put(liWorker *wrk, liBackendPool *bpool, liBackendConnection *bc
 	++con->requests;
 	con->active = FALSE;
 
-	if (-1 == con->public.watcher.fd || closecon
+	if (-1 == li_event_io_fd(&con->public.watcher) || closecon
 		|| (pool->public.config->max_requests > 0 && con->requests >= pool->public.config->max_requests)
 		|| (0 == pool->public.config->idle_timeout)) {
 		backend_connection_close(pool, con, FALSE);
@@ -1077,13 +1066,11 @@ void li_backend_put(liWorker *wrk, liBackendPool *bpool, liBackendConnection *bc
 
 		pool->ts_disabled_till = 0;
 
+		li_event_set_keep_loop_alive(&con->public.watcher, FALSE);
 		if (pool->public.config->watch_for_close) {
-			ev_io_stop(wrk->loop, &con->public.watcher);
-			ev_io_init(&con->public.watcher, backend_con_watch_for_close_cb, con->public.watcher.fd, EV_READ);
-			con->public.watcher.data = con;
-			li_ev_safe_unref_and_start(ev_io_start, wrk->loop, &con->public.watcher);
-		} else if (ev_is_active(&con->public.watcher)) {
-			ev_unref(wrk->loop);
+			li_event_set_callback(&con->public.watcher, backend_con_watch_for_close_cb);
+			li_event_io_set_events(&con->public.watcher, LI_EV_READ);
+			li_event_start(&con->public.watcher);
 		}
 		li_waitqueue_push(&wpool->idle_queue, &con->timeout_elem);
 

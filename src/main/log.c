@@ -14,12 +14,12 @@
 #define LOG_DEFAULT_TS_FORMAT "%d/%b/%Y %T %Z"
 #define LOG_DEFAULT_TTL 30.0
 
-static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents);
+static void log_watcher_cb(liEventBase *watcher, int events);
 
 static void li_log_write_stderr(liServer *srv, const gchar *msg, gboolean newline) {
 	gsize s;
 	struct tm tm;
-	time_t now = (time_t) ev_time();
+	time_t now = (time_t) li_event_time();
 	gchar buf[128];
 
 	UNUSED(srv);
@@ -107,11 +107,10 @@ static void log_close_cb(liWaitQueue *wq, gpointer data) {
 }
 
 void li_log_init(liServer *srv) {
-	srv->logs.loop = ev_loop_new(EVFLAG_AUTO);
-	ev_async_init(&srv->logs.watcher, log_watcher_cb);
-	srv->logs.watcher.data = srv;
+	li_event_loop_init(&srv->logs.loop, ev_loop_new(EVFLAG_AUTO));
+	li_event_async_init(&srv->logs.loop, &srv->logs.watcher, log_watcher_cb);
 	srv->logs.targets = li_radixtree_new();
-	li_waitqueue_init(&srv->logs.close_queue, srv->logs.loop, log_close_cb, LOG_DEFAULT_TTL, srv);
+	li_waitqueue_init(&srv->logs.close_queue, &srv->logs.loop, log_close_cb, LOG_DEFAULT_TTL, srv);
 	srv->logs.timestamp.format = g_string_new_len(CONST_STR_LEN(LOG_DEFAULT_TS_FORMAT));
 	srv->logs.timestamp.cached = g_string_sized_new(255);
 	srv->logs.timestamp.last_ts = 0;
@@ -134,7 +133,7 @@ void li_log_cleanup(liServer *srv) {
 	g_string_free(srv->logs.timestamp.format, TRUE);
 	g_string_free(srv->logs.timestamp.cached, TRUE);
 
-	ev_loop_destroy(srv->logs.loop);
+	ev_loop_destroy(li_event_loop_clear(&srv->logs.loop));
 
 	li_log_context_set(&srv->logs.log_context, NULL);
 }
@@ -210,7 +209,7 @@ gboolean li_log_write_direct(liServer *srv, liWorker *wrk, GString *path, GStrin
 		g_static_mutex_lock(&srv->logs.write_queue_mutex);
 		g_queue_push_tail_link(&srv->logs.write_queue, &log_entry->queue_link);
 		g_static_mutex_unlock(&srv->logs.write_queue_mutex);
-		ev_async_send(srv->logs.loop, &srv->logs.watcher);
+		li_event_async_send(&srv->logs.watcher);
 	}
 
 	return TRUE;
@@ -276,21 +275,21 @@ gboolean li_log_write(liServer *srv, liWorker *wrk, liLogContext *context, liLog
 		g_static_mutex_lock(&srv->logs.write_queue_mutex);
 		g_queue_push_tail_link(&srv->logs.write_queue, &log_entry->queue_link);
 		g_static_mutex_unlock(&srv->logs.write_queue_mutex);
-		ev_async_send(srv->logs.loop, &srv->logs.watcher);
+		li_event_async_send(&srv->logs.watcher);
 	}
 
 	return TRUE;
 }
 
 static gpointer log_thread(liServer *srv) {
-	ev_loop(srv->logs.loop, 0);
+	li_event_loop_run(&srv->logs.loop);
 	return NULL;
 }
 
 static GString *log_timestamp_format(liServer *srv) {
 	gsize s;
 	struct tm tm;
-	time_t now = (time_t) ev_now(srv->logs.loop);
+	time_t now = (time_t) li_event_now(&srv->logs.loop);
 
 	/* cache hit */
 	if (now == srv->logs.timestamp.last_ts) {
@@ -309,12 +308,11 @@ static GString *log_timestamp_format(liServer *srv) {
 	return srv->logs.timestamp.cached;
 }
 
-static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	liServer *srv = (liServer*) w->data;
+static void log_watcher_cb(liEventBase *watcher, int events) {
+	liServer *srv = LI_CONTAINER_OF(li_event_async_from(watcher), liServer, logs.watcher);
 	GList *queue_link, *queue_link_next;
 
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
 	if (g_atomic_int_get(&srv->logs.thread_stop) == TRUE) {
 		liWaitQueueElem *wqe;
@@ -323,7 +321,8 @@ static void log_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
 			log_close(srv, wqe->data);
 		}
 		li_waitqueue_stop(&srv->logs.close_queue);
-		ev_async_stop(srv->logs.loop, &srv->logs.watcher);
+		li_event_clear(&srv->logs.watcher);
+		li_event_loop_end(&srv->logs.loop);
 		return;
 	}
 
@@ -398,7 +397,8 @@ next:
 			log_close(srv, wqe->data);
 		}
 		li_waitqueue_stop(&srv->logs.close_queue);
-		ev_async_stop(srv->logs.loop, &srv->logs.watcher);
+		li_event_clear(&srv->logs.watcher);
+		li_event_loop_end(&srv->logs.loop);
 		return;
 	}
 
@@ -473,8 +473,7 @@ gchar* li_log_level_str(liLogLevel log_level) {
 
 void li_log_thread_start(liServer *srv) {
 	GError *err = NULL;
-
-	ev_async_start(srv->logs.loop, &srv->logs.watcher);
+	assert(NULL == srv->logs.thread);
 
 	srv->logs.thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
 
@@ -505,7 +504,7 @@ void li_log_thread_wakeup(liServer *srv) {
 	if (!g_atomic_int_get(&srv->logs.thread_alive))
 		li_log_thread_start(srv);
 
-	ev_async_send(srv->logs.loop, &srv->logs.watcher);
+	li_event_async_send(&srv->logs.watcher);
 }
 
 void li_log_split_lines(liServer *srv, liWorker *wrk, liLogContext *context, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix) {

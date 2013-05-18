@@ -36,7 +36,7 @@ static void angel_close_cb(liAngelConnection *acon, GError *err) {
 }
 
 void li_angel_setup(liServer *srv) {
-	srv->acon = li_angel_connection_new(srv->loop, 0, srv, angel_call_cb, angel_close_cb);
+	srv->acon = li_angel_connection_new(&srv->main_worker->loop, 0, srv, angel_call_cb, angel_close_cb);
 	srv->dest_state = LI_SERVER_SUSPENDED;
 }
 
@@ -47,13 +47,12 @@ struct angel_listen_cb_ctx {
 	gpointer data;
 };
 
-static void li_angel_listen_cb(liAngelCall *acall, gpointer pctx, gboolean timeout, GString *error, GString *data, GArray *fds) {
+static void li_angel_listen_cb(gpointer pctx, gboolean timeout, GString *error, GString *data, GArray *fds) {
 	angel_listen_cb_ctx ctx = * (angel_listen_cb_ctx*) pctx;
 	liServer *srv = ctx.srv;
 	guint i;
 	UNUSED(data);
 
-	li_angel_call_free(acall);
 	g_slice_free(angel_listen_cb_ctx, pctx);
 
 	if (timeout) {
@@ -86,7 +85,7 @@ static void li_angel_listen_cb(liAngelCall *acall, gpointer pctx, gboolean timeo
 /* listen to a socket */
 void li_angel_listen(liServer *srv, GString *str, liAngelListenCB cb, gpointer data) {
 	if (srv->acon) {
-		liAngelCall *acall = li_angel_call_new(li_angel_listen_cb, 20.0);
+		liAngelCall *acall = li_angel_call_new(&srv->main_worker->loop, li_angel_listen_cb, 20.0);
 		angel_listen_cb_ctx *ctx = g_slice_new0(angel_listen_cb_ctx);
 		GError *err = NULL;
 
@@ -126,12 +125,11 @@ struct angel_log_cb_ctx {
 	GString *logname;
 };
 
-static void li_angel_log_open_cb(liAngelCall *acall, gpointer pctx, gboolean timeout, GString *error, GString *data, GArray *fds) {
+static void li_angel_log_open_cb(gpointer pctx, gboolean timeout, GString *error, GString *data, GArray *fds) {
 	angel_log_cb_ctx ctx = * (angel_log_cb_ctx*) pctx;
 	liServer *srv = ctx.srv;
 	UNUSED(data);
 
-	li_angel_call_free(acall);
 	g_slice_free(angel_log_cb_ctx, pctx);
 
 	if (timeout) {
@@ -161,9 +159,9 @@ cleanup:
 	g_string_free(ctx.logname, TRUE);
 }
 
-void li_angel_log_open_file(liServer *srv, GString *filename, liAngelLogOpen cb, gpointer data) {
+void li_angel_log_open_file(liServer *srv, liEventLoop *loop, GString *filename, liAngelLogOpen cb, gpointer data) {
 	if (srv->acon) {
-		liAngelCall *acall = li_angel_call_new(li_angel_log_open_cb, 10.0);
+		liAngelCall *acall = li_angel_call_new(loop, li_angel_log_open_cb, 10.0);
 		angel_log_cb_ctx *ctx = g_slice_new0(angel_log_cb_ctx);
 		GError *err = NULL;
 

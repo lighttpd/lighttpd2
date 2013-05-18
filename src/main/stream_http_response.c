@@ -71,7 +71,7 @@ LI_API liStream* li_stream_http_response_handle(liStream *http_in, liVRequest *v
 	liStreamHttpResponse *shr = g_slice_new0(liStreamHttpResponse);
 	shr->response_headers_finished = FALSE;
 	shr->vr = vr;
-	li_stream_init(&shr->stream, &vr->wrk->jobqueue, stream_http_respone_cb);
+	li_stream_init(&shr->stream, &vr->wrk->loop, stream_http_respone_cb);
 	li_http_response_parser_init(&shr->parse_response_ctx, &vr->response, http_in->out,
 		accept_cgi, accept_nph);
 	li_stream_connect(http_in, &shr->stream);

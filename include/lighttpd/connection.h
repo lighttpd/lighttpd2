@@ -67,7 +67,7 @@ struct liConnection {
 		GList *link;
 		ev_tstamp timeout;
 		guint max_idle;
-		ev_timer watcher;
+		liEventTimer watcher;
 	} keep_alive_data;
 	guint keep_alive_requests;
 

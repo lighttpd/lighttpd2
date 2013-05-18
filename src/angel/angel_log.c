@@ -32,24 +32,24 @@ void li_log_write(liServer *srv, liLogLevel log_level, guint flags, const gchar 
 	/* for normal error messages, we prepend a timestamp */
 	if (flags & LI_LOG_FLAG_TIMESTAMP) {
 		GString *log_ts = srv->log.ts_cache;
-		time_t cur_ts;
+		time_t li_cur_ts;
 
-		cur_ts = (time_t)ev_now(srv->loop);
+		li_cur_ts = (time_t)li_event_now(&srv->loop);
 
-		if (cur_ts != srv->log.last_ts) {
+		if (li_cur_ts != srv->log.last_ts) {
 			gsize s;
 			struct tm tm;
 
 			g_string_set_size(log_ts, 255);
 #ifdef HAVE_LOCALTIME_R
-			s = strftime(log_ts->str, log_ts->allocated_len, "%Y-%m-%d %H:%M:%S %Z: ", localtime_r(&cur_ts, &tm));
+			s = strftime(log_ts->str, log_ts->allocated_len, "%Y-%m-%d %H:%M:%S %Z: ", localtime_r(&li_cur_ts, &tm));
 #else
-			s = strftime(log_ts->str, log_ts->allocated_len, "%Y-%m-%d %H:%M:%S %Z: ", localtime(&cur_ts));
+			s = strftime(log_ts->str, log_ts->allocated_len, "%Y-%m-%d %H:%M:%S %Z: ", localtime(&li_cur_ts));
 #endif
 
 			g_string_set_size(log_ts, s);
 
-			srv->log.last_ts = cur_ts;
+			srv->log.last_ts = li_cur_ts;
 		}
 
 		g_string_append_len(log_line, GSTR_LEN(log_ts));

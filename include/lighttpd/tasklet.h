@@ -2,6 +2,7 @@
 #define _LIGHTTPD_TASKLET_H_
 
 #include <lighttpd/settings.h>
+#include <lighttpd/events.h>
 
 typedef struct liTaskletPool liTaskletPool;
 
@@ -14,7 +15,7 @@ typedef void (*liTaskletRunCB)(gpointer data);
  */
 
 /* we do not keep the loop alive! */
-LI_API liTaskletPool* li_tasklet_pool_new(struct ev_loop *loop, gint threads);
+LI_API liTaskletPool* li_tasklet_pool_new(liEventLoop *loop, gint threads);
 
 /* blocks until all tasks are done; calls all finished callbacks;
  * you are allowed to call this from finish callbacks, but not more than once!

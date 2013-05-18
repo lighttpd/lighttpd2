@@ -63,15 +63,14 @@ static void read_pipe(liServer *srv, liErrorPipe *epipe, gboolean flush) {
 	return;
 
 close_epipe:
-	ev_io_stop(srv->loop, &epipe->fd_watcher);
+	li_event_stop(&epipe->fd_watcher);
 	close(epipe->fds[0]);
 	epipe->fds[0] = -1;
 }
 
-static void error_pipe_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	liErrorPipe *epipe = w->data;
-	UNUSED(loop);
-	UNUSED(revents);
+static void error_pipe_cb(liEventBase *watcher, int events) {
+	liErrorPipe *epipe = LI_CONTAINER_OF(li_event_io_from(watcher), liErrorPipe, fd_watcher);
+	UNUSED(events);
 
 	read_pipe(epipe->srv, epipe, FALSE);
 }
@@ -89,8 +88,7 @@ liErrorPipe* li_error_pipe_new(liServer *srv, liErrorPipeCB cb, gpointer ctx) {
 	epipe->srv = srv;
 	epipe->cb = cb;
 	epipe->ctx = ctx;
-	ev_io_init(&epipe->fd_watcher, error_pipe_cb, fds[0], EV_READ);
-	epipe->fd_watcher.data = epipe;
+	li_event_io_init(&srv->loop, &epipe->fd_watcher, error_pipe_cb, fds[0], LI_EV_READ);
 	epipe->fds[0] = fds[0];
 	epipe->fds[1] = fds[1];
 
@@ -100,9 +98,7 @@ liErrorPipe* li_error_pipe_new(liServer *srv, liErrorPipeCB cb, gpointer ctx) {
 }
 
 void li_error_pipe_free(liErrorPipe *epipe) {
-	liServer *srv = epipe->srv;
-
-	ev_io_stop(srv->loop, &epipe->fd_watcher);
+	li_event_clear(&epipe->fd_watcher);
 	li_error_pipe_flush(epipe);
 	if (-1 != epipe->fds[0]) { close(epipe->fds[0]); epipe->fds[0] = -1; }
 	if (-1 != epipe->fds[1]) { close(epipe->fds[1]); epipe->fds[1] = -1; }
@@ -112,10 +108,8 @@ void li_error_pipe_free(liErrorPipe *epipe) {
 
 /** closes out-fd */
 void li_error_pipe_activate(liErrorPipe *epipe) {
-	liServer *srv = epipe->srv;
-
 	if (-1 != epipe->fds[1]) { close(epipe->fds[1]); epipe->fds[1] = -1; }
-	ev_io_start(srv->loop, &epipe->fd_watcher);
+	li_event_start(&epipe->fd_watcher);
 }
 
 /** closes in-fd, moves out-fd to dest_fd */

@@ -181,7 +181,7 @@ static void auth_file_data_release(AuthFileData *data) {
 }
 
 static AuthFileData* auth_file_get_data(liWorker *wrk, AuthFile *f) {
-	ev_tstamp now = ev_now(wrk->loop);
+	ev_tstamp now = li_cur_ts(wrk);
 	AuthFileData *data = NULL;
 
 	g_mutex_lock(f->lock);
@@ -230,7 +230,7 @@ static AuthFile* auth_file_new(liWorker *wrk, const GString *path, gboolean has_
 	f->path = g_string_new_len(GSTR_LEN(path));
 	f->has_realm = has_realm;
 	f->ttl = ttl;
-	f->next_check = ev_now(wrk->loop) + ttl;
+	f->next_check = li_cur_ts(wrk) + ttl;
 	f->lock = g_mutex_new();
 
 	if (NULL == (f->data = auth_file_load(wrk->srv, f))) {

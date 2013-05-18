@@ -1,7 +1,9 @@
 #ifndef _LIGHTTPD_JOBQUEUE_H_
 #define _LIGHTTPD_JOBQUEUE_H_
 
-#include <lighttpd/settings.h>
+#ifndef _LIGHTTPD_EVENTS_H_
+#error Include lighttpd/events.h instead
+#endif
 
 typedef struct liJob liJob;
 typedef struct liJobRef liJobRef;
@@ -25,19 +27,18 @@ struct liJobRef {
 };
 
 struct liJobQueue {
-	struct ev_loop *loop;
 	guint generation;
 
-	ev_prepare prepare_watcher;
+	liEventPrepare prepare_watcher;
 
 	GQueue queue;
-	ev_timer queue_watcher;
+	liEventTimer queue_watcher;
 
 	GAsyncQueue *async_queue;
-	ev_async async_queue_watcher;
+	liEventAsync async_queue_watcher;
 };
 
-LI_API void li_job_queue_init(liJobQueue *jq, struct ev_loop *loop);
+LI_API void li_job_queue_init(liJobQueue *jq, liEventLoop *loop);
 LI_API void li_job_queue_clear(liJobQueue *jq); /* runs until all jobs are done */
 
 LI_API void li_job_init(liJob *job, liJobCB callback);

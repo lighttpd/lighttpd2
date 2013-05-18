@@ -56,8 +56,6 @@ LI_API gboolean li_querystring_find(const GString *querystring, const gchar *key
 /* formats a given guint64 for output. if dest is NULL, a new string is allocated */
 LI_API GString *li_counter_format(guint64 count, liCounterType t, GString *dest);
 
-LI_API gchar *li_ev_backend_string(guint backend);
-
 LI_API void li_string_destroy_notify(gpointer str);
 
 LI_API guint li_hash_binary_len(gconstpointer data, gsize len);

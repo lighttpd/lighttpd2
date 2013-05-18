@@ -56,12 +56,12 @@ static void stream_new_data_job_cb(liJob *job) {
 	li_stream_safe_cb(stream, LI_STREAM_NEW_DATA);
 }
 
-void li_stream_init(liStream* stream, liJobQueue *jobqueue, liStreamCB cb) {
+void li_stream_init(liStream* stream, liEventLoop *loop, liStreamCB cb) {
 	stream->refcount = 1;
 	stream->source = stream->dest = NULL;
 	stream->out = li_chunkqueue_new();
 	li_job_init(&stream->new_data_job, stream_new_data_job_cb);
-	stream->jobqueue = jobqueue;
+	stream->loop = loop;
 	stream->cb = cb;
 }
 
@@ -76,7 +76,6 @@ void li_stream_release(liStream* stream) {
 		li_job_clear(&stream->new_data_job);
 		li_chunkqueue_free(stream->out);
 		stream->out = NULL;
-		stream->jobqueue = NULL;
 		if (NULL != stream->cb) stream->cb(stream, LI_STREAM_DESTROY); /* "unsafe" cb, we can't keep a ref this time */
 	}
 }
@@ -168,26 +167,26 @@ void li_stream_notify_later(liStream *stream) {
 }
 
 void li_stream_again(liStream *stream) {
-	if (NULL != stream->jobqueue) {
-		li_job_now(stream->jobqueue, &stream->new_data_job);
+	if (NULL != stream->loop) {
+		li_job_now(&stream->loop->jobqueue, &stream->new_data_job);
 	}
 }
 
 void li_stream_again_later(liStream *stream) {
-	if (NULL != stream->jobqueue) {
-		li_job_later(stream->jobqueue, &stream->new_data_job);
+	if (NULL != stream->loop) {
+		li_job_later(&stream->loop->jobqueue, &stream->new_data_job);
 	}
 }
 
 void li_stream_detach(liStream *stream) {
-	stream->jobqueue = NULL;
+	stream->loop = NULL;
 	li_job_stop(&stream->new_data_job);
 
 	li_chunkqueue_set_limit(stream->out, NULL);
 }
 
-void li_stream_attach(liStream *stream, liJobQueue *jobqueue) {
-	stream->jobqueue = jobqueue;
+void li_stream_attach(liStream *stream, liEventLoop *loop) {
+	stream->loop = loop;
 	li_stream_again_later(stream);
 }
 
@@ -266,9 +265,9 @@ static void stream_plug_cb(liStream *stream, liStreamEvent event) {
 	}
 }
 
-liStream* li_stream_plug_new(liJobQueue *jobqueue) {
+liStream* li_stream_plug_new(liEventLoop *loop) {
 	liStream *stream = g_slice_new0(liStream);
-	li_stream_init(stream, jobqueue, stream_plug_cb);
+	li_stream_init(stream, loop, stream_plug_cb);
 	return stream;
 }
 
@@ -287,9 +286,9 @@ static void stream_null_cb(liStream *stream, liStreamEvent event) {
 	}
 }
 
-liStream* li_stream_null_new(liJobQueue *jobqueue) {
+liStream* li_stream_null_new(liEventLoop *loop) {
 	liStream *stream = g_slice_new0(liStream);
-	li_stream_init(stream, jobqueue, stream_null_cb);
+	li_stream_init(stream, loop, stream_null_cb);
 	stream->out->is_closed = TRUE;
 	return stream;
 }
@@ -312,7 +311,7 @@ static void iostream_destroy(liIOStream *iostream) {
 		iostream->write_timeout_queue = NULL;
 	}
 
-	ev_io_stop(iostream->wrk->loop, &iostream->io_watcher);
+	li_event_clear(&iostream->io_watcher);
 
 	iostream->cb(iostream, LI_IOSTREAM_DESTROY);
 
@@ -341,17 +340,17 @@ static void iostream_in_cb(liStream *stream, liStreamEvent event) {
 				li_stream_notify_later(stream);
 			}
 
-			if (-1 == iostream->io_watcher.fd) return;
+			if (-1 == li_event_io_fd(&iostream->io_watcher)) return;
 
 			if (iostream->can_read) {
 				li_stream_again_later(stream);
 			}
 		}
 		if (!iostream->can_read && !iostream->in_closed) {
-			li_ev_io_add_events(iostream->wrk->loop, &iostream->io_watcher, EV_READ);
+			li_event_io_add_events(&iostream->io_watcher, LI_EV_READ);
 		}
 		if (!iostream->can_write && !iostream->out_closed) {
-			li_ev_io_add_events(iostream->wrk->loop, &iostream->io_watcher, EV_WRITE);
+			li_event_io_add_events(&iostream->io_watcher, LI_EV_WRITE);
 		}
 		break;
 	case LI_STREAM_NEW_CQLIMIT:
@@ -392,10 +391,13 @@ static void iostream_out_cb(liStream *stream, liStreamEvent event) {
 	switch (event) {
 	case LI_STREAM_NEW_DATA:
 		if (iostream->can_write) {
+			liEventLoop *loop = li_event_get_loop(&iostream->io_watcher);
+			li_tstamp now = li_event_now(loop);
+
 			iostream->cb(iostream, LI_IOSTREAM_WRITE);
 			if (NULL != iostream->write_timeout_queue) {
 				if (stream->out->length > 0) {
-					if (!iostream->write_timeout_elem.queued || (iostream->write_timeout_elem.ts + 1.0) < ev_now(iostream->wrk->loop)) {
+					if (!iostream->write_timeout_elem.queued || (iostream->write_timeout_elem.ts + 1.0) < now) {
 						li_waitqueue_push(iostream->write_timeout_queue, &iostream->write_timeout_elem);
 					}
 				} else {
@@ -403,7 +405,7 @@ static void iostream_out_cb(liStream *stream, liStreamEvent event) {
 				}
 			}
 
-			if (-1 == iostream->io_watcher.fd) return;
+			if (-1 == li_event_io_fd(&iostream->io_watcher)) return;
 
 			if (iostream->can_write) {
 				if (stream->out->length > 0 || stream->out->is_closed) {
@@ -412,10 +414,10 @@ static void iostream_out_cb(liStream *stream, liStreamEvent event) {
 			}
 		}
 		if (!iostream->can_read && !iostream->in_closed) {
-			li_ev_io_add_events(iostream->wrk->loop, &iostream->io_watcher, EV_READ);
+			li_event_io_add_events(&iostream->io_watcher, LI_EV_READ);
 		}
 		if (!iostream->can_write && !iostream->out_closed) {
-			li_ev_io_add_events(iostream->wrk->loop, &iostream->io_watcher, EV_WRITE);
+			li_event_io_add_events(&iostream->io_watcher, LI_EV_WRITE);
 		}
 		break;
 	case LI_STREAM_CONNECTED_DEST:
@@ -437,20 +439,19 @@ static void iostream_out_cb(liStream *stream, liStreamEvent event) {
 	}
 }
 
-static void iostream_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	liIOStream *iostream = (liIOStream*) w->data;
+static void iostream_io_cb(liEventBase *watcher, int events) {
+	liIOStream *iostream = LI_CONTAINER_OF(li_event_io_from(watcher), liIOStream, io_watcher);
 	gboolean do_write = FALSE;
-	UNUSED(loop);
 
-	li_ev_io_rem_events(iostream->wrk->loop, &iostream->io_watcher, EV_WRITE | EV_READ);
+	li_event_io_rem_events(&iostream->io_watcher, LI_EV_WRITE | LI_EV_READ);
 
-	if (0 != (revents & EV_WRITE) && !iostream->can_write && iostream->stream_out.refcount > 0) {
+	if (0 != (events & LI_EV_WRITE) && !iostream->can_write && iostream->stream_out.refcount > 0) {
 		iostream->can_write = TRUE;
 		do_write = TRUE;
 		li_stream_acquire(&iostream->stream_out); /* keep out stream alive during li_stream_again(&iostream->stream_in) */
 	}
 
-	if (0 != (revents & EV_READ) && !iostream->can_read && iostream->stream_in.refcount > 0) {
+	if (0 != (events & LI_EV_READ) && !iostream->can_read && iostream->stream_in.refcount > 0) {
 		iostream->can_read = TRUE;
 		li_stream_again_later(&iostream->stream_in);
 	}
@@ -464,15 +465,13 @@ static void iostream_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
 liIOStream* li_iostream_new(liWorker *wrk, int fd, liIOStreamCB cb, gpointer data) {
 	liIOStream *iostream = g_slice_new0(liIOStream);
 
-	li_stream_init(&iostream->stream_in, &wrk->jobqueue, iostream_in_cb);
-	li_stream_init(&iostream->stream_out, &wrk->jobqueue, iostream_out_cb);
+	li_stream_init(&iostream->stream_in, &wrk->loop, iostream_in_cb);
+	li_stream_init(&iostream->stream_out, &wrk->loop, iostream_out_cb);
 	iostream->stream_in_limit = NULL;
 
 	iostream->write_timeout_queue = NULL;
 
-	iostream->wrk = wrk;
-	ev_io_init(&iostream->io_watcher, iostream_io_cb, fd, EV_READ);
-	iostream->io_watcher.data = iostream;
+	li_event_io_init(&wrk->loop, &iostream->io_watcher, iostream_io_cb, fd, LI_EV_READ);
 
 	iostream->in_closed = iostream->out_closed = iostream->can_read = FALSE;
 	iostream->can_write = TRUE;
@@ -480,7 +479,7 @@ liIOStream* li_iostream_new(liWorker *wrk, int fd, liIOStreamCB cb, gpointer dat
 	iostream->cb = cb;
 	iostream->data = data;
 
-	ev_io_start(iostream->wrk->loop, &iostream->io_watcher);
+	li_event_start(&iostream->io_watcher);
 
 	return iostream;
 }
@@ -499,11 +498,9 @@ int li_iostream_reset(liIOStream *iostream) {
 	int fd;
 	if (NULL == iostream) return -1;
 
-	fd = iostream->io_watcher.fd;
-	if (NULL != iostream->wrk->loop) {
-		ev_io_stop(iostream->wrk->loop, &iostream->io_watcher);
-	}
-	ev_io_set(&iostream->io_watcher, -1, 0);
+	fd = li_event_io_fd(&iostream->io_watcher);
+
+	li_event_clear(&iostream->io_watcher);
 
 	if (NULL != iostream->write_timeout_queue) {
 		li_waitqueue_remove(iostream->write_timeout_queue, &iostream->write_timeout_elem);
@@ -519,10 +516,7 @@ int li_iostream_reset(liIOStream *iostream) {
 }
 
 void li_iostream_detach(liIOStream *iostream) {
-	if (NULL != iostream->wrk) {
-		ev_io_stop(iostream->wrk->loop, &iostream->io_watcher);
-		iostream->wrk = NULL;
-	}
+	li_event_detach(&iostream->io_watcher);
 
 	if (NULL != iostream->stream_in_limit) {
 		if (&iostream->io_watcher == iostream->stream_in_limit->io_watcher) {
@@ -537,11 +531,8 @@ void li_iostream_detach(liIOStream *iostream) {
 }
 
 void li_iostream_attach(liIOStream *iostream, liWorker *wrk) {
-	assert(NULL == iostream->wrk);
+	li_stream_attach(&iostream->stream_in, &wrk->loop);
+	li_stream_attach(&iostream->stream_out, &wrk->loop);
 
-	li_stream_attach(&iostream->stream_in, &wrk->jobqueue);
-	li_stream_attach(&iostream->stream_out, &wrk->jobqueue);
-
-	iostream->wrk = wrk;
-	ev_io_start(iostream->wrk->loop, &iostream->io_watcher);
+	li_event_attach(&wrk->loop, &iostream->io_watcher);
 }

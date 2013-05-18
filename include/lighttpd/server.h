@@ -28,7 +28,7 @@ typedef enum {
 struct liServerSocket {
 	gint refcount;
 	liServer *srv;
-	ev_io watcher;
+	liEventIO watcher;
 
 	liSocketAddress local_addr;
 
@@ -54,7 +54,7 @@ struct liServer {
 	GMutex *statelock;
 	GQueue state_wait_queue;
 	liServerState state_wait_for;
-	ev_async state_ready_watcher;
+	liEventAsync state_ready_watcher;
 
 	liLuaState LL;
 
@@ -66,13 +66,12 @@ struct liServer {
 #endif
 	GArray *ts_formats;      /** array of (GString*), add with li_server_ts_format_add() */
 
-	struct ev_loop *loop;
 	guint loop_flags;
-	ev_signal
+	liEventSignal
 		sig_w_INT,
 		sig_w_TERM,
 		sig_w_PIPE;
-	ev_timer srv_1sec_timer;
+	liEventTimer srv_1sec_timer;
 
 	GPtrArray *sockets;          /** array of (server_socket*) */
 
@@ -100,7 +99,7 @@ struct liServer {
 
 	liLogServerData logs;
 
-	ev_tstamp started;
+	li_tstamp started;
 	GString *started_str;
 
 	guint connection_load, max_connections;
@@ -121,7 +120,7 @@ struct liServer {
 
 LI_API liServer* li_server_new(const gchar *module_dir, gboolean module_resident);
 LI_API void li_server_free(liServer* srv);
-LI_API gboolean li_server_loop_init(liServer *srv);
+LI_API void li_server_loop_init(liServer *srv);
 
 LI_API liServerSocket* li_server_listen(liServer *srv, int fd);
 

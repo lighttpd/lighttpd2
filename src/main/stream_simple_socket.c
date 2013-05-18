@@ -2,9 +2,9 @@
 #include <lighttpd/base.h>
 
 void li_stream_simple_socket_close(liIOStream *stream, gboolean aborted) {
-	int fd = stream->io_watcher.fd;
+	int fd = li_event_io_fd(&stream->io_watcher);
 
-	ev_io_stop(stream->wrk->loop, &stream->io_watcher);
+	li_event_detach(&stream->io_watcher);
 
 	if (-1 == fd) return;
 
@@ -22,18 +22,20 @@ void li_stream_simple_socket_close(liIOStream *stream, gboolean aborted) {
 			close(fd);
 		}
 	} else {
-		stream->io_watcher.fd = -1;
+		liWorker *wrk = li_worker_from_iostream(stream);
+		li_event_clear(&stream->io_watcher);
 
 		shutdown(fd, SHUT_WR);
 		li_stream_disconnect(&stream->stream_out);
-		li_worker_add_closing_socket(stream->wrk, fd);
+		li_worker_add_closing_socket(wrk, fd);
 	}
 }
 
 static void stream_simple_socket_read(liIOStream *stream, gpointer *data) {
 	liNetworkStatus res;
 	GError *err = NULL;
-	liWorker *wrk = stream->wrk;
+	liWorker *wrk = li_worker_from_iostream(stream);
+	int fd = li_event_io_fd(&stream->io_watcher);
 
 	liChunkQueue *raw_in = stream->stream_in.out;
 
@@ -45,7 +47,7 @@ static void stream_simple_socket_read(liIOStream *stream, gpointer *data) {
 
 	{
 		liBuffer *raw_in_buffer = *data;
-		res = li_network_read(stream->io_watcher.fd, raw_in, &raw_in_buffer, &err);
+		res = li_network_read(fd, raw_in, &raw_in_buffer, &err);
 		*data = raw_in_buffer;
 	}
 
@@ -65,7 +67,7 @@ static void stream_simple_socket_read(liIOStream *stream, gpointer *data) {
 		li_stream_simple_socket_close(stream, TRUE);
 		break;
 	case LI_NETWORK_STATUS_CONNECTION_CLOSE:
-		li_ev_io_rem_events(stream->wrk->loop, &stream->io_watcher, EV_READ);
+		li_event_io_rem_events(&stream->io_watcher, LI_EV_READ);
 		stream->stream_in.out->is_closed = TRUE;
 		stream->in_closed = TRUE;
 		stream->can_read = FALSE;
@@ -80,6 +82,8 @@ static void stream_simple_socket_write(liIOStream *stream) {
 	liNetworkStatus res;
 	liChunkQueue *raw_out = stream->stream_out.out;
 	liChunkQueue *from = stream->stream_out.source->out;
+	int fd = li_event_io_fd(&stream->io_watcher);
+	liWorker *wrk;
 
 	li_chunkqueue_steal_all(raw_out, from);
 
@@ -90,13 +94,14 @@ static void stream_simple_socket_write(liIOStream *stream) {
 
 		write_max = WRITE_MAX;
 
-		res = li_network_write(stream->io_watcher.fd, raw_out, write_max, &err);
+		res = li_network_write(fd, raw_out, write_max, &err);
 
 		switch (res) {
 		case LI_NETWORK_STATUS_SUCCESS:
 			break;
 		case LI_NETWORK_STATUS_FATAL_ERROR:
-			ERROR(stream->wrk->srv, "network write fatal error: %s", NULL != err ? err->message : "(unknown)");
+			wrk = li_worker_from_iostream(stream);
+			ERROR(wrk->srv, "network write fatal error: %s", NULL != err ? err->message : "(unknown)");
 			g_error_free(err);
 			li_stream_simple_socket_close(stream, TRUE);
 			break;
@@ -110,8 +115,8 @@ static void stream_simple_socket_write(liIOStream *stream) {
 	}
 
 	if (0 == raw_out->length && raw_out->is_closed) {
-		int fd = stream->io_watcher.fd;
-		li_ev_io_rem_events(stream->wrk->loop, &stream->io_watcher, EV_WRITE);
+		fd = li_event_io_fd(&stream->io_watcher);
+		li_event_io_rem_events(&stream->io_watcher, LI_EV_WRITE);
 		if (-1 != fd) shutdown(fd, SHUT_WR);
 		stream->out_closed = TRUE;
 		stream->can_write = FALSE;

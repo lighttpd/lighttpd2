@@ -2,6 +2,7 @@
 #define _LIGHTTPD_WAITQUEUE_H_
 
 #include <lighttpd/settings.h>
+#include <lighttpd/events.h>
 
 typedef struct liWaitQueueElem liWaitQueueElem;
 typedef struct liWaitQueue liWaitQueue;
@@ -9,7 +10,7 @@ typedef void (*liWaitQueueCB) (liWaitQueue *wq, gpointer data);
 
 struct liWaitQueueElem {
 	gboolean queued;
-	ev_tstamp ts;
+	li_tstamp ts;
 	liWaitQueueElem *prev;
 	liWaitQueueElem *next;
 	gpointer data;
@@ -18,8 +19,7 @@ struct liWaitQueueElem {
 struct liWaitQueue {
 	liWaitQueueElem *head;
 	liWaitQueueElem *tail;
-	ev_timer timer;
-	struct ev_loop *loop;
+	liEventTimer timer;
 	gdouble delay;
 
 	liWaitQueueCB callback;
@@ -34,7 +34,7 @@ struct liWaitQueue {
  */
 
 /* initializes a waitqueue by creating the ev_timer and initializing the queue. precision is sub-seconds */
-LI_API void li_waitqueue_init(liWaitQueue *queue, struct ev_loop *loop, liWaitQueueCB callback, gdouble delay, gpointer data);
+LI_API void li_waitqueue_init(liWaitQueue *queue, liEventLoop *loop, liWaitQueueCB callback, gdouble delay, gpointer data);
 
 /* stops the waitqueue. to restart it, simply call li_waitqueue_update */
 LI_API void li_waitqueue_stop(liWaitQueue *queue);

@@ -420,12 +420,12 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->bytes_in_5s_diff = c->info.stats.bytes_in_5s_diff;
 		cd->bytes_out_5s_diff = c->info.stats.bytes_out_5s_diff;
 
-		cd->ts_started = (guint64)(CUR_TS(wrk) - c->ts_started);
+		cd->ts_started = (guint64)(li_cur_ts(wrk) - c->ts_started);
 
 		if (c->state == LI_CON_STATE_KEEP_ALIVE) {
-			cd->ts_timeout = (guint64)(c->keep_alive_data.timeout - CUR_TS(wrk));
+			cd->ts_timeout = (guint64)(c->keep_alive_data.timeout - li_cur_ts(wrk));
 		} else {
-			cd->ts_timeout = (guint64)(wrk->srv->io_timeout - (CUR_TS(wrk) - c->io_timeout_elem.ts));
+			cd->ts_timeout = (guint64)(wrk->srv->io_timeout - (li_cur_ts(wrk) - c->io_timeout_elem.ts));
 		}
 
 		sd->connection_count[c->state]++;
@@ -483,7 +483,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		*(job->context) = NULL;
 		g_slice_free(mod_status_job, job);
 
-		uptime = CUR_TS(vr->wrk) - vr->wrk->srv->started;
+		uptime = li_cur_ts(vr->wrk) - vr->wrk->srv->started;
 		if (!uptime)
 			uptime = 1;
 
@@ -601,7 +601,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 	mem = li_memory_usage();
 	if (mem)
 		li_counter_format(mem, COUNTER_BYTES, count_mem);
-	li_counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, tmpstr);
+	li_counter_format((guint64)(li_cur_ts(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, tmpstr);
 	g_string_append_printf(html, short_info ? html_top_short : html_top,
 		mem ? count_mem->str : "N/A",
 		tmpstr->str,
@@ -1073,7 +1073,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 	mem = li_memory_usage();
 	if (mem)
 		li_counter_format(mem, COUNTER_BYTES, tmp_str);
-	li_counter_format((guint64)(CUR_TS(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, vr->wrk->tmp_str);
+	li_counter_format((guint64)(li_cur_ts(vr->wrk) - vr->wrk->srv->started), COUNTER_TIME, vr->wrk->tmp_str);
 	g_string_append_printf(html, html_top,
 		mem ? tmp_str->str : "N/A",
 		vr->wrk->tmp_str->str,
@@ -1113,7 +1113,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 
 		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Server info</strong></div>\n"));
 		g_string_append_printf(html, html_server_info,
-			g_get_host_name(), g_get_user_name(), getuid(), li_ev_backend_string(ev_backend(vr->wrk->loop)),
+			g_get_host_name(), g_get_user_name(), getuid(), li_event_loop_backend_string(&vr->wrk->loop),
 			slim_fd, g_atomic_int_get(&vr->wrk->srv->max_connections), slim_core, (guint64) vr->wrk->srv->io_timeout
 		);
 

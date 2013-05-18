@@ -54,7 +54,7 @@ static gboolean collect_insert_callback(liWorker *ctx, liCollectInfo *ci) {
 		j->type = COLLECT_CB;
 		j->ci = ci;
 		g_async_queue_push(wrk->collect_queue, j);
-		ev_async_send(wrk->loop, &wrk->collect_watcher);
+		li_event_async_send(&wrk->collect_watcher);
 	}
 	return FALSE;
 }
@@ -88,7 +88,7 @@ static gboolean collect_insert_func(liServer *srv, liWorker *ctx, liCollectInfo 
 			j->type = COLLECT_FUNC;
 			j->ci = ci;
 			g_async_queue_push(wrk->collect_queue, j);
-			ev_async_send(wrk->loop, &wrk->collect_watcher);
+			li_event_async_send(&wrk->collect_watcher);
 		}
 	}
 	return FALSE;
@@ -111,11 +111,10 @@ void li_collect_break(liCollectInfo* ci) {
 	ci->stopped = TRUE;
 }
 
-void li_collect_watcher_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	liWorker *wrk = (liWorker*) w->data;
+void li_collect_watcher_cb(liEventBase *watcher, int events) {
+	liWorker *wrk = LI_CONTAINER_OF(li_event_async_from(watcher), liWorker, collect_watcher);
 	collect_job *j;
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
 	while (NULL != (j = (collect_job*) g_async_queue_try_pop(wrk->collect_queue))) {
 		liCollectInfo *ci = j->ci;

@@ -260,7 +260,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_DURATION_MICROSECONDS:
-				li_string_append_int(str, (CUR_TS(vr->wrk) - vr->ts_started) * 1000 * 1000);
+				li_string_append_int(str, (li_cur_ts(vr->wrk) - vr->ts_started) * 1000 * 1000);
 				break;
 			case AL_FORMAT_ENV:
 				tmp_gstr2 = li_environment_get(&vr->env, GSTR_LEN(e->key));
@@ -324,7 +324,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(tmp_gstr2));
 				break;
 			case AL_FORMAT_DURATION_SECONDS:
-				li_string_append_int(str, CUR_TS(vr->wrk) - vr->ts_started);
+				li_string_append_int(str, li_cur_ts(vr->wrk) - vr->ts_started);
 				break;
 			case AL_FORMAT_AUTHED_USER:
 				tmp_gstr2 = li_environment_get(&vr->env, CONST_STR_LEN("REMOTE_USER"));

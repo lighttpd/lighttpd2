@@ -2,7 +2,7 @@
 #define _LIGHTTPD_MEMCACHED_H_
 
 #include <lighttpd/settings.h>
-
+#include <lighttpd/events.h>
 #include <lighttpd/buffer.h>
 
 typedef struct liMemcachedCon liMemcachedCon;
@@ -21,7 +21,7 @@ typedef void (*liMemcachedCB)(liMemcachedRequest *request, liMemcachedResult res
 struct liMemcachedItem {
 	GString *key;
 	guint32 flags;
-	ev_tstamp ttl;
+	li_tstamp ttl;
 	guint64 cas;
 	liBuffer *data;
 };
@@ -42,13 +42,13 @@ typedef enum {
 	LI_MEMCACHED_UNKNOWN = 0xff
 } liMemcachedError;
 
-LI_API liMemcachedCon* li_memcached_con_new(struct ev_loop *loop, liSocketAddress addr);
+LI_API liMemcachedCon* li_memcached_con_new(liEventLoop *loop, liSocketAddress addr);
 LI_API void li_memcached_con_acquire(liMemcachedCon* con);
 LI_API void li_memcached_con_release(liMemcachedCon* con); /* thread-safe */
 
 /* these functions are not thread-safe, i.e. must be called in the same context as "loop" from li_memcached_con_new */
 LI_API liMemcachedRequest* li_memcached_get(liMemcachedCon *con, GString *key, liMemcachedCB callback, gpointer cb_data, GError **err);
-LI_API liMemcachedRequest* li_memcached_set(liMemcachedCon *con, GString *key, guint32 flags, ev_tstamp ttl, liBuffer *data, liMemcachedCB callback, gpointer cb_data, GError **err);
+LI_API liMemcachedRequest* li_memcached_set(liMemcachedCon *con, GString *key, guint32 flags, li_tstamp ttl, liBuffer *data, liMemcachedCB callback, gpointer cb_data, GError **err);
 
 /* if length(key) <= 250 and all chars x: 0x20 < x < 0x7f the key
  * remains untouched; otherwise it gets replaced with its sha1hex hash

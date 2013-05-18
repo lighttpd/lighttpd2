@@ -226,8 +226,8 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 		GString *duration = g_string_sized_new(15);
 
 		g_string_append_printf(html, "<p>now: %f<br>io timeout watcher active/repeat: %s/%f<br></p>\n",
-			CUR_TS(vr->wrk), ev_is_active(&(vr->wrk->io_timeout_queue.timer)) ? "yes":"no",
-			vr->wrk->io_timeout_queue.timer.repeat
+			li_cur_ts(vr->wrk), ev_is_active(&(vr->wrk->io_timeout_queue.timer)) ? "yes":"no",
+			vr->wrk->io_timeout_queue.timer.libevmess.timer.repeat
 		);
 
 		g_string_append_len(html, CONST_STR_LEN("<table><tr><th>Client</th><th>Duration</th><th></th></tr>\n"));
@@ -238,7 +238,7 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 			for (j = 0; j < cons->len; j++) {
 				mod_debug_data_t *d = &g_array_index(cons, mod_debug_data_t, j);
 
-				li_counter_format((guint64)(CUR_TS(vr->wrk) - d->ts_started), COUNTER_TIME, duration);
+				li_counter_format((guint64)(li_cur_ts(vr->wrk) - d->ts_started), COUNTER_TIME, duration);
 				g_string_append_printf(html, "<tr><td>%s</td><td style=\"text-align:right;\">%s</td><td style=\"padding-left:10px;\"><a href=\"?%u_%u_%d_%s\">debug</a></td></tr>\n",
 					d->remote_addr_str->str,
 					duration->str,

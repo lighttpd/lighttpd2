@@ -138,7 +138,6 @@ static void backend_detach_thread(liBackendPool *bpool, liWorker *wrk, liBackend
 	assert(2 == ctx->fcgi_in.refcount);
 	assert(2 == ctx->fcgi_out.refcount);
 
-	if (ev_is_active(&ctx->iostream->io_watcher)) ev_ref(wrk->loop);
 	li_iostream_detach(ctx->iostream);
 	li_stream_detach(&ctx->fcgi_out);
 	li_stream_detach(&ctx->fcgi_in);
@@ -150,7 +149,6 @@ static void backend_attach_thread(liBackendPool *bpool, liWorker *wrk, liBackend
 
 	ctx->wrk = wrk;
 	li_iostream_attach(ctx->iostream, wrk);
-	if (ev_is_active(&ctx->iostream->io_watcher)) ev_unref(wrk->loop);
 	li_stream_attach(&ctx->fcgi_out, &wrk->loop);
 	li_stream_attach(&ctx->fcgi_in, &wrk->loop);
 }
@@ -164,11 +162,11 @@ static void backend_new(liBackendPool *bpool, liWorker *wrk, liBackendConnection
 	ctx->refcount = 3; /* backend_close, fcgi_out, fcgi_in */
 	ctx->pool = pool;
 	ctx->wrk = wrk;
-	ctx->iostream = li_iostream_new(wrk, bcon->watcher.fd, li_stream_simple_socket_io_cb, NULL);
-	ev_unref(wrk->loop);
+	ctx->iostream = li_iostream_new(wrk, li_event_io_fd(&bcon->watcher), li_stream_simple_socket_io_cb, NULL);
+	li_event_set_keep_loop_alive(&ctx->iostream->io_watcher, FALSE);
 
-	li_stream_init(&ctx->fcgi_out, &wrk->jobqueue, fastcgi_stream_out);
-	li_stream_init(&ctx->fcgi_in, &wrk->jobqueue, fastcgi_stream_in);
+	li_stream_init(&ctx->fcgi_out, &wrk->loop, fastcgi_stream_out);
+	li_stream_init(&ctx->fcgi_in, &wrk->loop, fastcgi_stream_in);
 
 	li_stream_connect(&ctx->iostream->stream_in, &ctx->fcgi_in);
 	li_stream_connect(&ctx->fcgi_out, &ctx->iostream->stream_out);
@@ -198,8 +196,6 @@ static void backend_close(liBackendPool *bpool, liWorker *wrk, liBackendConnecti
 	fcgi_debug("%s\n", "backend_close");
 
 	if (NULL != ctx->iostream) {
-		if (ev_is_active(&ctx->iostream->io_watcher)) ev_ref(wrk->loop);
-
 		li_stream_simple_socket_close(ctx->iostream, FALSE);
 		li_iostream_reset(ctx->iostream);
 		ctx->iostream = NULL;
@@ -212,8 +208,7 @@ static void backend_close(liBackendPool *bpool, liWorker *wrk, liBackendConnecti
 
 	backend_ctx_unref(ctx);
 
-	bcon->watcher.fd = -1;
-	bcon->data = NULL;
+	li_event_io_set_fd(&bcon->watcher, -1);
 }
 
 static void backend_free(liBackendPool *bpool) {
@@ -246,14 +241,13 @@ static void fastcgi_check_put(liFastCGIBackendContext *ctx) {
 	li_stream_set_cqlimit(&ctx->fcgi_out, NULL, NULL);
 
 	if (NULL != ctx->iostream) {
-		ctx->subcon->watcher.fd = ctx->iostream->io_watcher.fd;
+		li_event_io_set_fd(&ctx->subcon->watcher, li_event_io_fd(&ctx->iostream->io_watcher));
+		li_event_set_keep_loop_alive(&ctx->iostream->io_watcher, FALSE);
 		assert(NULL == ctx->iostream->stream_in.out->limit);
 		assert(NULL == ctx->iostream->stream_out.out->limit);
 	} else {
-		ctx->subcon->watcher.fd = -1;
+		li_event_io_set_fd(&ctx->subcon->watcher, -1);
 	}
-
-	if (ev_is_active(&ctx->iostream->io_watcher)) ev_unref(ctx->wrk->loop);
 
 	assert(NULL == ctx->fcgi_in.out->limit);
 	assert(NULL == ctx->fcgi_out.out->limit);
@@ -275,8 +269,6 @@ static void fastcgi_reset(liFastCGIBackendContext *ctx) {
 		liIOStream *iostream = ctx->iostream;
 
 		if (NULL == iostream) return;
-
-		if (ev_is_active(&ctx->iostream->io_watcher)) ev_ref(ctx->wrk->loop);
 
 		ctx->request_done = TRUE;
 		ctx->iostream = NULL;
@@ -593,7 +585,7 @@ static void fastcgi_stream_out(liStream *stream, liStreamEvent event) {
 
 static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 	liChunkQueue *in = ctx->iostream->stream_in.out;
-	liWorker *wrk = ctx->iostream->wrk;
+	liWorker *wrk = li_worker_from_iostream(ctx->iostream);
 
 	while (NULL != ctx->iostream && 0 < in->length) {
 		gboolean newdata = FALSE;
@@ -821,11 +813,11 @@ liBackendResult li_fastcgi_backend_get(liVRequest *vr, liFastCGIBackendPool *bpo
 		assert(vr->wrk == li_worker_from_stream(&ctx->fcgi_in));
 		assert(vr->wrk == li_worker_from_stream(&ctx->fcgi_out));
 
-		assert(ev_is_active(&ctx->iostream->io_watcher));
-		ev_ref(ctx->wrk->loop);
+		assert(li_event_active(&ctx->iostream->io_watcher));
+		li_event_set_keep_loop_alive(&ctx->iostream->io_watcher, TRUE);
 
 		assert(NULL != ctx->iostream);
-		assert(-1 != ctx->iostream->io_watcher.fd);
+		assert(-1 != li_event_io_fd(&ctx->iostream->io_watcher));
 
 		assert(ctx->iostream->stream_in.dest == &ctx->fcgi_in);
 		assert(ctx->iostream->stream_out.source == &ctx->fcgi_out);

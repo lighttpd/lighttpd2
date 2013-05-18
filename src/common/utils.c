@@ -484,19 +484,6 @@ GString *li_counter_format(guint64 count, liCounterType t, GString *dest) {
 }
 
 
-gchar *li_ev_backend_string(guint backend) {
-	switch (backend) {
-		case EVBACKEND_SELECT:  return "select";
-		case EVBACKEND_POLL:    return "poll";
-		case EVBACKEND_EPOLL:   return "epoll";
-		case EVBACKEND_KQUEUE:  return "kqueue";
-		case EVBACKEND_DEVPOLL: return "devpoll";
-		case EVBACKEND_PORT:    return "port";
-		default:                return "unknown";
-	}
-}
-
-
 void li_string_destroy_notify(gpointer str) {
 	g_string_free((GString*)str, TRUE);
 }

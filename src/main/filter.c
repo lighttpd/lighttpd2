@@ -108,7 +108,7 @@ liFilter* li_filter_new(liVRequest* vr, liFilterHandlerCB handle_data, liFilterF
 	liFilter *f;
 
 	f = g_slice_new0(liFilter);
-	li_stream_init(&f->stream, &vr->wrk->jobqueue, filter_stream_cb);
+	li_stream_init(&f->stream, &vr->wrk->loop, filter_stream_cb);
 	f->out = f->stream.out;
 
 	f->param = param;

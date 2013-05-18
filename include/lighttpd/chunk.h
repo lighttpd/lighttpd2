@@ -5,6 +5,8 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
+#include <lighttpd/events.h>
+
 /* Open a file only once, so it shouldn't get lost;
  * as a file may get split into many chunks, we
  * use this struct to keep track of the usage
@@ -53,12 +55,11 @@ struct liChunk {
 typedef void (*liCQLimitNotifyCB)(gpointer context, gboolean locked);
 struct liCQLimit {
 	gint refcount;
-	struct ev_loop *loop;
 
 	goffset limit, current;
 	gboolean locked;
 
-	ev_io *io_watcher;
+	liEventIO *io_watcher;
 
 	liCQLimitNotifyCB notify; /* callback to reactivate input */
 	gpointer context;
@@ -124,7 +125,7 @@ INLINE goffset li_chunk_length(liChunk *c);
  *    cqlimit     *
  ******************/
 
-LI_API liCQLimit* li_cqlimit_new(struct ev_loop *loop);
+LI_API liCQLimit* li_cqlimit_new();
 LI_API void li_cqlimit_reset(liCQLimit *cql);
 LI_API void li_cqlimit_acquire(liCQLimit *cql);
 LI_API void li_cqlimit_release(liCQLimit *cql);
@@ -138,7 +139,7 @@ LI_API liChunkQueue* li_chunkqueue_new();
 LI_API void li_chunkqueue_reset(liChunkQueue *cq);
 LI_API void li_chunkqueue_free(liChunkQueue *cq);
 
-LI_API void li_chunkqueue_use_limit(liChunkQueue *cq, struct ev_loop *loop, goffset limit);
+LI_API void li_chunkqueue_use_limit(liChunkQueue *cq, goffset limit);
 LI_API void li_chunkqueue_set_limit(liChunkQueue *cq, liCQLimit* cql);
 /* return -1 for unlimited, 0 for full and n > 0 for n bytes free */
 LI_API goffset li_chunkqueue_limit_available(liChunkQueue *cq);

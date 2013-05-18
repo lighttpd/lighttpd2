@@ -6,19 +6,18 @@
 # include <sys/resource.h>
 #endif
 
-static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents);
+static void li_server_listen_cb(liEventBase *watcher, int events);
 static void li_server_stop(liServer *srv);
-static void state_ready_cb(struct ev_loop *loop, struct ev_async *w, int revents);
+static void state_ready_cb(liEventBase *watcher, int events);
+static void li_server_1sec_timer(liEventBase *watcher, int events);
 
-static liServerSocket* server_socket_new(int fd) {
+static liServerSocket* server_socket_new(liServer *srv, int fd) {
 	liServerSocket *sock = g_slice_new0(liServerSocket);
 
 	sock->local_addr = li_sockaddr_local_from_socket(fd);
 	sock->refcount = 1;
-	sock->watcher.data = sock;
 	li_fd_init(fd);
-	ev_init(&sock->watcher, li_server_listen_cb);
-	ev_io_set(&sock->watcher, fd, EV_READ);
+	li_event_io_init(&srv->main_worker->loop, &sock->watcher, li_server_listen_cb, fd, LI_EV_READ);
 	return sock;
 }
 
@@ -56,21 +55,11 @@ static void server_setup_free(gpointer _ss) {
 	g_slice_free(liServerSetup, _ss);
 }
 
-#define CATCH_SIGNAL(loop, cb, n) do {              \
-    ev_init(&srv->sig_w_##n, cb);                   \
-    ev_signal_set(&srv->sig_w_##n, SIG##n);         \
-    ev_signal_start(loop, &srv->sig_w_##n);         \
-    srv->sig_w_##n.data = srv;                      \
-    /* Signal watchers shouldn't keep loop alive */ \
-    ev_unref(loop);                                 \
-} while (0)
-
-#define UNCATCH_SIGNAL(loop, n) li_ev_safe_ref_and_stop(ev_signal_stop, loop, &srv->sig_w_##n)
-
-static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
-	liServer *srv = (liServer*) w->data;
-	UNUSED(loop);
-	UNUSED(revents);
+static void sigint_cb(liEventBase *watcher, int events) {
+	liEventSignal *sig = li_event_signal_from(watcher);
+	liEventLoop *loop = li_event_get_loop(sig);
+	liServer *srv = LI_CONTAINER_OF(loop, liWorker, loop)->srv;
+	UNUSED(events);
 
 	if (g_atomic_int_get(&srv->dest_state) != LI_SERVER_DOWN) {
 		INFO(srv, "%s", "Got signal, shutdown");
@@ -81,9 +70,9 @@ static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
 	}
 }
 
-static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
+static void sigpipe_cb(liEventBase *watcher, int events) {
 	/* ignore */
-	UNUSED(loop); UNUSED(w); UNUSED(revents);
+	UNUSED(watcher); UNUSED(events);
 }
 
 liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
@@ -96,8 +85,6 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	srv->statelock = g_mutex_new();
 	g_queue_init(&srv->state_wait_queue);
 	srv->state_wait_for = srv->state;
-	ev_init(&srv->state_ready_watcher, state_ready_cb);
-	srv->state_ready_watcher.data = srv;
 
 	li_lua_init(&srv->LL, srv, NULL);
 
@@ -133,8 +120,6 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 
 	srv->throttle_pools = g_array_new(FALSE, TRUE, sizeof(liThrottlePool*));
 	srv->throttle_ip_pools = li_radixtree_new();
-
-	li_log_init(srv);
 
 	srv->connection_load = 0;
 	srv->max_connections = 256; /* assume max-fds = 1024 */
@@ -196,7 +181,7 @@ void li_server_free(liServer* srv) {
 
 	li_action_release(srv, srv->mainaction);
 
-	li_ev_safe_ref_and_stop(ev_async_stop, srv->loop, &srv->state_ready_watcher);
+	li_event_clear(&srv->state_ready_watcher);
 	g_mutex_free(srv->statelock);
 
 	li_lua_clear(&srv->LL);
@@ -216,6 +201,12 @@ void li_server_free(liServer* srv) {
 		srv->acon = NULL;
 	}
 
+	li_event_clear(&srv->srv_1sec_timer);
+
+	li_event_clear(&srv->sig_w_INT);
+	li_event_clear(&srv->sig_w_TERM);
+	li_event_clear(&srv->sig_w_PIPE);
+
 	/* free all workers */
 	{
 		guint i;
@@ -223,8 +214,7 @@ void li_server_free(liServer* srv) {
 			liWorker *wrk;
 			struct ev_loop *loop;
 			wrk = g_array_index(srv->workers, liWorker*, i);
-			loop = wrk->loop;
-			li_worker_free(wrk);
+			loop = li_worker_free(wrk);
 			if (i == 0) {
 				ev_default_destroy();
 			} else {
@@ -237,7 +227,8 @@ void li_server_free(liServer* srv) {
 	{
 		guint i; for (i = 0; i < srv->sockets->len; i++) {
 			liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
-			close(sock->watcher.fd);
+			close(li_event_io_fd(&sock->watcher));
+			li_event_clear(&sock->watcher);
 			li_server_socket_release(sock);
 		}
 		g_ptr_array_free(srv->sockets, TRUE);
@@ -288,7 +279,10 @@ static gpointer server_worker_cb(gpointer data) {
 	return NULL;
 }
 
-gboolean li_server_loop_init(liServer *srv) {
+void li_server_loop_init(liServer *srv) {
+	struct ev_loop *evloop;
+	liEventLoop *loop;
+
 	/* disable usage if signalfd for libev 3.8, it breaks signal handling. 3.9+ have it disabled by default */
 #if EV_VERSION_MAJOR == 3 && EV_VERSION_MINOR == 8
 	if (ev_version_major() == 3 && ev_version_minor() == 8) {
@@ -296,26 +290,34 @@ gboolean li_server_loop_init(liServer *srv) {
 	}
 #endif
 
-	srv->loop = ev_default_loop(srv->loop_flags);
+	evloop = ev_default_loop(srv->loop_flags);
 
-	if (!srv->loop) {
+	if (NULL == evloop) {
 		li_fatal ("could not initialise libev, bad $LIBEV_FLAGS in environment?");
-		return FALSE;
+		return;
 	}
 
-	ev_async_start(srv->loop, &srv->state_ready_watcher);
-	ev_unref(srv->loop); /* don't keep loop alive */
-
-	srv->main_worker = li_worker_new(srv, srv->loop);
+	srv->main_worker = li_worker_new(srv, evloop);
 	srv->main_worker->ndx = 0;
 
-	return TRUE;
+	loop = &srv->main_worker->loop;
+
+	li_event_async_init(loop, &srv->state_ready_watcher, state_ready_cb);
+
+	li_event_timer_init(loop, &srv->srv_1sec_timer, li_server_1sec_timer);
+	li_event_set_keep_loop_alive(&srv->srv_1sec_timer, FALSE);
+	li_event_timer_once(&srv->srv_1sec_timer, 1);
+
+	li_event_signal_init(loop, &srv->sig_w_INT, sigint_cb, SIGINT);
+	li_event_signal_init(loop, &srv->sig_w_TERM, sigint_cb, SIGTERM);
+	li_event_signal_init(loop, &srv->sig_w_PIPE, sigpipe_cb, SIGPIPE);
+
+	li_log_init(srv);
 }
 
-static void li_server_1sec_timer(struct ev_loop *loop, ev_timer *w, int revents) {
-	liServer *srv = w->data;
-	UNUSED(loop);
-	UNUSED(revents);
+static void li_server_1sec_timer(liEventBase *watcher, int events) {
+	liServer *srv = LI_CONTAINER_OF(li_event_timer_from(watcher), liServer, srv_1sec_timer);
+	UNUSED(events);
 
 	if (srv->connection_limit_hit) {
 		guint srv_cur_load = g_atomic_int_get(&srv->connection_load);
@@ -325,7 +327,7 @@ static void li_server_1sec_timer(struct ev_loop *loop, ev_timer *w, int revents)
 
 			for (i = 0; i < srv->sockets->len; i++) {
 				liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
-				ev_io_start(srv->main_worker->loop, &sock->watcher);
+				li_event_start(&sock->watcher);
 			}
 			srv->connection_limit_hit = FALSE;
 		}
@@ -333,17 +335,7 @@ static void li_server_1sec_timer(struct ev_loop *loop, ev_timer *w, int revents)
 }
 
 static gboolean li_server_worker_init(liServer *srv) {
-	struct ev_loop *loop = srv->loop;
 	guint i;
-
-	CATCH_SIGNAL(loop, sigint_cb, INT);
-	CATCH_SIGNAL(loop, sigint_cb, TERM);
-	CATCH_SIGNAL(loop, sigpipe_cb, PIPE);
-
-	ev_timer_init(&srv->srv_1sec_timer, li_server_1sec_timer, 1.0, 1.0);
-	srv->srv_1sec_timer.data = srv;
-	ev_timer_start(loop, &srv->srv_1sec_timer);
-	ev_unref(loop); /* don't keep loop alive */
 
 	li_plugins_init_lua(&srv->LL, srv, NULL);
 	li_plugins_init_lua(&srv->main_worker->LL, srv, srv->main_worker);
@@ -351,8 +343,11 @@ static gboolean li_server_worker_init(liServer *srv) {
 	if (srv->worker_count < 1) srv->worker_count = 1;
 	g_array_set_size(srv->workers, srv->worker_count);
 	g_array_index(srv->workers, liWorker*, 0) = srv->main_worker;
+
 	for (i = 1; i < srv->worker_count; i++) {
 		liWorker *wrk;
+		struct ev_loop *loop;
+
 		if (NULL == (loop = ev_loop_new(srv->loop_flags))) {
 			li_fatal ("could not create extra libev loops");
 			return FALSE;
@@ -384,21 +379,21 @@ static void server_connection_limit_hit(liServer *srv) {
 
 	for (i = 0; i < srv->sockets->len; i++) {
 		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
-		ev_io_stop(srv->main_worker->loop, &sock->watcher);
+		li_event_stop(&sock->watcher);
 	}
 
 	srv->connection_limit_hit = TRUE;
 }
 
-static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	liServerSocket *sock = (liServerSocket*) w->data;
+static void li_server_listen_cb(liEventBase *watcher, int events) {
+	liServerSocket *sock = LI_CONTAINER_OF(li_event_io_from(watcher), liServerSocket, watcher);
 	liServer *srv = sock->srv;
 	int s;
 	liSocketAddress remote_addr;
 	liSockAddr sa;
 	socklen_t l;
-	UNUSED(loop);
-	UNUSED(revents);
+	int fd = li_event_io_fd(li_event_io_from(watcher));
+	UNUSED(events);
 
 	for ( ;; ) {
 		liWorker *wrk;
@@ -414,15 +409,15 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		l = sizeof(sa);
 
 #ifdef HAVE_ACCEPT4
-		if (-1 == (s = accept4(w->fd, &sa.plain, &l, SOCK_NONBLOCK))) {
+		if (-1 == (s = accept4(fd, &sa.plain, &l, SOCK_NONBLOCK))) {
 			if (ENOSYS != errno) break;
 
 			/* fallback */
-			if (-1 == (s = accept(w->fd, &sa.plain, &l))) break;
+			if (-1 == (s = accept(fd, &sa.plain, &l))) break;
 			li_fd_no_block(s); /* we don't fork, don't care about FD_CLOEXEC */
 		}
 #else
-		if (-1 == (s = accept(w->fd, &sa.plain, &l))) break;
+		if (-1 == (s = accept(fd, &sa.plain, &l))) break;
 		li_fd_no_block(s); /* we don't fork, don't care about FD_CLOEXEC */
 #endif
 
@@ -472,19 +467,19 @@ static void li_server_listen_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		/* TODO: disable accept callbacks? */
 		break;
 	default:
-		ERROR(srv, "accept failed on fd=%d with error: %s", w->fd, g_strerror(errno));
+		ERROR(srv, "accept failed on fd=%d with error: %s", fd, g_strerror(errno));
 		break;
 	}
 }
 
 /* main worker only */
 liServerSocket* li_server_listen(liServer *srv, int fd) {
-	liServerSocket *sock = server_socket_new(fd);
+	liServerSocket *sock = server_socket_new(srv, fd);
 
 	sock->srv = srv;
 	g_ptr_array_add(srv->sockets, sock);
 
-	if (LI_SERVER_RUNNING == srv->state || LI_SERVER_WARMUP == srv->state) ev_io_start(srv->main_worker->loop, &sock->watcher);
+	if (LI_SERVER_RUNNING == srv->state || LI_SERVER_WARMUP == srv->state) li_event_start(&sock->watcher);
 
 	return sock;
 }
@@ -494,7 +489,7 @@ static void li_server_start_listen(liServer *srv) {
 
 	for (i = 0; i < srv->sockets->len; i++) {
 		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
-		ev_io_start(srv->main_worker->loop, &sock->watcher);
+		li_event_start(&sock->watcher);
 	}
 }
 
@@ -503,7 +498,7 @@ static void li_server_stop_listen(liServer *srv) {
 
 	for (i = 0; i < srv->sockets->len; i++) {
 		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
-		ev_io_stop(srv->main_worker->loop, &sock->watcher);
+		li_event_stop(&sock->watcher);
 	}
 	srv->connection_limit_hit = FALSE; /* reset flag */
 
@@ -520,7 +515,7 @@ static void li_server_stop(liServer *srv) {
 
 	for (i = 0; i < srv->sockets->len; i++) {
 		liServerSocket *sock = g_ptr_array_index(srv->sockets, i);
-		ev_io_stop(srv->main_worker->loop, &sock->watcher);
+		li_event_stop(&sock->watcher);
 	}
 	srv->connection_limit_hit = FALSE; /* reset flag */
 
@@ -798,7 +793,7 @@ void li_server_reached_state(liServer *srv, liServerState state) {
 
 		{
 			GString *str = li_worker_current_timestamp(srv->main_worker, LI_LOCALTIME, LI_TS_FORMAT_DEFAULT);
-			srv->started = ev_now(srv->main_worker->loop);
+			srv->started = li_cur_ts(srv->main_worker);
 			srv->started_str = g_string_new_len(GSTR_LEN(str));
 		}
 
@@ -847,11 +842,10 @@ void li_server_reached_state(liServer *srv, liServerState state) {
 	}
 }
 
-static void state_ready_cb(struct ev_loop *loop, struct ev_async *w, int revents) {
-	liServer *srv = w->data;
+static void state_ready_cb(liEventBase *watcher, int events) {
+	liServer *srv = LI_CONTAINER_OF(li_event_async_from(watcher), liServer, state_ready_watcher);
 
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
 	g_mutex_lock(srv->statelock);
 
@@ -881,7 +875,7 @@ void li_server_state_ready(liServer *srv, liServerStateWait *sw) {
 		sw->active = FALSE;
 
 		if (srv->state_wait_queue.length == 0) {
-			ev_async_send(srv->loop, &srv->state_ready_watcher);
+			li_event_async_send(&srv->state_ready_watcher);
 		}
 	}
 

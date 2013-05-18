@@ -120,7 +120,7 @@ static void mod_gnutls_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	/* disable all events; they will get reactivated later */
 	li_ev_io_set_events(loop, w, 0);
 
-	li_job_now(&con->wrk->jobqueue, &conctx->con_handle_events_job);
+	li_job_now(&con->wrk->loop.jobqueue, &conctx->con_handle_events_job);
 }
 
 static int mod_gnutls_post_client_hello_cb(gnutls_session_t session) {

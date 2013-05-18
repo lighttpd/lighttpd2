@@ -274,15 +274,16 @@ static void scgi_context_acquire(scgi_context *ctx) {
 
 static void scgi_io_cb(liIOStream *stream, liIOStreamEvent event) {
 	scgi_connection *con = stream->data;
+	liWorker *wrk = li_worker_from_iostream(stream);
 
 	li_stream_simple_socket_io_cb_with_context(stream, event, &con->simple_socket_data);
 
 	switch (event) {
 	case LI_IOSTREAM_DESTROY:
 		li_stream_simple_socket_close(stream, FALSE);
-		con->bcon->watcher.fd = -1;
+		li_event_io_set_fd(&con->bcon->watcher, -1);
 
-		li_backend_put(stream->wrk, con->ctx->pool, con->bcon, TRUE);
+		li_backend_put(wrk, con->ctx->pool, con->bcon, TRUE);
 		con->bcon = NULL;
 
 		scgi_context_release(con->ctx);
@@ -310,10 +311,10 @@ static void scgi_connection_new(liVRequest *vr, liBackendConnection *bcon, scgi_
 	scgi_context_acquire(ctx);
 	scon->ctx = ctx;
 	scon->bcon = bcon;
-	iostream = li_iostream_new(vr->wrk, bcon->watcher.fd, scgi_io_cb, scon);
+	iostream = li_iostream_new(vr->wrk, li_event_io_fd(&bcon->watcher), scgi_io_cb, scon);
 
 	/* insert scgi header before actual data */
-	outplug = li_stream_plug_new(&vr->wrk->jobqueue);
+	outplug = li_stream_plug_new(&vr->wrk->loop);
 
 	li_stream_connect(outplug, &iostream->stream_out);
 

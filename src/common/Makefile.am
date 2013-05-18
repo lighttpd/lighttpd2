@@ -7,6 +7,7 @@ common_src= \
 	angel_data.c \
 	buffer.c \
 	encoding.c \
+	events.c \
 	idlist.c \
 	ip_parsers.c \
 	jobqueue.c \

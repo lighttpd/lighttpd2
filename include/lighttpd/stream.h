@@ -5,7 +5,7 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-#include <lighttpd/jobqueue.h>
+#include <lighttpd/events.h>
 
 typedef void (*liStreamCB)(liStream *stream, liStreamEvent event);
 
@@ -17,14 +17,14 @@ struct liStream {
 	liChunkQueue *out;
 
 	liJob new_data_job;
-	liJobQueue *jobqueue;
+	liEventLoop *loop;
 
 	liStreamCB cb;
 };
 
 LI_API const gchar* li_stream_event_string(liStreamEvent event);
 
-LI_API void li_stream_init(liStream* stream, liJobQueue *jobqueue, liStreamCB cb);
+LI_API void li_stream_init(liStream* stream, liEventLoop *loop, liStreamCB cb);
 LI_API void li_stream_acquire(liStream* stream);
 LI_API void li_stream_release(liStream* stream);
 INLINE void li_stream_safe_release(liStream** pstream);
@@ -42,7 +42,7 @@ LI_API void li_stream_again_later(liStream *stream);
 
 /* detach from jobqueue, stops all event handling. you have to detach all connected streams to move streams between threads */
 LI_API void li_stream_detach(liStream *stream);
-LI_API void li_stream_attach(liStream *stream, liJobQueue *jobqueue); /* attach to another jobqueue - possibly after switching threads */
+LI_API void li_stream_attach(liStream *stream, liEventLoop *loop); /* attach to another loop - possibly after switching threads */
 
 /* walks from first using ->dest until it reaches NULL or (it reached last and NULL != i->limit) or limit == i->cq->limit and
  * sets i->cq->limit to limit, triggering LI_STREAM_NEW_CQLIMIT.
@@ -53,10 +53,8 @@ LI_API void li_stream_set_cqlimit(liStream *first, liStream *last, liCQLimit *li
 /* checks whether all chunkqueues in a range of streams are empty. one of first and last can be NULL to walk all stream in a direction */
 LI_API gboolean li_streams_empty(liStream *first, liStream *last);
 
-LI_API liStream* li_stream_plug_new(liJobQueue *jobqueue); /* simple forwarder; can also be used for providing data from memory */
-LI_API liStream* li_stream_null_new(liJobQueue *jobqueue); /* eats everything, disconnects source on eof, out is always closed */
-
-
+LI_API liStream* li_stream_plug_new(liEventLoop *loop); /* simple forwarder; can also be used for providing data from memory */
+LI_API liStream* li_stream_null_new(liEventLoop *loop); /* eats everything, disconnects source on eof, out is always closed */
 
 typedef void (*liIOStreamCB)(liIOStream *stream, liIOStreamEvent event);
 
@@ -69,8 +67,7 @@ struct liIOStream {
 	liWaitQueue *write_timeout_queue;
 	liWaitQueueElem write_timeout_elem;
 
-	liWorker *wrk;
-	ev_io io_watcher;
+	liEventIO io_watcher;
 
 	/* whether we want to read/write */
 	gboolean in_closed, out_closed;

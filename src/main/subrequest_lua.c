@@ -296,8 +296,8 @@ static liSubrequest* subrequest_new(liVRequest *vr) {
 	sr->coninfo.is_ssl = vr->coninfo->is_ssl;
 	sr->coninfo.keep_alive = FALSE; /* doesn't mean anything here anyway */
 
-	sr->coninfo.req = li_stream_null_new(&vr->wrk->jobqueue);
-	sr->coninfo.resp = li_stream_plug_new(&vr->wrk->jobqueue);
+	sr->coninfo.req = li_stream_null_new(&vr->wrk->loop);
+	sr->coninfo.resp = li_stream_plug_new(&vr->wrk->loop);
 
 	sr->vr = li_vrequest_new(vr->wrk, &sr->coninfo);
 

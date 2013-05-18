@@ -33,6 +33,6 @@ LI_API liCollectInfo* li_collect_start_global(liServer *srv, liCollectFuncCB fun
 LI_API void li_collect_break(liCollectInfo* ci); /** this will result in complete == FALSE in the callback; call it if cbdata gets invalid */
 
 /* internal functions */
-LI_API void li_collect_watcher_cb(struct ev_loop *loop, ev_async *w, int revents);
+LI_API void li_collect_watcher_cb(liEventBase *watcher, int events);
 
 #endif

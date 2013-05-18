@@ -17,7 +17,7 @@ struct liPluginCoreConfig {
 	liInstance *inst;
 	GHashTable *listen_sockets;
 
-	ev_signal sig_hup;
+	liEventSignal sig_hup;
 };
 
 typedef struct liPluginCoreListenMask liPluginCoreListenMask;

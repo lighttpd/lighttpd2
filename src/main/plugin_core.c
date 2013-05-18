@@ -1675,7 +1675,7 @@ static liHandlerResult core_handle_buffer_out(liVRequest *vr, gpointer param, gp
 	gint limit = GPOINTER_TO_INT(param);
 	UNUSED(context);
 
-	li_chunkqueue_use_limit(vr->coninfo->resp->out, vr->wrk->loop, limit);
+	li_chunkqueue_use_limit(vr->coninfo->resp->out, limit);
 
 	return LI_HANDLER_GO_ON;
 }
@@ -1708,7 +1708,7 @@ static liHandlerResult core_handle_buffer_in(liVRequest *vr, gpointer param, gpo
 	gint limit = GPOINTER_TO_INT(param);
 	UNUSED(context);
 
-	li_chunkqueue_use_limit(vr->coninfo->req->out, vr->wrk->loop, limit);
+	li_chunkqueue_use_limit(vr->coninfo->req->out, limit);
 
 	return LI_HANDLER_GO_ON;
 }

@@ -54,7 +54,7 @@ struct backend {
 	liAction *act;
 	guint load;
 	backend_state state;
-	ev_tstamp wake;
+	li_tstamp wake;
 };
 
 struct balancer {
@@ -66,14 +66,14 @@ struct balancer {
 	balancer_method method;
 	gint next_ndx;
 
-	ev_tstamp wake;
+	li_tstamp wake;
 
-	ev_async async;
+	liEventAsync async;
 	gboolean delete_later; /* marked as "delete later in srv event loop" */
 
 	GQueue backlog;
 	gint backlog_limit;
-	ev_timer backlog_timer;
+	liEventTimer backlog_timer;
 	gint backlog_reactivate_now;
 
 	liPlugin *p;
@@ -87,8 +87,8 @@ struct bcontext { /* context for a balancer in a vrequest */
 	gboolean scheduled;
 };
 
-static void balancer_timer_cb(struct ev_loop *loop, ev_timer *w, int revents);
-static void balancer_async_cb(struct ev_loop *loop, ev_async *w, int revents);
+static void balancer_timer_cb(liEventBase *watcher, int events);
+static void balancer_async_cb(liEventBase *watcher, int events);
 
 static balancer* balancer_new(liWorker *wrk, liPlugin *p, balancer_method method) {
 	balancer *b = g_slice_new0(balancer);
@@ -101,13 +101,10 @@ static balancer* balancer_new(liWorker *wrk, liPlugin *p, balancer_method method
 
 	b->backlog_limit = -1;
 
-	ev_init(&b->backlog_timer, balancer_timer_cb);
-	b->backlog_timer.data = b;
+	li_event_timer_init(&wrk->loop, &b->backlog_timer, balancer_timer_cb);
+	li_event_set_keep_loop_alive(&b->backlog_timer, FALSE);
 
-	ev_init(&b->async, balancer_async_cb);
-	b->async.data = b;
-	ev_async_start(wrk->loop, &b->async);
-	ev_unref(wrk->loop);
+	li_event_async_init(&wrk->loop, &b->async, balancer_async_cb);
 
 	return b;
 }
@@ -117,8 +114,8 @@ static void balancer_free(liServer *srv, balancer *b) {
 	if (!b) return;
 	g_mutex_free(b->lock);
 
-	ev_timer_stop(b->wrk->loop, &b->backlog_timer);
-	li_ev_safe_ref_and_stop(ev_async_stop, b->wrk->loop, &b->async);
+	li_event_clear(&b->backlog_timer);
+	li_event_clear(&b->async);
 
 	for (i = 0; i < b->backends->len; i++) {
 		backend *be = &g_array_index(b->backends, backend, i);
@@ -194,7 +191,7 @@ static void _balancer_context_backlog_push(balancer *b, gpointer *context, liVRe
 /* returns FALSE if b was destroyed (only possible in event loop) */
 static gboolean _balancer_backlog_update_watcher(liWorker *wrk, balancer *b) {
 	if (wrk != b->wrk) {
-		ev_async_send(b->wrk->loop, &b->async);
+		li_event_async_send(&b->async);
 		return TRUE;
 	}
 
@@ -205,11 +202,9 @@ static gboolean _balancer_backlog_update_watcher(liWorker *wrk, balancer *b) {
 	}
 
 	if (b->state == BAL_ALIVE) {
-		ev_timer_stop(wrk->loop, &b->backlog_timer);
+		li_event_stop(&b->backlog_timer);
 	} else {
-		ev_timer_stop(wrk->loop, &b->backlog_timer);
-		ev_timer_set(&b->backlog_timer, b->wake - ev_now(wrk->loop), 0);
-		ev_timer_start(wrk->loop, &b->backlog_timer);
+		li_event_timer_once(&b->backlog_timer, b->wake - li_cur_ts(wrk));
 	}
 
 	return TRUE;
@@ -246,11 +241,10 @@ static gboolean _balancer_backlog_schedule(liWorker *wrk, balancer *b) {
 	return _balancer_backlog_update_watcher(wrk, b);
 }
 
-static void balancer_timer_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	balancer *b = w->data;
+static void balancer_timer_cb(liEventBase *watcher, int events) {
+	balancer *b = LI_CONTAINER_OF(li_event_timer_from(watcher), balancer, backlog_timer);
 	int n;
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
 	g_mutex_lock(b->lock);
 
@@ -263,10 +257,9 @@ static void balancer_timer_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	g_mutex_unlock(b->lock);
 }
 
-static void balancer_async_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	balancer *b = w->data;
-	UNUSED(loop);
-	UNUSED(revents);
+static void balancer_async_cb(liEventBase *watcher, int events) {
+	balancer *b = LI_CONTAINER_OF(li_event_async_from(watcher), balancer, async);
+	UNUSED(events);
 
 	g_mutex_lock(b->lock);
 
@@ -334,7 +327,7 @@ static liHandlerResult balancer_act_select(liVRequest *vr, gboolean backlog_prov
 	gint be_ndx, load;
 	guint i, j;
 	backend *be;
-	ev_tstamp now = ev_now(vr->wrk->loop);
+	li_tstamp now = li_cur_ts(vr->wrk);
 	gboolean all_dead = TRUE;
 	gboolean debug = _OPTION(vr, b->p, 0).boolean;
 
@@ -413,7 +406,7 @@ static liHandlerResult balancer_act_select(liVRequest *vr, gboolean backlog_prov
 
 		if (b->state == BAL_ALIVE) {
 			b->state = all_dead ? BAL_DOWN : BAL_OVERLOADED;
-			b->wake = ev_now(vr->wrk->loop) + 10;
+			b->wake = li_cur_ts(vr->wrk) + 10;
 
 			for (i = 0; i < b->backends->len; i++) {
 				be = &g_array_index(b->backends, backend, i);
@@ -478,12 +471,12 @@ static liHandlerResult balancer_act_fallback(liVRequest *vr, gboolean backlog_pr
 
 	if (error == LI_BACKEND_OVERLOAD || be->load > 0) {
 		/* long timeout for overload - we will enable the backend anyway if another request finishs */
-		if (be->state == BE_ALIVE) be->wake = ev_now(vr->wrk->loop) + 5.0;
+		if (be->state == BE_ALIVE) be->wake = li_cur_ts(vr->wrk) + 5.0;
 
 		if (be->state != BE_DOWN) be->state = BE_OVERLOADED;
 	} else {
 		/* short timeout for dead backends - lets retry soon */
-		be->wake = ev_now(vr->wrk->loop) + 1.0;
+		be->wake = li_cur_ts(vr->wrk) + 1.0;
 
 		be->state = BE_DOWN;
 	}

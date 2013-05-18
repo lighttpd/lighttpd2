@@ -1,38 +1,26 @@
 
 #include <lighttpd/angel_base.h>
 
-#define CATCH_SIGNAL(loop, cb, n) do {              \
-    ev_init(&srv->sig_w_##n, cb);                   \
-    ev_signal_set(&srv->sig_w_##n, SIG##n);         \
-    ev_signal_start(loop, &srv->sig_w_##n);         \
-    srv->sig_w_##n.data = srv;                      \
-    /* Signal watchers shouldn't keep loop alive */ \
-    ev_unref(loop);                                 \
-} while (0)
-
-#define UNCATCH_SIGNAL(loop, n) li_ev_safe_ref_and_stop(ev_signal_stop, loop, &srv->sig_w_##n)
-
-static void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
-	liServer *srv = (liServer*) w->data;
-	UNUSED(loop);
-	UNUSED(revents);
+static void sigint_cb(liEventBase *watcher, int events) {
+	liServer *srv = LI_CONTAINER_OF(li_event_get_loop_(watcher), liServer, loop);
+	UNUSED(events);
 
 	li_server_stop(srv);
 }
 
-static void sigpipe_cb(struct ev_loop *loop, struct ev_signal *w, int revents) {
+static void sigpipe_cb(liEventBase *watcher, int events) {
 	/* ignore */
-	UNUSED(loop); UNUSED(w); UNUSED(revents);
+	UNUSED(watcher); UNUSED(events);
 }
 
 liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	liServer *srv = g_slice_new0(liServer);
 
-	srv->loop = ev_default_loop(0);
+	li_event_loop_init(&srv->loop, ev_default_loop(0));
 
-	CATCH_SIGNAL(srv->loop, sigint_cb, INT);
-	CATCH_SIGNAL(srv->loop, sigint_cb, TERM);
-	CATCH_SIGNAL(srv->loop, sigpipe_cb, PIPE);
+	li_event_signal_init(&srv->loop, &srv->sig_w_INT, sigint_cb, SIGINT);
+	li_event_signal_init(&srv->loop, &srv->sig_w_TERM, sigint_cb, SIGTERM);
+	li_event_signal_init(&srv->loop, &srv->sig_w_PIPE, sigpipe_cb, SIGPIPE);
 
 	li_log_init(srv);
 	li_plugins_init(srv, module_dir, module_resident);
@@ -44,18 +32,23 @@ void li_server_free(liServer* srv) {
 
 	li_log_clean(srv);
 
-	UNCATCH_SIGNAL(srv->loop, INT);
-	UNCATCH_SIGNAL(srv->loop, TERM);
-	UNCATCH_SIGNAL(srv->loop, PIPE);
+	li_event_clear(&srv->sig_w_INT);
+	li_event_clear(&srv->sig_w_TERM);
+	li_event_clear(&srv->sig_w_PIPE);
+
+	li_event_loop_clear(&srv->loop);
+	ev_default_destroy();
 
 	g_slice_free(liServer, srv);
 }
 
 void li_server_stop(liServer *srv) {
-	UNCATCH_SIGNAL(srv->loop, INT);
-	UNCATCH_SIGNAL(srv->loop, TERM);
+	li_event_stop(&srv->sig_w_INT);
+	li_event_stop(&srv->sig_w_TERM);
 
 	li_plugins_config_load(srv, NULL);
+
+	li_event_loop_end(&srv->loop);
 }
 
 static void instance_angel_call_cb(liAngelConnection *acon,
@@ -116,29 +109,30 @@ static void instance_angel_close_cb(liAngelConnection *acon, GError *err) {
 	li_angel_connection_free(acon);
 }
 
-static void instance_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
-	liInstance *i = (liInstance*) w->data;
+static void instance_child_cb(liEventBase *watcher, int events) {
+	liInstance *i = LI_CONTAINER_OF(li_event_child_from(watcher), liInstance, child_watcher);
 	liInstanceState news;
-	UNUSED(revents);
+	int status = li_event_child_status(&i->child_watcher);
+	UNUSED(events);
 
 	if (i->s_dest == LI_INSTANCE_FINISHED) {
-		if (WIFEXITED(w->rstatus)) {
-			if (0 != WEXITSTATUS(w->rstatus)) {
-				ERROR(i->srv, "child %i died with exit status %i", i->proc->child_pid, WEXITSTATUS(w->rstatus));
+		if (WIFEXITED(status)) {
+			if (0 != WEXITSTATUS(status)) {
+				ERROR(i->srv, "child %i died with exit status %i", i->proc->child_pid, WEXITSTATUS(status));
 			} /* exit status 0 is ok, no message */
-		} else if (WIFSIGNALED(w->rstatus)) {
-			ERROR(i->srv, "child %i died: killed by '%s' (%i)", i->proc->child_pid, g_strsignal(WTERMSIG(w->rstatus)), WTERMSIG(w->rstatus));
+		} else if (WIFSIGNALED(status)) {
+			ERROR(i->srv, "child %i died: killed by '%s' (%i)", i->proc->child_pid, g_strsignal(WTERMSIG(status)), WTERMSIG(status));
 		} else {
-			ERROR(i->srv, "child %i died with unexpected stat_val %i", i->proc->child_pid, w->rstatus);
+			ERROR(i->srv, "child %i died with unexpected stat_val %i", i->proc->child_pid, status);
 		}
 		news = LI_INSTANCE_FINISHED;
 	} else {
-		if (WIFEXITED(w->rstatus)) {
-			ERROR(i->srv, "child %i died with exit status %i", i->proc->child_pid, WEXITSTATUS(w->rstatus));
-		} else if (WIFSIGNALED(w->rstatus)) {
-			ERROR(i->srv, "child %i died: killed by %s", i->proc->child_pid, g_strsignal(WTERMSIG(w->rstatus)));
+		if (WIFEXITED(status)) {
+			ERROR(i->srv, "child %i died with exit status %i", i->proc->child_pid, WEXITSTATUS(status));
+		} else if (WIFSIGNALED(status)) {
+			ERROR(i->srv, "child %i died: killed by %s", i->proc->child_pid, g_strsignal(WTERMSIG(status)));
 		} else {
-			ERROR(i->srv, "child %i died with unexpected stat_val %i", i->proc->child_pid, w->rstatus);
+			ERROR(i->srv, "child %i died with unexpected stat_val %i", i->proc->child_pid, status);
 		}
 		if (i->s_cur == LI_INSTANCE_DOWN) {
 			ERROR(i->srv, "spawning child %i failed, not restarting", i->proc->child_pid);
@@ -151,7 +145,7 @@ static void instance_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 	i->proc = NULL;
 	li_angel_connection_free(i->acon);
 	i->acon = NULL;
-	ev_child_stop(loop, w);
+	li_event_clear(&i->child_watcher);
 	li_instance_state_reached(i, news);
 	li_instance_release(i);
 }
@@ -176,15 +170,15 @@ static void instance_spawn(liInstance *i) {
 	li_fd_init(confd[0]);
 	li_fd_no_block(confd[1]);
 
-	i->acon = li_angel_connection_new(i->srv->loop, confd[0], i, instance_angel_call_cb, instance_angel_close_cb);
+	i->acon = li_angel_connection_new(&i->srv->loop, confd[0], i, instance_angel_call_cb, instance_angel_close_cb);
 	i->proc = li_proc_new(i->srv, i->ic->cmd, i->ic->env, i->ic->uid, i->ic->gid,
 		i->ic->username != NULL ? i->ic->username->str : NULL, i->ic->rlim_core, i->ic->rlim_nofile, instance_spawn_setup, confd);
 
 	if (!i->proc) return;
 
 	close(confd[1]);
-	ev_child_set(&i->child_watcher, i->proc->child_pid, 0);
-	ev_child_start(i->srv->loop, &i->child_watcher);
+	li_event_clear(&i->child_watcher);
+	li_event_child_init(&i->srv->loop, &i->child_watcher, instance_child_cb, i->proc->child_pid);
 	i->s_cur = LI_INSTANCE_DOWN;
 	li_instance_acquire(i);
 	DEBUG(i->srv, "Instance (%i) spawned: %s", i->proc->child_pid, i->ic->cmd[0]);
@@ -199,8 +193,6 @@ liInstance* li_server_new_instance(liServer *srv, liInstanceConf *ic) {
 	li_instance_conf_acquire(ic);
 	i->ic = ic;
 	i->s_cur = i->s_dest = LI_INSTANCE_DOWN;
-	ev_child_init(&i->child_watcher, instance_child_cb, -1, 0);
-	i->child_watcher.data = i;
 	i->resources = g_ptr_array_new();
 
 	return i;

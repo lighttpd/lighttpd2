@@ -149,9 +149,7 @@ static void close_fd_array(GArray *fds) {
 
 static gboolean angel_dispatch(liAngelConnection *acon, GError **err) {
 	gint32 id = acon->parse.id, type = acon->parse.type;
-	liAngelCall *call = NULL;
-	liAngelCallCB cb = NULL;
-	gpointer ctx = NULL;
+	liAngelCall *call;
 
 	switch (type) {
 	case ANGEL_CALL_SEND_SIMPLE:
@@ -198,24 +196,29 @@ static gboolean angel_dispatch(liAngelConnection *acon, GError **err) {
 				return FALSE;
 			}
 			li_idlist_put(acon->call_id_list, id);
-			if (type == ANGEL_CALL_SEND_RESULT && (guint) id < acon->call_table->len) {
+			call = NULL;
+			if ((guint) id < acon->call_table->len) {
 				call = (liAngelCall*) g_ptr_array_index(acon->call_table, id);
 				g_ptr_array_index(acon->call_table, id) = NULL;
-				if (call) {
-					call->id = -1;
-					ev_timer_stop(acon->loop, &call->timeout_watcher);
-					ctx = call->context;
-					if (NULL == (cb = call->callback)) {
-						g_slice_free(liAngelCall, call);
-					}
-				}
+			}
+			if (NULL != call) {
+				call->id = -1;
+
+				call->result.error = acon->parse.error;
+				call->result.data = acon->parse.data;
+				call->result.fds = acon->parse.fds;
+				acon->parse.error = g_string_sized_new(0);
+				acon->parse.data = g_string_sized_new(0);
+				acon->parse.fds = g_array_new(FALSE, FALSE, sizeof(int));
+				li_event_async_send(&call->result_watcher);
+			} else {
+				/* timeout - call is gone */
+				g_string_truncate(acon->parse.error, 0);
+				g_string_truncate(acon->parse.data, 0);
+				close_fd_array(acon->parse.fds);
 			}
 		g_mutex_unlock(acon->mutex);
 
-		if (cb) {
-			cb(call, ctx, FALSE, acon->parse.error, acon->parse.data, acon->parse.fds);
-		}
-		close_fd_array(acon->parse.fds);
 		break;
 	default:
 		g_set_error(err, LI_ANGEL_CONNECTION_ERROR, LI_ANGEL_CONNECTION_INVALID_DATA,
@@ -285,16 +288,17 @@ static gboolean angel_connection_read(liAngelConnection *acon, GError **err) {
 	}
 }
 
-static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	liAngelConnection *acon = (liAngelConnection*) w->data;
+static void angel_connection_io_cb(liEventBase *watcher, int events) {
+	liAngelConnection *acon = LI_CONTAINER_OF(li_event_io_from(watcher), liAngelConnection, fd_watcher);
 
-	if (revents | EV_WRITE) {
+	if (events | LI_EV_WRITE) {
 		GString *out_str;
 		int i;
 		ssize_t written, len;
 		gchar *data;
 		gboolean out_queue_empty;
 		angel_connection_send_item_t *send_item;
+		int fd = li_event_io_fd(&acon->fd_watcher);
 
 		g_mutex_lock(acon->mutex);
 			send_item = g_queue_peek_head(acon->out);
@@ -308,7 +312,7 @@ static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) 
 				data = out_str->str + written;
 				len = out_str->len - written;
 				while (len > 0) {
-					written = write(w->fd, data, len);
+					written = write(fd, data, len);
 					if (written < 0) {
 						switch (errno) {
 						case EINTR:
@@ -319,8 +323,8 @@ static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) 
 #endif
 							goto write_eagain;
 						default: /* Fatal error, connection has to be closed */
-							li_ev_safe_ref_and_stop(ev_async_stop, loop, &acon->out_notify_watcher);
-							li_ev_safe_ref_and_stop(ev_io_stop, loop, &acon->fd_watcher);
+							li_event_clear(&acon->out_notify_watcher);
+							li_event_clear(&acon->fd_watcher);
 							acon->close_cb(acon, NULL); /* TODO: set err */
 							return;
 						}
@@ -334,13 +338,13 @@ static void angel_connection_io_cb(struct ev_loop *loop, ev_io *w, int revents) 
 
 			case ANGEL_CONNECTION_ITEM_FDS:
 				while (send_item->value.fds.pos < send_item->value.fds.fds->len) {
-					switch (li_send_fd(w->fd, g_array_index(send_item->value.fds.fds, int, send_item->value.fds.pos))) {
+					switch (li_send_fd(fd, g_array_index(send_item->value.fds.fds, int, send_item->value.fds.pos))) {
 					case  0:
 						send_item->value.fds.pos++;
 						continue;
 					case -1: /* Fatal error, connection has to be closed */
-						li_ev_safe_ref_and_stop(ev_async_stop, loop, &acon->out_notify_watcher);
-						li_ev_safe_ref_and_stop(ev_io_stop, loop, &acon->fd_watcher);
+						li_event_clear(&acon->out_notify_watcher);
+						li_event_clear(&acon->fd_watcher);
 						acon->close_cb(acon, NULL); /* TODO: set err */
 						return;
 					case -2: goto write_eagain;
@@ -361,46 +365,41 @@ write_eagain:
 		out_queue_empty = (0 == acon->out->length);
 		g_mutex_unlock(acon->mutex);
 
-		if (out_queue_empty) li_ev_io_rem_events(loop, w, EV_WRITE);
+		if (out_queue_empty) li_event_io_rem_events(&acon->fd_watcher, LI_EV_WRITE);
 	}
 
-	if (revents | EV_READ) {
+	if (events | LI_EV_READ) {
 		GError *err = NULL;
 		if (!angel_connection_read(acon, &err)) {
-			li_ev_safe_ref_and_stop(ev_async_stop, loop, &acon->out_notify_watcher);
-			li_ev_safe_ref_and_stop(ev_io_stop, loop, &acon->fd_watcher);
+			li_event_clear(&acon->out_notify_watcher);
+			li_event_clear(&acon->fd_watcher);
 			acon->close_cb(acon, err);
 		}
 	}
 }
 
-static void angel_connection_out_notify_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	liAngelConnection *acon = (liAngelConnection*) w->data;
-	UNUSED(revents);
-	li_ev_io_add_events(loop, &acon->fd_watcher, EV_WRITE);
+static void angel_connection_out_notify_cb(liEventBase *watcher, int events) {
+	liAngelConnection *acon = LI_CONTAINER_OF(li_event_async_from(watcher), liAngelConnection, out_notify_watcher);
+	UNUSED(events);
+	li_event_io_add_events(&acon->fd_watcher, LI_EV_WRITE);
 }
 
 /* create connection */
-liAngelConnection* li_angel_connection_new(struct ev_loop *loop, int fd, gpointer data,
+liAngelConnection* li_angel_connection_new(liEventLoop *loop, int fd, gpointer data,
                                           liAngelReceiveCallCB recv_call, liAngelCloseCB close_cb) {
 	liAngelConnection *acon = g_slice_new0(liAngelConnection);
 
 	acon->data = data;
 	acon->mutex = g_mutex_new();
-	acon->loop = loop;
 	acon->fd = fd;
 	acon->call_id_list = li_idlist_new(65535);
 	acon->call_table = g_ptr_array_new();
 
-	ev_io_init(&acon->fd_watcher, angel_connection_io_cb, fd, EV_READ);
-	ev_io_start(acon->loop, &acon->fd_watcher);
-	acon->fd_watcher.data = acon;
-	ev_unref(acon->loop); /* this watcher shouldn't keep the loop alive */
+	li_event_io_init(loop, &acon->fd_watcher, angel_connection_io_cb, fd, LI_EV_READ);
+	li_event_set_keep_loop_alive(&acon->fd_watcher, FALSE);
+	li_event_start(&acon->fd_watcher);
 
-	ev_async_init(&acon->out_notify_watcher, angel_connection_out_notify_cb);
-	ev_async_start(acon->loop, &acon->out_notify_watcher);
-	acon->out_notify_watcher.data = acon;
-	ev_unref(acon->loop); /* this watcher shouldn't keep the loop alive */
+	li_event_async_init(loop, &acon->out_notify_watcher, angel_connection_out_notify_cb);
 
 	acon->out = g_queue_new();
 	acon->in.data = g_string_sized_new(1024);
@@ -429,25 +428,21 @@ void li_angel_connection_free(liAngelConnection *acon) {
 
 	for (i = 0; i < acon->call_table->len; i++) {
 		liAngelCall *acall = g_ptr_array_index(acon->call_table, i);
-		liAngelCallCB cb;
-		if (!acall) continue;
+		if (NULL == acall) continue;
 		g_ptr_array_index(acon->call_table, i) = NULL;
 
-		cb = acall->callback;
-		ev_timer_stop(acon->loop, &acall->timeout_watcher);
-		if (cb) {
-			cb(acall, acall->context, TRUE, NULL, NULL, NULL);
-		} else {
-			g_slice_free(liAngelCall, acall);
+		if (NULL != acall->callback) {
+			acall->callback(acall->context, TRUE, NULL, NULL, NULL);
 		}
+		li_angel_call_free(acall);
 	}
 	g_ptr_array_free(acon->call_table, TRUE);
 
 	g_mutex_free(acon->mutex);
 	acon->mutex = NULL;
 
-	li_ev_safe_ref_and_stop(ev_async_stop, acon->loop, &acon->out_notify_watcher);
-	li_ev_safe_ref_and_stop(ev_io_stop, acon->loop, &acon->fd_watcher);
+	li_event_clear(&acon->out_notify_watcher);
+	li_event_clear(&acon->fd_watcher);
 
 	li_idlist_free(acon->call_id_list);
 	while (NULL != (send_item = g_queue_pop_head(acon->out))) {
@@ -467,32 +462,51 @@ void li_angel_connection_free(liAngelConnection *acon) {
 	g_slice_free(liAngelConnection, acon);
 }
 
-static void angel_call_timeout_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	liAngelCall* call = (liAngelCall*) w->data;
+static void angel_call_timeout_cb(liEventBase *watcher, int events) {
+	liAngelCall* call = LI_CONTAINER_OF(li_event_timer_from(watcher), liAngelCall, timeout_watcher);
 	liAngelConnection *acon = call->acon;
-	liAngelCallCB cb = NULL;
-	gpointer ctx;
-	UNUSED(loop); UNUSED(revents);
+	UNUSED(events);
 
 	g_mutex_lock(acon->mutex);
-		g_ptr_array_index(acon->call_table, call->id) = NULL;
-		if (NULL == (cb = call->callback)) {
-			g_slice_free(liAngelCall, call);
+		if (-1 == call->id) {
+			/* result available, will be handled in angel_call_result_cb */
+			g_mutex_unlock(acon->mutex);
+			return;
 		}
-		ctx = call->context;
+		g_ptr_array_index(acon->call_table, call->id) = NULL;
+		call->id = -1;
 	g_mutex_unlock(acon->mutex);
 
-	if (cb) cb(call, ctx, TRUE, NULL, NULL, NULL);
+	call->acon = NULL;
+
+	if (NULL != call->callback) {
+		call->callback(call->context, TRUE, NULL, NULL, NULL);
+	}
+	li_angel_call_free(call);
 }
 
-liAngelCall *li_angel_call_new(liAngelCallCB callback, ev_tstamp timeout) {
+static void angel_call_result_cb(liEventBase *watcher, int events) {
+	liAngelCall* call = LI_CONTAINER_OF(li_event_async_from(watcher), liAngelCall, result_watcher);
+	UNUSED(events);
+
+	assert(-1 == call->id);
+
+	call->acon = NULL;
+
+	if (NULL != call->callback) {
+		call->callback(call->context, FALSE, call->result.error, call->result.data, call->result.fds);
+	}
+	li_angel_call_free(call);
+}
+
+liAngelCall *li_angel_call_new(liEventLoop *loop, liAngelCallCB callback, li_tstamp timeout) {
 	liAngelCall* call = g_slice_new0(liAngelCall);
 
 	g_assert(NULL != callback);
 	call->callback = callback;
-	call->timeout = timeout;
-	ev_init(&call->timeout_watcher, angel_call_timeout_cb);
-	call->timeout_watcher.data = call;
+	li_event_timer_init(loop, &call->timeout_watcher, angel_call_timeout_cb);
+	li_event_timer_once(&call->timeout_watcher, timeout);
+	li_event_async_init(loop, &call->result_watcher, angel_call_result_cb);
 	call->id = -1;
 
 	return call;
@@ -502,19 +516,37 @@ liAngelCall *li_angel_call_new(liAngelCallCB callback, ev_tstamp timeout) {
 gboolean li_angel_call_free(liAngelCall *call) {
 	gboolean r = FALSE;
 
-	if (call->acon) {
+	if (NULL != call->acon) {
 		liAngelConnection *acon = call->acon;
 		g_mutex_lock(acon->mutex);
 			if (-1 != call->id) {
-				r = TRUE;
-				call->callback = NULL;
-			} else {
-				g_slice_free(liAngelCall, call);
+				g_ptr_array_index(acon->call_table, call->id) = NULL;
+				call->id = -1;
 			}
 		g_mutex_unlock(acon->mutex);
-	} else {
-		g_slice_free(liAngelCall, call);
+		r = TRUE;
 	}
+
+	li_event_clear(&call->timeout_watcher);
+	li_event_clear(&call->result_watcher);
+
+	if (NULL != call->result.error) {
+		g_string_free(call->result.error, TRUE);
+		call->result.error = NULL;
+	}
+	if (NULL != call->result.data) {
+		g_string_free(call->result.data, TRUE);
+		call->result.data = NULL;
+	}
+	if (NULL != call->result.fds) {
+		close_fd_array(call->result.fds);
+		g_array_free(call->result.fds, TRUE);
+	}
+
+	call->callback = NULL;
+	call->context = NULL;
+
+	g_slice_free(liAngelCall, call);
 
 	return r;
 }
@@ -578,7 +610,7 @@ gboolean li_angel_send_simple_call(
 	g_mutex_unlock(acon->mutex);
 
 	if (queue_was_empty)
-		ev_async_send(acon->loop, &acon->out_notify_watcher);
+		li_event_async_send(&acon->out_notify_watcher);
 
 	return TRUE;
 
@@ -631,9 +663,6 @@ gboolean li_angel_send_call(
 
 	if (!prepare_call_header(&buf, ANGEL_CALL_SEND_CALL, call->id, mod, mod_len, action, action_len, 0, data ? data->len : 0, 0, err)) goto error;
 
-	ev_timer_set(&call->timeout_watcher, call->timeout + ev_now(acon->loop) - ev_time(), 0);
-	ev_timer_start(acon->loop, &call->timeout_watcher);
-
 	g_mutex_lock(acon->mutex);
 		queue_was_empty = (0 == acon->out->length);
 		send_queue_push_string(acon->out, buf);
@@ -641,7 +670,7 @@ gboolean li_angel_send_call(
 	g_mutex_unlock(acon->mutex);
 
 	if (queue_was_empty)
-		ev_async_send(acon->loop, &acon->out_notify_watcher);
+		li_event_async_send(&acon->out_notify_watcher);
 
 	return TRUE;
 
@@ -688,7 +717,7 @@ gboolean li_angel_send_result(
 	g_mutex_unlock(acon->mutex);
 
 	if (queue_was_empty)
-		ev_async_send(acon->loop, &acon->out_notify_watcher);
+		li_event_async_send(&acon->out_notify_watcher);
 
 	return TRUE;
 

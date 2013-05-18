@@ -2,6 +2,7 @@
 #define _LIGHTTPD_ANGEL_CONNECTION_H_
 
 #include <lighttpd/idlist.h>
+#include <lighttpd/events.h>
 
 #define ANGEL_CALL_MAX_STR_LEN (64*1024) /* must fit into a gint32 */
 
@@ -10,7 +11,7 @@ typedef struct liAngelConnection liAngelConnection;
 typedef struct liAngelCall liAngelCall;
 
 /* error, data and fds-array will be freed/closed by the angel api itself; if you want to use the fds set the array size to 0 */
-typedef void (*liAngelCallCB)(liAngelCall *acall, gpointer ctx, gboolean timeout, GString *error, GString *data, GArray *fds);
+typedef void (*liAngelCallCB)(gpointer ctx, gboolean timeout, GString *error, GString *data, GArray *fds);
 
 typedef void (*liAngelReceiveCallCB)(liAngelConnection *acon,
 	const gchar *mod, gsize mod_len, const gchar *action, gsize action_len,
@@ -23,12 +24,11 @@ typedef void (*liAngelCloseCB)(liAngelConnection *acon, GError *err);
 struct liAngelConnection {
 	gpointer data;
 	GMutex *mutex;
-	struct ev_loop *loop;
 	int fd;
 	liIDList *call_id_list;
 	GPtrArray *call_table;
-	ev_io fd_watcher;
-	ev_async out_notify_watcher;
+	liEventIO fd_watcher;
+	liEventAsync out_notify_watcher;
 	GQueue *out;
 	liAngelBuffer in;
 
@@ -55,8 +55,13 @@ struct liAngelCall {
 	/* internal data */
 	gint32 id; /* id is -1 if there is no call pending (the callback may still be running) */
 	liAngelConnection *acon;
-	ev_timer timeout_watcher;
-	ev_tstamp timeout;
+	liEventTimer timeout_watcher;
+	liEventAsync result_watcher;
+
+	struct {
+		GString *error, *data;
+		GArray *fds;
+	} result;
 };
 
 /* error handling */
@@ -80,12 +85,12 @@ typedef enum {
 
 /* create connection */
 LI_API liAngelConnection* li_angel_connection_new(
-	struct ev_loop *loop, int fd, gpointer data,
+	liEventLoop *loop, int fd, gpointer data,
 	liAngelReceiveCallCB recv_call, liAngelCloseCB close_cb);
 LI_API void li_angel_connection_free(liAngelConnection *acon);
 
 
-LI_API liAngelCall *li_angel_call_new(liAngelCallCB callback, ev_tstamp timeout);
+LI_API liAngelCall *li_angel_call_new(liEventLoop *loop, liAngelCallCB callback, li_tstamp timeout);
 /* returns TRUE if a call was cancelled; make sure you don't call free while you're calling send_call */
 LI_API gboolean li_angel_call_free(liAngelCall *call);
 

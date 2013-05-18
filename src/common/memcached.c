@@ -33,14 +33,13 @@ typedef enum {
 } req_type;
 
 struct liMemcachedCon {
-	struct ev_loop *loop;
 	liSocketAddress addr;
 
 	int refcount;
 
-	ev_io con_watcher;
+	liEventIO con_watcher;
 	int fd;
-	ev_tstamp last_con_start;
+	li_tstamp last_con_start;
 
 	GQueue req_queue;
 	int_request *cur_req;
@@ -67,7 +66,7 @@ struct int_request {
 
 	GString *key;
 	guint32 flags;
-	ev_tstamp ttl;
+	li_tstamp ttl;
 	liBuffer *data;
 
 	GList iter;
@@ -138,13 +137,13 @@ static void send_queue_reset(GQueue *queue) {
 static void memcached_start_io(liMemcachedCon *con) {
 	if (!((ev_watcher*) &con->con_watcher)->active) {
 		li_memcached_con_acquire(con);
-		li_ev_safe_unref_and_start(ev_io_start, con->loop, &con->con_watcher);
+		li_event_start(&con->con_watcher);
 	}
 }
 
 static void memcached_stop_io(liMemcachedCon *con) {
 	if (((ev_watcher*) &con->con_watcher)->active) {
-		li_ev_safe_ref_and_stop(ev_io_stop, con->loop, &con->con_watcher);
+		li_event_stop(&con->con_watcher);
 		li_memcached_con_release(con);
 	}
 }
@@ -180,7 +179,7 @@ static gboolean push_request(liMemcachedCon *con, int_request *req, GError **err
 	g_queue_push_tail_link(&con->req_queue, &req->iter);
 
 	memcached_start_io(con);
-	li_ev_io_set_events(con->loop, &con->con_watcher, EV_READ | EV_WRITE);
+	li_event_io_set_events(&con->con_watcher, LI_EV_READ | LI_EV_WRITE);
 
 	return TRUE;
 }
@@ -248,14 +247,14 @@ static void memcached_update_io(liMemcachedCon *con) {
 
 	if (-1 == con->fd) return; /* not connected or in connect stage */
 
-	if (0 < con->req_queue.length) events = events | EV_READ;
-	if (0 < con->out.length) events = events | EV_WRITE;
+	if (0 < con->req_queue.length) events = events | LI_EV_READ;
+	if (0 < con->out.length) events = events | LI_EV_WRITE;
 
 	if (0 == events) {
 		memcached_stop_io(con);
 	} else {
 		memcached_start_io(con);
-		li_ev_io_set_events(con->loop, &con->con_watcher, events);
+		li_event_io_set_events(&con->con_watcher, events);
 	}
 }
 
@@ -263,13 +262,14 @@ static void memcached_connect(liMemcachedCon *con) {
 	int s;
 	struct sockaddr addr;
 	socklen_t len;
+	li_tstamp now = li_event_now(li_event_get_loop(&con->con_watcher));
 
 	if (-1 != con->fd) return;
 
-	s = con->con_watcher.fd;
+	s = li_event_io_fd(&con->con_watcher);
 	if (-1 == s) {
 		/* reconnect limit */
-		if (ev_now(con->loop) < con->last_con_start + 1) {
+		if (now < con->last_con_start + 1) {
 			if (con->err) {
 				con->err->code = LI_MEMCACHED_DISABLED;
 			} else {
@@ -277,7 +277,7 @@ static void memcached_connect(liMemcachedCon *con) {
 			}
 			return;
 		}
-		con->last_con_start = ev_now(con->loop);
+		con->last_con_start = now;
 
 		do {
 			s = socket(con->addr.addr->plain.sa_family, SOCK_STREAM, 0);
@@ -288,7 +288,7 @@ static void memcached_connect(liMemcachedCon *con) {
 			return;
 		}
 		li_fd_init(s);
-		ev_io_set(&con->con_watcher, s, 0);
+		li_event_io_set_fd(&con->con_watcher, s);
 
 		if (-1 == connect(s, &con->addr.addr->plain, con->addr.len)) {
 			switch (errno) {
@@ -296,7 +296,7 @@ static void memcached_connect(liMemcachedCon *con) {
 			case EALREADY:
 			case EINTR:
 				memcached_start_io(con);
-				li_ev_io_add_events(con->loop, &con->con_watcher, EV_READ | EV_WRITE);
+				li_event_io_add_events(&con->con_watcher, LI_EV_READ | LI_EV_WRITE);
 				break;
 			case EISCONN:
 				break;
@@ -306,7 +306,7 @@ static void memcached_connect(liMemcachedCon *con) {
 					li_sockaddr_to_string(con->addr, con->tmpstr, TRUE)->str,
 					g_strerror(errno));
 				close(s);
-				ev_io_set(&con->con_watcher, -1, 0);
+				li_event_io_set_fd(&con->con_watcher, -1);
 				break;
 			}
 		} else {
@@ -346,7 +346,7 @@ static void memcached_connect(liMemcachedCon *con) {
 
 		close(s);
 		memcached_stop_io(con);
-		ev_io_set(&con->con_watcher, -1, 0);
+		li_event_io_set_fd(&con->con_watcher, -1);
 	} else {
 		/* connect succeeded */
 		con->fd = s;
@@ -378,9 +378,9 @@ static void close_con(liMemcachedCon *con) {
 	send_queue_reset(&con->out);
 
 	memcached_stop_io(con);
-	close(con->con_watcher.fd);
+	close(li_event_io_fd(&con->con_watcher));
 	con->fd = -1;
-	ev_io_set(&con->con_watcher, -1, 0);
+	li_event_io_set_fd(&con->con_watcher, -1);
 	con->cur_req = NULL;
 	cancel_all_requests(con);
 	memcached_connect(con);
@@ -720,11 +720,10 @@ req_get_header_done: ;
 	}
 }
 
-static void memcached_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	liMemcachedCon *con = (liMemcachedCon*) w->data;
-	UNUSED(loop);
+static void memcached_io_cb(liEventBase *watcher, int events) {
+	liMemcachedCon *con = LI_CONTAINER_OF(li_event_io_from(watcher), liMemcachedCon, con_watcher);
 
-	if (1 == g_atomic_int_get(&con->refcount) && w->active) {
+	if (1 == g_atomic_int_get(&con->refcount) && li_event_active(&con->con_watcher)) {
 		memcached_stop_io(con);
 		return;
 	}
@@ -736,7 +735,7 @@ static void memcached_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
 
 	li_memcached_con_acquire(con); /* make sure con isn't freed in the middle of something */
 
-	if (revents | EV_WRITE) {
+	if (events | LI_EV_WRITE) {
 		int i;
 		ssize_t written, len;
 		gchar *data;
@@ -747,7 +746,7 @@ static void memcached_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		for (i = 0; si && (i < 10); i++) { /* don't send more than 10 chunks */
 			data = si->buf->addr + si->pos;
 			len = si->len;
-			written = write(w->fd, data, len);
+			written = write(li_event_io_fd(&con->con_watcher), data, len);
 			if (written < 0) {
 				switch (errno) {
 				case EINTR:
@@ -780,7 +779,7 @@ write_eagain:
 		send_queue_clean(&con->out);
 	}
 
-	if (revents | EV_READ) {
+	if (events | LI_EV_READ) {
 		do {
 			handle_read(con);
 		} while (con->remaining && con->remaining->used > 0);
@@ -792,17 +791,16 @@ out:
 }
 
 
-liMemcachedCon* li_memcached_con_new(struct ev_loop *loop, liSocketAddress addr) {
+liMemcachedCon* li_memcached_con_new(liEventLoop *loop, liSocketAddress addr) {
 	liMemcachedCon* con = g_slice_new0(liMemcachedCon);
 
 	con->refcount = 1;
-	con->loop = loop;
 	con->addr = li_sockaddr_dup(addr);
 	con->tmpstr = g_string_sized_new(511);
 
 	con->fd = -1;
-	ev_io_init(&con->con_watcher, memcached_io_cb, -1, 0);
-	con->con_watcher.data = con;
+	li_event_io_init(loop, &con->con_watcher, memcached_io_cb, -1, 0);
+	li_event_set_keep_loop_alive(&con->con_watcher, FALSE);
 
 	memcached_connect(con);
 
@@ -812,10 +810,9 @@ liMemcachedCon* li_memcached_con_new(struct ev_loop *loop, liSocketAddress addr)
 static void li_memcached_con_free(liMemcachedCon* con) {
 	if (!con) return;
 
-	if (-1 != con->con_watcher.fd) {
-		close(con->con_watcher.fd);
-		/* as io has a reference on con, we don't need to stop it here */
-		ev_io_set(&con->con_watcher, -1, 0);
+	if (-1 != li_event_io_fd(&con->con_watcher)) {
+		close(li_event_io_fd(&con->con_watcher));
+		li_event_clear(&con->con_watcher);
 		con->fd = -1;
 	}
 
@@ -883,7 +880,7 @@ liMemcachedRequest* li_memcached_get(liMemcachedCon *con, GString *key, liMemcac
 	return &req->req;
 }
 
-liMemcachedRequest* li_memcached_set(liMemcachedCon *con, GString *key, guint32 flags, ev_tstamp ttl, liBuffer *data, liMemcachedCB callback, gpointer cb_data, GError **err) {
+liMemcachedRequest* li_memcached_set(liMemcachedCon *con, GString *key, guint32 flags, li_tstamp ttl, liBuffer *data, liMemcachedCB callback, gpointer cb_data, GError **err) {
 	int_request* req;
 
 	if (!li_memcached_is_key_valid(key)) {

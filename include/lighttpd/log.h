@@ -99,8 +99,8 @@ struct liLogEntry {
 };
 
 struct liLogServerData {
-	struct ev_loop *loop;
-	ev_async watcher;
+	liEventLoop loop;
+	liEventAsync watcher;
 	liRadixTree *targets;    /** const gchar* path => (liLog*) */
 	liWaitQueue close_queue;
 	GQueue write_queue;

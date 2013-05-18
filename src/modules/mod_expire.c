@@ -72,7 +72,7 @@ static liHandlerResult expire(liVRequest *vr, gpointer param, gpointer *context)
 	GString *date_str = vr->wrk->tmp_str;
 	expire_rule *rule = param;
 	guint num = rule->num;
-	time_t now = (time_t)CUR_TS(vr->wrk);
+	time_t now = (time_t)li_cur_ts(vr->wrk);
 
 	UNUSED(context);
 

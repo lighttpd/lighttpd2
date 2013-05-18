@@ -1,5 +1,5 @@
 
-#include <lighttpd/jobqueue.h>
+#include <lighttpd/events.h>
 #include <lighttpd/utils.h>
 
 #define INC_GEN(jq) do { jq->generation++; if (0 == jq->generation) jq->generation = 1; } while (0)
@@ -28,33 +28,30 @@ static void job_queue_run(liJobQueue* jq, int loops) {
 
 	if (jq->queue.length > 0) {
 		/* make sure we will run again soon */
-		ev_timer_start(jq->loop, &jq->queue_watcher);
+		li_event_timer_once(&jq->queue_watcher, 0);
 	}
 }
 
-static void job_queue_prepare_cb(struct ev_loop *loop, ev_prepare *w, int revents) {
-	liJobQueue* jq = (liJobQueue*) w->data;
-	UNUSED(loop);
-	UNUSED(revents);
+static void job_queue_prepare_cb(liEventBase *watcher, int events) {
+	liJobQueue* jq = LI_CONTAINER_OF(li_event_prepare_from(watcher), liJobQueue, prepare_watcher);
+	UNUSED(events);
 
 	job_queue_run(jq, 3);
 }
 
-static void job_queue_watcher_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	UNUSED(loop);
-	UNUSED(revents);
-	UNUSED(w);
+static void job_queue_watcher_cb(liEventBase *watcher, int events) {
+	UNUSED(watcher);
+	UNUSED(events);
 
 	/* just keep loop alive, run jobs in prepare */
 }
 
 /* run jobs for async queued jobs */
-static void job_async_queue_cb(struct ev_loop *loop, ev_async *w, int revents) {
-	liJobQueue* jq = (liJobQueue*) w->data;
+static void job_async_queue_cb(liEventBase *watcher, int events) {
+	liJobQueue* jq = LI_CONTAINER_OF(li_event_async_from(watcher), liJobQueue, async_queue_watcher);
 	GAsyncQueue *q = jq->async_queue;
 	liJobRef *jobref;
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
 	while (NULL != (jobref = g_async_queue_try_pop(q))) {
 		li_job_now_ref(jobref);
@@ -63,27 +60,19 @@ static void job_async_queue_cb(struct ev_loop *loop, ev_async *w, int revents) {
 }
 
 
-void li_job_queue_init(liJobQueue* jq, struct ev_loop *loop) {
-	jq->loop = loop;
-
-	ev_init(&jq->prepare_watcher, job_queue_prepare_cb);
-	jq->prepare_watcher.data = jq;
-	ev_prepare_start(jq->loop, &jq->prepare_watcher);
-	ev_unref(jq->loop); /* this watcher shouldn't keep the loop alive */
+void li_job_queue_init(liJobQueue* jq, liEventLoop *loop) {
+	li_event_prepare_init(loop, &jq->prepare_watcher, job_queue_prepare_cb);
+	li_event_async_init(loop, &jq->async_queue_watcher, job_async_queue_cb);
+	li_event_timer_init(loop, &jq->queue_watcher, job_queue_watcher_cb);
 
 	/* job queue */
 	g_queue_init(&jq->queue);
-	ev_timer_init(&jq->queue_watcher, job_queue_watcher_cb, 0, 0);
-	jq->queue_watcher.data = jq;
-
 	jq->async_queue = g_async_queue_new();
-	ev_async_init(&jq->async_queue_watcher, job_async_queue_cb);
-	jq->async_queue_watcher.data = jq;
-	ev_async_start(jq->loop, &jq->async_queue_watcher);
-	ev_unref(jq->loop); /* this watcher shouldn't keep the loop alive */
 }
 
 void li_job_queue_clear(liJobQueue *jq) {
+	if (NULL == jq->async_queue) return;
+
 	while (jq->queue.length > 0 || g_async_queue_length(jq->async_queue) > 0) {
 		liJobRef *jobref;
 
@@ -98,9 +87,9 @@ void li_job_queue_clear(liJobQueue *jq) {
 	g_async_queue_unref(jq->async_queue);
 	jq->async_queue = NULL;
 
-	li_ev_safe_ref_and_stop(ev_async_stop, jq->loop, &jq->async_queue_watcher);
-	li_ev_safe_ref_and_stop(ev_prepare_stop, jq->loop, &jq->prepare_watcher);
-	ev_timer_stop(jq->loop, &jq->queue_watcher);
+	li_event_clear(&jq->async_queue_watcher);
+	li_event_clear(&jq->prepare_watcher);
+	li_event_clear(&jq->queue_watcher);
 }
 
 void li_job_init(liJob *job, liJobCB callback) {
@@ -203,7 +192,7 @@ void li_job_async(liJobRef *jobref) {
 	if (NULL == q) return;
 	li_job_ref_acquire(jobref);
 	g_async_queue_push(q, jobref);
-	ev_async_send(jq->loop, &jq->async_queue_watcher);
+	li_event_async_send(&jq->async_queue_watcher);
 }
 
 liJobRef* li_job_ref(liJobQueue *jq, liJob *job) {

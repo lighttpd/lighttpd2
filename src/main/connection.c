@@ -178,7 +178,7 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 		return;
 	case LI_STREAM_DESTROY:
 		con->info.req = NULL;
-		li_job_later(&con->wrk->jobqueue, &con->job_reset);
+		li_job_later(&con->wrk->loop.jobqueue, &con->job_reset);
 		return;
 	default:
 		return;
@@ -205,7 +205,7 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 			con->keep_alive_data.link = NULL;
 		}
 		con->keep_alive_data.timeout = 0;
-		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
+		li_event_stop(&con->keep_alive_data.watcher);
 
 		/* put back in io timeout queue */
 		if (!con->io_timeout_elem.queued)
@@ -355,7 +355,7 @@ static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 		return;
 	case LI_STREAM_DESTROY:
 		con->info.resp = NULL;
-		li_job_later(&con->wrk->jobqueue, &con->job_reset);
+		li_job_later(&con->wrk->loop.jobqueue, &con->job_reset);
 		return;
 	default:
 		return;
@@ -401,7 +401,7 @@ static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 void li_connection_update_io_timeout(liConnection *con) {
 	liWorker *wrk = con->wrk;
 
-	if ((con->io_timeout_elem.ts + 1.0) < ev_now(wrk->loop)) {
+	if ((con->io_timeout_elem.ts + 1.0) < li_cur_ts(wrk)) {
 		li_waitqueue_push(&wrk->io_timeout_queue, &con->io_timeout_elem);
 	}
 }
@@ -411,7 +411,7 @@ void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, 
 
 	con->srv_sock = srv_sock;
 	con->state = LI_CON_STATE_REQUEST_START;
-	con->mainvr->ts_started = con->ts_started = CUR_TS(con->wrk);
+	con->mainvr->ts_started = con->ts_started = li_cur_ts(con->wrk);
 
 	con->info.remote_addr = remote_addr;
 	li_sockaddr_to_string(remote_addr, con->info.remote_addr_str, FALSE);
@@ -421,8 +421,8 @@ void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, 
 
 	con->info.aborted = FALSE;
 
-	li_stream_init(&con->in, &con->wrk->jobqueue, _connection_http_in_cb);
-	li_stream_init(&con->out, &con->wrk->jobqueue, _connection_http_out_cb);
+	li_stream_init(&con->in, &con->wrk->loop, _connection_http_in_cb);
+	li_stream_init(&con->out, &con->wrk->loop, _connection_http_out_cb);
 
 	con->info.req = &con->in;
 	con->info.resp = &con->out;
@@ -440,8 +440,8 @@ void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, 
 
 	assert(NULL != con->con_sock.raw_in || NULL != con->con_sock.raw_out);
 
-	li_chunkqueue_use_limit(con->con_sock.raw_in->out, con->wrk->loop, 512*1024);
-	li_chunkqueue_use_limit(con->con_sock.raw_out->out, con->wrk->loop, 512*1024);
+	li_chunkqueue_use_limit(con->con_sock.raw_in->out, 512*1024);
+	li_chunkqueue_use_limit(con->con_sock.raw_out->out, 512*1024);
 
 	li_stream_connect(&con->out, con->con_sock.raw_out);
 	li_stream_connect(con->con_sock.raw_in, &con->in);
@@ -508,9 +508,9 @@ void li_connection_error(liConnection *con) {
 	li_connection_reset(con);
 }
 
-static void connection_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) {
-	liConnection *con = (liConnection*) w->data;
-	UNUSED(loop); UNUSED(revents);
+static void connection_keepalive_cb(liEventBase *watcher, int events) {
+	liConnection *con = LI_CONTAINER_OF(li_event_timer_from(watcher), liConnection, keep_alive_data.watcher);
+	UNUSED(events);
 
 	li_connection_reset(con);
 }
@@ -554,8 +554,7 @@ liConnection* li_connection_new(liWorker *wrk) {
 	con->keep_alive_data.link = NULL;
 	con->keep_alive_data.timeout = 0;
 	con->keep_alive_data.max_idle = 0;
-	ev_init(&con->keep_alive_data.watcher, connection_keepalive_cb);
-	con->keep_alive_data.watcher.data = con;
+	li_event_timer_init(&wrk->loop, &con->keep_alive_data.watcher, connection_keepalive_cb);
 
 	con->io_timeout_elem.data = con;
 
@@ -583,11 +582,11 @@ void li_connection_reset(liConnection *con) {
 		}
 		con->keep_alive_data.timeout = 0;
 		con->keep_alive_data.max_idle = 0;
-		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
+		li_event_stop(&con->keep_alive_data.watcher);
 		con->keep_alive_requests = 0;
 	}
 
-	li_job_later(&con->wrk->jobqueue, &con->job_reset);
+	li_job_later(&con->wrk->loop.jobqueue, &con->job_reset);
 }
 
 static void li_connection_reset2(liConnection *con) {
@@ -624,7 +623,7 @@ static void li_connection_reset2(liConnection *con) {
 	}
 	con->keep_alive_data.timeout = 0;
 	con->keep_alive_data.max_idle = 0;
-	ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
+	li_event_stop(&con->keep_alive_data.watcher);
 	con->keep_alive_requests = 0;
 
 	/* reset stats */
@@ -652,7 +651,7 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 
 	/* only start keep alive watcher if there isn't more input data already */
 	if (con->con_sock.raw_in->out->length == 0) {
-		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
+		li_event_stop(&con->keep_alive_data.watcher);
 		{
 			con->keep_alive_data.max_idle = CORE_OPTION(LI_CORE_OPTION_MAX_KEEP_ALIVE_IDLE).number;
 			if (con->keep_alive_data.max_idle == 0) {
@@ -662,19 +661,18 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 				return;
 			}
 
-			con->keep_alive_data.timeout = ev_now(con->wrk->loop) + con->keep_alive_data.max_idle;
+			con->keep_alive_data.timeout = li_cur_ts(con->wrk) + con->keep_alive_data.max_idle;
 
 			if (con->keep_alive_data.max_idle == con->srv->keep_alive_queue_timeout) {
 				/* queue is sorted by con->keep_alive_data.timeout */
 				gboolean need_start = (0 == con->wrk->keep_alive_queue.length);
-				con->keep_alive_data.timeout = ev_now(con->wrk->loop) + con->srv->keep_alive_queue_timeout;
+				con->keep_alive_data.timeout = li_cur_ts(con->wrk) + con->srv->keep_alive_queue_timeout;
 				g_queue_push_tail(&con->wrk->keep_alive_queue, con);
 				con->keep_alive_data.link = g_queue_peek_tail_link(&con->wrk->keep_alive_queue);
 				if (need_start)
 					li_worker_check_keepalive(con->wrk);
 			} else {
-				ev_timer_set(&con->keep_alive_data.watcher, con->keep_alive_data.max_idle, 0);
-				ev_timer_start(con->wrk->loop, &con->keep_alive_data.watcher);
+				li_event_timer_once(&con->keep_alive_data.watcher, con->keep_alive_data.max_idle);
 			}
 		}
 
@@ -699,8 +697,8 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 	li_http_request_parser_reset(&con->req_parser_ctx);
 
 	/* restore chunkqueue limits */
-	li_chunkqueue_use_limit(con->con_sock.raw_in->out, con->wrk->loop, 512*1024);
-	li_chunkqueue_use_limit(con->con_sock.raw_out->out, con->wrk->loop, 512*1024);
+	li_chunkqueue_use_limit(con->con_sock.raw_in->out, 512*1024);
+	li_chunkqueue_use_limit(con->con_sock.raw_out->out, 512*1024);
 
 	/* reset stats */
 	con->info.stats.bytes_in = G_GUINT64_CONSTANT(0);
@@ -740,8 +738,7 @@ void li_connection_free(liConnection *con) {
 	}
 	con->keep_alive_data.timeout = 0;
 	con->keep_alive_data.max_idle = 0;
-	if (con->wrk)
-		ev_timer_stop(con->wrk->loop, &con->keep_alive_data.watcher);
+	li_event_clear(&con->keep_alive_data.watcher);
 
 	/* remove from timeout queue */
 	li_waitqueue_remove(&con->wrk->io_timeout_queue, &con->io_timeout_elem);

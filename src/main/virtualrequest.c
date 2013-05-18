@@ -213,7 +213,7 @@ void li_vrequest_start(liVRequest *vr) {
 		li_request_reset(&vr->request);
 	}
 
-	vr->ts_started = CUR_TS(vr->wrk);
+	vr->ts_started = li_cur_ts(vr->wrk);
 }
 
 /* received all request headers */
@@ -227,7 +227,7 @@ void li_vrequest_handle_request_headers(liVRequest *vr) {
 /* response completely ready */
 gboolean li_vrequest_handle_direct(liVRequest *vr) {
 	if (li_vrequest_handle_indirect(vr, NULL)) {
-		li_vrequest_indirect_connect(vr, li_stream_null_new(&vr->wrk->jobqueue), li_stream_plug_new(&vr->wrk->jobqueue));
+		li_vrequest_indirect_connect(vr, li_stream_null_new(&vr->wrk->loop), li_stream_plug_new(&vr->wrk->loop));
 
 		/* release reference from _new */
 		li_stream_release(vr->backend_drain);
@@ -413,11 +413,11 @@ void li_vrequest_state_machine(liVRequest *vr) {
 }
 
 void li_vrequest_joblist_append(liVRequest *vr) {
-	li_job_later(&vr->wrk->jobqueue, &vr->job);
+	li_job_later(&vr->wrk->loop.jobqueue, &vr->job);
 }
 
 liJobRef* li_vrequest_get_ref(liVRequest *vr) {
-	return li_job_ref(&vr->wrk->jobqueue, &vr->job);
+	return li_job_ref(&vr->wrk->loop.jobqueue, &vr->job);
 }
 
 gboolean li_vrequest_redirect(liVRequest *vr, GString *uri) {
@@ -471,7 +471,7 @@ void li_vrequest_update_stats_in(liVRequest *vr, goffset transferred) {
 	vr->wrk->stats.bytes_in += transferred;
 	coninfo->stats.bytes_in += transferred;
 
-	update_stats_avg(ev_now(vr->wrk->loop), coninfo);
+	update_stats_avg(li_cur_ts(vr->wrk), coninfo);
 }
 
 void li_vrequest_update_stats_out(liVRequest *vr, goffset transferred) {
@@ -479,5 +479,5 @@ void li_vrequest_update_stats_out(liVRequest *vr, goffset transferred) {
 	vr->wrk->stats.bytes_out += transferred;
 	coninfo->stats.bytes_out += transferred;
 
-	update_stats_avg(ev_now(vr->wrk->loop), coninfo);
+	update_stats_avg(li_cur_ts(vr->wrk), coninfo);
 }

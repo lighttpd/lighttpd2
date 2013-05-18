@@ -16,7 +16,7 @@ struct liErrorPipe {
 	liErrorPipeCB cb;
 
 	int fds[2];
-	ev_io fd_watcher;
+	liEventIO fd_watcher;
 };
 
 struct liProc {

@@ -673,7 +673,7 @@ static void core_free(liServer *srv, liPlugin *p) {
 	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 	guint i;
 
-	li_ev_safe_ref_and_stop(ev_signal_stop, srv->loop, &config->sig_hup);
+	li_event_clear(&config->sig_hup);
 
 	core_clean(srv, p);
 
@@ -768,11 +768,10 @@ static void core_instance_replaced(liServer *srv, liPlugin *p, liInstance *oldi,
 	}
 }
 
-static void core_handle_sig_hup(struct ev_loop *loop, ev_signal *w, int revents) {
-	liPluginCoreConfig *config = w->data;
+static void core_handle_sig_hup(liEventBase *watcher, int events) {
+	liPluginCoreConfig *config = LI_CONTAINER_OF(li_event_signal_from(watcher), liPluginCoreConfig, sig_hup);
 	liInstance *oldi, *newi;
-	UNUSED(loop);
-	UNUSED(revents);
+	UNUSED(events);
 
 	if (NULL == (oldi = config->inst)) return;
 
@@ -804,10 +803,7 @@ static gboolean core_init(liServer *srv, liPlugin *p) {
 	li_angel_plugin_add_angel_cb(p, "reached-state", core_reached_state);
 	li_angel_plugin_add_angel_cb(p, "log-open-file", core_log_open_file);
 
-	ev_signal_init(&config->sig_hup, core_handle_sig_hup, SIGHUP);
-	config->sig_hup.data = config;
-	ev_signal_start(srv->loop, &config->sig_hup);
-	ev_unref(srv->loop);
+	li_event_signal_init(&srv->loop, &config->sig_hup, core_handle_sig_hup, SIGHUP);
 
 	return TRUE;
 }
