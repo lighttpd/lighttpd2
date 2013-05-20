@@ -1,6 +1,8 @@
 
 #include <lighttpd/base.h>
 
+#include "gnutls_filter.h"
+
 #include <gnutls/gnutls.h>
 #include <glib-2.0/glib/galloca.h>
 
@@ -17,13 +19,10 @@ struct mod_connection_ctx {
 	liConnection *con;
 	mod_context *ctx;
 
-	int con_events;
-	liJob con_handle_events_job;
+	liGnuTLSFilter *tls_filter;
 
-	unsigned int gnutls_again_in_progress:1;
-
-	unsigned int initial_handshaked_finished:1;
-	unsigned int client_initiated_renegotiation:1;
+	liIOStream *sock_stream;
+	gpointer simple_socket_data;
 };
 
 struct mod_context {
@@ -92,306 +91,175 @@ error0:
 	return NULL;
 }
 
+static void tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
+	mod_connection_ctx *conctx = stream->data;
+	assert(NULL == conctx->sock_stream || conctx->sock_stream == stream);
 
-
-
-static void mod_gnutls_con_handle_events_cb(liJob *job) {
-	mod_connection_ctx *conctx = LI_CONTAINER_OF(job, mod_connection_ctx, con_handle_events_job);
-	liConnection *con = conctx->con;
-
-	conctx->gnutls_again_in_progress = 0;
-	connection_handle_io(con);
-}
-
-static void mod_gnutls_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	liConnection *con = (liConnection*) w->data;
-	mod_connection_ctx *conctx = con->srv_sock_data;
-
-	if (revents & EV_ERROR) {
-		/* if this happens, we have a serious bug in the event handling */
-		VR_ERROR(con->mainvr, "%s", "EV_ERROR encountered, dropping connection!");
-		li_connection_error(con);
-		return;
+	if (LI_IOSTREAM_DESTROY == event) {
+		li_stream_simple_socket_close(stream, TRUE); /* kill it, ssl sent an close alert message */
 	}
 
-	con->can_read = TRUE;
-	con->can_write = TRUE;
+	li_connection_simple_tcp(&conctx->con, stream, &conctx->simple_socket_data, event);
 
-	/* disable all events; they will get reactivated later */
-	li_ev_io_set_events(loop, w, 0);
+	if (NULL != conctx->con && conctx->con->out_has_all_data
+	    && (NULL == stream->stream_out.out || 0 == stream->stream_out.out->length)
+	    && li_streams_empty(conctx->con->con_sock.raw_out, NULL)) {
+		li_connection_request_done(conctx->con);
+	}
 
-	li_job_now(&con->wrk->loop.jobqueue, &conctx->con_handle_events_job);
+	switch (event) {
+	case LI_IOSTREAM_DESTROY:
+		assert(NULL == conctx->sock_stream);
+		assert(NULL == conctx->tls_filter);
+		assert(NULL == conctx->con);
+		stream->data = NULL;
+		g_slice_free(mod_connection_ctx, conctx);
+		return;
+	default:
+		break;
+	}
 }
 
-static int mod_gnutls_post_client_hello_cb(gnutls_session_t session) {
-	gnutls_protocol_t p = gnutls_protocol_get_version(session);
-	mod_connection_ctx *conctx = gnutls_session_get_ptr(session);
+static void handshake_cb(liGnuTLSFilter *f, gpointer data, liStream *plain_source, liStream *plain_drain) {
+	mod_connection_ctx *conctx = data;
+	liConnection *con = conctx->con;
+	UNUSED(f);
+
+	if (NULL != con) {
+		li_stream_connect(plain_source, con->con_sock.raw_in);
+		li_stream_connect(con->con_sock.raw_out, plain_drain);
+	} else {
+		li_stream_reset(plain_source);
+		li_stream_reset(plain_drain);
+	}
+}
+
+static void close_cb(liGnuTLSFilter *f, gpointer data) {
+	mod_connection_ctx *conctx = data;
+	liConnection *con = conctx->con;
+	assert(conctx->tls_filter == f);
+
+	conctx->tls_filter = NULL;
+	li_gnutls_filter_free(f);
+	gnutls_deinit(conctx->session);
+
+	if (NULL != conctx->ctx) {
+		mod_gnutls_context_release(conctx->ctx);
+		conctx->ctx = NULL;
+	}
+
+	if (NULL != conctx->con) {
+		liStream *raw_out = con->con_sock.raw_out, *raw_in = con->con_sock.raw_in;
+		assert(con->con_sock.data == conctx);
+		conctx->con = NULL;
+		con->con_sock.data = NULL;
+		li_stream_acquire(raw_in);
+		li_stream_reset(raw_out);
+		li_stream_reset(raw_in);
+		li_stream_release(raw_in);
+	}
+
+	if (NULL != conctx->sock_stream) {
+		liIOStream *stream = conctx->sock_stream;
+		conctx->sock_stream = NULL;
+		li_iostream_release(stream);
+	}
+}
+
+static int post_client_hello_cb(liGnuTLSFilter *f, gpointer data) {
+	mod_connection_ctx *conctx = data;
+	gnutls_protocol_t p = gnutls_protocol_get_version(conctx->session);
+	UNUSED(f);
 
 	if (conctx->ctx->protect_against_beast) {
 		if (GNUTLS_SSL3 == p || GNUTLS_TLS1_0 == p) {
-			gnutls_priority_set(session, conctx->ctx->server_priority_beast);
+			gnutls_priority_set(conctx->session, conctx->ctx->server_priority_beast);
 		}
 	}
 
 	return GNUTLS_E_SUCCESS;
 }
 
-static gboolean mod_gnutls_con_new(liConnection *con) {
+static const liGnuTLSFilterCallbacks filter_callbacks = {
+	handshake_cb,
+	close_cb,
+	post_client_hello_cb
+};
+
+static void gnutlc_tcp_finished(liConnection *con, gboolean aborted) {
+	mod_connection_ctx *conctx = con->con_sock.data;
+	UNUSED(aborted);
+
+	con->info.is_ssl = FALSE;
+	con->con_sock.callbacks = NULL;
+
+	if (NULL != conctx) {
+		assert(con == conctx->con);
+		close_cb(conctx->tls_filter, conctx);
+	}
+
+	{
+		liStream *raw_out = con->con_sock.raw_out, *raw_in = con->con_sock.raw_in;
+		con->con_sock.raw_out = con->con_sock.raw_in = NULL;
+		if (NULL != raw_out) { li_stream_reset(raw_out); li_stream_release(raw_out); }
+		if (NULL != raw_in) { li_stream_reset(raw_in); li_stream_release(raw_in); }
+	}
+}
+
+static const liConnectionSocketCallbacks gnutls_tcp_cbs = {
+	gnutlc_tcp_finished
+};
+
+static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
+	liEventLoop *loop = &con->wrk->loop;
 	liServer *srv = con->srv;
 	mod_context *ctx = con->srv_sock->data;
-	mod_connection_ctx *conctx = g_slice_new0(mod_connection_ctx);
+	mod_connection_ctx *conctx;
+	gnutls_session_t session;
 	int r;
 
-	con->srv_sock_data = NULL;
-
-	if (GNUTLS_E_SUCCESS != (r = gnutls_init(&conctx->session, GNUTLS_SERVER))) {
+	if (GNUTLS_E_SUCCESS != (r = gnutls_init(&session, GNUTLS_SERVER))) {
 		ERROR(srv, "gnutls_init (%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
-		g_slice_free(mod_connection_ctx, conctx);
 		return FALSE;
 	}
 
 	mod_gnutls_context_acquire(ctx);
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_priority_set(conctx->session, ctx->server_priority))) {
+	if (GNUTLS_E_SUCCESS != (r = gnutls_priority_set(session, ctx->server_priority))) {
 		ERROR(srv, "gnutls_priority_set (%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto fail;
 	}
-	if (GNUTLS_E_SUCCESS != (r = gnutls_credentials_set(conctx->session, GNUTLS_CRD_CERTIFICATE, ctx->server_cert))) {
+	if (GNUTLS_E_SUCCESS != (r = gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, ctx->server_cert))) {
 		ERROR(srv, "gnutls_credentials_set (%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto fail;
 	}
 
-	gnutls_transport_set_ptr(conctx->session, (gnutls_transport_ptr_t)(intptr_t) con->sock_watcher.fd);
-	gnutls_session_set_ptr(conctx->session, conctx);
-
-	gnutls_handshake_set_post_client_hello_function(conctx->session, mod_gnutls_post_client_hello_cb);
-
+	conctx = g_slice_new0(mod_connection_ctx);
+	conctx->session = session;
+	conctx->sock_stream = li_iostream_new(con->wrk, fd, tcp_io_cb, conctx);
+	conctx->tls_filter = li_gnutls_filter_new(srv, con->wrk, &filter_callbacks, conctx, conctx->session,
+		&conctx->sock_stream->stream_in, &conctx->sock_stream->stream_out);
 	conctx->con = con;
 	conctx->ctx = ctx;
-	li_job_init(&conctx->con_handle_events_job, mod_gnutls_con_handle_events_cb);
-	conctx->con_events = 0;
-	conctx->gnutls_again_in_progress = 0;
-	conctx->initial_handshaked_finished = 0;
-	conctx->client_initiated_renegotiation = 0;
 
-	con->srv_sock_data = conctx;
+	con->con_sock.data = conctx;
+	con->con_sock.callbacks = &gnutls_tcp_cbs;
+	con->con_sock.raw_out = li_stream_plug_new(loop);
+	con->con_sock.raw_in = li_stream_plug_new(loop);
 	con->info.is_ssl = TRUE;
-
-	ev_set_cb(&con->sock_watcher, mod_gnutls_io_cb);
 
 	return TRUE;
 
 fail:
-	gnutls_deinit(conctx->session);
+	gnutls_deinit(session);
 	mod_gnutls_context_release(ctx);
-
-	g_slice_free(mod_connection_ctx, conctx);
 
 	return FALSE;
 }
 
-static void mod_gnutls_con_close(liConnection *con) {
-	mod_connection_ctx *conctx = con->srv_sock_data;
-
-	if (!conctx) return;
-
-	gnutls_bye(conctx->session, GNUTLS_SHUT_RDWR);
-	gnutls_deinit(conctx->session);
-	mod_gnutls_context_release(conctx->ctx);
-
-	con->srv_sock_data = NULL;
-	con->info.is_ssl = FALSE;
-	li_job_clear(&conctx->con_handle_events_job);
-
-	g_slice_free(mod_connection_ctx, conctx);
-}
-
-static void mod_gnutls_update_events(liConnection *con, int events) {
-	mod_connection_ctx *conctx = con->srv_sock_data;
-
-	/* new events -> add them to socket watcher too */
-	if (!conctx->gnutls_again_in_progress && 0 != (events & ~conctx->con_events)) {
-		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, events);
-	}
-
-	conctx->con_events = events;
-}
-
-static liNetworkStatus mod_gnutls_handle_error(liConnection *con, mod_connection_ctx *conctx, const char *gnutlsfunc, off_t len, int r) {
-	switch (r) {
-	case GNUTLS_E_AGAIN:
-		conctx->gnutls_again_in_progress = TRUE;
-		li_ev_io_set_events(con->wrk->loop, &con->sock_watcher, gnutls_record_get_direction(conctx->session) ? EV_WRITE : EV_READ);
-		return (len > 0) ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
-	case GNUTLS_E_REHANDSHAKE:
-		if (conctx->initial_handshaked_finished) {
-			VR_ERROR(con->mainvr, "%s", "gnutls: client initiated renegotitation, closing connection");
-			return LI_NETWORK_STATUS_FATAL_ERROR;
-		}
-		break;
-	case GNUTLS_E_UNEXPECTED_PACKET_LENGTH:
-		/* connection abort */
-		return LI_NETWORK_STATUS_CONNECTION_CLOSE;
-	case GNUTLS_E_UNKNOWN_CIPHER_SUITE:
-	case GNUTLS_E_UNSUPPORTED_VERSION_PACKET:
-		VR_DEBUG(con->mainvr, "%s (%s): %s", gnutlsfunc,
-			gnutls_strerror_name(r), gnutls_strerror(r));
-		return LI_NETWORK_STATUS_CONNECTION_CLOSE;
-	default:
-		if (gnutls_error_is_fatal(r)) {
-			VR_ERROR(con->mainvr, "%s (%s): %s", gnutlsfunc,
-				gnutls_strerror_name(r), gnutls_strerror(r));
-			return LI_NETWORK_STATUS_FATAL_ERROR;
-		} else {
-			VR_ERROR(con->mainvr, "%s non fatal (%s): %s", gnutlsfunc,
-				gnutls_strerror_name(r), gnutls_strerror(r));
-		}
-	}
-	return (len > 0) ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
-}
-
-static liNetworkStatus mod_gnutls_do_handshake(liConnection *con, mod_connection_ctx *conctx) {
-	int r;
-
-	if (GNUTLS_E_SUCCESS != (r = gnutls_handshake(conctx->session))) {
-		return mod_gnutls_handle_error(con, conctx, "gnutls_handshake", 0, r);
-	} else {
-		conctx->initial_handshaked_finished = 1;
-		return LI_NETWORK_STATUS_SUCCESS;
-	}
-}
-
-static liNetworkStatus mod_gnutls_con_write(liConnection *con, goffset write_max) {
-	const ssize_t blocksize = 16*1024; /* 16k */
-	char *block_data;
-	off_t block_len;
-	ssize_t r;
-	liChunkIter ci;
-	liChunkQueue *cq = con->raw_out;
-	mod_connection_ctx *conctx = con->srv_sock_data;
-	GError *err = NULL;
-
-	if (!conctx->initial_handshaked_finished) {
-		liNetworkStatus res = mod_gnutls_do_handshake(con, conctx);
-		if (res != LI_NETWORK_STATUS_SUCCESS) return res;
-	}
-
-	do {
-		if (0 == cq->length) {
-			return LI_NETWORK_STATUS_SUCCESS;
-		}
-
-		ci = li_chunkqueue_iter(cq);
-		switch (li_chunkiter_read(ci, 0, blocksize, &block_data, &block_len, &err)) {
-		case LI_HANDLER_GO_ON:
-			break;
-		case LI_HANDLER_ERROR:
-			if (NULL != err) {
-				VR_ERROR(con->mainvr, "Couldn't read data from chunkqueue: %s", err->message);
-				g_error_free(err);
-			}
-		default:
-			return LI_NETWORK_STATUS_FATAL_ERROR;
-		}
-
-		if (0 >= (r = gnutls_record_send(conctx->session, block_data, block_len))) {
-			return mod_gnutls_handle_error(con, conctx, "gnutls_record_send", 0, r);
-		}
-
-		/* VR_BACKEND_LINES(con->mainvr, block_data, "written %i from %i bytes: ", (int) r, (int) block_len); */
-
-		li_chunkqueue_skip(cq, r);
-		write_max -= r;
-	} while (r == block_len && write_max > 0);
-
-	if (0 != cq->length) {
-		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
-	}
-	return LI_NETWORK_STATUS_SUCCESS;
-}
-
-static liNetworkStatus mod_gnutls_con_read(liConnection *con) {
-	liChunkQueue *cq = con->raw_in;
-	mod_connection_ctx *conctx = con->srv_sock_data;
-
-	const ssize_t blocksize = 16*1024; /* 16k */
-	off_t max_read = 16 * blocksize; /* 256k */
-	ssize_t r;
-	off_t len = 0;
-
-	if (!conctx->initial_handshaked_finished) {
-		liNetworkStatus res = mod_gnutls_do_handshake(con, conctx);
-		if (res != LI_NETWORK_STATUS_SUCCESS) return res;
-	}
-
-	if (cq->limit && cq->limit->limit > 0) {
-		if (max_read > cq->limit->limit - cq->limit->current) {
-			max_read = cq->limit->limit - cq->limit->current;
-			if (max_read <= 0) {
-				max_read = 0; /* we still have to read something */
-				VR_ERROR(con->mainvr, "li_network_read: fd %i should be disabled as chunkqueue is already full",
-					con->sock_watcher.fd);
-			}
-		}
-	}
-
-	do {
-		liBuffer *buf;
-		gboolean cq_buf_append;
-
-		buf = li_chunkqueue_get_last_buffer(cq, 1024);
-		cq_buf_append = (buf != NULL);
-
-		if (buf != NULL) {
-			/* use last buffer as raw_in_buffer; they should be the same anyway */
-			if (G_UNLIKELY(buf != con->raw_in_buffer)) {
-				li_buffer_acquire(buf);
-				li_buffer_release(con->raw_in_buffer);
-				con->raw_in_buffer = buf;
-			}
-		} else {
-			buf = con->raw_in_buffer;
-			if (buf != NULL && buf->alloc_size - buf->used < 1024) {
-				/* release *buffer */
-				li_buffer_release(buf);
-				con->raw_in_buffer = buf = NULL;
-			}
-			if (buf == NULL) {
-				con->raw_in_buffer = buf = li_buffer_new(blocksize);
-			}
-		}
-		assert(con->raw_in_buffer == buf);
-
-		if (0 > (r = gnutls_record_recv(conctx->session, buf->addr + buf->used, buf->alloc_size - buf->used))) {
-			return mod_gnutls_handle_error(con, conctx, "gnutls_record_recv", len, r);
-		} else if (r == 0) {
-			return LI_NETWORK_STATUS_CONNECTION_CLOSE;
-		}
-
-		if (cq_buf_append) {
-			li_chunkqueue_update_last_buffer_size(cq, r);
-		} else {
-			gsize offset;
-
-			li_buffer_acquire(buf);
-
-			offset = buf->used;
-			buf->used += r;
-			li_chunkqueue_append_buffer2(cq, buf, offset, r);
-		}
-		if (buf->alloc_size - buf->used < 1024) {
-			/* release *buffer */
-			li_buffer_release(buf);
-			con->raw_in_buffer = buf = NULL;
-		}
-		len += r;
-	} while (len < max_read);
-
-	return LI_NETWORK_STATUS_SUCCESS;
-}
 
 static void mod_gnutls_sock_release(liServerSocket *srv_sock) {
 	mod_context *ctx = srv_sock->data;
@@ -400,7 +268,6 @@ static void mod_gnutls_sock_release(liServerSocket *srv_sock) {
 
 	mod_gnutls_context_release(ctx);
 }
-
 
 static void gnutls_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 	mod_context *ctx = data;
@@ -416,12 +283,8 @@ static void gnutls_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 
 	srv_sock->data = ctx; /* transfer ownership, no refcount change */
 
-	srv_sock->write_cb = mod_gnutls_con_write;
-	srv_sock->read_cb = mod_gnutls_con_read;
 	srv_sock->new_cb = mod_gnutls_con_new;
-	srv_sock->close_cb = mod_gnutls_con_close;
 	srv_sock->release_cb = mod_gnutls_sock_release;
-	srv_sock->update_events_cb = mod_gnutls_update_events;
 }
 
 static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {

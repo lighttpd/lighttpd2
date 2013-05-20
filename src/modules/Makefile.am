@@ -77,10 +77,11 @@ libmod_fortune_la_LIBADD = $(common_libadd)
 if USE_GNUTLS
 install_libs += libmod_gnutls.la
 libmod_gnutls_la_CPPFLAGS = $(AM_CPPFLAGS) $(GNUTLS_CFLAGS)
-libmod_gnutls_la_SOURCES = mod_gnutls.c
+libmod_gnutls_la_SOURCES = mod_gnutls.c gnutls_filter.c
 libmod_gnutls_la_LDFLAGS = $(common_ldflags)
 libmod_gnutls_la_LIBADD = $(common_libadd) $(GNUTLS_LIBS)
 endif
+EXTRA_DIST += gnutls_filter.h
 
 install_libs += libmod_limit.la
 libmod_limit_la_SOURCES = mod_limit.c
