@@ -103,10 +103,11 @@ libmod_memcached_la_LIBADD = $(common_libadd)
 if USE_OPENSSL
 install_libs += libmod_openssl.la
 libmod_openssl_la_CPPFLAGS =  $(AM_CPPFLAGS) $(OPENSSL_CFLAGS)
-libmod_openssl_la_SOURCES = mod_openssl.c
+libmod_openssl_la_SOURCES = mod_openssl.c openssl_filter.c
 libmod_openssl_la_LDFLAGS = $(common_ldflags)
 libmod_openssl_la_LIBADD = $(common_libadd) $(OPENSSL_LIBS)
 endif
+EXTRA_DIST += openssl_filter.h
 
 install_libs += libmod_progress.la
 libmod_progress_la_SOURCES = mod_progress.c

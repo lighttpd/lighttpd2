@@ -54,7 +54,7 @@ def build(bld):
 	lighty_mod(bld, 'mod_memcached', 'mod_memcached.c', ['lua'] if bld.env['USE_LUA'] == 1 else [])
 	if env['USE_OPENSSL'] == 1:
 		uselib = ['ssl','crypto']
-		lighty_mod(bld, 'mod_openssl', 'mod_openssl.c', uselib)
+		lighty_mod(bld, 'mod_openssl', 'mod_openssl.c openssl_filter.c', uselib)
 	lighty_mod(bld, 'mod_progress', 'mod_progress.c')
 	lighty_mod(bld, 'mod_proxy', 'mod_proxy.c')
 	lighty_mod(bld, 'mod_redirect', 'mod_redirect.c')

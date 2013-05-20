@@ -374,7 +374,7 @@ IF(WITH_GNUTLS)
 ENDIF(WITH_GNUTLS)
 
 IF(WITH_OPENSSL)
-  ADD_AND_INSTALL_LIBRARY(mod_openssl "modules/mod_openssl.c")
+  ADD_AND_INSTALL_LIBRARY(mod_openssl "modules/mod_openssl.c;modules/openssl_filter.c")
   TARGET_LINK_LIBRARIES(mod_openssl ssl)
   TARGET_LINK_LIBRARIES(mod_openssl crypto)
 ENDIF(WITH_OPENSSL)
