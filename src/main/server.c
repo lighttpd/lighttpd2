@@ -6,6 +6,11 @@
 # include <sys/resource.h>
 #endif
 
+typedef struct {
+	liServerPrepareCallbackCB callback;
+	gpointer data;
+} liServerPrepareCallbackData;
+
 static void li_server_listen_cb(liEventBase *watcher, int events);
 static void li_server_stop(liServer *srv);
 static void state_ready_cb(liEventBase *watcher, int events);
@@ -100,6 +105,8 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	srv->optionptrs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_optionptr_free);
 	srv->actions = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_action_free);
 	srv->setups  = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_setup_free);
+
+	srv->prepare_callbacks = g_array_new(FALSE, TRUE, sizeof(liServerPrepareCallbackData));
 
 	srv->li_plugins_handle_close = g_array_new(FALSE, TRUE, sizeof(liPlugin*));
 	srv->li_plugins_handle_vrclose = g_array_new(FALSE, TRUE, sizeof(liPlugin*));
@@ -260,6 +267,16 @@ void li_server_free(liServer* srv) {
 	g_array_free(srv->li_plugins_handle_close, TRUE);
 	g_array_free(srv->li_plugins_handle_vrclose, TRUE);
 
+	if (NULL != srv->prepare_callbacks) {
+		guint i, len;
+		for (i = 0, len = srv->prepare_callbacks->len; i < len; ++i) {
+			liServerPrepareCallbackData *cbd = &g_array_index(srv->prepare_callbacks, liServerPrepareCallbackData, i);
+			cbd->callback(srv, cbd->data, TRUE);
+		}
+		g_array_free(srv->prepare_callbacks, TRUE);
+		srv->prepare_callbacks = NULL;
+	}
+
 	g_mutex_free(srv->action_mutex);
 
 #ifdef LIGHTY_OS_LINUX
@@ -362,7 +379,14 @@ static gboolean li_server_worker_init(liServer *srv) {
 }
 
 static void li_server_worker_run(liServer *srv) {
-	guint i;
+	guint i, len;
+
+	for (i = 0, len = srv->prepare_callbacks->len; i < len; ++i) {
+		liServerPrepareCallbackData *cbd = &g_array_index(srv->prepare_callbacks, liServerPrepareCallbackData, i);
+		cbd->callback(srv, cbd->data, FALSE);
+	}
+	g_array_free(srv->prepare_callbacks, TRUE);
+	srv->prepare_callbacks = NULL;
 	li_plugins_prepare_worker(srv->main_worker);
 
 	for (i = 1; i < srv->worker_count; i++) {
@@ -891,4 +915,15 @@ void li_server_state_wait(liServer *srv, liServerStateWait *sw) {
 	sw->active = TRUE;
 
 	g_mutex_unlock(srv->statelock);
+}
+
+void li_server_register_prepare_cb(liServer *srv, liServerPrepareCallbackCB cb, gpointer data) {
+	if (g_atomic_int_get(&srv->state) != LI_SERVER_INIT) {
+		cb(srv, data, FALSE);
+	} else {
+		liServerPrepareCallbackData cbd;
+		cbd.callback = cb;
+		cbd.data = data;
+		g_array_append_val(srv->prepare_callbacks, cbd);
+	}
 }

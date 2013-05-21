@@ -14,6 +14,8 @@ typedef void (*liServerSocketReleaseCB)(liServerSocket *srv_sock);
 
 typedef void (*liServerStateWaitCancelled)(liServer *srv, liServerStateWait *w);
 
+typedef void (*liServerPrepareCallbackCB)(liServer *srv, gpointer data, gboolean aborted);
+
 typedef enum {
 	LI_SERVER_INIT,             /** start state */
 	LI_SERVER_LOADING,          /** config loaded, prepare listeing sockets/open log files */
@@ -86,6 +88,8 @@ struct liServer {
 	GHashTable *actions;      /**< const gchar* => (liServerAction*) */
 	GHashTable *setups;       /**< const gchar* => (liServerSetup*) */
 
+	GArray *prepare_callbacks;
+
 	GArray *li_plugins_handle_close; /** list of handle_close callbacks */
 	GArray *li_plugins_handle_vrclose; /** list of handle_vrclose callbacks */
 
@@ -144,5 +148,11 @@ LI_API void li_server_state_ready(liServer *srv, liServerStateWait *sw);
 
 /** only call from server state plugin hooks; push new wait condition to wait queue */
 LI_API void li_server_state_wait(liServer *srv, liServerStateWait *sw);
+
+/** if server is already running execute cb(data) immediately. otherwise runs before
+ *  workers are started, but already initialized.
+ *  if server isn't started it calls cb with aborted = TRUE.
+ */
+LI_API void li_server_register_prepare_cb(liServer *srv, liServerPrepareCallbackCB cb, gpointer data);
 
 #endif

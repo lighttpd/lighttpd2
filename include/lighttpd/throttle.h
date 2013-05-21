@@ -3,8 +3,37 @@
 
 #define THROTTLE_GRANULARITY 200 /* defines how frequently (in milliseconds) a magazine is refilled */
 
-/* this makro converts a ev_tstamp to a gint. this is needed for atomic access. millisecond precision, can hold two weeks max */
+/* this makro converts a li_tstamp to a gint. this is needed for atomic access. millisecond precision, can hold two weeks max */
 #define THROTTLE_EVTSTAMP_TO_GINT(x) ((gint) ((x - ((gint)x - (gint)x % (3600*24*14))) * 1000))
+
+typedef struct liThrottleState liThrottleState;
+
+/* vrequest data */
+#if 0
+	/* I/O throttling */
+	gboolean throttled; /* TRUE if vrequest is throttled */
+	struct {
+		gint magazine; /* currently available for use */
+
+		struct {
+			liThrottlePool *ptr; /* NULL if not in any throttling pool */
+			GList lnk;
+			GQueue *queue;
+			gint magazine;
+		} pool;
+		struct {
+			liThrottlePool *ptr;
+			GList lnk;
+			GQueue *queue;
+			gint magazine;
+		} ip;
+		struct {
+			gint rate; /* maximum transfer rate in bytes per second, 0 if unlimited */
+			ev_tstamp last_update;
+		} con;
+		liWaitQueueElem wqueue_elem;
+	} throttle;
+#endif
 
 typedef enum {
 	LI_THROTTLE_POOL_NAME,
