@@ -966,11 +966,11 @@ static liAction* core_respond(liServer *srv, liWorker *wrk, liPlugin* p, liValue
 	rp = g_slice_new(respond_param);
 
 	if (!val) {
-		// respond;
+		/* respond; */
 		rp->status_code = 200;
 		rp->pattern = NULL;
 	} else if (val->type == LI_VALUE_STRING) {
-		// respond "foo";
+		/* respond "foo"; */
 		rp->status_code = 200;
 		rp->pattern = li_pattern_new(srv, val->data.string->str);
 
@@ -980,11 +980,11 @@ static liAction* core_respond(liServer *srv, liWorker *wrk, liPlugin* p, liValue
 			return NULL;
 		}
 	} else if (val->type == LI_VALUE_NUMBER) {
-		// respond 404;
+		/* respond 404; */
 		rp->status_code = val->data.number;
 		rp->pattern = NULL;
 	} else if (val->type == LI_VALUE_LIST && val->data.list->len == 2 && g_array_index(val->data.list, liValue*, 0)->type == LI_VALUE_NUMBER && g_array_index(val->data.list, liValue*, 1)->type == LI_VALUE_STRING) {
-		// respond 200 => "foo";
+		/* respond 200 => "foo"; */
 		rp->status_code = g_array_index(val->data.list, liValue*, 0)->data.number;
 		rp->pattern = li_pattern_new(srv, g_array_index(val->data.list, liValue*, 1)->data.string->str);
 

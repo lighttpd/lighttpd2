@@ -123,7 +123,6 @@ struct mod_progress_job {
 };
 
 /* global data */
-// static mod_progress_data progress_data;
 
 static void progress_timeout_callback(liWaitQueue *wq, gpointer data) {
 	mod_progress_worker_data *wrk_data = data;
