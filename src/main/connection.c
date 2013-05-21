@@ -1,5 +1,6 @@
 
 #include <lighttpd/base.h>
+#include <lighttpd/throttle.h>
 #include <lighttpd/plugin_core.h>
 
 void li_connection_simple_tcp(liConnection **pcon, liIOStream *stream, gpointer *context, liIOStreamEvent event) {
@@ -113,8 +114,25 @@ static void simple_tcp_finished(liConnection *con, gboolean aborted) {
 	}
 }
 
+static liThrottleState* simple_tcp_throttle_out(liConnection *con) {
+	simple_tcp_connection *data = con->con_sock.data;
+	if (NULL == data) return NULL;
+	if (NULL == data->sock_stream->throttle_out) data->sock_stream->throttle_out = li_throttle_new(con->wrk);
+	return data->sock_stream->throttle_out;
+}
+
+static liThrottleState* simple_tcp_throttle_in(liConnection *con) {
+	simple_tcp_connection *data = con->con_sock.data;
+	if (NULL == data) return NULL;
+	if (NULL == data->sock_stream->throttle_in) data->sock_stream->throttle_in = li_throttle_new(con->wrk);
+	return data->sock_stream->throttle_in;
+}
+
+
 static const liConnectionSocketCallbacks simple_tcp_cbs = {
-	simple_tcp_finished
+	simple_tcp_finished,
+	simple_tcp_throttle_out,
+	simple_tcp_throttle_in
 };
 
 static gboolean simple_tcp_new(liConnection *con, int fd) {
@@ -522,8 +540,24 @@ static void mainvr_handle_response_error(liVRequest *vr) {
 	li_connection_error(con);
 }
 
+static liThrottleState* mainvr_throttle_out(liVRequest *vr) {
+	liConnection* con = li_connection_from_vrequest(vr);
+	assert(NULL != con);
+
+	return con->con_sock.callbacks->throttle_out(con);
+}
+
+static liThrottleState* mainvr_throttle_in(liVRequest *vr) {
+	liConnection* con = li_connection_from_vrequest(vr);
+	assert(NULL != con);
+
+	return con->con_sock.callbacks->throttle_in(con);
+}
+
 static const liConCallbacks con_callbacks = {
-	mainvr_handle_response_error
+	mainvr_handle_response_error,
+	mainvr_throttle_out,
+	mainvr_throttle_in
 };
 
 liConnection* li_connection_new(liWorker *wrk) {
@@ -607,8 +641,6 @@ static void li_connection_reset2(liConnection *con) {
 
 	li_vrequest_reset(con->mainvr, FALSE);
 
-	li_throttle_reset(con->mainvr);
-
 	li_http_request_parser_reset(&con->req_parser_ctx);
 
 	g_string_truncate(con->info.remote_addr_str, 0);
@@ -691,8 +723,6 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 
 	con->out.out->is_closed = FALSE;
 
-	li_throttle_reset(con->mainvr);
-
 	li_vrequest_reset(con->mainvr, TRUE);
 	li_http_request_parser_reset(&con->req_parser_ctx);
 
@@ -725,8 +755,6 @@ void li_connection_free(liConnection *con) {
 	li_sockaddr_clear(&con->info.remote_addr);
 	g_string_free(con->info.local_addr_str, TRUE);
 	li_sockaddr_clear(&con->info.local_addr);
-
-	li_throttle_reset(con->mainvr);
 
 	li_vrequest_free(con->mainvr);
 	li_http_request_parser_clear(&con->req_parser_ctx);

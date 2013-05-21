@@ -1735,185 +1735,6 @@ static liAction* core_buffer_in(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	return li_action_new_function(core_handle_buffer_in, NULL, NULL, GINT_TO_POINTER((gint) limit));
 }
 
-
-static void core_throttle_pool_free(liServer *srv, gpointer param) {
-	UNUSED(srv);
-
-	li_throttle_pool_free(srv, param);
-}
-
-static liHandlerResult core_handle_throttle_pool(liVRequest *vr, gpointer param, gpointer *context) {
-	liThrottlePool *pool = param;
-
-	UNUSED(context);
-
-	li_throttle_pool_acquire(vr, pool);
-
-	return LI_HANDLER_GO_ON;
-}
-
-static liAction* core_throttle_pool(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	GString *name;
-	liThrottlePool *pool = NULL;
-	gint64 rate;
-
-	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
-
-	if (val->type != LI_VALUE_STRING && val->type != LI_VALUE_LIST) {
-		ERROR(srv, "'io.throttle_pool' action expects a string or a string-number tuple as parameter, %s given", li_value_type_string(val->type));
-		return NULL;
-	}
-
-	if (val->type == LI_VALUE_LIST) {
-		if (val->data.list->len != 2
-			|| g_array_index(val->data.list, liValue*, 0)->type != LI_VALUE_STRING
-			|| g_array_index(val->data.list, liValue*, 1)->type != LI_VALUE_NUMBER) {
-
-			ERROR(srv, "%s", "'io.throttle_pool' action expects a string or a string-number tuple as parameter");
-			return NULL;
-		}
-
-		rate = g_array_index(val->data.list, liValue*, 1)->data.number;
-
-		if (rate && rate < (32*1024)) {
-			ERROR(srv, "io.throttle_pool: rate %"G_GINT64_FORMAT" is too low (32kbyte/s minimum)", rate);
-			return NULL;
-		}
-
-		if (rate > (0xFFFFFFFF)) {
-			ERROR(srv, "io.throttle_pool: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", rate);
-			return NULL;
-		}
-
-		name = li_value_extract_string(g_array_index(val->data.list, liValue*, 0));
-	} else {
-		name = li_value_extract_string(val);
-		rate = 0;
-	}
-
-	pool = li_throttle_pool_new(srv, LI_THROTTLE_POOL_NAME, name, rate);
-
-	if (!pool) {
-		ERROR(srv, "io.throttle_pool: rate for pool '%s' hasn't been defined", name->str);
-		return NULL;
-	}
-
-	if (rate != pool->rate && rate != 0) {
-		ERROR(srv, "io.throttle_pool: pool '%s' already defined but with different rate (%ukbyte/s)", pool->data.name->str, pool->rate);
-		return NULL;
-	}
-
-	return li_action_new_function(core_handle_throttle_pool, NULL, core_throttle_pool_free, pool);
-}
-
-static liHandlerResult core_handle_throttle_ip(liVRequest *vr, gpointer param, gpointer *context) {
-	liThrottlePool *pool;
-	gint rate = GPOINTER_TO_INT(param);
-
-	UNUSED(context);
-
-	pool = li_throttle_pool_new(vr->wrk->srv, LI_THROTTLE_POOL_IP, &vr->coninfo->remote_addr, rate);
-	li_throttle_pool_acquire(vr, pool);
-
-	return LI_HANDLER_GO_ON;
-}
-
-static liAction* core_throttle_ip(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	gint64 rate;
-
-	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
-
-	if (val->type != LI_VALUE_NUMBER) {
-		ERROR(srv, "'io.throttle_ip' action expects a positiv integer as parameter, %s given", li_value_type_string(val->type));
-		return NULL;
-	}
-
-
-	rate = val->data.number;
-
-	if (rate < 32*1024) {
-		ERROR(srv, "io.throttle_pool: rate %"G_GINT64_FORMAT" is too low (32kbyte/s minimum)", rate);
-		return NULL;
-	}
-
-	if (rate > 0xFFFFFFFF) {
-		ERROR(srv, "io.throttle_pool: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", rate);
-		return NULL;
-	}
-
-	return li_action_new_function(core_handle_throttle_ip, NULL, NULL, GINT_TO_POINTER(rate));
-}
-
-static void core_throttle_connection_free(liServer *srv, gpointer param) {
-	UNUSED(srv);
-
-	g_slice_free(liThrottleParam, param);
-}
-
-
-static liHandlerResult core_handle_throttle_connection(liVRequest *vr, gpointer param, gpointer *context) {
-	liThrottleParam *throttle_param = param;
-
-	UNUSED(context);
-
-	vr->throttle.con.rate = throttle_param->rate;
-	vr->throttled = TRUE;
-
-	if (vr->throttle.pool.magazine) {
-		gint supply = MAX(vr->throttle.pool.magazine, throttle_param->rate / 1000 * THROTTLE_GRANULARITY);
-		vr->throttle.magazine += supply;
-		vr->throttle.pool.magazine -= supply;
-	} else {
-		vr->throttle.magazine += throttle_param->burst;
-	}
-
-	return LI_HANDLER_GO_ON;
-}
-
-static liAction* core_throttle_connection(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	liThrottleParam *param;
-	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
-
-	if (val->type == LI_VALUE_LIST && val->data.list->len == 2) {
-		liValue *v1 = g_array_index(val->data.list, liValue*, 0);
-		liValue *v2 = g_array_index(val->data.list, liValue*, 1);
-
-		if (v1->type != LI_VALUE_NUMBER || v2->type != LI_VALUE_NUMBER) {
-			ERROR(srv, "%s", "'io.throttle' action expects a positiv integer or a pair of those as parameter");
-			return NULL;
-		}
-
-		if (v1->data.number > (0xFFFFFFFF) || v2->data.number > (0xFFFFFFFF)) {
-			ERROR(srv, "%s", "io.throttle: rate or burst limit is too high (4gbyte/s maximum)");
-			return NULL;
-		}
-
-		param = g_slice_new(liThrottleParam);
-		param->rate = (guint)v2->data.number;
-		param->burst = (guint)v1->data.number;
-	} else if (val->type == LI_VALUE_NUMBER) {
-		if (val->data.number > (0xFFFFFFFF)) {
-			ERROR(srv, "io.throttle: rate %"G_GINT64_FORMAT" is too high (4gbyte/s maximum)", val->data.number);
-			return NULL;
-		}
-
-		param = g_slice_new(liThrottleParam);
-		param->rate = (guint)val->data.number;
-		param->burst = 0;
-	} else {
-		ERROR(srv, "'io.throttle' action expects a positiv integer or a pair of those as parameter, %s given", li_value_type_string(val->type));
-		return NULL;
-	}
-
-	if (param->rate && param->rate < (32*1024)) {
-		g_slice_free(liThrottleParam, param);
-		ERROR(srv, "io.throttle: rate %u is too low (32kbyte/s minimum or 0 for unlimited)", param->rate);
-		return NULL;
-	}
-
-	return li_action_new_function(core_handle_throttle_connection, NULL, core_throttle_connection_free, param);
-}
-
 typedef struct core_map_data core_map_data;
 struct core_map_data {
 	liPattern *pattern;
@@ -2113,9 +1934,6 @@ static const liPluginAction actions[] = {
 
 	{ "io.buffer_out", core_buffer_out, NULL },
 	{ "io.buffer_in", core_buffer_in, NULL },
-	{ "io.throttle", core_throttle_connection, NULL },
-	{ "io.throttle_pool", core_throttle_pool, NULL },
-	{ "io.throttle_ip", core_throttle_ip, NULL },
 
 	{ "map", core_map, NULL },
 
@@ -2145,33 +1963,6 @@ static const liPluginAngel angelcbs[] = {
 	{ NULL, NULL }
 };
 #include <sys/types.h>
-
-static void plugin_core_prepare(liServer *srv, liPlugin *p) {
-	guint i;
-
-	UNUSED(p);
-
-	/* initialize throttle pools that have not been yet */
-	g_mutex_lock(srv->action_mutex);
-	for (i = 0; i < srv->throttle_pools->len; i++) {
-		liThrottlePool *pool = g_array_index(srv->throttle_pools, liThrottlePool*, i);
-
-		if (!pool->worker_queues) {
-			guint j;
-
-			pool->worker_magazine = g_new0(gint, srv->worker_count);
-			pool->worker_last_rearm = g_new0(gint, srv->worker_count);
-			pool->worker_num_cons_queued = g_new0(gint, srv->worker_count);
-			pool->worker_queues = g_new0(GQueue*, srv->worker_count);
-
-			for (j = 0; j < srv->worker_count; j++) {
-				pool->worker_queues[j] = g_queue_new();
-				pool->worker_last_rearm[j] = pool->last_rearm;
-			}
-		}
-	}
-	g_mutex_unlock(srv->action_mutex);
-}
 
 static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) {
 	UNUSED(p);
@@ -2232,6 +2023,5 @@ void li_plugin_core_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->setups = setups;
 	p->angelcbs = angelcbs;
 
-	p->handle_prepare = plugin_core_prepare;
 	p->handle_prepare_worker = plugin_core_prepare_worker;
 }

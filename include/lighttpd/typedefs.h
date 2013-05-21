@@ -245,9 +245,8 @@ typedef enum {
 
 /* throttle.h */
 
+typedef struct liThrottleState liThrottleState;
 typedef struct liThrottlePool liThrottlePool;
-
-typedef struct liThrottleParam liThrottleParam;
 
 /* value.h */
 

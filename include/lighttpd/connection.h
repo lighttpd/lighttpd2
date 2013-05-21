@@ -34,6 +34,8 @@ typedef struct liConnectionSocket liConnectionSocket;
 
 struct liConnectionSocketCallbacks {
 	void (*finish)(liConnection *con, gboolean aborted);
+	liThrottleState* (*throttle_out)(liConnection *con);
+	liThrottleState* (*throttle_in)(liConnection *con);
 };
 
 struct liConnectionSocket {

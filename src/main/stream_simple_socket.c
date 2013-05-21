@@ -1,5 +1,6 @@
 
 #include <lighttpd/base.h>
+#include <lighttpd/throttle.h>
 
 void li_stream_simple_socket_close(liIOStream *stream, gboolean aborted) {
 	int fd = li_event_io_fd(&stream->io_watcher);
@@ -31,13 +32,28 @@ void li_stream_simple_socket_close(liIOStream *stream, gboolean aborted) {
 	}
 }
 
+static void stream_simple_socket_read_throttle_notify(liThrottleState *state, gpointer data) {
+	liIOStream *stream = data;
+	UNUSED(state);
+	stream->throttled_in = FALSE;
+	stream->can_read = TRUE;
+	li_stream_again(&stream->stream_out);
+}
 static void stream_simple_socket_read(liIOStream *stream, gpointer *data) {
 	liNetworkStatus res;
 	GError *err = NULL;
 	liWorker *wrk = li_worker_from_iostream(stream);
 	int fd = li_event_io_fd(&stream->io_watcher);
-
+	off_t max_read = 256 * 1024; /* 256k */
 	liChunkQueue *raw_in = stream->stream_in.out;
+
+	if (NULL != stream->throttle_in) {
+		max_read = li_throttle_query(wrk, stream->throttle_in, max_read, stream_simple_socket_read_throttle_notify, stream);
+		if (0 == max_read) {
+			stream->throttled_in = TRUE;
+			return;
+		}
+	}
 
 	if (NULL == *data && NULL != wrk->network_read_buf) {
 		/* reuse worker buf if needed */
@@ -46,9 +62,13 @@ static void stream_simple_socket_read(liIOStream *stream, gpointer *data) {
 	}
 
 	{
+		goffset current_in_bytes = raw_in->bytes_in;
 		liBuffer *raw_in_buffer = *data;
-		res = li_network_read(fd, raw_in, &raw_in_buffer, &err);
+		res = li_network_read(fd, raw_in, max_read, &raw_in_buffer, &err);
 		*data = raw_in_buffer;
+		if (NULL != stream->throttle_in) {
+			li_throttle_update(stream->throttle_in, raw_in->bytes_in - current_in_bytes);
+		}
 	}
 
 	if (NULL == wrk->network_read_buf && NULL != *data
@@ -78,29 +98,46 @@ static void stream_simple_socket_read(liIOStream *stream, gpointer *data) {
 	}
 }
 
+static void stream_simple_socket_write_throttle_notify(liThrottleState *state, gpointer data) {
+	liIOStream *stream = data;
+	UNUSED(state);
+	stream->throttled_out = FALSE;
+	stream->can_write = TRUE;
+	li_stream_again(&stream->stream_out);
+}
 static void stream_simple_socket_write(liIOStream *stream) {
 	liNetworkStatus res;
 	liChunkQueue *raw_out = stream->stream_out.out;
 	liChunkQueue *from = stream->stream_out.source->out;
 	int fd = li_event_io_fd(&stream->io_watcher);
-	liWorker *wrk;
+	liWorker *wrk = li_worker_from_iostream(stream);
 
 	li_chunkqueue_steal_all(raw_out, from);
 
 	if (raw_out->length > 0) {
 		static const goffset WRITE_MAX = 256*1024; /* 256kB */
-		goffset write_max;
+		goffset write_max, current_out_bytes = raw_out->bytes_out;
 		GError *err = NULL;
 
-		write_max = WRITE_MAX;
+		write_max = MAX(WRITE_MAX, raw_out->length);
+		if (NULL != stream->throttle_out) {
+			write_max = li_throttle_query(wrk, stream->throttle_out, write_max, stream_simple_socket_write_throttle_notify, stream);
+			if (0 == write_max) {
+				stream->throttled_out = TRUE;
+				return;
+			}
+		}
 
 		res = li_network_write(fd, raw_out, write_max, &err);
+
+		if (NULL != stream->throttle_out) {
+			li_throttle_update(stream->throttle_out, raw_out->bytes_out - current_out_bytes);
+		}
 
 		switch (res) {
 		case LI_NETWORK_STATUS_SUCCESS:
 			break;
 		case LI_NETWORK_STATUS_FATAL_ERROR:
-			wrk = li_worker_from_iostream(stream);
 			ERROR(wrk->srv, "network write fatal error: %s", NULL != err ? err->message : "(unknown)");
 			g_error_free(err);
 			li_stream_simple_socket_close(stream, TRUE);

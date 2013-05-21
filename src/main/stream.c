@@ -1,5 +1,6 @@
 
 #include <lighttpd/base.h>
+#include <lighttpd/throttle.h>
 
 const gchar* li_stream_event_string(liStreamEvent event) {
 	switch (event) {
@@ -313,6 +314,8 @@ static void iostream_destroy(liIOStream *iostream) {
 
 	li_event_clear(&iostream->io_watcher);
 
+	li_iostream_throttle_clear(iostream);
+
 	iostream->cb(iostream, LI_IOSTREAM_DESTROY);
 
 	assert(1 == iostream->stream_out.refcount);
@@ -330,26 +333,26 @@ static void iostream_in_cb(liStream *stream, liStreamEvent event) {
 			/* locked */
 			return;
 		}
-		if (iostream->can_read) {
-			goffset curoutlen = stream->out->length;
+		if (!iostream->throttled_in && iostream->can_read) {
+			goffset curoutlen = stream->out->bytes_in;
 			gboolean curout_closed = stream->out->is_closed;
 
 			iostream->cb(iostream, LI_IOSTREAM_READ);
 
-			if (curoutlen != stream->out->length || curout_closed != stream->out->is_closed) {
+			if (curoutlen != stream->out->bytes_in || curout_closed != stream->out->is_closed) {
 				li_stream_notify_later(stream);
 			}
 
 			if (-1 == li_event_io_fd(&iostream->io_watcher)) return;
 
-			if (iostream->can_read) {
+			if (!iostream->throttled_in && iostream->can_read) {
 				li_stream_again_later(stream);
 			}
 		}
-		if (!iostream->can_read && !iostream->in_closed) {
+		if (!iostream->throttled_in && !iostream->can_read && !iostream->in_closed) {
 			li_event_io_add_events(&iostream->io_watcher, LI_EV_READ);
 		}
-		if (!iostream->can_write && !iostream->out_closed) {
+		if (!iostream->throttled_out && !iostream->can_write && !iostream->out_closed) {
 			li_event_io_add_events(&iostream->io_watcher, LI_EV_WRITE);
 		}
 		break;
@@ -377,6 +380,10 @@ static void iostream_in_cb(liStream *stream, liStreamEvent event) {
 		iostream->cb(iostream, LI_IOSTREAM_DISCONNECTED_DEST);
 		break;
 	case LI_STREAM_DESTROY:
+		if (NULL != iostream->throttle_in) {
+			li_throttle_free(li_worker_from_iostream(iostream), iostream->throttle_in);
+			iostream->throttle_in = NULL;
+		}
 		iostream->can_read = FALSE;
 		iostream_destroy(iostream);
 		break;
@@ -390,7 +397,7 @@ static void iostream_out_cb(liStream *stream, liStreamEvent event) {
 
 	switch (event) {
 	case LI_STREAM_NEW_DATA:
-		if (iostream->can_write) {
+		if (!iostream->throttled_out && iostream->can_write) {
 			liEventLoop *loop = li_event_get_loop(&iostream->io_watcher);
 			li_tstamp now = li_event_now(loop);
 
@@ -407,16 +414,16 @@ static void iostream_out_cb(liStream *stream, liStreamEvent event) {
 
 			if (-1 == li_event_io_fd(&iostream->io_watcher)) return;
 
-			if (iostream->can_write) {
+			if (iostream->can_write && !iostream->throttled_out) {
 				if (stream->out->length > 0 || stream->out->is_closed) {
 					li_stream_again_later(stream);
 				}
 			}
 		}
-		if (!iostream->can_read && !iostream->in_closed) {
+		if (!iostream->throttled_in && !iostream->can_read && !iostream->in_closed) {
 			li_event_io_add_events(&iostream->io_watcher, LI_EV_READ);
 		}
-		if (!iostream->can_write && !iostream->out_closed) {
+		if (!iostream->throttled_out && !iostream->can_write && !iostream->out_closed) {
 			li_event_io_add_events(&iostream->io_watcher, LI_EV_WRITE);
 		}
 		break;
@@ -431,6 +438,10 @@ static void iostream_out_cb(liStream *stream, liStreamEvent event) {
 		iostream->cb(iostream, LI_IOSTREAM_DISCONNECTED_SOURCE);
 		break;
 	case LI_STREAM_DESTROY:
+		if (NULL != iostream->throttle_out) {
+			li_throttle_free(li_worker_from_iostream(iostream), iostream->throttle_out);
+			iostream->throttle_out = NULL;
+		}
 		iostream->can_write = FALSE;
 		iostream_destroy(iostream);
 		break;
@@ -535,4 +546,17 @@ void li_iostream_attach(liIOStream *iostream, liWorker *wrk) {
 	li_stream_attach(&iostream->stream_out, &wrk->loop);
 
 	li_event_attach(&wrk->loop, &iostream->io_watcher);
+}
+
+void li_iostream_throttle_clear(liIOStream *iostream) {
+	liWorker *wrk = li_worker_from_iostream(iostream);
+
+	if (NULL != iostream->throttle_in) {
+		li_throttle_free(wrk, iostream->throttle_in);
+		iostream->throttle_in = NULL;
+	}
+	if (NULL != iostream->throttle_out) {
+		li_throttle_free(wrk, iostream->throttle_out);
+		iostream->throttle_out = NULL;
+	}
 }

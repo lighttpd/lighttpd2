@@ -2,6 +2,7 @@
 #include <lighttpd/base.h>
 
 #include <lighttpd/plugin_core.h>
+#include <lighttpd/throttle.h>
 
 static liConnection* worker_con_get(liWorker *wrk);
 
@@ -307,7 +308,7 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	li_waitqueue_init(&wrk->io_timeout_queue, &wrk->loop, worker_io_timeout_cb, srv->io_timeout, wrk);
 
 	/* throttling */
-	li_waitqueue_init(&wrk->throttle_queue, &wrk->loop, li_throttle_cb, ((gdouble)THROTTLE_GRANULARITY) / 1000, wrk);
+	li_waitqueue_init(&wrk->throttle_queue, &wrk->loop, li_throttle_waitqueue_cb, ((gdouble)THROTTLE_GRANULARITY) / 1000, wrk);
 
 	wrk->tasklets = li_tasklet_pool_new(&wrk->loop, srv->tasklet_pool_threads);
 

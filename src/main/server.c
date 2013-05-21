@@ -125,9 +125,6 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	/* http header ts format */
 	li_server_ts_format_add(srv, g_string_new("%a, %d %b %Y %H:%M:%S GMT"));
 
-	srv->throttle_pools = g_array_new(FALSE, TRUE, sizeof(liThrottlePool*));
-	srv->throttle_ip_pools = li_radixtree_new();
-
 	srv->connection_load = 0;
 	srv->max_connections = 256; /* assume max-fds = 1024 */
 	srv->connection_limit_hit = FALSE;
@@ -192,16 +189,6 @@ void li_server_free(liServer* srv) {
 	g_mutex_free(srv->statelock);
 
 	li_lua_clear(&srv->LL);
-
-	/* free throttle pools */
-	{
-		guint i;
-		for (i = 0; i < srv->throttle_pools->len; i++) {
-			li_throttle_pool_free(srv, g_array_index(srv->throttle_pools, liThrottlePool*, i));
-		}
-		g_array_free(srv->throttle_pools, TRUE);
-		li_radixtree_free(srv->throttle_ip_pools, NULL, NULL);
-	}
 
 	if (srv->acon) {
 		li_angel_connection_free(srv->acon);

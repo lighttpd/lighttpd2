@@ -38,6 +38,7 @@
  */
 
 #include <lighttpd/base.h>
+#include <lighttpd/throttle.h>
 #include <lighttpd/plugin_core.h>
 
 #include "openssl_filter.h"
@@ -168,8 +169,24 @@ static void openssl_tcp_finished(liConnection *con, gboolean aborted) {
 	}
 }
 
+static liThrottleState* openssl_tcp_throttle_out(liConnection *con) {
+	openssl_connection_ctx *conctx = con->con_sock.data;
+	if (NULL == conctx) return NULL;
+	if (NULL == conctx->sock_stream->throttle_out) conctx->sock_stream->throttle_out = li_throttle_new(con->wrk);
+	return conctx->sock_stream->throttle_out;
+}
+
+static liThrottleState* openssl_tcp_throttle_in(liConnection *con) {
+	openssl_connection_ctx *conctx = con->con_sock.data;
+	if (NULL == conctx) return NULL;
+	if (NULL == conctx->sock_stream->throttle_in) conctx->sock_stream->throttle_in = li_throttle_new(con->wrk);
+	return conctx->sock_stream->throttle_in;
+}
+
 static const liConnectionSocketCallbacks openssl_tcp_cbs = {
-	openssl_tcp_finished
+	openssl_tcp_finished,
+	openssl_tcp_throttle_out,
+	openssl_tcp_throttle_in
 };
 
 static gboolean openssl_con_new(liConnection *con, int fd) {

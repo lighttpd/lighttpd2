@@ -42,7 +42,6 @@
 #include <lighttpd/filter_buffer_on_disk.h>
 #include <lighttpd/virtualrequest.h>
 #include <lighttpd/stat_cache.h>
-#include <lighttpd/throttle.h>
 #include <lighttpd/mimetype.h>
 
 #include <lighttpd/connection.h>

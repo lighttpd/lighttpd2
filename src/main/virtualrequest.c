@@ -49,10 +49,6 @@ liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
 
 	vr->stat_cache_entries = g_ptr_array_sized_new(2);
 
-	vr->throttle.wqueue_elem.data = vr;
-	vr->throttle.pool.lnk.data = vr;
-	vr->throttle.ip.lnk.data = vr;
-
 	return vr;
 }
 

@@ -1,5 +1,6 @@
 
 #include <lighttpd/base.h>
+#include <lighttpd/throttle.h>
 
 #include "gnutls_filter.h"
 
@@ -206,8 +207,24 @@ static void gnutlc_tcp_finished(liConnection *con, gboolean aborted) {
 	}
 }
 
+static liThrottleState* gnutls_tcp_throttle_out(liConnection *con) {
+	mod_connection_ctx *conctx = con->con_sock.data;
+	if (NULL == conctx) return NULL;
+	if (NULL == conctx->sock_stream->throttle_out) conctx->sock_stream->throttle_out = li_throttle_new(con->wrk);
+	return conctx->sock_stream->throttle_out;
+}
+
+static liThrottleState* gnutls_tcp_throttle_in(liConnection *con) {
+	mod_connection_ctx *conctx = con->con_sock.data;
+	if (NULL == conctx) return NULL;
+	if (NULL == conctx->sock_stream->throttle_in) conctx->sock_stream->throttle_in = li_throttle_new(con->wrk);
+	return conctx->sock_stream->throttle_in;
+}
+
 static const liConnectionSocketCallbacks gnutls_tcp_cbs = {
-	gnutlc_tcp_finished
+	gnutlc_tcp_finished,
+	gnutls_tcp_throttle_out,
+	gnutls_tcp_throttle_in
 };
 
 static gboolean mod_gnutls_con_new(liConnection *con, int fd) {

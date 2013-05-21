@@ -73,16 +73,15 @@ liNetworkStatus li_network_write(int fd, liChunkQueue *cq, goffset write_max, GE
 	return res;
 }
 
-liNetworkStatus li_network_read(int fd, liChunkQueue *cq, liBuffer **buffer, GError **err) {
+liNetworkStatus li_network_read(int fd, liChunkQueue *cq, goffset read_max, liBuffer **buffer, GError **err) {
 	const ssize_t blocksize = 16*1024; /* 16k */
-	off_t max_read = 16 * blocksize; /* 256k */
 	ssize_t r;
 	off_t len = 0;
 
 	if (cq->limit && cq->limit->limit > 0) {
-		if (max_read > cq->limit->limit - cq->limit->current) {
-			max_read = cq->limit->limit - cq->limit->current;
-			if (max_read <= 0) {
+		if (read_max > cq->limit->limit - cq->limit->current) {
+			read_max = cq->limit->limit - cq->limit->current;
+			if (read_max <= 0) {
 				g_set_error(err, LI_NETWORK_ERROR, 0, "li_network_read: fd should be disabled as chunkqueue is already full, aborting connection.");
 				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
@@ -167,7 +166,7 @@ liNetworkStatus li_network_read(int fd, liChunkQueue *cq, liBuffer **buffer, GEr
 			}
 		}
 		len += r;
-	} while (r == blocksize && len < max_read);
+	} while (r == blocksize && len < read_max);
 
 	return LI_NETWORK_STATUS_SUCCESS;
 }

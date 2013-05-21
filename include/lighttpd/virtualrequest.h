@@ -35,9 +35,11 @@ typedef enum {
 } liVRequestState;
 
 typedef void (*liVRequestHandlerCB)(liVRequest *vr);
+typedef liThrottleState* (*liVRequestThrottleCB)(liVRequest *vr);
 
 struct liConCallbacks {
 	liVRequestHandlerCB handle_response_error; /* this is _not_ for 500 - internal error */
+	liVRequestThrottleCB throttle_out, throttle_in;
 };
 
 /* this data "belongs" to a vrequest, but is updated by the connection code */
@@ -107,30 +109,6 @@ struct liVRequest {
 	liJob job;
 
 	GPtrArray *stat_cache_entries;
-
-	/* I/O throttling */
-	gboolean throttled; /* TRUE if vrequest is throttled */
-	struct {
-		gint magazine; /* currently available for use */
-
-		struct {
-			liThrottlePool *ptr; /* NULL if not in any throttling pool */
-			GList lnk;
-			GQueue *queue;
-			gint magazine;
-		} pool;
-		struct {
-			liThrottlePool *ptr;
-			GList lnk;
-			GQueue *queue;
-			gint magazine;
-		} ip;
-		struct {
-			gint rate; /* maximum transfer rate in bytes per second, 0 if unlimited */
-			ev_tstamp last_update;
-		} con;
-		liWaitQueueElem wqueue_elem;
-	} throttle;
 };
 
 #define VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr) \

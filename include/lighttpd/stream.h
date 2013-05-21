@@ -58,7 +58,6 @@ LI_API liStream* li_stream_null_new(liEventLoop *loop); /* eats everything, disc
 
 typedef void (*liIOStreamCB)(liIOStream *stream, liIOStreamEvent event);
 
-/* TODO: support throttle */
 struct liIOStream {
 	liStream stream_in, stream_out;
 	liCQLimit *stream_in_limit;
@@ -70,8 +69,13 @@ struct liIOStream {
 	liEventIO io_watcher;
 
 	/* whether we want to read/write */
-	gboolean in_closed, out_closed;
-	gboolean can_read, can_write; /* set to FALSE if you got EAGAIN */
+	guint in_closed:1, out_closed:1;
+	guint can_read:1, can_write:1; /* set to FALSE if you got EAGAIN */
+	guint throttled_in:1, throttled_out:1;
+
+	/* throttle needs to be handled by the liIOStreamCB cb */
+	liThrottleState *throttle_in;
+	liThrottleState *throttle_out;
 
 	liIOStreamCB cb;
 
@@ -85,6 +89,9 @@ LI_API void li_iostream_acquire(liIOStream* iostream);
 LI_API void li_iostream_release(liIOStream* iostream);
 
 LI_API int li_iostream_reset(liIOStream *iostream); /* returns fd, disconnects everything, stop callbacks, releases one reference */
+
+/* unset throttle_out and throttle_in */
+LI_API void li_iostream_throttle_clear(liIOStream *iostream);
 
 /* similar to stream_detach/_attach */
 LI_API void li_iostream_detach(liIOStream *iostream);
