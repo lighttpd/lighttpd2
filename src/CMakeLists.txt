@@ -231,6 +231,9 @@ SET(LIGHTTPD_SHARED_SRC
 	response.c
 	server.c
 	stat_cache.c
+	stream.c
+	stream_http_response.c
+	stream_simple_socket.c
 	throttle.c
 	url_parser.c
 	value.c
