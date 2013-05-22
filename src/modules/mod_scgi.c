@@ -75,7 +75,7 @@ static void scgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteArray
 	g_assert(vr->request.content_length >= 0);
 
 	if (vr->request.content_length >= 0) {
-		g_string_printf(tmp, "%" L_GOFFSET_MODIFIER "i", vr->request.content_length);
+		g_string_printf(tmp, "%" LI_GOFFSET_MODIFIER "i", vr->request.content_length);
 		scgi_env_add(buf, envdup, CONST_STR_LEN("CONTENT_LENGTH"), GSTR_LEN(tmp));
 	}
 

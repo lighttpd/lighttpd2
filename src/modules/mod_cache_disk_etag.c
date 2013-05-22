@@ -240,7 +240,7 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 	if (!cfile) {
 		if (vr->request.http_method != LI_HTTP_METHOD_GET) return LI_HANDLER_GO_ON;
 
-		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+		LI_VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 
 		if (vr->response.http_status != 200) return LI_HANDLER_GO_ON;
 

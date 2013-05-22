@@ -39,11 +39,11 @@ static void test_range(GString *range, goffset limit, const rangeentry *results)
 		if (res != LI_PARSE_HTTP_RANGE_OK) break;
 
 		if (s.range_length != s.range_end - s.range_start + 1) {
-			range_error("unexpected range length %"L_GOFFSET_FORMAT" (expected %"L_GOFFSET_FORMAT")", s.range_length, s.range_end - s.range_start + 1);
+			range_error("unexpected range length %"LI_GOFFSET_FORMAT" (expected %"LI_GOFFSET_FORMAT")", s.range_length, s.range_end - s.range_start + 1);
 		} else if (s.range_start != results->start) {
-			range_error("unexpected range start %"L_GOFFSET_FORMAT" (expected %"L_GOFFSET_FORMAT")", s.range_start, results->start);
+			range_error("unexpected range start %"LI_GOFFSET_FORMAT" (expected %"LI_GOFFSET_FORMAT")", s.range_start, results->start);
 		} else if (s.range_end != results->end) {
-			range_error("unexpected range end %"L_GOFFSET_FORMAT" (expected %"L_GOFFSET_FORMAT")", s.range_end, results->end);
+			range_error("unexpected range end %"LI_GOFFSET_FORMAT" (expected %"LI_GOFFSET_FORMAT")", s.range_end, results->end);
 		}
 	}
 

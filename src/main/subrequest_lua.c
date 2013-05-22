@@ -276,7 +276,7 @@ static void subvr_handle_check_io(liVRequest *vr) {
 	subvr_check(vr);
 }
 
-const liConCallbacks subrequest_callbacks = {
+static const liConCallbacks subrequest_callbacks = {
 	subvr_handle_response_error,
 	subvr_handle_check_io
 };

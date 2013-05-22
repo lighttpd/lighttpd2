@@ -3,7 +3,7 @@
 
 #include <lighttpd/base.h>
 
-#define THROTTLE_GRANULARITY 200 /* defines how frequently (in milliseconds) a magazine is refilled */
+#define LI_THROTTLE_GRANULARITY 200 /* defines how frequently (in milliseconds) a magazine is refilled */
 
 typedef void (*liThrottleNotifyCB)(liThrottleState *state, gpointer data);
 

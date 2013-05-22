@@ -339,7 +339,7 @@ static void log_watcher_cb(liEventBase *watcher, int events) {
 		gssize bytes_written = 0;
 		gssize write_res;
 
-		if (log_entry->flags & LOG_FLAG_TIMESTAMP) {
+		if (log_entry->flags & LI_LOG_FLAG_TIMESTAMP) {
 			GString *ts = log_timestamp_format(srv);
 			g_string_prepend_c(msg, ' ');
 			g_string_prepend_len(msg, GSTR_LEN(ts));

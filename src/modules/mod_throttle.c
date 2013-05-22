@@ -39,7 +39,7 @@ static gboolean sanity_check(liServer *srv, guint64 rate, guint64 burst) {
 		return FALSE;
 	}
 
-	if (burst < (rate * THROTTLE_GRANULARITY) / 1000) {
+	if (burst < (rate * LI_THROTTLE_GRANULARITY) / 1000) {
 		ERROR(srv, "%s", "throttle: burst is too small for the specified rate");
 		return FALSE;
 	}

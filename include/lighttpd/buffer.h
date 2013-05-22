@@ -11,7 +11,7 @@ struct liBuffer {
 	gsize alloc_size;
 	gsize used;
 	gint refcount;
-	mempool_ptr mptr;
+	liMempoolPtr mptr;
 };
 
 /* shared buffer; free memory after last reference is released */

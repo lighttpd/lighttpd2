@@ -379,12 +379,12 @@ static void cqlimit_update(liChunkQueue *cq, goffset d) {
 	cq->mem_usage += d;
 	assert(cq->mem_usage >= 0);
 	cql = cq->limit;
-	/* g_printerr("cqlimit_update: cq->mem_usage: %"L_GOFFSET_FORMAT"\n", cq->mem_usage); */
+	/* g_printerr("cqlimit_update: cq->mem_usage: %"LI_GOFFSET_FORMAT"\n", cq->mem_usage); */
 
 	if (!cql) return;
 	cql->current += d;
 	assert(cql->current >= 0);
-	/* g_printerr("cqlimit_update: cql->current: %"L_GOFFSET_FORMAT", cql->limit: %"L_GOFFSET_FORMAT"\n", cql->current, cql->limit); */
+	/* g_printerr("cqlimit_update: cql->current: %"LI_GOFFSET_FORMAT", cql->limit: %"LI_GOFFSET_FORMAT"\n", cql->current, cql->limit); */
 	if (cql->locked) {
 		if (cql->limit <= 0 || cql->current < cql->limit) {
 			cqlimit_unlock(cql);

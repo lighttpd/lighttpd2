@@ -168,7 +168,7 @@ liHandlerResult li_condition_get_value(GString *tmpstr, liVRequest *vr, liCondit
 		res->data.str = vr->physical.pathinfo->str;
 		break;
 	case LI_COMP_RESPONSE_STATUS:
-		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+		LI_VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 		res->match_type = LI_COND_VALUE_HINT_NUMBER;
 		res->data.number = vr->response.http_status;
 		break;
@@ -178,7 +178,7 @@ liHandlerResult li_condition_get_value(GString *tmpstr, liVRequest *vr, liCondit
 		res->data.str = tmpstr->str;
 		break;
 	case LI_COMP_RESPONSE_HEADER:
-		VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+		LI_VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 		res->match_type = LI_COND_VALUE_HINT_STRING;
 		li_http_header_get_all(tmpstr, vr->response.headers, GSTR_LEN(lvalue->key));
 		res->data.str = tmpstr->str;
@@ -206,7 +206,7 @@ gchar const* li_condition_value_to_string(GString *tmpstr, liConditionValue *val
 	case LI_COND_VALUE_HINT_BOOL:
 		return value->data.bool ? "TRUE" : "FALSE";
 	case LI_COND_VALUE_HINT_NUMBER:
-		g_string_printf(tmpstr, "%"L_GOFFSET_FORMAT, value->data.number);
+		g_string_printf(tmpstr, "%"LI_GOFFSET_FORMAT, value->data.number);
 		return tmpstr->str;
 	case LI_COND_VALUE_HINT_SOCKADDR:
 		li_sockaddr_to_string(value->data.addr, tmpstr, TRUE);

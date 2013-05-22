@@ -302,7 +302,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 			 */
 			if (ase->act->type == LI_ACTION_TBALANCER) {
 				/* wait until we found a backend */
-				VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+				LI_VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 			}
 			action_stack_pop(srv, vr, as);
 			continue;

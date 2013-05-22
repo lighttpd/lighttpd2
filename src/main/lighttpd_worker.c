@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
 	if (free_config_path)
 		g_free(config_path);
 
-	mempool_cleanup();
+	li_mempool_cleanup();
 
 	return 0;
 }

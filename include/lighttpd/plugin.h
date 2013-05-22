@@ -5,9 +5,6 @@
 #error Please include <lighttpd/base.h> instead of this file
 #endif
 
-#define INIT_FUNC(x) \
-		LI_EXPORT void * x(server *srv, plugin *)
-
 typedef void     (*liPluginInitCB)          (liServer *srv, liPlugin *p, gpointer userdata);
 typedef void     (*liPluginFreeCB)          (liServer *srv, liPlugin *p);
 typedef gboolean (*liPluginParseOptionCB)   (liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval);

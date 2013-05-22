@@ -546,7 +546,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 
 	UNUSED(context);
 
-	VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+	LI_VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 
 	/* disable compression for some http status types. */
 	switch(vr->response.http_status) {

@@ -103,12 +103,12 @@ static void throttle_pool_rearm(liWorker *wrk, liThrottlePool *pool, guint now) 
 	guint last = g_atomic_int_get((gint*) &pool->last_rearm);
 	guint time_diff = now - last;
 
-	if (G_UNLIKELY(time_diff >= THROTTLE_GRANULARITY)) {
+	if (G_UNLIKELY(time_diff >= LI_THROTTLE_GRANULARITY)) {
 		g_mutex_lock(pool->rearm_mutex);
 			/* check again */
 			last = g_atomic_int_get((gint*) &pool->last_rearm);
 			time_diff = now - last;
-			if (G_LIKELY(time_diff >= THROTTLE_GRANULARITY)) {
+			if (G_LIKELY(time_diff >= LI_THROTTLE_GRANULARITY)) {
 				S_throttle_pool_rearm_workers(pool, wrk->srv->worker_count, time_diff);
 				g_atomic_int_set((gint*) &pool->last_rearm, now);
 			}
@@ -172,7 +172,7 @@ guint li_throttle_query(liWorker *wrk, liThrottleState *state, guint interested,
 	/* also try to balance negative magazine */
 	fill = interested - state->magazine;
 	if (state->single_rate != 0) {
-		if (now - state->single_last_rearm >= THROTTLE_GRANULARITY) {
+		if (now - state->single_last_rearm >= LI_THROTTLE_GRANULARITY) {
 			guint single_fill = ((guint64) state->single_rate) * 1000u / (now - state->single_last_rearm);
 			state->single_last_rearm = now;
 			if (state->single_burst - state->single_magazine < single_fill) {

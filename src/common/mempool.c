@@ -22,21 +22,21 @@
 
 #ifdef MEMPOOL_MALLOC
 
-mempool_ptr mempool_alloc(gsize size) {
-	mempool_ptr ptr = { NULL, g_malloc(size) };
+liMempoolPtr li_mempool_alloc(gsize size) {
+	liMempoolPtr ptr = { NULL, g_malloc(size) };
 	return ptr;
 }
 
-void mempool_free(mempool_ptr ptr, gsize size) {
+void li_mempool_free(liMempoolPtr ptr, gsize size) {
 	UNUSED(size);
 	if (!ptr.data) return;
 	g_free(ptr.data);
 }
 
-void mempool_cleanup() {
+void li_mempool_cleanup() {
 }
 
-gsize mempool_align_page_size(gsize size) {
+gsize li_mempool_align_page_size(gsize size) {
 	return size;
 }
 
@@ -156,7 +156,7 @@ static inline gsize mp_align_size(gsize size) {
 	return size;
 }
 
-gsize mempool_align_page_size(gsize size) {
+gsize li_mempool_align_page_size(gsize size) {
 	if (G_UNLIKELY(!mp_initialized)) {
 		mempool_init();
 	}
@@ -385,8 +385,8 @@ done:
 	return pool;
 }
 
-mempool_ptr mempool_alloc(gsize size) {
-	mempool_ptr ptr = { NULL, NULL };
+liMempoolPtr li_mempool_alloc(gsize size) {
+	liMempoolPtr ptr = { NULL, NULL };
 	mp_pool *pool;
 	mp_magazine *mag;
 	guint i;
@@ -460,7 +460,7 @@ found_mag:
 	return ptr;
 }
 
-void mempool_free(mempool_ptr ptr, gsize size) {
+void li_mempool_free(liMempoolPtr ptr, gsize size) {
 	mp_magazine *mag;
 	if (!ptr.data) return;
 
@@ -481,7 +481,7 @@ void mempool_free(mempool_ptr ptr, gsize size) {
 	mp_mag_release(mag); /* keep track of chunk count; release always after unlock! */
 }
 
-void mempool_cleanup() {
+void li_mempool_cleanup() {
 	/* "Force" thread-private cleanup */
 	mp_pools *pools;
 

@@ -111,7 +111,7 @@ struct liVRequest {
 	GPtrArray *stat_cache_entries;
 };
 
-#define VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr) \
+#define LI_VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr) \
 	do { \
 		if (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS) { \
 			VR_ERROR(vr, "%s", "Cannot wait for response headers as no backend handler found - fix your config"); \

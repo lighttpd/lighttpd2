@@ -47,8 +47,8 @@
 #include <glib.h>
 #include <gmodule.h>
 
-#define L_GOFFSET_FORMAT G_GINT64_FORMAT
-#define L_GOFFSET_MODIFIER G_GINT64_MODIFIER
+#define LI_GOFFSET_FORMAT G_GINT64_FORMAT
+#define LI_GOFFSET_MODIFIER G_GINT64_MODIFIER
 
 #define CONST_STR_LEN(x) (x), (sizeof(x) - 1)
 #define CONST_USTR_LEN(x) ((const guchar*) (x)), (sizeof(x) - 1)

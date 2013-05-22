@@ -524,7 +524,7 @@ static liHandlerResult mc_handle_store(liVRequest *vr, gpointer param, gpointer 
 	memcache_filter *mf;
 	UNUSED(context);
 
-	VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
+	LI_VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr);
 
 	if (vr->response.http_status != 200) return LI_HANDLER_GO_ON;
 

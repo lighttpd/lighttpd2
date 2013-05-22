@@ -443,7 +443,7 @@ static void fastcgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteAr
 	fastcgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_ADDR"), GSTR_LEN(coninfo->remote_addr_str));
 
 	if (vr->request.content_length > 0) {
-		g_string_printf(tmp, "%" L_GOFFSET_MODIFIER "i", vr->request.content_length);
+		g_string_printf(tmp, "%" LI_GOFFSET_MODIFIER "i", vr->request.content_length);
 		fastcgi_env_add(buf, envdup, CONST_STR_LEN("CONTENT_LENGTH"), GSTR_LEN(tmp));
 	}
 

@@ -4,7 +4,7 @@
 static void _buffer_init(liBuffer *buf, gsize alloc_size) {
 	buf->alloc_size = alloc_size;
 	buf->used = 0;
-	buf->mptr = mempool_alloc(alloc_size);
+	buf->mptr = li_mempool_alloc(alloc_size);
 	buf->addr = buf->mptr.data;
 }
 
@@ -21,7 +21,7 @@ static void _buffer_destroy(liBuffer *buf) {
 	if (NULL == buf->mptr.data) {
 		g_slice_free1(buf->alloc_size, buf->addr);
 	} else {
-		mempool_free(buf->mptr, buf->alloc_size);
+		li_mempool_free(buf->mptr, buf->alloc_size);
 		buf->addr = NULL;
 		buf->mptr.data = NULL; buf->mptr.priv_data = NULL;
 		buf->used = buf->alloc_size = 0;
@@ -33,7 +33,7 @@ static void _buffer_destroy(liBuffer *buf) {
 
 liBuffer* li_buffer_new(gsize max_size) {
 	liBuffer *buf = g_slice_new0(liBuffer);
-	_buffer_init(buf, mempool_align_page_size(max_size));
+	_buffer_init(buf, li_mempool_align_page_size(max_size));
 	buf->refcount = 1;
 	return buf;
 }

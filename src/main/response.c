@@ -58,7 +58,7 @@ void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueu
 	} else if (response_complete) {
 		if (vr->request.http_method != LI_HTTP_METHOD_HEAD || response_body->length > 0) {
 			/* do not send content-length: 0 if backend already skipped content generation for HEAD */
-			g_string_printf(vr->wrk->tmp_str, "%"L_GOFFSET_FORMAT, response_body->length);
+			g_string_printf(vr->wrk->tmp_str, "%"LI_GOFFSET_FORMAT, response_body->length);
 			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(vr->wrk->tmp_str));
 		}
 	} else if (vr->coninfo->keep_alive && vr->request.http_version == LI_HTTP_VERSION_1_1) {

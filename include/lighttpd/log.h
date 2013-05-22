@@ -21,30 +21,30 @@
 /* at least one of srv and wrk must not be NULL. log_map may be NULL. */
 #define _SEGFAULT(srv, wrk, log_map, fmt, ...) \
 	do { \
-		li_log_write(srv, NULL, NULL, LI_LOG_LEVEL_ABORT, LOG_FLAG_TIMESTAMP, "(crashing) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
+		li_log_write(srv, NULL, NULL, LI_LOG_LEVEL_ABORT, LI_LOG_FLAG_TIMESTAMP, "(crashing) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
 		/* VALGRIND_PRINTF_BACKTRACE(fmt, __VA_ARGS__); */\
 		abort();\
 	} while(0)
 
 #define _ERROR(srv, wrk, ctx, fmt, ...) \
-	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "(error) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_ERROR, LI_LOG_FLAG_TIMESTAMP, "(error) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _WARNING(srv, wrk, ctx, fmt, ...) \
-	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_WARNING, LOG_FLAG_TIMESTAMP, "(warning) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_WARNING, LI_LOG_FLAG_TIMESTAMP, "(warning) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _INFO(srv, wrk, ctx, fmt, ...) \
-	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_INFO, LOG_FLAG_TIMESTAMP, "(info) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_INFO, LI_LOG_FLAG_TIMESTAMP, "(info) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _DEBUG(srv, wrk, ctx, fmt, ...) \
-	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_DEBUG, LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_DEBUG, LI_LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _BACKEND(srv, wrk, ctx, fmt, ...) \
-	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, fmt, __VA_ARGS__)
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_BACKEND, LI_LOG_FLAG_TIMESTAMP, fmt, __VA_ARGS__)
 #define _BACKEND_LINES(srv, wrk, ctx, txt, fmt, ...) \
-	li_log_split_lines_(srv, wrk, ctx, LI_LOG_LEVEL_BACKEND, LOG_FLAG_TIMESTAMP, txt, fmt, __VA_ARGS__)
+	li_log_split_lines_(srv, wrk, ctx, LI_LOG_LEVEL_BACKEND, LI_LOG_FLAG_TIMESTAMP, txt, fmt, __VA_ARGS__)
 
 #define _GERROR(srv, wrk, ctx, error, fmt, ...) \
-	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_ERROR, LOG_FLAG_TIMESTAMP, "(error) %s.%d: " fmt "\n  %s", LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__, error ? error->message : "Empty GError")
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_ERROR, LI_LOG_FLAG_TIMESTAMP, "(error) %s.%d: " fmt "\n  %s", LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__, error ? error->message : "Empty GError")
 
 #define VR_SEGFAULT(vr, fmt, ...) _SEGFAULT(vr->wrk->srv, vr->wrk, &vr->log_context, fmt, __VA_ARGS__)
 #define VR_ERROR(vr, fmt, ...)    _ERROR(vr->wrk->srv, vr->wrk, &vr->log_context, fmt, __VA_ARGS__)
@@ -74,9 +74,8 @@
 #define GERROR(srv, error, fmt, ...) _GERROR(srv, NULL, NULL, error, fmt, __VA_ARGS__)
 
 /* flags for li_log_write */
-#define LOG_FLAG_NONE         (0x0)      /* default flag */
-#define LOG_FLAG_TIMESTAMP    (0x1)      /* prepend a timestamp to the log message */
-#define LOG_FLAG_NOLOCK       (0x1 << 1) /* for internal use only */
+#define LI_LOG_FLAG_NONE         (0x0)      /* default flag */
+#define LI_LOG_FLAG_TIMESTAMP    (0x1)      /* prepend a timestamp to the log message */
 
 /* embed this into structures that should have their own log context, like liVRequest and liServer.logs */
 struct liLogContext {
