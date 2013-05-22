@@ -274,11 +274,21 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 
 	switch (ctx->type) {
 	case ML_TYPE_CON:
+#ifdef GLIB_VERSION_2_30
+		/* since 2.30 g_atomic_int_add does the same as g_atomic_int_exchange_and_add,
+		 * before it didn't return the old value. this fixes the deprecation warning. */
+		if (g_atomic_int_add(&ctx->pool.con, 1) > ctx->limit) {
+			g_atomic_int_add(&ctx->pool.con, -1);
+			limit_reached = TRUE;
+			VR_DEBUG(vr, "limit.con: limit reached (%d active connections)", ctx->limit);
+		}
+#else
 		if (g_atomic_int_exchange_and_add(&ctx->pool.con, 1) > ctx->limit) {
 			g_atomic_int_add(&ctx->pool.con, -1);
 			limit_reached = TRUE;
 			VR_DEBUG(vr, "limit.con: limit reached (%d active connections)", ctx->limit);
 		}
+#endif
 		break;
 	case ML_TYPE_CON_IP:
 		g_mutex_lock(ctx->mutex);

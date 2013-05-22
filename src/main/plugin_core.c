@@ -585,15 +585,18 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 	}
 
 	if (vr->physical.path->len == 0) return LI_HANDLER_GO_ON;
+	if (vr->physical.path->str[vr->physical.path->len-1] == '/') return LI_HANDLER_GO_ON;
 
 	if (exclude_arr) {
-		const gchar *basep = g_basename(vr->physical.path->str);
-		const GString base = li_const_gstring((gchar*) basep, vr->physical.path->len - (basep - vr->physical.path->str));
 		guint i;
+		GString *tmp_str = vr->wrk->tmp_str;
+		gchar *basep = g_path_get_basename(vr->physical.path->str);
+		g_string_assign(tmp_str, basep);
+		g_free(basep);
 
 		for (i = 0; i < exclude_arr->len; i++) {
 			liValue *v = g_array_index(exclude_arr, liValue*, i);
-			if (li_string_suffix(&base, GSTR_LEN(v->data.string))) {
+			if (li_string_suffix(tmp_str, GSTR_LEN(v->data.string))) {
 				if (no_fail) return LI_HANDLER_GO_ON;
 
 				if (!li_vrequest_handle_direct(vr)) {
