@@ -272,13 +272,21 @@ static void subvr_handle_response_error(liVRequest *vr) {
 	subvr_release_lua(sr);
 }
 
-static void subvr_handle_check_io(liVRequest *vr) {
-	subvr_check(vr);
+/* TODO: support some day maybe... */
+static liThrottleState* subvr_handle_throttle_out(liVRequest *vr) {
+	UNUSED(vr);
+	return NULL;
+}
+
+static liThrottleState* subvr_handle_throttle_in(liVRequest *vr) {
+	UNUSED(vr);
+	return NULL;
 }
 
 static const liConCallbacks subrequest_callbacks = {
 	subvr_handle_response_error,
-	subvr_handle_check_io
+	subvr_handle_throttle_out,
+	subvr_handle_throttle_in
 };
 
 static liSubrequest* subrequest_new(liVRequest *vr) {
