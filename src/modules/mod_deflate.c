@@ -628,7 +628,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 			deflate_context_bzip2 *ctx;
 			ctx = deflate_context_bzip2_create(vr, config);
 			if (!ctx) return LI_HANDLER_GO_ON;
-			li_vrequest_add_filter_out(vr, deflate_filter_bzip2, deflate_filter_bzip2_free, ctx);
+			li_vrequest_add_filter_out(vr, deflate_filter_bzip2, deflate_filter_bzip2_free, NULL, ctx);
 		}
 		break;
 #endif
@@ -641,7 +641,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 			deflate_context_zlib *ctx;
 			ctx = deflate_context_zlib_create(vr, config, TRUE);
 			if (!ctx) return LI_HANDLER_GO_ON;
-			li_vrequest_add_filter_out(vr, deflate_filter_zlib, deflate_filter_zlib_free, ctx);
+			li_vrequest_add_filter_out(vr, deflate_filter_zlib, deflate_filter_zlib_free, NULL, ctx);
 		}
 		break;
 #endif
@@ -653,7 +653,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 			deflate_context_zlib *ctx;
 			ctx = deflate_context_zlib_create(vr, config, FALSE);
 			if (!ctx) return LI_HANDLER_GO_ON;
-			li_vrequest_add_filter_out(vr, deflate_filter_zlib, deflate_filter_zlib_free, ctx);
+			li_vrequest_add_filter_out(vr, deflate_filter_zlib, deflate_filter_zlib_free, NULL, ctx);
 		}
 		break;
 #endif
@@ -664,7 +664,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 
 	if (is_head_request) {
 		/* kill content so response.c doesn't send wrong content-length */
-		liFilter *f = li_vrequest_add_filter_out(vr, deflate_filter_null, NULL, NULL);
+		liFilter *f = li_vrequest_add_filter_out(vr, deflate_filter_null, NULL, NULL, NULL);
 		f->out->is_closed = f->in->is_closed = TRUE;
 	}
 

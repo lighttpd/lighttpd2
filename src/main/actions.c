@@ -390,7 +390,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 				return res;
 			}
 			if (as->backend_failed && ase == action_stack_top(as)) {
-				/* when backend selection failed and balancer i still the top action, we remove the balancer itself so it doesn't loop forever */
+				/* when backend selection failed and balancer is still the top action, we remove the balancer itself so it doesn't loop forever */
 				action_stack_pop(srv, vr, as);
 			}
 			break;

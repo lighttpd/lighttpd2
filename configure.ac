@@ -39,6 +39,7 @@ AC_PROG_LIBTOOL
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS([ \
+	unistd.h \
 	stddef.h \
 	sys/mman.h \
 	sys/resource.h \

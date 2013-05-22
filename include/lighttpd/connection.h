@@ -9,6 +9,9 @@ typedef enum {
 	/** unused */
 	LI_CON_STATE_DEAD,
 
+	/** closed (or "closing") */
+	LI_CON_STATE_CLOSE,
+
 	/** waiting for new input after first request */
 	LI_CON_STATE_KEEP_ALIVE,
 
@@ -25,21 +28,34 @@ typedef enum {
 	LI_CON_STATE_WRITE,
 } liConnectionState;
 
+
+typedef struct liConnectionSocketCallbacks liConnectionSocketCallbacks;
+typedef struct liConnectionSocket liConnectionSocket;
+
+struct liConnectionSocketCallbacks {
+	void (*finish)(liConnection *con, gboolean aborted);
+};
+
+struct liConnectionSocket {
+	gpointer data; /** private data (simple tcp, ssl, ...) */
+	const liConnectionSocketCallbacks *callbacks;
+
+	liStream *raw_in, *raw_out;
+};
+
 struct liConnection {
-	guint idx; /** index in connection table */
+	guint idx; /** index in connection table, -1 if not active */
 	liServer *srv;
 	liWorker *wrk;
 	liServerSocket *srv_sock;
-	gpointer srv_sock_data; /** private data for custom sockets (ssl) */
+	liConnectionSocket con_sock;
 
 	liConInfo info;
 
 	liConnectionState state;
-	gboolean response_headers_sent, expect_100_cont;
+	gboolean response_headers_sent, expect_100_cont, out_has_all_data;
 
-	liChunkQueue *raw_in, *raw_out;
-	liChunkQueue *in, *out;    /* link to mainvr->in/out */
-	liBuffer *raw_in_buffer;
+	liStream in, out;
 
 	liVRequest *mainvr;
 	liHttpRequestCtx req_parser_ctx;
@@ -55,18 +71,17 @@ struct liConnection {
 	} keep_alive_data;
 	guint keep_alive_requests;
 
-	ev_io sock_watcher;
-	gboolean can_read, can_write;
-
-	/* I/O timeout data */
+	/* I/O read timeout data */
 	liWaitQueueElem io_timeout_elem;
+
+	liJob job_reset;
 };
 
 /* Internal functions */
 LI_API liConnection* li_connection_new(liWorker *wrk);
 /** Free dead connections */
 LI_API void li_connection_free(liConnection *con);
-/** close connection */
+/* close connection (for worker keep-alive timeout) */
 LI_API void li_connection_reset(liConnection *con);
 
 /** aborts an active connection, calls all plugin cleanup handlers */
@@ -80,6 +95,27 @@ LI_API gchar *li_connection_state_str(liConnectionState state);
 /* returns NULL if the vrequest doesn't belong to a liConnection* object */
 LI_API liConnection* li_connection_from_vrequest(liVRequest *vr);
 
-LI_API void connection_handle_io(liConnection *con);
+
+/******************************************************/
+/* IO backend stuff (simple tcp, tls implementations) */
+/******************************************************/
+
+/* call after IO send operations if con->out_has_all_data and out queues are empty */
+LI_API void li_connection_request_done(liConnection *con);
+
+/* call after successful io
+ * li_connection_simple_tcp takes care of this for you.
+ */
+LI_API void li_connection_update_io_timeout(liConnection *con);
+
+/* handles IOStream events for a connection; updates transfered bytes and io timeouts;
+ * *pcon is needed to handle cases then the connections gets reset while handling io stuff
+ * NULL == *pcon is ok - it won't update transfered bytes and io timeouts then.
+ * closes outgoing stream on reading EOF
+ */
+LI_API void li_connection_simple_tcp(liConnection **pcon, liIOStream *stream, gpointer *context, liIOStreamEvent event);
+
+/******************************************************/
+
 
 #endif

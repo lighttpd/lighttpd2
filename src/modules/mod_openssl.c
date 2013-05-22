@@ -53,10 +53,10 @@ typedef struct openssl_context openssl_context;
 
 struct openssl_connection_ctx {
 	SSL *ssl;
-	liConnection *con;
+	liIOStream *sock_stream;
+	liBuffer *raw_in_buffer;
 
-	int con_events;
-	liJob con_handle_events_job;
+	gboolean write_blocked_by_read, read_blocked_by_write;
 
 	unsigned int initial_handshaked_finished;
 	unsigned int client_initiated_renegotiation;
@@ -75,115 +75,44 @@ enum {
 
 static const char openssl_setenv_config_error[] = "openssl.setenv expects a string or a list of strings consisting of: client, client-cert, server, server-cert";
 
-static void openssl_con_handle_events_cb(liJob *job) {
-	openssl_connection_ctx *conctx = LI_CONTAINER_OF(job, openssl_connection_ctx, con_handle_events_job);
-	liConnection *con = conctx->con;
+static void openssl_tcp_free(liConnection *con, gboolean aborted) {
+	openssl_connection_ctx *conctx = con->con_sock.data;
+	if (NULL == conctx) return;
 
-	connection_handle_io(con);
-}
+	con->con_sock.raw_out = con->con_sock.raw_in = NULL;
 
-static void openssl_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
-	liConnection *con = (liConnection*) w->data;
-	openssl_connection_ctx *conctx = con->srv_sock_data;
+	con->con_sock.data = NULL;
+	con->con_sock.callbacks = NULL;
 
-	if (revents & EV_ERROR) {
-		/* if this happens, we have a serious bug in the event handling */
-		VR_ERROR(con->mainvr, "%s", "EV_ERROR encountered, dropping connection!");
-		li_connection_error(con);
-		return;
-	}
-
-	con->can_read = TRUE;
-	con->can_write = TRUE;
-
-	/* disable all events; they will get reactivated later */
-	li_ev_io_set_events(loop, w, 0);
-
-	li_job_now(&con->wrk->jobqueue, &conctx->con_handle_events_job);
-}
-
-static gboolean openssl_con_new(liConnection *con) {
-	liServer *srv = con->srv;
-	openssl_context *ctx = con->srv_sock->data;
-	openssl_connection_ctx *conctx = g_slice_new0(openssl_connection_ctx);
-
-	con->srv_sock_data = NULL;
-
-	conctx->ssl = SSL_new(ctx->ssl_ctx);
-	SSL_set_app_data(conctx->ssl, conctx);
-	conctx->con = con;
-	li_job_init(&conctx->con_handle_events_job, openssl_con_handle_events_cb);
-	conctx->con_events = 0;
-	conctx->initial_handshaked_finished = 0;
-	conctx->client_initiated_renegotiation = 0;
-
-	if (NULL == conctx->ssl) {
-		ERROR(srv, "SSL_new: %s", ERR_error_string(ERR_get_error(), NULL));
-		goto fail;
-	}
-
-	SSL_set_accept_state(conctx->ssl);
-
-	if (1 != (SSL_set_fd(conctx->ssl, con->sock_watcher.fd))) {
-		ERROR(srv, "SSL_set_fd: %s", ERR_error_string(ERR_get_error(), NULL));
-		goto fail;
-	}
-
-	con->srv_sock_data = conctx;
-	con->info.is_ssl = TRUE;
-
-	ev_set_cb(&con->sock_watcher, openssl_io_cb);
-
-	return TRUE;
-
-fail:
-	if (conctx->ssl) {
-		SSL_free(conctx->ssl);
-	}
-
-	g_slice_free(openssl_connection_ctx, conctx);
-
-	return FALSE;
-}
-
-static void openssl_con_close(liConnection *con) {
-	openssl_connection_ctx *conctx = con->srv_sock_data;
-
-	if (!conctx) return;
-
-	if (conctx->ssl) {
-		SSL_shutdown(conctx->ssl); /* TODO: wait for something??? */
-		SSL_free(conctx->ssl);
-		conctx->ssl = FALSE;
-	}
-
-	con->srv_sock_data = NULL;
-	con->info.is_ssl = FALSE;
-	li_job_clear(&conctx->con_handle_events_job);
-
-	g_slice_free(openssl_connection_ctx, conctx);
-}
-
-static void openssl_update_events(liConnection *con, int events) {
-	openssl_connection_ctx *conctx = con->srv_sock_data;
-
-	/* new events -> add them to socket watcher too */
-	if (0 != (events & ~conctx->con_events)) {
-		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, events);
-	}
-
-	conctx->con_events = events;
-}
-
-static void openssl_info_callback(const SSL *ssl, int where, int ret) {
-	UNUSED(ret);
-
-	if (0 != (where & SSL_CB_HANDSHAKE_START)) {
-		openssl_connection_ctx *conctx = SSL_get_app_data(ssl);
-		if (conctx->initial_handshaked_finished) {
-			conctx->client_initiated_renegotiation = TRUE;
+	if (conctx->sock_stream) {
+		liIOStream *stream = conctx->sock_stream;
+		int fd;
+		conctx->sock_stream = NULL;
+		fd = li_iostream_reset(stream);
+		if (-1 != fd) {
+			if (aborted) {
+				shutdown(fd, SHUT_RDWR);
+				close(fd);
+			} else {
+				li_worker_add_closing_socket(con->wrk, fd);
+			}
 		}
 	}
+
+	if (conctx->raw_in_buffer) {
+		li_buffer_release(conctx->raw_in_buffer);
+		conctx->raw_in_buffer = NULL;
+	}
+
+	if (NULL != conctx->ssl) {
+		SSL_shutdown(conctx->ssl); /* TODO: wait for something??? */
+		SSL_free(conctx->ssl);
+		conctx->ssl = NULL;
+	}
+
+	con->info.is_ssl = FALSE;
+
+	g_slice_free(openssl_connection_ctx, conctx);
 }
 
 static liNetworkStatus openssl_handle_error(liConnection *con, openssl_connection_ctx *conctx, const char *sslfunc, off_t len, int r) {
@@ -194,11 +123,13 @@ static liNetworkStatus openssl_handle_error(liConnection *con, openssl_connectio
 
 	switch (err) {
 	case SSL_ERROR_WANT_READ:
-		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_READ);
+		conctx->write_blocked_by_read = TRUE;
+		conctx->sock_stream->can_read = FALSE;
 		/* ignore requirement that we should pass the same buffer again */
 		return (len > 0) ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 	case SSL_ERROR_WANT_WRITE:
-		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
+		conctx->read_blocked_by_write = TRUE;
+		conctx->sock_stream->can_write = FALSE;
 		/* ignore requirement that we should pass the same buffer again */
 		return (len > 0) ? LI_NETWORK_STATUS_SUCCESS : LI_NETWORK_STATUS_WAIT_FOR_EVENT;
 	case SSL_ERROR_SYSCALL:
@@ -216,7 +147,7 @@ static liNetworkStatus openssl_handle_error(liConnection *con, openssl_connectio
 			*/
 		while (0 != (err = ERR_get_error())) {
 			VR_ERROR(con->mainvr, "%s(%i): %s", sslfunc,
-				con->sock_watcher.fd,
+				conctx->sock_stream->io_watcher.fd,
 				ERR_error_string(err, NULL));
 		}
 
@@ -228,7 +159,7 @@ static liNetworkStatus openssl_handle_error(liConnection *con, openssl_connectio
 
 		if (0 != r || oerrno != 0) {
 			VR_ERROR(con->mainvr, "%s(%i) returned %i: %s", sslfunc,
-				con->sock_watcher.fd,
+				conctx->sock_stream->io_watcher.fd,
 				r,
 				g_strerror(oerrno));
 			return LI_NETWORK_STATUS_FATAL_ERROR;
@@ -259,7 +190,7 @@ static liNetworkStatus openssl_handle_error(liConnection *con, openssl_connectio
 			}
 			/* get all errors from the error-queue */
 			VR_ERROR(con->mainvr, "%s(%i): %s", sslfunc,
-				con->sock_watcher.fd,
+				conctx->sock_stream->io_watcher.fd,
 				ERR_error_string(err, NULL));
 		}
 		if (!was_fatal) return LI_NETWORK_STATUS_CONNECTION_CLOSE;
@@ -278,14 +209,13 @@ static liNetworkStatus openssl_do_handshake(liConnection *con, openssl_connectio
 	}
 }
 
-static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
+static liNetworkStatus openssl_con_write(liConnection *con, liChunkQueue *cq, goffset write_max) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	char *block_data;
 	off_t block_len;
 	ssize_t r;
 	liChunkIter ci;
-	liChunkQueue *cq = con->raw_out;
-	openssl_connection_ctx *conctx = con->srv_sock_data;
+	openssl_connection_ctx *conctx = con->con_sock.data;
 
 	if (!conctx->initial_handshaked_finished) {
 		liNetworkStatus res = openssl_do_handshake(con, conctx);
@@ -336,15 +266,59 @@ static liNetworkStatus openssl_con_write(liConnection *con, goffset write_max) {
 		write_max -= r;
 	} while (r == block_len && write_max > 0);
 
-	if (0 != cq->length) {
-		li_ev_io_add_events(con->wrk->loop, &con->sock_watcher, EV_WRITE);
-	}
 	return LI_NETWORK_STATUS_SUCCESS;
 }
 
-static liNetworkStatus openssl_con_read(liConnection *con) {
-	liChunkQueue *cq = con->raw_in;
-	openssl_connection_ctx *conctx = con->srv_sock_data;
+static void openssl_tcp_write(liConnection *con, openssl_connection_ctx *data) {
+	liNetworkStatus res;
+	liChunkQueue *raw_out = data->sock_stream->stream_out.out;
+	liChunkQueue *from = data->sock_stream->stream_out.source->out;
+
+	li_chunkqueue_steal_all(raw_out, from);
+
+	if (raw_out->length > 0) {
+		goffset transferred;
+		static const goffset WRITE_MAX = 256*1024; /* 256kB */
+		goffset write_max;
+		GError *err = NULL;
+
+		write_max = WRITE_MAX;
+
+		transferred = raw_out->length;
+
+		res = openssl_con_write(con, raw_out, write_max);
+
+		transferred = transferred - raw_out->length;
+		con->info.out_queue_length = raw_out->length;
+		if (transferred > 0) {
+			li_connection_update_io_timeout(con);
+			li_vrequest_update_stats_out(con->mainvr, transferred);
+		}
+
+		switch (res) {
+		case LI_NETWORK_STATUS_SUCCESS:
+			break;
+		case LI_NETWORK_STATUS_FATAL_ERROR:
+			_VR_ERROR(con->srv, con->mainvr, "network write fatal error: %s", NULL != err ? err->message : "(unknown)");
+			g_error_free(err);
+			openssl_tcp_free(con, TRUE);
+			break;
+		case LI_NETWORK_STATUS_CONNECTION_CLOSE:
+			openssl_tcp_free(con, TRUE);
+			break;
+		case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
+			data->sock_stream->can_write = FALSE;
+			break;
+		}
+	}
+
+	if (0 == raw_out->length && from->is_closed) {
+		li_stream_disconnect(&data->sock_stream->stream_out);
+	}
+}
+
+static liNetworkStatus openssl_con_read(liConnection *con, liChunkQueue *cq) {
+	openssl_connection_ctx *conctx = con->con_sock.data;
 
 	const ssize_t blocksize = 16*1024; /* 16k */
 	off_t max_read = 16 * blocksize; /* 256k */
@@ -354,17 +328,6 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 	if (!conctx->initial_handshaked_finished) {
 		liNetworkStatus res = openssl_do_handshake(con, conctx);
 		if (res != LI_NETWORK_STATUS_SUCCESS) return res;
-	}
-
-	if (cq->limit && cq->limit->limit > 0) {
-		if (max_read > cq->limit->limit - cq->limit->current) {
-			max_read = cq->limit->limit - cq->limit->current;
-			if (max_read <= 0) {
-				max_read = 0; /* we still have to read something */
-				VR_ERROR(con->mainvr, "li_network_read: fd %i should be disabled as chunkqueue is already full",
-					con->sock_watcher.fd);
-			}
-		}
 	}
 
 	do {
@@ -378,23 +341,23 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 
 		if (buf != NULL) {
 			/* use last buffer as raw_in_buffer; they should be the same anyway */
-			if (G_UNLIKELY(buf != con->raw_in_buffer)) {
+			if (G_UNLIKELY(buf != conctx->raw_in_buffer)) {
 				li_buffer_acquire(buf);
-				li_buffer_release(con->raw_in_buffer);
-				con->raw_in_buffer = buf;
+				li_buffer_release(conctx->raw_in_buffer);
+				conctx->raw_in_buffer = buf;
 			}
 		} else {
-			buf = con->raw_in_buffer;
+			buf = conctx->raw_in_buffer;
 			if (buf != NULL && buf->alloc_size - buf->used < 1024) {
 				/* release *buffer */
 				li_buffer_release(buf);
-				con->raw_in_buffer = buf = NULL;
+				conctx->raw_in_buffer = buf = NULL;
 			}
 			if (buf == NULL) {
-				con->raw_in_buffer = buf = li_buffer_new(blocksize);
+				conctx->raw_in_buffer = buf = li_buffer_new(blocksize);
 			}
 		}
-		assert(con->raw_in_buffer == buf);
+		assert(conctx->raw_in_buffer == buf);
 
 		r = SSL_read(conctx->ssl, buf->addr + buf->used, buf->alloc_size - buf->used);
 		if (conctx->client_initiated_renegotiation) {
@@ -421,13 +384,158 @@ static liNetworkStatus openssl_con_read(liConnection *con) {
 		if (buf->alloc_size - buf->used < 1024) {
 			/* release *buffer */
 			li_buffer_release(buf);
-			con->raw_in_buffer = buf = NULL;
+			conctx->raw_in_buffer = buf = NULL;
 		}
 		len += r;
 	} while (len < max_read);
 
 	return LI_NETWORK_STATUS_SUCCESS;
 }
+
+static void openssl_tcp_read(liConnection *con, openssl_connection_ctx *data) {
+	liNetworkStatus res;
+	GError *err = NULL;
+
+	liChunkQueue *raw_in = data->sock_stream->stream_in.out;
+	goffset transferred;
+	transferred = raw_in->length;
+
+	if (NULL == data->raw_in_buffer && NULL != con->wrk->network_read_buf) {
+		/* reuse worker buf if needed */
+		data->raw_in_buffer = con->wrk->network_read_buf;
+		con->wrk->network_read_buf = NULL;
+	}
+
+	res = openssl_con_read(con, raw_in);
+
+	if (NULL == con->wrk->network_read_buf && NULL != data->raw_in_buffer
+		&& 1 == g_atomic_int_get(&data->raw_in_buffer->refcount)) {
+		/* move buffer back to worker if we didn't use it */
+		con->wrk->network_read_buf = data->raw_in_buffer;
+		data->raw_in_buffer = NULL;
+	}
+
+	transferred = raw_in->length - transferred;
+	if (transferred > 0) {
+		li_connection_update_io_timeout(con);
+		li_vrequest_update_stats_in(con->mainvr, transferred);
+	}
+
+	switch (res) {
+	case LI_NETWORK_STATUS_SUCCESS:
+		break;
+	case LI_NETWORK_STATUS_FATAL_ERROR:
+		_VR_ERROR(con->srv, con->mainvr, "network read fatal error: %s", NULL != err ? err->message : "(unknown)");
+		g_error_free(err);
+		openssl_tcp_free(con, TRUE);
+		break;
+	case LI_NETWORK_STATUS_CONNECTION_CLOSE:
+		openssl_tcp_free(con, TRUE);
+		break;
+	case LI_NETWORK_STATUS_WAIT_FOR_EVENT:
+		data->sock_stream->can_read = FALSE;
+		break;
+	}
+}
+
+static void openssl_tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
+	liConnection *con;
+	openssl_connection_ctx *conctx;
+
+	con = stream->data;
+	if (NULL == con) return;
+	conctx = con->con_sock.data;
+
+	switch (event) {
+	case LI_IOSTREAM_READ:
+		openssl_tcp_read(con, conctx);
+		conctx = con->con_sock.data;
+		if (NULL != conctx && conctx->write_blocked_by_read) {
+			conctx->write_blocked_by_read = FALSE;
+			openssl_tcp_write(con, conctx);
+		}
+		break;
+	case LI_IOSTREAM_WRITE:
+		openssl_tcp_write(con, conctx);
+		conctx = con->con_sock.data;
+		if (NULL != conctx && conctx->read_blocked_by_write) {
+			conctx->read_blocked_by_write = FALSE;
+			openssl_tcp_read(con, conctx);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static void openssl_tcp_finished(liConnection *con, gboolean aborted) {
+	openssl_connection_ctx *data = con->con_sock.data;
+	if (NULL == data) return;
+
+	if (!aborted && NULL != data->sock_stream && 0 == data->sock_stream->stream_out.out->length) {
+		openssl_tcp_free(con, FALSE);
+	} else {
+		openssl_tcp_free(con, TRUE);
+	}
+}
+
+static const liConnectionSocketCallbacks openssl_tcp_cbs = {
+	openssl_tcp_finished
+};
+
+static gboolean openssl_con_new(liConnection *con, int fd) {
+	liServer *srv = con->srv;
+	openssl_context *ctx = con->srv_sock->data;
+	openssl_connection_ctx *conctx = g_slice_new0(openssl_connection_ctx);
+
+	conctx->sock_stream = li_iostream_new(con->wrk, fd, openssl_tcp_io_cb, con);
+	conctx->raw_in_buffer = NULL;
+	con->con_sock.data = conctx;
+	con->con_sock.callbacks = &openssl_tcp_cbs;
+	con->con_sock.raw_out = &conctx->sock_stream->stream_out;
+	con->con_sock.raw_in = &conctx->sock_stream->stream_in;
+
+	conctx->ssl = SSL_new(ctx->ssl_ctx);
+	conctx->read_blocked_by_write = conctx->write_blocked_by_read = FALSE;
+	SSL_set_app_data(conctx->ssl, conctx);
+	conctx->initial_handshaked_finished = 0;
+	conctx->client_initiated_renegotiation = 0;
+
+	if (NULL == conctx->ssl) {
+		ERROR(srv, "SSL_new: %s", ERR_error_string(ERR_get_error(), NULL));
+		goto fail;
+	}
+
+	SSL_set_accept_state(conctx->ssl);
+
+	if (1 != (SSL_set_fd(conctx->ssl, fd))) {
+		ERROR(srv, "SSL_set_fd: %s", ERR_error_string(ERR_get_error(), NULL));
+		goto fail;
+	}
+
+	con->con_sock.data = conctx;
+	con->info.is_ssl = TRUE;
+
+	return TRUE;
+
+fail:
+	openssl_tcp_free(con, TRUE);
+
+	return FALSE;
+}
+
+
+static void openssl_info_callback(const SSL *ssl, int where, int ret) {
+	UNUSED(ret);
+
+	if (0 != (where & SSL_CB_HANDSHAKE_START)) {
+		openssl_connection_ctx *conctx = SSL_get_app_data(ssl);
+		if (conctx->initial_handshaked_finished) {
+			conctx->client_initiated_renegotiation = TRUE;
+		}
+	}
+}
+
 
 static void openssl_sock_release(liServerSocket *srv_sock) {
 	openssl_context *ctx = srv_sock->data;
@@ -485,7 +593,7 @@ static liHandlerResult openssl_setenv(liVRequest *vr, gpointer param, gpointer *
 
 	if (!(con = li_connection_from_vrequest(vr))
 		|| !(con->srv_sock && con->srv_sock->new_cb == openssl_con_new)
-		|| !(conctx = con->srv_sock_data)
+		|| !(conctx = con->con_sock.data)
 		|| !(ssl = conctx->ssl))
 		return LI_HANDLER_GO_ON;
 
@@ -557,12 +665,8 @@ static void openssl_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 
 	srv_sock->data = ctx;
 
-	srv_sock->write_cb = openssl_con_write;
-	srv_sock->read_cb = openssl_con_read;
 	srv_sock->new_cb = openssl_con_new;
-	srv_sock->close_cb = openssl_con_close;
 	srv_sock->release_cb = openssl_sock_release;
-	srv_sock->update_events_cb = openssl_update_events;
 }
 
 static gboolean openssl_options_set_string(long *options, GString *s) {

@@ -2,140 +2,6 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
-static void filters_init(liFilters *fs) {
-	fs->queue = g_ptr_array_new();
-	fs->in = li_chunkqueue_new();
-	fs->out = li_chunkqueue_new();
-}
-
-static void filters_clean(liVRequest *vr, liFilters *fs) {
-	guint i;
-	for (i = 0; i < fs->queue->len; i++) {
-		liFilter *f = (liFilter*) g_ptr_array_index(fs->queue, i);
-		if (f->handle_free && f->param) f->handle_free(vr, f);
-		if (i > 0) li_chunkqueue_free(fs->in);
-		g_slice_free(liFilter, f);
-	}
-	g_ptr_array_free(fs->queue, TRUE);
-	li_chunkqueue_free(fs->in);
-	li_chunkqueue_free(fs->out);
-}
-
-static void filters_reset(liVRequest *vr, liFilters *fs) {
-	guint i;
-	for (i = 0; i < fs->queue->len; i++) {
-		liFilter *f = (liFilter*) g_ptr_array_index(fs->queue, i);
-		if (f->handle_free && f->param) f->handle_free(vr, f);
-		if (i > 0) li_chunkqueue_free(f->in);
-		g_slice_free(liFilter, f);
-	}
-	g_ptr_array_set_size(fs->queue, 0);
-	li_chunkqueue_reset(fs->in);
-	li_chunkqueue_reset(fs->out);
-}
-
-static gboolean filters_handle_out_close(liVRequest *vr, liFilters *fs) {
-	guint i;
-	if (0 == fs->queue->len) {
-		if (fs->out->is_closed) fs->in->is_closed = TRUE;
-		return TRUE;
-	}
-	for (i = fs->queue->len; i-- > 0; ) {
-		liFilter *f = (liFilter*) g_ptr_array_index(fs->queue, i);
-		if (f->out->is_closed && !f->knows_out_is_closed) {
-			f->knows_out_is_closed = TRUE;
-			switch (f->handle_data(vr, f)) {
-			case LI_HANDLER_GO_ON:
-				break;
-			case LI_HANDLER_COMEBACK:
-				li_vrequest_joblist_append(vr);
-				break;
-			case LI_HANDLER_WAIT_FOR_EVENT:
-				break; /* ignore - filter has to call li_vrequest_joblist_append(vr); */
-			case LI_HANDLER_ERROR:
-				if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-					VR_DEBUG(vr, "filter %i return an error", i);
-				}
-				return FALSE;
-			}
-		}
-	}
-	return TRUE;
-}
-
-static gboolean filters_run(liVRequest *vr, liFilters *fs) {
-	guint i;
-	if (0 == fs->queue->len) {
-		li_chunkqueue_steal_all(fs->out, fs->in);
-		if (fs->in->is_closed) fs->out->is_closed = TRUE;
-		return TRUE;
-	}
-	for (i = 0; i < fs->queue->len; i++) {
-		liFilter *f = (liFilter*) g_ptr_array_index(fs->queue, i);
-		switch (f->handle_data(vr, f)) {
-		case LI_HANDLER_GO_ON:
-			break;
-		case LI_HANDLER_COMEBACK:
-			li_vrequest_joblist_append(vr);
-			break;
-		case LI_HANDLER_WAIT_FOR_EVENT:
-			break; /* ignore - filter has to call li_vrequest_joblist_append(vr); */
-		case LI_HANDLER_ERROR:
-			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-				VR_DEBUG(vr, "filter %i return an error", i);
-			}
-			return FALSE;
-		}
-		f->knows_out_is_closed = f->out->is_closed;
-		if (f->in->is_closed && i > 0) {
-			guint j;
-			for (j = i; j-- > 0; ) {
-				liFilter *g = (liFilter*) g_ptr_array_index(fs->queue, j);
-				if (g->knows_out_is_closed) break;
-				g->knows_out_is_closed = TRUE;
-				switch (f->handle_data(vr, f)) {
-				case LI_HANDLER_GO_ON:
-					break;
-				case LI_HANDLER_COMEBACK:
-					li_vrequest_joblist_append(vr);
-					break;
-				case LI_HANDLER_WAIT_FOR_EVENT:
-					break; /* ignore - filter has to call li_vrequest_joblist_append(vr); */
-				case LI_HANDLER_ERROR:
-					return FALSE;
-				}
-				if (!g->in->is_closed) break;
-			}
-		}
-	}
-	return TRUE;
-}
-
-static liFilter* filters_add(liFilters *fs, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param) {
-	liFilter *f = g_slice_new0(liFilter);
-	f->out = fs->out;
-	f->param = param;
-	f->handle_data = handle_data;
-	f->handle_free = handle_free;
-	if (0 == fs->queue->len) {
-		f->in = fs->in;
-	} else {
-		liFilter *prev = (liFilter*) g_ptr_array_index(fs->queue, fs->queue->len - 1);
-		f->in = prev->out = li_chunkqueue_new();
-		li_chunkqueue_set_limit(f->in, fs->in->limit);
-	}
-	g_ptr_array_add(fs->queue, f);
-	return f;
-}
-
-liFilter* li_vrequest_add_filter_in(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param) {
-	return filters_add(&vr->filters_in, handle_data, handle_free, param);
-}
-
-liFilter* li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param) {
-	return filters_add(&vr->filters_out, handle_data, handle_free, param);
-}
-
 static void vrequest_job_cb(liJob *job) {
 	liVRequest *vr = LI_CONTAINER_OF(job, liVRequest, job);
 	li_vrequest_state_machine(vr);
@@ -148,6 +14,11 @@ liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
 	vr->coninfo = coninfo;
 	vr->wrk = wrk;
 	vr->state = LI_VRS_CLEAN;
+
+	vr->backend = NULL;
+	vr->backend_drain = NULL;
+	vr->backend_source = NULL;
+	vr->direct_out = NULL;
 
 	vr->plugin_ctx = g_ptr_array_new();
 	g_ptr_array_set_size(vr->plugin_ctx, g_hash_table_size(srv->plugins));
@@ -167,28 +38,16 @@ liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
 	li_response_init(&vr->response);
 	li_environment_init(&vr->env);
 
-	filters_init(&vr->filters_in);
-	filters_init(&vr->filters_out);
-	vr->vr_in = vr->filters_in.in;
-	vr->in_memory = vr->filters_in.out;
-	vr->in = li_chunkqueue_new();
-	vr->out = vr->filters_out.in;
-	vr->vr_out = vr->filters_out.out;
-
-	li_chunkqueue_use_limit(vr->in, vr);
-	li_chunkqueue_set_limit(vr->vr_in, vr->in->limit);
-	li_chunkqueue_set_limit(vr->in_memory, vr->in->limit);
-	li_chunkqueue_use_limit(vr->out, vr);
-	li_chunkqueue_set_limit(vr->vr_out, vr->out->limit);
+	li_vrequest_filters_init(vr);
 
 	vr->in_buffer_state.flush_limit = -1; /* wait until upload is complete */
 	vr->in_buffer_state.split_on_file_chunks = FALSE;
 
+	li_action_stack_init(&vr->action_stack);
+
 	li_job_init(&vr->job, vrequest_job_cb);
 
 	vr->stat_cache_entries = g_ptr_array_sized_new(2);
-
-	li_action_stack_init(&vr->action_stack);
 
 	vr->throttle.wqueue_elem.data = vr;
 	vr->throttle.pool.lnk.data = vr;
@@ -200,20 +59,34 @@ liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
 void li_vrequest_free(liVRequest* vr) {
 	liServer *srv = vr->wrk->srv;
 
+	if (NULL != vr->backend_drain) {
+		li_stream_reset(vr->backend_drain);
+		li_stream_release(vr->backend_drain);
+		vr->backend_drain = NULL;
+	}
+	if (NULL != vr->backend_source) {
+		li_stream_reset(vr->backend_source);
+		li_stream_release(vr->backend_source);
+		vr->backend_source = NULL;
+		vr->direct_out = NULL;
+	}
+
 	li_action_stack_clear(vr, &vr->action_stack);
 	if (vr->state != LI_VRS_CLEAN) {
 		li_plugins_handle_vrclose(vr);
+		vr->state = LI_VRS_CLEAN;
+		vr->backend = NULL;
 	}
 	g_ptr_array_free(vr->plugin_ctx, TRUE);
+	vr->plugin_ctx = NULL;
 
 	li_request_clear(&vr->request);
 	li_physical_clear(&vr->physical);
 	li_response_clear(&vr->response);
 	li_environment_clear(&vr->env);
 
-	filters_clean(vr, &vr->filters_in);
-	filters_clean(vr, &vr->filters_out);
-	li_chunkqueue_free(vr->in);
+	li_vrequest_filters_clear(vr);
+
 	li_filter_buffer_on_disk_reset(&vr->in_buffer_state);
 
 	li_job_clear(&vr->job);
@@ -241,9 +114,27 @@ void li_vrequest_free(liVRequest* vr) {
 void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 	liServer *srv = vr->wrk->srv;
 
+	if (NULL != vr->backend_drain) {
+		li_stream_disconnect(vr->backend_drain);
+		li_stream_release(vr->backend_drain);
+		vr->backend_drain = NULL;
+	}
+	if (NULL != vr->backend_source) {
+		if (NULL == vr->backend_source->dest) {
+			/* wasn't connected: disconnect source */
+			li_stream_disconnect(vr->backend_source);
+		}
+		li_stream_disconnect_dest(vr->backend_source);
+		li_stream_release(vr->backend_source);
+		vr->backend_source = NULL;
+		vr->direct_out = NULL;
+	}
+
 	li_action_stack_reset(vr, &vr->action_stack);
 	if (vr->state != LI_VRS_CLEAN) {
 		li_plugins_handle_vrclose(vr);
+		vr->state = LI_VRS_CLEAN;
+		vr->backend = NULL;
 	}
 	{
 		gint len = vr->plugin_ctx->len;
@@ -251,9 +142,6 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 		g_ptr_array_set_size(vr->plugin_ctx, len);
 	}
 
-	vr->state = LI_VRS_CLEAN;
-
-	vr->backend = NULL;
 
 	/* don't reset request for keep-alive tracking */
 	if (!keepalive) li_request_reset(&vr->request);
@@ -261,18 +149,11 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 	li_response_reset(&vr->response);
 	li_environment_reset(&vr->env);
 
-	filters_reset(vr, &vr->filters_in);
-	filters_reset(vr, &vr->filters_out);
-	li_chunkqueue_reset(vr->in);
+	li_vrequest_filters_reset(vr);
+
 	li_filter_buffer_on_disk_reset(&vr->in_buffer_state);
 	vr->in_buffer_state.flush_limit = -1; /* wait until upload is complete */
 	vr->in_buffer_state.split_on_file_chunks = FALSE;
-
-	li_chunkqueue_use_limit(vr->in, vr);
-	li_chunkqueue_set_limit(vr->vr_in, vr->in->limit);
-	li_chunkqueue_set_limit(vr->in_memory, vr->in->limit);
-	li_chunkqueue_use_limit(vr->out, vr);
-	li_chunkqueue_set_limit(vr->vr_out, vr->out->limit);
 
 	li_job_reset(&vr->job);
 
@@ -300,16 +181,22 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 
 void li_vrequest_error(liVRequest *vr) {
 	vr->state = LI_VRS_ERROR;
-	vr->out->is_closed = TRUE;
+
+	li_stream_reset(vr->coninfo->req);
+	li_stream_reset(vr->coninfo->resp);
+
 	li_vrequest_joblist_append(vr);
 }
 
 void li_vrequest_backend_error(liVRequest *vr, liBackendError berror) {
-	vr->action_stack.backend_failed = TRUE;
-	vr->action_stack.backend_error = berror;
-	vr->state = LI_VRS_HANDLE_REQUEST_HEADERS;
-	vr->backend = NULL;
-	li_vrequest_joblist_append(vr);
+	if (vr->state < LI_VRS_READ_CONTENT) {
+		vr->action_stack.backend_failed = TRUE;
+		vr->action_stack.backend_error = berror;
+		li_vrequest_joblist_append(vr);
+	} else {
+		vr->response.http_status = 503;
+		li_vrequest_error(vr);
+	}
 }
 
 void li_vrequest_backend_overloaded(liVRequest *vr) {
@@ -337,34 +224,20 @@ void li_vrequest_handle_request_headers(liVRequest *vr) {
 	li_vrequest_joblist_append(vr);
 }
 
-/* received (partial) request content */
-void li_vrequest_handle_request_body(liVRequest *vr) {
-	if (LI_VRS_READ_CONTENT <= vr->state) {
-		li_vrequest_joblist_append(vr);
-	}
-}
-
-/* received all response headers/status code - call once from your indirect handler */
-void li_vrequest_handle_response_headers(liVRequest *vr) {
-	if (LI_VRS_HANDLE_RESPONSE_HEADERS > vr->state) {
-		vr->state = LI_VRS_HANDLE_RESPONSE_HEADERS;
-	}
-	li_vrequest_joblist_append(vr);
-}
-
-/* received (partial) response content - call from your indirect handler */
-void li_vrequest_handle_response_body(liVRequest *vr) {
-	if (LI_VRS_WRITE_CONTENT == vr->state) {
-		li_vrequest_joblist_append(vr);
-	}
-}
-
 /* response completely ready */
 gboolean li_vrequest_handle_direct(liVRequest *vr) {
-	if (vr->state < LI_VRS_READ_CONTENT) {
-		vr->state = LI_VRS_HANDLE_RESPONSE_HEADERS;
-		vr->out->is_closed = TRUE;
-		vr->backend = NULL;
+	if (li_vrequest_handle_indirect(vr, NULL)) {
+		li_vrequest_indirect_connect(vr, li_stream_null_new(&vr->wrk->jobqueue), li_stream_plug_new(&vr->wrk->jobqueue));
+
+		/* release reference from _new */
+		li_stream_release(vr->backend_drain);
+		li_stream_release(vr->backend_source);
+
+		vr->direct_out = vr->backend_source->out;
+		vr->direct_out->is_closed = TRUE;
+
+		li_vrequest_indirect_headers_ready(vr);
+
 		return TRUE;
 	} else {
 		return FALSE;
@@ -376,11 +249,47 @@ gboolean li_vrequest_handle_indirect(liVRequest *vr, liPlugin *p) {
 	if (vr->state < LI_VRS_READ_CONTENT) {
 		vr->state = LI_VRS_READ_CONTENT;
 		vr->backend = p;
+
 		return TRUE;
 	} else {
 		return FALSE;
 	}
 }
+
+void li_vrequest_indirect_connect(liVRequest *vr, liStream *backend_drain, liStream* backend_source) {
+	assert(LI_VRS_READ_CONTENT == vr->state);
+	assert(NULL != backend_drain);
+
+	li_stream_acquire(backend_drain);
+	vr->backend_drain = backend_drain;
+
+	/* connect in-queue */
+	if (NULL != vr->filters_in_last) {
+		li_stream_connect(vr->filters_in_last, vr->backend_drain);
+		li_stream_connect(vr->coninfo->req, vr->filters_in_first);
+	} else {
+		/* no filters */
+		li_stream_connect(vr->coninfo->req, vr->backend_drain);
+	}
+
+	li_stream_acquire(backend_source);
+	vr->backend_source = backend_source;
+
+	li_chunkqueue_set_limit(backend_source->out, vr->coninfo->resp->out->limit);
+
+	li_vrequest_joblist_append(vr);
+}
+
+/* received all response headers/status code - call once from your indirect handler */
+void li_vrequest_indirect_headers_ready(liVRequest* vr) {
+	assert(LI_VRS_HANDLE_RESPONSE_HEADERS > vr->state);
+
+	vr->state = LI_VRS_HANDLE_RESPONSE_HEADERS;
+
+	li_vrequest_joblist_append(vr);
+}
+
+
 
 gboolean li_vrequest_is_handled(liVRequest *vr) {
 	return vr->state >= LI_VRS_READ_CONTENT;
@@ -417,80 +326,13 @@ static liHandlerResult vrequest_do_handle_actions(liVRequest *vr) {
 	return LI_HANDLER_GO_ON;
 }
 
-
-static G_GNUC_WARN_UNUSED_RESULT gboolean vrequest_do_handle_read(liVRequest *vr) {
-	if (vr->backend && vr->backend->handle_request_body) {
-		goffset lim_avail;
-
-		if (vr->in->is_closed) vr->in_memory->is_closed = TRUE;
-		if (!filters_handle_out_close(vr, &vr->filters_in)) {
-			li_vrequest_error(vr);
-			return FALSE;
-		}
-		if (!filters_run(vr, &vr->filters_in)) {
-			li_vrequest_error(vr);
-			return FALSE;
-		}
-
-		if (vr->in_buffer_state.tempfile || vr->request.content_length < 0 || vr->request.content_length > 64*1024 ||
-			((lim_avail = li_chunkqueue_limit_available(vr->in)) <= 32*1024 && lim_avail >= 0)) {
-			switch (li_filter_buffer_on_disk(vr, vr->in, vr->in_memory, &vr->in_buffer_state)) {
-			case LI_HANDLER_GO_ON:
-				break;
-			case LI_HANDLER_COMEBACK:
-				li_vrequest_joblist_append(vr); /* come back later */
-				return FALSE;
-			case LI_HANDLER_WAIT_FOR_EVENT:
-				return FALSE;
-			case LI_HANDLER_ERROR:
-				li_vrequest_error(vr);
-				return FALSE;
-			}
-		} else {
-			li_chunkqueue_steal_all(vr->in, vr->in_memory);
-			if (vr->in_memory->is_closed) vr->in->is_closed = TRUE;
-		}
-
-		switch (vr->backend->handle_request_body(vr, vr->backend)) {
-		case LI_HANDLER_GO_ON:
-			break;
-		case LI_HANDLER_COMEBACK:
-			li_vrequest_joblist_append(vr); /* come back later */
-			return FALSE;
-		case LI_HANDLER_WAIT_FOR_EVENT:
-			return FALSE;
-		case LI_HANDLER_ERROR:
-			li_vrequest_error(vr);
-			return FALSE;
-		}
-	} else {
-		li_chunkqueue_skip_all(vr->vr_in);
-		if (vr->vr_in->is_closed) vr->in->is_closed = TRUE;
-	}
-	return TRUE;
-}
-
-static G_GNUC_WARN_UNUSED_RESULT gboolean vrequest_do_handle_write(liVRequest *vr) {
-	if (!filters_handle_out_close(vr, &vr->filters_out)) {
-		li_vrequest_error(vr);
-		return FALSE;
-	}
-	if (!filters_run(vr, &vr->filters_out)) {
-		li_vrequest_error(vr);
-		return FALSE;
-	}
-
-	if (!vr->coninfo->callbacks->handle_response_body(vr)) return FALSE;
-
-	return TRUE;
-}
-
 void li_vrequest_state_machine(liVRequest *vr) {
-	gboolean done = FALSE;
+	gboolean done;
 	do {
+		done = TRUE;
+
 		switch (vr->state) {
 		case LI_VRS_CLEAN:
-			done = TRUE;
 			break;
 
 		case LI_VRS_HANDLE_REQUEST_HEADERS:
@@ -504,33 +346,20 @@ void li_vrequest_state_machine(liVRequest *vr) {
 				li_vrequest_joblist_append(vr); /* come back later */
 				return;
 			case LI_HANDLER_WAIT_FOR_EVENT:
-				if (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS) return;
-				break; /* go on to get post data/response headers if request is already handled */
+				return;
 			case LI_HANDLER_ERROR:
 				li_vrequest_error(vr);
 				return;
 			}
 
-			if (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS) {
-				if (vr->request.http_method == LI_HTTP_METHOD_OPTIONS) {
-					vr->response.http_status = 200;
-					li_http_header_append(vr->response.headers, CONST_STR_LEN("Allow"), CONST_STR_LEN("OPTIONS, GET, HEAD, POST"));
-				} else {
-					/* unhandled request */
-					vr->response.http_status = 404;
-				}
-				li_vrequest_handle_direct(vr);
-			}
+			done = FALSE;
 
-			if (!vr->coninfo->callbacks->handle_request_headers(vr)) return;
 			break;
 
 		case LI_VRS_READ_CONTENT:
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "%s", "read content");
 			}
-			done = !vrequest_do_handle_read(vr);
-			done = done || (vr->state == LI_VRS_READ_CONTENT);
 			break;
 
 		case LI_VRS_HANDLE_RESPONSE_HEADERS:
@@ -541,32 +370,44 @@ void li_vrequest_state_machine(liVRequest *vr) {
 			case LI_HANDLER_GO_ON:
 				break;
 			case LI_HANDLER_COMEBACK:
+				li_vrequest_joblist_append(vr); /* come back later */
 				return;
 			case LI_HANDLER_WAIT_FOR_EVENT:
-				return; /* wait to handle response headers */
+				return;
 			case LI_HANDLER_ERROR:
 				li_vrequest_error(vr);
 				return;
 			}
-			if (!vr->coninfo->callbacks->handle_response_headers(vr)) return;
+
+			if (LI_VRS_HANDLE_RESPONSE_HEADERS != vr->state) break;
+
 			vr->state = LI_VRS_WRITE_CONTENT;
+
+			/* connect out-queue to signal that the headers are ready */
+			if (NULL != vr->direct_out) vr->direct_out->is_closed = TRUE; /* make sure this is closed for direct responses */
+			if (NULL != vr->filters_out_last) {
+				li_stream_connect(vr->backend_source, vr->filters_out_first);
+				li_stream_connect(vr->filters_out_last, vr->coninfo->resp);
+			} else {
+				/* no filters */
+				li_stream_connect(vr->backend_source, vr->coninfo->resp);
+			}
+
+			done = FALSE;
 			break;
 
 		case LI_VRS_WRITE_CONTENT:
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "%s", "write content");
 			}
-			if (!vrequest_do_handle_read(vr)) return;
-			if (!vrequest_do_handle_write(vr)) return;
-			done = TRUE;
 			break;
 
 		case LI_VRS_ERROR:
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "%s", "error");
 			}
-			if (!vr->coninfo->callbacks->handle_response_error(vr)) return;
-			return; /* stop anyway */
+			vr->coninfo->callbacks->handle_response_error(vr);
+			return;
 		}
 	} while (!done);
 }

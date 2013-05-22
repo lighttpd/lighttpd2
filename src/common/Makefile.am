@@ -1,6 +1,6 @@
 
 lib_LTLIBRARIES=liblighttpd2-common.la
-common_cflags=-I$(top_srcdir)/include -I$(top_builddir)/include
+common_cflags=-I$(top_builddir)/include -I$(top_srcdir)/include
 
 common_src= \
 	angel_connection.c \

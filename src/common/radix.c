@@ -87,11 +87,13 @@ gpointer li_radixtree_insert(liRadixTree *tree, const void *key, guint32 bits, g
 			/* split node */
 			liRadixNode *newnode;
 			guint32 width = (node->width > bits) ? bits : node->width;
+			assert(width <= RDXBITS);
 			mask = RDX_MASK(width);
 			while ((current & mask) != (node->key & mask)) {
 				width--;
 				mask <<= 1;
 			}
+			assert(width <= RDXBITS-1);
 			newnode = g_slice_new0(liRadixNode);
 			newnode->width = width;
 			newnode->key = current & mask;

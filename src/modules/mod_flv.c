@@ -110,7 +110,6 @@ static liHandlerResult flv(liVRequest *vr, gpointer param, gpointer *context) {
 
 		if (!li_vrequest_handle_direct(vr)) {
 			close(fd);
-
 			return LI_HANDLER_ERROR;
 		}
 
@@ -143,10 +142,10 @@ static liHandlerResult flv(liVRequest *vr, gpointer param, gpointer *context) {
 			pos = 0;
 
 		if (pos != 0)
-			li_chunkqueue_append_mem(vr->out, CONST_STR_LEN("FLV\x1\x1\0\0\0\x9\0\0\0\x9"));
+			li_chunkqueue_append_mem(vr->direct_out, CONST_STR_LEN("FLV\x1\x1\0\0\0\x9\0\0\0\x9"));
 
 		cf = li_chunkfile_new(NULL, fd, FALSE);
-		li_chunkqueue_append_chunkfile(vr->out, cf, pos, st.st_size - pos);
+		li_chunkqueue_append_chunkfile(vr->direct_out, cf, pos, st.st_size - pos);
 		li_chunkfile_release(cf);
 	}
 

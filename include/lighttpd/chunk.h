@@ -50,10 +50,10 @@ struct liChunk {
 	GList cq_link;
 };
 
-typedef void (*liCQLimitNotifyCB)(liVRequest *vr, gpointer context, gboolean locked);
+typedef void (*liCQLimitNotifyCB)(gpointer context, gboolean locked);
 struct liCQLimit {
 	gint refcount;
-	liVRequest *vr;
+	struct ev_loop *loop;
 
 	goffset limit, current;
 	gboolean locked;
@@ -124,7 +124,7 @@ INLINE goffset li_chunk_length(liChunk *c);
  *    cqlimit     *
  ******************/
 
-LI_API liCQLimit* li_cqlimit_new(liVRequest *vr);
+LI_API liCQLimit* li_cqlimit_new(struct ev_loop *loop);
 LI_API void li_cqlimit_reset(liCQLimit *cql);
 LI_API void li_cqlimit_acquire(liCQLimit *cql);
 LI_API void li_cqlimit_release(liCQLimit *cql);
@@ -138,7 +138,7 @@ LI_API liChunkQueue* li_chunkqueue_new();
 LI_API void li_chunkqueue_reset(liChunkQueue *cq);
 LI_API void li_chunkqueue_free(liChunkQueue *cq);
 
-LI_API void li_chunkqueue_use_limit(liChunkQueue *cq, liVRequest *vr);
+LI_API void li_chunkqueue_use_limit(liChunkQueue *cq, struct ev_loop *loop, goffset limit);
 LI_API void li_chunkqueue_set_limit(liChunkQueue *cq, liCQLimit* cql);
 /* return -1 for unlimited, 0 for full and n > 0 for n bytes free */
 LI_API goffset li_chunkqueue_limit_available(liChunkQueue *cq);

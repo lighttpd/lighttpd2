@@ -20,4 +20,7 @@ LI_API liHandlerResult li_filter_buffer_on_disk(liVRequest *vr, liChunkQueue *ou
 LI_API void li_filter_buffer_on_disk_reset(liFilterBufferOnDiskState *state);
 
 
+LI_API liHandlerResult li_filter_buffer_on_disk_cb(liVRequest *vr, liFilter *f);
+LI_API void li_filter_buffer_on_disk_free_cb(liVRequest *vr, liFilter *f);
+
 #endif

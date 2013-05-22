@@ -213,6 +213,7 @@ SET(LIGHTTPD_SHARED_SRC
 	connection.c
 	environment.c
 	etag.c
+	filter.c
 	filter_chunked.c
 	filter_buffer_on_disk.c
 	http_headers.c
@@ -240,7 +241,6 @@ SET(LIGHTTPD_SHARED_SRC
 	value.c
 	virtualrequest.c
 	worker.c
-
 	plugin_core.c
 )
 
@@ -322,16 +322,16 @@ TARGET_LINK_LIBRARIES(lighttpd2 lighttpd-${PACKAGE_VERSION}-common lighttpd-${PA
 SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd2-worker lighttpd2 lighttpd-${PACKAGE_VERSION}-common lighttpd-${PACKAGE_VERSION}-shared lighttpd-${PACKAGE_VERSION}-sharedangel)
 
 IF(BUILD_EXTRA_WARNINGS)
-	SET(WARN_CFLAGS "-g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wcast-align -Wsign-compare -Wnested-externs -Wpointer-arith")
-	SET(WARN_LDFLAGS "-g -O2 -g2 -Wall -Wl,--as-needed")
+	SET(WARN_CFLAGS " -g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wcast-align -Wsign-compare -Wnested-externs -Wpointer-arith")
+	SET(WARN_LDFLAGS " -g -O2 -g2 -Wall -Wl,--as-needed")
 	# -Werror -Wbad-function-cast -Wmissing-prototypes
 ELSE(BUILD_EXTRA_WARNINGS)
 	SET(WARN_CFLAGS "")
 	SET(WARN_LDFLAGS "")
 ENDIF(BUILD_EXTRA_WARNINGS)
 
-SET(COMMON_LDFLAGS "${LUA_LDFLAGS} ${LIBEV_LDFLAGS} ${GTHREAD_LDFLAGS} ${GMODULE_LDFLAGS} ${WARN_LDFLAGS}")
-SET(COMMON_CFLAGS "${LUA_CFLAGS} ${LIBEV_CFLAGS} ${GTHREAD_CFLAGS} ${GMODULE_CFLAGS} ${WARN_CFLAGS}")
+SET(COMMON_LDFLAGS "${LUA_LDFLAGS} ${LIBEV_LDFLAGS} ${GTHREAD_LDFLAGS} ${GMODULE_LDFLAGS}${WARN_LDFLAGS}")
+SET(COMMON_CFLAGS "${LUA_CFLAGS} ${LIBEV_CFLAGS} ${GTHREAD_CFLAGS} ${GMODULE_CFLAGS}${WARN_CFLAGS}")
 
 ADD_AND_INSTALL_LIBRARY(mod_access "modules/mod_access.c")
 ADD_AND_INSTALL_LIBRARY(mod_accesslog "modules/mod_accesslog.c")
@@ -367,16 +367,16 @@ IF(WITH_LUA)
 ENDIF(WITH_LUA)
 
 IF(WITH_GNUTLS)
-  ADD_AND_INSTALL_LIBRARY(mod_gnutls "modules/mod_gnutls.c")
-  TARGET_LINK_LIBRARIES(mod_gnutls ${GNUTLS_LDFLAGS})
-  ADD_TARGET_PROPERTIES(mod_gnutls COMPILE_FLAGS ${GNUTLS_CFLAGS})
+#   ADD_AND_INSTALL_LIBRARY(mod_gnutls "modules/mod_gnutls.c")
+#   TARGET_LINK_LIBRARIES(mod_gnutls ${GNUTLS_LDFLAGS})
+#   ADD_TARGET_PROPERTIES(mod_gnutls COMPILE_FLAGS ${GNUTLS_CFLAGS})
 ENDIF(WITH_GNUTLS)
 
-IF(HAVE_LIBSSL AND HAVE_LIBCRYPTO)
+IF(WITH_OPENSSL)
   ADD_AND_INSTALL_LIBRARY(mod_openssl "modules/mod_openssl.c")
   TARGET_LINK_LIBRARIES(mod_openssl ssl)
   TARGET_LINK_LIBRARIES(mod_openssl crypto)
-ENDIF(HAVE_LIBSSL AND HAVE_LIBCRYPTO)
+ENDIF(WITH_OPENSSL)
 
 TARGET_LINK_LIBRARIES(lighttpd-${PACKAGE_VERSION}-common ${COMMON_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd-${PACKAGE_VERSION}-common COMPILE_FLAGS ${COMMON_CFLAGS})

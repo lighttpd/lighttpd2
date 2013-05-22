@@ -90,6 +90,7 @@ static void scgi_context_release(scgi_context *ctx) {
 	}
 }
 
+#if 0
 static void scgi_context_acquire(scgi_context *ctx) {
 	assert(g_atomic_int_get(&ctx->refcount) > 0);
 	g_atomic_int_inc(&ctx->refcount);
@@ -521,7 +522,18 @@ static void scgi_close(liVRequest *vr, liPlugin *p) {
 		scgi_connection_free(scon);
 	}
 }
+#endif
 
+static liHandlerResult scgi_handle(liVRequest *vr, gpointer param, gpointer *context) {
+	UNUSED(param);
+	UNUSED(context);
+
+	if (!li_vrequest_handle_direct(vr)) return LI_HANDLER_GO_ON;
+
+	vr->response.http_status = 503;
+
+	return LI_HANDLER_GO_ON;
+}
 
 static void scgi_free(liServer *srv, gpointer param) {
 	scgi_context *ctx = (scgi_context*) param;
@@ -567,8 +579,10 @@ static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->actions = actions;
 	p->setups = setups;
 
+#if 0
 	p->handle_request_body = scgi_handle_request_body;
 	p->handle_vrclose = scgi_close;
+#endif
 }
 
 

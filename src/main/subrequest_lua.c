@@ -31,19 +31,17 @@ static int lua_subrequest_gc(lua_State *L);
 typedef int (*lua_Subrequest_Attrib)(liSubrequest *sr, lua_State *L);
 
 static int lua_subrequest_attr_read_in(liSubrequest *sr, lua_State *L) {
-	if (NULL == sr->vr) { lua_pushnil(L); return 1; }
-	li_lua_push_chunkqueue(L, sr->vr->vr_in);
+	li_lua_push_chunkqueue(L, sr->coninfo.req->out);
 	return 1;
 }
 
 static int lua_subrequest_attr_read_out(liSubrequest *sr, lua_State *L) {
-	if (NULL == sr->vr) { lua_pushnil(L); return 1; }
-	li_lua_push_chunkqueue(L, sr->vr->vr_out);
+	li_lua_push_chunkqueue(L, sr->coninfo.resp->out);
 	return 1;
 }
 
 static int lua_subrequest_attr_read_is_done(liSubrequest *sr, lua_State *L) {
-	lua_pushboolean(L, (NULL == sr->vr) || sr->vr->vr_out->is_closed);
+	lua_pushboolean(L, sr->coninfo.resp->out->is_closed);
 	return 1;
 }
 
@@ -249,14 +247,14 @@ static void subvr_bind_lua(liSubrequest *sr, liLuaState *LL, int notify_ndx, int
 static void subvr_check(liVRequest *vr) {
 	liSubrequest *sr = LI_CONTAINER_OF(vr->coninfo, liSubrequest, coninfo);
 
-	if (sr->notified_out_bytes < vr->vr_out->bytes_in
-	 || sr->notified_out_closed != vr->vr_out->is_closed
+	if (sr->notified_out_bytes < sr->coninfo.resp->out->bytes_in
+	 || sr->notified_out_closed != sr->coninfo.resp->out->is_closed
 	 || sr->notified_response_headers != sr->have_response_headers) {
 		subvr_run_lua(sr, sr->func_notify_ref);
 	}
 
-	sr->notified_out_bytes = vr->vr_out->bytes_in;
-	sr->notified_out_closed = vr->vr_out->is_closed;
+	sr->notified_out_bytes = sr->coninfo.resp->out->bytes_in;
+	sr->notified_out_closed = sr->coninfo.resp->out->is_closed;
 	sr->notified_response_headers = sr->have_response_headers;
 
 	if (sr->notified_out_closed) { /* reques done */
@@ -264,22 +262,7 @@ static void subvr_check(liVRequest *vr) {
 	}
 }
 
-static G_GNUC_WARN_UNUSED_RESULT gboolean subvr_handle_response_headers(liVRequest *vr) {
-	liSubrequest *sr = LI_CONTAINER_OF(vr->coninfo, liSubrequest, coninfo);
-	sr->have_response_headers = TRUE;
-
-	subvr_check(vr);
-
-	return TRUE;
-}
-
-static G_GNUC_WARN_UNUSED_RESULT gboolean subvr_handle_response_body(liVRequest *vr) {
-	subvr_check(vr);
-
-	return TRUE;
-}
-
-static G_GNUC_WARN_UNUSED_RESULT gboolean subvr_handle_response_error(liVRequest *vr) {
+static void subvr_handle_response_error(liVRequest *vr) {
 	liSubrequest *sr = LI_CONTAINER_OF(vr->coninfo, liSubrequest, coninfo);
 
 	li_vrequest_free(sr->vr);
@@ -287,28 +270,14 @@ static G_GNUC_WARN_UNUSED_RESULT gboolean subvr_handle_response_error(liVRequest
 
 	subvr_run_lua(sr, sr->func_error_ref);
 	subvr_release_lua(sr);
-
-	return FALSE;
 }
 
-static G_GNUC_WARN_UNUSED_RESULT gboolean subvr_handle_request_headers(liVRequest *vr) {
+static void subvr_handle_check_io(liVRequest *vr) {
 	subvr_check(vr);
-
-	return TRUE;
-}
-
-static gboolean subvr_handle_check_io(liVRequest *vr) {
-	subvr_check(vr);
-
-	return TRUE;
 }
 
 const liConCallbacks subrequest_callbacks = {
-	subvr_handle_request_headers,
-	subvr_handle_response_headers,
-	subvr_handle_response_body,
 	subvr_handle_response_error,
-
 	subvr_handle_check_io
 };
 
@@ -327,6 +296,9 @@ static liSubrequest* subrequest_new(liVRequest *vr) {
 	sr->coninfo.is_ssl = vr->coninfo->is_ssl;
 	sr->coninfo.keep_alive = FALSE; /* doesn't mean anything here anyway */
 
+	sr->coninfo.req = li_stream_null_new(&vr->wrk->jobqueue);
+	sr->coninfo.resp = li_stream_plug_new(&vr->wrk->jobqueue);
+
 	sr->vr = li_vrequest_new(vr->wrk, &sr->coninfo);
 
 	li_vrequest_start(sr->vr);
@@ -334,7 +306,6 @@ static liSubrequest* subrequest_new(liVRequest *vr) {
 	li_request_copy(&sr->vr->request, &vr->request);
 
 	sr->vr->request.content_length = 0;
-	sr->vr->vr_in->is_closed = TRUE;
 
 	return sr;
 }

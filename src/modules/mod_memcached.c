@@ -340,7 +340,7 @@ static liHandlerResult mc_handle_lookup(liVRequest *vr, gpointer param, gpointer
 			VR_DEBUG(vr, "%s", "memcached.lookup: key found, handling request");
 		}
 
-		li_chunkqueue_append_buffer(vr->out, buf);
+		li_chunkqueue_append_buffer(vr->direct_out, buf);
 
 		vr->response.http_status = 200;
 
@@ -533,7 +533,7 @@ static liHandlerResult mc_handle_store(liVRequest *vr, gpointer param, gpointer 
 	mc_ctx_acquire(ctx);
 	mf->buf = li_buffer_new(ctx->maxsize);
 
-	li_vrequest_add_filter_out(vr, memcache_store_filter, memcache_store_filter_free, mf);
+	li_vrequest_add_filter_out(vr, memcache_store_filter, memcache_store_filter_free, NULL, mf);
 
 	return LI_HANDLER_GO_ON;
 }

@@ -337,7 +337,7 @@ void li_throttle_cb(liWaitQueue *wq, gpointer data) {
 				vr->throttle.magazine += vr->throttle.con.rate / 1000 * THROTTLE_GRANULARITY;
 		}
 
-		if (!vr->coninfo->callbacks->handle_check_io(vr)) continue; /* vr got reset */
+		// TODO: vr->coninfo->callbacks->handle_check_io(vr);
 
 		if (vr->throttle.magazine <= 0)
 			li_throttle_update(vr, 0, 0);

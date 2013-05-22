@@ -189,6 +189,7 @@ static inline void mp_free_page(const void *ptr, gsize size) {
 # ifdef MAP_ANON
 	munmap((void*) ptr, size);
 # else
+	UNUSED(size);
 	g_free(ptr);
 # endif
 

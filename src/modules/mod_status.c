@@ -413,7 +413,7 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->query = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.query));
 		cd->method = c->mainvr->request.http_method;
 		cd->request_size = c->mainvr->request.content_length;
-		cd->response_size = c->mainvr->out->bytes_out;
+		cd->response_size = (NULL != c->mainvr->backend_source) ? c->mainvr->backend_source->out->bytes_out : 0;
 		cd->state = c->state;
 		cd->bytes_in = c->info.stats.bytes_in;
 		cd->bytes_out = c->info.stats.bytes_out;
@@ -531,9 +531,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			html = status_info_full(vr, p, short_info, result, uptime, &totals, total_connections, &connection_count[0]);
 		}
 
-		li_chunkqueue_append_string(vr->out, html);
-		vr->response.http_status = 200;
 		li_vrequest_handle_direct(vr);
+		vr->response.http_status = 200;
+		li_chunkqueue_append_string(vr->direct_out, html);
 		li_vrequest_joblist_append(vr);
 
 		/* free stats */
@@ -1251,11 +1251,11 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 		"</html>\n"
 	));
 
-	li_chunkqueue_append_string(vr->out, html);
+	li_vrequest_handle_direct(vr);
+	li_chunkqueue_append_string(vr->direct_out, html);
 	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html; charset=utf-8"));
 
 	vr->response.http_status = 200;
-	li_vrequest_handle_direct(vr);
 
 	g_string_free(tmp_str, TRUE);
 

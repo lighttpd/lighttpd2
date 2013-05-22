@@ -34,19 +34,10 @@ typedef enum {
 	LI_VRS_ERROR
 } liVRequestState;
 
-typedef liHandlerResult (*liFilterHandlerCB)(liVRequest *vr, liFilter *f);
-typedef void (*liFilterFreeCB)(liVRequest *vr, liFilter *f);
-typedef G_GNUC_WARN_UNUSED_RESULT gboolean (*liVRequestHandlerCB)(liVRequest *vr);
-typedef liHandlerResult (*liVRequestPluginHandlerCB)(liVRequest *vr, liPlugin *p);
-typedef gboolean (*liVRequestCheckIOCB)(liVRequest *vr);
+typedef void (*liVRequestHandlerCB)(liVRequest *vr);
 
 struct liConCallbacks {
-	liVRequestHandlerCB
-		handle_request_headers,
-		handle_response_headers, handle_response_body,
-		handle_response_error; /* this is _not_ for 500 - internal error */
-
-	liVRequestCheckIOCB handle_check_io;
+	liVRequestHandlerCB handle_response_error; /* this is _not_ for 500 - internal error */
 };
 
 /* this data "belongs" to a vrequest, but is updated by the connection code */
@@ -57,6 +48,10 @@ struct liConInfo {
 	GString *remote_addr_str, *local_addr_str;
 	gboolean is_ssl;
 	gboolean keep_alive;
+	gboolean aborted; /* network aborted connection before response was sent completely */
+
+	liStream *req;
+	liStream *resp;
 
 	/* bytes in our "raw-io-out-queue" that hasn't be sent yet. (whatever "sent" means - in ssl buffer, kernel, ...) */
 	goffset out_queue_length;
@@ -73,20 +68,6 @@ struct liConInfo {
 	} stats;
 };
 
-struct liFilter {
-	liChunkQueue *in, *out;
-	liFilterHandlerCB handle_data;
-	liFilterFreeCB handle_free;
-	gpointer param;
-	/* do not modify these yourself: */
-	gboolean knows_out_is_closed, done;
-};
-
-struct liFilters {
-	GPtrArray *queue;
-	liChunkQueue *in, *out;
-};
-
 struct liVRequest {
 	liConInfo *coninfo;
 	liWorker *wrk;
@@ -101,7 +82,6 @@ struct liVRequest {
 	ev_tstamp ts_started;
 
 	GPtrArray *plugin_ctx;
-	liPlugin *backend;
 
 	liRequest request;
 	liPhysical physical;
@@ -111,14 +91,18 @@ struct liVRequest {
 	liEnvironment env;
 
 	/* -> vr_in -> filters_in -> in_memory ->(buffer_on_disk) -> in -> handle -> out -> filters_out -> vr_out -> */
-	gboolean cq_memory_limit_hit; /* stop feeding chunkqueues with memory chunks */
-	liFilters filters_in, filters_out;
-	liChunkQueue *vr_in, *vr_out, *in_memory;
-	liChunkQueue *in, *out;
+	GPtrArray *filters;
+	liStream *filters_in_last, *filters_out_last;
+	liStream *filters_in_first, *filters_out_first;
+
 	liFilterBufferOnDiskState in_buffer_state;
 
+	liPlugin *backend;
+	liStream *backend_source;
+	liStream *backend_drain;
+	liChunkQueue *direct_out; /* NULL for indirect responses, backend_source->out for direct responses. do not set this yourself for indirect responses! */
+
 	liActionStack action_stack;
-	gboolean actions_wait_for_response;
 
 	liJob job;
 
@@ -166,9 +150,6 @@ LI_API void li_vrequest_free(liVRequest *vr);
  */
 LI_API void li_vrequest_reset(liVRequest *vr, gboolean keepalive);
 
-LI_API liFilter* li_vrequest_add_filter_in(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
-LI_API liFilter* li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_data, liFilterFreeCB handle_free, gpointer param);
-
 /* Signals an internal error; handles the error in the _next_ loop */
 LI_API void li_vrequest_error(liVRequest *vr);
 
@@ -181,18 +162,18 @@ LI_API void li_vrequest_backend_finished(liVRequest *vr); /* action.c */
 LI_API void li_vrequest_start(liVRequest *vr);
 /* received all request headers */
 LI_API void li_vrequest_handle_request_headers(liVRequest *vr);
-/* received (partial) request content */
-LI_API void li_vrequest_handle_request_body(liVRequest *vr);
-/* received all response headers/status code - call once from your indirect handler */
-LI_API void li_vrequest_handle_response_headers(liVRequest *vr);
-/* received (partial) response content - call from your indirect handler */
-LI_API void li_vrequest_handle_response_body(liVRequest *vr);
 
-/* response completely ready */
+/* response completely ready; use this only in action callbacks */
 LI_API gboolean li_vrequest_handle_direct(liVRequest *vr);
+/* check whether the request is already handled */
+LI_API gboolean li_vrequest_is_handled(liVRequest *vr);
+
 /* handle request over time */
 LI_API gboolean li_vrequest_handle_indirect(liVRequest *vr, liPlugin *p);
-LI_API gboolean li_vrequest_is_handled(liVRequest *vr);
+/* signal that backend connection is ready - after this a backend error might result in a internal error */
+LI_API void li_vrequest_indirect_connect(liVRequest *vr, liStream *backend_drain, liStream *backend_source);
+/* received all response headers/status code - call once from your indirect handler */
+LI_API void li_vrequest_indirect_headers_ready(liVRequest *vr);
 
 LI_API void li_vrequest_state_machine(liVRequest *vr);
 LI_API void li_vrequest_joblist_append(liVRequest *vr);

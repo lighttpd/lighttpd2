@@ -10,12 +10,12 @@
 typedef int (*lua_VRequest_Attrib)(liVRequest *vr, lua_State *L);
 
 static int lua_vrequest_attr_read_in(liVRequest *vr, lua_State *L) {
-	li_lua_push_chunkqueue(L, vr->in);
+	li_lua_push_chunkqueue(L, (NULL != vr->backend_drain) ? vr->backend_drain->out : NULL);
 	return 1;
 }
 
 static int lua_vrequest_attr_read_out(liVRequest *vr, lua_State *L) {
-	li_lua_push_chunkqueue(L, vr->out);
+	li_lua_push_chunkqueue(L, (NULL != vr->backend_source) ? vr->backend_source->out : NULL);
 	return 1;
 }
 

@@ -90,7 +90,6 @@ void li_request_copy(liRequest *dest, const liRequest *src) {
 static void bad_request(liConnection *con, int status) {
 	con->info.keep_alive = FALSE;
 	con->mainvr->response.http_status = status;
-	li_vrequest_handle_direct(con->mainvr);
 }
 
 static gboolean request_parse_url(liVRequest *vr) {

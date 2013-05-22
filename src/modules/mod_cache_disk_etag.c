@@ -245,9 +245,8 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 		if (vr->response.http_status != 200) return LI_HANDLER_GO_ON;
 
 		/* Don't cache static files if filter list is empty */
-		if (0 == vr->filters_out.queue->len &&
-		    vr->out->is_closed &&
-			0 == vr->out->mem_usage) return LI_HANDLER_GO_ON;
+		if (NULL == vr->filters_out_first && vr->backend_source->out->is_closed && 0 == vr->backend_source->out->mem_usage)
+			return LI_HANDLER_GO_ON;
 
 		etag_entry = li_http_header_find_first(vr->response.headers, CONST_STR_LEN("etag"));
 		if (!etag_entry) return LI_HANDLER_GO_ON; /* no etag -> no caching */
@@ -282,7 +281,7 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 		g_string_truncate(tmp_str, 0);
 		li_string_append_int(tmp_str, st.st_size);
 		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(tmp_str));
-		f = li_vrequest_add_filter_out(vr, cache_etag_filter_hit, cache_etag_filter_free, cfile);
+		f = li_vrequest_add_filter_out(vr, cache_etag_filter_hit, cache_etag_filter_free, NULL, cfile);
 		f->in->is_closed = TRUE;
 		*context = NULL;
 		return LI_HANDLER_GO_ON;
@@ -297,7 +296,7 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 		return LI_HANDLER_GO_ON; /* no caching */
 	}
 
-	li_vrequest_add_filter_out(vr, cache_etag_filter_miss, cache_etag_filter_free, cfile);
+	li_vrequest_add_filter_out(vr, cache_etag_filter_miss, cache_etag_filter_free, NULL, cfile);
 	*context = NULL;
 
 	return LI_HANDLER_GO_ON;

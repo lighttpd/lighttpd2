@@ -101,7 +101,7 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->con_ndx = i;
 		cd->con = c;
 		cd->io_timeout_elem = c->io_timeout_elem;
-		cd->fd = c->sock_watcher.fd;
+		cd->fd = -1;
 		cd->is_ssl = c->info.is_ssl;
 		cd->keep_alive = c->info.keep_alive;
 		cd->remote_addr_str = g_string_new_len(GSTR_LEN(c->info.remote_addr_str));
@@ -111,7 +111,7 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->query = g_string_new_len(GSTR_LEN(c->mainvr->request.uri.query));
 		cd->method = c->mainvr->request.http_method;
 		cd->request_size = c->mainvr->request.content_length;
-		cd->response_size = c->mainvr->out->bytes_out;
+		cd->response_size = (NULL != c->mainvr->backend_source) ? c->mainvr->backend_source->out->bytes_out : 0;
 		cd->state = c->state;
 		cd->ts_started = c->ts_started;
 		cd->bytes_in = c->info.stats.bytes_in;
@@ -121,7 +121,7 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 
 		if (job->detailed.remote_addr_str) {
 			if (job->detailed.wrk_ndx == wrk->ndx && job->detailed.con_ndx == i &&
-				job->detailed.fd == c->sock_watcher.fd && g_string_equal(job->detailed.remote_addr_str, c->info.remote_addr_str)) {
+				job->detailed.fd == cd->fd && g_string_equal(job->detailed.remote_addr_str, c->info.remote_addr_str)) {
 
 				cd->detailed = g_string_sized_new(1023);
 				g_string_append_printf(cd->detailed, "<pre>connection* @ %p = {\n", (void*)cd->con);
@@ -266,10 +266,15 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 
 	g_string_append_len(html, CONST_STR_LEN("</body>\n</html>\n"));
 
-	li_chunkqueue_append_string(vr->out, html);
-	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html"));
-	vr->response.http_status = 200;
-	li_vrequest_joblist_append(vr);
+	if (li_vrequest_handle_direct(vr)) {
+		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html; charset=utf-8"));
+		vr->response.http_status = 200;
+
+		li_chunkqueue_append_string(vr->direct_out, html);
+		li_vrequest_joblist_append(vr);
+	} else {
+		g_string_free(html, TRUE);
+	}
 
 	if (job->detailed.remote_addr_str)
 		g_string_free(job->detailed.remote_addr_str, TRUE);
@@ -288,6 +293,8 @@ static liHandlerResult debug_show_connections_cleanup(liVRequest *vr, gpointer p
 }
 
 static liHandlerResult debug_show_connections(liVRequest *vr, gpointer param, gpointer *context) {
+	liPlugin *p = (liPlugin*) param;
+
 	switch (vr->request.http_method) {
 	case LI_HTTP_METHOD_GET:
 	case LI_HTTP_METHOD_HEAD:
@@ -296,12 +303,15 @@ static liHandlerResult debug_show_connections(liVRequest *vr, gpointer param, gp
 		return LI_HANDLER_GO_ON;
 	}
 
-	if (li_vrequest_handle_direct(vr)) {
+	if (NULL != *context)
+		return LI_HANDLER_WAIT_FOR_EVENT;
+
+	if (!li_vrequest_is_handled(vr)) {
 		liCollectInfo *ci;
 		mod_debug_job_t *j = g_slice_new0(mod_debug_job_t);
 		j->vr = vr;
 		j->context = context;
-		j->p = (liPlugin*) param;
+		j->p = p;
 
 		if (vr->request.uri.query->len) {
 			/* querystring = <wrk_ndx>_<con_ndx>_<con_fd>_<remote_addr_str> */

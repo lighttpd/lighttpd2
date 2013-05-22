@@ -262,7 +262,7 @@ static liHandlerResult filter_lua_in(liVRequest *vr, gpointer param, gpointer *c
 	UNUSED(context);
 
 	if (state) {
-		li_vrequest_add_filter_in(vr, filter_lua_handle, filter_lua_free, state);
+		li_vrequest_add_filter_in(vr, filter_lua_handle, filter_lua_free, NULL, state);
 	}
 
 	return LI_HANDLER_GO_ON;
@@ -274,7 +274,7 @@ static liHandlerResult filter_lua_out(liVRequest *vr, gpointer param, gpointer *
 	UNUSED(context);
 
 	if (state) {
-		li_vrequest_add_filter_out(vr, filter_lua_handle, filter_lua_free, state);
+		li_vrequest_add_filter_out(vr, filter_lua_handle, filter_lua_free, NULL, state);
 	}
 
 	return LI_HANDLER_GO_ON;
@@ -342,7 +342,7 @@ liFilter* li_lua_vrequest_add_filter_in(lua_State *L, liVRequest *vr, int state_
 	state->LL = LL;
 	state->object_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
-	return li_vrequest_add_filter_in(vr, filter_lua_handle, filter_lua_free, state);
+	return li_vrequest_add_filter_in(vr, filter_lua_handle, filter_lua_free, NULL, state);
 }
 
 liFilter* li_lua_vrequest_add_filter_out(lua_State *L, liVRequest *vr, int state_ndx) {
@@ -355,5 +355,5 @@ liFilter* li_lua_vrequest_add_filter_out(lua_State *L, liVRequest *vr, int state
 	state->LL = LL;
 	state->object_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
-	return li_vrequest_add_filter_out(vr, filter_lua_handle, filter_lua_free, state);
+	return li_vrequest_add_filter_out(vr, filter_lua_handle, filter_lua_free, NULL, state);
 }

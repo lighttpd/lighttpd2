@@ -80,6 +80,10 @@ typedef struct liCondition liCondition;
 
 typedef struct liConnection liConnection;
 
+/* filter.h */
+
+typedef struct liFilter liFilter;
+
 /* http_headers.h */
 
 typedef struct liHttpHeader liHttpHeader;
@@ -267,10 +271,6 @@ typedef struct liConCallbacks liConCallbacks;
 typedef struct liConInfo liConInfo;
 
 typedef struct liVRequest liVRequest;
-
-typedef struct liFilter liFilter;
-
-typedef struct liFilters liFilters;
 
 /* worker.h */
 

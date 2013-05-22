@@ -158,9 +158,9 @@ static void progress_vrclose(liVRequest *vr, liPlugin *p) {
 		/* connection is being tracked, replace with tombstone */
 		node->vr = NULL;
 		node->request_size = vr->request.content_length;
-		node->response_size = vr->out->bytes_out;
-		node->bytes_in = vr->vr_in->bytes_in;
-		node->bytes_out = MAX(0, vr->vr_out->bytes_out - vr->coninfo->out_queue_length);
+		node->response_size = vr->coninfo->resp->out->bytes_in;
+		node->bytes_in = vr->coninfo->req->out->bytes_in;
+		node->bytes_out = MAX(0, vr->coninfo->resp->out->bytes_in - vr->coninfo->out_queue_length);
 		node->status_code = vr->response.http_status;
 		li_waitqueue_push(&pd->worker_data[vr->wrk->ndx].timeout_queue, &(node->timeout_queue_elem));
 	}
@@ -229,9 +229,9 @@ static gpointer progress_collect_func(liWorker *wrk, gpointer fdata) {
 		/* copy live data */
 		node_new->vr = node->vr;
 		node_new->request_size = node->vr->request.content_length;
-		node_new->response_size = node->vr->out->bytes_out;
-		node_new->bytes_in = node->vr->vr_in->bytes_in;
-		node_new->bytes_out = MAX(0, node->vr->vr_out->bytes_out - node->vr->coninfo->out_queue_length);
+		node_new->response_size = (NULL != node->vr->backend_source) ? node->vr->backend_source->out->bytes_out : 0;
+		node_new->bytes_in = node->vr->coninfo->req->out->bytes_in;
+		node_new->bytes_out = MAX(0, node->vr->coninfo->resp->out->bytes_in - node->vr->coninfo->out_queue_length);
 		node_new->status_code = node->vr->response.http_status;
 	} else {
 		/* copy dead data */
@@ -331,10 +331,13 @@ static void progress_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *resu
 			g_string_append_c(output, ')');
 		}
 
-		vr->response.http_status = 200;
-		li_chunkqueue_append_string(vr->out, output);
-		li_vrequest_handle_direct(vr);
-		li_vrequest_joblist_append(vr);
+		if (li_vrequest_handle_direct(vr)) {
+			vr->response.http_status = 200;
+			li_chunkqueue_append_string(vr->direct_out, output);
+			li_vrequest_joblist_append(vr);
+		} else {
+			g_string_free(output, TRUE);
+		}
 	}
 
 	/* free results */

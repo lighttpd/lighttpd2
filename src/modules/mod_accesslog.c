@@ -251,11 +251,11 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				g_string_append_len(str, GSTR_LEN(vr->coninfo->local_addr_str));
 				break;
 			case AL_FORMAT_BYTES_RESPONSE:
-				li_string_append_int(str, vr->vr_out->bytes_out);
+				li_string_append_int(str, (NULL != vr->coninfo->resp) ? vr->coninfo->resp->out->bytes_out : 0);
 				break;
 			case AL_FORMAT_BYTES_RESPONSE_CLF:
-				if (vr->vr_out->bytes_out)
-					li_string_append_int(str, vr->vr_out->bytes_out);
+				if (NULL != vr->coninfo->resp && vr->coninfo->resp->out->bytes_out)
+					li_string_append_int(str, vr->coninfo->resp->out->bytes_out);
 				else
 					g_string_append_c(str, '-');
 				break;
@@ -350,9 +350,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				break;
 			case AL_FORMAT_CONNECTION_STATUS: {
 					/* was request completed? */
-					liConnection *con = li_connection_from_vrequest(vr); /* try to get a connection object */
-
-					if (con && (con->in->is_closed && con->raw_out->is_closed && 0 == con->raw_out->length)) {
+					if (vr->coninfo->aborted) {
 						g_string_append_c(str, 'X');
 					} else {
 						g_string_append_c(str, vr->coninfo->keep_alive ? '+' : '-');

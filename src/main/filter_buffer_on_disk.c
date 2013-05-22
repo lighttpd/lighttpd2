@@ -136,3 +136,30 @@ liHandlerResult li_filter_buffer_on_disk(liVRequest *vr, liChunkQueue *out, liCh
 void li_filter_buffer_on_disk_reset(bod_state *state) {
 	bod_close(state);
 }
+
+liHandlerResult li_filter_buffer_on_disk_cb(liVRequest *vr, liFilter *f) {
+	goffset lim_avail;
+	bod_state *state = f->param;
+
+	if (NULL == state) state = &vr->in_buffer_state;
+
+	if (state->tempfile || vr->request.content_length < 0 || vr->request.content_length > 64*1024 ||
+		((lim_avail = li_chunkqueue_limit_available(f->in)) <= 32*1024 && lim_avail >= 0)) {
+		return li_filter_buffer_on_disk(vr, f->out, f->in, state);
+	} else {
+		li_chunkqueue_steal_all(f->out, f->in);
+		if (f->in->is_closed) f->out->is_closed = TRUE;
+		return LI_HANDLER_GO_ON;
+	}
+}
+
+void li_filter_buffer_on_disk_free_cb(liVRequest *vr, liFilter *f) {
+	bod_state *state = f->param;
+
+	if (NULL == state) {
+		li_filter_buffer_on_disk_reset(&vr->in_buffer_state);
+	} else {
+		li_filter_buffer_on_disk_reset(state);
+		g_slice_free(bod_state, state);
+	}
+}

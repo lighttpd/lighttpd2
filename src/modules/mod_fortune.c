@@ -79,9 +79,9 @@ static liHandlerResult fortune_page_handle(liVRequest *vr, gpointer param, gpoin
 
 	if (fd->cookies->len) {
 		GString *cookie = fortune_rand(fd);
-		li_chunkqueue_append_mem(vr->out, GSTR_LEN(cookie));
+		li_chunkqueue_append_mem(vr->direct_out, GSTR_LEN(cookie));
 	} else {
-		li_chunkqueue_append_mem(vr->out, CONST_STR_LEN("no cookies in the cookie box"));
+		li_chunkqueue_append_mem(vr->direct_out, CONST_STR_LEN("no cookies in the cookie box"));
 	}
 
 	return LI_HANDLER_GO_ON;

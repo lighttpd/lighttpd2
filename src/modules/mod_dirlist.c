@@ -270,9 +270,9 @@ static void try_append_file(liVRequest *vr, GString **curbuf, const gchar *filen
 		}
 
 		/* flush current buffer and append file */
-		li_chunkqueue_append_string(vr->out, *curbuf);
+		li_chunkqueue_append_string(vr->direct_out, *curbuf);
 		*curbuf = g_string_sized_new(4*1024-1);
-		li_chunkqueue_append_file_fd(vr->out, NULL, 0, st.st_size, fd);
+		li_chunkqueue_append_file_fd(vr->direct_out, NULL, 0, st.st_size, fd);
 	} else {
 		GError *error = NULL;
 		gchar *contents;
@@ -573,7 +573,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 		g_string_append_printf(listing, html_footer, CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_TAG).string->str);
 
-		li_chunkqueue_append_string(vr->out, listing);
+		li_chunkqueue_append_string(vr->direct_out, listing);
 		g_string_free(encoded, TRUE);
 		g_array_free(directories, TRUE);
 		g_array_free(files, TRUE);

@@ -154,6 +154,7 @@ static void fastcgi_context_release(fastcgi_context *ctx) {
 	}
 }
 
+#if 0
 static void fastcgi_context_acquire(fastcgi_context *ctx) {
 	assert(g_atomic_int_get(&ctx->refcount) > 0);
 	g_atomic_int_inc(&ctx->refcount);
@@ -456,7 +457,7 @@ static void fastcgi_send_env(liVRequest *vr, fastcgi_connection *fcon) {
 }
 
 static void fastcgi_forward_request(liVRequest *vr, fastcgi_connection *fcon) {
-	stream_send_chunks(fcon->fcgi_out, FCGI_STDIN, fcon->requestid, vr->in);
+	stream_send_chunks(fcon->fcgi_out, FCGI_STDIN, fcon->requestid, vr->backend_drain->out);
 	if (fcon->fcgi_out->length > 0)
 		li_ev_io_add_events(vr->wrk->loop, &fcon->fd_watcher, EV_WRITE);
 }
@@ -630,7 +631,7 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 		switch (li_http_response_parse(fcon->vr, &fcon->parse_response_ctx)) {
 		case LI_HANDLER_GO_ON:
 			fcon->response_headers_finished = TRUE;
-			li_vrequest_handle_response_headers(fcon->vr);
+			li_vrequest_indirect_response(fcon->vr, li_stream_plug_new(&fcon->vr->wrk->jobqueue));
 			break;
 		case LI_HANDLER_ERROR:
 			VR_ERROR(fcon->vr, "Parsing response header failed for: %s", fcon->ctx->socket_str->str);
@@ -642,12 +643,12 @@ static void fastcgi_fd_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	}
 
 	if (fcon->response_headers_finished) {
-		li_chunkqueue_steal_all(fcon->vr->out, fcon->stdout);
-		fcon->vr->out->is_closed = fcon->stdout->is_closed;
-		li_vrequest_handle_response_body(fcon->vr);
+		li_chunkqueue_steal_all(fcon->vr->backend_drain->out, fcon->stdout);
+		fcon->vr->backend_drain->out->is_closed = fcon->stdout->is_closed;
+		li_stream_notify(fcon->vr->backend_drain);
 	}
 
-	if (fcon->fcgi_in->is_closed && !fcon->vr->out->is_closed) {
+	if (fcon->fcgi_in->is_closed && !fcon->vr->backend_drain->out->is_closed) {
 		VR_ERROR(fcon->vr, "(%s) unexpected end-of-file (perhaps the fastcgi process died)", fcon->ctx->socket_str->str);
 		li_vrequest_error(fcon->vr);
 	}
@@ -664,8 +665,8 @@ static liHandlerResult fastcgi_statemachine(liVRequest *vr, fastcgi_connection *
 	switch (fcon->state) {
 	case FS_WAIT_FOR_REQUEST:
 		/* wait until we have either all data or the cqlimit is full */
-		if (-1 == vr->request.content_length || vr->request.content_length != vr->in->length) {
-			if (0 != li_chunkqueue_limit_available(vr->in))
+		if (-1 == vr->request.content_length || vr->request.content_length != vr->coninfo->resp->out->length) {
+			if (0 != li_chunkqueue_limit_available(vr->coninfo->resp->out))
 				return LI_HANDLER_GO_ON;
 		}
 		fcon->state = FS_CONNECT;
@@ -719,6 +720,7 @@ static liHandlerResult fastcgi_statemachine(liVRequest *vr, fastcgi_connection *
 		g_atomic_int_set(&fcon->ctx->last_errno, 0);
 
 		fcon->state = FS_CONNECTED;
+		li_vrequest_indirect_connect(vr, li_stream_plug_new(&vr->wrk->jobqueue));
 
 		/* prepare stream */
 		fastcgi_send_begin(fcon);
@@ -751,14 +753,10 @@ static liHandlerResult fastcgi_handle(liVRequest *vr, gpointer param, gpointer *
 	}
 	g_ptr_array_index(vr->plugin_ctx, ctx->plugin->id) = fcon;
 
-	li_chunkqueue_set_limit(fcon->fcgi_in, vr->out->limit);
-	li_chunkqueue_set_limit(fcon->stdout, vr->out->limit);
-	li_chunkqueue_set_limit(fcon->fcgi_out, vr->in->limit);
-	if (vr->out->limit) vr->out->limit->io_watcher = &fcon->fd_watcher;
+	/* TODO : limits. or just use real stream connections */
 
 	return fastcgi_statemachine(vr, fcon);
 }
-
 
 static liHandlerResult fastcgi_handle_request_body(liVRequest *vr, liPlugin *p) {
 	fastcgi_connection *fcon = (fastcgi_connection*) g_ptr_array_index(vr->plugin_ctx, p->id);
@@ -771,11 +769,21 @@ static void fastcgi_close(liVRequest *vr, liPlugin *p) {
 	fastcgi_connection *fcon = (fastcgi_connection*) g_ptr_array_index(vr->plugin_ctx, p->id);
 	g_ptr_array_index(vr->plugin_ctx, p->id) = NULL;
 	if (fcon) {
-		if (vr->out->limit) vr->out->limit->io_watcher = NULL;
 		fastcgi_connection_free(fcon);
 	}
 }
+#endif
 
+static liHandlerResult fastcgi_handle(liVRequest *vr, gpointer param, gpointer *context) {
+	UNUSED(param);
+	UNUSED(context);
+
+	if (!li_vrequest_handle_direct(vr)) return LI_HANDLER_GO_ON;
+
+	vr->response.http_status = 503;
+
+	return LI_HANDLER_GO_ON;
+}
 
 static void fastcgi_free(liServer *srv, gpointer param) {
 	fastcgi_context *ctx = (fastcgi_context*) param;
@@ -823,8 +831,10 @@ static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->actions = actions;
 	p->setups = setups;
 
+#if 0
 	p->handle_request_body = fastcgi_handle_request_body;
 	p->handle_vrclose = fastcgi_close;
+#endif
 }
 
 

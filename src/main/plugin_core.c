@@ -707,11 +707,11 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 						if (is_multipart) {
 							GString *subheader = g_string_sized_new(1023);
 							g_string_append_printf(subheader, "\r\n--%s\r\nContent-Type: %s\r\nContent-Range: %s\r\n\r\n", boundary, mime_str->str, vr->wrk->tmp_str->str);
-							li_chunkqueue_append_string(vr->out, subheader);
-							li_chunkqueue_append_chunkfile(vr->out, cf, rs.range_start, rs.range_length);
+							li_chunkqueue_append_string(vr->direct_out, subheader);
+							li_chunkqueue_append_chunkfile(vr->direct_out, cf, rs.range_start, rs.range_length);
 						} else {
 							li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Range"), GSTR_LEN(vr->wrk->tmp_str));
-							li_chunkqueue_append_chunkfile(vr->out, cf, rs.range_start, rs.range_length);
+							li_chunkqueue_append_chunkfile(vr->direct_out, cf, rs.range_start, rs.range_length);
 						}
 						break;
 					case LI_PARSE_HTTP_RANGE_DONE:
@@ -721,7 +721,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 						if (is_multipart) {
 							GString *subheader = g_string_sized_new(1023);
 							g_string_append_printf(subheader, "\r\n--%s--\r\n", boundary);
-							li_chunkqueue_append_string(vr->out, subheader);
+							li_chunkqueue_append_string(vr->direct_out, subheader);
 
 							g_string_printf(vr->wrk->tmp_str, "multipart/byteranges; boundary=%s", boundary);
 							li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(vr->wrk->tmp_str));
@@ -731,12 +731,13 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 						break;
 					case LI_PARSE_HTTP_RANGE_INVALID:
 						done = TRUE;
-						li_chunkqueue_reset(vr->out); vr->out->is_closed = TRUE;
+						/* indirect handing: out cq is already "closed" */
+						li_chunkqueue_reset(vr->direct_out); vr->direct_out->is_closed = TRUE;
 						break;
 					case LI_PARSE_HTTP_RANGE_NOT_SATISFIABLE:
 						ranged_response = TRUE;
 						done = TRUE;
-						li_chunkqueue_reset(vr->out); vr->out->is_closed = TRUE;
+						li_chunkqueue_reset(vr->direct_out);
 						g_string_printf(vr->wrk->tmp_str, "bytes */%"G_GINT64_FORMAT, (goffset) st.st_size);
 						li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Range"), GSTR_LEN(vr->wrk->tmp_str));
 						vr->response.http_status = 416;
@@ -750,7 +751,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 		if (!ranged_response) {
 			vr->response.http_status = 200;
 			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), GSTR_LEN(mime_str));
-			li_chunkqueue_append_chunkfile(vr->out, cf, 0, st.st_size);
+			li_chunkqueue_append_chunkfile(vr->direct_out, cf, 0, st.st_size);
 		}
 
 		li_chunkfile_release(cf);
@@ -952,7 +953,7 @@ static liHandlerResult core_handle_respond(liVRequest *vr, gpointer param, gpoin
 	if (rp->pattern) {
 		g_string_truncate(vr->wrk->tmp_str, 0);
 		li_pattern_eval(vr, vr->wrk->tmp_str, rp->pattern, NULL, NULL, NULL, NULL);
-		li_chunkqueue_append_mem(vr->out, GSTR_LEN(vr->wrk->tmp_str));
+		li_chunkqueue_append_mem(vr->direct_out, GSTR_LEN(vr->wrk->tmp_str));
 	}
 
 	return LI_HANDLER_GO_ON;
@@ -1674,7 +1675,7 @@ static liHandlerResult core_handle_buffer_out(liVRequest *vr, gpointer param, gp
 	gint limit = GPOINTER_TO_INT(param);
 	UNUSED(context);
 
-	li_cqlimit_set_limit(vr->out->limit, limit);
+	li_chunkqueue_use_limit(vr->coninfo->resp->out, vr->wrk->loop, limit);
 
 	return LI_HANDLER_GO_ON;
 }
@@ -1707,7 +1708,7 @@ static liHandlerResult core_handle_buffer_in(liVRequest *vr, gpointer param, gpo
 	gint limit = GPOINTER_TO_INT(param);
 	UNUSED(context);
 
-	li_cqlimit_set_limit(vr->in->limit, limit);
+	li_chunkqueue_use_limit(vr->coninfo->req->out, vr->wrk->loop, limit);
 
 	return LI_HANDLER_GO_ON;
 }

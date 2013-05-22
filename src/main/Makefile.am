@@ -2,7 +2,7 @@
 libexec_PROGRAMS=lighttpd2-worker
 lib_LTLIBRARIES=liblighttpd2-shared.la
 
-common_cflags=-I$(top_srcdir)/include -I$(top_builddir)/include
+common_cflags=-I$(top_builddir)/include -I$(top_srcdir)/include
 
 lighttpd_shared_src= \
 	angel.c \
@@ -18,6 +18,7 @@ lighttpd_shared_src= \
 	connection.c \
 	environment.c \
 	etag.c \
+	filter.c \
 	filter_chunked.c \
 	filter_buffer_on_disk.c \
 	http_headers.c \

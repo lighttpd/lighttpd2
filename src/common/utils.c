@@ -1,15 +1,4 @@
 
-#ifdef LIGHTY_OS_NETBSD
-	#define _NETBSD_SOURCE
-#endif
-
-#ifdef LIGHTY_OS_OPENBSD
-	#warning OpenBSD does net allow sending of file descriptors when _XOPEN_SOURCE is defined (needed for Solaris)
-#else
-	#define _XOPEN_SOURCE
-	#define _XOPEN_SOURCE_EXTENDED 1
-#endif
-
 #include <lighttpd/utils.h>
 #include <lighttpd/ip_parsers.h>
 

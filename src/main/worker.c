@@ -69,6 +69,8 @@ void li_worker_add_closing_socket(liWorker *wrk, int fd) {
 	worker_closing_socket *scs;
 	liServerState state = g_atomic_int_get(&wrk->srv->state);
 
+	if (-1 == fd) return;
+
 	shutdown(fd, SHUT_WR);
 	if (LI_SERVER_RUNNING != state && LI_SERVER_WARMUP != state) {
 		shutdown(fd, SHUT_RD);
@@ -125,7 +127,7 @@ static void worker_keepalive_cb(struct ev_loop *loop, ev_timer *w, int revents) 
 			ev_timer_start(wrk->loop, &con->keep_alive_data.watcher);
 		} else {
 			/* close it */
-			li_worker_con_put(con);
+			li_connection_reset(con);
 		}
 	}
 
@@ -434,7 +436,9 @@ void li_worker_free(liWorker *wrk) {
 			}
 		}
 		for (i = 0; i < wrk->connections->len; i++) {
-			li_connection_free(g_array_index(wrk->connections, liConnection*, i));
+			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
+			li_connection_reset(con);
+			li_connection_free(con);
 		}
 		g_array_free(wrk->connections, TRUE);
 	}
@@ -456,6 +460,9 @@ void li_worker_free(liWorker *wrk) {
 		g_array_free(wrk->timestamps_gmt, TRUE);
 		g_array_free(wrk->timestamps_local, TRUE);
 	}
+
+	li_waitqueue_stop(&wrk->io_timeout_queue);
+	li_waitqueue_stop(&wrk->throttle_queue);
 
 	li_ev_safe_ref_and_stop(ev_async_stop, wrk->loop, &wrk->worker_exit_watcher);
 
@@ -517,8 +524,6 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 		ev_async_stop(wrk->loop, &wrk->worker_stopping_watcher);
 		ev_async_stop(wrk->loop, &wrk->worker_suspend_watcher);
 		ev_async_stop(wrk->loop, &wrk->new_con_watcher);
-		li_waitqueue_stop(&wrk->io_timeout_queue);
-		li_waitqueue_stop(&wrk->throttle_queue);
 		if (wrk->stat_cache)
 			li_waitqueue_stop(&wrk->stat_cache->delete_queue);
 		li_worker_new_con_cb(wrk->loop, &wrk->new_con_watcher, 0); /* handle remaining new connections */
@@ -625,6 +630,7 @@ static liConnection* worker_con_get(liWorker *wrk) {
 		g_array_append_val(wrk->connections, con);
 	} else {
 		con = g_array_index(wrk->connections, liConnection*, wrk->connections_active);
+		con->idx = wrk->connections_active;
 	}
 
 	g_atomic_int_inc((gint*) &wrk->connections_active);
@@ -639,8 +645,8 @@ void li_worker_con_put(liConnection *con) {
 	liWorker *wrk = con->wrk;
 	ev_tstamp now = CUR_TS(wrk);
 
-	if (con->state == LI_CON_STATE_DEAD)
-		/* already disconnected */
+	if (-1 == (gint) con->idx)
+		/* already inactive connection */
 		return;
 
 	g_atomic_int_add((gint*) &wrk->srv->connection_load, -1);
@@ -653,12 +659,10 @@ void li_worker_con_put(liConnection *con) {
 		assert(con->idx < wrk->connections_active); /* con must be an active connection */
 		tmp = g_array_index(wrk->connections, liConnection*, wrk->connections_active);
 		tmp->idx = con->idx;
-		con->idx = wrk->connections_active;
-		g_array_index(wrk->connections, liConnection*, con->idx) = con;
+		con->idx = -1;
+		g_array_index(wrk->connections, liConnection*, wrk->connections_active) = con;
 		g_array_index(wrk->connections, liConnection*, tmp->idx) = tmp;
 	}
-
-	li_connection_reset(con);
 
 	/* free unused connections. we keep max(connections_active) for the past 5min allocated */
 	if ((now - wrk->connections_gc_ts) > 300.0) {
