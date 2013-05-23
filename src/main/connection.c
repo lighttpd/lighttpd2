@@ -458,8 +458,8 @@ void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, 
 
 	assert(NULL != con->con_sock.raw_in || NULL != con->con_sock.raw_out);
 
-	li_chunkqueue_use_limit(con->con_sock.raw_in->out, 512*1024);
-	li_chunkqueue_use_limit(con->con_sock.raw_out->out, 512*1024);
+	li_chunkqueue_use_limit(con->con_sock.raw_in->out, 256*1024);
+	li_chunkqueue_use_limit(con->con_sock.raw_out->out, 256*1024);
 
 	li_stream_connect(&con->out, con->con_sock.raw_out);
 	li_stream_connect(con->con_sock.raw_in, &con->in);

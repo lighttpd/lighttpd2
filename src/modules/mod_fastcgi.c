@@ -120,6 +120,8 @@ static liHandlerResult fastcgi_handle(liVRequest *vr, gpointer param, gpointer *
 
 	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
 
+	LI_VREQUEST_WAIT_FOR_REQUEST_BODY(vr);
+
 	switch (li_fastcgi_backend_get(vr, ctx->pool, &bcon, &bwait)) {
 	case LI_BACKEND_SUCCESS:
 		assert(NULL == bwait);

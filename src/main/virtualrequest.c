@@ -1,6 +1,7 @@
 
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
+#include <lighttpd/filter_buffer_on_disk.h>
 
 static void vrequest_job_cb(liJob *job) {
 	liVRequest *vr = LI_CONTAINER_OF(job, liVRequest, job);
@@ -40,9 +41,6 @@ liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
 
 	li_vrequest_filters_init(vr);
 
-	vr->in_buffer_state.flush_limit = -1; /* wait until upload is complete */
-	vr->in_buffer_state.split_on_file_chunks = FALSE;
-
 	li_action_stack_init(&vr->action_stack);
 
 	li_job_init(&vr->job, vrequest_job_cb);
@@ -55,17 +53,13 @@ liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
 void li_vrequest_free(liVRequest* vr) {
 	liServer *srv = vr->wrk->srv;
 
-	if (NULL != vr->backend_drain) {
-		li_stream_reset(vr->backend_drain);
-		li_stream_release(vr->backend_drain);
-		vr->backend_drain = NULL;
-	}
-	if (NULL != vr->backend_source) {
-		li_stream_reset(vr->backend_source);
-		li_stream_release(vr->backend_source);
-		vr->backend_source = NULL;
-		vr->direct_out = NULL;
-	}
+	li_stream_safe_reset_and_release(&vr->backend_drain);
+	vr->direct_out = NULL;
+	li_stream_safe_reset_and_release(&vr->backend_source);
+
+	li_filter_buffer_on_disk_stop(vr->in_buffer_on_disk_stream);
+	li_stream_safe_reset_and_release(&vr->in_buffer_on_disk_stream);
+	li_stream_safe_reset_and_release(&vr->wait_for_request_body_stream);
 
 	li_action_stack_clear(vr, &vr->action_stack);
 	if (vr->state != LI_VRS_CLEAN) {
@@ -82,8 +76,6 @@ void li_vrequest_free(liVRequest* vr) {
 	li_environment_clear(&vr->env);
 
 	li_vrequest_filters_clear(vr);
-
-	li_filter_buffer_on_disk_reset(&vr->in_buffer_state);
 
 	li_job_clear(&vr->job);
 
@@ -126,6 +118,10 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 		vr->direct_out = NULL;
 	}
 
+	li_filter_buffer_on_disk_stop(vr->in_buffer_on_disk_stream);
+	li_stream_safe_reset_and_release(&vr->in_buffer_on_disk_stream);
+	li_stream_safe_reset_and_release(&vr->wait_for_request_body_stream);
+
 	li_action_stack_reset(vr, &vr->action_stack);
 	if (vr->state != LI_VRS_CLEAN) {
 		li_plugins_handle_vrclose(vr);
@@ -146,10 +142,6 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 	li_environment_reset(&vr->env);
 
 	li_vrequest_filters_reset(vr);
-
-	li_filter_buffer_on_disk_reset(&vr->in_buffer_state);
-	vr->in_buffer_state.flush_limit = -1; /* wait until upload is complete */
-	vr->in_buffer_state.split_on_file_chunks = FALSE;
 
 	li_job_reset(&vr->job);
 
@@ -220,6 +212,117 @@ void li_vrequest_handle_request_headers(liVRequest *vr) {
 	li_vrequest_joblist_append(vr);
 }
 
+typedef struct {
+	liStream stream;
+
+	liVRequest *vr;
+	gboolean have_mem_chunk, ready;
+} wait_for_request_body_stream;
+
+static void wait_for_request_body_stream_cb(liStream *stream, liStreamEvent event) {
+	wait_for_request_body_stream *ws = LI_CONTAINER_OF(stream, wait_for_request_body_stream, stream);
+
+	switch (event) {
+	case LI_STREAM_NEW_DATA:
+		if (NULL == ws->stream.source) return;
+		if (ws->have_mem_chunk || ws->ready) {
+			li_chunkqueue_steal_all(ws->stream.out, ws->stream.source->out);
+		} else {
+			liChunkQueue *in = ws->stream.source->out, *out = ws->stream.out;
+			while (in->length > 0) {
+				liChunk *c = li_chunkqueue_first_chunk(in);
+				assert(NULL != c);
+				if (FILE_CHUNK != c->type) {
+					ws->have_mem_chunk = TRUE;
+					li_chunkqueue_steal_all(out, in);
+					break;
+				}
+				li_chunkqueue_steal_chunk(out, in);
+			}
+		}
+		if (ws->stream.source->out->is_closed) {
+			ws->stream.out->is_closed = TRUE;
+		}
+		if (!ws->ready && (ws->stream.out->is_closed || 
+		      (ws->have_mem_chunk && li_chunkqueue_limit_available(ws->stream.out) < 1024))) {
+			ws->ready = TRUE;
+			if (NULL != ws->vr) li_vrequest_joblist_append(ws->vr);
+			ws->vr = NULL;
+		}
+		li_stream_notify(stream);
+		break;
+	case LI_STREAM_NEW_CQLIMIT:
+		break;
+	case LI_STREAM_CONNECTED_DEST:
+		ws->ready = TRUE;
+		ws->vr = NULL;
+		break;
+	case LI_STREAM_CONNECTED_SOURCE:
+		break;
+	case LI_STREAM_DISCONNECTED_DEST:
+		if (!ws->stream.out->is_closed || 0 != ws->stream.out->length) {
+			li_stream_disconnect(stream);
+		}
+		break;
+	case LI_STREAM_DISCONNECTED_SOURCE:
+		if (!ws->stream.out->is_closed) {
+			li_stream_disconnect_dest(stream);
+			if (!ws->ready) {
+				ws->ready = TRUE;
+				if (NULL != ws->vr) li_vrequest_joblist_append(ws->vr);
+				ws->vr = NULL;
+			}
+		}
+		break;
+	case LI_STREAM_DESTROY:
+		g_slice_free(wait_for_request_body_stream, ws);
+		break;
+	}
+}
+
+static liStream* wait_for_request_body_stream_new(liVRequest *vr) {
+	wait_for_request_body_stream *ws = g_slice_new0(wait_for_request_body_stream);
+	ws->vr = vr;
+	li_stream_init(&ws->stream, &vr->wrk->loop, wait_for_request_body_stream_cb);
+	return &ws->stream;
+}
+
+static gboolean wait_for_request_body_stream_ready(liStream *stream) {
+	wait_for_request_body_stream *ws;
+
+	if (NULL == stream) return FALSE;
+	assert(wait_for_request_body_stream_cb == stream->cb);
+	ws = LI_CONTAINER_OF(stream, wait_for_request_body_stream, stream);
+	return ws->ready;
+}
+
+gboolean li_vrequest_wait_for_request_body(liVRequest *vr) {
+	goffset lim_avail;
+
+	/* too late to wait? */
+	if (vr->state > LI_VRS_HANDLE_REQUEST_HEADERS) return TRUE;
+	if (0 == vr->request.content_length) return TRUE;
+
+	if (NULL != vr->wait_for_request_body_stream) {
+		if (wait_for_request_body_stream_ready(vr->wait_for_request_body_stream)) return TRUE;
+		return FALSE; /* still waiting */
+	}
+
+	lim_avail = li_chunkqueue_limit_available(vr->coninfo->req->out);
+
+	vr->wait_for_request_body_stream = wait_for_request_body_stream_new(vr);
+
+	if (vr->request.content_length < 0 || lim_avail < 0 || vr->request.content_length > lim_avail) {
+		vr->in_buffer_on_disk_stream = li_filter_buffer_on_disk(vr, -1, FALSE);
+		li_stream_connect(vr->coninfo->req, vr->in_buffer_on_disk_stream);
+		li_stream_connect(vr->in_buffer_on_disk_stream, vr->wait_for_request_body_stream);
+	} else {
+		li_stream_connect(vr->coninfo->req, vr->wait_for_request_body_stream);
+	}
+
+	return FALSE;
+}
+
 /* response completely ready */
 gboolean li_vrequest_handle_direct(liVRequest *vr) {
 	if (li_vrequest_handle_indirect(vr, NULL)) {
@@ -253,22 +356,33 @@ gboolean li_vrequest_handle_indirect(liVRequest *vr, liPlugin *p) {
 }
 
 void li_vrequest_indirect_connect(liVRequest *vr, liStream *backend_drain, liStream* backend_source) {
+	liStream *req_in;
+
 	assert(LI_VRS_READ_CONTENT == vr->state);
 	assert(NULL != backend_drain);
+	assert(NULL != backend_source);
 
 	li_stream_acquire(backend_drain);
+	li_stream_acquire(backend_source);
+
 	vr->backend_drain = backend_drain;
+
+	if (NULL != vr->wait_for_request_body_stream) {
+		req_in = vr->wait_for_request_body_stream;
+		li_filter_buffer_on_disk_stop(vr->in_buffer_on_disk_stream);
+	} else {
+		req_in = vr->coninfo->req;
+	}
 
 	/* connect in-queue */
 	if (NULL != vr->filters_in_last) {
 		li_stream_connect(vr->filters_in_last, vr->backend_drain);
-		li_stream_connect(vr->coninfo->req, vr->filters_in_first);
+		li_stream_connect(req_in, vr->filters_in_first);
 	} else {
 		/* no filters */
-		li_stream_connect(vr->coninfo->req, vr->backend_drain);
+		li_stream_connect(req_in, vr->backend_drain);
 	}
 
-	li_stream_acquire(backend_source);
 	vr->backend_source = backend_source;
 
 	li_chunkqueue_set_limit(backend_source->out, vr->coninfo->resp->out->limit);

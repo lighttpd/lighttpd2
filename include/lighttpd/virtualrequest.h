@@ -97,7 +97,7 @@ struct liVRequest {
 	liStream *filters_in_last, *filters_out_last;
 	liStream *filters_in_first, *filters_out_first;
 
-	liFilterBufferOnDiskState in_buffer_state;
+	liStream *in_buffer_on_disk_stream, *wait_for_request_body_stream;
 
 	liPlugin *backend;
 	liStream *backend_source;
@@ -110,6 +110,13 @@ struct liVRequest {
 
 	GPtrArray *stat_cache_entries;
 };
+
+#define LI_VREQUEST_WAIT_FOR_REQUEST_BODY(vr) \
+	do { \
+		if (!li_vrequest_wait_for_request_body(vr)) { \
+			return LI_HANDLER_WAIT_FOR_EVENT; \
+		} \
+	} while (0)
 
 #define LI_VREQUEST_WAIT_FOR_RESPONSE_HEADERS(vr) \
 	do { \
@@ -128,18 +135,25 @@ LI_API void li_vrequest_free(liVRequest *vr);
  */
 LI_API void li_vrequest_reset(liVRequest *vr, gboolean keepalive);
 
-/* Signals an internal error; handles the error in the _next_ loop */
-LI_API void li_vrequest_error(liVRequest *vr);
-
-LI_API void li_vrequest_backend_overloaded(liVRequest *vr);
-LI_API void li_vrequest_backend_dead(liVRequest *vr);
-LI_API void li_vrequest_backend_error(liVRequest *vr, liBackendError berror);
-LI_API void li_vrequest_backend_finished(liVRequest *vr); /* action.c */
-
+/****************************************************/
+/* called by connection                             */
+/****************************************************/
 /* resets fields which weren't reset in favor of keep-alive tracking */
 LI_API void li_vrequest_start(liVRequest *vr);
 /* received all request headers */
 LI_API void li_vrequest_handle_request_headers(liVRequest *vr);
+
+/* called by connection IO handling */
+LI_API void li_vrequest_update_stats_in(liVRequest *vr, goffset transferred);
+LI_API void li_vrequest_update_stats_out(liVRequest *vr, goffset transferred);
+
+/****************************************************/
+/* called by actions handling the request           */
+/****************************************************/
+/* returns TRUE if request body is present
+ * or shouldn't be waited for (if caching on disk is disabled and liCQLimit hit, ...)
+ * if it returns FALSE it will trigger li_vrequest_joblist_append later */
+LI_API gboolean li_vrequest_wait_for_request_body(liVRequest *vr);
 
 /* response completely ready; use this only in action callbacks */
 LI_API gboolean li_vrequest_handle_direct(liVRequest *vr);
@@ -153,16 +167,22 @@ LI_API void li_vrequest_indirect_connect(liVRequest *vr, liStream *backend_drain
 /* received all response headers/status code - call once from your indirect handler */
 LI_API void li_vrequest_indirect_headers_ready(liVRequest *vr);
 
+/* Signals an internal error; handles the error in the _next_ loop */
+LI_API void li_vrequest_error(liVRequest *vr);
+
+LI_API void li_vrequest_backend_overloaded(liVRequest *vr);
+LI_API void li_vrequest_backend_dead(liVRequest *vr);
+LI_API void li_vrequest_backend_error(liVRequest *vr, liBackendError berror);
+LI_API void li_vrequest_backend_finished(liVRequest *vr); /* action.c */
+
+
+
 LI_API void li_vrequest_state_machine(liVRequest *vr);
 LI_API void li_vrequest_joblist_append(liVRequest *vr);
 LI_API liJobRef* li_vrequest_get_ref(liVRequest *vr);
 
 LI_API gboolean li_vrequest_redirect(liVRequest *vr, GString *uri);
-
 LI_API gboolean li_vrequest_redirect_directory(liVRequest *vr);
 
-/* updates worker stats too */
-LI_API void li_vrequest_update_stats_in(liVRequest *vr, goffset transferred);
-LI_API void li_vrequest_update_stats_out(liVRequest *vr, goffset transferred);
 
 #endif
