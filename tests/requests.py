@@ -16,6 +16,7 @@ class CurlRequest(TestBase):
 	SCHEME = "http"
 	PORT = 0 # offset to Env.port
 	AUTH = None
+	POST = None
 
 	EXPECT_RESPONSE_BODY = None
 	EXPECT_RESPONSE_CODE = None
@@ -33,6 +34,10 @@ class CurlRequest(TestBase):
 			self.resp_first_line = header
 			return
 		if header == "":
+			if None != self.resp_first_line and self.resp_first_line.split(" ", 2)[1] == '100':
+				if Env.debugRequests:
+					print >> Env.log, "Handling 100 Continue: '%s'" % self.resp_first_line
+				self.resp_first_line = None
 			return
 		try:
 			(key, value) = header.split(":", 1)
@@ -58,6 +63,7 @@ class CurlRequest(TestBase):
 		b = StringIO.StringIO()
 		c.setopt(pycurl.WRITEFUNCTION, b.write)
 		c.setopt(pycurl.HEADERFUNCTION, self._recv_header)
+		if None != self.POST: c.setopt(pycurl.POSTFIELDS, self.POST)
 
 		if None != self.AUTH:
 			c.setopt(pycurl.USERPWD, self.AUTH)
