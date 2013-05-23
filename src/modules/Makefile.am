@@ -5,6 +5,7 @@ common_cflags += $(GTHREAD_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS)
 common_libs = $(GTHREAD_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
 common_ldflags = -module -export-dynamic -avoid-version -no-undefined $(common_libs)
 common_libadd = ../common/liblighttpd2-common.la ../main/liblighttpd2-shared.la
+EXTRA_DIST=
 
 luadir = $(datarootdir)/lighttpd2/lua
 
@@ -58,9 +59,10 @@ libmod_expire_la_LDFLAGS = $(common_ldflags)
 libmod_expire_la_LIBADD = $(common_libadd)
 
 install_libs += libmod_fastcgi.la
-libmod_fastcgi_la_SOURCES = mod_fastcgi.c
+libmod_fastcgi_la_SOURCES = mod_fastcgi.c fastcgi_stream.c
 libmod_fastcgi_la_LDFLAGS = $(common_ldflags)
 libmod_fastcgi_la_LIBADD = $(common_libadd)
+EXTRA_DIST += fastcgi_stream.h
 
 install_libs += libmod_flv.la
 libmod_flv_la_SOURCES = mod_flv.c
