@@ -56,7 +56,7 @@ class CurlRequest(TestBase):
 		if None == self.URL:
 			raise BasicException("You have to set URL in your CurlRequest instance")
 		c = pycurl.Curl()
-		c.setopt(pycurl.URL, self.SCHEME + ("://127.0.0.1:%i" % (Env.port + self.PORT)) + self.URL)
+		c.setopt(pycurl.URL, self.SCHEME + ("://127.0.0.2:%i" % (Env.port + self.PORT)) + self.URL)
 		c.setopt(pycurl.HTTPHEADER, ["Host: " + self.vhost])
 		c.setopt(pycurl.NOSIGNAL, 1)
 		c.setopt(pycurl.TIMEOUT, 2)

@@ -338,7 +338,7 @@ setup {{
 		"mod_vhost"
 	);
 
-	listen "127.0.0.1:{Env.port}";
+	listen "127.0.0.2:{Env.port}";
 	log [ "*" => "stderr" ];
 
 	lua.plugin "{Env.luadir}/core.lua";
@@ -395,7 +395,7 @@ instance {{
 {valgrindconfig}
 }}
 
-allow-listen {{ ip "127.0.0.1:{Env.port}"; }}
+allow-listen {{ ip "127.0.0.2:{Env.port}"; }}
 """.format(Env = Env, valgrindconfig = valgrindconfig))
 
 		print >> Env.log, "[Done] Preparing tests"

@@ -22,7 +22,7 @@ class TestSimple(CurlRequest):
 		self.vhostdir = None
 		self.config = """
 set_host_header_basic_gets_lua;
-proxy "127.0.0.1:%i";
+proxy "127.0.0.2:%i";
 """ % (Env.port + self.PORT)
 
 class Test(GroupTest):

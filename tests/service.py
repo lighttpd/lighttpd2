@@ -101,11 +101,11 @@ class Service(object):
 	def portfree(self, port):
 		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		try:
-			s.connect(("127.0.0.1", port))
+			s.connect(("127.0.0.2", port))
 		except:
 			pass
 		else:
-			raise ServiceException("Cannot start service '%s', port 127.0.0.1:%i already in use" % (self.name, port))
+			raise ServiceException("Cannot start service '%s', port 127.0.0.2:%i already in use" % (self.name, port))
 		finally:
 			s.close()
 
@@ -116,7 +116,7 @@ class Service(object):
 				raise ServiceException("Service %s died before we could establish a connection" % (self.name))
 			s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			try:
-				s.connect(("127.0.0.1", port))
+				s.connect(("127.0.0.2", port))
 			except:
 				pass
 			else:
