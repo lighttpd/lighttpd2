@@ -43,6 +43,8 @@
 # include <openssl/ssl.h>
 #endif
 
+#define GLIB_DISABLE_DEPRECATION_WARNINGS
+
 #include <ev.h>
 #include <glib.h>
 #include <gmodule.h>
