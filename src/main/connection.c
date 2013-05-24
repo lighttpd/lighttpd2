@@ -160,11 +160,13 @@ static void con_iostream_close(liConnection *con) { /* force close */
 		con->info.aborted = TRUE;
 		con->con_sock.callbacks->finish(con, TRUE);
 	}
+	assert(NULL == con->con_sock.data);
 }
 static void con_iostream_shutdown(liConnection *con) { /* (try) regular shutdown */
 	if (con->con_sock.callbacks) {
 		con->con_sock.callbacks->finish(con, FALSE);
 	}
+	assert(NULL == con->con_sock.data);
 }
 
 

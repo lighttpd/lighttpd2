@@ -108,11 +108,11 @@ static void stream_simple_socket_write_throttle_notify(liThrottleState *state, g
 static void stream_simple_socket_write(liIOStream *stream) {
 	liNetworkStatus res;
 	liChunkQueue *raw_out = stream->stream_out.out;
-	liChunkQueue *from = stream->stream_out.source->out;
+	liChunkQueue *from = (NULL != stream->stream_out.source) ? stream->stream_out.source->out : NULL;
 	int fd = li_event_io_fd(&stream->io_watcher);
 	liWorker *wrk = li_worker_from_iostream(stream);
 
-	li_chunkqueue_steal_all(raw_out, from);
+	if (NULL != from) li_chunkqueue_steal_all(raw_out, from);
 
 	if (raw_out->length > 0) {
 		static const goffset WRITE_MAX = 256*1024; /* 256kB */

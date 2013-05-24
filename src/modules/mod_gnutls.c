@@ -197,6 +197,7 @@ static void gnutlc_tcp_finished(liConnection *con, gboolean aborted) {
 	if (NULL != conctx) {
 		assert(con == conctx->con);
 		close_cb(conctx->tls_filter, conctx);
+		assert(NULL == con->con_sock.data);
 	}
 
 	{
