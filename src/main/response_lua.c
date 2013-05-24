@@ -148,6 +148,11 @@ liResponse* li_lua_get_response(lua_State *L, int ndx) {
 int li_lua_push_response(lua_State *L, liResponse *resp) {
 	liResponse **presp;
 
+	if (NULL == resp) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	presp = (liResponse**) lua_newuserdata(L, sizeof(liResponse*));
 	*presp = resp;
 

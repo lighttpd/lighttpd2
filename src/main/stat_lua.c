@@ -220,6 +220,11 @@ void li_lua_init_stat_mt(lua_State *L) {
 int li_lua_push_stat(lua_State *L, struct stat *st) {
 	struct stat *pst;
 
+	if (NULL == st) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	pst = (struct stat*) lua_newuserdata(L, sizeof(struct stat));
 	*pst = *st;
 

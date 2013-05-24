@@ -227,6 +227,11 @@ liHttpHeaders* li_lua_get_http_headers(lua_State *L, int ndx) {
 int li_lua_push_http_headers(lua_State *L, liHttpHeaders *headers) {
 	liHttpHeaders **pheaders;
 
+	if (NULL == headers) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	pheaders = (liHttpHeaders**) lua_newuserdata(L, sizeof(liHttpHeaders*));
 	*pheaders = headers;
 

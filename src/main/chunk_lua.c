@@ -290,6 +290,11 @@ liChunk* li_lua_get_chunk(lua_State *L, int ndx) {
 int li_lua_push_chunk(lua_State *L, liChunk *c) {
 	liChunk **pc;
 
+	if (NULL == c) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	pc = (liChunk**) lua_newuserdata(L, sizeof(liChunk*));
 	*pc = c;
 
@@ -315,6 +320,11 @@ liChunkQueue* li_lua_get_chunkqueue(lua_State *L, int ndx) {
 
 int li_lua_push_chunkqueue(lua_State *L, liChunkQueue *cq) {
 	liChunkQueue **pcq;
+
+	if (NULL == cq) {
+		lua_pushnil(L);
+		return 1;
+	}
 
 	pcq = (liChunkQueue**) lua_newuserdata(L, sizeof(liChunkQueue*));
 	*pcq = cq;

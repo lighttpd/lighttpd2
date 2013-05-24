@@ -137,6 +137,11 @@ liFilter* li_lua_get_filter(lua_State *L, int ndx) {
 int li_lua_push_filter(lua_State *L, liFilter *f) {
 	liFilter **pf;
 
+	if (NULL == f) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	pf = (liFilter**) lua_newuserdata(L, sizeof(liFilter*));
 	*pf = f;
 

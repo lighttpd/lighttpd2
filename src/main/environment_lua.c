@@ -139,6 +139,11 @@ liEnvironment* li_lua_get_environment(lua_State *L, int ndx) {
 int li_lua_push_environment(lua_State *L, liEnvironment *env) {
 	liEnvironment **penv;
 
+	if (NULL == env) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	penv = (liEnvironment**) lua_newuserdata(L, sizeof(liEnvironment*));
 	*penv = env;
 

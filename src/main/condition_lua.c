@@ -122,6 +122,11 @@ static void lua_push_condition_metatable(liServer *srv, lua_State *L) {
 int li_lua_push_condition(liServer *srv, lua_State *L, liCondition *c) {
 	liCondition **pc;
 
+	if (NULL == c) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	pc = (liCondition**) lua_newuserdata(L, sizeof(liCondition*));
 	*pc = c;
 

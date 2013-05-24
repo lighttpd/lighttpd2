@@ -309,6 +309,11 @@ liRequest* li_lua_get_request(lua_State *L, int ndx) {
 int li_lua_push_request(lua_State *L, liRequest *req) {
 	liRequest **preq;
 
+	if (NULL == req) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	preq = (liRequest**) lua_newuserdata(L, sizeof(liRequest*));
 	*preq = req;
 
@@ -334,6 +339,11 @@ liRequestUri* li_lua_get_requesturi(lua_State *L, int ndx) {
 
 int li_lua_push_requesturi(lua_State *L, liRequestUri *uri) {
 	liRequestUri **puri;
+
+	if (NULL == uri) {
+		lua_pushnil(L);
+		return 1;
+	}
 
 	puri = (liRequestUri**) lua_newuserdata(L, sizeof(liRequestUri*));
 	*puri = uri;

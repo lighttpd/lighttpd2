@@ -38,6 +38,11 @@ static int lua_action_gc(lua_State *L) {
 int li_lua_push_action(liServer *srv, lua_State *L, liAction *a) {
 	liAction **pa;
 
+	if (NULL == a) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	pa = (liAction**) lua_newuserdata(L, sizeof(liAction*));
 	*pa = a;
 

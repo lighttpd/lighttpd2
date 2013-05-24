@@ -998,6 +998,11 @@ static int lua_memcached_con_gc(lua_State *L) {
 static int li_lua_push_memcached_con(lua_State *L, liMemcachedCon *con) {
 	liMemcachedCon **pcon;
 
+	if (NULL == con) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	pcon = (liMemcachedCon**) lua_newuserdata(L, sizeof(liMemcachedCon*));
 	*pcon = con;
 
@@ -1043,6 +1048,11 @@ static int lua_memcached_req_gc(lua_State *L) {
 
 static int li_lua_push_memcached_req(lua_State *L, mc_lua_request *req) {
 	mc_lua_request **preq;
+
+	if (NULL == req) {
+		lua_pushnil(L);
+		return 1;
+	}
 
 	preq = (mc_lua_request**) lua_newuserdata(L, sizeof(mc_lua_request*));
 	*preq = req;

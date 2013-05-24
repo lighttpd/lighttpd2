@@ -182,6 +182,11 @@ static liSubrequest* li_lua_get_subrequest(lua_State *L, int ndx) {
 static int li_lua_push_subrequest(lua_State *L, liSubrequest *sr) {
 	liSubrequest **psr;
 
+	if (NULL == sr) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	psr = (liSubrequest**) lua_newuserdata(L, sizeof(liSubrequest*));
 	*psr = sr;
 

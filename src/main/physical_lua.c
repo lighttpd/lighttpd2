@@ -153,6 +153,11 @@ liPhysical* li_lua_get_physical(lua_State *L, int ndx) {
 int li_lua_push_physical(lua_State *L, liPhysical *phys) {
 	liPhysical **pphys;
 
+	if (NULL == phys) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	pphys = (liPhysical**) lua_newuserdata(L, sizeof(liPhysical*));
 	*pphys = phys;
 

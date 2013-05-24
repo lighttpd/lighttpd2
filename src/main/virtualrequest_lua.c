@@ -366,6 +366,11 @@ liVRequest* li_lua_get_vrequest(lua_State *L, int ndx) {
 int li_lua_push_vrequest(lua_State *L, liVRequest *vr) {
 	liVRequest **pvr;
 
+	if (NULL == vr) {
+		lua_pushnil(L);
+		return 1;
+	}
+
 	pvr = (liVRequest**) lua_newuserdata(L, sizeof(liVRequest*));
 	*pvr = vr;
 
@@ -512,6 +517,11 @@ liConInfo* li_lua_get_coninfo(lua_State *L, int ndx) {
 
 int li_lua_push_coninfo(lua_State *L, liConInfo *coninfo) {
 	liConInfo **pconinfo;
+
+	if (NULL == coninfo) {
+		lua_pushnil(L);
+		return 1;
+	}
 
 	pconinfo = (liConInfo**) lua_newuserdata(L, sizeof(liConInfo*));
 	*pconinfo = coninfo;
