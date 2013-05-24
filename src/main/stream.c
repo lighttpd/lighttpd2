@@ -85,6 +85,7 @@ void li_stream_connect(liStream *source, liStream *dest) {
 	/* streams must be "valid" */
 	assert(source->refcount > 0 && dest->refcount > 0);
 
+	assert(NULL == source->dest && NULL == dest->source);
 	if (NULL != source->dest || NULL != dest->source) {
 		g_error("Can't connect already connected streams");
 	}

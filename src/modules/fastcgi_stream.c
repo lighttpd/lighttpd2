@@ -238,9 +238,6 @@ static void fastcgi_check_put(liFastCGIBackendContext *ctx) {
 	li_stream_disconnect(&ctx->fcgi_out);
 	li_stream_disconnect_dest(&ctx->fcgi_in);
 
-	assert(2 == ctx->fcgi_in.refcount);
-	assert(2 == ctx->fcgi_out.refcount);
-
 	ctx->is_active = FALSE;
 
 	li_stream_set_cqlimit(NULL, &ctx->fcgi_in, NULL);
