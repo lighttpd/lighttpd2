@@ -184,6 +184,7 @@ static void connection_check_reset(liJob *job) {
 	}
 }
 
+/* tcp/ssl -> http "parser" */
 static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 	liConnection *con = LI_CONTAINER_OF(stream, liConnection, in);
 	liChunkQueue *raw_in, *in;
@@ -351,6 +352,7 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 	}
 }
 
+/* http response header/data -> tcp/ssl */
 static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 	liConnection *con = LI_CONTAINER_OF(stream, liConnection, out);
 
@@ -367,7 +369,7 @@ static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 		if (!con->out_has_all_data) li_connection_error(con);
 		return;
 	case LI_STREAM_DISCONNECTED_DEST:
-		if (!raw_out->is_closed || NULL == con->con_sock.raw_out) {
+		if (!raw_out->is_closed || 0 != raw_out->length || NULL == con->con_sock.raw_out) {
 			li_connection_error(con);
 		} else {
 			connection_close(con);
@@ -398,9 +400,10 @@ static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 			li_response_send_headers(vr, raw_out, out);
 		}
 
-		if (!raw_out->is_closed && NULL != out) {
+		if (!con->out_has_all_data && !raw_out->is_closed && NULL != out) {
 			if (vr->response.transfer_encoding & LI_HTTP_TRANSFER_ENCODING_CHUNKED) {
 				li_filter_chunked_encode(vr, raw_out, out);
+				raw_out->is_closed = FALSE;
 			} else {
 				li_chunkqueue_steal_all(raw_out, out);
 			}
@@ -723,10 +726,12 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 
 	con->info.keep_alive = TRUE;
 
-	con->out.out->is_closed = FALSE;
-
 	li_vrequest_reset(con->mainvr, TRUE);
 	li_http_request_parser_reset(&con->req_parser_ctx);
+
+	li_stream_disconnect(&con->out);
+	li_stream_disconnect_dest(&con->in);
+	con->out.out->is_closed = FALSE;
 
 	/* restore chunkqueue limits */
 	li_chunkqueue_use_limit(con->con_sock.raw_in->out, 512*1024);

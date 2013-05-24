@@ -28,6 +28,7 @@ static void stream_http_respone_data(liStreamHttpResponse* shr) {
 				VR_ERROR(shr->vr, "%s", "Parsing response header failed (eos)");
 				li_vrequest_error(shr->vr);
 			}
+			return;
 		default:
 			return;
 		}
@@ -42,7 +43,7 @@ static void stream_http_respone_data(liStreamHttpResponse* shr) {
 }
 
 
-static void stream_http_respone_cb(liStream *stream, liStreamEvent event) {
+static void stream_http_response_cb(liStream *stream, liStreamEvent event) {
 	liStreamHttpResponse* shr = LI_CONTAINER_OF(stream, liStreamHttpResponse, stream);
 
 	switch (event) {
@@ -71,7 +72,7 @@ LI_API liStream* li_stream_http_response_handle(liStream *http_in, liVRequest *v
 	liStreamHttpResponse *shr = g_slice_new0(liStreamHttpResponse);
 	shr->response_headers_finished = FALSE;
 	shr->vr = vr;
-	li_stream_init(&shr->stream, &vr->wrk->loop, stream_http_respone_cb);
+	li_stream_init(&shr->stream, &vr->wrk->loop, stream_http_response_cb);
 	li_http_response_parser_init(&shr->parse_response_ctx, &vr->response, http_in->out,
 		accept_cgi, accept_nph);
 	li_stream_connect(http_in, &shr->stream);
