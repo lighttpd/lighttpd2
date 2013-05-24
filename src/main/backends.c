@@ -139,6 +139,7 @@ static void S_backend_pool_worker_remove_con(liBackendPool_p *pool, liBackendCon
 		move->ndx = ndx;
 		ndx = last_idle_ndx;
 	}
+	g_ptr_array_index(wpool->connections, last_idle_ndx) = NULL;
 	g_ptr_array_set_size(wpool->connections, last_idle_ndx);
 	con->ndx = -1;
 }
@@ -203,6 +204,7 @@ static void S_backend_pool_worker_insert_con(liBackendPool_p *pool, liWorker *wr
 			move->ndx = con->ndx;
 			con->ndx = wpool->active + wpool->reserved;
 		}
+		g_ptr_array_index(wpool->connections, con->ndx) = con;
 		assert(con->ndx == min_ndx);
 	} else if (con->ndx > max_ndx) {
 		if ((guint) con->ndx > wpool->active + wpool->reserved - 1) {
@@ -217,6 +219,7 @@ static void S_backend_pool_worker_insert_con(liBackendPool_p *pool, liWorker *wr
 			move->ndx = con->ndx;
 			con->ndx = wpool->active - 1;
 		}
+		g_ptr_array_index(wpool->connections, con->ndx) = con;
 		assert(con->ndx == max_ndx);
 	} else {
 		assert(con->ndx >= min_ndx && con->ndx <= max_ndx);
