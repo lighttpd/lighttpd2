@@ -4,6 +4,8 @@ import pycurl
 import StringIO
 
 import sys
+import zlib
+import bz2
 
 from base import *
 
@@ -17,6 +19,8 @@ class CurlRequest(TestBase):
 	PORT = 0 # offset to Env.port
 	AUTH = None
 	POST = None
+	REQUEST_HEADERS = []
+	ACCEPT_ENCODING = "deflate, gzip"
 
 	EXPECT_RESPONSE_BODY = None
 	EXPECT_RESPONSE_CODE = None
@@ -27,6 +31,7 @@ class CurlRequest(TestBase):
 		self.resp_header_list = []
 		self.resp_headers = { }
 		self.resp_first_line = None
+		self.resp_body = None
 
 	def _recv_header(self, header):
 		header = header.rstrip()
@@ -47,6 +52,7 @@ class CurlRequest(TestBase):
 		key = key.strip()
 		value = value.strip()
 		self.resp_header_list.append((key, value))
+		key = key.lower()
 		if self.resp_headers.has_key(key):
 			self.resp_headers[key] += ", " + value
 		else:
@@ -55,9 +61,12 @@ class CurlRequest(TestBase):
 	def Run(self):
 		if None == self.URL:
 			raise BasicException("You have to set URL in your CurlRequest instance")
+		reqheaders = ["Host: " + self.vhost] + self.REQUEST_HEADERS
+		if None != self.ACCEPT_ENCODING:
+			reqheaders += ["Accept-Encoding: " + self.ACCEPT_ENCODING]
 		c = pycurl.Curl()
 		c.setopt(pycurl.URL, self.SCHEME + ("://127.0.0.2:%i" % (Env.port + self.PORT)) + self.URL)
-		c.setopt(pycurl.HTTPHEADER, ["Host: " + self.vhost])
+		c.setopt(pycurl.HTTPHEADER, reqheaders)
 		c.setopt(pycurl.NOSIGNAL, 1)
 		c.setopt(pycurl.TIMEOUT, 2)
 		b = StringIO.StringIO()
@@ -103,8 +112,32 @@ class CurlRequest(TestBase):
 		for (k, v) in self.resp_header_list:
 			print >> Env.log, "  %s: %s" % (k, v)
 		print >> Env.log, "Curl response body:"
-		print >> Env.log, self.buffer.getvalue()
+		print >> Env.log, self.ResponseBody()
 		Env.log.flush()
+
+	def _decode(self, method, data):
+		if 'x-gzip' == method or 'gzip' == method:
+			header = data[:10]
+			if "\x1f\x8b\x08\x00\x00\x00\x00\x00" != header[:8]:
+				raise CurlRequestException("Unsupported content-encoding gzip header")
+			return zlib.decompress(data[10:], -15)
+		elif 'deflate' == method:
+			return zlib.decompress(data, -15)
+		elif 'compress' == method:
+			raise CurlRequestException("Unsupported content-encoding %s" % method)
+		elif 'x-bzip2' == method or 'bzip2' == method:
+			return bz2.decompress(data)
+		else:
+			raise CurlRequestException("Unsupported content-encoding %s" % method)
+
+	def ResponseBody(self):
+		if None == self.resp_body:
+			body = self.buffer.getvalue()
+			if self.resp_headers.has_key("content-encoding"):
+				cenc = self.resp_headers["content-encoding"]
+				body = self._decode(cenc, body)
+			self.resp_body = body
+		return self.resp_body
 
 	def _checkResponse(self):
 		c = self.curl
@@ -120,14 +153,13 @@ class CurlRequest(TestBase):
 				raise CurlRequestException("Unexpected response code %i (wanted %i)" % (code, self.EXPECT_RESPONSE_CODE))
 
 		if None != self.EXPECT_RESPONSE_BODY:
-			body = self.buffer.getvalue()
-			if body != self.EXPECT_RESPONSE_BODY:
+			if self.ResponseBody() != self.EXPECT_RESPONSE_BODY:
 				raise CurlRequestException("Unexpected response body")
 
 		for (k, v) in self.EXPECT_RESPONSE_HEADERS:
-			if not self.resp_headers.has_key(k):
+			if not self.resp_headers.has_key(k.lower()):
 				raise CurlRequestException("Didn't get wanted response header '%s'" % (k))
-			v1 = self.resp_headers[k]
+			v1 = self.resp_headers[k.lower()]
 			if v1 != v:
 				raise CurlRequestException("Unexpected response header '%s' = '%s' (wanted '%s')" % (k, v1, v))
 

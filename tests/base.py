@@ -333,6 +333,7 @@ setup {{
 
 	module_load (
 		"mod_accesslog",
+		"mod_deflate",
 		"mod_dirlist",
 		"mod_lua",
 		"mod_vhost"
@@ -352,6 +353,12 @@ log [ "*" => "file:{errorlog}" ];
 
 defaultaction = {{
 	docroot "{Env.defaultwww}";
+}};
+
+do_deflate = {{
+	if request.is_handled {{
+		deflate;
+	}}
 }};
 
 var.vhosts = [];
@@ -376,6 +383,9 @@ var.vhosts = var.vhosts + [ "default" => {
 } ];
 
 vhost.map var.vhosts;
+
+static;
+do_deflate;
 """
 		Env.lighttpdconf = self.PrepareFile("conf/lighttpd.conf", self.config)
 
