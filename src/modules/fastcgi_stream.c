@@ -235,6 +235,12 @@ static void fastcgi_check_put(liFastCGIBackendContext *ctx) {
 	/* wait for vrequest streams to disconnect */
 	if (NULL != ctx->fcgi_in.dest || NULL != ctx->fcgi_out.source) return;
 
+	li_stream_disconnect(&ctx->fcgi_out);
+	li_stream_disconnect_dest(&ctx->fcgi_in);
+
+	assert(2 == ctx->fcgi_in.refcount);
+	assert(2 == ctx->fcgi_out.refcount);
+
 	ctx->is_active = FALSE;
 
 	li_stream_set_cqlimit(NULL, &ctx->fcgi_in, NULL);
@@ -815,6 +821,9 @@ liBackendResult li_fastcgi_backend_get(liVRequest *vr, liFastCGIBackendPool *bpo
 
 		assert(li_event_active(&ctx->iostream->io_watcher));
 		li_event_set_keep_loop_alive(&ctx->iostream->io_watcher, TRUE);
+
+		assert(NULL == ctx->fcgi_in.dest);
+		assert(NULL == ctx->fcgi_out.source);
 
 		assert(NULL != ctx->iostream);
 		assert(-1 != li_event_io_fd(&ctx->iostream->io_watcher));
