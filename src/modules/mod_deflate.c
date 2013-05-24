@@ -179,12 +179,16 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 	deflate_context_zlib *ctx = (deflate_context_zlib*) f->param;
 	const off_t blocksize = ctx->conf.blocksize;
 	const off_t max_compress = 4 * blocksize;
-	gboolean debug = _OPTION(vr, ctx->conf.p, 0).boolean;
+	gboolean debug = (NULL != vr) && _OPTION(vr, ctx->conf.p, 0).boolean;
 	z_stream *z = &ctx->z;
 	off_t l = 0;
 	liHandlerResult res;
 	int rc;
-	UNUSED(vr);
+
+	if (NULL == f->in) {
+		f->out->is_closed = TRUE;
+		return LI_HANDLER_GO_ON;
+	}
 
 	if (f->in->is_closed && 0 == f->in->length && f->out->is_closed) {
 		/* nothing to do anymore */
@@ -193,7 +197,7 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 
 	if (f->out->is_closed) {
 		li_chunkqueue_skip_all(f->in);
-		f->in->is_closed = TRUE;
+		li_stream_disconnect(&f->stream);
 		if (debug) {
 			VR_DEBUG(vr, "deflate out stream closed: in: %i, out : %i", (int) z->total_in, (int) z->total_out);
 		}
@@ -231,7 +235,7 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 
 		if (LI_HANDLER_GO_ON != (res = li_chunkiter_read(ci, 0, blocksize, &data, &len, &err))) {
 			if (NULL != err) {
-				VR_ERROR(vr, "Couldn't read data from chunkqueue: %s", err->message);
+				if (NULL != vr) VR_ERROR(vr, "Couldn't read data from chunkqueue: %s", err->message);
 				g_error_free(err);
 			}
 			return res;
@@ -247,7 +251,7 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 		do {
 			if (Z_OK != deflate(z, Z_NO_FLUSH)) {
 				f->out->is_closed = TRUE;
-				VR_ERROR(vr, "deflate error: %s", z->msg);
+				if (NULL != vr) VR_ERROR(vr, "deflate error: %s", z->msg);
 				return LI_HANDLER_ERROR;
 			}
 
@@ -267,7 +271,7 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 			rc = deflate(z, Z_FINISH);
 			if (rc != Z_OK && rc != Z_STREAM_END) {
 				f->out->is_closed = TRUE;
-				VR_ERROR(vr, "deflate error: %s", z->msg);
+				if (NULL != vr) VR_ERROR(vr, "deflate error: %s", z->msg);
 				return LI_HANDLER_ERROR;
 			}
 
@@ -306,8 +310,7 @@ static liHandlerResult deflate_filter_zlib(liVRequest *vr, liFilter *f) {
 	if (l > 0 && 0 == f->in->length && !f->in->is_closed) { /* flush z_stream */
 		rc = deflate(z, Z_SYNC_FLUSH);
 		if (rc != Z_OK && rc != Z_STREAM_END) {
-			f->out->is_closed = TRUE;
-			VR_ERROR(vr, "deflate error: %s", z->msg);
+			if (NULL != vr) VR_ERROR(vr, "deflate error: %s", z->msg);
 			return LI_HANDLER_ERROR;
 		}
 	}
@@ -393,12 +396,17 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 	deflate_context_bzip2 *ctx = (deflate_context_bzip2*) f->param;
 	const off_t blocksize = ctx->conf.blocksize;
 	const off_t max_compress = 4 * blocksize;
-	gboolean debug = _OPTION(vr, ctx->conf.p, 0).boolean;
+	gboolean debug = (NULL != vr) && _OPTION(vr, ctx->conf.p, 0).boolean;
 	bz_stream *bz = &ctx->bz;
 	off_t l = 0;
 	liHandlerResult res;
 	int rc;
-	UNUSED(vr);
+
+	if (NULL == f->in) {
+		/* didn't handle f->in->is_closed? abort forwarding */
+		if (!f->out->is_closed) li_stream_reset(&f->stream);
+		return LI_HANDLER_GO_ON;
+	}
 
 	if (f->in->is_closed && 0 == f->in->length && f->out->is_closed) {
 		/* nothing to do anymore */
@@ -407,7 +415,7 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 
 	if (f->out->is_closed) {
 		li_chunkqueue_skip_all(f->in);
-		f->in->is_closed = TRUE;
+		li_stream_disconnect(&f->stream);
 		if (debug) {
 			VR_DEBUG(vr, "deflate out stream closed: in: %i, out : %i", (int) bz->total_in_lo32, (int) bz->total_out_lo32);
 		}
@@ -426,7 +434,7 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 
 		if (LI_HANDLER_GO_ON != (res = li_chunkiter_read(ci, 0, blocksize, &data, &len, &err))) {
 			if (NULL != err) {
-				VR_ERROR(vr, "Couldn't read data from chunkqueue: %s", err->message);
+				if (NULL != vr) VR_ERROR(vr, "Couldn't read data from chunkqueue: %s", err->message);
 				g_error_free(err);
 			}
 			return res;
@@ -439,7 +447,7 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 			rc = BZ2_bzCompress(bz, BZ_RUN);
 			if (rc != BZ_RUN_OK) {
 				f->out->is_closed = TRUE;
-				VR_ERROR(vr, "BZ2_bzCompress error: rc = %i", rc);
+				if (NULL != vr) VR_ERROR(vr, "BZ2_bzCompress error: rc = %i", rc);
 				return LI_HANDLER_ERROR;
 			}
 
@@ -459,7 +467,7 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 			rc = BZ2_bzCompress(bz, BZ_FINISH);
 			if (rc != BZ_RUN_OK && rc != BZ_STREAM_END && rc != BZ_FINISH_OK) {
 				f->out->is_closed = TRUE;
-				VR_ERROR(vr, "BZ2_bzCompress error: rc = %i", rc);
+				if (NULL != vr) VR_ERROR(vr, "BZ2_bzCompress error: rc = %i", rc);
 				return LI_HANDLER_ERROR;
 			}
 
@@ -474,7 +482,6 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 		if (debug) {
 			VR_DEBUG(vr, "deflate finished: in: %i, out : %i", (int) bz->total_in_lo32, (int) bz->total_out_lo32);
 		}
-
 
 		f->out->is_closed = TRUE;
 	}
@@ -492,8 +499,10 @@ static liHandlerResult deflate_filter_bzip2(liVRequest *vr, liFilter *f) {
 
 static liHandlerResult deflate_filter_null(liVRequest *vr, liFilter *f) {
 	UNUSED(vr);
-	li_chunkqueue_skip_all(f->in);
-	f->out->is_closed = f->in->is_closed = TRUE;
+	if (NULL != f->in) {
+		li_chunkqueue_skip_all(f->in);
+		li_stream_disconnect(&f->stream);
+	}
 	return LI_HANDLER_GO_ON;
 }
 
@@ -665,7 +674,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	if (is_head_request) {
 		/* kill content so response.c doesn't send wrong content-length */
 		liFilter *f = li_vrequest_add_filter_out(vr, deflate_filter_null, NULL, NULL, NULL);
-		f->out->is_closed = f->in->is_closed = TRUE;
+		f->out->is_closed = TRUE;
 	}
 
 	li_http_header_insert(vr->response.headers, CONST_STR_LEN("Content-Encoding"), encoding_names[i], strlen(encoding_names[i]));

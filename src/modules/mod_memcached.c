@@ -54,6 +54,7 @@ LI_API gboolean mod_memcached_free(liModules *mods, liModule *mod);
 typedef struct memcached_ctx memcached_ctx;
 struct memcached_ctx {
 	int refcount;
+	liServer *srv;
 
 	liMemcachedCon **worker_client_ctx;
 	liSocketAddress addr;
@@ -100,11 +101,15 @@ static void mc_ctx_acquire(memcached_ctx* ctx) {
 	g_atomic_int_inc(&ctx->refcount);
 }
 
-static void mc_ctx_release(liServer *srv, gpointer param) {
+/* not every context has srv ready, extract from context instead */
+static void mc_ctx_release(liServer *_srv, gpointer param) {
 	memcached_ctx *ctx = param;
+	liServer *srv;
 	guint i;
+	UNUSED(_srv);
 
 	if (NULL == ctx) return;
+	srv = ctx->srv;
 
 	assert(g_atomic_int_get(&ctx->refcount) > 0);
 	if (!g_atomic_int_dec_and_test(&ctx->refcount)) return;
@@ -129,6 +134,7 @@ static void mc_ctx_release(liServer *srv, gpointer param) {
 		ctx->mconf_link.data = NULL;
 	}
 
+	ctx->srv = NULL;
 	g_slice_free(memcached_ctx, ctx);
 }
 
@@ -143,6 +149,7 @@ static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config) 
 	}
 
 	ctx = g_slice_new0(memcached_ctx);
+	ctx->srv = srv;
 	ctx->refcount = 1;
 	ctx->p = p;
 
@@ -232,7 +239,7 @@ static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config) 
 	return ctx;
 
 option_failed:
-	mc_ctx_release(srv, ctx);
+	mc_ctx_release(NULL, ctx);
 	return NULL;
 }
 
@@ -415,8 +422,13 @@ static void memcache_store_filter_free(liVRequest *vr, liFilter *f) {
 	memcache_filter *mf = (memcache_filter*) f->param;
 	UNUSED(vr);
 
-	mc_ctx_release(vr->wrk->srv, mf->ctx);
+	if (NULL == f->param) return;
+
+	f->param = NULL;
+
+	mc_ctx_release(NULL, mf->ctx);
 	li_buffer_release(mf->buf);
+	mf->buf = NULL;
 
 	g_slice_free(memcache_filter, mf);
 }
@@ -424,25 +436,24 @@ static void memcache_store_filter_free(liVRequest *vr, liFilter *f) {
 static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 	memcache_filter *mf = (memcache_filter*) f->param;
 
+	if (NULL == f->in) {
+		memcache_store_filter_free(vr, f);
+		/* didn't handle f->in->is_closed? abort forwarding */
+		if (!f->out->is_closed) li_stream_reset(&f->stream);
+		return LI_HANDLER_GO_ON;
+	}
+
+	if (NULL == mf) goto forward;
+
 	if (f->in->is_closed && 0 == f->in->length && f->out->is_closed) {
 		/* nothing to do anymore */
 		return LI_HANDLER_GO_ON;
 	}
 
-	if (f->out->is_closed) {
-		li_chunkqueue_skip_all(f->in);
-		f->in->is_closed = TRUE;
-		return LI_HANDLER_GO_ON;
-	}
-
-	/* if already in "forward" mode */
-	if (NULL == mf->buf) goto forward;
-
 	/* check if size still fits into buffer */
 	if ((gssize) (f->in->length + mf->buf->used) > (gssize) mf->ctx->maxsize) {
 		/* response too big, switch to "forward" mode */
-		li_buffer_release(mf->buf);
-		mf->buf = NULL;
+		memcache_store_filter_free(vr, f);
 		goto forward;
 	}
 
@@ -452,8 +463,6 @@ static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 		liChunkIter ci;
 		liHandlerResult res;
 		GError *err = NULL;
-
-		if (0 == f->in->length) break;
 
 		ci = li_chunkqueue_iter(f->in);
 
@@ -467,15 +476,18 @@ static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 
 		if ((gssize) (len + mf->buf->used) > (gssize) mf->ctx->maxsize) {
 			/* response too big, switch to "forward" mode */
-			li_buffer_release(mf->buf);
-			mf->buf = NULL;
+			memcache_store_filter_free(vr, f);
 			goto forward;
 		}
 
 		memcpy(mf->buf->addr + mf->buf->used, data, len);
 		mf->buf->used += len;
 
-		li_chunkqueue_steal_len(f->out, f->in, len);
+		if (!f->out->is_closed) {
+			li_chunkqueue_steal_len(f->out, f->in, len);
+		} else {
+			li_chunkqueue_skip(f->in, len);
+		}
 	}
 
 	if (f->in->is_closed) {
@@ -486,26 +498,27 @@ static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 		liMemcachedRequest *req;
 		memcached_ctx *ctx = mf->ctx;
 
+		assert(0 == f->in->length);
+
 		f->out->is_closed = TRUE;
 
 		con = mc_ctx_prepare(ctx, vr->wrk);
 		mc_ctx_build_key(vr->wrk->tmp_str, ctx, vr);
 
-		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		if (NULL != vr && CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "memcached.store: storing response for key '%s'", vr->wrk->tmp_str->str);
 		}
 
 		req = li_memcached_set(con, vr->wrk->tmp_str, ctx->flags, ctx->ttl, mf->buf, NULL, NULL, &err);
-		li_buffer_release(mf->buf);
-		mf->buf = NULL;
+		memcache_store_filter_free(vr, f);
 
 		if (NULL == req) {
 			if (NULL != err) {
-				if (LI_MEMCACHED_DISABLED != err->code) {
+				if (NULL != vr && LI_MEMCACHED_DISABLED != err->code) {
 					VR_ERROR(vr, "memcached.store: set failed: %s", err->message);
 				}
 				g_clear_error(&err);
-			} else {
+			} else if (NULL != vr) {
 				VR_ERROR(vr, "memcached.store: set failed: %s", "Unkown error");
 			}
 		}
@@ -514,8 +527,13 @@ static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 	return LI_HANDLER_GO_ON;
 
 forward:
-	li_chunkqueue_steal_all(f->out, f->in);
-	if (f->in->is_closed) f->out->is_closed = f->in->is_closed;
+	if (f->out->is_closed) {
+		li_chunkqueue_skip_all(f->in);
+		li_stream_disconnect(&f->stream);
+	} else {
+		li_chunkqueue_steal_all(f->out, f->in);
+		if (f->in->is_closed) f->out->is_closed = f->in->is_closed;
+	}
 	return LI_HANDLER_GO_ON;
 }
 

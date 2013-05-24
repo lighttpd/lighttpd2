@@ -16,6 +16,7 @@ struct liFilter {
 
 	/* if the handler wasn't able to handle all "in" data it must call li_stream_again(&f->stream) to trigger a new call to handle_data
 	 * vr, in and out can be NULL if the associated vrequest/stream was destroyed
+	 * in handle_data out is never NULL
 	 */
 	liFilterHandlerCB handle_data;
 	liFilterFreeCB handle_free;

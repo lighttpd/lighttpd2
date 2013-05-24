@@ -127,22 +127,19 @@ static void cache_etag_file_finish(liVRequest *vr, cache_etag_file *cfile) {
 static void cache_etag_filter_free(liVRequest *vr, liFilter *f) {
 	cache_etag_file *cfile = (cache_etag_file*) f->param;
 	UNUSED(vr);
+	f->param = NULL;
 
 	cache_etag_file_free(cfile);
 }
 
 static liHandlerResult cache_etag_filter_hit(liVRequest *vr, liFilter *f) {
-	cache_etag_file *cfile = (cache_etag_file*) f->param;
 	UNUSED(vr);
 
-	if (!cfile) return LI_HANDLER_GO_ON;
-
-	if (!f->out->is_closed) li_chunkqueue_append_file_fd(f->out, NULL, 0, cfile->hit_length, cfile->hit_fd);
-	cfile->hit_fd = -1;
-	cache_etag_file_free(cfile);
-	f->param = NULL;
-
-	f->out->is_closed = TRUE;
+	if (NULL != f->in) {
+		li_chunkqueue_skip_all(f->in);
+		li_stream_disconnect(&f->stream);
+		return LI_HANDLER_GO_ON;
+	}
 
 	return LI_HANDLER_GO_ON;
 }
@@ -154,56 +151,67 @@ static liHandlerResult cache_etag_filter_miss(liVRequest *vr, liFilter *f) {
 	off_t buflen;
 	liChunkIter citer = li_chunkqueue_iter(f->in);
 	GError *err = NULL;
-	UNUSED(vr);
 
-	if (0 == f->in->length) return LI_HANDLER_GO_ON;
-
-	if (!cfile) { /* somehow we lost the file */
-		li_chunkqueue_steal_all(f->out, f->in);
-		if (f->in->is_closed) f->out->is_closed = TRUE;
+	if (NULL == f->in) {
+		cache_etag_filter_free(vr, f);
+		/* didn't handle f->in->is_closed? abort forwarding */
+		if (!f->out->is_closed) li_stream_reset(&f->stream);
 		return LI_HANDLER_GO_ON;
 	}
 
-	if (LI_HANDLER_GO_ON != li_chunkiter_read(citer, 0, 64*1024, &buf, &buflen, &err)) {
-		if (NULL != err) {
-			VR_ERROR(vr, "Couldn't read data from chunkqueue: %s", err->message);
-			g_error_free(err);
+	if (NULL == cfile) goto forward;
+
+	if (f->in->length > 0) {
+		if (LI_HANDLER_GO_ON != li_chunkiter_read(citer, 0, 64*1024, &buf, &buflen, &err)) {
+			if (NULL != err) {
+				if (NULL != vr) VR_ERROR(vr, "Couldn't read data from chunkqueue: %s", err->message);
+				g_error_free(err);
+			} else {
+				if (NULL != vr) VR_ERROR(vr, "%s", "Couldn't read data from chunkqueue");
+			}
+			cache_etag_filter_free(vr, f);
+			goto forward;
+		}
+
+		res = write(cfile->fd, buf, buflen);
+		if (res < 0) {
+			switch (errno) {
+			case EINTR:
+			case EAGAIN:
+				return LI_HANDLER_COMEBACK;
+			default:
+				if (NULL != vr) VR_ERROR(vr, "Couldn't write to temporary cache file '%s': %s",
+					cfile->tmpfilename->str, g_strerror(errno));
+				cache_etag_filter_free(vr, f);
+				goto forward;
+			}
 		} else {
-			VR_ERROR(vr, "%s", "Couldn't read data from chunkqueue");
+			if (!f->out->is_closed) {
+				li_chunkqueue_steal_len(f->out, f->in, res);
+			} else {
+				li_chunkqueue_skip(f->in, res);
+			}
 		}
-		cache_etag_file_free(cfile);
+	}
+
+	if (0 == f->in->length && f->in->is_closed) {
+		f->out->is_closed = TRUE;
+		cache_etag_file_finish(vr, cfile);
 		f->param = NULL;
-		li_chunkqueue_steal_all(f->out, f->in);
-		if (f->in->is_closed) f->out->is_closed = TRUE;
 		return LI_HANDLER_GO_ON;
 	}
 
-	res = write(cfile->fd, buf, buflen);
-	if (res < 0) {
-		switch (errno) {
-		case EINTR:
-		case EAGAIN:
-			break; /* come back later */
-		default:
-			VR_ERROR(vr, "Couldn't write to temporary cache file '%s': %s",
-				cfile->tmpfilename->str, g_strerror(errno));
-			cache_etag_file_free(cfile);
-			f->param = NULL;
-			li_chunkqueue_steal_all(f->out, f->in);
-			if (f->in->is_closed) f->out->is_closed = TRUE;
-			return LI_HANDLER_GO_ON;
-		}
-	} else {
-		li_chunkqueue_steal_len(f->out, f->in, res);
-		if (f->in->length == 0 && f->in->is_closed) {
-			cache_etag_file_finish(vr, cfile);
-			f->param = NULL;
-			f->out->is_closed = TRUE;
-			return LI_HANDLER_GO_ON;
-		}
-	}
+	return LI_HANDLER_GO_ON;
 
-	return f->in->length ? LI_HANDLER_COMEBACK : LI_HANDLER_GO_ON;
+forward:
+	if (f->out->is_closed) {
+		li_chunkqueue_skip_all(f->in);
+		li_stream_disconnect(&f->stream);
+	} else {
+		li_chunkqueue_steal_all(f->out, f->in);
+		if (f->in->is_closed) f->out->is_closed = f->in->is_closed;
+	}
+	return LI_HANDLER_GO_ON;
 }
 
 static GString* createFileName(liVRequest *vr, GString *path, liHttpHeader *etagheader) {
@@ -233,7 +241,6 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 	liHttpHeader *etag;
 	struct stat st;
 	GString *tmp_str = vr->wrk->tmp_str;
-	liFilter *f;
 	liHandlerResult res;
 	int err, fd;
 
@@ -265,6 +272,7 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 		return res;
 
 	if (res == LI_HANDLER_GO_ON) {
+		liFilter *f;
 		if (!S_ISREG(st.st_mode)) {
 			VR_ERROR(vr, "Unexpected file type for cache file '%s' (mode %o)", cfile->filename->str, (unsigned int) st.st_mode);
 			close(fd);
@@ -281,8 +289,14 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 		g_string_truncate(tmp_str, 0);
 		li_string_append_int(tmp_str, st.st_size);
 		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Length"), GSTR_LEN(tmp_str));
-		f = li_vrequest_add_filter_out(vr, cache_etag_filter_hit, cache_etag_filter_free, NULL, cfile);
-		f->in->is_closed = TRUE;
+		f = li_vrequest_add_filter_out(vr, cache_etag_filter_hit, NULL, NULL, NULL);
+		if (NULL != f) {
+			li_chunkqueue_append_file_fd(f->out, NULL, 0, cfile->hit_length, cfile->hit_fd);
+			f->out->is_closed = TRUE;
+			cfile->hit_fd = -1;
+		}
+		cache_etag_file_free(cfile);
+
 		*context = NULL;
 		return LI_HANDLER_GO_ON;
 	}

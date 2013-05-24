@@ -29,7 +29,7 @@ static void filter_handle_data(liFilter *filter) {
 		goffset curoutlen = filter->stream.out->length;
 		gboolean curout_closed = filter->stream.out->is_closed;
 
-		filter->in = (NULL != filter->stream.source) ? filter->stream.source->out : NULL;
+		assert(NULL != filter->out);
 
 		switch (filter->handle_data(filter->vr, filter)) {
 		case LI_HANDLER_GO_ON:
@@ -44,6 +44,7 @@ static void filter_handle_data(liFilter *filter) {
 		case LI_HANDLER_WAIT_FOR_EVENT:
 			break;
 		case LI_HANDLER_ERROR:
+			filter->in = NULL;
 			if (NULL != filter->vr) li_vrequest_error(filter->vr);
 			li_stream_reset(&filter->stream);
 			break;
@@ -72,6 +73,8 @@ static void filter_stream_cb(liStream *stream, liStreamEvent event) {
 		}
 		break;
 	case LI_STREAM_CONNECTED_SOURCE:
+		filter->in = (NULL != filter->stream.source) ? filter->stream.source->out : NULL;
+		/* fall through */
 	case LI_STREAM_CONNECTED_DEST:
 		if (NULL != filter->handle_event) {
 			filter->handle_event(filter->vr, filter, event);
@@ -80,6 +83,7 @@ static void filter_stream_cb(liStream *stream, liStreamEvent event) {
 		}
 		break;
 	case LI_STREAM_DISCONNECTED_SOURCE:
+		filter->in = NULL;
 		if (NULL != filter->handle_event) {
 			filter->handle_event(filter->vr, filter, event);
 		} else {
@@ -90,10 +94,12 @@ static void filter_stream_cb(liStream *stream, liStreamEvent event) {
 		if (NULL != filter->handle_event) {
 			filter->handle_event(filter->vr, filter, event);
 		} else {
-			li_stream_disconnect(stream);
+			stream->out->is_closed = TRUE;
+			li_chunkqueue_skip_all(stream->out);
 		}
 		break;
 	case LI_STREAM_DESTROY:
+		filter->out = NULL;
 		if (NULL != filter->handle_event) {
 			filter->handle_event(filter->vr, filter, event);
 		}
