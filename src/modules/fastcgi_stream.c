@@ -256,7 +256,7 @@ static void fastcgi_check_put(liFastCGIBackendContext *ctx) {
 	assert(NULL == ctx->fcgi_out.out->limit);
 
 	fcgi_debug("%s\n", "li_backend_put");
-	li_backend_put(ctx->wrk, ctx->pool->public.subpool, ctx->subcon, FALSE);
+	li_backend_put(ctx->wrk, ctx->pool->public.subpool, ctx->subcon, TRUE); /* disable keep-alive for now */
 }
 
 /* destroys ctx */
@@ -388,7 +388,7 @@ static void stream_send_begin(liChunkQueue *out, guint16 requestid) {
 	stream_build_fcgi_record(buf, FCGI_BEGIN_REQUEST, requestid, 8);
 	w = htons(FCGI_RESPONDER);
 	g_byte_array_append(buf, (const guint8*) &w, sizeof(w));
-	l_byte_array_append_c(buf, FCGI_KEEP_CONN);
+	l_byte_array_append_c(buf, 0 /* FCGI_KEEP_CONN */); /* disabled keep-alive for now */
 	append_padding(buf, 5);
 	li_chunkqueue_append_bytearr(out, buf);
 }
