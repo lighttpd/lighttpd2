@@ -24,6 +24,15 @@ struct liGnuTLSFilter {
 	unsigned int write_wants_read:1;
 };
 
+#if GNUTLS_VERSION_NUMBER >= 0x021200
+#define HAVE_GIOVEC
+#else
+typedef struct {
+	void *iov_base;
+	size_t iov_len;
+} giovec_t;
+#endif
+
 static ssize_t stream_push(gnutls_transport_ptr_t, const void*, size_t);
 static ssize_t stream_pushv(gnutls_transport_ptr_t, const giovec_t * iov, int iovcnt);
 static ssize_t stream_pull(gnutls_transport_ptr_t, void*, size_t);
@@ -564,7 +573,9 @@ liGnuTLSFilter* li_gnutls_filter_new(
 	f->session = session;
 	gnutls_transport_set_ptr(f->session, (gnutls_transport_ptr_t) f);
 	gnutls_transport_set_push_function(f->session, stream_push);
+#ifdef HAVE_GIOVEC
 	gnutls_transport_set_vec_push_function(f->session, stream_pushv);
+#endif
 	gnutls_transport_set_pull_function(f->session, stream_pull);
 
 	gnutls_session_set_ptr(f->session, f);
