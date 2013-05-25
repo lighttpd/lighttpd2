@@ -80,7 +80,7 @@ static void worker_io_timeout_cb(liWaitQueue *wq, gpointer data) {
 			VR_DEBUG(vr, "connection io-timeout from %s after %.2f seconds", con->info.remote_addr_str->str, now - wqe->ts);
 		}
 		li_plugins_handle_close(con);
-		li_worker_con_put(con);
+		li_connection_reset(con);
 	}
 
 	li_waitqueue_update(wq);
@@ -434,7 +434,7 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 		for (i = wrk->connections_active; i-- > 0;) {
 			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
 			if (con->state == LI_CON_STATE_KEEP_ALIVE) {
-				li_worker_con_put(con);
+				li_connection_reset(con);
 			}
 		}
 
@@ -461,7 +461,7 @@ void li_worker_stopping(liWorker *context, liWorker *wrk) {
 		for (i = wrk->connections_active; i-- > 0;) {
 			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
 			if (con->state == LI_CON_STATE_KEEP_ALIVE) {
-				li_worker_con_put(con);
+				li_connection_reset(con);
 			}
 		}
 
@@ -486,7 +486,7 @@ void li_worker_suspend(liWorker *context, liWorker *wrk) {
 		for (i = wrk->connections_active; i-- > 0;) {
 			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
 			if (con->state == LI_CON_STATE_KEEP_ALIVE) {
-				li_worker_con_put(con);
+				li_connection_reset(con);
 			}
 		}
 
