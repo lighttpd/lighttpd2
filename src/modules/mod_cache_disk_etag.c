@@ -149,7 +149,7 @@ static liHandlerResult cache_etag_filter_miss(liVRequest *vr, liFilter *f) {
 	ssize_t res;
 	gchar *buf;
 	off_t buflen;
-	liChunkIter citer = li_chunkqueue_iter(f->in);
+	liChunkIter citer;
 	GError *err = NULL;
 
 	if (NULL == f->in) {
@@ -162,6 +162,7 @@ static liHandlerResult cache_etag_filter_miss(liVRequest *vr, liFilter *f) {
 	if (NULL == cfile) goto forward;
 
 	if (f->in->length > 0) {
+		citer = li_chunkqueue_iter(f->in);
 		if (LI_HANDLER_GO_ON != li_chunkiter_read(citer, 0, 64*1024, &buf, &buflen, &err)) {
 			if (NULL != err) {
 				if (NULL != vr) VR_ERROR(vr, "Couldn't read data from chunkqueue: %s", err->message);
