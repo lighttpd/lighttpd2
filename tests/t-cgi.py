@@ -57,12 +57,36 @@ class TestUploadLarge1(CurlRequest):
 	EXPECT_RESPONSE_BODY = BODY_SHA1
 	EXPECT_RESPONSE_CODE = 200
 
+class ChunkedBodyReader:
+	def __init__(self, body, chunksize = 32*1024):
+		self.body = body
+		self.chunksize = chunksize
+		self.pos = 0
+
+	def read(self, size):
+		current = self.pos
+		rem = len(self.body) - current
+		size = min(rem, self.chunksize, size)
+		self.pos += size
+		return self.body[current:current+size]
+
+class TestUploadLargeChunked1(CurlRequest):
+	URL = "/uploadcheck.cgi"
+	EXPECT_RESPONSE_BODY = BODY_SHA1
+	EXPECT_RESPONSE_CODE = 200
+	REQUEST_HEADERS = ["Transfer-Encoding: chunked"]
+
+	def PrepareRequest(self, reqheaders):
+		c = self.curl
+		c.setopt(c.UPLOAD, 1)
+		c.setopt(pycurl.READFUNCTION, ChunkedBodyReader(BODY).read)
 
 class Test(GroupTest):
 	group = [
 		TestPathInfo1,
 		TestRequestUri1,
 		TestUploadLarge1,
+		TestUploadLargeChunked1
 	]
 
 	config = """

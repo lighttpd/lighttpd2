@@ -1,5 +1,5 @@
 
-#include <lighttpd/filter_chunked.h>
+#include <lighttpd/base.h>
 
 /* len != 0 */
 static void http_chunk_append_len(liChunkQueue *cq, size_t len) {
@@ -46,13 +46,13 @@ liHandlerResult li_filter_chunked_encode(liVRequest *vr, liChunkQueue *out, liCh
 #define read_char(c) do { \
 	while (!p || p >= pe) { \
 		GError *err = NULL; \
-		res = li_chunk_parser_next(&ctx, &p, &pe, &err); \
+		liHandlerResult res = li_chunk_parser_next(&ctx, &p, &pe, &err); \
 		if (NULL != err) { \
 			VR_ERROR(vr, "%s", err->message); \
 			g_error_free(err); \
 		} \
-		if (res == LI_HANDLER_WAIT_FOR_EVENT && in->is_closed) { \
-			res = LI_HANDLER_ERROR; \
+		if (LI_HANDLER_ERROR == res || (LI_HANDLER_WAIT_FOR_EVENT == res && in->is_closed)) { \
+			goto error; \
 		} \
 		if (res != LI_HANDLER_GO_ON) goto leave; \
 	} \
@@ -60,8 +60,7 @@ liHandlerResult li_filter_chunked_encode(liVRequest *vr, liChunkQueue *out, liCh
 } while(0);
 
 
-liHandlerResult li_filter_chunked_decode(liVRequest *vr, liChunkQueue *out, liChunkQueue *in, liFilterDecodeState *state) {
-	liHandlerResult res = LI_HANDLER_GO_ON;
+gboolean li_filter_chunked_decode(liVRequest *vr, liChunkQueue *out, liChunkQueue *in, liFilterChunkedDecodeState *state) {
 	liChunkParserCtx ctx;
 	gchar *p = NULL, *pe = NULL;
 	gchar c;
@@ -142,6 +141,9 @@ liHandlerResult li_filter_chunked_decode(liVRequest *vr, liChunkQueue *out, liCh
 				} else {
 					state->parse_state = 20;
 				}
+			} else {
+				/* wait for more data for the current chunk */
+				return TRUE;
 			}
 			break;
 		case 4:
@@ -177,20 +179,19 @@ liHandlerResult li_filter_chunked_decode(liVRequest *vr, liChunkQueue *out, liCh
 			break;
 		case 14:
 			out->is_closed = TRUE;
-			res = LI_HANDLER_GO_ON;
 			goto leave;
 		case 20:
-			res = LI_HANDLER_ERROR;
-			goto leave;
+			goto error;
 		}
 	}
 
 leave:
-	if (res == LI_HANDLER_ERROR) {
-		out->is_closed = TRUE;
-		li_chunkqueue_skip_all(in);
-		state->parse_state = 20;
-	}
 	li_chunkqueue_skip(in, ctx.bytes_in);
-	return res;
+	return TRUE;
+
+error:
+	out->is_closed = TRUE;
+	li_chunkqueue_skip_all(in);
+	state->parse_state = 20;
+	return FALSE;
 }

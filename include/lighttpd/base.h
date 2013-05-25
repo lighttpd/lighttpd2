@@ -20,6 +20,7 @@
 #include <lighttpd/waitqueue.h>
 #include <lighttpd/stream.h>
 #include <lighttpd/filter.h>
+#include <lighttpd/filter_chunked.h>
 #include <lighttpd/radix.h>
 
 #include <lighttpd/base_lua.h>
@@ -45,7 +46,6 @@
 
 #include <lighttpd/connection.h>
 
-#include <lighttpd/filter_chunked.h>
 #include <lighttpd/collect.h>
 #include <lighttpd/network.h>
 #include <lighttpd/etag.h>

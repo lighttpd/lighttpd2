@@ -26,7 +26,7 @@ static void cq_assert_eq(liChunkQueue *cq, const gchar *s, size_t len) {
 
 static void test_filter_chunked_decode(void) {
 	liChunkQueue *cq = li_chunkqueue_new(), *cq2 = li_chunkqueue_new();
-	liFilterDecodeState decode_state;
+	liFilterChunkedDecodeState decode_state;
 
 	cq_load_str(cq, CONST_STR_LEN(
 		"14\r\n"
@@ -37,7 +37,7 @@ static void test_filter_chunked_decode(void) {
 	cq->is_closed = TRUE;
 	memset(&decode_state, 0, sizeof(decode_state));
 	li_chunkqueue_reset(cq2);
-	g_assert(LI_HANDLER_GO_ON == li_filter_chunked_decode(NULL, cq2, cq, &decode_state));
+	g_assert(li_filter_chunked_decode(NULL, cq2, cq, &decode_state));
 	cq_assert_eq(cq2, CONST_STR_LEN(
 		"01234567890123456789"
 	));

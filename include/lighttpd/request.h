@@ -32,7 +32,7 @@ struct liRequest {
 
 	liHttpHeaders *headers;
 	/* Parsed headers: */
-	goffset content_length; /* -1 if not specified */
+	goffset content_length; /* -1 if not specified; implies chunked transfer-encoding */
 };
 
 LI_API void li_request_init(liRequest *req);

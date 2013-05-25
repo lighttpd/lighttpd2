@@ -334,11 +334,17 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 	if (con->state != LI_CON_STATE_READ_REQUEST_HEADER && !in->is_closed) {
 		goffset newbytes = 0;
 
-		if (vr->request.content_length == -1) {
-			/* TODO: parse chunked encoded request body, filters */
-			/* li_chunkqueue_steal_all(con->in, con->raw_in); */
-			con->info.keep_alive = FALSE;
-			in->is_closed = TRUE;
+		if (-1 == vr->request.content_length) {
+			if (!in->is_closed) {
+				if (!li_filter_chunked_decode(vr, in, raw_in, &con->in_chunked_decode_state)) {
+					if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+						VR_DEBUG(vr, "%s", "failed decoding chunked request body");
+					}
+					li_connection_error(con);
+					return;
+				}
+				newbytes = 1; /* always notify */
+			}
 		} else {
 			if (in->bytes_in < vr->request.content_length) {
 				newbytes = li_chunkqueue_steal_len(in, raw_in, vr->request.content_length - in->bytes_in);
@@ -740,6 +746,8 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 	li_stream_disconnect(&con->out);
 	li_stream_disconnect_dest(&con->in);
 	con->out.out->is_closed = FALSE;
+
+	memset(&con->in_chunked_decode_state, 0, sizeof(con->in_chunked_decode_state));
 
 	/* restore chunkqueue limits */
 	li_chunkqueue_use_limit(con->con_sock.raw_in->out, 512*1024);

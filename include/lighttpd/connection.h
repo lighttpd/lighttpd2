@@ -59,6 +59,7 @@ struct liConnection {
 	gboolean response_headers_sent, expect_100_cont, out_has_all_data;
 
 	liStream in, out;
+	liFilterChunkedDecodeState in_chunked_decode_state;
 
 	liVRequest *mainvr;
 	liHttpRequestCtx req_parser_ctx;

@@ -119,6 +119,7 @@ gboolean li_request_validate_header(liConnection *con) {
 	liRequest *req = &con->mainvr->request;
 	liHttpHeader *hh;
 	GList *l;
+	gboolean transfer_encoding_chunked = FALSE;
 
 	if (con->info.is_ssl) {
 		g_string_append_len(req->uri.scheme, CONST_STR_LEN("https"));
@@ -221,6 +222,30 @@ gboolean li_request_validate_header(liConnection *con) {
 		con->mainvr->request.content_length = r;
 	}
 
+	/* Transfer-Encoding: chunked */
+	l = li_http_header_find_first(req->headers, CONST_STR_LEN("transfer-encoding"));
+	if (l) {
+		for ( ; l ; l = li_http_header_find_next(l, CONST_STR_LEN("transfer-encoding")) ) {
+			hh = (liHttpHeader*) l->data;
+			if (0 == g_ascii_strcasecmp( LI_HEADER_VALUE(hh), "identity" )) {
+				/* ignore */
+				continue;
+			} if (0 == g_ascii_strcasecmp( LI_HEADER_VALUE(hh), "chunked" )) {
+				if (transfer_encoding_chunked) {
+					/* The "chunked" transfer-coding MUST NOT be applied more than once to a message-body */
+					bad_request(con, 400); /* bad request */
+					return FALSE;
+				}
+				transfer_encoding_chunked = TRUE;
+				con->mainvr->request.content_length = -1;
+			} else {
+				/* we only support chunked transfer-encoding */
+				bad_request(con, 501); /* Unimplemented */
+				return FALSE;
+			}
+		}
+	}
+
 	/* Expect: 100-continue */
 	l = li_http_header_find_first(req->headers, CONST_STR_LEN("expect"));
 	if (l) {
@@ -264,8 +289,8 @@ gboolean li_request_validate_header(liConnection *con) {
 		con->mainvr->request.content_length = 0;
 		break;
 	case LI_HTTP_METHOD_POST:
-		/* content-length is required for them */
-		if (con->mainvr->request.content_length == -1) {
+		/* content-length or chunked encoding is required for them */
+		if (con->mainvr->request.content_length == -1 && !transfer_encoding_chunked) {
 			/* content-length is missing */
 			VR_ERROR(con->mainvr, "%s", "POST-request, but content-length missing -> 411");
 
@@ -274,9 +299,9 @@ gboolean li_request_validate_header(liConnection *con) {
 		}
 		break;
 	default:
-		if (con->mainvr->request.content_length == -1)
+		/* they may have a content-length or use chunked encoding */
+		if (con->mainvr->request.content_length == -1 && !transfer_encoding_chunked)
 			con->mainvr->request.content_length = 0;
-		/* the may have a content-length */
 		break;
 	}
 
