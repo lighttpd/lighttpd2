@@ -7,6 +7,45 @@ static void _http_header_free(gpointer p) {
 	g_slice_free(liHttpHeader, h);
 }
 
+/* remove folding */
+static void _http_header_sanitize(liHttpHeader *h) {
+	guint i, j, len = h->data->len;
+	gboolean folding = FALSE;
+	char *str = h->data->str;
+	for (i = h->keylen + 2; i < len; ++i) {
+		switch (str[i]) {
+		case '\r':
+		case '\n':
+			goto cleanup;
+		default:
+			break;
+		}
+	}
+	return;
+
+cleanup:
+	for (j = i; i < len; ++i) {
+		switch (str[i]) {
+		case '\r':
+		case '\n':
+			folding = TRUE;
+			break;
+		case ' ':
+		case '\t':
+			if (!folding) str[j++] = str[i];
+			break;
+		default:
+			if (folding) {
+				str[j++] = ' ';
+				folding = FALSE;
+			}
+			str[j++] = str[i];
+			break;
+		}
+	}
+	g_string_truncate(h->data, j);
+}
+
 static liHttpHeader* _http_header_new(const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
 	liHttpHeader *h = g_slice_new0(liHttpHeader);
 	gchar *s;
@@ -19,6 +58,7 @@ static liHttpHeader* _http_header_new(const gchar *key, size_t keylen, const gch
 	memcpy(s, ": ", 2);
 	s += 2;
 	memcpy(s, val, valuelen);
+	_http_header_sanitize(h);
 	return h;
 }
 
@@ -172,4 +212,82 @@ void li_http_header_get_all(GString *dest, liHttpHeaders *headers, const gchar *
 		if (dest->len) g_string_append_len(dest, CONST_STR_LEN(", "));
 		g_string_append_len(dest, &h->data->str[h->keylen+2], h->data->len - (h->keylen + 2));
 	}
+}
+
+void li_http_header_tokenizer_start(liHttpHeaderTokenizer *tokenizer, liHttpHeaders *headers, const gchar *key, size_t keylen) {
+	if (NULL != (tokenizer->cur = li_http_header_find_first(headers, key, keylen))) {
+		liHttpHeader *h = (liHttpHeader*) tokenizer->cur->data;
+		tokenizer->pos = h->keylen + 2;
+	} else {
+		tokenizer->pos = 0;
+	}
+}
+
+gboolean li_http_header_tokenizer_next(liHttpHeaderTokenizer *tokenizer, GString *token) {
+	liHttpHeader *h;
+	guint len;
+	guint pos = tokenizer->pos;
+	gchar *str;
+
+	g_string_truncate(token, 0);
+
+	if (NULL == tokenizer->cur) return FALSE;
+	h = (liHttpHeader*) tokenizer->cur->data;
+	len = h->data->len;
+	str = h->data->str;
+
+	for (;;++pos) {
+		while (pos >= len) {
+			if (token->len > 0) {
+				tokenizer->pos = pos;
+				return TRUE;
+			}
+			if (NULL != (tokenizer->cur = li_http_header_find_next(tokenizer->cur, LI_HEADER_KEY_LEN(h)))) {
+				h = (liHttpHeader*) tokenizer->cur->data;
+				pos = tokenizer->pos = h->keylen + 2;
+				len = h->data->len;
+				str = h->data->str;
+			} else {
+				tokenizer->pos = 0;
+				return FALSE;
+			}
+		}
+
+		switch (str[pos]) {
+		case '"':
+			++pos;
+			if (token->len > 0) return FALSE; /* either the complete token is quoted or nothing */
+			goto quoted;
+		case ' ':
+		case ',':
+			if (token->len == 0) continue;
+			tokenizer->pos = pos+1;
+			return TRUE;
+		case '\\':
+			++pos;
+			if (pos >= len) return FALSE; /* no character after backslash */
+			/* fall through, append whatever comes */
+		default:
+			g_string_append_c(token, str[pos]);
+			break;
+		}
+	}
+
+quoted:
+	for (; pos < len; ++pos) {
+		switch (str[pos]) {
+		case '"':
+			++pos;
+			tokenizer->pos = pos;
+			return TRUE;
+		case '\\':
+			++pos;
+			if (pos >= len) return FALSE; /* no character after backslash */
+			/* fall through, append whatever comes */
+		default:
+			g_string_append_c(token, str[pos]);
+			break;
+		}
+	}
+	return FALSE; /* no terminating quote found */
 }

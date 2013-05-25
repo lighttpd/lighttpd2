@@ -23,6 +23,12 @@ struct liHttpHeaders {
 	GQueue entries;
 };
 
+typedef struct liHttpHeaderTokenizer liHttpHeaderTokenizer;
+struct liHttpHeaderTokenizer {
+	GList *cur;
+	guint pos;
+};
+
 /* strings always get copied, so you should free key and value yourself */
 
 LI_API liHttpHeaders* li_http_headers_new(void);
@@ -58,5 +64,10 @@ LI_API void li_http_header_get_all(GString *dest, liHttpHeaders *headers, const 
 INLINE gboolean li_http_header_key_is(liHttpHeader *h, const gchar *key, size_t keylen) {
 	return (h->keylen == keylen && 0 == g_ascii_strncasecmp(key, h->data->str, keylen));
 }
+
+/* very simple tokenizer. splits at ' ' and ',', unquotes \\ escapes and "..." tokens */
+LI_API void li_http_header_tokenizer_start(liHttpHeaderTokenizer *tokenizer, liHttpHeaders *headers, const gchar *key, size_t keylen);
+LI_API gboolean li_http_header_tokenizer_next(liHttpHeaderTokenizer *tokenizer, GString *token);
+
 
 #endif

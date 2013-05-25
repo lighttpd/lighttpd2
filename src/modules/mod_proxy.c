@@ -57,6 +57,8 @@ static void proxy_send_headers(liVRequest *vr, liChunkQueue *out) {
 	liHttpHeader *header;
 	GList *iter;
 	gchar *enc_path;
+	liHttpHeaderTokenizer header_tokenizer;
+	GString *tmp_str = vr->wrk->tmp_str;
 
 	g_string_append_len(head, GSTR_LEN(vr->request.http_method_str));
 	g_string_append_len(head, CONST_STR_LEN(" "));
@@ -81,11 +83,19 @@ static void proxy_send_headers(liVRequest *vr, liChunkQueue *out) {
 		break;
 	}
 
+	li_http_header_tokenizer_start(&header_tokenizer, vr->request.headers, CONST_STR_LEN("Connection"));
+	while (li_http_header_tokenizer_next(&header_tokenizer, tmp_str)) {
+		if (0 == g_ascii_strcasecmp(tmp_str->str, "Upgrade")) {
+			g_string_append_len(head, CONST_STR_LEN("Connection: Upgrade\r\n"));
+		}
+	}
+
 	for (iter = g_queue_peek_head_link(&vr->request.headers->entries); iter; iter = g_list_next(iter)) {
 		header = (liHttpHeader*) iter->data;
 		if (li_http_header_key_is(header, CONST_STR_LEN("Connection"))) continue;
 		if (li_http_header_key_is(header, CONST_STR_LEN("Proxy-Connection"))) continue;
 		if (li_http_header_key_is(header, CONST_STR_LEN("X-Forwarded-Proto"))) continue;
+		if (li_http_header_key_is(header, CONST_STR_LEN("X-Forwarded-For"))) continue;
 		g_string_append_len(head, GSTR_LEN(header->data));
 		g_string_append_len(head, CONST_STR_LEN("\r\n"));
 	}

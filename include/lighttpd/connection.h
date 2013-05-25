@@ -26,8 +26,11 @@ typedef enum {
 
 	/** write remaining bytes from raw_out, mainvr finished (or not started) */
 	LI_CON_STATE_WRITE,
+
+	/** connection was upgraded */
+	LI_CON_STATE_UPGRADED
 } liConnectionState;
-#define LI_CON_STATE_LAST LI_CON_STATE_WRITE
+#define LI_CON_STATE_LAST LI_CON_STATE_UPGRADED
 /* update mod_status too */
 
 typedef struct liConnectionSocketCallbacks liConnectionSocketCallbacks;

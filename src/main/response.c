@@ -24,7 +24,7 @@ void li_response_clear(liResponse *resp) {
 
 static void li_response_send_error_page(liVRequest *vr, liChunkQueue *response_body);
 
-void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueue *response_body) {
+void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueue *response_body, gboolean upgraded) {
 	GString *head;
 	gboolean have_real_body, response_complete;
 	liChunkQueue *tmp_cq = NULL;
@@ -53,8 +53,8 @@ void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueu
 	     vr->response.http_status == 205 ||
 	     vr->response.http_status == 304) {
 		/* They never have a content-body/length */
-		li_chunkqueue_skip_all(response_body);
-		raw_out->is_closed = TRUE;
+		if (NULL != response_body) li_chunkqueue_skip_all(response_body);
+		if (!upgraded) raw_out->is_closed = TRUE;
 	} else if (response_complete) {
 		if (vr->request.http_method != LI_HTTP_METHOD_HEAD || response_body->length > 0) {
 			/* do not send content-length: 0 if backend already skipped content generation for HEAD */
@@ -74,8 +74,8 @@ void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueu
 
 	if (vr->request.http_method == LI_HTTP_METHOD_HEAD) {
 		/* content-length is set, but no body */
-		li_chunkqueue_skip_all(response_body);
-		raw_out->is_closed = TRUE;
+		if (NULL != response_body) li_chunkqueue_skip_all(response_body);
+		if (!upgraded) raw_out->is_closed = TRUE;
 	}
 
 	/* Status line */
@@ -97,7 +97,9 @@ void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueu
 	}
 
 	/* connection header, if needed. connection entries in the list are ignored below, send them directly */
-	if (vr->request.http_version == LI_HTTP_VERSION_1_1) {
+	if (upgraded) {
+		g_string_append_len(head, CONST_STR_LEN("Connection: Upgrade\r\n"));
+	} else if (vr->request.http_version == LI_HTTP_VERSION_1_1) {
 		if (!vr->coninfo->keep_alive)
 			g_string_append_len(head, CONST_STR_LEN("Connection: close\r\n"));
 	} else {

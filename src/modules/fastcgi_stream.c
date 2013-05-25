@@ -568,7 +568,9 @@ static void fastcgi_stream_out(liStream *stream, liStreamEvent event) {
 		li_stream_notify(stream);
 		break;
 	case LI_STREAM_CONNECTED_SOURCE:
-		assert(!ctx->stdin_closed);
+		/* support Connection: Upgrade by reopening stdin. not standard compliant,
+		 * but the backend asked for it :) */
+		ctx->stdin_closed = FALSE;
 		break;
 	case LI_STREAM_DISCONNECTED_SOURCE:
 		if (!ctx->stdin_closed) {

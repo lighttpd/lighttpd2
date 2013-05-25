@@ -36,10 +36,12 @@ typedef enum {
 
 typedef void (*liVRequestHandlerCB)(liVRequest *vr);
 typedef liThrottleState* (*liVRequestThrottleCB)(liVRequest *vr);
+typedef void (*liVRequestConnectionUpgradeCB)(liVRequest *vr, liStream *backend_drain, liStream *backend_source);
 
 struct liConCallbacks {
 	liVRequestHandlerCB handle_response_error; /* this is _not_ for 500 - internal error */
 	liVRequestThrottleCB throttle_out, throttle_in;
+	liVRequestConnectionUpgradeCB connection_upgrade;
 };
 
 /* this data "belongs" to a vrequest, but is updated by the connection code */
@@ -166,6 +168,9 @@ LI_API gboolean li_vrequest_handle_indirect(liVRequest *vr, liPlugin *p);
 LI_API void li_vrequest_indirect_connect(liVRequest *vr, liStream *backend_drain, liStream *backend_source);
 /* received all response headers/status code - call once from your indirect handler */
 LI_API void li_vrequest_indirect_headers_ready(liVRequest *vr);
+
+/* call instead of headers_ready */
+LI_API void li_vrequest_connection_upgrade(liVRequest *vr, liStream *backend_drain, liStream *backend_source);
 
 /* Signals an internal error; handles the error in the _next_ loop */
 LI_API void li_vrequest_error(liVRequest *vr);

@@ -15,6 +15,6 @@ LI_API void li_response_init(liResponse *resp);
 LI_API void li_response_reset(liResponse *resp);
 LI_API void li_response_clear(liResponse *resp);
 
-LI_API void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueue *response_body);
+LI_API void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueue *response_body, gboolean upgraded);
 
 #endif

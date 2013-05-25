@@ -288,10 +288,16 @@ static liThrottleState* subvr_handle_throttle_in(liVRequest *vr) {
 	return NULL;
 }
 
+static void subvr_connection_upgrade(liVRequest *vr, liStream *backend_drain, liStream *backend_source) {
+	UNUSED(backend_drain); UNUSED(backend_source);
+	subvr_handle_response_error(vr);
+}
+
 static const liConCallbacks subrequest_callbacks = {
 	subvr_handle_response_error,
 	subvr_handle_throttle_out,
-	subvr_handle_throttle_in
+	subvr_handle_throttle_in,
+	subvr_connection_upgrade
 };
 
 static liSubrequest* subrequest_new(liVRequest *vr) {

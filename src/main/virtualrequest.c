@@ -399,7 +399,23 @@ void li_vrequest_indirect_headers_ready(liVRequest* vr) {
 	li_vrequest_joblist_append(vr);
 }
 
+void li_vrequest_connection_upgrade(liVRequest *vr, liStream *backend_drain, liStream *backend_source) {
+	assert(LI_VRS_HANDLE_RESPONSE_HEADERS > vr->state);
 
+	/* abort config handling. no filter, no more headers, ... */
+	vr->state = LI_VRS_WRITE_CONTENT;
+	li_action_stack_reset(vr, &vr->action_stack);
+
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		VR_DEBUG(vr, "%s", "connection uprade");
+	}
+
+	/* we don't want these to be disconnected by a li_vrequest_reset */
+	li_stream_safe_release(&vr->backend_drain);
+	li_stream_safe_release(&vr->backend_source);
+
+	vr->coninfo->callbacks->connection_upgrade(vr, backend_drain, backend_source);
+}
 
 gboolean li_vrequest_is_handled(liVRequest *vr) {
 	return vr->state >= LI_VRS_READ_CONTENT;

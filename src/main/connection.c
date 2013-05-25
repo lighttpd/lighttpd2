@@ -129,7 +129,6 @@ static liThrottleState* simple_tcp_throttle_in(liConnection *con) {
 	return data->sock_stream->throttle_in;
 }
 
-
 static const liConnectionSocketCallbacks simple_tcp_cbs = {
 	simple_tcp_finished,
 	simple_tcp_throttle_out,
@@ -219,6 +218,12 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 	in = con->in.out;
 
 	if (0 == raw_in->length) return; /* no (new) data */
+
+	if (LI_CON_STATE_UPGRADED == con->state) {
+		li_chunkqueue_steal_all(in, raw_in);
+		li_stream_notify(stream);
+		return;
+	}
 
 	if (con->state == LI_CON_STATE_KEEP_ALIVE) {
 		/* stop keep alive timeout watchers */
@@ -407,7 +412,7 @@ static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 				VR_DEBUG(vr, "%s", "write response headers");
 			}
 			con->response_headers_sent = TRUE;
-			li_response_send_headers(vr, raw_out, out);
+			li_response_send_headers(vr, raw_out, out, FALSE);
 		}
 
 		if (!con->out_has_all_data && !raw_out->is_closed && NULL != out) {
@@ -573,10 +578,45 @@ static liThrottleState* mainvr_throttle_in(liVRequest *vr) {
 	return con->con_sock.callbacks->throttle_in(con);
 }
 
+static void mainvr_connection_upgrade(liVRequest *vr, liStream *backend_drain, liStream *backend_source) {
+	liConnection* con = li_connection_from_vrequest(vr);
+	assert(NULL != con);
+
+	if (con->response_headers_sent || NULL != con->out.source) {
+		li_connection_error(con);
+		return;
+	}
+	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+		VR_DEBUG(vr, "%s", "connection upgrade: write response headers");
+	}
+	con->response_headers_sent = TRUE;
+	con->info.keep_alive = FALSE;
+	li_response_send_headers(vr, con->out.out, NULL, TRUE);
+	con->state = LI_CON_STATE_UPGRADED;
+	vr->response.transfer_encoding = 0;
+
+	li_stream_disconnect_dest(&con->in);
+	con->in.out->is_closed = FALSE;
+
+	li_stream_connect(&con->in, backend_drain);
+	li_stream_connect(backend_source, &con->out);
+
+	li_vrequest_reset(con->mainvr, TRUE);
+
+	if (NULL != con->in.source) {
+		li_chunkqueue_steal_all(con->out.out, backend_drain->out);
+	}
+	con->info.out_queue_length = con->out.out->length;
+
+	li_stream_notify(&con->out);
+	li_stream_notify(&con->in);
+}
+
 static const liConCallbacks con_callbacks = {
 	mainvr_handle_response_error,
 	mainvr_throttle_out,
-	mainvr_throttle_in
+	mainvr_throttle_in,
+	mainvr_connection_upgrade
 };
 
 liConnection* li_connection_new(liWorker *wrk) {
@@ -815,6 +855,8 @@ gchar *li_connection_state_str(liConnectionState state) {
 		return "handle main vrequest";
 	case LI_CON_STATE_WRITE:
 		return "write";
+	case LI_CON_STATE_UPGRADED:
+		return "upgraded";
 	}
 
 	return "undefined";
