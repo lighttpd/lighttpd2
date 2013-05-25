@@ -2,6 +2,9 @@
 #include <lighttpd/base.h>
 #include <lighttpd/throttle.h>
 
+#include <netinet/tcp.h>
+#include <sys/socket.h>
+
 void li_stream_simple_socket_close(liIOStream *stream, gboolean aborted) {
 	int fd = li_event_io_fd(&stream->io_watcher);
 
@@ -180,5 +183,18 @@ void li_stream_simple_socket_io_cb_with_context(liIOStream *stream, liIOStreamEv
 		}
 	default:
 		break;
+	}
+}
+
+void li_stream_simple_socket_flush(liIOStream *stream) {
+	int val = 1;
+	int fd = fd = li_event_io_fd(&stream->io_watcher);
+	if (-1 != fd) {
+		/* setting TCP_NODELAY should flush the socket. if it fails it probably isn't a TCP socket,
+		 * so no need to disable TCP_NODELAY */
+		if (-1 != setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val))) {
+			val = 0;
+			setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
+		}
 	}
 }

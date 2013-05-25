@@ -105,6 +105,7 @@ static void tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
 	if (NULL != conctx->con && conctx->con->out_has_all_data
 	    && (NULL == stream->stream_out.out || 0 == stream->stream_out.out->length)
 	    && li_streams_empty(conctx->con->con_sock.raw_out, NULL)) {
+		li_stream_simple_socket_flush(stream);
 		li_connection_request_done(conctx->con);
 	}
 

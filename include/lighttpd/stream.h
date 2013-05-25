@@ -101,6 +101,8 @@ LI_API void li_iostream_attach(liIOStream *iostream, liWorker *wrk);
 LI_API void li_stream_simple_socket_close(liIOStream *stream, gboolean aborted);
 LI_API void li_stream_simple_socket_io_cb(liIOStream *stream, liIOStreamEvent event);
 LI_API void li_stream_simple_socket_io_cb_with_context(liIOStream *stream, liIOStreamEvent event, gpointer *data);
+/* tries to flush TCP sockets by disabling nagle */
+LI_API void li_stream_simple_socket_flush(liIOStream *stream);
 
 
 /* inline implementations */
