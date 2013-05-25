@@ -71,7 +71,7 @@ static void fastcgi_con_reset_cb(liVRequest *vr, liFastCGIBackendPool *pool, liF
 	UNUSED(pool);
 
 	li_fastcgi_backend_put(bcon);
-	li_vrequest_error(vr);
+	if (vr->state < LI_VRS_HANDLE_RESPONSE_HEADERS) li_vrequest_error(vr);
 	fastcgi_context_release(ctx);
 }
 static void fastcgi_con_end_request_cb(liVRequest *vr, liFastCGIBackendPool *pool, liFastCGIBackendConnection *bcon, guint32 appStatus) {
