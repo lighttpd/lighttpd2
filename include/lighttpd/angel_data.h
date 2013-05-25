@@ -28,7 +28,7 @@ struct liAngelBuffer {
 
 /* error handling */
 #define LI_ANGEL_DATA_ERROR li_angel_data_error_quark()
-LI_API GQuark li_angel_data_error_quark();
+LI_API GQuark li_angel_data_error_quark(void);
 
 typedef enum {
 	LI_ANGEL_DATA_ERROR_EOF,                    /* not enough data to read value */

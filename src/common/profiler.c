@@ -58,7 +58,7 @@ static guint profiler_hash(gpointer addr) {
 	return ((uintptr_t)addr * 2654435761); /* ~ golden ratio of 2^32 */
 }
 
-static profiler_block *profiler_block_new() {
+static profiler_block *profiler_block_new(void) {
 	profiler_block *block;
 
 	if (!block_free_list) {
@@ -284,7 +284,7 @@ void li_profiler_enable(gchar *output_path) {
 	li_profiler_enabled = TRUE;
 }
 
-void li_profiler_finish() {
+void li_profiler_finish(void) {
 	guint i;
 	profiler_block *block, *block_tmp;
 

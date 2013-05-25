@@ -3,7 +3,7 @@
 
 /* error handling */
 #define LI_ANGEL_CONFIG_PARSER_ERROR li_angel_config_parser_error_quark()
-LI_API GQuark li_angel_config_parser_error_quark();
+LI_API GQuark li_angel_config_parser_error_quark(void);
 
 typedef enum {
 	LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,         /* parse error */

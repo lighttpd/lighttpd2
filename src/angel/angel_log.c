@@ -34,7 +34,7 @@ void li_log_write(liServer *srv, liLogLevel log_level, guint flags, const gchar 
 		GString *log_ts = srv->log.ts_cache;
 		time_t li_cur_ts;
 
-		li_cur_ts = (time_t)li_event_now(&srv->loop);
+		li_cur_ts = (time_t) (li_event_now(&srv->loop));
 
 		if (li_cur_ts != srv->log.last_ts) {
 			gsize s;

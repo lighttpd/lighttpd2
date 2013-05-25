@@ -7,7 +7,7 @@
 
 typedef void (*liThrottleNotifyCB)(liThrottleState *state, gpointer data);
 
-LI_API liThrottleState* li_throttle_new();
+LI_API liThrottleState* li_throttle_new(void);
 LI_API void li_throttle_set(liWorker *wrk, liThrottleState *state, guint rate, guint burst);
 LI_API void li_throttle_free(liWorker *wrk, liThrottleState *state);
 

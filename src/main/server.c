@@ -557,7 +557,7 @@ void li_server_exit(liServer *srv) {
 }
 
 /* cache timestamp */
-GString *li_server_current_timestamp() {
+GString *li_server_current_timestamp(void) {
 	static GStaticPrivate last_ts_key = G_STATIC_PRIVATE_INIT;
 	static GStaticPrivate ts_str_key = G_STATIC_PRIVATE_INIT;
 

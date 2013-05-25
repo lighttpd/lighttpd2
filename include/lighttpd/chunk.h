@@ -125,7 +125,7 @@ INLINE goffset li_chunk_length(liChunk *c);
  *    cqlimit     *
  ******************/
 
-LI_API liCQLimit* li_cqlimit_new();
+LI_API liCQLimit* li_cqlimit_new(void);
 LI_API void li_cqlimit_reset(liCQLimit *cql);
 LI_API void li_cqlimit_acquire(liCQLimit *cql);
 LI_API void li_cqlimit_release(liCQLimit *cql);
@@ -135,7 +135,7 @@ LI_API void li_cqlimit_set_limit(liCQLimit *cql, goffset limit);
  *   chunkqueue   *
  ******************/
 
-LI_API liChunkQueue* li_chunkqueue_new();
+LI_API liChunkQueue* li_chunkqueue_new(void);
 LI_API void li_chunkqueue_reset(liChunkQueue *cq);
 LI_API void li_chunkqueue_free(liChunkQueue *cq);
 

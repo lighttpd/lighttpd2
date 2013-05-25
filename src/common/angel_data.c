@@ -4,7 +4,7 @@
 #include <lighttpd/utils.h>
 
 /* error handling */
-GQuark li_angel_data_error_quark() {
+GQuark li_angel_data_error_quark(void) {
 	return g_quark_from_static_string("angel-data-error-quark");
 }
 

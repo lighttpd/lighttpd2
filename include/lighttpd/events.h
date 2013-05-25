@@ -120,7 +120,7 @@ LI_API void li_event_loop_force_close_sockets(liEventLoop *loop);
 
 LI_API const char* li_event_loop_backend_string(liEventLoop *loop);
 
-INLINE li_tstamp li_event_time();
+INLINE li_tstamp li_event_time(void);
 INLINE li_tstamp li_event_now(liEventLoop *loop);
 
 LI_API void li_event_add_closing_socket(liEventLoop *loop, int fd);
@@ -196,7 +196,7 @@ INLINE li_tstamp li_event_now(liEventLoop *loop) {
 	return ev_now(loop->loop);
 }
 
-INLINE li_tstamp li_event_time() {
+INLINE li_tstamp li_event_time(void) {
 	return ev_time();
 }
 
@@ -511,8 +511,8 @@ INLINE liEventChild* li_event_child_from(liEventBase *base) {
 	return LI_CONTAINER_OF(base, liEventChild, base);
 }
 
-INLINE int li_event_signal_signum(liEventSignal *signal) {
-	return signal->libevmess.sig.signum;
+INLINE int li_event_signal_signum(liEventSignal *sig) {
+	return sig->libevmess.sig.signum;
 }
 
 INLINE liEventSignal* li_event_signal_from(liEventBase *base) {

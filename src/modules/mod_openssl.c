@@ -172,14 +172,14 @@ static void openssl_tcp_finished(liConnection *con, gboolean aborted) {
 static liThrottleState* openssl_tcp_throttle_out(liConnection *con) {
 	openssl_connection_ctx *conctx = con->con_sock.data;
 	if (NULL == conctx) return NULL;
-	if (NULL == conctx->sock_stream->throttle_out) conctx->sock_stream->throttle_out = li_throttle_new(con->wrk);
+	if (NULL == conctx->sock_stream->throttle_out) conctx->sock_stream->throttle_out = li_throttle_new();
 	return conctx->sock_stream->throttle_out;
 }
 
 static liThrottleState* openssl_tcp_throttle_in(liConnection *con) {
 	openssl_connection_ctx *conctx = con->con_sock.data;
 	if (NULL == conctx) return NULL;
-	if (NULL == conctx->sock_stream->throttle_in) conctx->sock_stream->throttle_in = li_throttle_new(con->wrk);
+	if (NULL == conctx->sock_stream->throttle_in) conctx->sock_stream->throttle_in = li_throttle_new();
 	return conctx->sock_stream->throttle_in;
 }
 
@@ -690,7 +690,7 @@ static unsigned long ssl_id_cb(void) {
 	return (intptr_t) g_thread_self();
 }
 
-static void sslthread_init() {
+static void sslthread_init(void) {
 	int n = CRYPTO_num_locks(), i;
 
 	ssl_locks = g_slice_alloc0(sizeof(GMutex*) * n);
@@ -703,7 +703,7 @@ static void sslthread_init() {
 	CRYPTO_set_id_callback(ssl_id_cb);
 }
 
-static void sslthread_free() {
+static void sslthread_free(void) {
 	int n = CRYPTO_num_locks(), i;
 
 	for (i = 0; i < n; i++) {

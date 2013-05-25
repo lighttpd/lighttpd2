@@ -7,7 +7,7 @@ typedef struct closing_socket closing_socket;
 
 struct closing_socket {
 	liEventLoop *loop;
-	GList link;
+	GList sockets_link;
 	int fd;
 	li_tstamp close_timeout;
 };
@@ -15,7 +15,7 @@ struct closing_socket {
 static void close_socket_now(closing_socket *cs) {
 	close(cs->fd);
 	cs->fd = -1;
-	g_queue_unlink(&cs->loop->closing_sockets, &cs->link);
+	g_queue_unlink(&cs->loop->closing_sockets, &cs->sockets_link);
 }
 
 static void closing_socket_cb(int revents, void* arg) {
@@ -78,7 +78,7 @@ void li_event_add_closing_socket(liEventLoop *loop, int fd) {
 	cs = g_slice_new0(closing_socket);
 	cs->loop = loop;
 	cs->fd = fd;
-	g_queue_push_tail_link(&loop->closing_sockets, &cs->link);
+	g_queue_push_tail_link(&loop->closing_sockets, &cs->sockets_link);
 	cs->close_timeout = li_event_now(loop) + 10.0;
 
 	ev_once(loop->loop, fd, EV_READ, 10.0, closing_socket_cb, cs);
@@ -96,23 +96,23 @@ void li_event_loop_init(liEventLoop *loop, struct ev_loop *evloop) {
 
 struct ev_loop* li_event_loop_clear(liEventLoop *loop) {
 	struct ev_loop* evloop = loop->loop;
-	GList *link;
+	GList *lnk;
 
 	li_event_loop_end(loop);
 	li_job_queue_clear(&loop->jobqueue);
 
-	while (NULL != (link = loop->watchers.head)) {
-		liEventBase *base = LI_CONTAINER_OF(link, liEventBase, link_watchers);
+	while (NULL != (lnk = loop->watchers.head)) {
+		liEventBase *base = LI_CONTAINER_OF(lnk, liEventBase, link_watchers);
 		assert(li_event_attached_(base));
 		li_event_detach_(base);
-		assert(link != loop->watchers.head);
+		assert(lnk != loop->watchers.head);
 	}
 	loop->loop = NULL;
 	return evloop;
 }
 
 void li_event_loop_run(liEventLoop *loop) {
-	ev_run(loop->loop, 0);
+	ev_loop(loop->loop, 0);
 }
 
 void li_event_loop_end(liEventLoop *loop) {
@@ -129,10 +129,10 @@ void li_event_loop_exit(liEventLoop *loop) {
 }
 
 void li_event_loop_force_close_sockets(liEventLoop *loop) {
-	GList *link;
+	GList *lnk;
 
-	while (NULL != (link = loop->closing_sockets.head)) {
-		closing_socket *cs = LI_CONTAINER_OF(link, closing_socket, link);
+	while (NULL != (lnk = loop->closing_sockets.head)) {
+		closing_socket *cs = LI_CONTAINER_OF(lnk, closing_socket, sockets_link);
 		ev_feed_fd_event(loop->loop, cs->fd, EV_READ);
 		close_socket_now(cs);
 	}
@@ -172,7 +172,7 @@ static int io_events_to_libev(int events) {
 }
 
 void li_event_io_init(liEventLoop *loop, liEventIO *io, liEventCallback callback, int fd, int events) {
-	memset(io, sizeof(io), 0);
+	memset(io, 0, sizeof(io));
 	io->base.type = LI_EVT_IO;
 	io->base.keep_loop_alive = 1;
 	io->base.callback = callback;
@@ -252,7 +252,7 @@ static void event_timer_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 }
 
 void li_event_timer_init(liEventLoop *loop, liEventTimer *timer, liEventCallback callback) {
-	memset(timer, sizeof(timer), 0);
+	memset(timer, 0, sizeof(timer));
 	timer->base.type = LI_EVT_TIMER;
 	timer->base.keep_loop_alive = 1;
 	timer->base.callback = callback;
@@ -274,7 +274,7 @@ static void event_async_cb(struct ev_loop *loop, ev_async *w, int revents) {
 }
 
 void li_event_async_init(liEventLoop *loop, liEventAsync *async, liEventCallback callback) {
-	memset(async, sizeof(async), 0);
+	memset(async, 0, sizeof(async));
 	async->base.type = LI_EVT_ASYNC;
 	async->base.keep_loop_alive = 0;
 	async->base.callback = callback;
@@ -303,7 +303,7 @@ static void event_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 }
 
 void li_event_child_init(liEventLoop *loop, liEventChild *child, liEventCallback callback, int pid) {
-	memset(child, sizeof(child), 0);
+	memset(child, 0, sizeof(child));
 	child->base.type = LI_EVT_CHILD;
 	child->base.keep_loop_alive = 1;
 	child->base.callback = callback;
@@ -327,7 +327,7 @@ static void event_signal_cb(struct ev_loop *loop, ev_signal *w, int revents) {
 }
 
 void li_event_signal_init(liEventLoop *loop, liEventSignal *sig, liEventCallback callback, int signum) {
-	memset(sig, sizeof(sig), 0);
+	memset(sig, 0, sizeof(sig));
 	sig->base.type = LI_EVT_SIGNAL;
 	sig->base.keep_loop_alive = 0;
 	sig->base.callback = callback;
@@ -351,7 +351,7 @@ static void event_prepare_cb(struct ev_loop *loop, ev_prepare *w, int revents) {
 }
 
 void li_event_prepare_init(liEventLoop *loop, liEventPrepare *prepare, liEventCallback callback) {
-	memset(prepare, sizeof(prepare), 0);
+	memset(prepare, 0, sizeof(prepare));
 	prepare->base.type = LI_EVT_PREPARE;
 	prepare->base.keep_loop_alive = 0;
 	prepare->base.callback = callback;
@@ -374,7 +374,7 @@ static void event_check_cb(struct ev_loop *loop, ev_check *w, int revents) {
 }
 
 void li_event_check_init(liEventLoop *loop, liEventCheck *check, liEventCallback callback) {
-	memset(check, sizeof(check), 0);
+	memset(check, 0, sizeof(check));
 	check->base.type = LI_EVT_CHECK;
 	check->base.keep_loop_alive = 0;
 	check->base.callback = callback;

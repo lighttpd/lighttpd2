@@ -88,7 +88,7 @@ liAction *li_action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup
 	return a;
 }
 
-liAction *li_action_new_list() {
+liAction *li_action_new_list(void) {
 	liAction *a;
 
 	a = g_slice_new(liAction);

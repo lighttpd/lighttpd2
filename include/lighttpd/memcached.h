@@ -33,7 +33,7 @@ struct liMemcachedRequest {
 
 /* error handling */
 #define LI_MEMCACHED_ERROR li_memcached_error_quark()
-LI_API GQuark li_memcached_error_quark();
+LI_API GQuark li_memcached_error_quark(void);
 
 typedef enum {
 	LI_MEMCACHED_CONNECTION,

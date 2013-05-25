@@ -118,7 +118,7 @@ LI_API const char *li_remove_path(const char *path);
 #endif
 
 #define LI_SYS_ERROR li_sys_error_quark()
-LI_API GQuark li_sys_error_quark();
+LI_API GQuark li_sys_error_quark(void);
 
 #define LI_SET_SYS_ERROR(error, msg) \
 	_li_set_sys_error(error, msg, REMOVE_PATH(__FILE__), __LINE__);

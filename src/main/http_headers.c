@@ -27,7 +27,7 @@ static void _header_queue_free(gpointer data, gpointer userdata) {
 	_http_header_free((liHttpHeader*) data);
 }
 
-liHttpHeaders* li_http_headers_new() {
+liHttpHeaders* li_http_headers_new(void) {
 	liHttpHeaders* headers = g_slice_new0(liHttpHeaders);
 	g_queue_init(&headers->entries);
 	return headers;

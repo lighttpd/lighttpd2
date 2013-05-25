@@ -88,7 +88,7 @@ LI_API void li_action_acquire(liAction *a);
 LI_API liAction *li_action_new_setting(liOptionSet setting);
 LI_API liAction *li_action_new_settingptr(liOptionPtrSet setting);
 LI_API liAction *li_action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup, liActionFreeCB ffree, gpointer param);
-LI_API liAction *li_action_new_list();
+LI_API liAction *li_action_new_list(void);
 LI_API liAction *li_action_new_condition(liCondition *cond, liAction *target, liAction *target_else);
 LI_API liAction *li_action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB bfallback, liBackendFinishedCB bfinished, liBalancerFreeCB bfree, gpointer param, gboolean provide_backlog);
 

@@ -25,7 +25,7 @@ struct liHttpHeaders {
 
 /* strings always get copied, so you should free key and value yourself */
 
-LI_API liHttpHeaders* li_http_headers_new();
+LI_API liHttpHeaders* li_http_headers_new(void);
 LI_API void li_http_headers_reset(liHttpHeaders* headers);
 LI_API void li_http_headers_free(liHttpHeaders* headers);
 

@@ -84,10 +84,10 @@ static void send_queue_clean(GQueue *queue) {
 	}
 }
 
-GQuark li_angel_call_error_quark() {
+GQuark li_angel_call_error_quark(void) {
 	return g_quark_from_static_string("angel-call-error-quark");
 }
-GQuark li_angel_connection_error_quark() {
+GQuark li_angel_connection_error_quark(void) {
 	return g_quark_from_static_string("angel-connection-error-quark");
 }
 

@@ -21,7 +21,7 @@
  *   before we drop all requests
  */
 
-GQuark li_memcached_error_quark() {
+GQuark li_memcached_error_quark(void) {
 	return g_quark_from_static_string("memcached-error-quark");
 }
 

@@ -40,13 +40,13 @@ struct liValue {
 	} data;
 };
 
-LI_API liValue* li_value_new_none();
+LI_API liValue* li_value_new_none(void);
 LI_API liValue* li_value_new_bool(gboolean val);
 LI_API liValue* li_value_new_number(gint64 val);
 LI_API liValue* li_value_new_string(GString *val);
 LI_API liValue* li_value_new_range(liValueRange val);
-LI_API liValue* li_value_new_list();
-LI_API liValue* li_value_new_hash();
+LI_API liValue* li_value_new_list(void);
+LI_API liValue* li_value_new_hash(void);
 
 LI_API liValue* li_value_copy(liValue* val);
 LI_API void li_value_free(liValue* val);

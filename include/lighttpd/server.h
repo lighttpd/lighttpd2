@@ -128,7 +128,7 @@ LI_API liServerSocket* li_server_listen(liServer *srv, int fd);
 /* exit asap with cleanup */
 LI_API void li_server_exit(liServer *srv);
 
-LI_API GString *li_server_current_timestamp();
+LI_API GString *li_server_current_timestamp(void);
 
 LI_API void li_server_out_of_fds(liServer *srv);
 

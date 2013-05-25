@@ -117,14 +117,14 @@ static void simple_tcp_finished(liConnection *con, gboolean aborted) {
 static liThrottleState* simple_tcp_throttle_out(liConnection *con) {
 	simple_tcp_connection *data = con->con_sock.data;
 	if (NULL == data) return NULL;
-	if (NULL == data->sock_stream->throttle_out) data->sock_stream->throttle_out = li_throttle_new(con->wrk);
+	if (NULL == data->sock_stream->throttle_out) data->sock_stream->throttle_out = li_throttle_new();
 	return data->sock_stream->throttle_out;
 }
 
 static liThrottleState* simple_tcp_throttle_in(liConnection *con) {
 	simple_tcp_connection *data = con->con_sock.data;
 	if (NULL == data) return NULL;
-	if (NULL == data->sock_stream->throttle_in) data->sock_stream->throttle_in = li_throttle_new(con->wrk);
+	if (NULL == data->sock_stream->throttle_in) data->sock_stream->throttle_in = li_throttle_new();
 	return data->sock_stream->throttle_in;
 }
 

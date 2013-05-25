@@ -1,6 +1,6 @@
 #include <lighttpd/base.h>
 
-liValue* li_value_new_none() {
+liValue* li_value_new_none(void) {
 	liValue *v = g_slice_new0(liValue);
 	v->type = LI_VALUE_NONE;
 	return v;
@@ -27,7 +27,7 @@ liValue* li_value_new_string(GString *val) {
 	return v;
 }
 
-liValue* li_value_new_list() {
+liValue* li_value_new_list(void) {
 	liValue *v = g_slice_new0(liValue);
 	v->data.list = g_array_new(FALSE, TRUE, sizeof(liValue*));
 	v->type = LI_VALUE_LIST;
@@ -42,7 +42,7 @@ static void _value_hash_free_value(gpointer data) {
 	li_value_free((liValue*) data);
 }
 
-liValue* li_value_new_hash() {
+liValue* li_value_new_hash(void) {
 	liValue *v = g_slice_new0(liValue);
 	v->data.hash = g_hash_table_new_full(
 		(GHashFunc) g_string_hash, (GEqualFunc) g_string_equal,

@@ -66,10 +66,10 @@ struct liAngelCall {
 
 /* error handling */
 #define LI_ANGEL_CALL_ERROR li_angel_call_error_quark()
-LI_API GQuark li_angel_call_error_quark();
+LI_API GQuark li_angel_call_error_quark(void);
 
 #define LI_ANGEL_CONNECTION_ERROR li_angel_connection_error_quark()
-LI_API GQuark li_angel_connection_error_quark();
+LI_API GQuark li_angel_connection_error_quark(void);
 
 typedef enum {
 	LI_ANGEL_CALL_ALREADY_RUNNING,              /* the angel_call struct is already in use for a call */
@@ -120,7 +120,7 @@ LI_API void li_angel_cleanup_tables(liAngelConnection *acon);
 
 /* Usage */
 #if 0
-void init() {
+void init(void) {
 	/* ... init ctx... */
 	angel_call_init(&ctx->call);
 	ctx->call.context = ctx;
@@ -168,7 +168,7 @@ done:
 	unlock();
 }
 
-void stop_call() {
+void stop_call(void) {
 	lock();
 	ctx = get_ctx();
 	if (!angel_cancel_call(acon, ctx)) {

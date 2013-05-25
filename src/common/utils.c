@@ -821,7 +821,7 @@ const char *li_remove_path(const char *path) {
 	return path;
 }
 
-GQuark li_sys_error_quark() {
+GQuark li_sys_error_quark(void) {
 	return g_quark_from_static_string("li-sys-error-quark");
 }
 

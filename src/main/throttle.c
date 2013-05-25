@@ -292,7 +292,7 @@ void li_throttle_remove_pool(liWorker *wrk, liThrottleState *state, liThrottlePo
 	}
 }
 
-liThrottleState* li_throttle_new() {
+liThrottleState* li_throttle_new(void) {
 	liThrottleState *state = g_slice_new0(liThrottleState);
 	state->pools = g_ptr_array_new();
 	return state;

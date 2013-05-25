@@ -275,7 +275,7 @@ read_chunk:
  *     chunk      *
  ******************/
 
-static liChunk* chunk_new() {
+static liChunk* chunk_new(void) {
 	liChunk *c = g_slice_new0(liChunk);
 	c->data.file.mmap.data = MAP_FAILED;
 	c->cq_link.data = c;
@@ -322,7 +322,7 @@ static void chunk_free(liChunkQueue *cq, liChunk *c) {
 /******************
  *    cqlimit     *
  ******************/
-liCQLimit* li_cqlimit_new() {
+liCQLimit* li_cqlimit_new(void) {
 	liCQLimit *cql = g_slice_new0(liCQLimit);
 	cql->refcount = 1;
 	cql->limit = -1;
@@ -416,7 +416,7 @@ void li_cqlimit_set_limit(liCQLimit *cql, goffset limit) {
  *   chunkqueue   *
  ******************/
 
-liChunkQueue* li_chunkqueue_new() {
+liChunkQueue* li_chunkqueue_new(void) {
 	liChunkQueue *cq = g_slice_new0(liChunkQueue);
 	g_queue_init(&cq->queue);
 	return cq;

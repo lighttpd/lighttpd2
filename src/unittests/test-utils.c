@@ -3,6 +3,11 @@
 
 #define perror(msg) g_error("(%s:%i) %s failed: %s", __FILE__, __LINE__, msg, g_strerror(errno))
 
+static void force_write(int fd, const void *buf, size_t count) {
+	ssize_t r = write(fd, buf, count);
+	if (r < 0 || (size_t)r != count) perror("write");
+}
+
 static void test_send_fd(void) {
 	int pipefds[2], sockfd[2], rfd = -1;
 	char buf[5];
@@ -21,7 +26,7 @@ static void test_send_fd(void) {
 	}
 
 	/* check whether we still can send normal data after fd */
-	write(sockfd[0], CONST_STR_LEN("abcx"));
+	force_write(sockfd[0], CONST_STR_LEN("abcx"));
 
 	/* check receiving fd */
 	if (-1 == li_receive_fd(sockfd[1], &rfd)) {
@@ -40,7 +45,7 @@ static void test_send_fd(void) {
 	g_assert_cmpstr(buf, ==, "abcx");
 
 	/* check whether pipe still works after receiving end was passed */
-	write(pipefds[1], CONST_STR_LEN("test"));
+	force_write(pipefds[1], CONST_STR_LEN("test"));
 
 	buf[0] = '\0';
 	if (-1 == read(rfd, buf, 5)) {
@@ -75,7 +80,7 @@ static void test_send_fd_with_fast_close(void) {
 	}
 
 	/* check whether we still can send normal data after fd */
-	write(sockfd[0], CONST_STR_LEN("abcx"));
+	force_write(sockfd[0], CONST_STR_LEN("abcx"));
 
 	/* make sure we can close the fd before the other end received it */
 	close(pipefds[0]);
@@ -97,7 +102,7 @@ static void test_send_fd_with_fast_close(void) {
 	g_assert_cmpstr(buf, ==, "abcx");
 
 	/* check whether pipe still works after receiving end was passed */
-	write(pipefds[1], CONST_STR_LEN("test"));
+	force_write(pipefds[1], CONST_STR_LEN("test"));
 
 	buf[0] = '\0';
 	if (-1 == read(rfd, buf, 5)) {

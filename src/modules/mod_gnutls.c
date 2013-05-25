@@ -211,14 +211,14 @@ static void gnutlc_tcp_finished(liConnection *con, gboolean aborted) {
 static liThrottleState* gnutls_tcp_throttle_out(liConnection *con) {
 	mod_connection_ctx *conctx = con->con_sock.data;
 	if (NULL == conctx) return NULL;
-	if (NULL == conctx->sock_stream->throttle_out) conctx->sock_stream->throttle_out = li_throttle_new(con->wrk);
+	if (NULL == conctx->sock_stream->throttle_out) conctx->sock_stream->throttle_out = li_throttle_new();
 	return conctx->sock_stream->throttle_out;
 }
 
 static liThrottleState* gnutls_tcp_throttle_in(liConnection *con) {
 	mod_connection_ctx *conctx = con->con_sock.data;
 	if (NULL == conctx) return NULL;
-	if (NULL == conctx->sock_stream->throttle_in) conctx->sock_stream->throttle_in = li_throttle_new(con->wrk);
+	if (NULL == conctx->sock_stream->throttle_in) conctx->sock_stream->throttle_in = li_throttle_new();
 	return conctx->sock_stream->throttle_in;
 }
 

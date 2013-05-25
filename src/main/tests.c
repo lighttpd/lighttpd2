@@ -5,7 +5,7 @@
 
 #include <lighttpd/config_parser.h>
 
-int request_test() {
+int request_test(void) {
 	liChunkQueue *cq;
 	liRequest req;
 	liHandlerResult res;
@@ -34,7 +34,7 @@ int request_test() {
 	return res == LI_HANDLER_GO_ON ? 0 : 1;
 }
 
-int main() {
+int main(void) {
 	liServer *srv;
 
 	guint32 ip, netmask;

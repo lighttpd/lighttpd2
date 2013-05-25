@@ -33,7 +33,7 @@ void li_mempool_free(liMempoolPtr ptr, gsize size) {
 	g_free(ptr.data);
 }
 
-void li_mempool_cleanup() {
+void li_mempool_cleanup(void) {
 }
 
 gsize li_mempool_align_page_size(gsize size) {
@@ -134,7 +134,7 @@ static gsize mp_pagesize = 0;
 
 static GStaticMutex mp_init_mutex = G_STATIC_MUTEX_INIT;
 
-static void mempool_init() {
+static void mempool_init(void) {
 	g_static_mutex_lock (&mp_init_mutex);
 	if (!mp_initialized) {
 		mp_pagesize = sysconf(_SC_PAGE_SIZE);
@@ -481,7 +481,7 @@ void li_mempool_free(liMempoolPtr ptr, gsize size) {
 	mp_mag_release(mag); /* keep track of chunk count; release always after unlock! */
 }
 
-void li_mempool_cleanup() {
+void li_mempool_cleanup(void) {
 	/* "Force" thread-private cleanup */
 	mp_pools *pools;
 

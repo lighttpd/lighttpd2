@@ -15,6 +15,6 @@ LI_API liMempoolPtr li_mempool_alloc(gsize size);
 /* you cannot release parts from an allocated chunk; so you _have_ to remember the size from the alloc */
 LI_API void li_mempool_free(liMempoolPtr ptr, gsize size);
 
-LI_API void li_mempool_cleanup();
+LI_API void li_mempool_cleanup(void);
 
 #endif
