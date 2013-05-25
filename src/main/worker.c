@@ -37,7 +37,7 @@ void li_worker_check_keepalive(liWorker *wrk) {
 
 static void worker_keepalive_cb(liEventBase *watcher, int events) {
 	liWorker *wrk = LI_CONTAINER_OF(li_event_timer_from(watcher), liWorker, keep_alive_timer);
-	ev_tstamp now = li_cur_ts(wrk);
+	li_tstamp now = li_cur_ts(wrk);
 	GQueue *q = &wrk->keep_alive_queue;
 	GList *l;
 	liConnection *con;
@@ -46,7 +46,7 @@ static void worker_keepalive_cb(liEventBase *watcher, int events) {
 
 	while ( NULL != (l = g_queue_peek_head_link(q)) &&
 	        (con = (liConnection*) l->data)->keep_alive_data.timeout <= now ) {
-		ev_tstamp remaining = con->keep_alive_data.max_idle - wrk->srv->keep_alive_queue_timeout - (now - con->keep_alive_data.timeout);
+		li_tstamp remaining = con->keep_alive_data.max_idle - wrk->srv->keep_alive_queue_timeout - (now - con->keep_alive_data.timeout);
 		if (remaining > 0) {
 			g_queue_delete_link(q, l);
 			con->keep_alive_data.link = NULL;
@@ -69,7 +69,7 @@ static void worker_io_timeout_cb(liWaitQueue *wq, gpointer data) {
 	liWorker *wrk = data;
 	liConnection *con;
 	liWaitQueueElem *wqe;
-	ev_tstamp now = li_cur_ts(wrk);
+	li_tstamp now = li_cur_ts(wrk);
 
 	while ((wqe = li_waitqueue_pop(wq)) != NULL) {
 		liVRequest *vr;
@@ -211,7 +211,7 @@ static void li_worker_new_con_cb(liEventBase *watcher, int events) {
 /* stats watcher */
 static void worker_stats_watcher_cb(liEventBase *watcher, int events) {
 	liWorker *wrk = LI_CONTAINER_OF(li_event_timer_from(watcher), liWorker, stats_watcher);
-	ev_tstamp now = li_cur_ts(wrk);
+	li_tstamp now = li_cur_ts(wrk);
 	UNUSED(events);
 
 	if (wrk->stats.last_update && now != wrk->stats.last_update) {
@@ -537,7 +537,7 @@ static liConnection* worker_con_get(liWorker *wrk) {
 
 void li_worker_con_put(liConnection *con) {
 	liWorker *wrk = con->wrk;
-	ev_tstamp now = li_cur_ts(wrk);
+	li_tstamp now = li_cur_ts(wrk);
 
 	if (-1 == (gint) con->idx)
 		/* already inactive connection */

@@ -4,7 +4,7 @@
 #include <lighttpd/utils.h>
 
 /* IMPORTANT
- * In order to keep _release thread-safe the ev_io watcher keeps a
+ * In order to keep _release thread-safe the io watcher keeps a
  * reference too while active; when the last reference is dropped
  * we don't have to stop the watcher, and everything else is
  * "thread-safe" if no one is using it anymore (refcount == 0)
@@ -13,7 +13,7 @@
  *
  * Most "public" functions have to be called while they hold
  * a reference somehow; the other way this code gets executed is
- * through the ev_io callback, which is why we get an extra
+ * through the io callback, which is why we get an extra
  * reference there, so our refcount doesn't drop to 0 while
  * we are working.
  *
@@ -135,14 +135,14 @@ static void send_queue_reset(GQueue *queue) {
 }
 
 static void memcached_start_io(liMemcachedCon *con) {
-	if (!((ev_watcher*) &con->con_watcher)->active) {
+	if (!li_event_active(&con->con_watcher)) {
 		li_memcached_con_acquire(con);
 		li_event_start(&con->con_watcher);
 	}
 }
 
 static void memcached_stop_io(liMemcachedCon *con) {
-	if (((ev_watcher*) &con->con_watcher)->active) {
+	if (li_event_active(&con->con_watcher)) {
 		li_event_stop(&con->con_watcher);
 		li_memcached_con_release(con);
 	}

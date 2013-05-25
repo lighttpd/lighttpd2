@@ -78,7 +78,7 @@ struct liBackendConfig {
 	/* max requests per connection. -1: unlimited */
 	int max_requests;
 
-	/* if enabled, the backend.watcher will be set to internal callback and EV_READ while the connection
+	/* if enabled, the backend.watcher will be set to internal callback and LI_EV_READ while the connection
 	 * is not used by a vrequest;
 	 *   if it sees input data it will log an error and close it, and if it sees eof it will
 	 *   close it too

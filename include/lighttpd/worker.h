@@ -60,7 +60,6 @@ struct liWorker {
 
 	liEventLoop loop;
 	liEventPrepare loop_prepare;
-	/* ev_check loop_check; */
 	liEventAsync worker_stop_watcher, worker_stopping_watcher, worker_suspend_watcher, worker_exit_watcher;
 
 	liLogWorkerData logs;
@@ -70,7 +69,7 @@ struct liWorker {
 	                            */
 	guint connections_active_max_5min; /** max() of active connections during the last 5 minutes */
 	GArray *connections;      /** array of (connection*), use only from local worker context */
-	ev_tstamp connections_gc_ts;
+	li_tstamp connections_gc_ts;
 
 	GString *tmp_str;         /**< can be used everywhere for local temporary needed strings */
 

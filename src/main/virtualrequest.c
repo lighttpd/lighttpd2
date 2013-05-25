@@ -566,7 +566,7 @@ gboolean li_vrequest_redirect_directory(liVRequest *vr) {
 	return li_vrequest_redirect(vr, uri);
 }
 
-static void update_stats_avg(ev_tstamp now, liConInfo *coninfo) {
+static void update_stats_avg(li_tstamp now, liConInfo *coninfo) {
 	if ((now - coninfo->stats.last_avg) >= 5.0) {
 		coninfo->stats.bytes_out_5s_diff = coninfo->stats.bytes_out - coninfo->stats.bytes_out_5s;
 		coninfo->stats.bytes_out_5s = coninfo->stats.bytes_out;

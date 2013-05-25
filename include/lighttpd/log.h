@@ -13,7 +13,7 @@
  * Log targets specify where the log messages are written to. They are kept open for a certain amount of time (default 30s).
  * file://
  *
- * Logs are sent once per ev_loop() iteration to the logging thread in order to reduce syscalls and lock contention.
+ * Logs are sent once per event loop iteration to the logging thread in order to reduce syscalls and lock contention.
  */
 
 /* #include <lighttpd/valgrind/valgrind.h> */
@@ -111,7 +111,7 @@ struct liLogServerData {
 
 	/* timestamp format cache */
 	struct {
-		ev_tstamp last_ts;
+		li_tstamp last_ts;
 		GString *format;
 		GString *cached;
 	} timestamp;

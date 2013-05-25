@@ -62,7 +62,7 @@ struct liConInfo {
 	struct {
 		guint64 bytes_in; /* total number of bytes received */
 		guint64 bytes_out; /* total number of bytes sent */
-		ev_tstamp last_avg;
+		li_tstamp last_avg;
 		guint64 bytes_in_5s; /* total number of bytes received at last 5s interval */
 		guint64 bytes_out_5s; /* total number of bytes sent at last 5s interval */
 		guint64 bytes_in_5s_diff; /* diff between bytes received at 5s interval n and interval n-1 */
@@ -81,7 +81,7 @@ struct liVRequest {
 
 	liVRequestState state;
 
-	ev_tstamp ts_started;
+	li_tstamp ts_started;
 
 	GPtrArray *plugin_ctx;
 

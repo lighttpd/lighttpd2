@@ -62,7 +62,7 @@ struct mod_debug_data_t {
 	liHttpMethod method;
 	goffset request_size;
 	goffset response_size;
-	ev_tstamp ts_started;
+	li_tstamp ts_started;
 	guint64 bytes_in;
 	guint64 bytes_out;
 	guint64 bytes_in_5s_diff;
@@ -226,7 +226,7 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 		GString *duration = g_string_sized_new(15);
 
 		g_string_append_printf(html, "<p>now: %f<br>io timeout watcher active/repeat: %s/%f<br></p>\n",
-			li_cur_ts(vr->wrk), ev_is_active(&(vr->wrk->io_timeout_queue.timer)) ? "yes":"no",
+			li_cur_ts(vr->wrk), li_event_active(&vr->wrk->io_timeout_queue.timer) ? "yes":"no",
 			vr->wrk->io_timeout_queue.timer.libevmess.timer.repeat
 		);
 

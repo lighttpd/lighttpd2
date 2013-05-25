@@ -96,10 +96,10 @@ struct AuthFile {
 	GMutex *lock;
 
 	AuthFileData *data;
-	ev_tstamp last_stat;
+	li_tstamp last_stat;
 
 	gint ttl;
-	ev_tstamp next_check; /* unused */
+	li_tstamp next_check; /* unused */
 };
 
 static AuthFileData* auth_file_load(liServer *srv, AuthFile *f) {
@@ -181,7 +181,7 @@ static void auth_file_data_release(AuthFileData *data) {
 }
 
 static AuthFileData* auth_file_get_data(liWorker *wrk, AuthFile *f) {
-	ev_tstamp now = li_cur_ts(wrk);
+	li_tstamp now = li_cur_ts(wrk);
 	AuthFileData *data = NULL;
 
 	g_mutex_lock(f->lock);

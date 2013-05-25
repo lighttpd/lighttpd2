@@ -33,7 +33,7 @@ struct liWaitQueue {
  * li_waitqueue_push, li_waitqueue_pop and li_waitqueue_remove have O(1) complexity
  */
 
-/* initializes a waitqueue by creating the ev_timer and initializing the queue. precision is sub-seconds */
+/* initializes a waitqueue by creating the timer and initializing the queue. precision is sub-seconds */
 LI_API void li_waitqueue_init(liWaitQueue *queue, liEventLoop *loop, liWaitQueueCB callback, gdouble delay, gpointer data);
 
 /* stops the waitqueue. to restart it, simply call li_waitqueue_update */

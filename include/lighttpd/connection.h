@@ -62,12 +62,12 @@ struct liConnection {
 	liVRequest *mainvr;
 	liHttpRequestCtx req_parser_ctx;
 
-	ev_tstamp ts_started; /* when connection was started, not a (v)request */
+	li_tstamp ts_started; /* when connection was started, not a (v)request */
 
 	/* Keep alive timeout data */
 	struct {
 		GList *link;
-		ev_tstamp timeout;
+		li_tstamp timeout;
 		guint max_idle;
 		liEventTimer watcher;
 	} keep_alive_data;

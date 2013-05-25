@@ -57,7 +57,7 @@ typedef struct vhost_map_regex_entry vhost_map_regex_entry;
 struct vhost_map_regex_entry {
 	GRegex *regex;
 	liValue *action;
-	ev_tstamp tstamp;
+	li_tstamp tstamp;
 	guint hits;
 	guint hits_30s;
 };
@@ -140,7 +140,7 @@ static liAction* vhost_map_create(liServer *srv, liWorker *wrk, liPlugin* p, liV
 
 static liHandlerResult vhost_map_regex(liVRequest *vr, gpointer param, gpointer *context) {
 	guint i;
-	ev_tstamp now;
+	li_tstamp now;
 	vhost_map_regex_data *mrd = param;
 	GArray *list = g_array_index(mrd->lists, GArray*, vr->wrk->ndx);
 	gboolean debug = _OPTION(vr, mrd->plugin, 0).boolean;

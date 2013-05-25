@@ -60,7 +60,7 @@ struct memcached_ctx {
 	liSocketAddress addr;
 	liPattern *pattern;
 	guint flags;
-	ev_tstamp ttl;
+	li_tstamp ttl;
 	gssize maxsize;
 	gboolean headers;
 
@@ -780,7 +780,7 @@ static int lua_mc_set(lua_State *L) {
 	size_t len;
 	GError *err = NULL;
 	liVRequest *vr;
-	ev_tstamp ttl;
+	li_tstamp ttl;
 	liBuffer *valuebuf;
 
 	mc_lua_request *mreq;
@@ -855,7 +855,7 @@ static int lua_mc_setq(lua_State *L) {
 	const char *str;
 	size_t len;
 	GError *err = NULL;
-	ev_tstamp ttl;
+	li_tstamp ttl;
 	liBuffer *valuebuf;
 
 	liMemcachedRequest *req;
