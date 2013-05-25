@@ -26,24 +26,25 @@ struct liGnuTLSFilter {
 
 #if GNUTLS_VERSION_NUMBER >= 0x021200
 #define HAVE_GIOVEC
+typedef giovec_t li_iovec_t;
 #else
 typedef struct {
 	void *iov_base;
 	size_t iov_len;
-} giovec_t;
+} li_iovec_t;
 #endif
 
 static ssize_t stream_push(gnutls_transport_ptr_t, const void*, size_t);
-static ssize_t stream_pushv(gnutls_transport_ptr_t, const giovec_t * iov, int iovcnt);
+static ssize_t stream_pushv(gnutls_transport_ptr_t, const li_iovec_t * iov, int iovcnt);
 static ssize_t stream_pull(gnutls_transport_ptr_t, void*, size_t);
 
 static ssize_t stream_push(gnutls_transport_ptr_t trans, const void *buf, size_t len) {
-	giovec_t vec;
+	li_iovec_t vec;
 	vec.iov_base = (void *) buf;
 	vec.iov_len = len;
 	return stream_pushv(trans, &vec, 1);
 }
-static ssize_t stream_pushv(gnutls_transport_ptr_t trans, const giovec_t * iov, int iovcnt) {
+static ssize_t stream_pushv(gnutls_transport_ptr_t trans, const li_iovec_t * iov, int iovcnt) {
 	const ssize_t blocksize = 16*1024; /* 16k */
 	liGnuTLSFilter *f = (liGnuTLSFilter*) trans;
 	liChunkQueue *cq;
