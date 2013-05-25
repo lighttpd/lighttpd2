@@ -79,6 +79,10 @@ int li_angel_fake_listen(liServer *srv, GString *str) {
 			ERROR(srv, "Couldn't bind socket to '%s': %s", inet_ntoa(addr.sin_addr), g_strerror(errno));
 			return -1;
 		}
+#ifdef TCP_FASTOPEN
+		v = 1000;
+		setsockopt(s, SOL_TCP, TCP_FASTOPEN, &v, sizeof(v));
+#endif
 		if (-1 == listen(s, 1000)) {
 			close(s);
 			ERROR(srv, "Couldn't listen on '%s': %s", inet_ntoa(addr.sin_addr), g_strerror(errno));
@@ -122,6 +126,10 @@ int li_angel_fake_listen(liServer *srv, GString *str) {
 			g_string_free(ipv6_str, TRUE);
 			return -1;
 		}
+#ifdef TCP_FASTOPEN
+		v = 1000;
+		setsockopt(s, SOL_TCP, TCP_FASTOPEN, &v, sizeof(v));
+#endif
 		if (-1 == listen(s, 1000)) {
 			close(s);
 			ERROR(srv, "Couldn't listen on '%s': %s", ipv6_str->str, g_strerror(errno));

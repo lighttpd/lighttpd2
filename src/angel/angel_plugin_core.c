@@ -438,6 +438,10 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 			ERROR(srv, "Couldn't bind socket to '%s': %s", str->str, g_strerror(errno));
 			return -1;
 		}
+#ifdef TCP_FASTOPEN
+		v = 1000;
+		setsockopt(s, SOL_TCP, TCP_FASTOPEN, &v, sizeof(v));
+#endif
 		if (-1 == listen(s, 1000)) {
 			close(s);
 			ERROR(srv, "Couldn't listen on '%s': %s", str->str, g_strerror(errno));
@@ -474,6 +478,10 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 			g_string_free(ipv6_str, TRUE);
 			return -1;
 		}
+#ifdef TCP_FASTOPEN
+		v = 1000;
+		setsockopt(s, SOL_TCP, TCP_FASTOPEN, &v, sizeof(v));
+#endif
 		if (-1 == listen(s, 1000)) {
 			close(s);
 			ERROR(srv, "Couldn't listen on '%s': %s", ipv6_str->str, g_strerror(errno));
