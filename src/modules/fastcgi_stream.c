@@ -699,7 +699,11 @@ static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 					li_chunkqueue_skip(in, len);
 					ctx->remainingContent -= len;
 
-					/* TODO: callback(errormsg) */
+					if (NULL != ctx->currentcon) {
+						const liFastCGIBackendCallbacks *callbacks = ctx->pool->callbacks;
+						callbacks->fastcgi_stderr_cb(ctx->currentcon->vr, &ctx->pool->public, &ctx->currentcon->public, errormsg);
+					}
+
 					g_string_free(errormsg, TRUE);
 				}
 				break;
