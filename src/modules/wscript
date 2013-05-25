@@ -61,5 +61,6 @@ def build(bld):
 	lighty_mod(bld, 'mod_rewrite', 'mod_rewrite.c')
 	lighty_mod(bld, 'mod_scgi', 'mod_scgi.c')
 	lighty_mod(bld, 'mod_status', 'mod_status.c')
+	lighty_mod(bld, 'mod_throttle', 'mod_throttle.c')
 	lighty_mod(bld, 'mod_userdir', 'mod_userdir.c')
 	lighty_mod(bld, 'mod_vhost', 'mod_vhost.c')

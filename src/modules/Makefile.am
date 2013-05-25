@@ -140,6 +140,11 @@ libmod_status_la_SOURCES = mod_status.c
 libmod_status_la_LDFLAGS = $(common_ldflags)
 libmod_status_la_LIBADD = $(common_libadd)
 
+install_libs += libmod_throttle.la
+libmod_throttle_la_SOURCES = mod_throttle.c
+libmod_throttle_la_LDFLAGS = $(common_ldflags)
+libmod_throttle_la_LIBADD = $(common_libadd)
+
 install_libs += libmod_userdir.la
 libmod_userdir_la_SOURCES = mod_userdir.c
 libmod_userdir_la_LDFLAGS = $(common_ldflags)
