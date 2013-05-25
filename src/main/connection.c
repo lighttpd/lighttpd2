@@ -364,6 +364,7 @@ static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 		/* handle below */
 		break;
 	case LI_STREAM_CONNECTED_SOURCE:
+		/* also handle data immediately */
 		break;
 	case LI_STREAM_DISCONNECTED_SOURCE:
 		if (!con->out_has_all_data) li_connection_error(con);
@@ -385,6 +386,8 @@ static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 
 	out = (NULL != stream->source) ? stream->source->out : NULL;
 
+	/* keep raw_out->is_closed = FALSE for keep-alive requests; instead set con->out_has_all_data = TRUE */
+
 	if (LI_CON_STATE_HANDLE_MAINVR <= con->state) {
 		if (NULL == stream->source) {
 			if (LI_CON_STATE_HANDLE_MAINVR == con->state) {
@@ -403,18 +406,22 @@ static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 		if (!con->out_has_all_data && !raw_out->is_closed && NULL != out) {
 			if (vr->response.transfer_encoding & LI_HTTP_TRANSFER_ENCODING_CHUNKED) {
 				li_filter_chunked_encode(vr, raw_out, out);
-				raw_out->is_closed = FALSE;
 			} else {
 				li_chunkqueue_steal_all(raw_out, out);
 			}
-			if (out->is_closed) {
-				con->out_has_all_data = TRUE;
+		}
+		if (raw_out->is_closed || NULL == out || out->is_closed) {
+			con->out_has_all_data = TRUE;
+			raw_out->is_closed = FALSE;
+		}
+		if (con->out_has_all_data) {
+			if (con->state < LI_CON_STATE_WRITE) con->state = LI_CON_STATE_WRITE;
+			if (NULL != out) {
 				out = NULL;
 				li_stream_disconnect(stream);
-				con->state = LI_CON_STATE_WRITE;
 			}
-			con->info.out_queue_length = raw_out->length;
 		}
+		con->info.out_queue_length = raw_out->length;
 	}
 
 	li_stream_notify(stream);

@@ -10,7 +10,7 @@ struct liStreamHttpResponse {
 	gboolean response_headers_finished;
 };
 
-static void stream_http_respone_data(liStreamHttpResponse* shr) {
+static void stream_http_response_data(liStreamHttpResponse* shr) {
 	if (NULL == shr->stream.source) return;
 
 	if (!shr->response_headers_finished) {
@@ -24,7 +24,7 @@ static void stream_http_respone_data(liStreamHttpResponse* shr) {
 			li_vrequest_error(shr->vr);
 			return;
 		case LI_HANDLER_WAIT_FOR_EVENT:
-			if (shr->stream.source == NULL || shr->stream.source->out->is_closed) {
+			if (shr->stream.source->out->is_closed) {
 				VR_ERROR(shr->vr, "%s", "Parsing response header failed (eos)");
 				li_vrequest_error(shr->vr);
 			}
@@ -48,13 +48,15 @@ static void stream_http_response_cb(liStream *stream, liStreamEvent event) {
 
 	switch (event) {
 	case LI_STREAM_NEW_DATA:
-		stream_http_respone_data(shr);
+		stream_http_response_data(shr);
 		break;
 	case LI_STREAM_DISCONNECTED_DEST:
+		shr->vr = NULL;
 		li_stream_disconnect(stream);
 		break;
 	case LI_STREAM_DISCONNECTED_SOURCE:
-		if (NULL != stream->dest && !stream->out->is_closed) {
+		shr->vr = NULL;
+		if (!stream->out->is_closed) {
 			/* "abort" */
 			li_stream_disconnect_dest(stream);
 		}

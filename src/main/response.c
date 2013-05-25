@@ -53,8 +53,8 @@ void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueu
 	     vr->response.http_status == 205 ||
 	     vr->response.http_status == 304) {
 		/* They never have a content-body/length */
-		li_chunkqueue_reset(response_body);
-		response_body->is_closed = TRUE;
+		li_chunkqueue_skip_all(response_body);
+		raw_out->is_closed = TRUE;
 	} else if (response_complete) {
 		if (vr->request.http_method != LI_HTTP_METHOD_HEAD || response_body->length > 0) {
 			/* do not send content-length: 0 if backend already skipped content generation for HEAD */
@@ -74,8 +74,8 @@ void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueu
 
 	if (vr->request.http_method == LI_HTTP_METHOD_HEAD) {
 		/* content-length is set, but no body */
-		li_chunkqueue_reset(response_body);
-		response_body->is_closed = TRUE;
+		li_chunkqueue_skip_all(response_body);
+		raw_out->is_closed = TRUE;
 	}
 
 	/* Status line */

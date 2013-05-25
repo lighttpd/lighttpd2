@@ -188,7 +188,6 @@ liHandlerResult li_filter_chunked_decode(liVRequest *vr, liChunkQueue *out, liCh
 leave:
 	if (res == LI_HANDLER_ERROR) {
 		out->is_closed = TRUE;
-		in->is_closed = TRUE;
 		li_chunkqueue_skip_all(in);
 		state->parse_state = 20;
 	}
