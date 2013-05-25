@@ -38,6 +38,15 @@ printf '%s' "${csum}"
 
 """
 
+SCRIPT_CHUNKEDENCODINGCHECK="""#!/bin/sh
+
+printf 'Status: 200\\r\\nContent-Type: text/plain\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n'
+
+printf 'd\\r\\nHello World!\\n\\r\\n0\\r\\n\\r\\n'
+
+"""
+
+
 class TestPathInfo1(CurlRequest):
 	URL = "/envcheck.cgi/abc/xyz?PATH_INFO"
 	EXPECT_RESPONSE_BODY = "/abc/xyz"
@@ -81,12 +90,18 @@ class TestUploadLargeChunked1(CurlRequest):
 		c.setopt(c.UPLOAD, 1)
 		c.setopt(pycurl.READFUNCTION, ChunkedBodyReader(BODY).read)
 
+class TestChunkedEncoding1(CurlRequest):
+	URL = "/chunkedencodingcheck.cgi"
+	EXPECT_RESPONSE_BODY = "Hello World!\n"
+	EXPECT_RESPONSE_CODE = 200
+
 class Test(GroupTest):
 	group = [
 		TestPathInfo1,
 		TestRequestUri1,
 		TestUploadLarge1,
-		TestUploadLargeChunked1
+		TestUploadLargeChunked1,
+		TestChunkedEncoding1,
 	]
 
 	config = """
@@ -117,3 +132,4 @@ cgi = {{
 	def Prepare(self):
 		self.PrepareVHostFile("envcheck.cgi", SCRIPT_ENVCHECK, mode = 0755)
 		self.PrepareVHostFile("uploadcheck.cgi", SCRIPT_UPLOADCHECK, mode = 0755)
+		self.PrepareVHostFile("chunkedencodingcheck.cgi", SCRIPT_CHUNKEDENCODINGCHECK, mode = 0755)
