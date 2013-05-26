@@ -106,9 +106,18 @@ static void cache_etag_file_free(cache_etag_file *cfile) {
 		close(cfile->fd);
 		unlink(cfile->tmpfilename->str);
 	}
-	if (cfile->hit_fd != -1) close(cfile->hit_fd);
-	if (cfile->filename) g_string_free(cfile->filename, TRUE);
-	if (cfile->tmpfilename) g_string_free(cfile->tmpfilename, TRUE);
+	if (cfile->hit_fd != -1) {
+		close(cfile->hit_fd);
+		cfile->hit_fd = -1;
+	}
+	if (cfile->filename) {
+		g_string_free(cfile->filename, TRUE);
+		cfile->filename = NULL;
+	}
+	if (cfile->tmpfilename) {
+		g_string_free(cfile->tmpfilename, TRUE);
+		cfile->tmpfilename = NULL;
+	}
 	g_slice_free(cache_etag_file, cfile);
 }
 
@@ -197,8 +206,8 @@ static liHandlerResult cache_etag_filter_miss(liVRequest *vr, liFilter *f) {
 
 	if (0 == f->in->length && f->in->is_closed) {
 		f->out->is_closed = TRUE;
-		cache_etag_file_finish(vr, cfile);
 		f->param = NULL;
+		cache_etag_file_finish(vr, cfile);
 		return LI_HANDLER_GO_ON;
 	}
 
@@ -308,6 +317,7 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 
 	if (!cache_etag_file_start(vr, cfile)) {
 		cache_etag_file_free(cfile);
+		*context = NULL;
 		return LI_HANDLER_GO_ON; /* no caching */
 	}
 
