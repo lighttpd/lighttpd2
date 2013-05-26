@@ -149,7 +149,6 @@ static void fastcgi_free(liServer *srv, gpointer param) {
 	fastcgi_context *ctx = (fastcgi_context*) param;
 	UNUSED(srv);
 
-	ERROR(srv, "%s", "fastcgi_free");
 	fastcgi_context_release(ctx);
 }
 

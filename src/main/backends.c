@@ -465,7 +465,7 @@ static void S_backend_pool_distribute(liBackendPool_p *pool, liWorker *wrk) {
 	} else {
 		if (0 == pool->wait_queue.length) return;
 
-		ERROR(wrk->srv, "pool wait queue: %i, pool idle: %i", pool->wait_queue.length, pool->idle);
+		/* ERROR(wrk->srv, "pool wait queue: %i, pool idle: %i", pool->wait_queue.length, pool->idle); */
 
 		if (pool->idle > 0) {
 			/* distribute backends over all workers:
@@ -492,7 +492,7 @@ static void S_backend_pool_distribute(liBackendPool_p *pool, liWorker *wrk) {
 				for (i = 0; i < worker_count; ++i) {
 					liBackendWorkerPool *wpool = &pool->worker_pools[i];
 
-					ERROR(wrk->srv, "pool %i: queue: %i, idle: %i", i, wpool->wait_queue.length, wpool->idle);
+					/* ERROR(wrk->srv, "pool %i: queue: %i, idle: %i", i, wpool->wait_queue.length, wpool->idle); */
 
 					while (wpool->wait_queue.length > 0 && wpool->idle > 0) {
 						liBackendWait *bwait = LI_CONTAINER_OF(g_queue_pop_head_link(&wpool->wait_queue), liBackendWait, wait_queue_link);
@@ -904,8 +904,8 @@ void li_backend_pool_free(liBackendPool *bpool) {
 	} else {
 		liServer *srv = pool->worker_pools[0].wrk->srv;
 
-		ERROR(srv, "li_backend_pool_free: %p, reserved: %i, idle: %i, pending: %i", (void*) pool,
-			pool->reserved, pool->idle, pool->pending);
+		/*ERROR(srv, "li_backend_pool_free: %p, reserved: %i, idle: %i, pending: %i", (void*) pool,
+			pool->reserved, pool->idle, pool->pending); */
 		li_collect_start_global(srv, backend_pool_worker_shutdown, pool, backend_pool_worker_shutdown_done, NULL);
 	}
 }

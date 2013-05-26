@@ -69,7 +69,7 @@ static void li_angel_listen_cb(gpointer pctx, gboolean timeout, GString *error, 
 	if (fds && fds->len > 0) {
 		for (i = 0; i < fds->len; i++) {
 			int fd = g_array_index(fds, int, i);
-			DEBUG(srv, "listening on fd %i", fd);
+			/* DEBUG(srv, "listening on fd %i", fd); */
 			if (ctx.cb) {
 				ctx.cb(srv, fd, ctx.data);
 			} else {

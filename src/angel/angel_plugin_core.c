@@ -535,7 +535,7 @@ static void core_listen(liServer *srv, liPlugin *p, liInstance *i, gint32 id, GS
 	liSocketAddress addr;
 	listen_socket *sock;
 
-	DEBUG(srv, "core_listen(%i) '%s'", id, data->str);
+	/* DEBUG(srv, "core_listen(%i) '%s'", id, data->str); */
 
 	if (-1 == id) return; /* ignore simple calls */
 
