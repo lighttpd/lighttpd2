@@ -82,7 +82,7 @@ class CurlRequest(TestBase):
 		self.curl = c
 		self.buffer = b
 
-		self.PrepareRequest()
+		self.PrepareRequest(reqheaders)
 
 		c.perform()
 
@@ -99,7 +99,7 @@ class CurlRequest(TestBase):
 
 		return True
 
-	def PrepareRequest(self):
+	def PrepareRequest(self, reqheaders):
 		pass
 
 	def dump(self):
