@@ -252,6 +252,7 @@ void li_throttle_pool_release(liThrottlePool *pool, liServer *srv) {
 			g_slice_free1(sizeof(liThrottlePoolWorkerState) * srv->worker_count, pool->workers);
 			pool->workers = NULL;
 		}
+		g_slice_free(liThrottlePool, pool);
 	}
 }
 
