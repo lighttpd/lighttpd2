@@ -113,6 +113,7 @@ class TestBase(object):
 			self.tests.append_config(("\n# %s \n" % (self.name)) + self.plain_config)
 		if None != self.config:
 			errorlog = self.PrepareFile("log/error.log-%s" % self.vhost, "")
+			errorconfig = Env.debug and " " or """log [ "*" => "file:%s" ];""" % (errorlog)
 			accesslog = self.PrepareFile("log/access.log-%s" % self.vhost, "")
 			if None != self.vhostdir:
 				docroot = 'docroot "%s";' % self.vhostdir
@@ -123,25 +124,25 @@ class TestBase(object):
 # %s
 
 var.reg_vhosts = var.reg_vhosts + [ "%s" => {
-		log [ "*" => "file:%s" ];
+		%s
 		accesslog "%s";
 		%s
 %s
 	}
 ];
-""" % (self.name, regex_subvhosts(self.vhost), errorlog, accesslog, docroot, self.config)
+""" % (self.name, regex_subvhosts(self.vhost), errorconfig, accesslog, docroot, self.config)
 			else:
 				config = """
 # %s
 
 var.vhosts = var.vhosts + [ "%s" => {
-		log [ "*" => "file:%s" ];
+		%s
 		accesslog "%s";
 		%s
 %s
 	}
 ];
-""" % (self.name, self.vhost, errorlog, accesslog, docroot, self.config)
+""" % (self.name, self.vhost, errorconfig, accesslog, docroot, self.config)
 
 			self.tests.append_vhosts_config(config)
 
@@ -325,7 +326,9 @@ class Tests(object):
 
 	def Prepare(self):
 		print >> Env.log, "[Start] Preparing tests"
+		cache_disk_etag_dir = self.PrepareDir(os.path.join("tmp", "cache_etag"))
 		errorlog = self.PrepareFile("log/error.log", "")
+		errorconfig = Env.debug and " " or """log [ "*" => "file:%s" ];""" % (errorlog)
 		accesslog = self.PrepareFile("log/access.log", "")
 		self.config = """
 setup {{
@@ -333,6 +336,7 @@ setup {{
 
 	module_load (
 		"mod_accesslog",
+		"mod_cache_disk_etag",
 		"mod_deflate",
 		"mod_dirlist",
 		"mod_lua",
@@ -349,7 +353,7 @@ setup {{
 	accesslog "{accesslog}";
 }}
 
-log [ "*" => "file:{errorlog}" ];
+{errorconfig}
 
 defaultaction = {{
 	docroot "{Env.defaultwww}";
@@ -363,7 +367,7 @@ do_deflate = {{
 
 var.vhosts = [];
 var.reg_vhosts = [];
-""".format(Env = Env, errorlog = errorlog, accesslog = accesslog)
+""".format(Env = Env, errorconfig = errorconfig, accesslog = accesslog)
 
 		self.vhosts_config = ""
 
@@ -375,18 +379,20 @@ var.reg_vhosts = [];
 
 		self.config += """
 
-var.reg_vhosts = var.reg_vhosts + [ "default" => {
+var.reg_vhosts = var.reg_vhosts + [ "default" => {{
 	defaultaction;
-} ];
-var.vhosts = var.vhosts + [ "default" => {
+}} ];
+var.vhosts = var.vhosts + [ "default" => {{
 	vhost.map_regex var.reg_vhosts;
-} ];
+}} ];
 
 vhost.map var.vhosts;
 
 static;
 do_deflate;
-"""
+
+cache.disk.etag "{cache_disk_etag_dir}";
+""".format(cache_disk_etag_dir = cache_disk_etag_dir)
 		Env.lighttpdconf = self.PrepareFile("conf/lighttpd.conf", self.config)
 
 		valgrindconfig = ""
@@ -490,6 +496,14 @@ allow-listen {{ ip "127.0.0.2:{Env.port}"; }}
 			self.CleanupFile("log/error.log")
 			self.CleanupFile("conf/lighttpd.conf")
 			self.CleanupFile("conf/angel.conf")
+			cache_disk_etag_dir = os.path.join(Env.dir, "tmp", "cache_etag")
+			try:
+				import shutil
+				shutil.rmtree(cache_disk_etag_dir)
+				os.mkdir(cache_disk_etag_dir)
+			except BaseException, e:
+				print >>sys.stderr, "Couldn't clear directory '%s': %s" % (fname, e)
+			self.CleanupDir(os.path.join("tmp", "cache_etag"))
 		print >> Env.log, "[Done] Cleanup tests"
 
 ## helpers for prepare/cleanup
