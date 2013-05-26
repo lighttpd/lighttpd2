@@ -77,12 +77,15 @@ static void filter_stream_cb(liStream *stream, liStreamEvent event) {
 		break;
 	case LI_STREAM_CONNECTED_SOURCE:
 		filter->in = (NULL != filter->stream.source) ? filter->stream.source->out : NULL;
-		/* fall through */
-	case LI_STREAM_CONNECTED_DEST:
 		if (NULL != filter->handle_event) {
 			filter->handle_event(filter->vr, filter, event);
 		} else {
 			li_stream_again(stream);
+		}
+		break;
+	case LI_STREAM_CONNECTED_DEST:
+		if (NULL != filter->handle_event) {
+			filter->handle_event(filter->vr, filter, event);
 		}
 		break;
 	case LI_STREAM_DISCONNECTED_SOURCE:
