@@ -65,6 +65,9 @@ static void filter_stream_cb(liStream *stream, liStreamEvent event) {
 
 	switch (event) {
 	case LI_STREAM_NEW_DATA:
+		if (NULL != filter->handle_event) {
+			filter->handle_event(filter->vr, filter, event);
+		}
 		filter_handle_data(filter);
 		break;
 	case LI_STREAM_NEW_CQLIMIT:
@@ -106,6 +109,7 @@ static void filter_stream_cb(liStream *stream, liStreamEvent event) {
 		if (NULL != filter->handle_free) {
 			filter->handle_free(filter->vr, filter);
 		}
+		g_slice_free(liFilter, filter);
 		break;
 	}
 }
