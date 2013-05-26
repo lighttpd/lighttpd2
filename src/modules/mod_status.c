@@ -56,7 +56,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p);
 static gint str_comp(gconstpointer a, gconstpointer b);
 
 /* auto format constants */
-static gchar liConnectionState_short[] = "_Kqrhw";
+static gchar liConnectionState_short[LI_CON_STATE_LAST+2] = "_cKqrhw";
 
 /* html snippet constants */
 static const gchar html_header[] =
@@ -174,13 +174,15 @@ static const gchar html_worker_row_avg[] =
 static const gchar html_connections_sum[] =
 	"		<table cellspacing=\"0\">\n"
 	"			<tr>\n"
+	"				<th style=\"width: 100px;\">inactive</th>\n"
 	"				<th style=\"width: 100px;\">request start</th>\n"
-	"				<th style=\"width: 175px;\">read request header</th>\n"
-	"				<th style=\"width: 175px;\">handle request</th>\n"
-	"				<th style=\"width: 175px;\">write response</th>\n"
-	"				<th style=\"width: 175px;\">keep-alive</th>\n"
+	"				<th style=\"width: 150px;\">read request header</th>\n"
+	"				<th style=\"width: 150px;\">handle request</th>\n"
+	"				<th style=\"width: 150px;\">write response</th>\n"
+	"				<th style=\"width: 150px;\">keep-alive</th>\n"
 	"			</tr>\n"
 	"			<tr>\n"
+	"				<td>%u</td>\n"
 	"				<td>%u</td>\n"
 	"				<td>%u</td>\n"
 	"				<td>%u</td>\n"
@@ -380,7 +382,7 @@ struct mod_status_wrk_data {
 	guint worker_ndx;
 	liStatistics stats;
 	GArray *connections;
-	guint connection_count[6];
+	guint connection_count[LI_CON_STATE_LAST+1];
 };
 
 struct mod_status_job {
@@ -469,7 +471,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 		gchar *val;
 		guint uptime, len;
 		guint total_connections = 0;
-		guint connection_count[6] = {0,0,0,0,0,0};
+		guint connection_count[LI_CON_STATE_LAST+1] = {0};
 
 		liStatistics totals = {
 			G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0), G_GUINT64_CONSTANT(0),
@@ -512,12 +514,9 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			totals.peak.requests += sd->stats.peak.requests;
 			totals.peak.active_cons += sd->stats.peak.active_cons;
 
-			connection_count[0] += sd->connection_count[0];
-			connection_count[1] += sd->connection_count[1];
-			connection_count[2] += sd->connection_count[2];
-			connection_count[3] += sd->connection_count[3];
-			connection_count[4] += sd->connection_count[4];
-			connection_count[5] += sd->connection_count[5];
+			for (j = 0; j <= LI_CON_STATE_LAST; ++j) {
+				connection_count[j] += sd->connection_count[j];
+			}
 		}
 
 		if (li_querystring_find(vr->request.uri.query, CONST_STR_LEN("format"), &val, &len) && strncmp(val, "plain", len) == 0) {
@@ -737,9 +736,10 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 
 
 	/* connection counts */
-	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong> (states, sum)</div>\n"));
-	g_string_append_printf(html, html_connections_sum, connection_count[2],
-		connection_count[3], connection_count[4], connection_count[5], connection_count[1]
+	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Connections</strong> (states, sum)</div>\n"));
+	g_string_append_printf(html, html_connections_sum, connection_count[0] + connection_count[1],
+		connection_count[3], connection_count[4], connection_count[5], connection_count[6],
+		connection_count[2]
 	);
 
 	/* response status codes */
@@ -865,15 +865,15 @@ static GString *status_info_plain(liVRequest *vr, guint uptime, liStatistics *to
 	li_string_append_int(html, totals->active_cons_5s / 5);
 	/* connection states */
 	g_string_append_len(html, CONST_STR_LEN("\n\n# Connection States\nconnection_state_start: "));
-	li_string_append_int(html, connection_count[2]);
+	li_string_append_int(html, connection_count[LI_CON_STATE_REQUEST_START]);
 	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_read_header: "));
-	li_string_append_int(html, connection_count[3]);
+	li_string_append_int(html, connection_count[LI_CON_STATE_READ_REQUEST_HEADER]);
 	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_handle_request: "));
-	li_string_append_int(html, connection_count[4]);
+	li_string_append_int(html, connection_count[LI_CON_STATE_HANDLE_MAINVR]);
 	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_write_response: "));
-	li_string_append_int(html, connection_count[5]);
+	li_string_append_int(html, connection_count[LI_CON_STATE_WRITE]);
 	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_keep_alive: "));
-	li_string_append_int(html, connection_count[1]);
+	li_string_append_int(html, connection_count[LI_CON_STATE_KEEP_ALIVE]);
 	/* status cpdes */
 	g_string_append_len(html, CONST_STR_LEN("\n\n# Status Codes (since start)\nstatus_1xx: "));
 	li_string_append_int(html, mod_status_response_codes[0]);
@@ -906,9 +906,9 @@ static GString *status_info_auto(liVRequest *vr, guint uptime, liStatistics *tot
 	li_string_append_int(html, (gint64)uptime);
 	/* connection states */
 	g_string_append_len(html, CONST_STR_LEN("\nBusyServers: "));
-	li_string_append_int(html, connection_count[2]+connection_count[3]+connection_count[4]+connection_count[5]);
+	li_string_append_int(html, connection_count[3]+connection_count[4]+connection_count[5]+connection_count[6]);
 	g_string_append_len(html, CONST_STR_LEN("\nIdleServers: "));
-	li_string_append_int(html, connection_count[0]+connection_count[1]);
+	li_string_append_int(html, connection_count[0]+connection_count[1]+connection_count[2]);
 	/* average since start */
 	g_string_append_len(html, CONST_STR_LEN("\nTraffic: "));
 	li_string_append_int(html, totals->bytes_out / uptime);
@@ -917,7 +917,7 @@ static GString *status_info_auto(liVRequest *vr, guint uptime, liStatistics *tot
 	li_string_append_int(html, totals->bytes_out_5s_diff / 5);
 	/* output scoreboard */
 	g_string_append_len(html, CONST_STR_LEN("\nScoreboard: "));
-	for (i = 0; i < 6; i++) {
+	for (i = 0; i <= LI_CON_STATE_LAST; i++) {
 		for (j = 0; j < connection_count[i]; j++) {
 			g_string_append_c(html, liConnectionState_short[i]);
 		}

@@ -792,16 +792,24 @@ void li_connection_free(liConnection *con) {
 }
 
 gchar *li_connection_state_str(liConnectionState state) {
-	static const gchar *states[] = {
-		"dead",
-		"keep-alive",
-		"request start",
-		"read request header",
-		"handle main vrequest",
-		"write"
-	};
+	switch (state) {
+	case LI_CON_STATE_DEAD:
+		return "dead";
+	case LI_CON_STATE_CLOSE:
+		return "close";
+	case LI_CON_STATE_KEEP_ALIVE:
+		return "keep-alive";
+	case LI_CON_STATE_REQUEST_START:
+		return "request start";
+	case LI_CON_STATE_READ_REQUEST_HEADER:
+		return "read request header";
+	case LI_CON_STATE_HANDLE_MAINVR:
+		return "handle main vrequest";
+	case LI_CON_STATE_WRITE:
+		return "write";
+	}
 
-	return (gchar*)states[state];
+	return "undefined";
 }
 
 liConnection* li_connection_from_vrequest(liVRequest *vr) {
