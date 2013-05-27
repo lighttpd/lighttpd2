@@ -660,6 +660,7 @@ static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 
 						fcgi_debug("fastcgi end request: %i\n", appStatus);
 						callbacks->end_request_cb(ctx->currentcon->vr, &ctx->pool->public, &ctx->currentcon->public, appStatus);
+						if (NULL == ctx->iostream->stream_in.out) return;
 					}
 				}
 				break;
