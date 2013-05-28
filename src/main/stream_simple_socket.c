@@ -27,12 +27,13 @@ void li_stream_simple_socket_close(liIOStream *stream, gboolean aborted) {
 		}
 	} else {
 		liWorker *wrk = li_worker_from_iostream(stream);
-		li_event_clear(&stream->io_watcher);
+		li_event_clear(&stream->io_watcher); /* sets io_fd to -1 */
 
 		shutdown(fd, SHUT_WR);
 		li_stream_disconnect(&stream->stream_out);
 		li_worker_add_closing_socket(wrk, fd);
 	}
+	assert(-1 == li_event_io_fd(&stream->io_watcher));
 }
 
 static void stream_simple_socket_read_throttle_notify(liThrottleState *state, gpointer data) {

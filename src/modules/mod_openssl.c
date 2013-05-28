@@ -203,7 +203,8 @@ static gboolean openssl_con_new(liConnection *con, int fd) {
 
 	if (NULL == conctx->ssl_filter) {
 		ERROR(srv, "SSL_new: %s", ERR_error_string(ERR_get_error(), NULL));
-		li_iostream_reset(conctx->sock_stream);
+		fd = li_iostream_reset(conctx->sock_stream);
+		close(fd);
 		g_slice_free(openssl_connection_ctx, conctx);
 		return FALSE;
 	}

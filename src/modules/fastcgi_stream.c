@@ -196,8 +196,10 @@ static void backend_close(liBackendPool *bpool, liWorker *wrk, liBackendConnecti
 	fcgi_debug("%s\n", "backend_close");
 
 	if (NULL != ctx->iostream) {
+		int fd;
 		li_stream_simple_socket_close(ctx->iostream, FALSE);
-		li_iostream_reset(ctx->iostream);
+		fd = li_iostream_reset(ctx->iostream);
+		assert(-1 == fd);
 		ctx->iostream = NULL;
 	}
 	li_stream_reset(&ctx->fcgi_in);
@@ -267,6 +269,7 @@ static void fastcgi_reset(liFastCGIBackendContext *ctx) {
 	if (!ctx->is_active) {
 		li_backend_connection_closed(ctx->pool->public.subpool, ctx->subcon);
 	} else {
+		int fd;
 		const liFastCGIBackendCallbacks *callbacks = ctx->pool->callbacks;
 		liFastCGIBackendConnection_p *currentcon = ctx->currentcon;
 		liIOStream *iostream = ctx->iostream;
@@ -276,7 +279,8 @@ static void fastcgi_reset(liFastCGIBackendContext *ctx) {
 		ctx->request_done = TRUE;
 		ctx->iostream = NULL;
 		li_stream_simple_socket_close(iostream, TRUE);
-		li_iostream_reset(iostream);
+		fd = li_iostream_reset(iostream);
+		assert(-1 == fd);
 
 		li_stream_disconnect(&ctx->fcgi_out);
 		li_stream_disconnect_dest(&ctx->fcgi_in);

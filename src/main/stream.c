@@ -297,6 +297,8 @@ liStream* li_stream_null_new(liEventLoop *loop) {
 
 
 static void iostream_destroy(liIOStream *iostream) {
+	int fd;
+
 	if (0 < iostream->stream_out.refcount || 0 < iostream->stream_in.refcount) return;
 	iostream->stream_out.refcount = iostream->stream_in.refcount = 1;
 
@@ -313,11 +315,13 @@ static void iostream_destroy(liIOStream *iostream) {
 		iostream->write_timeout_queue = NULL;
 	}
 
+	iostream->cb(iostream, LI_IOSTREAM_DESTROY);
+
+	fd = li_event_io_fd(&iostream->io_watcher);
+	if (-1 != fd) close(fd); /* usually this should be shutdown+closed somewhere else */
 	li_event_clear(&iostream->io_watcher);
 
 	li_iostream_throttle_clear(iostream);
-
-	iostream->cb(iostream, LI_IOSTREAM_DESTROY);
 
 	assert(1 == iostream->stream_out.refcount);
 	assert(1 == iostream->stream_in.refcount);
