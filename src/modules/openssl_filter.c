@@ -148,10 +148,10 @@ static void f_close_ssl(liOpenSSLFilter *f) {
 		limit->notify = NULL;
 		limit->context = NULL;
 
-		li_stream_disconnect(&f->plain_source);
+		li_stream_disconnect(&f->plain_source); /* crypt in -> plain out */
 
-		li_stream_disconnect(&f->plain_drain);
-		li_stream_disconnect_dest(&f->plain_source);
+		li_stream_disconnect(&f->plain_drain); /* app -> plain in */
+		li_stream_disconnect_dest(&f->plain_source); /* plain out -> app */
 
 		f->log_context = NULL;
 		if (NULL != f->callbacks && NULL != f->callbacks->closed_cb) {
@@ -175,6 +175,10 @@ static void f_release(liOpenSSLFilter *f) {
 			BIO_free(f->bio);
 			f->bio = NULL;
 		}
+		if (NULL != f->raw_in_buffer) {
+			li_buffer_release(f->raw_in_buffer);
+			f->raw_in_buffer = NULL;
+		}
 
 		g_slice_free(liOpenSSLFilter, f);
 	}
@@ -184,8 +188,9 @@ static void f_abort_ssl(liOpenSSLFilter *f) {
 	f->aborted = TRUE;
 	f_acquire(f);
 	f_close_ssl(f);
-	li_stream_disconnect(&f->crypt_drain);
-	li_stream_disconnect_dest(&f->crypt_source);
+	li_stream_disconnect(&f->crypt_source); /* plain in -> crypt out */
+	li_stream_disconnect(&f->crypt_drain); /* io -> crypt in */
+	li_stream_disconnect_dest(&f->crypt_source); /* crypt out -> io */
 	f_release(f);
 }
 
@@ -343,8 +348,9 @@ static void do_ssl_read(liOpenSSLFilter *f) {
 				f->plain_drain.out->is_closed = TRUE;
 				f->crypt_source.out->is_closed = TRUE;
 				f->crypt_drain.out->is_closed = TRUE;
-				li_stream_disconnect(&f->crypt_drain);
-				li_stream_disconnect_dest(&f->crypt_source);
+				li_stream_disconnect(&f->crypt_drain); /* io -> crypt in */
+				li_stream_disconnect_dest(&f->crypt_source); /* crypt out -> io */
+				li_stream_disconnect(&f->crypt_source); /* plain in -> crypt out */
 				f_close_ssl(f);
 				break;
 			default:
@@ -459,6 +465,7 @@ static void do_ssl_write(liOpenSSLFilter *f) {
 			f->plain_source.out->is_closed = TRUE;
 			f->crypt_source.out->is_closed = TRUE;
 			f->crypt_drain.out->is_closed = TRUE;
+			li_stream_disconnect(&f->crypt_source); /* plain in -> crypt out */
 			f_close_ssl(f);
 			break;
 		default:
