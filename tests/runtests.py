@@ -95,9 +95,15 @@ Env.defaultwww = os.path.join(Env.dir, "www", "default")
 
 Env.log = open(os.path.join(Env.dir, "tests.log"), "w")
 if Env.color: Env.log = RemoveEscapeSeq(Env.log)
-sys.stderr = LogFile(sys.stderr, **{ "[stderr]": Env.log })
-sys.stdout = LogFile(sys.stdout, **{ "[stdout]": Env.log })
-Env.log = LogFile(Env.log)
+if Env.debug:
+	logfile = Env.log
+	Env.log = LogFile(sys.stdout, **{ "[log]": logfile })
+	sys.stderr = LogFile(sys.stderr, **{ "[stderr]": logfile })
+	sys.stdout = LogFile(sys.stdout, **{ "[stdout]": logfile })
+else:
+	Env.log = LogFile(Env.log)
+	sys.stderr = LogFile(sys.stderr, **{ "[stderr]": Env.log })
+	sys.stdout = LogFile(sys.stdout, **{ "[stdout]": Env.log })
 
 failed = False
 

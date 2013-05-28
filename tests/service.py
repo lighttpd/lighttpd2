@@ -30,7 +30,7 @@ trussargs = [ 'truss', '-d', '-f', '-s', '4096', '-o' ]
 def preexec():
 	os.setsid()
 
-def procwait(proc, timeout = 3):
+def procwait(proc, timeout = 2):
 	ts = time.time()
 	while True:
 		if proc.poll() is not None: return True
@@ -79,13 +79,17 @@ class Service(object):
 		atexit.register(self.kill)
 
 	def kill(self):
+		s = signal.SIGINT
+		ss = "SIGINT"
 		proc = self.proc
 		if None == proc: return
 		self.proc = None
 		if None == proc.poll():
-			print >> base.Env.log, "Terminating service '%s'" % (self.name)
+			print >> base.Env.log, "Terminating service (%s) '%s'" % (ss, self.name)
 			try:
-				os.killpg(proc.pid, signal.SIGINT)
+				os.killpg(proc.pid, s)
+				s = signal.SIGTERM
+				ss = "SIGTERM"
 				proc.terminate()
 			except:
 				pass
@@ -93,7 +97,10 @@ class Service(object):
 			if base.Env.wait: proc.wait()
 			while not procwait(proc):
 				try:
-					os.killpg(proc.pid, signal.SIGINT)
+					print >> base.Env.log, "Terminating service (%s) '%s'" % (ss, self.name)
+					os.killpg(proc.pid, s)
+					s = signal.SIGKILL
+					ss = "SIGKILL"
 					proc.terminate()
 				except:
 					pass
@@ -177,7 +184,10 @@ class Lighttpd(Service):
 
 		self.portfree(base.Env.port)
 		if base.Env.no_angel:
-			self.fork(base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf)
+			if base.Env.valgrind:
+				self.fork('valgrind', base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf)
+			else:
+				self.fork(base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf)
 		else:
 			self.fork(base.Env.angel, '-m', base.Env.plugindir, '-c', base.Env.angelconf)
 		self.waitconnect(base.Env.port)
