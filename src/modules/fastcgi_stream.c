@@ -660,7 +660,6 @@ static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 
 						fcgi_debug("fastcgi end request: %i\n", appStatus);
 						callbacks->end_request_cb(ctx->currentcon->vr, &ctx->pool->public, &ctx->currentcon->public, appStatus);
-						if (NULL == ctx->iostream->stream_in.out) return;
 					}
 				}
 				break;
@@ -722,7 +721,7 @@ static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 			}
 		}
 
-		if (0 == in->length || ctx->remainingContent > 0) return;
+		if (NULL == ctx->iostream || 0 == in->length || ctx->remainingContent > 0) break;
 
 		if (ctx->remainingPadding > 0) {
 			int len = li_chunkqueue_skip(in, ctx->remainingPadding);
@@ -730,7 +729,7 @@ static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 		}
 	}
 
-	if (in->is_closed && !ctx->request_done) {
+	if (NULL != ctx->iostream && (in->is_closed && !ctx->request_done)) {
 		if (0 != in->length || !ctx->stdout_closed) {
 			fastcgi_reset(ctx);
 		} else {
