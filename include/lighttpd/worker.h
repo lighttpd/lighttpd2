@@ -111,8 +111,13 @@ LI_API liWorker* li_worker_new(liServer *srv, struct ev_loop *loop);
 LI_API struct ev_loop* li_worker_free(liWorker *wrk);
 
 LI_API void li_worker_run(liWorker *wrk);
+
+/* stopped now, all connections down. exit loop soon */
 LI_API void li_worker_stop(liWorker *context, liWorker *wrk);
+
+/* start stopping. don't stop loop yet, connection handling on other workers might need all workers (mod_status) */
 LI_API void li_worker_stopping(liWorker *context, liWorker *wrk);
+
 LI_API void li_worker_suspend(liWorker *context, liWorker *wrk);
 LI_API void li_worker_exit(liWorker *context, liWorker *wrk);
 

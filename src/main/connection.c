@@ -234,10 +234,6 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 		con->keep_alive_data.timeout = 0;
 		li_event_stop(&con->keep_alive_data.watcher);
 
-		/* put back in io timeout queue */
-		if (!con->io_timeout_elem.queued)
-			li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
-
 		con->keep_alive_requests++;
 		/* disable keep alive if limit is reached */
 		if (con->keep_alive_requests == CORE_OPTION(LI_CORE_OPTION_MAX_KEEP_ALIVE_REQUESTS).number)
@@ -249,8 +245,12 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 		li_vrequest_start(con->mainvr);
 
 		con->state = LI_CON_STATE_READ_REQUEST_HEADER;
+
+		/* put back in io timeout queue */
+		li_connection_update_io_wait(con);
 	} else if (con->state == LI_CON_STATE_REQUEST_START) {
 		con->state = LI_CON_STATE_READ_REQUEST_HEADER;
+		li_connection_update_io_wait(con);
 	}
 
 	if (con->state == LI_CON_STATE_READ_REQUEST_HEADER) {
@@ -273,6 +273,7 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 			con->info.keep_alive = FALSE;
 			vr->response.http_status = 414; /* Request-URI Too Large */
 			con->state = LI_CON_STATE_WRITE;
+			li_connection_update_io_wait(con);
 			li_stream_again(&con->out);
 			return;
 		}
@@ -295,6 +296,7 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 			if (vr->response.http_status == 0)
 				vr->response.http_status = 400;
 			con->state = LI_CON_STATE_WRITE;
+			li_connection_update_io_wait(con);
 			li_stream_again(&con->out);
 			return;
 		}
@@ -311,6 +313,7 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 				vr->response.http_status = 400;
 			con->state = LI_CON_STATE_WRITE;
 			con->info.keep_alive = FALSE;
+			li_connection_update_io_wait(con);
 			li_stream_again(&con->out);
 			return;
 		}
@@ -331,6 +334,7 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 		}
 
 		con->state = LI_CON_STATE_HANDLE_MAINVR;
+		li_connection_update_io_wait(con);
 		li_action_enter(vr, con->srv->mainaction);
 
 		li_vrequest_handle_request_headers(vr);
@@ -427,7 +431,10 @@ static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 			raw_out->is_closed = FALSE;
 		}
 		if (con->out_has_all_data) {
-			if (con->state < LI_CON_STATE_WRITE) con->state = LI_CON_STATE_WRITE;
+			if (con->state < LI_CON_STATE_WRITE) {
+				con->state = LI_CON_STATE_WRITE;
+				li_connection_update_io_wait(con);
+			}
 			if (NULL != out) {
 				out = NULL;
 				li_stream_disconnect(stream);
@@ -443,10 +450,50 @@ static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 void li_connection_update_io_timeout(liConnection *con) {
 	liWorker *wrk = con->wrk;
 
-	if ((con->io_timeout_elem.ts + 1.0) < li_cur_ts(wrk)) {
+	if (con->io_timeout_elem.queued && (con->io_timeout_elem.ts + 1.0) < li_cur_ts(wrk)) {
 		li_waitqueue_push(&wrk->io_timeout_queue, &con->io_timeout_elem);
 	}
 }
+
+void li_connection_update_io_wait(liConnection *con) {
+	liWorker *wrk = con->wrk;
+	gboolean want_timeout = FALSE;
+	gboolean stopping = wrk->wait_for_stop_connections.active;
+
+	switch (con->state) {
+	case LI_CON_STATE_DEAD:
+	case LI_CON_STATE_CLOSE: /* only a temporary state before DEAD */
+		want_timeout = FALSE;
+		break;
+	case LI_CON_STATE_KEEP_ALIVE:
+		want_timeout = stopping;
+		break;
+	case LI_CON_STATE_REQUEST_START:
+		want_timeout = TRUE;
+		break;
+	case LI_CON_STATE_READ_REQUEST_HEADER:
+		want_timeout = TRUE;
+		break;
+	case LI_CON_STATE_HANDLE_MAINVR:
+		/* want timeout while we're still reading request body */
+		want_timeout = stopping || !con->in.out->is_closed;
+		break;
+	case LI_CON_STATE_WRITE:
+		want_timeout = TRUE;
+		break;
+	case LI_CON_STATE_UPGRADED:
+		want_timeout = stopping;
+		break;
+	}
+
+	if (want_timeout == con->io_timeout_elem.queued) return;
+	if (want_timeout) {
+		li_waitqueue_push(&wrk->io_timeout_queue, &con->io_timeout_elem);
+	} else {
+		li_waitqueue_remove(&wrk->io_timeout_queue, &con->io_timeout_elem);
+	}
+}
+
 
 void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, liServerSocket *srv_sock) {
 	assert(NULL == con->con_sock.data);
@@ -469,7 +516,7 @@ void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, 
 	con->info.req = &con->in;
 	con->info.resp = &con->out;
 
-	li_waitqueue_push(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
+	li_connection_update_io_wait(con);
 
 	if (srv_sock->new_cb) {
 		if (!srv_sock->new_cb(con, s)) {
@@ -594,6 +641,7 @@ static void mainvr_connection_upgrade(liVRequest *vr, liStream *backend_drain, l
 	li_response_send_headers(vr, con->out.out, NULL, TRUE);
 	con->state = LI_CON_STATE_UPGRADED;
 	vr->response.transfer_encoding = 0;
+	li_connection_update_io_wait(con);
 
 	li_stream_disconnect_dest(&con->in);
 	con->in.out->is_closed = FALSE;
@@ -679,6 +727,7 @@ void li_connection_reset(liConnection *con) {
 		con->keep_alive_requests = 0;
 	}
 
+	li_connection_update_io_wait(con);
 	li_job_later(&con->wrk->loop.jobqueue, &con->job_reset);
 }
 
@@ -766,9 +815,6 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 				li_event_timer_once(&con->keep_alive_data.watcher, con->keep_alive_data.max_idle);
 			}
 		}
-
-		/* remove from timeout queue */
-		li_waitqueue_remove(&con->wrk->io_timeout_queue, &con->io_timeout_elem);
 	} else {
 		li_stream_again_later(&con->in);
 	}
@@ -779,6 +825,8 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 	con->out_has_all_data = FALSE;
 
 	con->info.keep_alive = TRUE;
+
+	li_connection_update_io_wait(con);
 
 	li_vrequest_reset(con->mainvr, TRUE);
 	li_http_request_parser_reset(&con->req_parser_ctx);

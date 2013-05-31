@@ -91,6 +91,9 @@ LI_API void li_connection_free(liConnection *con);
 /* close connection (for worker keep-alive timeout) */
 LI_API void li_connection_reset(liConnection *con);
 
+/* update whether we're waiting for io timeouts */
+LI_API void li_connection_update_io_wait(liConnection *con);
+
 /** aborts an active connection, calls all plugin cleanup handlers */
 LI_API void li_connection_error(liConnection *con); /* used in worker.c */
 

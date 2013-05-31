@@ -373,7 +373,7 @@ struct mod_status_con_data {
 	goffset request_size;
 	goffset response_size;
 	guint64 ts_started;
-	guint64 ts_timeout;
+	gint64 ts_timeout;
 	guint64 bytes_in;
 	guint64 bytes_out;
 	guint64 bytes_in_5s_diff;
@@ -398,6 +398,7 @@ struct mod_status_job {
 /* the CollectFunc */
 static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 	mod_status_wrk_data *sd = g_slice_new0(mod_status_wrk_data);
+	li_tstamp now = li_cur_ts(wrk);
 	UNUSED(fdata);
 
 	sd->stats = wrk->stats;
@@ -424,12 +425,14 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 		cd->bytes_in_5s_diff = c->info.stats.bytes_in_5s_diff;
 		cd->bytes_out_5s_diff = c->info.stats.bytes_out_5s_diff;
 
-		cd->ts_started = (guint64)(li_cur_ts(wrk) - c->ts_started);
+		cd->ts_started = (guint64)(now - c->ts_started);
 
-		if (c->state == LI_CON_STATE_KEEP_ALIVE) {
-			cd->ts_timeout = (guint64)(c->keep_alive_data.timeout - li_cur_ts(wrk));
+		if (c->io_timeout_elem.queued) {
+			cd->ts_timeout = MAX(0, wrk->srv->io_timeout - (now - c->io_timeout_elem.ts));
+		} else if (LI_CON_STATE_KEEP_ALIVE == c->state) {
+			cd->ts_timeout = MAX(0, c->keep_alive_data.timeout - now);
 		} else {
-			cd->ts_timeout = (guint64)(wrk->srv->io_timeout - (li_cur_ts(wrk) - c->io_timeout_elem.ts));
+			cd->ts_timeout = -1;
 		}
 
 		sd->connection_count[c->state]++;
@@ -792,7 +795,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 					cd->query->len ? "?":"",
 					cd->query->len ? cd->query->str : "",
 					cd->ts_started, ts_started->str,
-					cd->ts_timeout, ts_timeout->str,
+					cd->ts_timeout, cd->ts_timeout < 0 ? "" : ts_timeout->str,
 					cd->bytes_in, bytes_in->str,
 					cd->bytes_out, bytes_out->str,
 					cd->bytes_in_5s_diff / G_GUINT64_CONSTANT(5), bytes_in_5s->str,

@@ -86,6 +86,25 @@ static void worker_io_timeout_cb(liWaitQueue *wq, gpointer data) {
 	li_waitqueue_update(wq);
 }
 
+static void worker_close_idle_connections(liWorker *wrk) {
+	guint i;
+
+	for (i = wrk->connections_active; i-- > 0;) {
+		liConnection *con = g_array_index(wrk->connections, liConnection*, i);
+		switch (con->state) {
+		case LI_CON_STATE_KEEP_ALIVE:
+			li_connection_reset(con);
+			break;
+		default:
+			/* update if wrk->wait_for_stop_connections.active changed */
+			li_connection_update_io_wait(con);
+			break;
+		}
+	}
+
+	li_worker_check_keepalive(wrk);
+}
+
 /* cache timestamp */
 GString *li_worker_current_timestamp(liWorker *wrk, liTimeFunc timefunc, guint format_ndx) {
 	gsize len;
@@ -428,14 +447,13 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 
 		if (wrk->stat_cache)
 			li_waitqueue_stop(&wrk->stat_cache->delete_queue);
-		li_worker_new_con_cb(&wrk->new_con_watcher.base, 0); /* handle remaining new connections */
+		/* handle remaining new connections. there shouldn't be any, we'll kill them soon anyway */
+		li_worker_new_con_cb(&wrk->new_con_watcher.base, 0);
 
-		/* close keep alive connections */
+		/* connections should already be done on "normal" shutdowns. otherwise force it now */
 		for (i = wrk->connections_active; i-- > 0;) {
 			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
-			if (con->state == LI_CON_STATE_KEEP_ALIVE) {
-				li_connection_reset(con);
-			}
+			li_connection_reset(con);
 		}
 
 		li_worker_check_keepalive(wrk);
@@ -448,7 +466,6 @@ void li_worker_stop(liWorker *context, liWorker *wrk) {
 
 void li_worker_stopping(liWorker *context, liWorker *wrk) {
 	liServer *srv = context->srv;
-	guint i;
 
 	if (context == srv->main_worker) {
 		li_server_state_wait(srv, &wrk->wait_for_stop_connections);
@@ -457,22 +474,18 @@ void li_worker_stopping(liWorker *context, liWorker *wrk) {
 	if (context == wrk) {
 		/* li_plugins_worker_stopping(wrk); ??? */
 
-		/* close keep alive connections */
-		for (i = wrk->connections_active; i-- > 0;) {
-			liConnection *con = g_array_index(wrk->connections, liConnection*, i);
-			if (con->state == LI_CON_STATE_KEEP_ALIVE) {
-				li_connection_reset(con);
-			}
-		}
+		/* connections are killed after 3 seconds without IO */
+		li_waitqueue_set_delay(&wrk->io_timeout_queue, 3);
 
-		li_worker_check_keepalive(wrk);
+		worker_close_idle_connections(wrk);
 
 		li_worker_new_con_cb(&wrk->new_con_watcher.base, 0); /* handle remaining new connections */
+
+		li_event_loop_force_close_sockets(&wrk->loop);
+
 		if (0 == g_atomic_int_get(&wrk->connection_load) && wrk->wait_for_stop_connections.active) {
 			li_server_state_ready(srv, &wrk->wait_for_stop_connections);
 		}
-
-		li_event_loop_force_close_sockets(&wrk->loop);
 	} else {
 		li_event_async_send(&wrk->worker_stopping_watcher);
 	}
