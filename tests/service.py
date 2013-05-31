@@ -189,7 +189,7 @@ class Lighttpd(Service):
 			else:
 				self.fork(base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf)
 		else:
-			self.fork(base.Env.angel, '-m', base.Env.plugindir, '-c', base.Env.angelconf)
+			self.fork(base.Env.angel, '-o', '-m', base.Env.plugindir, '-c', base.Env.angelconf)
 		self.waitconnect(base.Env.port)
 
 class FastCGI(Service):

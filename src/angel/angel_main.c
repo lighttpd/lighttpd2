@@ -29,6 +29,7 @@ int main(int argc, char *argv[]) {
 	gchar const *module_dir = def_module_dir;
 	gboolean module_resident = FALSE;
 	gchar const *config_path = NULL;
+	gboolean one_shot = FALSE; /* don't restart instance */
 
 	gboolean res;
 	int result = 0;
@@ -38,6 +39,7 @@ int main(int argc, char *argv[]) {
 		{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_path, "filename/path of the config", "PATH" },
 		{ "module-dir", 'm', 0, G_OPTION_ARG_STRING, &module_dir, "module directory [default: " DEFAULT_LIBDIR "]", "PATH" },
 		{ "module-resident", 0, 0, G_OPTION_ARG_NONE, &module_resident, "never unload modules (e.g. for valgrind)", NULL },
+		{ "one-shot", 'o', 0, G_OPTION_ARG_NONE, &one_shot, "don't restart instance, useful for testing", NULL },
 		{ "version", 'v', 0, G_OPTION_ARG_NONE, &show_version, "show version and exit", NULL },
 		{ NULL, 0, 0, 0, NULL, NULL, NULL }
 	};
@@ -78,6 +80,7 @@ int main(int argc, char *argv[]) {
 	g_thread_init(NULL);
 
 	srv = li_server_new(module_dir, module_resident);
+	srv->one_shot = one_shot;
 
 	if (!li_plugins_config_load(srv, config_path)) {
 		result = -1;

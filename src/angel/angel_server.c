@@ -282,7 +282,7 @@ void li_instance_state_reached(liInstance *i, liInstanceState s) {
 		/* last child died */
 		if (i->s_dest == LI_INSTANCE_FINISHED) {
 			i->s_cur = LI_INSTANCE_FINISHED;
-		} else {
+		} else if (!i->srv->one_shot) {
 			instance_spawn(i);
 		}
 		break;

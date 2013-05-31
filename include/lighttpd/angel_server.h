@@ -53,6 +53,8 @@ struct liServer {
 	liPlugins plugins;
 
 	liLog log;
+
+	gboolean one_shot; /* don't restart instance if it goes down */
 };
 
 struct liInstanceResource {
