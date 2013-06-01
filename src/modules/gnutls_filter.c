@@ -24,7 +24,7 @@ struct liGnuTLSFilter {
 	unsigned int write_wants_read:1;
 };
 
-#if GNUTLS_VERSION_NUMBER >= 0x021200
+#if GNUTLS_VERSION_NUMBER >= 0x020c00
 #define HAVE_GIOVEC
 typedef giovec_t li_iovec_t;
 #else

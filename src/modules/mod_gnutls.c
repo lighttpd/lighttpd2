@@ -8,6 +8,10 @@
 #include <glib-2.0/glib/galloca.h>
 
 
+#if GNUTLS_VERSION_NUMBER >= 0x020a00
+#define HAVE_SESSION_TICKET
+#endif
+
 LI_API gboolean mod_gnutls_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_gnutls_free(liModules *mods, liModule *mod);
 
@@ -32,6 +36,9 @@ struct mod_context {
 	gnutls_certificate_credentials_t server_cert;
 	gnutls_priority_t server_priority;
 	gnutls_priority_t server_priority_beast;
+#ifdef HAVE_SESSION_TICKET
+	gnutls_datum_t ticket_key;
+#endif
 
 	unsigned int protect_against_beast:1;
 };
@@ -43,6 +50,14 @@ static void mod_gnutls_context_release(mod_context *ctx) {
 		gnutls_priority_deinit(ctx->server_priority_beast);
 		gnutls_priority_deinit(ctx->server_priority);
 		gnutls_certificate_free_credentials(ctx->server_cert);
+#ifdef HAVE_SESSION_TICKET
+		/* wtf. why is there no function in gnutls for this... */
+		if (NULL != ctx->ticket_key.data) {
+			gnutls_free(ctx->ticket_key.data);
+			ctx->ticket_key.data = NULL;
+			ctx->ticket_key.size = 0;
+		}
+#endif
 
 		g_slice_free(mod_context, ctx);
 	}
@@ -76,10 +91,21 @@ static mod_context *mod_gnutls_context_new(liServer *srv) {
 		goto error2;
 	}
 
+#ifdef HAVE_SESSION_TICKET
+	if (GNUTLS_E_SUCCESS != (r = gnutls_session_ticket_key_generate(&ctx->ticket_key))) {
+		ERROR(srv, "gnutls_session_ticket_key_generate failed(%s): %s",
+			gnutls_strerror_name(r), gnutls_strerror(r));
+		goto error3;
+	}
+#endif
+
 	ctx->refcount = 1;
 	ctx->protect_against_beast = 1;
 
 	return ctx;
+
+error3:
+	gnutls_priority_deinit(ctx->server_priority_beast);
 
 error2:
 	gnutls_priority_deinit(ctx->server_priority);
@@ -255,6 +281,14 @@ static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto fail;
 	}
+
+#ifdef HAVE_SESSION_TICKET
+	if (GNUTLS_E_SUCCESS != (r = gnutls_session_ticket_enable_server(session, &ctx->ticket_key))) {
+		ERROR(srv, "gnutls_session_ticket_enable_server (%s): %s",
+			gnutls_strerror_name(r), gnutls_strerror(r));
+		goto fail;
+	}
+#endif
 
 	conctx = g_slice_new0(mod_connection_ctx);
 	conctx->session = session;
