@@ -90,8 +90,15 @@ static void proxy_send_headers(liVRequest *vr, liChunkQueue *out) {
 		}
 	}
 
+	if (vr->request.content_length > 0) {
+		g_string_append_printf(head, "Content-Length: %" LI_GOFFSET_MODIFIER "i\r\n", vr->request.content_length);
+	}
+
 	for (iter = g_queue_peek_head_link(&vr->request.headers->entries); iter; iter = g_list_next(iter)) {
 		header = (liHttpHeader*) iter->data;
+		if (li_http_header_key_is(header, CONST_STR_LEN("Content-Length"))) continue;
+		if (li_http_header_key_is(header, CONST_STR_LEN("Transfer-Encoding"))) continue;
+		if (li_http_header_key_is(header, CONST_STR_LEN("TE"))) continue;
 		if (li_http_header_key_is(header, CONST_STR_LEN("Connection"))) continue;
 		if (li_http_header_key_is(header, CONST_STR_LEN("Proxy-Connection"))) continue;
 		if (li_http_header_key_is(header, CONST_STR_LEN("X-Forwarded-Proto"))) continue;
@@ -259,6 +266,11 @@ static liHandlerResult proxy_handle(liVRequest *vr, gpointer param, gpointer *co
 	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
 
 	LI_VREQUEST_WAIT_FOR_REQUEST_BODY(vr);
+
+	if (vr->request.content_length < 0) {
+		VR_ERROR(vr, "%s", "proxy can't handle progressive uploads yet. enable request body buffering!");
+		return LI_HANDLER_ERROR;
+	}
 
 	switch (li_backend_get(vr, ctx->pool, &bcon, &bwait)) {
 	case LI_BACKEND_SUCCESS:

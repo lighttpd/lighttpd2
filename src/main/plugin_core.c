@@ -1892,6 +1892,8 @@ static const liPluginOption options[] = {
 
 	{ "stat.async", LI_VALUE_BOOLEAN, TRUE, NULL },
 
+	{ "buffer_request_body", LI_VALUE_BOOLEAN, TRUE, NULL },
+
 	{ NULL, 0, 0, NULL }
 };
 

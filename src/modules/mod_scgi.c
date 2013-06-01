@@ -353,6 +353,11 @@ static liHandlerResult scgi_handle(liVRequest *vr, gpointer param, gpointer *con
 
 	LI_VREQUEST_WAIT_FOR_REQUEST_BODY(vr);
 
+	if (vr->request.content_length < 0) {
+		VR_ERROR(vr, "%s", "scgi can't handle progressive uploads. enable request body buffering!");
+		return LI_HANDLER_ERROR;
+	}
+
 	switch (li_backend_get(vr, ctx->pool, &bcon, &bwait)) {
 	case LI_BACKEND_SUCCESS:
 		assert(NULL == bwait);

@@ -352,6 +352,7 @@ static void _connection_http_in_cb(liStream *stream, liStreamEvent event) {
 					li_connection_error(con);
 					return;
 				}
+				if (in->is_closed) vr->request.content_length = in->bytes_in;
 				newbytes = 1; /* always notify */
 			}
 		} else {

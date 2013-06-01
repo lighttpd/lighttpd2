@@ -308,6 +308,9 @@ gboolean li_vrequest_wait_for_request_body(liVRequest *vr) {
 		return FALSE; /* still waiting */
 	}
 
+	/* don't start waiting if buffer isn't enabled */
+	if (!CORE_OPTION(LI_CORE_OPTION_BUFFER_ON_DISK_REQUEST_BODY).boolean) return TRUE;
+
 	lim_avail = li_chunkqueue_limit_available(vr->coninfo->req->out);
 
 	vr->wait_for_request_body_stream = wait_for_request_body_stream_new(vr);
