@@ -504,6 +504,8 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 				gnutls_strerror_name(r), gnutls_strerror(r));
 			goto error_free_ctx;
 		}
+
+		gnutls_certificate_set_dh_params(ctx->server_cert, ctx->dh_params);
 	} else {
 		if (GNUTLS_E_SUCCESS != (r = load_dh_params_3247(&ctx->dh_params))) {
 			ERROR(srv, "couldn't load dh parameters(%s): %s",
