@@ -5,7 +5,7 @@ common_cflags += $(GTHREAD_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS)
 common_libs = $(GTHREAD_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
 common_ldflags = -module -export-dynamic -avoid-version -no-undefined $(common_libs)
 common_libadd = ../common/liblighttpd2-common.la ../main/liblighttpd2-shared.la
-EXTRA_DIST=
+EXTRA_DIST=ssl-session-db.h
 
 luadir = $(datarootdir)/lighttpd2/lua
 

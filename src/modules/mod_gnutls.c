@@ -3,6 +3,7 @@
 #include <lighttpd/throttle.h>
 
 #include "gnutls_filter.h"
+#include "ssl-session-db.h"
 
 #include <gnutls/gnutls.h>
 #include <glib-2.0/glib/galloca.h>
@@ -34,6 +35,8 @@ struct mod_connection_ctx {
 struct mod_context {
 	gint refcount;
 
+	liSSLSessionDB *session_db;
+
 	gnutls_certificate_credentials_t server_cert;
 	gnutls_dh_params_t dh_params;
 	gnutls_priority_t server_priority;
@@ -61,6 +64,8 @@ static void mod_gnutls_context_release(mod_context *ctx) {
 			ctx->ticket_key.size = 0;
 		}
 #endif
+		li_ssl_session_db_free(ctx->session_db);
+		ctx->session_db = NULL;
 
 		g_slice_free(mod_context, ctx);
 	}
@@ -211,13 +216,36 @@ static int post_client_hello_cb(liGnuTLSFilter *f, gpointer data) {
 	return GNUTLS_E_SUCCESS;
 }
 
+static int session_db_store_cb(void *_sdb, gnutls_datum_t key, gnutls_datum_t data) {
+	liSSLSessionDB *sdb = _sdb;
+	li_ssl_session_db_store(sdb, key.data, key.size, data.data, data.size);
+	return 0;
+}
+static int session_db_remove_cb(void *_sdb, gnutls_datum_t key) {
+	liSSLSessionDB *sdb = _sdb;
+	li_ssl_session_db_remove(sdb, key.data, key.size);
+	return 0;
+}
+static gnutls_datum_t session_db_retrieve_cb(void *_sdb, gnutls_datum_t key) {
+	liSSLSessionDB *sdb = _sdb;
+	liSSLSessionDBData *data = li_ssl_session_db_lookup(sdb, key.data, key.size);
+	gnutls_datum_t result = { NULL, 0 };
+	if (NULL != data) {
+		result.size = data->size;
+		result.data = gnutls_malloc(result.size);
+		memcpy(result.data, data->data, result.size);
+		li_ssl_session_db_data_release(data);
+	}
+	return result;
+}
+
 static const liGnuTLSFilterCallbacks filter_callbacks = {
 	handshake_cb,
 	close_cb,
 	post_client_hello_cb
 };
 
-static void gnutlc_tcp_finished(liConnection *con, gboolean aborted) {
+static void gnutls_tcp_finished(liConnection *con, gboolean aborted) {
 	mod_connection_ctx *conctx = con->con_sock.data;
 	UNUSED(aborted);
 
@@ -253,7 +281,7 @@ static liThrottleState* gnutls_tcp_throttle_in(liConnection *con) {
 }
 
 static const liConnectionSocketCallbacks gnutls_tcp_cbs = {
-	gnutlc_tcp_finished,
+	gnutls_tcp_finished,
 	gnutls_tcp_throttle_out,
 	gnutls_tcp_throttle_in
 };
@@ -283,6 +311,13 @@ static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 		ERROR(srv, "gnutls_credentials_set (%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto fail;
+	}
+
+	if (NULL != ctx->session_db) {
+		gnutls_db_set_ptr(session, ctx->session_db);
+		gnutls_db_set_remove_function(session, session_db_remove_cb);
+		gnutls_db_set_retrieve_function(session, session_db_retrieve_cb);
+		gnutls_db_set_store_function(session, session_db_store_cb);
 	}
 
 #ifdef HAVE_SESSION_TICKET
@@ -358,6 +393,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		*pemfile = NULL, *ca_file = NULL;
 	gboolean
 		protect_against_beast = TRUE;
+	gint64 session_db_size = 256;
 
 	UNUSED(p); UNUSED(userdata);
 
@@ -406,6 +442,12 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 				return FALSE;
 			}
 			protect_against_beast = htval->data.boolean;
+		} else if (g_str_equal(htkey->str, "session-db-size")) {
+			if (htval->type != LI_VALUE_NUMBER) {
+				ERROR(srv, "%s", "gnutls session-db-size expects an integer as parameter");
+				return FALSE;
+			}
+			session_db_size = htval->data.number;
 		}
 	}
 
@@ -429,6 +471,8 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error_free_ctx;
 	}
+
+	if (session_db_size > 0) ctx->session_db = li_ssl_session_db_new(session_db_size);
 
 	if (NULL != dh_params_file) {
 		gchar *contents = NULL;
