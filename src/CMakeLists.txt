@@ -179,6 +179,7 @@ SET(COMMON_SRC
 	buffer.c
 	encoding.c
 	events.c
+	fetch.c
 	idlist.c
 	ip_parsers.c
 	jobqueue.c
