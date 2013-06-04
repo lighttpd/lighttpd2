@@ -60,6 +60,10 @@ static void server_setup_free(gpointer _ss) {
 	g_slice_free(liServerSetup, _ss);
 }
 
+static void server_fetch_db_free(gpointer db) {
+	li_fetch_database_release((liFetchDatabase*) db);
+}
+
 static void sigint_cb(liEventBase *watcher, int events) {
 	liEventSignal *sig = li_event_signal_from(watcher);
 	liEventLoop *loop = li_event_get_loop(sig);
@@ -116,6 +120,9 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	srv->mainaction = NULL;
 
 	srv->action_mutex = g_mutex_new();
+
+	srv->fetch_backends = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, server_fetch_db_free);
+	srv->fetch_backends_mutex = g_mutex_new();
 
 	srv->exiting = FALSE;
 
@@ -228,6 +235,8 @@ void li_server_free(liServer* srv) {
 		g_ptr_array_free(srv->sockets, TRUE);
 	}
 
+	g_hash_table_remove_all(srv->fetch_backends);
+
 	/* release modules */
 	li_modules_free(srv->modules);
 
@@ -263,6 +272,9 @@ void li_server_free(liServer* srv) {
 		g_array_free(srv->prepare_callbacks, TRUE);
 		srv->prepare_callbacks = NULL;
 	}
+
+	g_hash_table_destroy(srv->fetch_backends);
+	g_mutex_free(srv->fetch_backends_mutex);
 
 	g_mutex_free(srv->action_mutex);
 
@@ -913,4 +925,28 @@ void li_server_register_prepare_cb(liServer *srv, liServerPrepareCallbackCB cb, 
 		cbd.data = data;
 		g_array_append_val(srv->prepare_callbacks, cbd);
 	}
+}
+
+gboolean li_server_register_fetch_database(liServer *srv, const gchar *name, liFetchDatabase *db) {
+	gboolean inserted = FALSE;
+
+	g_mutex_lock(srv->fetch_backends_mutex);
+		if (NULL == g_hash_table_lookup(srv->fetch_backends, name)) {
+			inserted = TRUE;
+			li_fetch_database_acquire(db);
+			g_hash_table_insert(srv->fetch_backends, g_strdup(name), db);
+		}
+	g_mutex_unlock(srv->fetch_backends_mutex);
+	return inserted;
+}
+
+liFetchDatabase* li_server_get_fetch_database(liServer *srv, const gchar *name) {
+	liFetchDatabase *db;
+
+	g_mutex_lock(srv->fetch_backends_mutex);
+		if (NULL != (db = g_hash_table_lookup(srv->fetch_backends, name))) {
+			li_fetch_database_acquire(db);
+		}
+	g_mutex_unlock(srv->fetch_backends_mutex);
+	return db;
 }

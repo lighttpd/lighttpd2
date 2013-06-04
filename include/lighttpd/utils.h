@@ -83,6 +83,7 @@ LI_API void li_safe_crypt(GString *dest, const GString *password, const GString 
 
 INLINE GString* _li_g_string_append_len(GString *s, const gchar *val, gssize len);
 INLINE void li_g_string_clear(GString *s);
+INLINE void li_g_string_free(gpointer data);
 
 /* src will be empty after the merge, and dest' = dest (++) src */
 LI_API void li_g_queue_merge(GQueue *dest, GQueue *src);
@@ -144,6 +145,10 @@ INLINE GString* _li_g_string_append_len(GString *s, const gchar *val, gssize len
 INLINE void li_g_string_clear(GString *s) {
 	s->len = 0;
 	s->str[0] = '\0';
+}
+
+INLINE void li_g_string_free(gpointer data) {
+	g_string_free((GString*) data, TRUE);
 }
 
 #endif

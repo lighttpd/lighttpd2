@@ -99,6 +99,10 @@ struct liServer {
 
 	GMutex *action_mutex;     /** used to synchronize action creation/destruction */
 
+	/** const gchar* => (liFetchDatabase*), database must return GString* entries */
+	GHashTable *fetch_backends;
+	GMutex *fetch_backends_mutex;
+
 	gboolean exiting;         /** atomic access */
 
 	liLogServerData logs;
@@ -151,5 +155,10 @@ LI_API void li_server_state_wait(liServer *srv, liServerStateWait *sw);
  *  if server isn't started it calls cb with aborted = TRUE.
  */
 LI_API void li_server_register_prepare_cb(liServer *srv, liServerPrepareCallbackCB cb, gpointer data);
+
+/* will acquire a new reference itself if needed. returns TRUE if db was inserted */
+LI_API gboolean li_server_register_fetch_database(liServer *srv, const gchar *name, liFetchDatabase *db);
+/* returns a new reference */
+LI_API liFetchDatabase* li_server_get_fetch_database(liServer *srv, const gchar *name);
 
 #endif

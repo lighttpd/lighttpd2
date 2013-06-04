@@ -1856,6 +1856,150 @@ static liAction* core_map(liServer *srv, liWorker *wrk, liPlugin* p, liValue *va
 	return li_action_new_function(core_handle_map, NULL, core_map_free, md);
 }
 
+static void fetch_files_static_lookup(liFetchDatabase* db, gpointer data, liFetchEntry *entry) {
+	GHashTable *stringdb = (GHashTable*) data;
+	UNUSED(db);
+	entry->data = g_hash_table_lookup(stringdb, entry->key);
+	li_fetch_entry_ready(entry);
+}
+static gboolean fetch_files_static_revalidate(liFetchDatabase* db, gpointer data, liFetchEntry *entry) {
+	UNUSED(db); UNUSED(data); UNUSED(entry);
+	return TRUE;
+}
+static void fetch_files_static_refresh(liFetchDatabase* db, gpointer data, liFetchEntry *cur_entry, liFetchEntry *new_entry) {
+	UNUSED(db); UNUSED(data); UNUSED(cur_entry);
+	li_fetch_entry_refresh_skip(new_entry);
+}
+static void fetch_files_static_free_db(gpointer data) {
+	GHashTable *stringdb = (GHashTable*) data;
+	g_hash_table_destroy(stringdb);
+}
+
+static const liFetchCallbacks fetch_files_static_callbacks = {
+	fetch_files_static_lookup,
+	fetch_files_static_revalidate,
+	fetch_files_static_refresh,
+	/* fetch_files_static_free_entry */ NULL,
+	fetch_files_static_free_db
+};
+
+static gboolean core_register_fetch_files_static(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	const gchar *name;
+	gchar *wildcard, *tmp;
+	const gchar *_entry;
+	GString *pattern;
+	GString *basedir = NULL, *subfile = NULL;
+	GString *prefix = NULL, *suffix = NULL;
+	GString *filename = NULL;
+	GDir *dir = NULL;
+	GError *err = NULL;
+	gboolean result = FALSE;
+	GHashTable *stringdb = NULL;
+	liFetchDatabase *db = NULL;
+	UNUSED(p); UNUSED(userdata);
+
+	if (LI_VALUE_LIST != val->type || 2 != val->data.list->len
+		|| LI_VALUE_STRING != g_array_index(val->data.list, liValue*, 0)->type
+		|| LI_VALUE_STRING != g_array_index(val->data.list, liValue*, 1)->type) {
+		ERROR(srv, "%s", "fetch.files_static expects a two strings as parameter: \"<name>\" => \"/path/abc_*.d/file\"");
+		goto out;
+	}
+
+	name = g_array_index(val->data.list, liValue*, 0)->data.string->str;
+	pattern = g_array_index(val->data.list, liValue*, 1)->data.string;
+
+	wildcard = strchr(pattern->str, '*');
+	if (NULL == wildcard || NULL != strchr(wildcard + 1, '*')) {
+		ERROR(srv, "%s", "fetch.files_static file pattern doesn't contain exactly one wildcard");
+		goto out;
+	}
+
+	for (tmp = wildcard; tmp >= pattern->str; --tmp) {
+		if ('/' == *tmp) break;
+	}
+	if (tmp >= pattern->str) { /* found '/' before '*' */
+		basedir = g_string_new_len(pattern->str, tmp - pattern->str);
+		prefix = g_string_new_len(tmp + 1, wildcard - tmp - 1);
+	} else {
+		prefix = g_string_new_len(pattern->str, wildcard - pattern->str);
+	}
+	if (NULL != (tmp = strchr(wildcard, '/'))) {
+		subfile = g_string_new(tmp);
+		suffix = g_string_new_len(wildcard + 1, tmp - wildcard - 1);
+	} else {
+		suffix = g_string_new(wildcard + 1);
+	}
+
+	filename = g_string_sized_new(127);
+	dir = g_dir_open(NULL != basedir ? basedir->str : ".", 0, &err);
+	if (NULL == dir) {
+		ERROR(srv, "fetch.files_static: couldn't open basedir '%s': %s", NULL != basedir ? basedir->str : ".", err->message);
+		goto out;
+	}
+
+	stringdb = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, li_g_string_free, li_g_string_free);
+	while (NULL != (_entry = g_dir_read_name(dir))) {
+		GString entry = li_const_gstring(_entry, strlen(_entry));
+		if (entry.len <= prefix->len + suffix->len) continue;
+		if (li_string_prefix(&entry, GSTR_LEN(prefix)) && li_string_suffix(&entry, GSTR_LEN(suffix))) {
+			GString *key;
+			GString *file;
+			gchar *file_contents;
+			gsize file_len;
+
+			g_string_truncate(filename, 0);
+			if (NULL != basedir) {
+				g_string_append_len(filename, GSTR_LEN(basedir));
+				li_path_append_slash(filename);
+			}
+			g_string_append_len(filename, GSTR_LEN(&entry));
+			if (NULL != subfile) {
+				li_path_append_slash(filename);
+				g_string_append_len(filename, GSTR_LEN(subfile));
+			}
+
+			if (!g_file_test(filename->str, G_FILE_TEST_IS_REGULAR)) continue;
+
+			if (!g_file_get_contents(filename->str, &file_contents, &file_len, &err)) {
+				ERROR(srv, "fetch.files_static: couldn't read file '%s': %s", filename->str, err->message);
+				goto out;
+			}
+
+			key = g_string_new_len(entry.str + prefix->len, entry.len - prefix->len - suffix->len);
+			file = g_string_new_len(file_contents, file_len);
+			g_free(file_contents);
+
+			g_hash_table_insert(stringdb, key, file);
+		}
+	}
+
+	db = li_fetch_database_new(&fetch_files_static_callbacks, stringdb, g_hash_table_size(stringdb), 0);
+	stringdb = NULL; /* now owned by db */
+
+	if (!li_server_register_fetch_database(srv, name, db)) {
+		ERROR(srv, "fetch.files_static: duplicate name: can't register another backend for name '%s'", name);
+		goto out;
+	}
+
+	result = TRUE;
+
+out:
+	if (NULL != basedir) g_string_free(basedir, TRUE);
+	if (NULL != subfile) g_string_free(basedir, TRUE);
+	if (NULL != prefix) g_string_free(prefix, TRUE);
+	if (NULL != suffix) g_string_free(suffix, TRUE);
+	if (NULL != filename) g_string_free(filename, TRUE);
+	if (NULL != dir) g_dir_close(dir);
+	if (NULL != err) g_error_free(err);
+	if (NULL != stringdb) g_hash_table_destroy(stringdb);
+	if (NULL != db) li_fetch_database_release(db);
+	return result;
+}
+
+
+
+
+
 static void core_warmup(liServer *srv, liPlugin *p, gint32 id, GString *data) {
 	UNUSED(p);
 	UNUSED(id);
@@ -1956,6 +2100,7 @@ static const liPluginSetup setups[] = {
 	{ "tasklet_pool.threads", core_tasklet_pool_threads, NULL },
 	{ "log", core_setup_log, NULL },
 	{ "log.timestamp", core_setup_log_timestamp, NULL },
+	{ "fetch.files_static", core_register_fetch_files_static, NULL },
 
 	{ NULL, NULL, NULL }
 };

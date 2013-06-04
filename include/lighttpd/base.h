@@ -22,6 +22,7 @@
 #include <lighttpd/filter.h>
 #include <lighttpd/filter_chunked.h>
 #include <lighttpd/radix.h>
+#include <lighttpd/fetch.h>
 
 #include <lighttpd/base_lua.h>
 #include <lighttpd/log.h>
