@@ -146,6 +146,7 @@ struct mod_context {
 
 #ifdef USE_SNI
 	liFetchDatabase *sni_db;
+	gnutls_certificate_credentials_t sni_fallback_cert;
 #endif
 
 	unsigned int protect_against_beast:1;
@@ -174,6 +175,10 @@ static void mod_gnutls_context_release(mod_context *ctx) {
 		if (NULL != ctx->sni_db) {
 			li_fetch_database_release(ctx->sni_db);
 			ctx->sni_db = NULL;
+		}
+		if (NULL != ctx->sni_fallback_cert) {
+			gnutls_certificate_free_credentials(ctx->sni_fallback_cert);
+			ctx->sni_fallback_cert = NULL;
 		}
 #endif
 
@@ -433,6 +438,8 @@ static void sni_job_cb(liJob *job) {
 		gnutls_certificate_credentials_t creds = conctx->sni_entry->data;
 		if (NULL != creds) {
 			gnutls_credentials_set(conctx->session, GNUTLS_CRD_CERTIFICATE, creds);
+		} else if (NULL != conctx->ctx->sni_fallback_cert) {
+			gnutls_credentials_set(conctx->session, GNUTLS_CRD_CERTIFICATE, conctx->ctx->sni_fallback_cert);
 		}
 		li_ssn_sni_stream_ready(conctx->sni_stream);
 	}
@@ -568,7 +575,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	const char
 		*priority = NULL, *dh_params_file = NULL,
 		*pemfile = NULL, *ca_file = NULL,
-		*sni_backend = NULL;
+		*sni_backend = NULL, *sni_fallback_pemfile = NULL;
 	gboolean
 		protect_against_beast = TRUE;
 	gint64 session_db_size = 256;
@@ -633,6 +640,12 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 				return FALSE;
 			}
 			sni_backend = htval->data.string->str;
+		} else if (g_str_equal(htkey->str, "sni-fallback-pemfile")) {
+			if (htval->type != LI_VALUE_STRING) {
+				ERROR(srv, "%s", "gnutls sni-fallback-pemfile expects a string as parameter");
+				return FALSE;
+			}
+			sni_fallback_pemfile = htval->data.string->str;
 #endif
 		}
 	}
@@ -652,13 +665,28 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	ctx->protect_against_beast = protect_against_beast;
 
 #ifdef USE_SNI
-	if (sni_backend != NULL) {
+	if (NULL != sni_backend) {
 		liFetchDatabase *backend = li_server_get_fetch_database(srv, sni_backend);
 		if (NULL == backend) {
 			ERROR(srv, "gnutls: no fetch backend with name '%s' registered", sni_backend);
 			goto error_free_ctx;
 		}
 		ctx->sni_db = li_fetch_database_new(&fetch_cert_callbacks, backend, 64, 16);
+	}
+
+	if (NULL != sni_fallback_pemfile) {
+		if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_allocate_credentials(&ctx->sni_fallback_cert))) {
+			ERROR(srv, "gnutls_certificate_allocate_credentials failed(%s): %s",
+				gnutls_strerror_name(r), gnutls_strerror(r));
+			goto error_free_ctx;
+		}
+
+		if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_file(ctx->sni_fallback_cert, sni_fallback_pemfile, sni_fallback_pemfile, GNUTLS_X509_FMT_PEM))) {
+			ERROR(srv, "gnutls_certificate_set_x509_key_file failed(certfile '%s', keyfile '%s', PEM) (%s): %s",
+				sni_fallback_pemfile, sni_fallback_pemfile,
+				gnutls_strerror_name(r), gnutls_strerror(r));
+			goto error_free_ctx;
+		}
 	}
 #endif
 
