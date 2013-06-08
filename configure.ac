@@ -137,7 +137,7 @@ AC_ARG_WITH([sni], [AS_HELP_STRING([--with-sni],[SNI support for gnutls/openssl,
 [WITH_SNI=$withval],[WITH_SNI=no])
 
 if test "$WITH_SNI" != "no"; then
- PKG_CHECK_MODULES([IDN], [Libidn],[],[
+ PKG_CHECK_MODULES([IDN], [libidn],[],[
   AC_MSG_ERROR([libidn not found])
  ])
 
