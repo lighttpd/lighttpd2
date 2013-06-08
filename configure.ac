@@ -7,7 +7,7 @@ AC_CONFIG_SRCDIR([src/main/lighttpd_worker.c])
 AC_CONFIG_HEADER([include/lighttpd/config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
-AM_INIT_AUTOMAKE([-Wall -Wno-portability -Wno-override -Werror foreign dist-bzip2 tar-ustar])
+AM_INIT_AUTOMAKE([-Wall -Wno-portability -Wno-override -Werror foreign dist-bzip2 tar-ustar serial-tests])
 
 dnl check environment
 AC_USE_SYSTEM_EXTENSIONS
@@ -143,6 +143,7 @@ if test "$WITH_SNI" != "no"; then
 
  AC_SUBST([IDN_CFLAGS])
  AC_SUBST([IDN_LIBS])
+ AC_DEFINE([USE_SNI], [1], [use sni])
  USE_SNI=true
 fi
 
