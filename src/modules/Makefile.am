@@ -76,10 +76,10 @@ libmod_fortune_la_LIBADD = $(common_libadd)
 
 if USE_GNUTLS
 install_libs += libmod_gnutls.la
-libmod_gnutls_la_CPPFLAGS = $(AM_CPPFLAGS) $(GNUTLS_CFLAGS)
+libmod_gnutls_la_CPPFLAGS = $(AM_CPPFLAGS) $(GNUTLS_CFLAGS) $(IDN_FLAGS)
 libmod_gnutls_la_SOURCES = mod_gnutls.c gnutls_filter.c
 libmod_gnutls_la_LDFLAGS = $(common_ldflags)
-libmod_gnutls_la_LIBADD = $(common_libadd) $(GNUTLS_LIBS)
+libmod_gnutls_la_LIBADD = $(common_libadd) $(GNUTLS_LIBS) $(IDN_LIBS)
 endif
 EXTRA_DIST += gnutls_filter.h
 
@@ -103,10 +103,10 @@ libmod_memcached_la_LIBADD = $(common_libadd)
 
 if USE_OPENSSL
 install_libs += libmod_openssl.la
-libmod_openssl_la_CPPFLAGS =  $(AM_CPPFLAGS) $(OPENSSL_CFLAGS)
+libmod_openssl_la_CPPFLAGS =  $(AM_CPPFLAGS) $(OPENSSL_CFLAGS) $(IDN_FLAGS)
 libmod_openssl_la_SOURCES = mod_openssl.c openssl_filter.c
 libmod_openssl_la_LDFLAGS = $(common_ldflags)
-libmod_openssl_la_LIBADD = $(common_libadd) $(OPENSSL_LIBS)
+libmod_openssl_la_LIBADD = $(common_libadd) $(OPENSSL_LIBS) $(IDN_LIBS)
 endif
 EXTRA_DIST += openssl_filter.h
 

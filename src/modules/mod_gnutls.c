@@ -3,6 +3,9 @@
 #include <lighttpd/throttle.h>
 
 #include "gnutls_filter.h"
+#ifdef USE_SNI
+#include "ssl_sni_parser.h"
+#endif
 #include "ssl-session-db.h"
 
 #include <gnutls/gnutls.h>
@@ -18,6 +21,93 @@ LI_API gboolean mod_gnutls_free(liModules *mods, liModule *mod);
 
 static int load_dh_params_4096(gnutls_dh_params_t *dh_params);
 
+typedef struct fetch_cert_backend_lookup fetch_cert_backend_lookup;
+struct fetch_cert_backend_lookup {
+	liFetchDatabase *backend;
+	liFetchWait *wait;
+	liFetchEntry *entry;
+};
+
+static gnutls_certificate_credentials_t creds_from_gstring(GString *str) {
+	gnutls_certificate_credentials_t creds = NULL;
+	gnutls_datum_t pemfile;
+	int r;
+
+	if (NULL == str) return NULL;
+
+	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_allocate_credentials(&creds))) return NULL;
+
+	pemfile.data = (unsigned char*) str->str;
+	pemfile.size = str->len;
+
+	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_mem(creds, &pemfile, &pemfile, GNUTLS_X509_FMT_PEM))) {
+		goto error_free_creds;
+	}
+
+	return creds;
+
+error_free_creds:
+	gnutls_certificate_free_credentials(creds);
+	return NULL;
+}
+
+static void fetch_cert_backend_ready(gpointer data) {
+	liFetchEntry *be;
+	fetch_cert_backend_lookup *lookup = (fetch_cert_backend_lookup*) data;
+
+	be = li_fetch_get2(lookup->backend, lookup->entry->key, fetch_cert_backend_ready, lookup, &lookup->wait);
+	if (NULL != be) {
+		liFetchEntry *entry = lookup->entry;
+		li_fetch_database_release(lookup->backend);
+		g_slice_free(fetch_cert_backend_lookup, lookup);
+
+		entry->backend_data = be;
+		entry->data = creds_from_gstring((GString*) be->data);
+		li_fetch_entry_ready(entry);
+	}
+}
+
+static void fetch_cert_lookup(liFetchDatabase* db, gpointer data, liFetchEntry *entry) {
+	fetch_cert_backend_lookup *lookup = g_slice_new0(fetch_cert_backend_lookup);
+	UNUSED(db);
+
+	lookup->backend = (liFetchDatabase*) data;
+	li_fetch_database_acquire(lookup->backend);
+	lookup->entry = entry;
+	fetch_cert_backend_ready(lookup);
+}
+static gboolean fetch_cert_revalidate(liFetchDatabase* db, gpointer data, liFetchEntry *entry) {
+	UNUSED(db); UNUSED(data);
+	return li_fetch_entry_revalidate((liFetchEntry*) entry->backend_data);
+}
+static void fetch_cert_refresh(liFetchDatabase* db, gpointer data, liFetchEntry *cur_entry, liFetchEntry *new_entry) {
+	UNUSED(db); UNUSED(data);
+	li_fetch_entry_refresh((liFetchEntry*) cur_entry->backend_data);
+	li_fetch_entry_refresh_skip(new_entry);
+}
+static void fetch_cert_free_entry(gpointer data, liFetchEntry *entry) {
+	gnutls_certificate_credentials_t creds = entry->data;
+	UNUSED(data);
+
+	if (NULL != creds) gnutls_certificate_free_credentials(creds);
+	li_fetch_entry_release((liFetchEntry*) entry->backend_data);
+}
+static void fetch_cert_free_db(gpointer data) {
+	liFetchDatabase *backend = (liFetchDatabase*) data;
+	li_fetch_database_release(backend);
+}
+
+
+static const liFetchCallbacks fetch_cert_callbacks = {
+	fetch_cert_lookup,
+	fetch_cert_revalidate,
+	fetch_cert_refresh,
+	fetch_cert_free_entry,
+	fetch_cert_free_db
+};
+
+
+
 typedef struct mod_connection_ctx mod_connection_ctx;
 typedef struct mod_context mod_context;
 
@@ -30,6 +120,15 @@ struct mod_connection_ctx {
 
 	liIOStream *sock_stream;
 	gpointer simple_socket_data;
+
+#ifdef USE_SNI
+	liStream *sni_stream;
+	liJob sni_job;
+	liJobRef *sni_jobref;
+	liFetchEntry *sni_entry;
+	liFetchWait *sni_db_wait;
+	GString *sni_server_name;
+#endif
 };
 
 struct mod_context {
@@ -43,6 +142,10 @@ struct mod_context {
 	gnutls_priority_t server_priority_beast;
 #ifdef HAVE_SESSION_TICKET
 	gnutls_datum_t ticket_key;
+#endif
+
+#ifdef USE_SNI
+	liFetchDatabase *sni_db;
 #endif
 
 	unsigned int protect_against_beast:1;
@@ -66,6 +169,14 @@ static void mod_gnutls_context_release(mod_context *ctx) {
 #endif
 		li_ssl_session_db_free(ctx->session_db);
 		ctx->session_db = NULL;
+
+#ifdef USE_SNI
+		if (NULL != ctx->sni_db) {
+			li_fetch_database_release(ctx->sni_db);
+			ctx->sni_db = NULL;
+		}
+#endif
+
 
 		g_slice_free(mod_context, ctx);
 	}
@@ -189,6 +300,7 @@ static void close_cb(liGnuTLSFilter *f, gpointer data) {
 		assert(con->con_sock.data == conctx);
 		conctx->con = NULL;
 		con->con_sock.data = NULL;
+		con->con_sock.callbacks = NULL;
 		li_stream_acquire(raw_in);
 		li_stream_reset(raw_out);
 		li_stream_reset(raw_in);
@@ -200,6 +312,30 @@ static void close_cb(liGnuTLSFilter *f, gpointer data) {
 		conctx->sock_stream = NULL;
 		li_iostream_release(stream);
 	}
+
+#ifdef USE_SNI
+	if (NULL != conctx->sni_db_wait) {
+		li_fetch_cancel(&conctx->sni_db_wait);
+	}
+	if (NULL != conctx->sni_entry) {
+		li_fetch_entry_release(conctx->sni_entry);
+		conctx->sni_entry = NULL;
+	}
+
+	if (NULL != conctx->sni_stream) {
+		li_ssn_sni_stream_ready(conctx->sni_stream);
+		li_stream_release(conctx->sni_stream);
+		conctx->sni_stream = NULL;
+	}
+	li_job_ref_release(conctx->sni_jobref);
+	conctx->sni_jobref = NULL;
+	li_job_clear(&conctx->sni_job);
+
+	if (NULL != conctx->sni_server_name) {
+		g_string_free(conctx->sni_server_name, TRUE);
+		conctx->sni_server_name = NULL;
+	}
+#endif
 }
 
 static int post_client_hello_cb(liGnuTLSFilter *f, gpointer data) {
@@ -286,6 +422,31 @@ static const liConnectionSocketCallbacks gnutls_tcp_cbs = {
 	gnutls_tcp_throttle_in
 };
 
+#ifdef USE_SNI
+static void sni_job_cb(liJob *job) {
+	mod_connection_ctx *conctx = LI_CONTAINER_OF(job, mod_connection_ctx, sni_job);
+
+	assert(NULL != conctx->sni_stream);
+
+	conctx->sni_entry = li_fetch_get(conctx->ctx->sni_db, conctx->sni_server_name, conctx->sni_jobref, &conctx->sni_db_wait);
+	if (conctx->sni_entry != NULL) {
+		gnutls_certificate_credentials_t creds = conctx->sni_entry->data;
+		if (NULL != creds) {
+			gnutls_credentials_set(conctx->session, GNUTLS_CRD_CERTIFICATE, creds);
+		}
+		li_ssn_sni_stream_ready(conctx->sni_stream);
+	}
+}
+
+static void gnutls_sni_cb(gpointer data, GString *server_name) {
+	mod_connection_ctx *conctx = data;
+
+	conctx->sni_server_name = g_string_new_len(GSTR_LEN(server_name));
+
+	sni_job_cb(&conctx->sni_job);
+}
+#endif
+
 static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 	liEventLoop *loop = &con->wrk->loop;
 	liServer *srv = con->srv;
@@ -331,8 +492,24 @@ static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 	conctx = g_slice_new0(mod_connection_ctx);
 	conctx->session = session;
 	conctx->sock_stream = li_iostream_new(con->wrk, fd, tcp_io_cb, conctx);
-	conctx->tls_filter = li_gnutls_filter_new(srv, con->wrk, &filter_callbacks, conctx, conctx->session,
-		&conctx->sock_stream->stream_in, &conctx->sock_stream->stream_out);
+
+#ifdef USE_SNI
+	if (NULL != ctx->sni_db) {
+		conctx->sni_stream = li_ssn_sni_stream(&con->wrk->loop, gnutls_sni_cb, conctx);
+		li_job_init(&conctx->sni_job, sni_job_cb);
+		conctx->sni_jobref = li_job_ref(&con->wrk->loop.jobqueue, &conctx->sni_job);
+
+		li_stream_connect(&conctx->sock_stream->stream_in, conctx->sni_stream);
+
+		conctx->tls_filter = li_gnutls_filter_new(srv, con->wrk, &filter_callbacks, conctx, conctx->session,
+			conctx->sni_stream, &conctx->sock_stream->stream_out);
+	} else
+#endif
+	{
+		conctx->tls_filter = li_gnutls_filter_new(srv, con->wrk, &filter_callbacks, conctx, conctx->session,
+			&conctx->sock_stream->stream_in, &conctx->sock_stream->stream_out);
+	}
+
 	conctx->con = con;
 	conctx->ctx = ctx;
 
@@ -390,7 +567,8 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	GString *ipstr = NULL;
 	const char
 		*priority = NULL, *dh_params_file = NULL,
-		*pemfile = NULL, *ca_file = NULL;
+		*pemfile = NULL, *ca_file = NULL,
+		*sni_backend = NULL;
 	gboolean
 		protect_against_beast = TRUE;
 	gint64 session_db_size = 256;
@@ -448,6 +626,12 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 				return FALSE;
 			}
 			session_db_size = htval->data.number;
+		} else if (g_str_equal(htkey->str, "sni-backend")) {
+			if (htval->type != LI_VALUE_STRING) {
+				ERROR(srv, "%s", "gnutls sni-backend expects a string as parameter");
+				return FALSE;
+			}
+			sni_backend = htval->data.string->str;
 		}
 	}
 
@@ -464,6 +648,15 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	if (!(ctx = mod_gnutls_context_new(srv))) return FALSE;
 
 	ctx->protect_against_beast = protect_against_beast;
+
+	if (sni_backend != NULL) {
+		liFetchDatabase *backend = li_server_get_fetch_database(srv, sni_backend);
+		if (NULL == backend) {
+			ERROR(srv, "gnutls: no fetch backend with name '%s' registered", sni_backend);
+			goto error_free_ctx;
+		}
+		ctx->sni_db = li_fetch_database_new(&fetch_cert_callbacks, backend, 64, 16);
+	}
 
 	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_file(ctx->server_cert, pemfile, pemfile, GNUTLS_X509_FMT_PEM))) {
 		ERROR(srv, "gnutls_certificate_set_x509_key_file failed(certfile '%s', keyfile '%s', PEM) (%s): %s",

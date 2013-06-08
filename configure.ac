@@ -132,6 +132,23 @@ fi
 AM_CONDITIONAL([USE_GNUTLS], [test "$USE_GNUTLS" = "true"])
 
 
+dnl Check for libidn, needed to decode SNI names
+AC_ARG_WITH([sni], [AS_HELP_STRING([--with-sni],[SNI support for gnutls/openssl, needs libidn])],
+[WITH_SNI=$withval],[WITH_SNI=no])
+
+if test "$WITH_SNI" != "no"; then
+ PKG_CHECK_MODULES([IDN], [Libidn],[],[
+  AC_MSG_ERROR([libidn not found])
+ ])
+
+ AC_SUBST([IDN_CFLAGS])
+ AC_SUBST([IDN_LIBS])
+ USE_SNI=true
+fi
+
+AM_CONDITIONAL([USE_SNI], [test "$USE_SNI" = "true"])
+
+
 dnl Check for lua
 AC_MSG_CHECKING([for lua])
 AC_ARG_WITH([lua], [AS_HELP_STRING([--with-lua],[lua engine (recommended)])],
