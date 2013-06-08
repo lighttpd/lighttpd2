@@ -626,12 +626,14 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 				return FALSE;
 			}
 			session_db_size = htval->data.number;
+#ifdef USE_SNI
 		} else if (g_str_equal(htkey->str, "sni-backend")) {
 			if (htval->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "gnutls sni-backend expects a string as parameter");
 				return FALSE;
 			}
 			sni_backend = htval->data.string->str;
+#endif
 		}
 	}
 
@@ -649,6 +651,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 
 	ctx->protect_against_beast = protect_against_beast;
 
+#ifdef USE_SNI
 	if (sni_backend != NULL) {
 		liFetchDatabase *backend = li_server_get_fetch_database(srv, sni_backend);
 		if (NULL == backend) {
@@ -657,6 +660,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		}
 		ctx->sni_db = li_fetch_database_new(&fetch_cert_callbacks, backend, 64, 16);
 	}
+#endif
 
 	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_file(ctx->server_cert, pemfile, pemfile, GNUTLS_X509_FMT_PEM))) {
 		ERROR(srv, "gnutls_certificate_set_x509_key_file failed(certfile '%s', keyfile '%s', PEM) (%s): %s",
