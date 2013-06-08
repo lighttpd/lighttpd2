@@ -674,13 +674,15 @@ gboolean li_ipv6_in_ipv6_net(const unsigned char *target, const guint8 *match, g
 
 gboolean li_ipv6_in_ipv4_net(const unsigned char *target, guint32 match, guint32 networkmask) {
 	static const guint8 ipv6match[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0, 0 };
+	guint32 v4_target;
 	if (!li_ipv6_in_ipv6_net(target, ipv6match, 96)) return  FALSE;
-	return li_ipv4_in_ipv4_net(*(guint32*)(target+12), match, networkmask);
+	memcpy(&v4_target, target + 12, 4);
+	return li_ipv4_in_ipv4_net(v4_target, match, networkmask);
 }
 
 gboolean li_ipv4_in_ipv6_net(guint32 target, const guint8 *match, guint network) {
 	guint8 ipv6[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0, 0 };
-	*(guint32*) (ipv6+12) = target;
+	memcpy(ipv6+12, &target, 4);
 	return li_ipv6_in_ipv6_net(ipv6, match, network);
 }
 

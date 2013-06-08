@@ -190,7 +190,7 @@ static inline void mp_free_page(const void *ptr, gsize size) {
 	munmap((void*) ptr, size);
 # else
 	UNUSED(size);
-	g_free(ptr);
+	g_free((void*) ptr);
 # endif
 
 #ifdef WITH_PROFILER

@@ -119,7 +119,7 @@ LI_API gboolean _li_set_sys_error(GError **error, const gchar *msg, const gchar 
  *
  */
 #define LI_CONTAINER_OF(ptr, type, member) \
-	((type *)( (char *) ptr - offsetof(type, member) ))
+	((type *)(void *)( (char *) ptr - offsetof(type, member) ))
 
 /* inline implementations */
 

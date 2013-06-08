@@ -172,7 +172,7 @@ static int io_events_to_libev(int events) {
 }
 
 void li_event_io_init(liEventLoop *loop, liEventIO *io, liEventCallback callback, int fd, int events) {
-	memset(io, 0, sizeof(io));
+	memset(io, 0, sizeof(*io));
 	io->base.type = LI_EVT_IO;
 	io->base.keep_loop_alive = 1;
 	io->base.callback = callback;
@@ -252,7 +252,7 @@ static void event_timer_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 }
 
 void li_event_timer_init(liEventLoop *loop, liEventTimer *timer, liEventCallback callback) {
-	memset(timer, 0, sizeof(timer));
+	memset(timer, 0, sizeof(*timer));
 	timer->base.type = LI_EVT_TIMER;
 	timer->base.keep_loop_alive = 1;
 	timer->base.callback = callback;
@@ -274,7 +274,7 @@ static void event_async_cb(struct ev_loop *loop, ev_async *w, int revents) {
 }
 
 void li_event_async_init(liEventLoop *loop, liEventAsync *async, liEventCallback callback) {
-	memset(async, 0, sizeof(async));
+	memset(async, 0, sizeof(*async));
 	async->base.type = LI_EVT_ASYNC;
 	async->base.keep_loop_alive = 0;
 	async->base.callback = callback;
@@ -303,7 +303,7 @@ static void event_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 }
 
 void li_event_child_init(liEventLoop *loop, liEventChild *child, liEventCallback callback, int pid) {
-	memset(child, 0, sizeof(child));
+	memset(child, 0, sizeof(*child));
 	child->base.type = LI_EVT_CHILD;
 	child->base.keep_loop_alive = 1;
 	child->base.callback = callback;
@@ -327,7 +327,7 @@ static void event_signal_cb(struct ev_loop *loop, ev_signal *w, int revents) {
 }
 
 void li_event_signal_init(liEventLoop *loop, liEventSignal *sig, liEventCallback callback, int signum) {
-	memset(sig, 0, sizeof(sig));
+	memset(sig, 0, sizeof(*sig));
 	sig->base.type = LI_EVT_SIGNAL;
 	sig->base.keep_loop_alive = 0;
 	sig->base.callback = callback;
@@ -351,7 +351,7 @@ static void event_prepare_cb(struct ev_loop *loop, ev_prepare *w, int revents) {
 }
 
 void li_event_prepare_init(liEventLoop *loop, liEventPrepare *prepare, liEventCallback callback) {
-	memset(prepare, 0, sizeof(prepare));
+	memset(prepare, 0, sizeof(*prepare));
 	prepare->base.type = LI_EVT_PREPARE;
 	prepare->base.keep_loop_alive = 0;
 	prepare->base.callback = callback;
@@ -374,7 +374,7 @@ static void event_check_cb(struct ev_loop *loop, ev_check *w, int revents) {
 }
 
 void li_event_check_init(liEventLoop *loop, liEventCheck *check, liEventCallback callback) {
-	memset(check, 0, sizeof(check));
+	memset(check, 0, sizeof(*check));
 	check->base.type = LI_EVT_CHECK;
 	check->base.keep_loop_alive = 0;
 	check->base.callback = callback;

@@ -113,7 +113,7 @@ gboolean li_parse_ipv4(const char *str, guint32 *ip, guint32 *netmask, guint16 *
 
 gboolean li_parse_ipv6(const char *str, guint8 *ip, guint *network, guint16 *port) {
 	guint8 data[4] = {0,0,0,0};
-	guint16 *predata = (guint16*) ip, postdata[8];
+	guint16 predata[8], postdata[8];
 	size_t prec = 0, postc = 0;
 	const char *p = str, *mark = NULL;
 	gboolean res = TRUE, compressed = FALSE;
@@ -134,13 +134,14 @@ gboolean li_parse_ipv6(const char *str, guint8 *ip, guint *network, guint16 *por
 	if (prec + postc > 7) return FALSE;
 	for ( ; prec < 8-postc; prec++) predata[prec] = 0;
 	for (postc = 0 ; prec < 8; prec++, postc++ ) predata[prec] = postdata[postc];
+	memcpy(ip, predata, 16);
 
 	return TRUE;
 }
 
 GString* li_ipv6_tostring(GString *dest, const guint8 ip[16]) {
 #define IPV6_TEMPLATE "ffff:ffff:ffff:ffff:ffff:ffff:abc.def.ghi.jkl"
-	guint16 *data = (guint16*) ip;
+	guint16 data[8];
 	size_t i;
 
 #ifdef HAVE_INET_NTOP
@@ -150,6 +151,7 @@ GString* li_ipv6_tostring(GString *dest, const guint8 ip[16]) {
 		return dest;
 	}
 #endif
+	memcpy(data, ip, 16);
 	g_string_truncate(dest, 0);
 	g_string_printf(dest, "%" G_GINT16_MODIFIER "x", ntohs(data[0]));
 	for (i = 1; i < 8; i++) {

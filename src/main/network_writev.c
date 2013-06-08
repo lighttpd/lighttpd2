@@ -67,7 +67,7 @@ liNetworkStatus li_network_backend_writev(int fd, liChunkQueue *cq, goffset *wri
 		         (STRING_CHUNK == (c = li_chunkiter_chunk(ci))->type || MEM_CHUNK == c->type || BUFFER_CHUNK == c->type) &&
 		         chunks->len < UIO_MAXIOV);
 
-		while (-1 == (r = writev(fd, (struct iovec*) chunks->data, chunks->len))) {
+		while (-1 == (r = writev(fd, &g_array_index(chunks, struct iovec, 0), chunks->len))) {
 			switch (errno) {
 			case EAGAIN:
 #if EWOULDBLOCK != EAGAIN

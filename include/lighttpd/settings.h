@@ -32,7 +32,8 @@
 # warning "unknown OS, please report this"
 #endif
 
-#define _XOPEN_SOURCE
+#define _XOPEN_SOURCE 500
+#define _GNU_SOURCE
 
 #ifdef HAVE_CONFIG_H
 # include <lighttpd/config.h>

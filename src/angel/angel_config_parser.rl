@@ -372,7 +372,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 
 static void update_stack(pcontext *ctx) {
 	g_array_set_size(ctx->g_stack, ctx->top + 1);
-	ctx->stack = (int*) ctx->g_stack->data;
+	ctx->stack = &g_array_index(ctx->g_stack, int, 0);
 }
 
 static int angel_config_parser_has_error(pcontext *ctx) {
@@ -388,7 +388,7 @@ static pcontext* angel_config_parser_new() {
 	ctx->g_stack = g_array_sized_new(FALSE, FALSE, sizeof(int), 8);
 	ctx->top = 0;
 	g_array_set_size(ctx->g_stack, ctx->top + 1);
-	ctx->stack = (int*) ctx->g_stack->data;
+	ctx->stack = &g_array_index(ctx->g_stack, int, 0);
 	ctx->token = g_string_sized_new(0);
 	ctx->valuestack = g_ptr_array_new();
 
