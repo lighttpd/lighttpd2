@@ -33,7 +33,9 @@
 #endif
 
 #define _XOPEN_SOURCE 500
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #ifdef HAVE_CONFIG_H
 # include <lighttpd/config.h>

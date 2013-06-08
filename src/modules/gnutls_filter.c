@@ -34,6 +34,10 @@ typedef struct {
 } li_iovec_t;
 #endif
 
+#if GNUTLS_VERSION_NUMBER >= 0x020a00
+#define HAVE_SAVE_RENEGOTIATION
+#endif
+
 static ssize_t stream_push(gnutls_transport_ptr_t, const void*, size_t);
 static ssize_t stream_pushv(gnutls_transport_ptr_t, const li_iovec_t * iov, int iovcnt);
 static ssize_t stream_pull(gnutls_transport_ptr_t, void*, size_t);
@@ -186,6 +190,20 @@ static void f_abort_gnutls(liGnuTLSFilter *f) {
 	f_release(f);
 }
 
+static void f_close_with_alert(liGnuTLSFilter *f, int r) {
+	if (f->closing || f->aborted) return;
+
+	if (GNUTLS_E_SUCCESS != gnutls_alert_send_appropriate(f->session, r)) {
+		f_abort_gnutls(f);
+		return;
+	}
+
+	/* push alert to io */
+	li_stream_notify(&f->crypt_source);
+	f->plain_source.out->is_closed = TRUE;
+	f->crypt_drain.out->is_closed = TRUE;
+	f_close_gnutls(f);
+}
 
 static void do_handle_error(liGnuTLSFilter *f, const char *gnutlsfunc, int r, gboolean writing) {
 	switch (r) {
@@ -193,25 +211,34 @@ static void do_handle_error(liGnuTLSFilter *f, const char *gnutlsfunc, int r, gb
 		if (writing) f->write_wants_read = TRUE;
 		break;
 	case GNUTLS_E_REHANDSHAKE:
-		if (f->initial_handshaked_finished) {
-			_ERROR(f->srv, f->wrk, f->log_context, "%s: gnutls: client initiated renegotitation, closing connection", gnutlsfunc);
-			f_abort_gnutls(f);
+#ifdef HAVE_SAVE_RENEGOTIATION
+		if (f->initial_handshaked_finished && !gnutls_safe_renegotiation_status(f->session)) {
+			_ERROR(f->srv, f->wrk, f->log_context, "%s: client initiated unsafe renegotitation, closing connection", gnutlsfunc);
+			f_close_with_alert(f, r);
+		} else {
+			_DEBUG(f->srv, f->wrk, f->log_context, "%s: client initiated renegotitation", gnutlsfunc);
 		}
+#else
+		if (f->initial_handshaked_finished) {
+			_ERROR(f->srv, f->wrk, f->log_context, "%s: client initiated renegotitation, closing connection", gnutlsfunc);
+			f_close_with_alert(f, r);
+		}
+#endif
 		break;
 	case GNUTLS_E_UNEXPECTED_PACKET_LENGTH:
-		f_abort_gnutls(f);
+		f_close_with_alert(f, r);
 		break;
 	case GNUTLS_E_UNKNOWN_CIPHER_SUITE:
 	case GNUTLS_E_UNSUPPORTED_VERSION_PACKET:
 		_DEBUG(f->srv, f->wrk, f->log_context, "%s (%s): %s", gnutlsfunc,
 			gnutls_strerror_name(r), gnutls_strerror(r));
-		f_abort_gnutls(f);
+		f_close_with_alert(f, r);
 		break;
 	default:
 		if (gnutls_error_is_fatal(r)) {
 			_ERROR(f->srv, f->wrk, f->log_context, "%s (%s): %s", gnutlsfunc,
 				gnutls_strerror_name(r), gnutls_strerror(r));
-			f_abort_gnutls(f);
+			f_close_with_alert(f, r);
 		} else {
 			_ERROR(f->srv, f->wrk, f->log_context, "%s non fatal (%s): %s", gnutlsfunc,
 				gnutls_strerror_name(r), gnutls_strerror(r));
