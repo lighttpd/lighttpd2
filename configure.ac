@@ -7,7 +7,17 @@ AC_CONFIG_SRCDIR([src/main/lighttpd_worker.c])
 AC_CONFIG_HEADER([include/lighttpd/config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
-AM_INIT_AUTOMAKE([-Wall -Wno-portability -Wno-override -Werror foreign dist-bzip2 tar-ustar serial-tests])
+dnl HOW FUCKING BROKEN IS AUTOMAKE...
+dnl serial-tests is not recognized before 1.12, and required for serial tests with 1.13
+dnl if you don't use the default (symlinked) automake on your box, set AUTOMAKE to the path you're using
+m4_define([serial_tests], [
+    m4_esyscmd([case `${AUTOMAKE:-automake} --version | head -n 1` in
+      *1.11.*|*1.10.*|*1.9.*);;
+      *) echo serial-tests;;
+      esac])
+])
+
+AM_INIT_AUTOMAKE([-Wall -Wno-portability -Wno-override -Werror foreign dist-bzip2 tar-ustar] serial_tests)
 
 dnl check environment
 AC_USE_SYSTEM_EXTENSIONS
