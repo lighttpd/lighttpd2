@@ -28,7 +28,7 @@ struct liFetchEntryP {
 	liFetchEntry public;
 
 	gint state; /* atomic access, write only with db->lock */
-	GQueue wait_queue; /* <liJobRef> */
+	GQueue wait_queue; /* <liFetchWaitElement links> */
 	liFetchEntryP *refreshing;
 	GList lru_link; /* only in LI_ENTRY_VALID state */
 };
@@ -608,7 +608,7 @@ create_new_entry:
 			goto out;
 		}
 
-		wakeup_add_job(&pentry_new->wait_queue, wakeup, wakeup_data);
+		wakeup_add_job(&pentry->wait_queue, wakeup, wakeup_data);
 
 		*wait = (liFetchWait*) pentry;
 	}

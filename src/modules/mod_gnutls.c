@@ -21,93 +21,6 @@ LI_API gboolean mod_gnutls_free(liModules *mods, liModule *mod);
 
 static int load_dh_params_4096(gnutls_dh_params_t *dh_params);
 
-typedef struct fetch_cert_backend_lookup fetch_cert_backend_lookup;
-struct fetch_cert_backend_lookup {
-	liFetchDatabase *backend;
-	liFetchWait *wait;
-	liFetchEntry *entry;
-};
-
-static gnutls_certificate_credentials_t creds_from_gstring(GString *str) {
-	gnutls_certificate_credentials_t creds = NULL;
-	gnutls_datum_t pemfile;
-	int r;
-
-	if (NULL == str) return NULL;
-
-	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_allocate_credentials(&creds))) return NULL;
-
-	pemfile.data = (unsigned char*) str->str;
-	pemfile.size = str->len;
-
-	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_mem(creds, &pemfile, &pemfile, GNUTLS_X509_FMT_PEM))) {
-		goto error_free_creds;
-	}
-
-	return creds;
-
-error_free_creds:
-	gnutls_certificate_free_credentials(creds);
-	return NULL;
-}
-
-static void fetch_cert_backend_ready(gpointer data) {
-	liFetchEntry *be;
-	fetch_cert_backend_lookup *lookup = (fetch_cert_backend_lookup*) data;
-
-	be = li_fetch_get2(lookup->backend, lookup->entry->key, fetch_cert_backend_ready, lookup, &lookup->wait);
-	if (NULL != be) {
-		liFetchEntry *entry = lookup->entry;
-		li_fetch_database_release(lookup->backend);
-		g_slice_free(fetch_cert_backend_lookup, lookup);
-
-		entry->backend_data = be;
-		entry->data = creds_from_gstring((GString*) be->data);
-		li_fetch_entry_ready(entry);
-	}
-}
-
-static void fetch_cert_lookup(liFetchDatabase* db, gpointer data, liFetchEntry *entry) {
-	fetch_cert_backend_lookup *lookup = g_slice_new0(fetch_cert_backend_lookup);
-	UNUSED(db);
-
-	lookup->backend = (liFetchDatabase*) data;
-	li_fetch_database_acquire(lookup->backend);
-	lookup->entry = entry;
-	fetch_cert_backend_ready(lookup);
-}
-static gboolean fetch_cert_revalidate(liFetchDatabase* db, gpointer data, liFetchEntry *entry) {
-	UNUSED(db); UNUSED(data);
-	return li_fetch_entry_revalidate((liFetchEntry*) entry->backend_data);
-}
-static void fetch_cert_refresh(liFetchDatabase* db, gpointer data, liFetchEntry *cur_entry, liFetchEntry *new_entry) {
-	UNUSED(db); UNUSED(data);
-	li_fetch_entry_refresh((liFetchEntry*) cur_entry->backend_data);
-	li_fetch_entry_refresh_skip(new_entry);
-}
-static void fetch_cert_free_entry(gpointer data, liFetchEntry *entry) {
-	gnutls_certificate_credentials_t creds = entry->data;
-	UNUSED(data);
-
-	if (NULL != creds) gnutls_certificate_free_credentials(creds);
-	li_fetch_entry_release((liFetchEntry*) entry->backend_data);
-}
-static void fetch_cert_free_db(gpointer data) {
-	liFetchDatabase *backend = (liFetchDatabase*) data;
-	li_fetch_database_release(backend);
-}
-
-
-static const liFetchCallbacks fetch_cert_callbacks = {
-	fetch_cert_lookup,
-	fetch_cert_revalidate,
-	fetch_cert_refresh,
-	fetch_cert_free_entry,
-	fetch_cert_free_db
-};
-
-
-
 typedef struct mod_connection_ctx mod_connection_ctx;
 typedef struct mod_context mod_context;
 
@@ -145,12 +58,107 @@ struct mod_context {
 #endif
 
 #ifdef USE_SNI
-	liFetchDatabase *sni_db;
+	liFetchDatabase *sni_db, *sni_backend_db;
 	gnutls_certificate_credentials_t sni_fallback_cert;
 #endif
 
 	unsigned int protect_against_beast:1;
 };
+
+#ifdef USE_SNI
+typedef struct fetch_cert_backend_lookup fetch_cert_backend_lookup;
+struct fetch_cert_backend_lookup {
+	liFetchWait *wait;
+	liFetchEntry *entry;
+	mod_context *ctx;
+};
+#endif
+
+static void mod_gnutls_context_release(mod_context *ctx);
+static void mod_gnutls_context_acquire(mod_context *ctx);
+
+
+#ifdef USE_SNI
+static gnutls_certificate_credentials_t creds_from_gstring(mod_context *ctx, GString *str) {
+	gnutls_certificate_credentials_t creds = NULL;
+	gnutls_datum_t pemfile;
+	int r;
+
+	if (NULL == str) return NULL;
+
+	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_allocate_credentials(&creds))) return NULL;
+
+	pemfile.data = (unsigned char*) str->str;
+	pemfile.size = str->len;
+
+	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_mem(creds, &pemfile, &pemfile, GNUTLS_X509_FMT_PEM))) {
+		goto error_free_creds;
+	}
+
+	gnutls_certificate_set_dh_params(creds, ctx->dh_params);
+
+	return creds;
+
+error_free_creds:
+	gnutls_certificate_free_credentials(creds);
+	return NULL;
+}
+
+static void fetch_cert_backend_ready(gpointer data) {
+	liFetchEntry *be;
+	fetch_cert_backend_lookup *lookup = (fetch_cert_backend_lookup*) data;
+
+	be = li_fetch_get2(lookup->ctx->sni_backend_db, lookup->entry->key, fetch_cert_backend_ready, lookup, &lookup->wait);
+	if (NULL != be) {
+		liFetchEntry *entry = lookup->entry;
+		mod_context *ctx = lookup->ctx;
+		g_slice_free(fetch_cert_backend_lookup, lookup);
+
+		entry->backend_data = be;
+		entry->data = creds_from_gstring(ctx, (GString*) be->data);
+		li_fetch_entry_ready(entry);
+	}
+}
+
+static void fetch_cert_lookup(liFetchDatabase* db, gpointer data, liFetchEntry *entry) {
+	fetch_cert_backend_lookup *lookup = g_slice_new0(fetch_cert_backend_lookup);
+	UNUSED(db);
+
+	lookup->ctx = (mod_context*) data;
+	lookup->entry = entry;
+	fetch_cert_backend_ready(lookup);
+}
+static gboolean fetch_cert_revalidate(liFetchDatabase* db, gpointer data, liFetchEntry *entry) {
+	UNUSED(db); UNUSED(data);
+	return li_fetch_entry_revalidate((liFetchEntry*) entry->backend_data);
+}
+static void fetch_cert_refresh(liFetchDatabase* db, gpointer data, liFetchEntry *cur_entry, liFetchEntry *new_entry) {
+	UNUSED(db); UNUSED(data);
+	li_fetch_entry_refresh((liFetchEntry*) cur_entry->backend_data);
+	li_fetch_entry_refresh_skip(new_entry);
+}
+static void fetch_cert_free_entry(gpointer data, liFetchEntry *entry) {
+	gnutls_certificate_credentials_t creds = entry->data;
+	UNUSED(data);
+
+	if (NULL != creds) gnutls_certificate_free_credentials(creds);
+	li_fetch_entry_release((liFetchEntry*) entry->backend_data);
+}
+static void fetch_cert_free_db(gpointer data) {
+	mod_context *ctx = (mod_context*) data;
+	mod_gnutls_context_release(ctx);
+}
+
+
+static const liFetchCallbacks fetch_cert_callbacks = {
+	fetch_cert_lookup,
+	fetch_cert_revalidate,
+	fetch_cert_refresh,
+	fetch_cert_free_entry,
+	fetch_cert_free_db
+};
+#endif
+
 
 static void mod_gnutls_context_release(mod_context *ctx) {
 	if (!ctx) return;
@@ -175,6 +183,10 @@ static void mod_gnutls_context_release(mod_context *ctx) {
 		if (NULL != ctx->sni_db) {
 			li_fetch_database_release(ctx->sni_db);
 			ctx->sni_db = NULL;
+		}
+		if (NULL != ctx->sni_backend_db) {
+			li_fetch_database_release(ctx->sni_backend_db);
+			ctx->sni_backend_db = NULL;
 		}
 		if (NULL != ctx->sni_fallback_cert) {
 			gnutls_certificate_free_credentials(ctx->sni_fallback_cert);
@@ -671,7 +683,9 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			ERROR(srv, "gnutls: no fetch backend with name '%s' registered", sni_backend);
 			goto error_free_ctx;
 		}
-		ctx->sni_db = li_fetch_database_new(&fetch_cert_callbacks, backend, 64, 16);
+		ctx->sni_backend_db = backend;
+		mod_gnutls_context_acquire(ctx);
+		ctx->sni_db = li_fetch_database_new(&fetch_cert_callbacks, ctx, 64, 16);
 	}
 
 	if (NULL != sni_fallback_pemfile) {
