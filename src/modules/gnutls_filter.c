@@ -238,7 +238,11 @@ static void do_handle_error(liGnuTLSFilter *f, const char *gnutlsfunc, int r, gb
 		if (gnutls_error_is_fatal(r)) {
 			_ERROR(f->srv, f->wrk, f->log_context, "%s (%s): %s", gnutlsfunc,
 				gnutls_strerror_name(r), gnutls_strerror(r));
-			f_close_with_alert(f, r);
+			if (f->initial_handshaked_finished) {
+				f_close_with_alert(f, r);
+			} else {
+				f_abort_gnutls(f);
+			}
 		} else {
 			_ERROR(f->srv, f->wrk, f->log_context, "%s non fatal (%s): %s", gnutlsfunc,
 				gnutls_strerror_name(r), gnutls_strerror(r));
