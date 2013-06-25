@@ -451,7 +451,7 @@ out:
 #ifdef USE_CORK
 	if (NULL != f->session && corked) {
 		corked = TRUE;
-		gnutls_record_uncork(f->session);
+		gnutls_record_uncork(f->session, 0);
 	}
 #endif
 
