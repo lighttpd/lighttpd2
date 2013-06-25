@@ -32,7 +32,7 @@
 # warning "unknown OS, please report this"
 #endif
 
-#define _XOPEN_SOURCE 500
+#define _XOPEN_SOURCE 600
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
