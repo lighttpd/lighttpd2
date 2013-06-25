@@ -1,4 +1,4 @@
-#include <lighttpd/base.h>
+#include <lighttpd/settings.h>
 
 
 #if defined(LIGHTY_OS_LINUX)

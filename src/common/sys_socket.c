@@ -1,4 +1,4 @@
-#include <lighttpd/base.h>
+#include <lighttpd/settings.h>
 #include <lighttpd/sys_socket.h>
 
 #ifndef HAVE_INET_ATON

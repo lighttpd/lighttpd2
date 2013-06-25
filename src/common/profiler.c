@@ -6,7 +6,7 @@
  */
 
 
-#include <lighttpd/base.h>
+#include <lighttpd/settings.h>
 #include <lighttpd/profiler.h>
 #include <fcntl.h>
 
