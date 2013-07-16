@@ -344,8 +344,10 @@ static void close_cb(liGnuTLSFilter *f, gpointer data) {
 		li_stream_release(conctx->sni_stream);
 		conctx->sni_stream = NULL;
 	}
-	li_job_ref_release(conctx->sni_jobref);
-	conctx->sni_jobref = NULL;
+	if (NULL != conctx->sni_jobref) {
+		li_job_ref_release(conctx->sni_jobref);
+		conctx->sni_jobref = NULL;
+	}
 	li_job_clear(&conctx->sni_job);
 
 	if (NULL != conctx->sni_server_name) {
