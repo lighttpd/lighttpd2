@@ -173,7 +173,7 @@ guint li_throttle_query(liWorker *wrk, liThrottleState *state, guint interested,
 	fill = interested - state->magazine;
 	if (state->single_rate != 0) {
 		if (now - state->single_last_rearm >= LI_THROTTLE_GRANULARITY) {
-			guint single_fill = ((guint64) state->single_rate) * 1000u / (now - state->single_last_rearm);
+			guint single_fill = (((guint64) state->single_rate) * (now - state->single_last_rearm)) / 1000u;
 			state->single_last_rearm = now;
 			if (state->single_burst - state->single_magazine < single_fill) {
 				state->single_magazine = state->single_burst;
