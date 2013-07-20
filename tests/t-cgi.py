@@ -3,6 +3,7 @@
 from base import *
 from requests import *
 from service import FastCGI
+import time
 import hashlib
 
 def generate_body(seed, size):
@@ -57,6 +58,26 @@ printf 'd\\r\\nHello World!\\n\\r\\n0\\r\\n\\r\\n'
 
 """
 
+# we don't actually check whether this ends up in the error log
+# but at least try whether writing does break something
+SCRIPT_STDERRCHECK="""#!/bin/sh
+
+echo >&2 "This is not a real error"
+
+printf 'Status: 404\r\nContent-Type: text/plain\r\n\r\n'
+printf "Not a real error"
+exit 0
+"""
+
+SCRIPT_EXITERRORCHECK="""#!/bin/sh
+
+echo >&2 "This is not a real error"
+
+printf 'Status: 404\r\nContent-Type: text/plain\r\n\r\n'
+printf "Not a real error"
+exit 1
+"""
+
 
 class TestPathInfo1(CurlRequest):
 	URL = "/envcheck.cgi/abc/xyz?PATH_INFO"
@@ -90,6 +111,21 @@ class ChunkedBodyReader:
 		self.pos += size
 		return self.body[current:current+size]
 
+class DelayedChunkedBodyReader:
+	def __init__(self, body, chunksize = 32*1024):
+		self.body = body
+		self.chunksize = chunksize
+		self.pos = 0
+
+	def read(self, size):
+		time.sleep(0.1)
+		current = self.pos
+		rem = len(self.body) - current
+		size = min(rem, self.chunksize, size)
+		self.pos += size
+		return self.body[current:current+size]
+
+
 class TestUploadLargeChunked1(CurlRequest):
 	URL = "/uploadcheck.cgi"
 	EXPECT_RESPONSE_BODY = BODY_SHA1
@@ -106,6 +142,27 @@ class TestChunkedEncoding1(CurlRequest):
 	EXPECT_RESPONSE_BODY = "Hello World!\n"
 	EXPECT_RESPONSE_CODE = 200
 
+class TestStderr1(CurlRequest):
+	URL = "/stderr.cgi"
+	EXPECT_RESPONSE_BODY = "Not a real error"
+	EXPECT_RESPONSE_CODE = 404
+
+class TestExitError1(CurlRequest):
+	URL = "/exiterror.cgi"
+	EXPECT_RESPONSE_BODY = "Not a real error"
+	EXPECT_RESPONSE_CODE = 404
+
+class TestExitErrorUpload1(CurlRequest):
+	URL = "/exiterror.cgi"
+	EXPECT_RESPONSE_BODY = "Not a real error"
+	EXPECT_RESPONSE_CODE = 404
+	REQUEST_HEADERS = ["Transfer-Encoding: chunked"]
+
+	def PrepareRequest(self, reqheaders):
+		c = self.curl
+		c.setopt(c.UPLOAD, 1)
+		c.setopt(pycurl.READFUNCTION, DelayedChunkedBodyReader("test").read)
+
 class Test(GroupTest):
 	group = [
 		TestPathInfo1,
@@ -113,6 +170,9 @@ class Test(GroupTest):
 		TestUploadLarge1,
 		TestUploadLargeChunked1,
 		TestChunkedEncoding1,
+		TestStderr1,
+		TestExitError1,
+		TestExitErrorUpload1,
 	]
 
 	config = """
@@ -144,3 +204,5 @@ cgi = {{
 		self.PrepareVHostFile("envcheck.cgi", SCRIPT_ENVCHECK, mode = 0755)
 		self.PrepareVHostFile("uploadcheck.cgi", SCRIPT_UPLOADCHECK, mode = 0755)
 		self.PrepareVHostFile("chunkedencodingcheck.cgi", SCRIPT_CHUNKEDENCODINGCHECK, mode = 0755)
+		self.PrepareVHostFile("stderr.cgi", SCRIPT_STDERRCHECK, mode = 0755)
+		self.PrepareVHostFile("exiterror.cgi", SCRIPT_EXITERRORCHECK, mode = 0755)
