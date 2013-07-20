@@ -157,7 +157,7 @@ static void backend_new(liBackendPool *bpool, liWorker *wrk, liBackendConnection
 	liFastCGIBackendPool_p *pool = LI_CONTAINER_OF(bpool->config, liFastCGIBackendPool_p, config);
 	liFastCGIBackendContext *ctx = g_slice_new0(liFastCGIBackendContext);
 
-	fcgi_debug("%s\n", "backend_new");
+	fcgi_debug("backend_new\n");
 
 	ctx->refcount = 3; /* backend_close, fcgi_out, fcgi_in */
 	ctx->pool = pool;
@@ -193,7 +193,7 @@ static void backend_close(liBackendPool *bpool, liWorker *wrk, liBackendConnecti
 
 	assert(NULL == ctx->currentcon);
 
-	fcgi_debug("%s\n", "backend_close");
+	fcgi_debug("backend_close\n");
 
 	if (NULL != ctx->iostream) {
 		int fd;
@@ -257,14 +257,14 @@ static void fastcgi_check_put(liFastCGIBackendContext *ctx) {
 	assert(NULL == ctx->fcgi_in.out->limit);
 	assert(NULL == ctx->fcgi_out.out->limit);
 
-	fcgi_debug("%s\n", "li_backend_put");
+	fcgi_debug("li_backend_put\n");
 	li_backend_put(ctx->wrk, ctx->pool->public.subpool, ctx->subcon, TRUE); /* disable keep-alive for now */
 }
 
 /* destroys ctx */
 static void fastcgi_reset(liFastCGIBackendContext *ctx) {
 	if (NULL == ctx->pool) return;
-	fcgi_debug("%s\n", "fastcgi_reset");
+	fcgi_debug("fastcgi_reset\n");
 
 	if (!ctx->is_active) {
 		li_backend_connection_closed(ctx->pool->public.subpool, ctx->subcon);
@@ -574,6 +574,7 @@ static void fastcgi_stream_out(liStream *stream, liStreamEvent event) {
 		break;
 	case LI_STREAM_DISCONNECTED_SOURCE:
 		if (!ctx->stdin_closed) {
+			fcgi_debug("fcgi_out: lost request before request body was sent to FastCGI\n");
 			fastcgi_reset(ctx);
 		} else {
 			fastcgi_check_put(ctx);
@@ -581,7 +582,7 @@ static void fastcgi_stream_out(liStream *stream, liStreamEvent event) {
 		break;
 	case LI_STREAM_DISCONNECTED_DEST:
 		if (stream->out->length > 0) {
-			fcgi_debug("fcgi_out: lost iostream");
+			fcgi_debug("fcgi_out: lost iostream\n");
 			li_chunkqueue_skip_all(stream->out);
 		}
 		break;
@@ -649,6 +650,7 @@ static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 
 					protocolStatus = endreq[4];
 					if (FCGI_REQUEST_COMPLETE != protocolStatus) {
+						fcgi_debug("fcgi_out: FCGI_END_REQUEST with protocolStatus %i != FCGI_REQUEST_COMPLETE\n", (int) protocolStatus);
 						fastcgi_reset(ctx);
 						return;
 					}
@@ -671,10 +673,10 @@ static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 				break;
 			case FCGI_STDOUT:
 				if (0 == ctx->contentLength) {
-					fcgi_debug("fastcgi stdout eof");
+					fcgi_debug("fastcgi stdout eof\n");
 					ctx->stdout_closed = TRUE;
 				} else if (ctx->stdout_closed) {
-					fcgi_debug("fastcgi stdout data after eof");
+					fcgi_debug("fastcgi stdout data after eof\n");
 					fastcgi_reset(ctx);
 					return;
 				} else {
@@ -682,7 +684,7 @@ static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 #ifdef FCGI_DEBUG
 					GString *stdoutdata = g_string_new(0);
 					li_chunkqueue_extract_to(in, len, stdoutdata, NULL);
-					fcgi_debug("fastcgi stdout data: '%s'", stdoutdata->str);
+					fcgi_debug("fastcgi stdout data: '%s'\n", stdoutdata->str);
 					g_string_free(stdoutdata, TRUE);
 #endif
 					li_chunkqueue_steal_len(ctx->fcgi_in.out, in, len);
@@ -695,7 +697,8 @@ static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 					ctx->stderr_closed = TRUE;
 					break;
 				}
-				if (ctx->stderr_closed || NULL == ctx->currentcon) {
+				if (ctx->stderr_closed) {
+					fcgi_debug("fastcgi stderr data after stderr end-of-stream\n");
 					fastcgi_reset(ctx);
 					return;
 				} else {
@@ -704,6 +707,8 @@ static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 					li_chunkqueue_extract_to(in, len, errormsg, NULL);
 					li_chunkqueue_skip(in, len);
 					ctx->remainingContent -= len;
+
+					fcgi_debug("fastcgi stderr data: '%s'\n", errormsg->str);
 
 					if (NULL != ctx->currentcon) {
 						const liFastCGIBackendCallbacks *callbacks = ctx->pool->callbacks;
@@ -737,6 +742,7 @@ static void fastcgi_decode(liFastCGIBackendContext *ctx) {
 
 	if (NULL != ctx->iostream && (in->is_closed && !ctx->request_done)) {
 		if (0 != in->length || !ctx->stdout_closed) {
+			fcgi_debug("unexpected eof, still have partial fastcgi record header\n");
 			fastcgi_reset(ctx);
 		} else {
 			ctx->stdin_closed = ctx->stdout_closed = ctx->stderr_closed = ctx->request_done = TRUE;
@@ -755,10 +761,14 @@ static void fastcgi_stream_in(liStream *stream, liStreamEvent event) {
 		fastcgi_decode(ctx);
 		break;
 	case LI_STREAM_DISCONNECTED_SOURCE:
-		if (!ctx->request_done) fastcgi_reset(ctx);
+		if (!ctx->request_done) {
+			fcgi_debug("fastcgi backend closed connection before request was finished\n");
+			fastcgi_reset(ctx);
+		}
 		break;
 	case LI_STREAM_DISCONNECTED_DEST:
 		if (!ctx->stdout_closed) {
+			fcgi_debug("request aborted (by client?) before request was finished\n");
 			fastcgi_reset(ctx);
 		} else {
 			fastcgi_check_put(ctx);
@@ -802,7 +812,7 @@ liBackendResult li_fastcgi_backend_get(liVRequest *vr, liFastCGIBackendPool *bpo
 	liBackendWait *subwait = (liBackendWait*) *pbwait;
 	liBackendResult res;
 
-	fcgi_debug("%s\n", "li_fastcgi_backend_get");
+	fcgi_debug("li_fastcgi_backend_get\n");
 
 	res = li_backend_get(vr, pool->public.subpool, &subcon, &subwait);
 	*pbwait = (liFastCGIBackendWait*) subwait;
@@ -820,7 +830,7 @@ liBackendResult li_fastcgi_backend_get(liVRequest *vr, liFastCGIBackendPool *bpo
 		ctx->is_active = TRUE;
 		*pbcon = &con->public;
 
-		fcgi_debug("%s\n", "li_fastcgi_backend_get: got backend");
+		fcgi_debug("li_fastcgi_backend_get: got backend\n");
 
 		assert(vr->wrk == li_worker_from_iostream(ctx->iostream));
 		assert(vr->wrk == li_worker_from_stream(&ctx->fcgi_in));
@@ -856,7 +866,7 @@ liBackendResult li_fastcgi_backend_get(liVRequest *vr, liFastCGIBackendPool *bpo
 		assert(LI_BACKEND_SUCCESS != res);
 		if (LI_BACKEND_WAIT == res) assert(NULL != subwait);
 
-		fcgi_debug("%s\n", "li_fastcgi_backend_get: still waiting");
+		fcgi_debug("li_fastcgi_backend_get: still waiting\n");
 	}
 
 	return res;
