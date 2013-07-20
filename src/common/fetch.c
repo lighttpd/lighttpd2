@@ -1,7 +1,7 @@
 #include <lighttpd/fetch.h>
 
 struct liFetchDatabase {
-	guint refcount, internal_refcount;
+	gint refcount, internal_refcount;
 	GMutex *lock;
 	GHashTable *cache; /* GString -> liFetchEntryP. key is in entry->public.key */
 	GQueue lru_queue, lru_negative_queue;
