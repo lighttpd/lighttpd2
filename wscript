@@ -60,7 +60,7 @@ def configure(conf):
 	conf.env['CCFLAGS'] = tolist(conf.env['CCFLAGS'])
 	conf.env['CCFLAGS'] += [
 		'-std=gnu99', '-Wall', '-Wshadow', '-W', '-pedantic', '-fPIC',
-		'-D_GNU_SOURCE', '-D_FILE_OFFSET_BITS=64', '-D_LARGEFILE_SOURCE', '-D_LARGE_FILES',
+		'-D_FILE_OFFSET_BITS=64', '-D_LARGEFILE_SOURCE', '-D_LARGE_FILES',
 		'-g', '-g2'
 #	'-fno-strict-aliasing',
 	]

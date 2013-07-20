@@ -32,9 +32,15 @@
 # warning "unknown OS, please report this"
 #endif
 
-#define _XOPEN_SOURCE 600
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
+/* FreeBSD doesn't export special stuff if any feature test macro is set */
+#ifdef LIGHTY_OS_LINUX
+# define _XOPEN_SOURCE 600
+# ifndef _GNU_SOURCE
+#  define _GNU_SOURCE 1
+# endif
+# ifndef _BSD_SOURCE
+#  define _BSD_SOURCE 1
+# endif
 #endif
 
 #ifdef HAVE_CONFIG_H
