@@ -31,9 +31,18 @@ printf '%s' "${val}"
 
 SCRIPT_UPLOADCHECK="""#!/bin/sh
 
-printf 'Status: 200\\r\\nContent-Type: text/plain\\r\\n\\r\\n'
+SHA1SUM=$(which sha1sum sha1)
 
-csum=`sha1sum | cut -d' ' -f1`
+if [ ! -x "${SHA1SUM}" ]; then
+	printf 'Status: 404\r\nContent-Type: text/plain\r\n\r\n'
+	printf "Couldn't find sha1sum nor sha1; can't calculate upload checksum"
+	echo >&2 "Couldn't find sha1sum nor sha1; can't calculate upload checksum"
+	exit 1
+fi
+
+printf 'Status: 200\r\nContent-Type: text/plain\r\n\r\n'
+
+csum=`"${SHA1SUM}" | cut -d' ' -f1`
 printf '%s' "${csum}"
 
 """
