@@ -41,11 +41,6 @@
 # include <lighttpd/config.h>
 #endif
 
-#if defined HAVE_LIBSSL && defined HAVE_OPENSSL_SSL_H
-# define USE_OPENSSL
-# include <openssl/ssl.h>
-#endif
-
 #define GLIB_DISABLE_DEPRECATION_WARNINGS
 
 #include <ev.h>
