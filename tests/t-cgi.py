@@ -31,13 +31,15 @@ printf '%s' "${val}"
 
 SCRIPT_UPLOADCHECK="""#!/bin/sh
 
+# need /sbin for /sbin/sha1 on FreeBSD (and probably others)
+export PATH="/sbin:/usr/sbin:/usr/local/sbin:${PATH}"
 SHA1SUM=$(which sha1sum sha1)
 
 if [ ! -x "${SHA1SUM}" ]; then
+	echo >&2 "Couldn't find sha1sum nor sha1 in PATH='${PATH}'; can't calculate upload checksum"
 	printf 'Status: 404\r\nContent-Type: text/plain\r\n\r\n'
 	printf "Couldn't find sha1sum nor sha1; can't calculate upload checksum"
-	echo >&2 "Couldn't find sha1sum nor sha1; can't calculate upload checksum"
-	exit 1
+	exit 0
 fi
 
 printf 'Status: 200\r\nContent-Type: text/plain\r\n\r\n'
