@@ -32,8 +32,6 @@ printf '%s' "${val}"
 
 SCRIPT_UPLOADCHECK="""#!/bin/sh
 
-# need /sbin for /sbin/sha1 on FreeBSD (and probably others)
-export PATH="/sbin:/usr/sbin:/usr/local/sbin:${PATH}"
 SHA1SUM=$(which sha1sum sha1)
 
 if [ ! -x "${SHA1SUM}" ]; then

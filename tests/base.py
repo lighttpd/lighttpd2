@@ -399,15 +399,16 @@ cache.disk.etag "{cache_disk_etag_dir}";
 		if Env.valgrind:
 			valgrindconfig = """
 	env ( "G_SLICE=always-malloc", "G_DEBUG=gc-friendly,fatal-criticals" );
-	wrapper ("/usr/bin/valgrind" );
-#	wrapper ("/usr/bin/valgrind", "--leak-check=full", "--show-reachable=yes", "--leak-resolution=high" );
-"""
+	wrapper ("{valgrind}" );
+#	wrapper ("{valgrind}", "--leak-check=full", "--show-reachable=yes", "--leak-resolution=high" );
+""".format(valgrind = Env.valgrind)
 
 		Env.angelconf = self.PrepareFile("conf/angel.conf", """
 instance {{
 	binary "{Env.worker}";
 	config "{Env.lighttpdconf}";
 	modules "{Env.plugindir}";
+	copy-env ("PATH");
 {valgrindconfig}
 }}
 

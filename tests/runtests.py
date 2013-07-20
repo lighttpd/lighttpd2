@@ -79,6 +79,8 @@ Env.no_angel = options.no_angel
 Env.debug = options.debug
 Env.wait = options.wait
 Env.valgrind = options.valgrind
+if Env.valgrind:
+	Env.valgrind = which('valgrind')
 
 Env.color = sys.stdin.isatty()
 Env.COLOR_RESET = Env.color and "\033[0m" or ""

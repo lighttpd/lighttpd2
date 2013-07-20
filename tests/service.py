@@ -185,7 +185,7 @@ class Lighttpd(Service):
 		self.portfree(base.Env.port)
 		if base.Env.no_angel:
 			if base.Env.valgrind:
-				self.fork('valgrind', base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf)
+				self.fork(base.Env.valgrind, base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf)
 			else:
 				self.fork(base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf)
 		else:
