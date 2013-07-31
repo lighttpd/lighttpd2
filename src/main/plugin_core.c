@@ -236,7 +236,8 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 		g_string_truncate(vr->physical.doc_root, 0);
 		li_pattern_eval(vr, vr->physical.doc_root, g_array_index(arr, liPattern*, i), core_docroot_nth_cb, &dsplit, li_pattern_regex_cb, match_info);
 
-		if (i == arr->len - 1) break; /* don't stat, we'll use the last entry anyway */
+		/* if there's only one entry and we're not debug logging, don't stat */
+		if (i == arr->len - 1 && !CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) break;
 
 		/* check if path exists */
 		switch (li_stat_cache_get(vr, vr->physical.doc_root, &st, &err, NULL)) {
