@@ -261,7 +261,7 @@ INLINE void li_event_start_(liEventBase *base) {
 			{
 				liEventTimer *timer = li_event_timer_from(base);
 				assert(!ev_is_active(&timer->libevmess.w));
-				if (0 >= timer->libevmess.timer.repeat) timer->libevmess.timer.repeat = 0.1;
+				if (0 >= timer->libevmess.timer.repeat) timer->libevmess.timer.repeat = 0.0001;
 				ev_timer_again(loop->loop, &timer->libevmess.timer);
 				if (!base->keep_loop_alive) ev_unref(loop->loop);
 			}
