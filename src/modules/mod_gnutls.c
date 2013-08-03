@@ -324,12 +324,6 @@ static void close_cb(liGnuTLSFilter *f, gpointer data) {
 		li_stream_release(raw_in);
 	}
 
-	if (NULL != conctx->sock_stream) {
-		liIOStream *stream = conctx->sock_stream;
-		conctx->sock_stream = NULL;
-		li_iostream_release(stream);
-	}
-
 #ifdef USE_SNI
 	if (NULL != conctx->sni_db_wait) {
 		li_fetch_cancel(&conctx->sni_db_wait);
@@ -355,6 +349,9 @@ static void close_cb(liGnuTLSFilter *f, gpointer data) {
 		conctx->sni_server_name = NULL;
 	}
 #endif
+
+	assert(NULL != conctx->sock_stream);
+	li_iostream_safe_release(&conctx->sock_stream);
 }
 
 static int post_client_hello_cb(liGnuTLSFilter *f, gpointer data) {

@@ -87,6 +87,7 @@ LI_API const gchar* li_iostream_event_string(liIOStreamEvent event);
 LI_API liIOStream* li_iostream_new(liWorker *wrk, int fd, liIOStreamCB cb, gpointer data);
 LI_API void li_iostream_acquire(liIOStream* iostream);
 LI_API void li_iostream_release(liIOStream* iostream);
+INLINE void li_iostream_safe_release(liIOStream** piostream);
 
 LI_API int li_iostream_reset(liIOStream *iostream); /* returns fd, disconnects everything, stop callbacks, releases one reference */
 
@@ -120,6 +121,13 @@ INLINE void li_stream_safe_reset_and_release(liStream** pstream) {
 	*pstream = NULL;
 	li_stream_reset(stream);
 	li_stream_release(stream);
+}
+
+INLINE void li_iostream_safe_release(liIOStream** piostream) {
+	liIOStream *iostream;
+	if (NULL == piostream || NULL == (iostream = *piostream)) return;
+	*piostream = NULL;
+	li_iostream_release(iostream);
 }
 
 #endif
