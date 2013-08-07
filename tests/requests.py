@@ -157,11 +157,15 @@ class CurlRequest(TestBase):
 				raise CurlRequestException("Unexpected response body")
 
 		for (k, v) in self.EXPECT_RESPONSE_HEADERS:
-			if not self.resp_headers.has_key(k.lower()):
-				raise CurlRequestException("Didn't get wanted response header '%s'" % (k))
-			v1 = self.resp_headers[k.lower()]
-			if v1 != v:
-				raise CurlRequestException("Unexpected response header '%s' = '%s' (wanted '%s')" % (k, v1, v))
+			if v == None:
+				if self.resp_headers.has_key(k.lower()):
+					raise CurlRequestException("Got unwanted response header '%s' = '%s'" % (k, self.resp_headers[k.lower()]))
+			else:
+				if not self.resp_headers.has_key(k.lower()):
+					raise CurlRequestException("Didn't get wanted response header '%s'" % (k))
+				v1 = self.resp_headers[k.lower()]
+				if v1 != v:
+					raise CurlRequestException("Unexpected response header '%s' = '%s' (wanted '%s')" % (k, v1, v))
 
 		return True
 
