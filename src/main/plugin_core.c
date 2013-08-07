@@ -1581,6 +1581,7 @@ struct header_ctx {
 	GString *key;
 	liPattern *value;
 	header_cb cb;
+	gboolean use_req_header;
 };
 
 static void core_header_free(liServer *srv, gpointer param) {
@@ -1607,45 +1608,57 @@ static liHandlerResult core_handle_header(liVRequest *vr, gpointer param, gpoint
 	g_string_truncate(vr->wrk->tmp_str, 0);
 	li_pattern_eval(vr, vr->wrk->tmp_str, ctx->value, NULL, NULL, li_pattern_regex_cb, match_info);
 
-	ctx->cb(vr->response.headers, GSTR_LEN(ctx->key), GSTR_LEN(vr->wrk->tmp_str));
+	ctx->cb(ctx->use_req_header ? vr->request.headers : vr->response.headers, GSTR_LEN(ctx->key), GSTR_LEN(vr->wrk->tmp_str));
 
 	return LI_HANDLER_GO_ON;
 }
 
-static liAction* core_header_add(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+static liAction* core_generic_header_add(liServer *srv, liValue *val, header_cb header_callback, gboolean use_req_header) {
 	GArray *l;
 	liPattern *pat;
 	header_ctx *ctx;
-	UNUSED(wrk); UNUSED(p);
 
 	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "'header.add/append/overwrite' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
+		ERROR(srv, "'[req_]header.add/append/overwrite' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
 		return NULL;
 	}
 
 	l = val->data.list;
 
 	if (l->len != 2) {
-		ERROR(srv, "'header.add/append/overwrite' action expects a string tuple as parameter, list has %u entries", l->len);
+		ERROR(srv, "'[req_]header.add/append/overwrite' action expects a string tuple as parameter, list has %u entries", l->len);
 		return NULL;
 	}
 
 	if (g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING || g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING) {
-		ERROR(srv, "%s", "'header.add/append/overwrite' action expects a string tuple as parameter");
+		ERROR(srv, "%s", "'[req_]header.add/append/overwrite' action expects a string tuple as parameter");
 		return NULL;
 	}
 
 	if (NULL == (pat = li_pattern_new(srv, g_array_index(l, liValue*, 1)->data.string->str))) {
-		ERROR(srv, "%s", "'header.add/append/overwrite': parsing value pattern failed");
+		ERROR(srv, "%s", "'[req_]header.add/append/overwrite': parsing value pattern failed");
 		return NULL;
 	}
 
 	ctx = g_slice_new(header_ctx);
 	ctx->key = li_value_extract_string(g_array_index(l, liValue*, 0));
 	ctx->value = pat;
-	ctx->cb = (header_cb)(intptr_t)userdata;
+	ctx->cb = header_callback;
+	ctx->use_req_header = use_req_header;
 
 	return li_action_new_function(core_handle_header, NULL, core_header_free, ctx);
+}
+
+static liAction* core_header_add(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(p);
+
+	return core_generic_header_add(srv, val, (header_cb)(intptr_t)userdata, FALSE);
+}
+
+static liAction* core_req_header_add(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(p);
+
+	return core_generic_header_add(srv, val, (header_cb)(intptr_t)userdata, TRUE);
 }
 
 static void core_header_remove_free(liServer *srv, gpointer param) {
@@ -1672,6 +1685,26 @@ static liAction* core_header_remove(liServer *srv, liWorker *wrk, liPlugin* p, l
 	}
 
 	return li_action_new_function(core_handle_header_remove, NULL, core_header_remove_free, li_value_extract_string(val));
+}
+
+static liHandlerResult core_handle_req_header_remove(liVRequest *vr, gpointer param, gpointer *context) {
+	GString *str = param;
+	UNUSED(context);
+
+	li_http_header_remove(vr->request.headers, GSTR_LEN(str));
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_req_header_remove(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	if (val->type != LI_VALUE_STRING) {
+		ERROR(srv, "'req_header.remove' action expects a string as parameter, %s given", li_value_type_string(val->type));
+		return NULL;
+	}
+
+	return li_action_new_function(core_handle_req_header_remove, NULL, core_header_remove_free, li_value_extract_string(val));
 }
 
 /* chunkqueue memory limits */
@@ -2081,6 +2114,11 @@ static const liPluginAction actions[] = {
 	{ "header.append", core_header_add, (void*)(intptr_t)li_http_header_append },
 	{ "header.overwrite", core_header_add, (void*)(intptr_t)li_http_header_overwrite },
 	{ "header.remove", core_header_remove, NULL },
+
+	{ "req_header.add", core_req_header_add, (void*)(intptr_t)li_http_header_insert },
+	{ "req_header.append", core_req_header_add, (void*)(intptr_t)li_http_header_append },
+	{ "req_header.overwrite", core_req_header_add, (void*)(intptr_t)li_http_header_overwrite },
+	{ "req_header.remove", core_req_header_remove, NULL },
 
 	{ "io.buffer_out", core_buffer_out, NULL },
 	{ "io.buffer_in", core_buffer_in, NULL },
