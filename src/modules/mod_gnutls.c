@@ -3,9 +3,7 @@
 #include <lighttpd/throttle.h>
 
 #include "gnutls_filter.h"
-#ifdef USE_SNI
-#include "ssl_sni_parser.h"
-#endif
+#include "ssl_client_hello_parser.h"
 #include "ssl-session-db.h"
 
 #include <gnutls/gnutls.h>
@@ -34,8 +32,8 @@ struct mod_connection_ctx {
 	liIOStream *sock_stream;
 	gpointer simple_socket_data;
 
+	liStream *client_hello_stream;
 #ifdef USE_SNI
-	liStream *sni_stream;
 	liJob sni_job;
 	liJobRef *sni_jobref;
 	liFetchEntry *sni_entry;
@@ -332,12 +330,15 @@ static void close_cb(liGnuTLSFilter *f, gpointer data) {
 		li_fetch_entry_release(conctx->sni_entry);
 		conctx->sni_entry = NULL;
 	}
+#endif
 
-	if (NULL != conctx->sni_stream) {
-		li_ssn_sni_stream_ready(conctx->sni_stream);
-		li_stream_release(conctx->sni_stream);
-		conctx->sni_stream = NULL;
+	if (NULL != conctx->client_hello_stream) {
+		li_ssl_client_hello_stream_ready(conctx->client_hello_stream);
+		li_stream_release(conctx->client_hello_stream);
+		conctx->client_hello_stream = NULL;
 	}
+
+#ifdef USE_SNI
 	if (NULL != conctx->sni_jobref) {
 		li_job_ref_release(conctx->sni_jobref);
 		conctx->sni_jobref = NULL;
@@ -352,20 +353,6 @@ static void close_cb(liGnuTLSFilter *f, gpointer data) {
 
 	assert(NULL != conctx->sock_stream);
 	li_iostream_safe_release(&conctx->sock_stream);
-}
-
-static int post_client_hello_cb(liGnuTLSFilter *f, gpointer data) {
-	mod_connection_ctx *conctx = data;
-	gnutls_protocol_t p = gnutls_protocol_get_version(conctx->session);
-	UNUSED(f);
-
-	if (conctx->ctx->protect_against_beast) {
-		if (GNUTLS_SSL3 == p || GNUTLS_TLS1_0 == p) {
-			gnutls_priority_set(conctx->session, conctx->ctx->server_priority_beast);
-		}
-	}
-
-	return GNUTLS_E_SUCCESS;
 }
 
 static int session_db_store_cb(void *_sdb, gnutls_datum_t key, gnutls_datum_t data) {
@@ -394,7 +381,7 @@ static gnutls_datum_t session_db_retrieve_cb(void *_sdb, gnutls_datum_t key) {
 static const liGnuTLSFilterCallbacks filter_callbacks = {
 	handshake_cb,
 	close_cb,
-	post_client_hello_cb
+	NULL
 };
 
 static void gnutls_tcp_finished(liConnection *con, gboolean aborted) {
@@ -442,7 +429,7 @@ static const liConnectionSocketCallbacks gnutls_tcp_cbs = {
 static void sni_job_cb(liJob *job) {
 	mod_connection_ctx *conctx = LI_CONTAINER_OF(job, mod_connection_ctx, sni_job);
 
-	assert(NULL != conctx->sni_stream);
+	assert(NULL != conctx->client_hello_stream);
 
 	conctx->sni_entry = li_fetch_get(conctx->ctx->sni_db, conctx->sni_server_name, conctx->sni_jobref, &conctx->sni_db_wait);
 	if (conctx->sni_entry != NULL) {
@@ -452,18 +439,30 @@ static void sni_job_cb(liJob *job) {
 		} else if (NULL != conctx->ctx->sni_fallback_cert) {
 			gnutls_credentials_set(conctx->session, GNUTLS_CRD_CERTIFICATE, conctx->ctx->sni_fallback_cert);
 		}
-		li_ssn_sni_stream_ready(conctx->sni_stream);
+		li_ssl_client_hello_stream_ready(conctx->client_hello_stream);
 	}
 }
+#endif
 
-static void gnutls_sni_cb(gpointer data, GString *server_name) {
+static void gnutls_client_hello_cb(gpointer data, gboolean success, GString *server_name, guint16 protocol) {
 	mod_connection_ctx *conctx = data;
 
-	conctx->sni_server_name = g_string_new_len(GSTR_LEN(server_name));
+	if (conctx->ctx->protect_against_beast) {
+		if (!success || protocol <= 0x0301) { /* SSL3: 0x0300, TLS1.0: 0x0301 */
+			gnutls_priority_set(conctx->session, conctx->ctx->server_priority_beast);
+		}
+	}
 
-	sni_job_cb(&conctx->sni_job);
-}
+#ifdef USE_SNI
+	if (success && NULL != server_name && NULL != conctx->ctx->sni_db && server_name->len > 0) {
+		conctx->sni_server_name = g_string_new_len(GSTR_LEN(server_name));
+		sni_job_cb(&conctx->sni_job);
+		return;
+	}
 #endif
+
+	li_ssl_client_hello_stream_ready(conctx->client_hello_stream);
+}
 
 static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 	liEventLoop *loop = &con->wrk->loop;
@@ -511,22 +510,14 @@ static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 	conctx->session = session;
 	conctx->sock_stream = li_iostream_new(con->wrk, fd, tcp_io_cb, conctx);
 
-#ifdef USE_SNI
-	if (NULL != ctx->sni_db) {
-		conctx->sni_stream = li_ssn_sni_stream(&con->wrk->loop, gnutls_sni_cb, conctx);
-		li_job_init(&conctx->sni_job, sni_job_cb);
-		conctx->sni_jobref = li_job_ref(&con->wrk->loop.jobqueue, &conctx->sni_job);
+	conctx->client_hello_stream = li_ssl_client_hello_stream(&con->wrk->loop, gnutls_client_hello_cb, conctx);
+	li_job_init(&conctx->sni_job, sni_job_cb);
+	conctx->sni_jobref = li_job_ref(&con->wrk->loop.jobqueue, &conctx->sni_job);
 
-		li_stream_connect(&conctx->sock_stream->stream_in, conctx->sni_stream);
+	li_stream_connect(&conctx->sock_stream->stream_in, conctx->client_hello_stream);
 
-		conctx->tls_filter = li_gnutls_filter_new(srv, con->wrk, &filter_callbacks, conctx, conctx->session,
-			conctx->sni_stream, &conctx->sock_stream->stream_out);
-	} else
-#endif
-	{
-		conctx->tls_filter = li_gnutls_filter_new(srv, con->wrk, &filter_callbacks, conctx, conctx->session,
-			&conctx->sock_stream->stream_in, &conctx->sock_stream->stream_out);
-	}
+	conctx->tls_filter = li_gnutls_filter_new(srv, con->wrk, &filter_callbacks, conctx, conctx->session,
+		conctx->client_hello_stream, &conctx->sock_stream->stream_out);
 
 	conctx->con = con;
 	conctx->ctx = ctx;

@@ -594,6 +594,7 @@ static void stream_crypt_source_limit_notify_cb(gpointer context, gboolean locke
 
 static int post_client_hello_cb(gnutls_session_t session) {
 	liGnuTLSFilter *f = gnutls_session_get_ptr(session);
+	if (NULL == f->callbacks->post_client_hello_cb) return GNUTLS_E_SUCCESS;
 	return f->callbacks->post_client_hello_cb(f, f->callback_data);
 }
 

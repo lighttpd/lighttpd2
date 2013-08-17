@@ -1,25 +1,27 @@
 #ifndef _LIGHTTPD_SSL_SNI_PARSER_H_
 #define _LIGHTTPD_SSL_SNI_PARSER_H_
 
+#ifdef USE_SNI
 #include <idna.h>
+#endif
 
-typedef void (*liSSLSniCB)(gpointer data, GString *server_name);
+typedef void (*liSSLClientHelloCB)(gpointer data, gboolean success, GString *server_name, guint16 client_hello_protocol);
 
 typedef enum {
-	LI_SSL_SNI_NOT_FOUND, /* or some error */
-	LI_SSL_SNI_FOUND,
-	LI_SSL_SNI_WAIT /* need more data */
-} liSSLSniParserResult;
+	LI_SSL_CLIENT_HELLO_ERROR,
+	LI_SSL_CLIENT_HELLO_FOUND,
+	LI_SSL_CLIENT_HELLO_WAIT /* need more data */
+} liSSLClientHelloParserResult;
 
-typedef struct liSSLSniParser liSSLSniParser;
-struct liSSLSniParser {
-	guint finished:1, sni_ready:1;
+typedef struct liSSLClientHelloParser liSSLClientHelloParser;
+struct liSSLClientHelloParser {
+	guint finished:1, forward:1, sni_complete:1;
 
 	liChunkParserCtx ctx;
 
 	guint8 record_state; /* how many record header bytes we have (0-4) */
 	guint8 record_type;
-	guint8 record_protocol_major, record_protocol_minor;
+	guint16 record_protocol;
 	guint16 record_remaining_length;
 
 	guint8 handshake_state; /* how many handshake header bytes we have (0-3) */
@@ -27,7 +29,7 @@ struct liSSLSniParser {
 	guint32 handshake_remaining_length;
 
 	guint32 client_hello_state; /* some states (0-12) */
-	guint8 client_hello_protocol_major, client_hello_protocol_minor;
+	guint16 client_hello_protocol;
 	guint16 client_hello_remaining; /* dynamic length stuff */
 
 	guint16 extension_state; /* how many extension header bytes we have (0-4) */
@@ -39,63 +41,62 @@ struct liSSLSniParser {
 	guint16 sni_hostname_remaining;
 };
 
-typedef struct liSSLSniParserStream liSSLSniParserStream;
-struct liSSLSniParserStream {
+typedef struct liSSLClientHelloParserStream liSSLClientHelloParserStream;
+struct liSSLClientHelloParserStream {
 	liStream stream;
-	liSSLSniCB callback;
+	liSSLClientHelloCB callback;
 	gpointer data;
-	liSSLSniParser parser;
+	liSSLClientHelloParser parser;
 	GString *server_name;
 };
 
-INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *server_name);
+INLINE liStream* li_ssl_client_hello_stream(liEventLoop *loop, liSSLClientHelloCB callback, gpointer data);
+INLINE void li_ssl_client_hello_stream_ready(liStream *stream); /* key loaded, ready to forward data */
 
 
-INLINE liStream* li_ssn_sni_stream(liEventLoop *loop, liSSLSniCB callback, gpointer data);
-INLINE void li_ssn_sni_stream_ready(liStream *stream); /* key loaded, ready to forward data */
-
-
-INLINE void li_ssn_sni_stream_cb(liStream *stream, liStreamEvent event); /* private */
+/* private */
+INLINE liSSLClientHelloParserResult _li_ssl_client_hello_parse(liSSLClientHelloParser *context, GString *server_name);
+INLINE void _li_ssl_client_hello_stream_cb(liStream *stream, liStreamEvent event);
 
 
 /* inline implementations */
 
-INLINE liStream* li_ssn_sni_stream(liEventLoop *loop, liSSLSniCB callback, gpointer data) {
-	liSSLSniParserStream *pstream = g_slice_new0(liSSLSniParserStream);
+INLINE liStream* li_ssl_client_hello_stream(liEventLoop *loop, liSSLClientHelloCB callback, gpointer data) {
+	liSSLClientHelloParserStream *pstream = g_slice_new0(liSSLClientHelloParserStream);
 	pstream->server_name = g_string_sized_new(0);
 	pstream->callback = callback;
 	pstream->data = data;
-	li_stream_init(&pstream->stream, loop, li_ssn_sni_stream_cb);
+	li_stream_init(&pstream->stream, loop, _li_ssl_client_hello_stream_cb);
 	return &pstream->stream;
 }
 
-INLINE void li_ssn_sni_stream_ready(liStream *stream) {
-	liSSLSniParserStream *pstream = LI_CONTAINER_OF(stream, liSSLSniParserStream, stream);
-	assert(li_ssn_sni_stream_cb == stream->cb);
+INLINE void li_ssl_client_hello_stream_ready(liStream *stream) {
+	liSSLClientHelloParserStream *pstream = LI_CONTAINER_OF(stream, liSSLClientHelloParserStream, stream);
+	assert(_li_ssl_client_hello_stream_cb == stream->cb);
 
-	pstream->parser.finished = pstream->parser.sni_ready = TRUE;
+	pstream->parser.finished = pstream->parser.forward = TRUE;
 	li_stream_again(stream);
 }
 
-INLINE void li_ssn_sni_stream_cb(liStream *stream, liStreamEvent event) {
-	liSSLSniParserStream *pstream = LI_CONTAINER_OF(stream, liSSLSniParserStream, stream);
+INLINE void _li_ssl_client_hello_stream_cb(liStream *stream, liStreamEvent event) {
+	liSSLClientHelloParserStream *pstream = LI_CONTAINER_OF(stream, liSSLClientHelloParserStream, stream);
 
 	switch (event) {
 	case LI_STREAM_NEW_DATA:
 		if (NULL == stream->source) return;
 		if (!pstream->parser.finished) {
-			switch (li_ssl_sni_parse(&pstream->parser, pstream->server_name)) {
-			case LI_SSL_SNI_NOT_FOUND:
-				pstream->parser.sni_ready = TRUE;
+			switch (_li_ssl_client_hello_parse(&pstream->parser, pstream->server_name)) {
+			case LI_SSL_CLIENT_HELLO_ERROR:
+				pstream->callback(pstream->data, FALSE, NULL, 0);
 				break;
-			case LI_SSL_SNI_FOUND:
-				pstream->callback(pstream->data, pstream->server_name);
+			case LI_SSL_CLIENT_HELLO_FOUND:
+				pstream->callback(pstream->data, TRUE, pstream->server_name, pstream->parser.client_hello_protocol);
 				break;
-			case LI_SSL_SNI_WAIT:
+			case LI_SSL_CLIENT_HELLO_WAIT:
 				return;
 			}
 		}
-		if (pstream->parser.sni_ready) {
+		if (pstream->parser.forward) {
 			li_chunkqueue_steal_all(stream->out, stream->source->out);
 			if (stream->source->out->is_closed) stream->out->is_closed = TRUE;
 			li_stream_notify(stream);
@@ -109,11 +110,11 @@ INLINE void li_ssn_sni_stream_cb(liStream *stream, liStreamEvent event) {
 		li_chunk_parser_init(&pstream->parser.ctx, stream->source->out);
 		break;
 	case LI_STREAM_DISCONNECTED_DEST:
-		pstream->parser.finished = pstream->parser.sni_ready = TRUE;
+		pstream->parser.finished = TRUE;
 		li_stream_disconnect(stream);
 		break;
 	case LI_STREAM_DISCONNECTED_SOURCE:
-		pstream->parser.finished = pstream->parser.sni_ready = TRUE;
+		pstream->parser.finished = TRUE;
 		li_stream_disconnect_dest(stream);
 		break;
 	case LI_STREAM_DESTROY:
@@ -121,22 +122,22 @@ INLINE void li_ssn_sni_stream_cb(liStream *stream, liStreamEvent event) {
 		pstream->data = NULL;
 		g_string_free(pstream->server_name, TRUE);
 		pstream->server_name = NULL;
-		g_slice_free(liSSLSniParserStream, pstream);
+		g_slice_free(liSSLClientHelloParserStream, pstream);
 		break;
 	}
 }
 
-#define SNI_PARSER_DEBUG 0
-#if SNI_PARSER_DEBUG
-# define PARSER_FAIL(...) do { fprintf(stderr, "ssl_sni_parse fail: " __VA_ARGS__); goto fail; } while (0)
+#define CLIENT_HELLO_PARSER_DEBUG 0
+#if CLIENT_HELLO_PARSER_DEBUG
+# define PARSER_FAIL(...) do { fprintf(stderr, "ssl_client_hello_parse fail: " __VA_ARGS__); goto fail; } while (0)
 #else
 # define PARSER_FAIL(...) do { goto fail; } while (0)
 #endif
 
-INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *server_name) {
+INLINE liSSLClientHelloParserResult _li_ssl_client_hello_parse(liSSLClientHelloParser *context, GString *server_name) {
 	guint8 *p = NULL, *global_pe = NULL;
 
-	if (context->finished) return LI_SSL_SNI_NOT_FOUND;
+	if (context->finished) return LI_SSL_CLIENT_HELLO_ERROR;
 
 	li_chunk_parser_prepare(&context->ctx);
 
@@ -145,7 +146,7 @@ INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *s
 
 		while (NULL == p || p >= global_pe) {
 			liHandlerResult res = li_chunk_parser_next(&context->ctx, (gchar**) &p, (gchar**) &global_pe, NULL);
-			if (LI_HANDLER_WAIT_FOR_EVENT == res && !context->ctx.cq->is_closed) return context->finished ? LI_SSL_SNI_NOT_FOUND : LI_SSL_SNI_WAIT;
+			if (LI_HANDLER_WAIT_FOR_EVENT == res && !context->ctx.cq->is_closed) return context->finished ? LI_SSL_CLIENT_HELLO_ERROR : LI_SSL_CLIENT_HELLO_WAIT;
 			if (LI_HANDLER_GO_ON != res) goto fail;
 		}
 
@@ -159,12 +160,12 @@ INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *s
 			continue;
 		case 1:
 			li_chunk_parser_done(&context->ctx, 1);
-			context->record_protocol_major = *p++;
+			context->record_protocol = (*p++) << 8;
 			++context->record_state;
 			continue;
 		case 2:
 			li_chunk_parser_done(&context->ctx, 1);
-			context->record_protocol_minor = *p++;
+			context->record_protocol |= *p++;
 			++context->record_state;
 			continue;
 		case 3:
@@ -194,7 +195,6 @@ INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *s
 			/* we only parse handshake records */
 			switch (context->handshake_state) {
 			case 0:
-				if (context->handshake_remaining_length > 0) break;
 				context->handshake_type = *p++;
 				++context->handshake_state;
 				if (1 != context->handshake_type) PARSER_FAIL("handshake isn't client_hello\n");
@@ -209,9 +209,12 @@ INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *s
 				continue;
 			case 3:
 				context->handshake_remaining_length += (*p++);
-				context->handshake_state = 0;
+				context->handshake_state = 4;
 				context->client_hello_state = 0;
 				continue;
+			case 4:
+				if (context->handshake_remaining_length > 0) break;
+				goto client_hello_finished;
 			}
 
 			/* we only parse client_hello handshakes */
@@ -219,16 +222,10 @@ INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *s
 				guint take = MIN(context->handshake_remaining_length, (guint) (record_pe - p));
 				context->handshake_remaining_length -= take;
 				client_hello_pe = p + take;
-				if (0 == context->handshake_remaining_length) {
-					context->finished = TRUE; /* after this there is no point searching */
-#if SNI_PARSER_DEBUG
-					fprintf(stderr, "ssl_sni_parse: have complete client_hello\n");
-#endif
-				}
 			}
 
 			while (p < client_hello_pe) {
-#if SNI_PARSER_DEBUG
+#if CLIENT_HELLO_PARSER_DEBUG
 				fprintf(stderr, "ssl_sni_parse client_hello: state %i, remaining: %i\n", context->client_hello_state, context->client_hello_remaining);
 #endif
 				switch (context->client_hello_state) {
@@ -247,11 +244,11 @@ INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *s
 					}
 					continue;
 				case 0: /* protocol major */
-					context->client_hello_protocol_major = (*p++);
+					context->client_hello_protocol = (*p++) << 8;
 					++context->client_hello_state;
 					continue;
 				case 1: /* protocol minor */
-					context->client_hello_protocol_minor = (*p++);
+					context->client_hello_protocol |= (*p++);
 					++context->client_hello_state;
 					context->client_hello_remaining = 32; /* length of "random" data is constant */
 					continue;
@@ -280,7 +277,7 @@ INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *s
 					context->client_hello_remaining += (*p++);
 					++context->client_hello_state;
 
-#if SNI_PARSER_DEBUG
+#if CLIENT_HELLO_PARSER_DEBUG
 					fprintf(stderr, "ssl_sni_parse client_hello: extensions length %i, can read %i\n", context->client_hello_remaining, (guint) (client_hello_pe - p));
 #endif
 					/* extensions fill the record exactly if present */
@@ -320,10 +317,12 @@ INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *s
 						++context->extension_state;
 						continue;
 					case 4:
-#if SNI_PARSER_DEBUG
+#if CLIENT_HELLO_PARSER_DEBUG
 						fprintf(stderr, "ssl_sni_parse: extension type %i\n", context->extension_type);
 #endif
+#ifdef USE_SNI
 						if (0 == context->extension_type) break; /* parse this one: SNI */
+#endif
 						{
 							/* ignore extension */
 							guint take = MIN(context->extension_remaining, (guint) (client_hello_pe - p));
@@ -361,12 +360,25 @@ INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *s
 							++context->sni_state;
 							continue;
 						case 5:
-							if (0 == context->sni_type) {
+							if (0 == context->sni_type && !context->sni_complete) {
 								guint take = MIN(context->sni_hostname_remaining, (guint) (extension_pe - p));
 								g_string_append_len(server_name, (gchar*) p, take);
 								context->sni_hostname_remaining -= take;
 								p += take;
-								if (0 == context->sni_hostname_remaining) goto found_sni;
+								if (0 == context->sni_hostname_remaining) {
+#ifdef USE_SNI
+									char *ascii_sni;
+									if (IDNA_SUCCESS == idna_to_ascii_8z(server_name->str, &ascii_sni, IDNA_ALLOW_UNASSIGNED)) {
+										context->sni_complete = TRUE; /* pick the first decodable hostname */
+										g_string_assign(server_name, ascii_sni);
+										free(ascii_sni);
+									} else {
+										g_string_truncate(server_name, 0); /* ignore */
+									}
+#else
+									g_string_truncate(server_name, 0); /* ignore */
+#endif
+								}
 							} else {
 								guint take = MIN(context->sni_hostname_remaining, (guint) (extension_pe - p));
 								context->sni_hostname_remaining -= take;
@@ -374,35 +386,24 @@ INLINE liSSLSniParserResult li_ssl_sni_parse(liSSLSniParser *context, GString *s
 							}
 						}
 					}
-				} /* while (p >= client_hello_pe) -- extension subloop */
-			} /* while (p >= client_hello_pe) */
-
-			if (0 == context->handshake_remaining_length) PARSER_FAIL("client_hello ended, no sni found\n");
-		} /* while (p >= record_pe) */
-
+				} /* while (p < client_hello_pe) -- extension subloop */
+			} /* while (p < client_hello_pe) */
+			if (0 == context->handshake_remaining_length) goto client_hello_finished;
+		} /* while (p < record_pe) */
 	}
 
-found_sni:
-	{
-		char *ascii_sni;
-		if (IDNA_SUCCESS == idna_to_ascii_8z(server_name->str, &ascii_sni, IDNA_ALLOW_UNASSIGNED)) {
-			g_string_assign(server_name, ascii_sni);
-			free(ascii_sni);
-		} else {
-			goto fail;
-		}
-	}
-	context->finished = TRUE;
-	return LI_SSL_SNI_FOUND;
-
-fail:
-#if SNI_PARSER_DEBUG
-	if (context->finished) fprintf(stderr, "ssl_sni_parse fail: sni not found in client_hello\n");
+client_hello_finished:
+#if CLIENT_HELLO_PARSER_DEBUG
+	fprintf(stderr, "ssl_sni_parse: parsing client_hello done\n");
 #endif
 	context->finished = TRUE;
-	return LI_SSL_SNI_NOT_FOUND;
+	return LI_SSL_CLIENT_HELLO_FOUND;
+
+fail:
+	context->finished = TRUE;
+	return LI_SSL_CLIENT_HELLO_ERROR;
 }
-#undef SNI_PARSER_DEBUG
+#undef CLIENT_HELLO_PARSER_DEBUG
 #undef PARSER_FAIL
 
 #endif
