@@ -417,6 +417,9 @@ static void _connection_http_out_cb(liStream *stream, liStreamEvent event) {
 				VR_DEBUG(vr, "%s", "write response headers");
 			}
 			con->response_headers_sent = TRUE;
+			if (0 == CORE_OPTION(LI_CORE_OPTION_MAX_KEEP_ALIVE_IDLE).number) {
+				con->info.keep_alive = FALSE;
+			}
 			li_response_send_headers(vr, raw_out, out, FALSE);
 		}
 
