@@ -63,6 +63,7 @@ static liThrottleState* vr_get_throttle_out_state(liVRequest *vr) {
 
 static throttle_ip_pools *ip_pools_new(guint plugin_id, guint rate, guint burst, guint masklen_ipv4, guint masklen_ipv6) {
 	throttle_ip_pools *pools = g_slice_new0(throttle_ip_pools);
+	pools->refcount = 1;
 	pools->lock = g_mutex_new();
 	pools->plugin_id = plugin_id;
 	pools->rate = rate;
@@ -359,7 +360,6 @@ static void throttle_vrclose(liVRequest *vr, liPlugin *p) {
 			vr_ip_pools_entry *ventry = &g_array_index(vr_ip_pools, vr_ip_pools_entry, i);
 			free_ip_pool(srv, ventry->pools, &ventry->remote_addr_copy);
 			li_sockaddr_clear(&ventry->remote_addr_copy);
-			g_slice_free(vr_ip_pools_entry, ventry);
 		}
 		g_array_free(vr_ip_pools, TRUE);
 	}
