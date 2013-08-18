@@ -317,6 +317,10 @@ INLINE liSSLClientHelloParserResult _li_ssl_client_hello_parse(liSSLClientHelloP
 						++context->extension_state;
 						continue;
 					case 4:
+						if (0 == context->extension_remaining) {
+							context->extension_state = 0;
+							continue;
+						}
 #if CLIENT_HELLO_PARSER_DEBUG
 						fprintf(stderr, "ssl_sni_parse: extension type %i\n", context->extension_type);
 #endif
@@ -385,8 +389,8 @@ INLINE liSSLClientHelloParserResult _li_ssl_client_hello_parse(liSSLClientHelloP
 								p += take;
 							}
 						}
-					}
-				} /* while (p < client_hello_pe) -- extension subloop */
+					} /* while (p < extension_pe) -- sni extension subloop */
+				} /* while (p < client_hello_pe) -- extensions subloop */
 			} /* while (p < client_hello_pe) */
 			if (0 == context->handshake_remaining_length) goto client_hello_finished;
 		} /* while (p < record_pe) */
