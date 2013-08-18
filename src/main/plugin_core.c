@@ -433,7 +433,7 @@ error_free:
 	return NULL;
 }
 
-
+/* *context represents the current entry + 1, 0 is the ISDIR(vr->physical.path) check */
 static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointer *context) {
 	liHandlerResult res;
 	guint i;
@@ -441,6 +441,7 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 	gint err;
 	GString *file, *tmp_docroot, *tmp_path;
 	GArray *files = param;
+	gint contextNdx = GPOINTER_TO_INT(*context);
 
 	UNUSED(context);
 
@@ -449,22 +450,26 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 		return LI_HANDLER_ERROR;
 	}
 
-	res = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
-	if (res == LI_HANDLER_WAIT_FOR_EVENT)
-		return LI_HANDLER_WAIT_FOR_EVENT;
+	if (0 == contextNdx) {
+		res = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
+		if (res == LI_HANDLER_WAIT_FOR_EVENT)
+			return LI_HANDLER_WAIT_FOR_EVENT;
 
-	if (res == LI_HANDLER_ERROR) {
-		/* we ignore errors here so a later action can deal with it (e.g. 'static') */
-		return LI_HANDLER_GO_ON;
-	}
+		if (res == LI_HANDLER_ERROR) {
+			/* we ignore errors here so a later action can deal with it (e.g. 'static') */
+			return LI_HANDLER_GO_ON;
+		}
 
-	if (!S_ISDIR(st.st_mode))
-		return LI_HANDLER_GO_ON;
+		if (!S_ISDIR(st.st_mode))
+			return LI_HANDLER_GO_ON;
 
-	/* need trailing slash */
-	if (vr->request.uri.path->len == 0 || vr->request.uri.path->str[vr->request.uri.path->len-1] != '/') {
-		li_vrequest_redirect_directory(vr);
-		return LI_HANDLER_GO_ON;
+		/* need trailing slash */
+		if (vr->request.uri.path->len == 0 || vr->request.uri.path->str[vr->request.uri.path->len-1] != '/') {
+			li_vrequest_redirect_directory(vr);
+			return LI_HANDLER_GO_ON;
+		}
+
+		contextNdx = 1;
 	}
 
 	/* we use two temporary strings here, one to append to docroot and one to append to physical path */
@@ -474,7 +479,7 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 	tmp_path = g_string_new_len(GSTR_LEN(vr->physical.path));
 
 	/* loop through the list to find a possible index file */
-	for (i = 0; i < files->len; i++) {
+	for (i = contextNdx - 1; i < files->len; i++) {
 		file = g_array_index(files, liValue*, i)->data.string;
 
 		if (file->str[0] == '/') {
@@ -489,6 +494,7 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 		}
 
 		if (res == LI_HANDLER_WAIT_FOR_EVENT) {
+			*context = GINT_TO_POINTER(i + 1);
 			g_string_free(tmp_path, TRUE);
 			return LI_HANDLER_WAIT_FOR_EVENT;
 		}
