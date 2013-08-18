@@ -41,7 +41,9 @@ LI_API void li_value_list_append(liValue *list, liValue *item); /* list MUST be 
 LI_API void li_value_wrap_in_list(liValue *val);
 
 LI_API liValue* li_value_copy(liValue* val);
+LI_API void li_value_clear(liValue *val); /* frees content, sets value to LI_VALUE_NONE */
 LI_API void li_value_free(liValue* val);
+LI_API void li_value_move(liValue *dest, liValue *src);
 
 LI_API const char* li_value_type_string(liValueType type);
 
@@ -62,5 +64,8 @@ LI_API liCondition* li_value_extract_condition(liValue *val);
 
 /* move the value content to a new value, set the old type to none */
 LI_API liValue* li_value_extract(liValue *val);
+
+/* converts value type to LI_VALUE_LIST, makes sure list contains (key,value) tuples, and the keys are all LI_VALUE_STRING or LI_VALUE_NONE */
+LI_API liValue* li_value_to_key_value_list(liValue *val);
 
 #endif

@@ -118,8 +118,13 @@ liValue* li_value_copy(liValue* val) {
 	return NULL;
 }
 
-void li_value_free(liValue* val) {
-	if (!val) return;
+static void _li_value_clear(liValue *val) {
+	memset(val, 0, sizeof(*val));
+	val->type = LI_VALUE_NONE;
+}
+
+void li_value_clear(liValue *val) {
+	if (NULL == val) return;
 
 	switch (val->type) {
 	case LI_VALUE_NONE:
@@ -143,8 +148,20 @@ void li_value_free(liValue* val) {
 		li_condition_release(val->data.val_cond.srv, val->data.val_cond.cond);
 		break;
 	}
-	val->type = LI_VALUE_NONE;
+	_li_value_clear(val);
+}
+
+void li_value_free(liValue* val) {
+	if (NULL == val) return;
+	li_value_clear(val);
 	g_slice_free(liValue, val);
+}
+
+void li_value_move(liValue *dest, liValue *src) {
+	assert(NULL != dest && NULL != src && dest != src);
+	li_value_clear(dest);
+	*dest = *src;
+	_li_value_clear(src);
 }
 
 const char* li_value_type_string(liValueType type) {
@@ -231,7 +248,6 @@ GString *li_value_to_string(liValue *val) {
 				i++;
 			}
 
-
 			g_string_append_c(str, ']');
 			break;
 		}
@@ -264,7 +280,7 @@ gpointer li_value_extract_ptr(liValue *val) {
 		ptr = val->data.string;
 		break;
 	case LI_VALUE_LIST:
-		ptr =  val->data.list;
+		ptr = val->data.list;
 		break;
 	case LI_VALUE_HASH:
 		ptr =  val->data.hash;
@@ -276,44 +292,103 @@ gpointer li_value_extract_ptr(liValue *val) {
 		ptr = val->data.val_action.action;
 		break;
 	}
-	val->type = LI_VALUE_NONE;
+	_li_value_clear(val);
 	return ptr;
 }
 
 
 GString* li_value_extract_string(liValue *val) {
+	GString* result;
 	if (val->type != LI_VALUE_STRING) return NULL;
-	val->type = LI_VALUE_NONE;
-	return val->data.string;
+	result = val->data.string;
+	_li_value_clear(val);
+	return result;
 }
 
 GArray* li_value_extract_list(liValue *val) {
+	GArray* result;
 	if (val->type != LI_VALUE_LIST) return NULL;
-	val->type = LI_VALUE_NONE;
-	return val->data.list;
+	result = val->data.list;
+	_li_value_clear(val);
+	return result;
 }
 
 GHashTable* li_value_extract_hash(liValue *val) {
+	GHashTable* result;
 	if (val->type != LI_VALUE_HASH) return NULL;
-	val->type = LI_VALUE_NONE;
-	return val->data.hash;
+	result = val->data.hash;
+	_li_value_clear(val);
+	return result;
 }
 
 liAction* li_value_extract_action(liValue *val) {
+	liAction* result;
 	if (val->type != LI_VALUE_ACTION) return NULL;
-	val->type = LI_VALUE_NONE;
-	return val->data.val_action.action;
+	result = val->data.val_action.action;
+	_li_value_clear(val);
+	return result;
 }
 
 liCondition* li_value_extract_condition(liValue *val) {
+	liCondition* result;
 	if (val->type != LI_VALUE_CONDITION) return NULL;
-	val->type = LI_VALUE_NONE;
-	return val->data.val_cond.cond;
+	result = val->data.val_cond.cond;
+	_li_value_clear(val);
+	return result;
 }
 
 liValue* li_value_extract(liValue *val) {
 	liValue *v = li_value_new_none();
 	*v = *val;
-	val->type = LI_VALUE_NONE;
+	_li_value_clear(val);
 	return v;
+}
+
+liValue* li_value_to_key_value_list(liValue *val) {
+	if (val->type == LI_VALUE_HASH) {
+		GHashTable *table = li_value_extract_hash(val);
+		GArray *list;
+
+		GHashTableIter hti;
+		gpointer hkey, hvalue;
+
+		{
+			/* convert val to list */
+			liValue *vlist = li_value_new_list();
+			li_value_move(val, vlist);
+			li_value_free(vlist);
+		}
+		list = val->data.list;
+
+		g_hash_table_iter_init(&hti, table);
+		while (g_hash_table_iter_next(&hti, &hkey, &hvalue)) {
+			GString *htkey = hkey; liValue *htval = hvalue;
+			liValue *hkeyval = li_value_new_string(htkey);
+			liValue *pair = li_value_new_list();
+			g_array_append_val(pair->data.list, hkeyval);
+			g_array_append_val(pair->data.list, htval);
+			g_array_append_val(list, pair);
+		}
+		g_hash_table_steal_all(table); /* content was moved to list */
+		g_hash_table_destroy(table);
+
+		return val;
+	} else if (val->type == LI_VALUE_LIST) {
+		/* verify key-value list properties */
+		GArray *list = val->data.list;
+		guint i;
+		for (i = 0; i < list->len; ++i) {
+			liValue *lentry = g_array_index(list, liValue*, i);
+			GArray *entrylist;
+			liValue *key;
+
+			if (lentry->type != LI_VALUE_LIST) return NULL;
+			entrylist = lentry->data.list;
+			if (2 != entrylist->len) return NULL;
+			key = g_array_index(entrylist, liValue*, 0);
+			if (key->type != LI_VALUE_STRING && key->type != LI_VALUE_NONE) return NULL;
+		}
+		return val;
+	}
+	return NULL;
 }
