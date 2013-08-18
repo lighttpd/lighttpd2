@@ -570,17 +570,17 @@ static void gnutls_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 
 static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	mod_context *ctx;
-	GHashTableIter hti;
-	gpointer hkey, hvalue;
-	GString *htkey;
-	liValue *htval;
 	int r;
+	guint i;
 
 	/* setup defaults */
-	GString *ipstr = NULL;
+	gboolean have_listen_parameter = FALSE;
+	gboolean have_pemfile_parameter = FALSE;
+	gboolean have_protect_beast_parameter = FALSE;
+	gboolean have_session_db_size_parameter = FALSE;
 	const char
 		*priority = NULL, *dh_params_file = NULL,
-		*pemfile = NULL, *ca_file = NULL
+		*ca_file = NULL
 #ifdef USE_SNI
 		,*sni_backend = NULL, *sni_fallback_pemfile = NULL
 #endif
@@ -591,90 +591,127 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 
 	UNUSED(p); UNUSED(userdata);
 
-	if (val->type != LI_VALUE_HASH) {
-		ERROR(srv, "%s", "gnutls expects a hash as parameter");
+	if (NULL == (val = li_value_to_key_value_list(val))) {
+		ERROR(srv, "%s", "gnutls expects a hash/key-value list as parameter");
 		return FALSE;
 	}
 
-	g_hash_table_iter_init(&hti, val->data.hash);
-	while (g_hash_table_iter_next(&hti, &hkey, &hvalue)) {
-		htkey = hkey; htval = hvalue;
+	for (i = 0; i < val->data.list->len; ++i) {
+		liValue *entryKey = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 0);
+		liValue *entryValue = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 1);
+		GString *entryKeyStr;
 
-		if (g_str_equal(htkey->str, "listen")) {
-			if (htval->type != LI_VALUE_STRING) {
+		if (entryKey->type == LI_VALUE_NONE) {
+			ERROR(srv, "%s", "gnutls doesn't take null keys");
+			return FALSE;
+		}
+		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+		if (g_str_equal(entryKeyStr->str, "listen")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "gnutls listen expects a string as parameter");
 				return FALSE;
 			}
-			ipstr = htval->data.string;
-		} else if (g_str_equal(htkey->str, "pemfile")) {
-			if (htval->type != LI_VALUE_STRING) {
+			have_listen_parameter = TRUE;
+		} else if (g_str_equal(entryKeyStr->str, "pemfile")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "gnutls pemfile expects a string as parameter");
 				return FALSE;
 			}
-			pemfile = htval->data.string->str;
-		} else if (g_str_equal(htkey->str, "dh-params")) {
-			if (htval->type != LI_VALUE_STRING) {
+			have_pemfile_parameter = TRUE;
+		} else if (g_str_equal(entryKeyStr->str, "dh-params")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "gnutls dh-params expects a string as parameter");
 				return FALSE;
 			}
-			dh_params_file = htval->data.string->str;
-		} else if (g_str_equal(htkey->str, "ca-file")) {
-			if (htval->type != LI_VALUE_STRING) {
+			if (NULL != dh_params_file) {
+				ERROR(srv, "gnutls unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			dh_params_file = entryValue->data.string->str;
+		} else if (g_str_equal(entryKeyStr->str, "ca-file")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "gnutls ca-file expects a string as parameter");
 				return FALSE;
 			}
-			ca_file = htval->data.string->str;
-		} else if (g_str_equal(htkey->str, "priority")) {
-			if (htval->type != LI_VALUE_STRING) {
+			if (NULL != ca_file) {
+				ERROR(srv, "gnutls unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			ca_file = entryValue->data.string->str;
+		} else if (g_str_equal(entryKeyStr->str, "priority")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "gnutls priority expects a string as parameter");
 				return FALSE;
 			}
-			priority = htval->data.string->str;
-		} else if (g_str_equal(htkey->str, "protect-against-beast")) {
-			if (htval->type != LI_VALUE_BOOLEAN) {
+			if (NULL != priority) {
+				ERROR(srv, "gnutls unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			priority = entryValue->data.string->str;
+		} else if (g_str_equal(entryKeyStr->str, "protect-against-beast")) {
+			if (entryValue->type != LI_VALUE_BOOLEAN) {
 				ERROR(srv, "%s", "gnutls protect-against-beast expects a boolean as parameter");
 				return FALSE;
 			}
-			protect_against_beast = htval->data.boolean;
-		} else if (g_str_equal(htkey->str, "session-db-size")) {
-			if (htval->type != LI_VALUE_NUMBER) {
+			if (have_protect_beast_parameter) {
+				ERROR(srv, "gnutls unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			have_protect_beast_parameter = TRUE;
+			protect_against_beast = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "session-db-size")) {
+			if (entryValue->type != LI_VALUE_NUMBER) {
 				ERROR(srv, "%s", "gnutls session-db-size expects an integer as parameter");
 				return FALSE;
 			}
-			session_db_size = htval->data.number;
+			if (have_session_db_size_parameter) {
+				ERROR(srv, "gnutls unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			have_session_db_size_parameter = TRUE;
+			session_db_size = entryValue->data.number;
 #ifdef USE_SNI
-		} else if (g_str_equal(htkey->str, "sni-backend")) {
-			if (htval->type != LI_VALUE_STRING) {
+		} else if (g_str_equal(entryKeyStr->str, "sni-backend")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "gnutls sni-backend expects a string as parameter");
 				return FALSE;
 			}
-			sni_backend = htval->data.string->str;
-		} else if (g_str_equal(htkey->str, "sni-fallback-pemfile")) {
-			if (htval->type != LI_VALUE_STRING) {
+			if (NULL != sni_backend) {
+				ERROR(srv, "gnutls unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			sni_backend = entryValue->data.string->str;
+		} else if (g_str_equal(entryKeyStr->str, "sni-fallback-pemfile")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "gnutls sni-fallback-pemfile expects a string as parameter");
 				return FALSE;
 			}
-			sni_fallback_pemfile = htval->data.string->str;
+			if (NULL != sni_fallback_pemfile) {
+				ERROR(srv, "gnutls unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			sni_fallback_pemfile = entryValue->data.string->str;
 #else
-		} else if (g_str_equal(htkey->str, "sni-backend")) {
+		} else if (g_str_equal(entryKeyStr->str, "sni-backend")) {
 			ERROR(srv, "%s", "mod_gnutls was build without SNI support, invalid option sni-backend");
 			return FALSE;
-		} else if (g_str_equal(htkey->str, "sni-fallback-pemfile")) {
+		} else if (g_str_equal(entryKeyStr->str, "sni-fallback-pemfile")) {
 			ERROR(srv, "%s", "mod_gnutls was build without SNI support, invalid option gnutls sni-fallback-pemfile");
 			return FALSE;
 #endif
 		} else {
-			ERROR(srv, "invalid option for mod_gnutls: %s", htkey->str);
+			ERROR(srv, "invalid option for mod_gnutls: %s", entryKeyStr->str);
 			return FALSE;
 		}
 	}
 
-	if (!ipstr) {
+	if (!have_listen_parameter) {
 		ERROR(srv, "%s", "gnutls needs a listen parameter");
 		return FALSE;
 	}
 
-	if (!pemfile) {
+	if (!have_pemfile_parameter) {
 		ERROR(srv, "%s", "gnutls needs a pemfile");
 		return FALSE;
 	}
@@ -711,11 +748,23 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	}
 #endif
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_file(ctx->server_cert, pemfile, pemfile, GNUTLS_X509_FMT_PEM))) {
-		ERROR(srv, "gnutls_certificate_set_x509_key_file failed(certfile '%s', keyfile '%s', PEM) (%s): %s",
-			pemfile, pemfile,
-			gnutls_strerror_name(r), gnutls_strerror(r));
-		goto error_free_ctx;
+	for (i = 0; i < val->data.list->len; ++i) {
+		liValue *entryKey = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 0);
+		liValue *entryValue = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 1);
+		GString *entryKeyStr;
+
+		if (entryKey->type == LI_VALUE_NONE) continue;
+		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+		if (g_str_equal(entryKeyStr->str, "pemfile")) {
+			const char *pemfile = entryValue->data.string->str;
+			if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_file(ctx->server_cert, pemfile, pemfile, GNUTLS_X509_FMT_PEM))) {
+				ERROR(srv, "gnutls_certificate_set_x509_key_file failed(certfile '%s', keyfile '%s', PEM) (%s): %s",
+					pemfile, pemfile,
+					gnutls_strerror_name(r), gnutls_strerror(r));
+				goto error_free_ctx;
+			}
+		}
 	}
 
 	if (session_db_size > 0) ctx->session_db = li_ssl_session_db_new(session_db_size);
@@ -799,7 +848,21 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		}
 	}
 
-	li_angel_listen(srv, ipstr, gnutls_setup_listen_cb, ctx);
+	for (i = 0; i < val->data.list->len; ++i) {
+		liValue *entryKey = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 0);
+		liValue *entryValue = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 1);
+		GString *entryKeyStr;
+
+		if (entryKey->type == LI_VALUE_NONE) continue;
+		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+		if (g_str_equal(entryKeyStr->str, "listen")) {
+			mod_gnutls_context_acquire(ctx);
+			li_angel_listen(srv, entryValue->data.string, gnutls_setup_listen_cb, ctx);
+		}
+	}
+
+	mod_gnutls_context_release(ctx);
 
 	return TRUE;
 
