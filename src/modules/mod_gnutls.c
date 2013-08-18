@@ -459,6 +459,8 @@ static void gnutls_client_hello_cb(gpointer data, gboolean success, GString *ser
 		sni_job_cb(&conctx->sni_job);
 		return;
 	}
+#else
+	UNUSED(server_name);
 #endif
 
 	li_ssl_client_hello_stream_ready(conctx->client_hello_stream);
@@ -511,8 +513,10 @@ static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 	conctx->sock_stream = li_iostream_new(con->wrk, fd, tcp_io_cb, conctx);
 
 	conctx->client_hello_stream = li_ssl_client_hello_stream(&con->wrk->loop, gnutls_client_hello_cb, conctx);
+#ifdef USE_SNI
 	li_job_init(&conctx->sni_job, sni_job_cb);
 	conctx->sni_jobref = li_job_ref(&con->wrk->loop.jobqueue, &conctx->sni_job);
+#endif
 
 	li_stream_connect(&conctx->sock_stream->stream_in, conctx->client_hello_stream);
 
@@ -576,8 +580,11 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	GString *ipstr = NULL;
 	const char
 		*priority = NULL, *dh_params_file = NULL,
-		*pemfile = NULL, *ca_file = NULL,
-		*sni_backend = NULL, *sni_fallback_pemfile = NULL;
+		*pemfile = NULL, *ca_file = NULL
+#ifdef USE_SNI
+		,*sni_backend = NULL, *sni_fallback_pemfile = NULL
+#endif
+		;
 	gboolean
 		protect_against_beast = TRUE;
 	gint64 session_db_size = 256;
@@ -648,7 +655,17 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 				return FALSE;
 			}
 			sni_fallback_pemfile = htval->data.string->str;
+#else
+		} else if (g_str_equal(htkey->str, "sni-backend")) {
+			ERROR(srv, "%s", "mod_gnutls was build without SNI support, invalid option sni-backend");
+			return FALSE;
+		} else if (g_str_equal(htkey->str, "sni-fallback-pemfile")) {
+			ERROR(srv, "%s", "mod_gnutls was build without SNI support, invalid option gnutls sni-fallback-pemfile");
+			return FALSE;
 #endif
+		} else {
+			ERROR(srv, "invalid option for mod_gnutls: %s", htkey->str);
+			return FALSE;
 		}
 	}
 
