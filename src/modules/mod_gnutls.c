@@ -1,3 +1,45 @@
+/*
+ * mod_gnutls - ssl support
+ *
+ * Description:
+ *     mod_gnutls listens on separate sockets for ssl connections (https://...)
+ *
+ * Setups:
+ *     gnutls        - setup a ssl socket; takes a hash/key-value list of following parameters:
+ *       listen                  - (mandatory) the socket address (same as standard listen)
+ *       pemfile                 - (mandatory) contains key and certificate and intermediate certificates ("chain") for the key (PEM format)
+ *       priority                - contains priority string (specifying ciphers and gnutls options), default: "NORMAL"
+ *       protect-against-beast   - whether to append ":-CIPHER-ALL:+ARCFOUR-128" for SSL3/TLS1.0 connections to priority
+ *       dh-params               - file with genereated dh-params. default: pre generated 4096-bit params included in the source
+ *       session-db-size         - size of session db (TLS session cookies). set to <= 0 to disable. default: 256
+ *     when SNI was enabled
+ *       sni-backend             - "fetch" backend name to search certificates in with the SNI servername as key
+ *       sni-fallback-pemfile    - certificate to use if request contained SNI servername, but the sni-backend didn't find anything
+ *                                 if request didn't contain SNI the standard "pemfile"(s) are used
+ *   NOTES:
+ *     * gnutls has some SNI support builtin - you can just load all certificates with multiple "pemfile" parameters,
+ *       and gnutls will try to pick the right one.
+ *     * listen and pemfile can be specified more than once
+ *     * certificates in a file have to be ordered from bottom to top (each certificate is followed by the one that signed it)
+ *
+ * Example config:
+ *     setup gnutls ( "listen" => "0.0.0.0:8443", "listen" => "[::]:8443", "pemfile" => "server.pem" ];
+ *
+ *     setup {
+ *       fetch.files_static "sni" => "/etc/lighttpd2/certs/sni_*_server.pem";
+ *       gnutls ( "listen" => "0.0.0.0:8443", "listen" => "[::]:8443", "pemfile" => "server.pem", "sni-backend" => "sni" );
+ *     }
+ *
+ * TODO:
+ *   * support client certificate authentication: http://www.gnutls.org/manual/gnutls.html#Client-certificate-authentication
+ *     gnutls_certificate_set_x509_system_trust (available since 3.0 (docs) or 3.0.19 (weechat ??))
+ *     gnutls_certificate_set_x509_trust_file
+ *   * TLS session tickets are always activated with gnutls >= 2.10 - option to disable
+ *   * OCSP stapling
+ *
+ * Author:
+ *     Copyright (c) 2013 Stefan Bühler
+ */
 
 #include <lighttpd/base.h>
 #include <lighttpd/throttle.h>
@@ -8,7 +50,6 @@
 
 #include <gnutls/gnutls.h>
 #include <glib-2.0/glib/galloca.h>
-
 
 #if GNUTLS_VERSION_NUMBER >= 0x020a00
 #define HAVE_SESSION_TICKET
@@ -579,8 +620,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	gboolean have_protect_beast_parameter = FALSE;
 	gboolean have_session_db_size_parameter = FALSE;
 	const char
-		*priority = NULL, *dh_params_file = NULL,
-		*ca_file = NULL
+		*priority = NULL, *dh_params_file = NULL
 #ifdef USE_SNI
 		,*sni_backend = NULL, *sni_fallback_pemfile = NULL
 #endif
@@ -629,16 +669,6 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 				return FALSE;
 			}
 			dh_params_file = entryValue->data.string->str;
-		} else if (g_str_equal(entryKeyStr->str, "ca-file")) {
-			if (entryValue->type != LI_VALUE_STRING) {
-				ERROR(srv, "%s", "gnutls ca-file expects a string as parameter");
-				return FALSE;
-			}
-			if (NULL != ca_file) {
-				ERROR(srv, "gnutls unexpected duplicate parameter %s", entryKeyStr->str);
-				return FALSE;
-			}
-			ca_file = entryValue->data.string->str;
 		} else if (g_str_equal(entryKeyStr->str, "priority")) {
 			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "gnutls priority expects a string as parameter");
@@ -809,13 +839,6 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		}
 
 		gnutls_certificate_set_dh_params(ctx->server_cert, ctx->dh_params);
-	}
-
-	if ((NULL != ca_file) && 0 > (r = gnutls_certificate_set_x509_trust_file(ctx->server_cert, ca_file, GNUTLS_X509_FMT_PEM))) {
-		ERROR(srv, "gnutls_certificate_set_x509_trust_file failed(cafile '%s', PEM) (%s): %s",
-			ca_file,
-			gnutls_strerror_name(r), gnutls_strerror(r));
-		goto error_free_ctx;
 	}
 
 	if (priority) {
