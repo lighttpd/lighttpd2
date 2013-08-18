@@ -17,11 +17,18 @@ ARGV0=$0
 
 set -e
 
+if [ ! -f configure.ac -o ! -f COPYING ]; then
+	echo "Doesn't look like you're in the source directory" >&2
+	exit 1
+fi
 
 run() {
 	echo "$ARGV0: running \`$@'"
 	$@
 }
+
+run rm -f aclocal.m4 ar-lib config.guess config.sub configure depcomp instal-sh ltmain.sh missing
+run rm -rf m4 autom4te.cache
 
 run $LIBTOOLIZE $LIBTOOLIZE_FLAGS
 run $ACLOCAL $ACLOCAL_FLAGS
