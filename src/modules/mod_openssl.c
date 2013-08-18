@@ -5,9 +5,9 @@
  *     mod_openssl listens on separate sockets for ssl connections (https://...)
  *
  * Setups:
- *     openssl        - setup a ssl socket; takes a hash of following parameters:
+ *     openssl        - setup a ssl socket; takes a hash/key-value list of following parameters:
  *       listen         - (mandatory) the socket address (same as standard listen)
- *       pemfile        - (mandatory) contains key and direct certificate for the key (PEM format)
+ *       pemfile        - (mandatory) contains key and certificate (+ optional chain) for the key (PEM format)
  *       ca-file        - contains certificate chain
  *       ciphers        - contains colon separated list of allowed ciphers
  *                        default: "ECDHE-RSA-AES256-SHA384:AES256-SHA256:RC4-SHA:RC4:HIGH:!MD5:!aNULL:!EDH:!AESGCM"
@@ -29,8 +29,11 @@
  *             "server-cert" - set SSL_SERVER_CERT to server certificate PEM
  *
  * Example config:
- *     setup openssl [ "listen": "0.0.0.0:8443", "pemfile": "server.pem" ];
- *     setup openssl [ "listen": "[::]:8443", "pemfile": "server.pem" ];
+ *     setup openssl (
+ *       "listen": "0.0.0.0:443",
+ *       "listen": "0.0.0.0:443",
+ *       "pemfile": "server.pem"
+ *     );
  *     openssl.setenv "client";
  *
  * Author:
@@ -77,6 +80,8 @@ struct openssl_connection_ctx {
 };
 
 struct openssl_context {
+	gint refcount;
+
 	SSL_CTX *ssl_ctx;
 };
 
@@ -86,6 +91,31 @@ enum {
 	SE_SERVER      = 0x4,
 	SE_SERVER_CERT = 0x8
 };
+
+static openssl_context* mod_openssl_context_new(void) {
+	openssl_context *ctx = g_slice_new0(openssl_context);
+	ctx->refcount = 1;
+	return ctx;
+}
+
+static void mod_openssl_context_release(openssl_context *ctx) {
+	if (NULL == ctx) return;
+	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
+		if (NULL != ctx->ssl_ctx) {
+			SSL_CTX_free(ctx->ssl_ctx);
+			ctx->ssl_ctx = NULL;
+		}
+
+		g_slice_free(openssl_context, ctx);
+	}
+}
+
+static void mod_openssl_context_acquire(openssl_context *ctx) {
+	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	g_atomic_int_inc(&ctx->refcount);
+}
+
 
 
 static void tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
@@ -236,10 +266,7 @@ static gboolean openssl_con_new(liConnection *con, int fd) {
 static void openssl_sock_release(liServerSocket *srv_sock) {
 	openssl_context *ctx = srv_sock->data;
 
-	if (!ctx) return;
-
-	SSL_CTX_free(ctx->ssl_ctx);
-	g_slice_free(openssl_context, ctx);
+	mod_openssl_context_release(ctx);
 }
 
 static void openssl_setenv_X509_add_entries(liVRequest *vr, X509 *x509, const gchar *prefix, guint prefix_len) {
@@ -353,8 +380,7 @@ static void openssl_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 	UNUSED(data);
 
 	if (-1 == fd) {
-		SSL_CTX_free(ctx->ssl_ctx);
-		g_slice_free(openssl_context, ctx);
+		mod_openssl_context_release(ctx);
 		return;
 	}
 
@@ -460,18 +486,24 @@ static int openssl_verify_any_cb(int ok, X509_STORE_CTX *ctx) { UNUSED(ok); UNUS
 
 static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	openssl_context *ctx;
-	GHashTableIter hti;
-	gpointer hkey, hvalue;
-	GString *htkey;
-	liValue *htval;
 	STACK_OF(X509_NAME) *client_ca_list;
 	liValue *v;
+	guint i;
+
+	const char
+		*default_ciphers = "ECDHE-RSA-AES256-SHA384:AES256-SHA256:RC4-SHA:RC4:HIGH:!MD5:!aNULL:!EDH:!AESGCM",
+		*default_ecdh_curve = "prime256v1";
 
 	/* setup defaults */
-	GString *ipstr = NULL;
+	gboolean
+		have_listen_parameter = FALSE,
+		have_options_parameter = FALSE,
+		have_verify_parameter = FALSE,
+		have_verify_depth_parameter = FALSE,
+		have_verify_any_parameter = FALSE,
+		have_verify_require_parameter = FALSE;
 	const char
-		*ciphers = "ECDHE-RSA-AES256-SHA384:AES256-SHA256:RC4-SHA:RC4:HIGH:!MD5:!aNULL:!EDH:!AESGCM",
-		*pemfile = NULL, *ca_file = NULL, *client_ca_file = NULL, *dh_params_file = NULL;
+		*ciphers = NULL, *pemfile = NULL, *ca_file = NULL, *client_ca_file = NULL, *dh_params_file = NULL, *ecdh_curve = NULL;
 	long
 		options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_CIPHER_SERVER_PREFERENCE | SSL_OP_SINGLE_DH_USE
 #ifdef SSL_OP_NO_COMPRESSION
@@ -481,8 +513,6 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			| SSL_OP_SINGLE_ECDH_USE
 #endif
 		;
-	const char
-		*ecdh_curve = "prime256v1";
 	guint
 		verify_mode = 0, verify_depth = 1;
 	gboolean
@@ -490,66 +520,98 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 
 	UNUSED(p); UNUSED(userdata);
 
-	if (val->type != LI_VALUE_HASH) {
-		ERROR(srv, "%s", "openssl expects a hash as parameter");
+	if (NULL == (val = li_value_to_key_value_list(val))) {
+		ERROR(srv, "%s", "openssl expects a hash/key-value list as parameter");
 		return FALSE;
 	}
 
-	g_hash_table_iter_init(&hti, val->data.hash);
-	while (g_hash_table_iter_next(&hti, &hkey, &hvalue)) {
-		htkey = hkey; htval = hvalue;
+	for (i = 0; i < val->data.list->len; ++i) {
+		liValue *entryKey = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 0);
+		liValue *entryValue = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 1);
+		GString *entryKeyStr;
 
-		if (g_str_equal(htkey->str, "listen")) {
-			if (htval->type != LI_VALUE_STRING) {
+		if (entryKey->type == LI_VALUE_NONE) {
+			ERROR(srv, "%s", "openssl doesn't take null keys");
+			return FALSE;
+		}
+		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+		if (g_str_equal(entryKeyStr->str, "listen")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "openssl listen expects a string as parameter");
 				return FALSE;
 			}
-			ipstr = htval->data.string;
-		} else if (g_str_equal(htkey->str, "pemfile")) {
-			if (htval->type != LI_VALUE_STRING) {
+			have_listen_parameter = TRUE;
+		} else if (g_str_equal(entryKeyStr->str, "pemfile")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "openssl pemfile expects a string as parameter");
 				return FALSE;
 			}
-			pemfile = htval->data.string->str;
-		} else if (g_str_equal(htkey->str, "ca-file")) {
-			if (htval->type != LI_VALUE_STRING) {
+			if (NULL != pemfile) {
+				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			pemfile = entryValue->data.string->str;
+		} else if (g_str_equal(entryKeyStr->str, "ca-file")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "openssl ca-file expects a string as parameter");
 				return FALSE;
 			}
-			ca_file = htval->data.string->str;
-		} else if (g_str_equal(htkey->str, "ciphers")) {
-			if (htval->type != LI_VALUE_STRING) {
+			if (NULL != ca_file) {
+				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			ca_file = entryValue->data.string->str;
+		} else if (g_str_equal(entryKeyStr->str, "ciphers")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "openssl ciphers expects a string as parameter");
 				return FALSE;
 			}
-			ciphers = htval->data.string->str;
-		} else if (g_str_equal(htkey->str, "dh-params")) {
+			if (NULL != ciphers) {
+				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			ciphers = entryValue->data.string->str;
+		} else if (g_str_equal(entryKeyStr->str, "dh-params")) {
 #ifndef USE_OPENSSL_DH
 			WARNING(srv, "%s", "the openssl library in use doesn't support DH => dh-params has no effect");
 #endif
-			if (htval->type != LI_VALUE_STRING) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "openssl dh-params expects a string as parameter");
 				return FALSE;
 			}
-			dh_params_file = htval->data.string->str;
-		} else if (g_str_equal(htkey->str, "ecdh-curve")) {
+			if (NULL != dh_params_file) {
+				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			dh_params_file = entryValue->data.string->str;
+		} else if (g_str_equal(entryKeyStr->str, "ecdh-curve")) {
 #ifndef USE_OPENSSL_ECDH
 			WARNING(srv, "%s", "the openssl library in use doesn't support ECDH => ecdh-curve has no effect");
 #endif
-			if (htval->type != LI_VALUE_STRING) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "openssl ecdh-curve expects a string as parameter");
 				return FALSE;
 			}
-			ecdh_curve = htval->data.string->str;
-		} else if (g_str_equal(htkey->str, "options")) {
-			guint i;
+			if (NULL != ecdh_curve) {
+				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			ecdh_curve = entryValue->data.string->str;
+		} else if (g_str_equal(entryKeyStr->str, "options")) {
+			guint j;
 
-			if (htval->type != LI_VALUE_LIST) {
+			if (entryValue->type != LI_VALUE_LIST) {
 				ERROR(srv, "%s", "openssl options expects a list of strings as parameter");
 				return FALSE;
 			}
-			for (i = 0; i < htval->data.list->len; i++) {
-				v = g_array_index(htval->data.list, liValue*, i);
+			if (have_options_parameter) {
+				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			have_options_parameter = TRUE;
+			for (j = 0; j < entryValue->data.list->len; j++) {
+				v = g_array_index(entryValue->data.list, liValue*, j);
 				if (v->type != LI_VALUE_STRING) {
 					ERROR(srv, "%s", "openssl options expects a list of strings as parameter");
 					return FALSE;
@@ -559,42 +621,66 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 					return FALSE;
 				}
 			}
-		} else if (g_str_equal(htkey->str, "verify")) {
-			if (htval->type != LI_VALUE_BOOLEAN) {
+		} else if (g_str_equal(entryKeyStr->str, "verify")) {
+			if (entryValue->type != LI_VALUE_BOOLEAN) {
 				ERROR(srv, "%s", "openssl verify expects a boolean as parameter");
 				return FALSE;
 			}
-			if (htval->data.boolean)
+			if (have_verify_parameter) {
+				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			have_verify_parameter = TRUE;
+			if (entryValue->data.boolean)
 				verify_mode |= SSL_VERIFY_PEER;
-		} else if (g_str_equal(htkey->str, "verify-any")) {
-			if (htval->type != LI_VALUE_BOOLEAN) {
+		} else if (g_str_equal(entryKeyStr->str, "verify-any")) {
+			if (entryValue->type != LI_VALUE_BOOLEAN) {
 				ERROR(srv, "%s", "openssl verify-any expects a boolean as parameter");
 				return FALSE;
 			}
-			verify_any = htval->data.boolean;
-		} else if (g_str_equal(htkey->str, "verify-depth")) {
-			if (htval->type != LI_VALUE_NUMBER) {
+			if (have_verify_any_parameter) {
+				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			have_verify_any_parameter = TRUE;
+			verify_any = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "verify-depth")) {
+			if (entryValue->type != LI_VALUE_NUMBER) {
 				ERROR(srv, "%s", "openssl verify-depth expects a number as parameter");
 				return FALSE;
 			}
-			verify_depth = htval->data.number;
-		} else if (g_str_equal(htkey->str, "verify-require")) {
-			if (htval->type != LI_VALUE_BOOLEAN) {
+			if (have_verify_depth_parameter) {
+				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			have_verify_depth_parameter = TRUE;
+			verify_depth = entryValue->data.number;
+		} else if (g_str_equal(entryKeyStr->str, "verify-require")) {
+			if (entryValue->type != LI_VALUE_BOOLEAN) {
 				ERROR(srv, "%s", "openssl verify-require expects a boolean as parameter");
 				return FALSE;
 			}
-			if (htval->data.boolean)
+			if (have_verify_require_parameter) {
+				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			have_verify_require_parameter = TRUE;
+			if (entryValue->data.boolean)
 				verify_mode |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
-		} else if (g_str_equal(htkey->str, "client-ca-file")) {
-			if (htval->type != LI_VALUE_STRING) {
+		} else if (g_str_equal(entryKeyStr->str, "client-ca-file")) {
+			if (entryValue->type != LI_VALUE_STRING) {
 				ERROR(srv, "%s", "openssl client-ca-file expects a string as parameter");
 				return FALSE;
 			}
-			client_ca_file = htval->data.string->str;
+			if (NULL != client_ca_file) {
+				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			client_ca_file = entryValue->data.string->str;
 		}
 	}
 
-	if (!ipstr) {
+	if (!have_listen_parameter) {
 		ERROR(srv, "%s", "openssl needs a listen parameter");
 		return FALSE;
 	}
@@ -604,7 +690,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		return FALSE;
 	}
 
-	ctx = g_slice_new0(openssl_context);
+	ctx = mod_openssl_context_new();
 
 	if (NULL == (ctx->ssl_ctx = SSL_CTX_new(SSLv23_server_method()))) {
 		ERROR(srv, "SSL_CTX_new: %s", ERR_error_string(ERR_get_error(), NULL));
@@ -616,12 +702,10 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		goto error_free_socket;
 	}
 
-	if (ciphers) {
-		/* Disable support for low encryption ciphers */
-		if (SSL_CTX_set_cipher_list(ctx->ssl_ctx, ciphers) != 1) {
-			ERROR(srv, "SSL_CTX_set_cipher_list('%s'): %s", ciphers, ERR_error_string(ERR_get_error(), NULL));
-			goto error_free_socket;
-		}
+	if (NULL == ciphers) ciphers = default_ciphers;
+	if (SSL_CTX_set_cipher_list(ctx->ssl_ctx, ciphers) != 1) {
+		ERROR(srv, "SSL_CTX_set_cipher_list('%s'): %s", ciphers, ERR_error_string(ERR_get_error(), NULL));
+		goto error_free_socket;
 	}
 
 #ifdef USE_OPENSSL_DH
@@ -660,6 +744,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		EC_KEY *ecdh;
 		int ecdh_nid;
 
+		if (NULL == ecdh_curve) ecdh_curve = default_ecdh_curve;
 		ecdh_nid = OBJ_sn2nid(ecdh_curve);
 		if (NID_undef == ecdh_nid) {
 			ERROR(srv, "SSL: Unknown curve name '%s'", ecdh_curve);
@@ -674,6 +759,8 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		SSL_CTX_set_tmp_ecdh(ctx->ssl_ctx, ecdh);
 		EC_KEY_free(ecdh);
 	}
+#else
+	UNUSED(default_ecdh_curve);
 #endif
 
 	if (ca_file) {
@@ -725,15 +812,26 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 	SSL_CTX_set_default_read_ahead(ctx->ssl_ctx, 1);
 	SSL_CTX_set_mode(ctx->ssl_ctx, SSL_CTX_get_mode(ctx->ssl_ctx) | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
 
-	li_angel_listen(srv, ipstr, openssl_setup_listen_cb, ctx);
+	for (i = 0; i < val->data.list->len; ++i) {
+		liValue *entryKey = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 0);
+		liValue *entryValue = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 1);
+		GString *entryKeyStr;
+
+		if (entryKey->type == LI_VALUE_NONE) continue;
+		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+		if (g_str_equal(entryKeyStr->str, "listen")) {
+			mod_openssl_context_acquire(ctx);
+			li_angel_listen(srv, entryValue->data.string, openssl_setup_listen_cb, ctx);
+		}
+	}
+
+	mod_openssl_context_release(ctx);
 
 	return TRUE;
 
 error_free_socket:
-	if (ctx) {
-		if (ctx->ssl_ctx) SSL_CTX_free(ctx->ssl_ctx);
-		g_slice_free(openssl_context, ctx);
-	}
+	mod_openssl_context_release(ctx);
 
 	return FALSE;
 }
