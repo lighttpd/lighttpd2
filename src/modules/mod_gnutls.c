@@ -731,7 +731,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			return FALSE;
 #endif
 		} else {
-			ERROR(srv, "invalid option for mod_gnutls: %s", entryKeyStr->str);
+			ERROR(srv, "invalid parameter for gnutls: %s", entryKeyStr->str);
 			return FALSE;
 		}
 	}

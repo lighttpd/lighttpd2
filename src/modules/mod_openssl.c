@@ -677,6 +677,10 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 				return FALSE;
 			}
 			client_ca_file = entryValue->data.string->str;
+		} else {
+			ERROR(srv, "invalid parameter for openssl: %s", entryKeyStr->str);
+			return FALSE;
+
 		}
 	}
 
