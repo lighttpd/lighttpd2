@@ -44,9 +44,7 @@ static void _value_hash_free_value(gpointer data) {
 
 liValue* li_value_new_hash(void) {
 	liValue *v = g_slice_new0(liValue);
-	v->data.hash = g_hash_table_new_full(
-		(GHashFunc) g_string_hash, (GEqualFunc) g_string_equal,
-		_value_hash_free_key, _value_hash_free_value);
+	v->data.hash = li_value_new_hashtable();
 	v->type = LI_VALUE_HASH;
 	return v;
 }
@@ -65,6 +63,12 @@ liValue* li_value_new_condition(liServer *srv, liCondition *c) {
 	v->data.val_cond.cond = c;
 	v->type = LI_VALUE_CONDITION;
 	return v;
+}
+
+GHashTable *li_value_new_hashtable(void) {
+	return g_hash_table_new_full(
+		(GHashFunc) g_string_hash, (GEqualFunc) g_string_equal,
+		_value_hash_free_key, _value_hash_free_value);
 }
 
 void li_value_list_append(liValue *list, liValue *item) {
@@ -345,6 +349,8 @@ liValue* li_value_extract(liValue *val) {
 }
 
 liValue* li_value_to_key_value_list(liValue *val) {
+	if (NULL == val) return NULL;
+
 	if (val->type == LI_VALUE_HASH) {
 		GHashTable *table = li_value_extract_hash(val);
 		GArray *list;

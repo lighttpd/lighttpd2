@@ -34,6 +34,7 @@ LI_API liValue* li_value_new_list(void);
 LI_API liValue* li_value_new_hash(void);
 LI_API liValue* li_value_new_action(liServer *srv, liAction *a);
 LI_API liValue* li_value_new_condition(liServer *srv, liCondition *c);
+LI_API GHashTable *li_value_new_hashtable(void); /* returns a GString -> liValue table with free funcs */
 
 LI_API void li_value_list_append(liValue *list, liValue *item); /* list MUST be of type LIST */
 
