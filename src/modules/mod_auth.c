@@ -488,71 +488,100 @@ static const GString
 
 static liAction* auth_generic_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, const char *actname, AuthBasicBackend basic_action, gboolean has_realm) {
 	AuthFile *afd;
-	liValue *method = NULL, *realm = NULL, *file = NULL;
+	GString *method = NULL, *file = NULL;
+	liValue *realm = NULL;
+	gboolean have_ttl_parameter = FALSE;
 	gint ttl = 10;
+	GArray *list;
+	guint i;
 
-	GHashTableIter it;
-	gpointer pkey, pvalue;
-
-	if (!val || val->type != LI_VALUE_HASH) {
-		ERROR(srv, "%s expects a hashtable with at least 3 elements: method, realm and file", actname);
+	if (NULL == (val = li_value_to_key_value_list(val))) {
+		ERROR(srv, "%s expects a hashtable/key-value list with at least 3 elements: method, realm and file", actname);
 		return NULL;
 	}
 
-	g_hash_table_iter_init(&it, val->data.hash);
-	while (g_hash_table_iter_next(&it, &pkey, &pvalue)) {
-		GString *key = pkey;
-		liValue *value = pvalue;
+	list = val->data.list;
 
-		if (g_string_equal(key, &aon_method)) {
-			if (value->type != LI_VALUE_STRING) {
-				ERROR(srv, "auth option '%s' expects string as parameter", aon_method.str);
+	for (i = 0; i < list->len; ++i) {
+		liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
+		liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
+		GString *entryKeyStr;
+
+		if (entryKey->type == LI_VALUE_NONE) {
+			ERROR(srv, "%s doesn't take null keys", actname);
+			return NULL;
+		}
+		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+		if (g_string_equal(entryKeyStr, &aon_method)) {
+			if (entryValue->type != LI_VALUE_STRING) {
+				ERROR(srv, "auth option '%s' expects string as parameter", entryKeyStr->str);
 				return NULL;
 			}
-			method = value;
-		} else if (g_string_equal(key, &aon_realm)) {
-			if (value->type != LI_VALUE_STRING) {
-				ERROR(srv, "auth option '%s' expects string as parameter", aon_realm.str);
+			if (NULL != method) {
+				ERROR(srv, "duplicate auth option '%s'", entryKeyStr->str);
 				return NULL;
 			}
-			realm = value;
-		} else if (g_string_equal(key, &aon_file)) {
-			if (value->type != LI_VALUE_STRING) {
-				ERROR(srv, "auth option '%s' expects string as parameter", aon_file.str);
+			method = entryValue->data.string;
+		} else if (g_string_equal(entryKeyStr, &aon_realm)) {
+			if (entryValue->type != LI_VALUE_STRING) {
+				ERROR(srv, "auth option '%s' expects string as parameter", entryKeyStr->str);
 				return NULL;
 			}
-			file = value;
-		} else if (g_string_equal(key, &aon_ttl)) {
-			if (value->type != LI_VALUE_NUMBER || value->data.number < 0) {
-				ERROR(srv, "auth option '%s' expects non-negative number as parameter", aon_ttl.str);
+			if (NULL != realm) {
+				ERROR(srv, "duplicate auth option '%s'", entryKeyStr->str);
 				return NULL;
 			}
-			ttl = value->data.number;
+			realm = entryValue;
+		} else if (g_string_equal(entryKeyStr, &aon_file)) {
+			if (entryValue->type != LI_VALUE_STRING) {
+				ERROR(srv, "auth option '%s' expects string as parameter", entryKeyStr->str);
+				return NULL;
+			}
+			if (NULL != file) {
+				ERROR(srv, "duplicate auth option '%s'", entryKeyStr->str);
+				return NULL;
+			}
+			file = entryValue->data.string;
+		} else if (g_string_equal(entryKeyStr, &aon_ttl)) {
+			if (entryValue->type != LI_VALUE_NUMBER || entryValue->data.number < 0) {
+				ERROR(srv, "auth option '%s' expects non-negative number as parameter", entryKeyStr->str);
+				return NULL;
+			}
+			if (have_ttl_parameter) {
+				ERROR(srv, "duplicate auth option '%s'", entryKeyStr->str);
+				return NULL;
+			}
+			have_ttl_parameter = TRUE;
+			ttl = entryValue->data.number;
+		} else {
+			ERROR(srv, "unknown auth option '%s'", entryKeyStr->str);
+			return NULL;
 		}
 	}
 
 	if (NULL == method || NULL == realm || NULL == file) {
-		ERROR(srv, "%s expects a hashtable with 3 elements: method, realm and file", actname);
+		ERROR(srv, "%s expects a hashtable/key-value list with 3 elements: method, realm and file", actname);
 		return NULL;
 	}
 
-	if (!g_str_equal(method->data.string->str, "basic") && !g_str_equal(method->data.string->str, "digest")) {
-		ERROR(srv, "%s: unknown method: %s", actname, method->data.string->str);
+	if (!g_str_equal(method->str, "basic") && !g_str_equal(method->str, "digest")) {
+		ERROR(srv, "%s: unknown method: %s", actname, method->str);
 		return NULL;
 	}
 
-	if (g_str_equal(method->data.string->str, "digest")) {
+	if (g_str_equal(method->str, "digest")) {
 		ERROR(srv, "%s: digest authentication not implemented yet", actname);
 		return NULL;
 	}
 
 	/* load users from file */
-	afd = auth_file_new(wrk, file->data.string, has_realm, ttl);
+	afd = auth_file_new(wrk, file, has_realm, ttl);
 
 	if (!afd)
 		return FALSE;
 
-	if (g_str_equal(method->data.string->str, "basic")) {
+	if (g_str_equal(method->str, "basic")) {
 		AuthBasicData *bdata;
 
 		bdata = g_slice_new(AuthBasicData);
