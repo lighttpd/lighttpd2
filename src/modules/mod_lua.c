@@ -5,14 +5,14 @@
  *     mod_lua
  *
  * Setups:
- *     lua.plugin (filename, [ options ], <lua-args>)
- *         - No options available yet, can be omitted
+ *     lua.plugin (filename, { options }, <lua-args>)
+ *         - No options available yet
  *         - Can register setup.* and action.* callbacks (like any c module)
  *           via creating a setups / actions table in the global lua namespace
  * Options:
  *     none
  * Actions:
- *     lua.handler (filename, [ "ttl": 300 ], <lua-args>)
+ *     lua.handler (filename, { "ttl" => 300 }, <lua-args>)
  *         - Basically the same as include_lua (no setup.* calls allowed), but loads the script
  *           in a worker specific lua_State, so it doesn't use the server wide lua lock.
  *         - You can give a ttl, after which the file is checked for modifications
@@ -211,9 +211,10 @@ static liAction* lua_handler_create(liServer *srv, liWorker *wrk, liPlugin* p, l
 			GArray *l = val->data.list;
 			if (l->len > 0) v_filename = g_array_index(l, liValue*, 0);
 			if (l->len > 1) v_options = g_array_index(l, liValue*, 1);
-			if (l->len > 2) {
-				v_args = g_array_index(l, liValue*, 2);
-				g_array_index(l, liValue*, 2) = NULL;
+			if (l->len > 2) v_args = g_array_index(l, liValue*, 2);
+			if (l->len > 3) {
+				ERROR(srv, "%s", "lua.handler expects at most 3 arguments");
+				return NULL;
 			}
 		}
 	}
@@ -222,47 +223,48 @@ static liAction* lua_handler_create(liServer *srv, liWorker *wrk, liPlugin* p, l
 		v_filename = NULL;
 	}
 
-	if (!v_filename) {
+	if (NULL == v_filename) {
 		ERROR(srv, "%s", "lua.handler expects at least a filename, or a filename and some options");
-		li_value_free(v_args);
 		return NULL;
 	}
-	if (v_options && v_options->type != LI_VALUE_HASH) {
-		ERROR(srv, "%s", "lua.handler expects options in a hash");
-		li_value_free(v_args);
-		return NULL;
-	}
+	if (NULL != v_options) {
+		GArray *list;
+		guint i;
 
-	if (v_options) {
-		GHashTable *ht = v_options->data.hash;
-		GHashTableIter it;
-		gpointer pkey, pvalue;
+		if (NULL == (v_options = li_value_to_key_value_list(v_options))) {
+			ERROR(srv, "%s", "lua.handler expects options in a hash/key-value list");
+			return NULL;
+		}
 
-		g_hash_table_iter_init(&it, ht);
-		while (g_hash_table_iter_next(&it, &pkey, &pvalue)) {
-			GString *key = pkey;
-			liValue *value = pvalue;
+		list = v_options->data.list;
 
-			if (g_string_equal(key, &lon_ttl)) {
-				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0) {
-					ERROR(srv, "lua.handler option '%s' expects positive integer as parameter", lon_ttl.str);
-					goto option_failed;
+		for (i = 0; i < list->len; ++i) {
+			liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
+			liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
+			GString *entryKeyStr;
+
+			if (entryKey->type == LI_VALUE_NONE) {
+				ERROR(srv, "%s", "lua.handler doesn't take null keys");
+				return NULL;
+			}
+			entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+			if (g_string_equal(entryKeyStr, &lon_ttl)) {
+				if (entryValue->type != LI_VALUE_NUMBER || entryValue->data.number <= 0) {
+					ERROR(srv, "lua.handler option '%s' expects positive integer as parameter", entryKeyStr->str);
+					return NULL;
 				}
-				ttl = value->data.number;
+				ttl = entryValue->data.number;
 			} else {
-				ERROR(srv, "unknown option for lua.handler '%s'", key->str);
-				goto option_failed;
+				ERROR(srv, "unknown option for lua.handler '%s'", entryKeyStr->str);
+				return NULL;
 			}
 		}
 	}
 
-	conf = lua_config_new(srv, p, li_value_extract_string(v_filename), ttl, v_args);
+	conf = lua_config_new(srv, p, li_value_extract_string(v_filename), ttl, li_value_extract(v_args));
 
 	return li_action_new_function(lua_handle, NULL, lua_config_free, conf);
-
-option_failed:
-	li_value_free(v_args);
-	return NULL;
 }
 
 /* lua plugins */
@@ -490,8 +492,6 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 		goto failed_unlock_lua;
 	}
 
-	DEBUG(srv, "Loaded lua plugin '%s'", filename->str);
-
 	li_lua_config_publish_str_hash(srv, srv->main_worker, L, srv->setups, li_lua_config_handle_server_setup);
 	lua_setfield(L, LUA_GLOBALSINDEX, "setup");
 
@@ -516,9 +516,13 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 	}
 	lua_remove(L, errfunc);
 
-	if (NULL == (lp = lua_plugin_create_data(srv, L))) goto failed_unlock_lua;
+	if (NULL == (lp = lua_plugin_create_data(srv, L))) {
+		ERROR(srv, "failed to create plugin data for lua plugin '%s'", filename->str);
+		goto failed_unlock_lua;
+	}
 
 	if (NULL == (newp = li_plugin_register(srv, filename->str, lua_plugin_init, lp))) {
+		ERROR(srv, "failed to register lua plugin '%s'", filename->str);
 		lua_plugin_free_data(srv, lp);
 		goto failed_unlock_lua;
 	}
@@ -530,6 +534,8 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 	li_lua_unlock(&srv->LL);
 
 	lp->filename = filename;
+
+	DEBUG(srv, "Loaded lua plugin '%s'", filename->str);
 
 	return TRUE;
 
@@ -556,6 +562,10 @@ static gboolean lua_plugin(liServer *srv, liPlugin *p, liValue *val, gpointer us
 			if (l->len > 0) v_filename = g_array_index(l, liValue*, 0);
 			if (l->len > 1) v_options = g_array_index(l, liValue*, 1);
 			if (l->len > 2) v_args = g_array_index(l, liValue*, 2);
+			if (l->len > 3) {
+				ERROR(srv, "%s", "lua.plugin expects at most 3 arguments");
+				return FALSE;
+			}
 		}
 	}
 
@@ -567,44 +577,48 @@ static gboolean lua_plugin(liServer *srv, liPlugin *p, liValue *val, gpointer us
 		ERROR(srv, "%s", "lua.plugin expects at least a filename, or a filename and some options");
 		return FALSE;
 	}
-	if (v_options && v_options->type != LI_VALUE_HASH) {
-		ERROR(srv, "%s", "lua.plugin expects options in a hash");
-		return FALSE;
-	}
 
-	if (v_options) {
-		GHashTable *ht = v_options->data.hash;
-		GHashTableIter it;
-		gpointer pkey, pvalue;
+	if (NULL != v_options) {
+		GArray *list;
+		guint i;
 
-		g_hash_table_iter_init(&it, ht);
-		while (g_hash_table_iter_next(&it, &pkey, &pvalue)) {
-			GString *key = pkey;
+		if (NULL == (v_options = li_value_to_key_value_list(v_options))) {
+			ERROR(srv, "%s", "lua.plugin expects options in a hash/key-value list");
+			return FALSE;
+		}
+
+		list = v_options->data.list;
+
+		for (i = 0; i < list->len; ++i) {
+			liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
 /*
-			liValue *value = pvalue;
+			liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
 */
+			GString *entryKeyStr;
 
-/*
-			if (g_string_equal(key, &lon_ttl)) {
-				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0) {
-					ERROR(srv, "lua.plugin option '%s' expects positive integer as parameter", lon_ttl.str);
-					goto option_failed;
-				}
-				ttl = value->data.number;
-			} else {
-*/
-				ERROR(srv, "unknown option for lua.plugin '%s'", key->str);
-				goto option_failed;
-/*
+			if (entryKey->type == LI_VALUE_NONE) {
+				ERROR(srv, "%s", "lua.plugin doesn't take null keys");
+				return FALSE;
 			}
+			entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+/*
+			if (g_string_equal(entryKeyStr, &lon_ttl)) {
+				if (entryValue->type != LI_VALUE_NUMBER || entryValue->data.number <= 0) {
+					ERROR(srv, "lua.plugin option '%s' expects positive integer as parameter", entryKeyStr->str);
+					return NULL;
+				}
+				ttl = entryValue->data.number;
+			} else
 */
+			{
+				ERROR(srv, "unknown option for lua.plugin '%s'", entryKeyStr->str);
+				return FALSE;
+			}
 		}
 	}
 
 	return lua_plugin_load(srv, p, li_value_extract_string(v_filename), v_args);
-
-option_failed:
-	return FALSE;
 }
 
 static const liPluginOption options[] = {
