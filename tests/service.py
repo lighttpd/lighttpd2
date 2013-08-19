@@ -170,6 +170,8 @@ class Lighttpd(Service):
 		logfile = open(self.log, "w")
 		inp = self.devnull()
 		args = [base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf, '-t']
+		if base.Env.valgrind:
+			args = [base.Env.valgrind] + args
 		print >> base.Env.log, "Testing lighttpd config: %s" % (' '.join(args))
 		proc = subprocess.Popen(args, stdin = inp, stdout = logfile, stderr = logfile, close_fds = True)
 		if None != inp: inp.close()
