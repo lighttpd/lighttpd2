@@ -1330,51 +1330,71 @@ static gboolean core_tasklet_pool_threads(liServer *srv, liPlugin* p, liValue *v
 
 static liLogMap* logmap_from_value(liServer *srv, liValue *val) {
 	liLogMap *log_map;
-	GHashTableIter iter;
-	gpointer k, v;
-	int level;
-	GString *path;
-	GString *level_str;
+	guint i;
+	GArray *list;
+	GString *default_path = NULL;
 
 	if (NULL == val) {
 		return li_log_map_new_default();
 	}
 
-	if (val->type != LI_VALUE_HASH) return NULL;
+	if (NULL == (val = li_value_to_key_value_list(val))) {
+		ERROR(srv, "%s", "log expects a hashtable/key-value list");
+		return NULL;
+	}
 
+	list = val->data.list;
 	log_map = li_log_map_new();
 
-	g_hash_table_iter_init(&iter, val->data.hash);
-	while (g_hash_table_iter_next(&iter, &k, &v)) {
-		if (((liValue*)v)->type != LI_VALUE_STRING) {
-			ERROR(srv, "log expects a hashtable with string values, %s given", li_value_type_string(((liValue*)v)->type));
+	for (i = 0; i < list->len; ++i) {
+		liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
+		liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
+		GString *entryKeyStr;
+
+		if (LI_VALUE_STRING != entryValue->type) {
+			ERROR(srv, "log expects a hashtable/key-value list with string values as parameter, %s value given", li_value_type_string(entryValue->type));
 			li_log_map_release(log_map);
 			return NULL;
 		}
 
-		path = ((liValue*)v)->data.string;
-		level_str = (GString*)k;
+		/* NONE or STRING */
+		entryKeyStr = (LI_VALUE_STRING == entryKey->type) ? entryKey->data.string : NULL;
 
-		if (g_str_equal(level_str->str, "*")) {
-			for (guint i = 0; i < LI_LOG_LEVEL_COUNT; i++) {
-				/* overwrite old path */
-				if (NULL != log_map->targets[i]) {
-					g_string_free(log_map->targets[i], TRUE);
-				}
+		if (NULL != entryKeyStr && g_str_equal(entryKeyStr->str, "*")) {
+			WARNING(srv, "%s", "log: found entry with string key \"*\". please convert the parameter to a key-value list and use the keyword default instead.");
+			/* TODO: remove support for "default" (LI_VALUE_HASH) */
+			entryKeyStr = NULL;
+		}
 
-				log_map->targets[i] = g_string_new_len(GSTR_LEN(path));
+		if (NULL == entryKeyStr) {
+			if (NULL != default_path) {
+				ERROR(srv, "%s", "already have a default path");
+				li_log_map_release(log_map);
+				return NULL;
 			}
+			default_path = entryValue->data.string;
 		} else {
-			level = li_log_level_from_string(level_str);
+			int level = li_log_level_from_string(entryKeyStr);
 			if (-1 == level) {
-				ERROR(srv, "unknown log level '%s'", level_str->str);
+				ERROR(srv, "unknown log level '%s'", entryKeyStr->str);
 				li_log_map_release(log_map);
 				return NULL;
 			}
 			if (NULL != log_map->targets[level]) {
-				g_string_free(log_map->targets[level], TRUE);
+				ERROR(srv, "already have a path for log level '%s'", entryKeyStr->str);
+				li_log_map_release(log_map);
+				return NULL;
 			}
-			log_map->targets[level] = li_value_extract_string(v);
+			log_map->targets[level] = li_value_extract_string(entryValue);
+		}
+	}
+
+	if (NULL != default_path) {
+		for (i = 0; i < LI_LOG_LEVEL_COUNT; i++) {
+			/* do NOT overwrite other paths */
+			if (NULL != log_map->targets[i]) continue;
+
+			log_map->targets[i] = g_string_new_len(GSTR_LEN(default_path));
 		}
 	}
 
@@ -1408,11 +1428,6 @@ static liAction* core_log(liServer *srv, liWorker *wrk, liPlugin* p, liValue *va
 		return li_action_new_function(core_handle_log, NULL, core_log_free, NULL);
 	}
 
-	if (val->type != LI_VALUE_HASH) {
-		ERROR(srv, "%s", "log expects a hashtable with string values");
-		return NULL;
-	}
-
 	log_map = logmap_from_value(srv, val);
 	if (NULL == log_map) return NULL;
 
@@ -1428,11 +1443,6 @@ static gboolean core_setup_log(liServer *srv, liPlugin* p, liValue *val, gpointe
 		li_log_context_set(&srv->logs.log_context, log_map);
 		li_log_map_release(log_map);
 		return TRUE;
-	}
-
-	if (val->type != LI_VALUE_HASH) {
-		ERROR(srv, "%s", "log expects a hashtable with string values");
-		return FALSE;
 	}
 
 	log_map = logmap_from_value(srv, val);
