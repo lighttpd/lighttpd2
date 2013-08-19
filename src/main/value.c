@@ -271,7 +271,7 @@ GString *li_value_to_string(liValue *val) {
 gpointer li_value_extract_ptr(liValue *val) {
 	gpointer ptr = NULL;
 
-	if (!val) return NULL;
+	if (NULL == val) return NULL;
 
 	switch (val->type) {
 	case LI_VALUE_NONE:
@@ -303,7 +303,7 @@ gpointer li_value_extract_ptr(liValue *val) {
 
 GString* li_value_extract_string(liValue *val) {
 	GString* result;
-	if (val->type != LI_VALUE_STRING) return NULL;
+	if (NULL == val || val->type != LI_VALUE_STRING) return NULL;
 	result = val->data.string;
 	_li_value_clear(val);
 	return result;
@@ -311,7 +311,7 @@ GString* li_value_extract_string(liValue *val) {
 
 GArray* li_value_extract_list(liValue *val) {
 	GArray* result;
-	if (val->type != LI_VALUE_LIST) return NULL;
+	if (NULL == val || val->type != LI_VALUE_LIST) return NULL;
 	result = val->data.list;
 	_li_value_clear(val);
 	return result;
@@ -319,7 +319,7 @@ GArray* li_value_extract_list(liValue *val) {
 
 GHashTable* li_value_extract_hash(liValue *val) {
 	GHashTable* result;
-	if (val->type != LI_VALUE_HASH) return NULL;
+	if (NULL == val || val->type != LI_VALUE_HASH) return NULL;
 	result = val->data.hash;
 	_li_value_clear(val);
 	return result;
@@ -327,7 +327,7 @@ GHashTable* li_value_extract_hash(liValue *val) {
 
 liAction* li_value_extract_action(liValue *val) {
 	liAction* result;
-	if (val->type != LI_VALUE_ACTION) return NULL;
+	if (NULL == val || val->type != LI_VALUE_ACTION) return NULL;
 	result = val->data.val_action.action;
 	_li_value_clear(val);
 	return result;
@@ -335,14 +335,16 @@ liAction* li_value_extract_action(liValue *val) {
 
 liCondition* li_value_extract_condition(liValue *val) {
 	liCondition* result;
-	if (val->type != LI_VALUE_CONDITION) return NULL;
+	if (NULL == val || val->type != LI_VALUE_CONDITION) return NULL;
 	result = val->data.val_cond.cond;
 	_li_value_clear(val);
 	return result;
 }
 
 liValue* li_value_extract(liValue *val) {
-	liValue *v = li_value_new_none();
+	liValue *v;
+	if (NULL == val) return NULL;
+	v = li_value_new_none();
 	*v = *val;
 	_li_value_clear(val);
 	return v;
