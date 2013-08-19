@@ -702,11 +702,6 @@ static liAction* deflate_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	deflate_config *conf;
 	UNUSED(wrk); UNUSED(userdata);
 
-	if (val && val->type != LI_VALUE_HASH) {
-		ERROR(srv, "%s", "deflate expects an optional hash of options");
-		return NULL;
-	}
-
 	conf = g_slice_new0(deflate_config);
 	conf->p = p;
 	conf->allowed_encodings = encoding_available_mask;
@@ -714,42 +709,77 @@ static liAction* deflate_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	conf->output_buffer = 4*1024;
 	conf->compression_level = 1;
 
-	if (val) {
-		GHashTable *ht = val->data.hash;
-		GHashTableIter it;
-		gpointer pkey, pvalue;
+	if (NULL != val) {
+		gboolean
+			have_encodings_parameter = FALSE,
+			have_blocksize_parameter = FALSE,
+			have_outputbuffer_parameter = FALSE,
+			have_compression_level_parameter = FALSE;
+		GArray *list;
+		guint i;
+		if (NULL == (val = li_value_to_key_value_list(val))) {
+			ERROR(srv, "%s", "deflate expects a optional hash/key-value list as parameter");
+			goto option_failed;
+		}
 
-		g_hash_table_iter_init(&it, ht);
-		while (g_hash_table_iter_next(&it, &pkey, &pvalue)) {
-			GString *key = pkey;
-			liValue *value = pvalue;
+		list = val->data.list;
+		for (i = 0; i < list->len; ++i) {
+			liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
+			liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
+			GString *entryKeyStr;
 
-			if (g_string_equal(key, &don_encodings)) {
-				if (value->type != LI_VALUE_STRING) {
-					ERROR(srv, "deflate option '%s' expects string as parameter", don_encodings.str);
+			if (entryKey->type == LI_VALUE_NONE) {
+				ERROR(srv, "%s", "deflate doesn't take null keys");
+				goto option_failed;
+			}
+			entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+			if (g_string_equal(entryKeyStr, &don_encodings)) {
+				if (LI_VALUE_STRING != entryValue->type) {
+					ERROR(srv, "deflate option '%s' expects string as parameter", entryKeyStr->str);
 					goto option_failed;
 				}
-				conf->allowed_encodings = header_to_endocing_mask(value->data.string->str);
-			} else if (g_string_equal(key, &don_blocksize)) {
-				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0) {
-					ERROR(srv, "deflate option '%s' expects positive integer as parameter", don_blocksize.str);
+				if (have_encodings_parameter) {
+					ERROR(srv, "duplicate deflate option '%s'", entryKeyStr->str);
 					goto option_failed;
 				}
-				conf->blocksize = value->data.number;
-			} else if (g_string_equal(key, &don_outputbuffer)) {
-				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0) {
-					ERROR(srv, "deflate option '%s' expects positive integer as parameter", don_outputbuffer.str);
+				have_encodings_parameter = TRUE;
+				conf->allowed_encodings = header_to_endocing_mask(entryValue->data.string->str);
+			} else if (g_string_equal(entryKeyStr, &don_blocksize)) {
+				if (LI_VALUE_NUMBER != entryValue->type || entryValue->data.number <= 0) {
+					ERROR(srv, "deflate option '%s' expects positive integer as parameter", entryKeyStr->str);
 					goto option_failed;
 				}
-				conf->output_buffer = value->data.number;
-			} else if (g_string_equal(key, &don_compression_level)) {
-				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0 || value->data.number > 9) {
-					ERROR(srv, "deflate option '%s' expects an integer between 1 and 9 as parameter", don_compression_level.str);
+				if (have_blocksize_parameter) {
+					ERROR(srv, "duplicate deflate option '%s'", entryKeyStr->str);
 					goto option_failed;
 				}
-				conf->compression_level = value->data.number;
+				have_blocksize_parameter = TRUE;
+				conf->blocksize = entryValue->data.number;
+			} else if (g_string_equal(entryKeyStr, &don_outputbuffer)) {
+				if (LI_VALUE_NUMBER != entryValue->type || entryValue->data.number <= 0) {
+					ERROR(srv, "deflate option '%s' expects positive integer as parameter", entryKeyStr->str);
+					goto option_failed;
+				}
+				if (have_outputbuffer_parameter) {
+					ERROR(srv, "duplicate deflate option '%s'", entryKeyStr->str);
+					goto option_failed;
+				}
+				have_outputbuffer_parameter = TRUE;
+				conf->output_buffer = entryValue->data.number;
+			} else if (g_string_equal(entryKeyStr, &don_compression_level)) {
+				if (LI_VALUE_NUMBER != entryValue->type || entryValue->data.number <= 0 || entryValue->data.number > 9) {
+					ERROR(srv, "deflate option '%s' expects an integer between 1 and 9 as parameter", entryKeyStr->str);
+					goto option_failed;
+				}
+				if (have_compression_level_parameter) {
+					ERROR(srv, "duplicate deflate option '%s'", entryKeyStr->str);
+					goto option_failed;
+				}
+				have_compression_level_parameter = TRUE;
+				conf->compression_level = entryValue->data.number;
 			} else {
-				ERROR(srv, "unknown option for deflate '%s'", key->str);
+				ERROR(srv, "unknown option for deflate '%s'", entryKeyStr->str);
 				goto option_failed;
 			}
 		}
