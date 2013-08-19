@@ -246,7 +246,7 @@ GString *li_value_to_string(liValue *val) {
 					g_string_append_len(str, CONST_STR_LEN(", "));
 				tmp = li_value_to_string((liValue*)v);
 				g_string_append_len(str, GSTR_LEN((GString*)k));
-				g_string_append_len(str, CONST_STR_LEN(": "));
+				g_string_append_len(str, CONST_STR_LEN(" => "));
 				g_string_append_len(str, GSTR_LEN(tmp));
 				g_string_free(tmp, TRUE);
 				i++;
