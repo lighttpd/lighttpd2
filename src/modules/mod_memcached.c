@@ -138,15 +138,10 @@ static void mc_ctx_release(liServer *_srv, gpointer param) {
 	g_slice_free(memcached_ctx, ctx);
 }
 
-static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config) {
+static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config, const char *actname) {
 	memcached_ctx *ctx;
 	memcached_config *mconf = p->data;
 	GString def_server = li_const_gstring(CONST_STR_LEN("127.0.0.1:11211"));
-
-	if (config && config->type != LI_VALUE_HASH) {
-		ERROR(srv, "%s", "memcache expects an optional hash of options");
-		return NULL;
-	}
 
 	ctx = g_slice_new0(memcached_ctx);
 	ctx->srv = srv;
@@ -162,68 +157,116 @@ static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config) 
 	ctx->maxsize = 64*1024; /* 64 kB */
 	ctx->headers = FALSE;
 
-	if (config) {
-		GHashTable *ht = config->data.hash;
-		GHashTableIter it;
-		gpointer pkey, pvalue;
+	if (NULL != config) {
+		gboolean
+			have_server_parameter = FALSE,
+			have_flags_parameter = FALSE,
+			have_ttl_parameter = FALSE,
+			have_maxsize_parameter = FALSE,
+			have_headers_parameter = FALSE,
+			have_key_parameter = FALSE;
+		GArray *list;
+		guint i;
 
-		g_hash_table_iter_init(&it, ht);
-		while (g_hash_table_iter_next(&it, &pkey, &pvalue)) {
-			GString *key = pkey;
-			liValue *value = pvalue;
+		if (NULL == (config = li_value_to_key_value_list(config))) {
+			ERROR(srv, "%s expects an optional hash/key-value list of options", actname);
+			goto option_failed;
+		}
 
-			if (g_string_equal(key, &mon_server)) {
-				if (value->type != LI_VALUE_STRING) {
-					ERROR(srv, "memcache option '%s' expects string as parameter", mon_server.str);
+		list = config->data.list;
+		for (i = 0; i < list->len; ++i) {
+			liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
+			liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
+			GString *entryKeyStr;
+
+			if (entryKey->type == LI_VALUE_NONE) {
+				ERROR(srv, "%s doesn't take null keys", actname);
+				goto option_failed;
+			}
+			entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+			if (g_string_equal(entryKeyStr, &mon_server)) {
+				if (entryValue->type != LI_VALUE_STRING) {
+					ERROR(srv, "%s option '%s' expects string as parameter", actname, entryKeyStr->str);
 					goto option_failed;
 				}
+				if (have_server_parameter) {
+					ERROR(srv, "duplicate %s option '%s'", actname, entryKeyStr->str);
+					goto option_failed;
+				}
+				have_server_parameter = TRUE;
 				li_sockaddr_clear(&ctx->addr);
-				ctx->addr = li_sockaddr_from_string(value->data.string, 11211);
+				ctx->addr = li_sockaddr_from_string(entryValue->data.string, 11211);
 				if (NULL == ctx->addr.addr) {
-					ERROR(srv, "invalid socket address: '%s'", value->data.string->str);
+					ERROR(srv, "invalid socket address: '%s'", entryValue->data.string->str);
 					goto option_failed;
 				}
-			} else if (g_string_equal(key, &mon_key)) {
-				if (value->type != LI_VALUE_STRING) {
-					ERROR(srv, "memcache option '%s' expects string as parameter", mon_key.str);
+			} else if (g_string_equal(entryKeyStr, &mon_key)) {
+				if (entryValue->type != LI_VALUE_STRING) {
+					ERROR(srv, "%s option '%s' expects string as parameter", actname, entryKeyStr->str);
 					goto option_failed;
 				}
+				if (have_key_parameter) {
+					ERROR(srv, "duplicate %s option '%s'", actname, entryKeyStr->str);
+					goto option_failed;
+				}
+				have_key_parameter = TRUE;
 				li_pattern_free(ctx->pattern);
-				ctx->pattern = li_pattern_new(srv,  value->data.string->str);
+				ctx->pattern = li_pattern_new(srv,  entryValue->data.string->str);
 				if (NULL == ctx->pattern) {
-					ERROR(srv, "memcache: couldn't parse pattern for key '%s'", value->data.string->str);
+					ERROR(srv, "%s: couldn't parse pattern for key '%s'", actname, entryValue->data.string->str);
 					goto option_failed;
 				}
-			} else if (g_string_equal(key, &mon_flags)) {
-				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0) {
-					ERROR(srv, "memcache option '%s' expects positive integer as parameter", mon_flags.str);
+			} else if (g_string_equal(entryKeyStr, &mon_flags)) {
+				if (entryValue->type != LI_VALUE_NUMBER || entryValue->data.number <= 0) {
+					ERROR(srv, "%s option '%s' expects positive integer as parameter", actname, entryKeyStr->str);
 					goto option_failed;
 				}
-				ctx->flags = value->data.number;
-			} else if (g_string_equal(key, &mon_ttl)) {
-				if (value->type != LI_VALUE_NUMBER || value->data.number < 0) {
-					ERROR(srv, "memcache option '%s' expects non-negative integer as parameter", mon_ttl.str);
+				if (have_flags_parameter) {
+					ERROR(srv, "duplicate %s option '%s'", actname, entryKeyStr->str);
 					goto option_failed;
 				}
-				ctx->ttl = value->data.number;
-			} else if (g_string_equal(key, &mon_maxsize)) {
-				if (value->type != LI_VALUE_NUMBER || value->data.number <= 0) {
-					ERROR(srv, "memcache option '%s' expects positive integer as parameter", mon_maxsize.str);
+				have_flags_parameter = TRUE;
+				ctx->flags = entryValue->data.number;
+			} else if (g_string_equal(entryKeyStr, &mon_ttl)) {
+				if (entryValue->type != LI_VALUE_NUMBER || entryValue->data.number < 0) {
+					ERROR(srv, "%s option '%s' expects non-negative integer as parameter", actname, entryKeyStr->str);
 					goto option_failed;
 				}
-				ctx->maxsize = value->data.number;
-			} else if (g_string_equal(key, &mon_headers)) {
-				if (value->type != LI_VALUE_BOOLEAN) {
-					ERROR(srv, "memcache option '%s' expects boolean as parameter", mon_headers.str);
+				if (have_ttl_parameter) {
+					ERROR(srv, "duplicate %s option '%s'", actname, entryKeyStr->str);
 					goto option_failed;
 				}
-				ctx->headers = value->data.boolean;
+				have_ttl_parameter = TRUE;
+				ctx->ttl = entryValue->data.number;
+			} else if (g_string_equal(entryKeyStr, &mon_maxsize)) {
+				if (entryValue->type != LI_VALUE_NUMBER || entryValue->data.number <= 0) {
+					ERROR(srv, "%s option '%s' expects positive integer as parameter", actname, entryKeyStr->str);
+					goto option_failed;
+				}
+				if (have_maxsize_parameter) {
+					ERROR(srv, "duplicate %s option '%s'", actname, entryKeyStr->str);
+					goto option_failed;
+				}
+				have_maxsize_parameter = TRUE;
+				ctx->maxsize = entryValue->data.number;
+			} else if (g_string_equal(entryKeyStr, &mon_headers)) {
+				if (entryValue->type != LI_VALUE_BOOLEAN) {
+					ERROR(srv, "%s option '%s' expects boolean as parameter", actname, entryKeyStr->str);
+					goto option_failed;
+				}
+				if (have_headers_parameter) {
+					ERROR(srv, "duplicate %s option '%s'", actname, entryKeyStr->str);
+					goto option_failed;
+				}
+				have_headers_parameter = TRUE;
+				ctx->headers = entryValue->data.boolean;
 				if (ctx->headers) {
-					ERROR(srv, "%s", "memcache: lookup/storing headers not supported yet");
+					ERROR(srv, "%s: lookup/storing headers not supported yet", actname);
 					goto option_failed;
 				}
 			} else {
-				ERROR(srv, "unknown option for memcache '%s'", key->str);
+				ERROR(srv, "unknown option for %s '%s'", actname, entryKeyStr->str);
 				goto option_failed;
 			}
 		}
@@ -575,11 +618,6 @@ static liAction* mc_lookup_create(liServer *srv, liWorker *wrk, liPlugin* p, liV
 		if (list->len >= 2) act_found = g_array_index(list, liValue*, 1);
 		if (list->len >= 3) act_miss = g_array_index(list, liValue*, 2);
 
-		if (config && config->type != LI_VALUE_HASH) {
-			ERROR(srv, "%s", "memcached.lookup: expected hash as first argument");
-			return NULL;
-		}
-
 		if (act_found && act_found->type != LI_VALUE_ACTION) {
 			ERROR(srv, "%s", "memcached.lookup: expected action as second argument");
 			return NULL;
@@ -591,7 +629,7 @@ static liAction* mc_lookup_create(liServer *srv, liWorker *wrk, liPlugin* p, liV
 		}
 	}
 
-	ctx = mc_ctx_parse(srv, p, config);
+	ctx = mc_ctx_parse(srv, p, config, "memcached.lookup");
 
 	if (!ctx) return NULL;
 
@@ -606,7 +644,7 @@ static liAction* mc_store_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 	UNUSED(wrk);
 	UNUSED(userdata);
 
-	ctx = mc_ctx_parse(srv, p, val);
+	ctx = mc_ctx_parse(srv, p, val, "memcached.store");
 
 	if (!ctx) return NULL;
 
