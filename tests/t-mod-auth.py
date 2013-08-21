@@ -64,6 +64,16 @@ class TestDigestSuccess(CurlRequest):
 	EXPECT_RESPONSE_CODE = 200
 	AUTH = "user5:pass5"
 
+class TestRequireUserDeny(CurlRequest):
+	URL = "/test.txt?require1"
+	EXPECT_RESPONSE_CODE = 403
+	AUTH = "user4:pass4"
+
+class TestRequireUserSuccess(CurlRequest):
+	URL = "/test.txt?require1"
+	EXPECT_RESPONSE_CODE = 200
+	AUTH = "user1:pass1"
+
 class TestDeny(CurlRequest):
 	URL = "/test.txt?deny"
 	EXPECT_RESPONSE_CODE = 403
@@ -75,6 +85,7 @@ class Test(GroupTest):
 		TestPlainFail, TestPlainSuccess,
 		TestAprSha1Fail, TestAprSha1Success,
 		TestDigestFail, TestDigestSuccess,
+		TestRequireUserDeny, TestRequireUserSuccess,
 		TestDeny,
 	]
 
@@ -94,6 +105,9 @@ class Test(GroupTest):
 				auth.deny;
 			}} else {{
 				auth.htpasswd ["method" => "basic", "realm" => "Basic Auth Realm", "file" => "{passwdfile}", "ttl" => 10];
+			}}
+			if req.query == "require1" {{
+				auth.require_user ("user1");
 			}}
 
 			defaultaction;
