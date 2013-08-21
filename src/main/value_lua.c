@@ -56,7 +56,7 @@ static liValue* li_value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 			break;
 
 		default:
-			ERROR(srv, "Unexpted key type in table: %s (%i) - skipping entry", lua_typename(L, -1), lua_type(L, -1));
+			ERROR(srv, "Unexpted key type in table: %s (%i) - skipping entry", lua_typename(L, lua_type(L, -1)), lua_type(L, -1));
 			lua_pop(L, 1);
 			break;
 		}
@@ -130,7 +130,7 @@ liValue* li_value_from_lua(liServer *srv, lua_State *L) {
 	case LUA_TTHREAD:
 	case LUA_TNONE:
 	default:
-		ERROR(srv, "Unexpected lua type: %s (%i)", lua_typename(L, -1), lua_type(L, -1));
+		ERROR(srv, "Unexpected lua type: %s (%i)", lua_typename(L, lua_type(L, -1)), lua_type(L, -1));
 		lua_pop(L, 1);
 		return NULL;
 	}

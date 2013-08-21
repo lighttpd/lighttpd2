@@ -412,7 +412,7 @@ static luaPlugin* lua_plugin_create_data(liServer *srv, lua_State *L) {
 				break;
 
 			default:
-				ERROR(srv, "Unexpted key type in table 'actions': %s (%i) - skipping entry", lua_typename(L, -1), lua_type(L, -1));
+				ERROR(srv, "Unexpted key type in table 'actions': %s (%i) - skipping entry", lua_typename(L, lua_type(L, -1)), lua_type(L, -1));
 				lua_pop(L, 1);
 				break;
 			}
@@ -438,7 +438,7 @@ static luaPlugin* lua_plugin_create_data(liServer *srv, lua_State *L) {
 				break;
 
 			default:
-				ERROR(srv, "Unexpted key type in table 'setups': %s (%i) - skipping entry", lua_typename(L, -1), lua_type(L, -1));
+				ERROR(srv, "Unexpted key type in table 'setups': %s (%i) - skipping entry", lua_typename(L, lua_type(L, -1)), lua_type(L, -1));
 				lua_pop(L, 1);
 				break;
 			}
