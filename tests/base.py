@@ -391,7 +391,9 @@ vhost.map var.vhosts;
 static;
 do_deflate;
 
-cache.disk.etag "{cache_disk_etag_dir}";
+if request.is_handled {{
+	cache.disk.etag "{cache_disk_etag_dir}";
+}}
 """.format(cache_disk_etag_dir = cache_disk_etag_dir)
 		Env.lighttpdconf = self.PrepareFile("conf/lighttpd.conf", self.config)
 
