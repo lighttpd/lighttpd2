@@ -287,6 +287,8 @@ void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
 	lua_pushcclosure(L, li_lua_error, 2);
 		lua_pushvalue(L, -1); /* overwrite global print too */
 		lua_setfield(L, LUA_GLOBALSINDEX, "print");
+		lua_pushvalue(L, -1); /* lighty.error alias */
+		lua_setfield(L, -3, "error");
 	lua_setfield(L, -2, "print");
 
 	lua_pushlightuserdata(L, srv);
