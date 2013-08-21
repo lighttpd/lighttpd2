@@ -246,6 +246,75 @@ static int li_lua_path_simplify(lua_State *L) {
 	return 1;
 }
 
+/* not used right now: using __index metamethod instead to lookup on demand. also not tested yet. */
+#if 0
+/* should convert a [(key,value)] list to a table t[key] = value;
+ * a nil key marks the default entry.
+ * returns (t, default_entry)
+ * requires unique keys
+ */
+static int li_lua_kvl_to_table(lua_State *L) {
+	int resTable, defValue;
+	gboolean haveDefault = FALSE;
+
+	if (!lua_istable(L, 1)) return 0;
+
+	lua_newtable(L);
+	resTable = lua_top(L);
+
+	lua_pushnil();
+	defValue = lua_top(L);
+
+	lua_pushnil(L); /* start iterating with "no key" */
+	while (0 != lua_next(L, 1)) {
+		gboolean nil_key = FALSE;
+		/* key at -2 and value at -1 */
+
+		/* only lists (numeric keys) with tuples ("tables") as entries */
+		if (LUA_TNUMBER != lua_type(L, -2) || !lua_istable(L, -1)) return 0;
+
+		lua_pushnil(L);
+		while (0 != lua_next(L, -2)) {
+			if (LUA_TNUMBER != lua_type(L, -2)) return 0; /* not a tuple */
+			lua_Number n = lua_tonumber(L, -2);
+			if (n == 1) { /* key from (k,v) pair */
+				switch (lua_type(L, -1)) {
+				case LUA_TNIL:
+					nil_key = TRUE;
+					break;
+				case LUA_TSTRING:
+					break;
+				default:
+					return 0; /* wrong key type */
+				}
+			} else if (n != 2) return 0; /* not a (k,v) pair */
+			lua_pop(L, 1);
+		}
+
+		if (!nil_key) {
+			lua_rawgeti(L, -1, 1);
+			lua_gettable(L, resTable);
+			if (!lua_isnil(L, -1)) return 0; /* duplicate key */
+			lua_pop(L, 1);
+
+			lua_rawgeti(L, -1, 1);
+			lua_rawgeti(L, -2, 2);
+
+			lua_settable(L, resTable);
+		} else if (haveDefault) {
+			return 0; /* duplicate default */
+		} else {
+			lua_rawgeti(L, -1, 2);
+			lua_replace(L, defValue);
+		}
+
+		lua_pop(L, 1); /* pop value for next iteration */
+	}
+
+	return 2;
+}
+#endif
+
 static void lua_push_constants(lua_State *L, int ndx) {
 	lua_pushinteger(L, LI_HANDLER_GO_ON);
 	lua_setfield(L, ndx, "HANDLER_GO_ON");

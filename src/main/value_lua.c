@@ -4,6 +4,67 @@
 #include <lighttpd/actions_lua.h>
 #include <lighttpd/core_lua.h>
 
+#include <lauxlib.h>
+
+#define LUA_KVLIST_VALUE "li KeyValue list (string, liValue*)"
+
+static int lua_kvlist_index(lua_State *L) {
+	guint len, i;
+	gboolean nil_key;
+
+	switch (lua_type(L, 2)) {
+	case LUA_TNUMBER:
+		lua_rawget(L, 1);
+		return 1;
+	case LUA_TSTRING:
+		nil_key = FALSE;
+		break;
+	case LUA_TNIL:
+		nil_key = TRUE;
+		break;
+	default:
+		goto fail;
+	}
+
+	if (LUA_TTABLE != lua_type(L, 1)) goto fail;
+
+	len = lua_objlen(L, 1);
+	for (i = len; i >= 1; lua_pop(L, 1), --i) {
+		lua_rawgeti(L, 1, i);
+
+		if (LUA_TTABLE != lua_type(L, -1)) continue;
+		if (2 != lua_objlen(L, -1)) continue;
+
+		lua_rawgeti(L, -1, 1);
+		switch (lua_type(L, -1)) {
+		case LUA_TSTRING:
+			if (nil_key) break;
+			if (!lua_equal(L, -1, 2)) break;
+			lua_rawgeti(L, -1, 2);
+			return 1;
+		case LUA_TNIL:
+			if (!nil_key) break;
+			lua_rawgeti(L, -1, 2);
+			return 1;
+		default:
+			break;
+		}
+		lua_pop(L, 1);
+	}
+
+fail:
+	lua_pushnil(L);
+	return 1;
+}
+
+static void lua_push_kvlist_metatable(lua_State *L) {
+	if (luaL_newmetatable(L, LUA_KVLIST_VALUE)) {
+		lua_pushcclosure(L, lua_kvlist_index, 0);
+		lua_setfield(L, -2, "__index");
+	}
+}
+
+
 static liValue* li_value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 	liValue *val = NULL, *sub_option;
 	GArray *list = NULL;
@@ -182,6 +243,9 @@ int li_lua_push_value(lua_State *L, liValue *value) {
 			li_lua_push_value(L, subval);
 			lua_rawseti(L, -2, i);
 		}
+		/* kvlist lookup for string/nil keys */
+		lua_push_kvlist_metatable(L);
+		lua_setmetatable(L, -2);
 	} break;
 	case LI_VALUE_HASH: {
 		GHashTableIter it;
