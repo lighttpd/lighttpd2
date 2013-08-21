@@ -8,7 +8,7 @@
 --       lua.plugin "/path/secdownload.lua";
 --   }
 -- b) activate it anywhere you want:
---   secdownload [ "prefix": "/sec/", "document-root": "/secret/path", "secret": "abc", "timeout": 600 ];
+--   secdownload [ "prefix" => "/sec/", "document-root" => "/secret/path", "secret" => "abc", "timeout" => 600 ];
 
 local filename, args = ...
 

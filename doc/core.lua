@@ -69,7 +69,7 @@ end
 -- Require a specific authenticated user; put it after an auth action.
 -- Be careful: the empty username matches unauthenticated users.
 -- Example:
---   auth.plain [ "method": "basic", "realm": "test", "file": "test.plain" ];
+--   auth.plain [ "method" => "basic", "realm" => "test", "file" => "test.plain" ];
 --   auth.require_user ("foo1", "foo2");
 local function auth_require_user(...)
 	local users = {...}
