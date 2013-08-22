@@ -128,6 +128,7 @@ void li_log_cleanup(liServer *srv) {
 		g_thread_join(srv->logs.thread);
 	}
 
+	g_static_mutex_free(&srv->logs.write_queue_mutex);
 	li_radixtree_free(srv->logs.targets, NULL, NULL);
 
 	g_string_free(srv->logs.timestamp.format, TRUE);
