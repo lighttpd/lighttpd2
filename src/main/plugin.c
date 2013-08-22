@@ -1,6 +1,66 @@
 
 #include <lighttpd/base.h>
 
+/* Internal structures */
+struct liServerOption {
+	liPlugin *p;
+
+	/** the value is freed with li_value_free after the parse call, so you
+	  *   probably want to extract pointers via li_value_extract_*
+	  * val is zero to get the global default value if nothing is specified
+	  * save result in value
+	  *
+	  * Default behaviour (NULL) is to extract the inner value from val
+	  */
+	liPluginParseOptionCB parse_option;
+
+	/** if parse_option is NULL, the default_value is used */
+	gint64 default_value;
+
+	size_t index, module_index;
+	liValueType type;
+};
+
+struct liServerOptionPtr {
+	liPlugin *p;
+
+	/** the value is freed with li_value_free after the parse call, so you
+	  *   probably want to extract pointers via li_value_extract_*
+	  * val is zero to get the global default value if nothing is specified
+	  * save result in value
+	  *
+	  * Default behaviour (NULL) is to extract the inner value from val
+	  */
+	liPluginParseOptionPtrCB parse_option;
+
+	/** the free_option handler has to free all allocated resources;
+	  * it may get called with 0 initialized options, so you have to
+	  * check the value.
+	  */
+	liPluginFreeOptionPtrCB free_option;
+
+	/** if parse_option is NULL, the default_value is used; it is only used
+	  * for the following value types:
+	  * - STRING: used for g_string_new, i.e. a const char*
+	  */
+	gpointer default_value;
+
+	size_t index, module_index;
+	liValueType type;
+};
+
+struct liServerAction {
+	liPlugin *p;
+	liPluginCreateActionCB create_action;
+	gpointer userdata;
+};
+
+struct liServerSetup {
+	liPlugin *p;
+	liPluginSetupCB setup;
+	gpointer userdata;
+};
+
 static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt);
 static gboolean plugin_load_default_optionptr(liServer *srv, liServerOptionPtr *sopt);
 static void li_plugin_free_default_options(liServer *srv, liPlugin *p);
@@ -81,9 +141,36 @@ void li_plugin_free(liServer *srv, liPlugin *p) {
 	g_slice_free(liPlugin, p);
 }
 
+static void server_option_free(gpointer _so) {
+	g_slice_free(liServerOption, _so);
+}
+
+static void server_optionptr_free(gpointer _so) {
+	g_slice_free(liServerOptionPtr, _so);
+}
+
+static void server_action_free(gpointer _sa) {
+	g_slice_free(liServerAction, _sa);
+}
+
+static void server_setup_free(gpointer _ss) {
+	g_slice_free(liServerSetup, _ss);
+}
+
+void li_server_plugins_init(liServer *srv) {
+	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
+	srv->options = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_option_free);
+	srv->optionptrs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_optionptr_free);
+	srv->actions = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_action_free);
+	srv->setups  = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_setup_free);
+
+	srv->li_plugins_handle_close = g_array_new(FALSE, TRUE, sizeof(liPlugin*));
+	srv->li_plugins_handle_vrclose = g_array_new(FALSE, TRUE, sizeof(liPlugin*));
+	srv->option_def_values = g_array_new(FALSE, TRUE, sizeof(liOptionValue));
+	srv->optionptr_def_values = g_array_new(FALSE, TRUE, sizeof(liOptionPtrValue*));
+}
+
 void li_server_plugins_free(liServer *srv) {
-	gpointer key, val;
-	GHashTableIter i;
 	liServerState s;
 
 	s = g_atomic_int_get(&srv->state);
@@ -92,23 +179,76 @@ void li_server_plugins_free(liServer *srv) {
 		return;
 	}
 
-	g_hash_table_iter_init(&i, srv->plugins);
-	while (g_hash_table_iter_next(&i, &key, &val)) {
-		liPlugin *p = (liPlugin*) val;
+	g_array_free(srv->option_def_values, TRUE);
+	{
+		guint i;
+		for (i = 0; i < srv->optionptr_def_values->len; i++) {
+			li_release_optionptr(srv, g_array_index(srv->optionptr_def_values, liOptionPtrValue*, i));
+		}
+	}
+	g_array_free(srv->optionptr_def_values, TRUE);
 
-		li_plugin_free_options(srv, p);
-		li_plugin_free_actions(srv, p);
-		li_plugin_free_setups(srv, p);
-		if (p->free)
-			p->free(srv, p);
+	{
+		gpointer key, val;
+		GHashTableIter i;
+		g_hash_table_iter_init(&i, srv->plugins);
+		while (g_hash_table_iter_next(&i, &key, &val)) {
+			liPlugin *p = (liPlugin*) val;
 
-		g_slice_free(liPlugin, p);
+			li_plugin_free_options(srv, p);
+			li_plugin_free_actions(srv, p);
+			li_plugin_free_setups(srv, p);
+			if (p->free)
+				p->free(srv, p);
+
+			g_slice_free(liPlugin, p);
+		}
 	}
 	g_hash_table_destroy(srv->plugins);
 	g_hash_table_destroy(srv->options);
 	g_hash_table_destroy(srv->optionptrs);
 	g_hash_table_destroy(srv->actions);
 	g_hash_table_destroy(srv->setups);
+
+	g_array_free(srv->li_plugins_handle_close, TRUE);
+	g_array_free(srv->li_plugins_handle_vrclose, TRUE);
+}
+
+static gboolean check_name_free(liServer *srv, liPlugin *p, const gchar *name, gboolean setup_ns, gboolean action_ns) {
+	liServerOption *so;
+	liServerOptionPtr *sop;
+	liServerAction *sa;
+	liServerSetup *ss;
+
+	if (NULL != (so = (liServerOption*)g_hash_table_lookup(srv->options, name))) {
+		ERROR(srv, "Name conflict: option '%s' already registered by plugin '%s', unloading '%s'",
+			name,
+			NULL != so->p ? so->p->name : "<none>",
+			p->name);
+		return FALSE;
+	}
+	if (NULL != (sop = (liServerOptionPtr*)g_hash_table_lookup(srv->optionptrs, name))) {
+		ERROR(srv, "Name conflict: option '%s' already registered by plugin '%s', unloading '%s'",
+			name,
+			NULL != sop->p ? sop->p->name : "<none>",
+			p->name);
+		return FALSE;
+	}
+	if (action_ns && NULL != (sa = (liServerAction*)g_hash_table_lookup(srv->actions, name))) {
+		ERROR(srv, "Name conflict: action '%s' already registered by plugin '%s', unloading '%s'",
+			name,
+			NULL != sa->p ? sa->p->name : "<none>",
+			p->name);
+		return FALSE;
+	}
+	if (setup_ns && NULL != (ss = (liServerSetup*)g_hash_table_lookup(srv->setups, name))) {
+		ERROR(srv, "Name conflict: setup '%s' already registered by plugin '%s', unloading '%s'",
+			name,
+			NULL != ss->p ? ss->p->name : "<none>",
+			p->name);
+		return FALSE;
+	}
+	return TRUE;
 }
 
 liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB init, gpointer userdata) {
@@ -142,26 +282,10 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 	if (p->options) {
 		size_t i;
 		liServerOption *so;
-		liServerOptionPtr *sop;
 		const liPluginOption *po;
 
 		for (i = 0; (po = &p->options[i])->name; i++) {
-			if (NULL != (so = (liServerOption*)g_hash_table_lookup(srv->options, po->name))) {
-				ERROR(srv, "Option '%s' already registered by plugin '%s', unloading '%s'",
-					po->name,
-					so->p ? so->p->name : "<none>",
-					p->name);
-				li_plugin_free(srv, p);
-				return NULL;
-			}
-			if (NULL != (sop = (liServerOptionPtr*)g_hash_table_lookup(srv->optionptrs, po->name))) {
-				ERROR(srv, "Option '%s' already registered by plugin '%s', unloading '%s'",
-					po->name,
-					sop->p ? sop->p->name : "<none>",
-					p->name);
-				li_plugin_free(srv, p);
-				return NULL;
-			}
+			if (!check_name_free(srv, p, po->name, TRUE, TRUE)) goto fail;
 			so = g_slice_new0(liServerOption);
 			so->type = po->type;
 			so->parse_option = po->parse_option;
@@ -176,27 +300,11 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 
 	if (p->optionptrs) {
 		size_t i;
-		liServerOption *so_;
 		liServerOptionPtr *so;
 		const liPluginOptionPtr *po;
 
 		for (i = 0; (po = &p->optionptrs[i])->name; i++) {
-			if (NULL != (so_ = (liServerOption*)g_hash_table_lookup(srv->options, po->name))) {
-				ERROR(srv, "Option '%s' already registered by plugin '%s', unloading '%s'",
-					po->name,
-					so_->p ? so_->p->name : "<none>",
-					p->name);
-				li_plugin_free(srv, p);
-				return NULL;
-			}
-			if (NULL != (so = (liServerOptionPtr*)g_hash_table_lookup(srv->optionptrs, po->name))) {
-				ERROR(srv, "Option '%s' already registered by plugin '%s', unloading '%s'",
-					po->name,
-					so->p ? so->p->name : "<none>",
-					p->name);
-				li_plugin_free(srv, p);
-				return NULL;
-			}
+			if (!check_name_free(srv, p, po->name, TRUE, TRUE)) goto fail;
 			so = g_slice_new0(liServerOptionPtr);
 			so->type = po->type;
 			so->parse_option = po->parse_option;
@@ -216,14 +324,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 		const liPluginAction *pa;
 
 		for (i = 0; (pa = &p->actions[i])->name; i++) {
-			if (NULL != (sa = (liServerAction*)g_hash_table_lookup(srv->actions, pa->name))) {
-				ERROR(srv, "Action '%s' already registered by plugin '%s', unloading '%s'",
-					pa->name,
-					sa->p ? sa->p->name : "<none>",
-					p->name);
-				li_plugin_free(srv, p);
-				return NULL;
-			}
+			if (!check_name_free(srv, p, pa->name, FALSE, TRUE)) goto fail;
 			sa = g_slice_new0(liServerAction);
 			sa->create_action = pa->create_action;
 			sa->p = p;
@@ -238,14 +339,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 		const liPluginSetup *ps;
 
 		for (i = 0; (ps = &p->setups[i])->name; i++) {
-			if (NULL != (ss = (liServerSetup*)g_hash_table_lookup(srv->setups, ps->name))) {
-				ERROR(srv, "Setup '%s' already registered by plugin '%s', unloading '%s'",
-					ps->name,
-					ss->p ? ss->p->name : "<none>",
-					p->name);
-				li_plugin_free(srv, p);
-				return NULL;
-			}
+			if (!check_name_free(srv, p, ps->name, TRUE, FALSE)) goto fail;
 			ss = g_slice_new0(liServerSetup);
 			ss->setup = ps->setup;
 			ss->p = p;
@@ -255,6 +349,10 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 	}
 
 	return p;
+
+fail:
+	li_plugin_free(srv, p);
+	return NULL;
 }
 
 
@@ -263,7 +361,7 @@ static liServerOption* find_option(liServer *srv, const char *name) {
 }
 
 static gboolean li_parse_option(liServer *srv, liWorker *wrk, liServerOption *sopt, const char *name, liValue *val, liOptionSet *mark) {
-	if (!srv || !wrk || !name || !mark || !sopt) return FALSE;
+	assert(NULL != srv && NULL != wrk && NULL != sopt && NULL != name && NULL != val && NULL != mark);
 
 	if (sopt->type != val->type && sopt->type != LI_VALUE_NONE) {
 		ERROR(srv, "Unexpected value type '%s', expected '%s' for option %s",
@@ -304,7 +402,7 @@ static gboolean li_parse_optionptr(liServer *srv, liWorker *wrk, liServerOptionP
 	liOptionPtrValue *oval;
 	gpointer ptr = NULL;
 
-	if (!srv || !wrk || !name || !mark || !sopt) return FALSE;
+	assert(NULL != srv && NULL != wrk && NULL != sopt && NULL != name && NULL != val && NULL != mark);
 
 	if (sopt->type != val->type && sopt->type != LI_VALUE_NONE) {
 		ERROR(srv, "Unexpected value type '%s', expected '%s' for option %s",
@@ -338,8 +436,9 @@ static gboolean li_parse_optionptr(liServer *srv, liWorker *wrk, liServerOptionP
 
 void li_release_optionptr(liServer *srv, liOptionPtrValue *value) {
 	liServerOptionPtr *sopt;
+	assert(NULL != srv);
 
-	if (!srv || !value) return;
+	if (NULL == value) return;
 
 	assert(g_atomic_int_get(&value->refcount) > 0);
 	if (!g_atomic_int_dec_and_test(&value->refcount)) return;
@@ -380,63 +479,75 @@ void li_release_optionptr(liServer *srv, liOptionPtrValue *value) {
 	g_slice_free(liOptionPtrValue, value);
 }
 
-liAction* li_option_action(liServer *srv, liWorker *wrk, const gchar *name, liValue *val) {
+liAction *li_plugin_config_action(liServer *srv, liWorker *wrk, const gchar *name, liValue *val) {
+	liAction *a = NULL;
+	liServerAction *sa;
 	liServerOption *sopt;
 	liServerOptionPtr *soptptr;
 
-	if (NULL != (sopt = find_option(srv, name))) {
+	if (NULL != (sa = (liServerAction*) g_hash_table_lookup(srv->actions, name))) {
+		if (NULL == (a = sa->create_action(srv, wrk, sa->p, val, sa->userdata))) {
+			ERROR(srv, "Action '%s' creation failed", name);
+		}
+	} else if (NULL != (sopt = find_option(srv, name))) {
 		liOptionSet setting;
 
-		if (!li_parse_option(srv, wrk, sopt, name, val, &setting)) {
-			return NULL;
-		}
+		if (!li_parse_option(srv, wrk, sopt, name, val, &setting)) goto exit;
 
-		return li_action_new_setting(setting);
+		a = li_action_new_setting(setting);
 	} else if (NULL != (soptptr = find_optionptr(srv, name))) {
 		liOptionPtrSet setting;
 
-		if (!li_parse_optionptr(srv, wrk, soptptr, name, val, &setting)) {
-			return NULL;
-		}
+		if (!li_parse_optionptr(srv, wrk, soptptr, name, val, &setting)) goto exit;
 
-		return li_action_new_settingptr(setting);
+		a = li_action_new_settingptr(setting);
+	} else if (NULL != g_hash_table_lookup(srv->setups, name)) {
+		ERROR(srv, "'%s' can only be called in a setup block", name);
 	} else {
-		ERROR(srv, "Unknown option '%s'", name);
-		return FALSE;
-	}
-}
-
-liAction* li_create_action(liServer *srv, liWorker *wrk, const gchar *name, liValue *val) {
-	liAction *a;
-	liServerAction *sa;
-
-	if (NULL == (sa = (liServerAction*) g_hash_table_lookup(srv->actions, name))) {
-		ERROR(srv, "Action '%s' doesn't exist", name);
-		return NULL;
+		ERROR(srv, "unknown action %s", name);
 	}
 
-	if (NULL == (a = sa->create_action(srv, wrk, sa->p, val, sa->userdata))) {
-		ERROR(srv, "Action '%s' creation failed", name);
-		return NULL;
-	}
-
+exit:
+	li_value_free(val);
 	return a;
 }
 
-gboolean li_call_setup(liServer *srv, const char *name, liValue *val) {
+gboolean li_plugin_config_setup(liServer *srv, const char *name, liValue *val) {
+	gboolean result = FALSE;
 	liServerSetup *ss;
+	liServerOption *sopt;
+	liServerOptionPtr *soptptr;
 
-	if (NULL == (ss = (liServerSetup*) g_hash_table_lookup(srv->setups, name))) {
-		ERROR(srv, "Setup function '%s' doesn't exist", name);
-		return FALSE;
+	if (NULL != (ss = (liServerSetup*) g_hash_table_lookup(srv->setups, name))) {
+		if (!ss->setup(srv, ss->p, val, ss->userdata)) {
+			ERROR(srv, "Setup '%s' failed", name);
+			goto exit;
+		}
+		result = TRUE;
+	} else if (NULL != (sopt = find_option(srv, name))) {
+		liOptionSet setting;
+
+		if (!li_parse_option(srv, srv->main_worker, sopt, name, val, &setting)) goto exit;
+
+		g_array_index(srv->option_def_values, liOptionValue, sopt->index) = setting.value;
+		result = TRUE;
+	} else if (NULL != (soptptr = find_optionptr(srv, name))) {
+		liOptionPtrSet setting;
+
+		if (!li_parse_optionptr(srv, srv->main_worker, soptptr, name, val, &setting)) goto exit;
+
+		li_release_optionptr(srv, g_array_index(srv->optionptr_def_values, liOptionPtrValue*, soptptr->index));
+		g_array_index(srv->optionptr_def_values, liOptionPtrValue*, soptptr->index) = setting.value;
+		result = TRUE;
+	} else if (NULL != g_hash_table_lookup(srv->setups, name)) {
+		ERROR(srv, "'%s' can only be called in a setup block", name);
+	} else {
+		ERROR(srv, "unknown setup %s", name);
 	}
 
-	if (!ss->setup(srv, ss->p, val, ss->userdata)) {
-		ERROR(srv, "Setup '%s' failed", name);
-		return FALSE;
-	}
-
-	return TRUE;
+exit:
+	li_value_free(val);
+	return result;
 }
 
 void li_plugins_prepare_callbacks(liServer *srv) {
@@ -470,38 +581,6 @@ void li_plugins_handle_vrclose(liVRequest *vr) {
 		liPlugin *p = g_array_index(a, liPlugin*, i);
 		p->handle_vrclose(vr, p);
 	}
-}
-
-gboolean li_plugin_set_default_option(liServer* srv, const gchar* name, liValue* val) {
-	liServerOption *sopt;
-	liServerOptionPtr *soptptr;
-
-	if (NULL != (sopt = find_option(srv, name))) {
-		liOptionSet setting;
-
-		/* assign new value */
-		if (!li_parse_option(srv, srv->main_worker, sopt, name, val, &setting)) {
-			return FALSE;
-		}
-
-		g_array_index(srv->option_def_values, liOptionValue, sopt->index) = setting.value;
-	} else if (NULL != (soptptr = find_optionptr(srv, name))) {
-		liOptionPtrSet setting;
-
-		/* assign new value */
-		if (!li_parse_optionptr(srv, srv->main_worker, soptptr, name, val, &setting)) {
-			return FALSE;
-		}
-
-		li_release_optionptr(srv, g_array_index(srv->optionptr_def_values, liOptionPtrValue*, soptptr->index));
-
-		g_array_index(srv->optionptr_def_values, liOptionPtrValue*, soptptr->index) = setting.value;
-	} else {
-		ERROR(srv, "unknown option \"%s\"", name);
-		return FALSE;
-	}
-
-	return TRUE;
 }
 
 static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt) {

@@ -180,7 +180,7 @@ liAction* li_lua_make_action(lua_State *L, int ndx) {
 		lua_setfield(L, -2, "__index"); /* -1 */
 		lua_setmetatable(L, -2); /* -1 */
 	if (NULL != wrk) {
-		li_lua_config_publish_str_hash(wrk->srv, wrk, L, wrk->srv->actions, li_lua_config_handle_server_action); /* +1 */
+		li_lua_push_action_table(wrk->srv, wrk, L); /* +1 */
 		lua_setfield(L, -2, "action"); /* -1 */
 	}
 	lua_setfenv(L, -2); /* -1 */

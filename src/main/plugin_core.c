@@ -101,58 +101,6 @@ static liAction* core_when(liServer *srv, liWorker *wrk, liPlugin* p, liValue *v
 	return a;
 }
 
-static liAction* core_set(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	liValue *val_val, *val_name;
-	liAction *a;
-	UNUSED(p); UNUSED(userdata);
-
-	if (!val) {
-		ERROR(srv, "%s", "need parameter");
-		return NULL;
-	}
-	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "expected list, got %s", li_value_type_string(val->type));
-		return NULL;
-	}
-	if (val->data.list->len != 2) {
-		ERROR(srv, "expected list with length 2, has length %u", val->data.list->len);
-		return NULL;
-	}
-	val_name = g_array_index(val->data.list, liValue*, 0);
-	val_val = g_array_index(val->data.list, liValue*, 1);
-	if (val_name->type != LI_VALUE_STRING) {
-		ERROR(srv, "expected string as first parameter, got %s", li_value_type_string(val_name->type));
-		return NULL;
-	}
-	a = li_option_action(srv, wrk, val_name->data.string->str, val_val);
-	return a;
-}
-
-static gboolean core_setup_set(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	liValue *val_val, *val_name;
-	UNUSED(p); UNUSED(userdata);
-
-	if (!val) {
-		ERROR(srv, "%s", "need parameter");
-		return FALSE;
-	}
-	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "expected list, got %s", li_value_type_string(val->type));
-		return FALSE;
-	}
-	if (val->data.list->len != 2) {
-		ERROR(srv, "expected list with length 2, has length %u", val->data.list->len);
-		return FALSE;
-	}
-	val_name = g_array_index(val->data.list, liValue*, 0);
-	val_val = g_array_index(val->data.list, liValue*, 1);
-	if (val_name->type != LI_VALUE_STRING) {
-		ERROR(srv, "expected string as first parameter, got %s", li_value_type_string(val_name->type));
-		return FALSE;
-	}
-	return li_plugin_set_default_option(srv, val_name->data.string->str, val_val);
-}
-
 typedef struct docroot_split docroot_split;
 struct docroot_split {
 	GString *hostname;
@@ -2105,7 +2053,6 @@ static const liPluginOptionPtr optionptrs[] = {
 static const liPluginAction actions[] = {
 	{ "list", core_list, NULL },
 	{ "when", core_when, NULL },
-	{ "set", core_set, NULL },
 
 	{ "docroot", core_docroot, NULL },
 	{ "alias", core_alias, NULL },
@@ -2145,7 +2092,6 @@ static const liPluginAction actions[] = {
 };
 
 static const liPluginSetup setups[] = {
-	{ "set_default", core_setup_set, NULL },
 	{ "listen", core_listen, NULL },
 	{ "workers", core_workers, NULL },
 	{ "workers.cpu_affinity", core_workers_cpu_affinity, NULL },

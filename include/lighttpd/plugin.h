@@ -93,71 +93,12 @@ struct liPluginAngel {
 	liPluginAngelCB angel_cb;
 };
 
-/* Internal structures */
-struct liServerOption {
-	liPlugin *p;
-
-	/** the value is freed with li_value_free after the parse call, so you
-	  *   probably want to extract pointers via li_value_extract_*
-	  * val is zero to get the global default value if nothing is specified
-	  * save result in value
-	  *
-	  * Default behaviour (NULL) is to extract the inner value from val
-	  */
-	liPluginParseOptionCB parse_option;
-
-	/** if parse_option is NULL, the default_value is used */
-	gint64 default_value;
-
-	size_t index, module_index;
-	liValueType type;
-};
-
-struct liServerOptionPtr {
-	liPlugin *p;
-
-	/** the value is freed with li_value_free after the parse call, so you
-	  *   probably want to extract pointers via li_value_extract_*
-	  * val is zero to get the global default value if nothing is specified
-	  * save result in value
-	  *
-	  * Default behaviour (NULL) is to extract the inner value from val
-	  */
-	liPluginParseOptionPtrCB parse_option;
-
-	/** the free_option handler has to free all allocated resources;
-	  * it may get called with 0 initialized options, so you have to
-	  * check the value.
-	  */
-	liPluginFreeOptionPtrCB free_option;
-
-	/** if parse_option is NULL, the default_value is used; it is only used
-	  * for the following value types:
-	  * - STRING: used for g_string_new, i.e. a const char*
-	  */
-	gpointer default_value;
-
-	size_t index, module_index;
-	liValueType type;
-};
-
-struct liServerAction {
-	liPlugin *p;
-	liPluginCreateActionCB create_action;
-	gpointer userdata;
-};
-
-struct liServerSetup {
-	liPlugin *p;
-	liPluginSetupCB setup;
-	gpointer userdata;
-};
-
 /* Needed by modules to register their plugin(s) */
 LI_API liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB init, gpointer userdata);
 
 /* Internal needed functions */
 LI_API void li_plugin_free(liServer *srv, liPlugin *p);
+LI_API void li_server_plugins_init(liServer *srv);
 LI_API void li_server_plugins_free(liServer *srv);
 
 LI_API void li_release_optionptr(liServer *srv, liOptionPtrValue *value);
@@ -179,17 +120,9 @@ LI_API void li_plugins_handle_close(liConnection *con);
 LI_API void li_plugins_handle_vrclose(liVRequest *vr);
 
 /* Needed for config frontends */
-/** For parsing 'somemod.option = "somevalue"', free value after call */
-LI_API liAction* li_option_action(liServer *srv, liWorker *wrk, const gchar *name, liValue *val);
-/** For parsing 'somemod.action value', e.g. 'rewrite "/url" => "/destination"'
-  * free value after call
-  */
-LI_API liAction* li_create_action(liServer *srv, liWorker *wrk, const gchar *name, liValue *val);
-/** For setup function, e.g. 'listen "127.0.0.1:8080"'; free value after call */
-LI_API gboolean li_call_setup(liServer *srv, const char *name, liValue *val);
-
-/** free val after call */
-LI_API gboolean li_plugin_set_default_option(liServer *srv, const gchar* name, liValue *val);
+/* "val" gets freed in any case */
+LI_API liAction *li_plugin_config_action(liServer *srv, liWorker *wrk, const gchar *name, liValue *val);
+LI_API gboolean li_plugin_config_setup(liServer *srv, const char *name, liValue *val);
 
 LI_API void li_plugins_init_lua(liLuaState *LL, liServer *srv, liWorker *wrk);
 

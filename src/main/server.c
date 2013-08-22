@@ -44,22 +44,6 @@ void li_server_socket_acquire(liServerSocket* sock) {
 	g_atomic_int_inc(&sock->refcount);
 }
 
-static void server_option_free(gpointer _so) {
-	g_slice_free(liServerOption, _so);
-}
-
-static void server_optionptr_free(gpointer _so) {
-	g_slice_free(liServerOptionPtr, _so);
-}
-
-static void server_action_free(gpointer _sa) {
-	g_slice_free(liServerAction, _sa);
-}
-
-static void server_setup_free(gpointer _ss) {
-	g_slice_free(liServerSetup, _ss);
-}
-
 static void server_fetch_db_free(gpointer db) {
 	li_fetch_database_release((liFetchDatabase*) db);
 }
@@ -104,18 +88,9 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 
 	srv->modules = li_modules_new(srv, module_dir, module_resident);
 
-	srv->plugins = g_hash_table_new(g_str_hash, g_str_equal);
-	srv->options = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_option_free);
-	srv->optionptrs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_optionptr_free);
-	srv->actions = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_action_free);
-	srv->setups  = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, server_setup_free);
+	li_server_plugins_init(srv);
 
 	srv->prepare_callbacks = g_array_new(FALSE, TRUE, sizeof(liServerPrepareCallbackData));
-
-	srv->li_plugins_handle_close = g_array_new(FALSE, TRUE, sizeof(liPlugin*));
-	srv->li_plugins_handle_vrclose = g_array_new(FALSE, TRUE, sizeof(liPlugin*));
-	srv->option_def_values = g_array_new(FALSE, TRUE, sizeof(liOptionValue));
-	srv->optionptr_def_values = g_array_new(FALSE, TRUE, sizeof(liOptionPtrValue*));
 
 	srv->mainaction = NULL;
 
@@ -251,17 +226,7 @@ void li_server_free(liServer* srv) {
 		g_array_free(srv->ts_formats, TRUE);
 	}
 
-	g_array_free(srv->option_def_values, TRUE);
-	{
-		guint i;
-		for (i = 0; i < srv->optionptr_def_values->len; i++) {
-			li_release_optionptr(srv, g_array_index(srv->optionptr_def_values, liOptionPtrValue*, i));
-		}
-	}
-	g_array_free(srv->optionptr_def_values, TRUE);
 	li_server_plugins_free(srv);
-	g_array_free(srv->li_plugins_handle_close, TRUE);
-	g_array_free(srv->li_plugins_handle_vrclose, TRUE);
 
 	if (NULL != srv->prepare_callbacks) {
 		guint i, len;

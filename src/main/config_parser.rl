@@ -684,26 +684,20 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				g_array_append_val(al->data.list, a);
 			}
 			/* setup action */
-			else if (ctx->in_setup_block && NULL != g_hash_table_lookup(srv->setups, name->data.string->str)) {
+			else if (ctx->in_setup_block) {
 				_printf("%s", "... which is a setup action\n");
 
-				if (!li_call_setup(srv, name->data.string->str, val)) {
+				if (!li_plugin_config_setup(srv, name->data.string->str, val)) {
 					li_value_free(name);
-					if (val)
-						li_value_free(val);
 					return FALSE;
 				}
-
-				if (val)
-					li_value_free(val);
 			}
 			/* normal action */
-			else if (!ctx->in_setup_block && NULL != g_hash_table_lookup(srv->actions, name->data.string->str)) {
+			else {
 				_printf("%s", "... which is a normal action\n");
 
 				al = g_queue_peek_head(ctx->action_list_stack);
-				a = li_create_action(srv, srv->main_worker, name->data.string->str, val);
-				li_value_free(val);
+				a = li_plugin_config_action(srv, srv->main_worker, name->data.string->str, val);
 
 				if (a == NULL) {
 					li_value_free(name);
@@ -711,52 +705,6 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				}
 
 				g_array_append_val(al->data.list, a);
-			}
-			/* option assignment */
-			else if (NULL != g_hash_table_lookup(srv->optionptrs, name->data.string->str) || NULL != g_hash_table_lookup(srv->options, name->data.string->str)) {
-				_printf("%s", "... which is an option assignment\n");
-
-				if (!val) {
-					WARNING(srv, "action %s takes a parameter", name->data.string->str);
-					li_value_free(name);
-					return FALSE;
-				}
-
-				if (ctx->in_setup_block) {
-					/* in setup { } block, override default values for options */
-					if (!li_plugin_set_default_option(srv, name->data.string->str, val)) {
-						ERROR(srv, "failed overriding default value for option \"%s\"", name->data.string->str);
-						li_value_free(name);
-						li_value_free(val);
-						return FALSE;
-					}
-
-					li_value_free(val);
-				} else {
-					/* normal assignment */
-					a = li_option_action(srv, srv->main_worker, name->data.string->str, val);
-					li_value_free(val);
-
-					if (a == NULL) {
-						li_value_free(name);
-						return FALSE;
-					}
-
-					al = g_queue_peek_head(ctx->action_list_stack);
-					g_array_append_val(al->data.list, a);
-				}
-			} else {
-				if (!ctx->in_setup_block && NULL != g_hash_table_lookup(srv->setups, name->data.string->str)) {
-					WARNING(srv, "action %s can only be called in a setup block", name->data.string->str);
-				} else if (ctx->in_setup_block && NULL != g_hash_table_lookup(srv->actions, name->data.string->str)) {
-					WARNING(srv, "action %s can't be called in a setup block", name->data.string->str);
-				} else {
-					WARNING(srv, "unknown action %s", name->data.string->str);
-				}
-				if (val)
-					li_value_free(val);
-				li_value_free(name);
-				return FALSE;
 			}
 
 			li_value_free(name);
@@ -1528,7 +1476,7 @@ gboolean li_config_parse(liServer *srv, const gchar *config_path) {
 	}
 
 	/* append fallback "static" action */
-	a = li_create_action(srv, srv->main_worker, "static", NULL);
+	a = li_plugin_config_action(srv, srv->main_worker, "static", NULL);
 	g_array_append_val(srv->mainaction->data.list, a);
 
 	g_get_current_time(&end);

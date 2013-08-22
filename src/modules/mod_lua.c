@@ -492,10 +492,10 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 		goto failed_unlock_lua;
 	}
 
-	li_lua_config_publish_str_hash(srv, srv->main_worker, L, srv->setups, li_lua_config_handle_server_setup);
+	li_lua_push_setup_table(srv, srv->main_worker, L);
 	lua_setfield(L, LUA_GLOBALSINDEX, "setup");
 
-	li_lua_config_publish_str_hash(srv, srv->main_worker, L, srv->actions, li_lua_config_handle_server_action);
+	li_lua_push_action_table(srv, srv->main_worker, L);
 	lua_setfield(L, LUA_GLOBALSINDEX, "action");
 
 	li_lua_push_lvalues_dict(srv, L);
