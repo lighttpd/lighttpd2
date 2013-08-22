@@ -97,6 +97,9 @@ static void vhost_map_free(liServer *srv, gpointer param) {
 
 	g_hash_table_destroy(md->hash);
 
+	if (NULL != md->default_action)
+		li_value_free(md->default_action);
+
 	g_slice_free(vhost_map_data, md);
 }
 
@@ -222,7 +225,6 @@ static liAction* vhost_map_regex_create(liServer *srv, liWorker *wrk, liPlugin* 
 	guint i;
 	UNUSED(wrk); UNUSED(userdata);
 
-
 	if (NULL == (val = li_value_to_key_value_list(val))) {
 		ERROR(srv, "%s", "vhost.map_regex expects a hashtable/key-value list as parameter");
 		return NULL;
@@ -265,14 +267,16 @@ static liAction* vhost_map_regex_create(liServer *srv, liWorker *wrk, liPlugin* 
 			vhost_map_regex_entry entry;
 
 			entry.regex = g_regex_new(entryKeyStr->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
+			g_string_free(entryKeyStr, TRUE);
 
-			if (NULL == entry.regex || err) {
-				g_string_free(entryKeyStr, TRUE);
+			if (NULL == entry.regex) {
+				assert(NULL != err);
 				vhost_map_regex_free(srv, mrd);
 				ERROR(srv, "vhost.map_regex: error compiling regex \"%s\": %s", entryKeyStr->str, err->message);
 				g_error_free(err);
 				return NULL;
 			}
+			assert(NULL == err);
 
 			entry.action = li_value_copy(entryValue);
 
