@@ -398,11 +398,18 @@ if request.is_handled {{
 		Env.lighttpdconf = self.PrepareFile("conf/lighttpd.conf", self.config)
 
 		valgrindconfig = ""
-		if Env.valgrind:
+		if Env.valgrind_leak:
+			suppressions = ''
+			if Env.valgrind_leak != "":
+				suppressions = ', "--suppressions=' + Env.valgrind_leak + '"'
 			valgrindconfig = """
-	env ( "G_SLICE=always-malloc", "G_DEBUG=gc-friendly,fatal-criticals" );
+	env ( "G_SLICE=always-malloc", "G_DEBUG=gc-friendly,fatal-criticals,resident-modules" );
+	wrapper ("{valgrind}", "--leak-check=full", "--show-reachable=yes", "--leak-resolution=high" {suppressions} );
+""".format(valgrind = Env.valgrind, suppressions = suppressions)
+		elif Env.valgrind:
+			valgrindconfig = """
+	env ( "G_SLICE=always-malloc", "G_DEBUG=gc-friendly,fatal-criticals,resident-modules" );
 	wrapper ("{valgrind}" );
-#	wrapper ("{valgrind}", "--leak-check=full", "--show-reachable=yes", "--leak-resolution=high" );
 """.format(valgrind = Env.valgrind)
 
 		Env.angelconf = self.PrepareFile("conf/angel.conf", """

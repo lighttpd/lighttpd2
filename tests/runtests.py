@@ -55,6 +55,7 @@ parser.add_option("--no-angel", help = "Spawn lighttpd worker directly", action 
 parser.add_option("--debug", help = "Show service logs on console", action = "store_true", default = False)
 parser.add_option("--wait", help = "Wait for services to exit on first signal", action = "store_true", default = False)
 parser.add_option("--valgrind", help = "Run worker with valgrind from angel", action = "store_true", default = False)
+parser.add_option("--valgrind-leak", help = "Run valgrind with memory leak check; takes an empty string or a valgrind suppression file", action="store", default = False)
 
 (options, args) = parser.parse_args()
 
@@ -79,7 +80,8 @@ Env.no_angel = options.no_angel
 Env.debug = options.debug
 Env.wait = options.wait
 Env.valgrind = options.valgrind
-if Env.valgrind:
+Env.valgrind_leak = options.valgrind_leak
+if Env.valgrind or Env.valgrind_leak:
 	Env.valgrind = which('valgrind')
 
 Env.color = sys.stdin.isatty()
