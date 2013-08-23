@@ -17,8 +17,9 @@ liModules *li_modules_new(gpointer main, const gchar *module_dir, gboolean modul
 liModule *li_module_lookup(liModules *mods, const gchar *name) {
 	liModule *mod;
 	GArray *a = mods->mods;
+	guint i;
 
-	for (guint i = 0; i < a->len; i++) {
+	for (i = 0; i < a->len; i++) {
 		mod = g_array_index(a, liModule*, i);
 		if (mod != NULL && g_str_equal(mod->name->str, name))
 			return mod;
@@ -31,8 +32,9 @@ void li_modules_free(liModules* mods) {
 	/* unload all modules */
 	GArray *a = mods->mods;
 	liModule *mod;
+	guint i;
 
-	for (guint i = 0; i < a->len; i++) {
+	for (i = 0; i < a->len; i++) {
 		mod = g_array_index(a, liModule*, i);
 		if (!mod)
 			continue;

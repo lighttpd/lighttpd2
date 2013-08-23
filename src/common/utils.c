@@ -498,6 +498,7 @@ GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean sho
 	guint8 tmplen;
 	guint8 oct;
 	liSockAddr *saddr = addr.addr;
+	guint i;
 
 	if (!saddr) {
 		li_string_assign_len(dest, CONST_STR_LEN("<null>"));
@@ -514,7 +515,7 @@ GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean sho
 
 		p = dest->str;
 
-		for (guint i = 0; i < 4; i++) {
+		for (i = 0; i < 4; i++) {
 			oct = ((guint8*)&saddr->ipv4.sin_addr.s_addr)[i];
 			for (tmplen = 1, tmp = oct; tmp > 9; tmp /= 10)
 				tmplen++;
@@ -688,7 +689,8 @@ gboolean li_ipv4_in_ipv6_net(guint32 target, const guint8 *match, guint network)
 
 /* unused */
 void li_gstring_replace_char_with_str_len(GString *gstr, gchar c, gchar *str, guint len) {
-	for (guint i = 0; i < gstr->len; i++) {
+	guint i;
+	for (i = 0; i < gstr->len; i++) {
 		if (gstr->str[i] == c) {
 			/* char found, replace */
 			gstr->str[i] = str[0];

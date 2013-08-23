@@ -130,7 +130,10 @@ INLINE void li_path_append_slash(GString *path) {
 
 /** warning: This "GString" does not make sure that there is a terminating '\0', and you shouldn't modify the GString */
 INLINE GString li_const_gstring(const gchar *str, gsize len) {
-	GString gs = { (gchar*) str, len, 0 };
+	GString gs;
+	gs.str = (gchar*) str;
+	gs.len = len;
+	gs.allocated_len = 0;
 	return gs;
 }
 
