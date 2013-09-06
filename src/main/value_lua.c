@@ -40,11 +40,11 @@ static int lua_kvlist_index(lua_State *L) {
 		case LUA_TSTRING:
 			if (nil_key) break;
 			if (!lua_equal(L, -1, 2)) break;
-			lua_rawgeti(L, -1, 2);
+			lua_rawgeti(L, -2, 2);
 			return 1;
 		case LUA_TNIL:
 			if (!nil_key) break;
-			lua_rawgeti(L, -1, 2);
+			lua_rawgeti(L, -2, 2);
 			return 1;
 		default:
 			break;
@@ -241,7 +241,7 @@ int li_lua_push_value(lua_State *L, liValue *value) {
 		for (i = 0; i < list->len; i++) {
 			liValue *subval = g_array_index(list, liValue*, i);
 			li_lua_push_value(L, subval);
-			lua_rawseti(L, -2, i);
+			lua_rawseti(L, -2, i + 1);
 		}
 		/* kvlist lookup for string/nil keys */
 		lua_push_kvlist_metatable(L);
