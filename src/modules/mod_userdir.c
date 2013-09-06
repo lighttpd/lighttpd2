@@ -184,19 +184,18 @@ static liAction* userdir_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	gchar *c, *c_last;
 	GArray *parts;
 	userdir_part part;
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	UNUSED(wrk);
-	UNUSED(p);
-	UNUSED(userdata);
+	val = li_value_get_single_argument(val);
 
-	if (!val || val->type != LI_VALUE_STRING) {
+	if (LI_VALUE_STRING != li_value_type(val)) {
 		ERROR(srv, "%s", "userdir expects a string as parameter");
 		return NULL;
 	}
 
 	str = val->data.string;
 
-	if (!str->len) {
+	if (0 == str->len) {
 		ERROR(srv, "%s", "userdir parameter must not be an empty string");
 		return NULL;
 	}

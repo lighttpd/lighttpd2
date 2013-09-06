@@ -77,7 +77,10 @@ void li_value_list_append(liValue *list, liValue *item) {
 }
 
 void li_value_wrap_in_list(liValue *val) {
-	liValue *item = li_value_extract(val);
+	liValue *item;
+	assert(NULL != val);
+
+	item = li_value_extract(val);
 	val->type = LI_VALUE_LIST;
 	val->data.list = g_array_new(FALSE, TRUE, sizeof(liValue*));
 	g_array_append_val(val->data.list, item);
@@ -85,6 +88,7 @@ void li_value_wrap_in_list(liValue *val) {
 
 liValue* li_value_copy(liValue* val) {
 	liValue *n;
+	if (NULL == val) return NULL;
 
 	switch (val->type) {
 	case LI_VALUE_NONE: return li_value_new_none();
@@ -168,7 +172,7 @@ void li_value_move(liValue *dest, liValue *src) {
 	_li_value_clear(src);
 }
 
-const char* li_value_type_string(liValueType type) {
+const char* li_valuetype_string(liValueType type) {
 	switch(type) {
 	case LI_VALUE_NONE:
 		return "none";
@@ -191,7 +195,7 @@ const char* li_value_type_string(liValueType type) {
 }
 
 void li_value_list_free(GArray *vallist) {
-	if (!vallist) return;
+	if (NULL == vallist) return;
 	for (gsize i = 0; i < vallist->len; i++) {
 		li_value_free(g_array_index(vallist, liValue*, i));
 	}
@@ -202,67 +206,67 @@ GString *li_value_to_string(liValue *val) {
 	GString *str;
 
 	switch (val->type) {
-		case LI_VALUE_NONE:
-			return NULL;
-		case LI_VALUE_BOOLEAN:
-			str = g_string_new(val->data.boolean ? "true" : "false");
-			break;
-		case LI_VALUE_NUMBER:
-			str = g_string_sized_new(0);
-			g_string_printf(str, "%" G_GINT64_FORMAT, val->data.number);
-			break;
-		case LI_VALUE_STRING:
-			str = g_string_new_len(CONST_STR_LEN("\""));
-			g_string_append_len(str, GSTR_LEN(val->data.string));
-			g_string_append_c(str, '"');
-			break;
-		case LI_VALUE_LIST:
-			str = g_string_new_len(CONST_STR_LEN("("));
-			if (val->data.list->len) {
-				GString *tmp = li_value_to_string(g_array_index(val->data.list, liValue*, 0));
+	case LI_VALUE_NONE:
+		return NULL;
+	case LI_VALUE_BOOLEAN:
+		str = g_string_new(val->data.boolean ? "true" : "false");
+		break;
+	case LI_VALUE_NUMBER:
+		str = g_string_sized_new(0);
+		g_string_printf(str, "%" G_GINT64_FORMAT, val->data.number);
+		break;
+	case LI_VALUE_STRING:
+		str = g_string_new_len(CONST_STR_LEN("\""));
+		g_string_append_len(str, GSTR_LEN(val->data.string));
+		g_string_append_c(str, '"');
+		break;
+	case LI_VALUE_LIST:
+		str = g_string_new_len(CONST_STR_LEN("("));
+		if (val->data.list->len) {
+			GString *tmp = li_value_to_string(g_array_index(val->data.list, liValue*, 0));
+			g_string_append(str, tmp->str);
+			g_string_free(tmp, TRUE);
+			for (guint i = 1; i < val->data.list->len; i++) {
+				tmp = li_value_to_string(g_array_index(val->data.list, liValue*, i));
+				g_string_append_len(str, CONST_STR_LEN(", "));
 				g_string_append(str, tmp->str);
 				g_string_free(tmp, TRUE);
-				for (guint i = 1; i < val->data.list->len; i++) {
-					tmp = li_value_to_string(g_array_index(val->data.list, liValue*, i));
-					g_string_append_len(str, CONST_STR_LEN(", "));
-					g_string_append(str, tmp->str);
-					g_string_free(tmp, TRUE);
-				}
 			}
-			g_string_append_c(str, ')');
-			break;
-		case LI_VALUE_HASH:
-		{
-			GHashTableIter iter;
-			gpointer k, v;
-			GString *tmp;
-			guint i = 0;
-
-			str = g_string_new_len(CONST_STR_LEN("["));
-
-			g_hash_table_iter_init(&iter, val->data.hash);
-			while (g_hash_table_iter_next(&iter, &k, &v)) {
-				if (i)
-					g_string_append_len(str, CONST_STR_LEN(", "));
-				tmp = li_value_to_string((liValue*)v);
-				g_string_append_len(str, GSTR_LEN((GString*)k));
-				g_string_append_len(str, CONST_STR_LEN(" => "));
-				g_string_append_len(str, GSTR_LEN(tmp));
-				g_string_free(tmp, TRUE);
-				i++;
-			}
-
-			g_string_append_c(str, ']');
-			break;
 		}
-		case LI_VALUE_ACTION:
-			str = g_string_new_len(CONST_STR_LEN("<action>"));
-			break;
-		case LI_VALUE_CONDITION:
-			str = g_string_new_len(CONST_STR_LEN("<condition>"));
-			break;
-		default:
-			return NULL;
+		g_string_append_c(str, ')');
+		break;
+	case LI_VALUE_HASH:
+	{
+		GHashTableIter iter;
+		gpointer k, v;
+		GString *tmp;
+		guint i = 0;
+
+		str = g_string_new_len(CONST_STR_LEN("["));
+
+		g_hash_table_iter_init(&iter, val->data.hash);
+		while (g_hash_table_iter_next(&iter, &k, &v)) {
+			if (i)
+				g_string_append_len(str, CONST_STR_LEN(", "));
+			tmp = li_value_to_string((liValue*)v);
+			g_string_append_len(str, GSTR_LEN((GString*)k));
+			g_string_append_len(str, CONST_STR_LEN(" => "));
+			g_string_append_len(str, GSTR_LEN(tmp));
+			g_string_free(tmp, TRUE);
+			i++;
+		}
+
+		g_string_append_c(str, ']');
+		break;
+	}
+	case LI_VALUE_ACTION:
+		str = g_string_new_len(CONST_STR_LEN("<action>"));
+		break;
+	case LI_VALUE_CONDITION:
+		str = g_string_new_len(CONST_STR_LEN("<condition>"));
+		break;
+	default:
+		return NULL;
 	}
 
 	return str;
@@ -353,7 +357,7 @@ liValue* li_value_extract(liValue *val) {
 liValue* li_value_to_key_value_list(liValue *val) {
 	if (NULL == val) return NULL;
 
-	if (val->type == LI_VALUE_HASH) {
+	if (LI_VALUE_HASH == val->type) {
 		GHashTable *table = li_value_extract_hash(val);
 		GArray *list;
 
@@ -381,21 +385,19 @@ liValue* li_value_to_key_value_list(liValue *val) {
 		g_hash_table_destroy(table);
 
 		return val;
-	} else if (val->type == LI_VALUE_LIST) {
-		/* verify key-value list properties */
-		GArray *list = val->data.list;
-		guint i;
-		for (i = 0; i < list->len; ++i) {
-			liValue *lentry = g_array_index(list, liValue*, i);
-			GArray *entrylist;
-			liValue *key;
-
-			if (lentry->type != LI_VALUE_LIST) return NULL;
-			entrylist = lentry->data.list;
-			if (2 != entrylist->len) return NULL;
-			key = g_array_index(entrylist, liValue*, 0);
-			if (key->type != LI_VALUE_STRING && key->type != LI_VALUE_NONE) return NULL;
+	} else if (LI_VALUE_LIST == val->type) {
+		if (li_value_list_has_len(val, 2) &&
+				(LI_VALUE_STRING == li_value_list_type_at(val, 0) || LI_VALUE_NONE == li_value_list_type_at(val, 0))) {
+			/* single key-value pair */
+			li_value_wrap_in_list(val);
+			return val;
 		}
+
+		/* verify key-value list properties */
+		LI_VALUE_FOREACH(lentry, val)
+			if (!li_value_list_has_len(lentry, 2)) return NULL;
+			if (LI_VALUE_STRING != li_value_list_type_at(lentry, 0) && LI_VALUE_NONE != li_value_list_type_at(lentry, 0)) return NULL;
+		LI_VALUE_END_FOREACH()
 		return val;
 	}
 	return NULL;

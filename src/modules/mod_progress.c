@@ -203,7 +203,7 @@ static liHandlerResult progress_track(liVRequest *vr, gpointer param, gpointer *
 static liAction* progress_track_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(wrk); UNUSED(userdata);
 
-	if (val) {
+	if (!li_value_is_nothing(val)) {
 		ERROR(srv, "%s", "progress.show doesn't expect any parameters");
 		return NULL;
 	}
@@ -405,14 +405,13 @@ static void progress_show_free(liServer *srv, gpointer param) {
 static liAction* progress_show_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	mod_progress_show_param *psp;
 	mod_progress_format format = PROGRESS_FORMAT_JSON;
+	UNUSED(srv); UNUSED(wrk); UNUSED(userdata);
 
-	UNUSED(srv);
-	UNUSED(wrk);
-	UNUSED(userdata);
+	val = li_value_get_single_argument(val);
 
-	if (!val) {
+	if (LI_VALUE_NONE == li_value_type(val)) {
 		format = PROGRESS_FORMAT_JSON;
-	} else if (val->type == LI_VALUE_STRING) {
+	} else if (LI_VALUE_STRING == li_value_type(val)) {
 		gchar *str = val->data.string->str;
 		if (g_str_equal(str, "legacy")) {
 			format = PROGRESS_FORMAT_LEGACY;
@@ -439,29 +438,29 @@ static liAction* progress_show_create(liServer *srv, liWorker *wrk, liPlugin* p,
 }
 
 static gboolean progress_methods_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
-	GArray *arr;
 	guint methods = 0;
-	UNUSED(wrk);
-	UNUSED(p);
-	UNUSED(ndx);
+	UNUSED(wrk); UNUSED(p); UNUSED(ndx);
 
 	/* default value */
-	if (!val) {
+	if (LI_VALUE_NONE == li_value_type(val)) {
 		oval->number = 1 << LI_HTTP_METHOD_POST;
 		return TRUE;
 	}
 
+	if (LI_VALUE_STRING == li_value_type(val)) {
+		li_value_wrap_in_list(val);
+	}
+
 	/* Need manual type check, as resulting option type is number */
-	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "progress.methods option expects a list of strings, parameter is of type %s", li_value_type_string(val->type));
+	if (LI_VALUE_LIST != li_value_type(val)) {
+		ERROR(srv, "progress.methods option expects a list of strings, parameter is of type %s", li_value_type_string(val));
 		return FALSE;
 	}
-	arr = val->data.list;
-	for (guint i = 0; i < arr->len; i++) {
+
+	LI_VALUE_FOREACH(v, val)
 		liHttpMethod method;
-		liValue *v = g_array_index(arr, liValue*, i);
-		if (v->type != LI_VALUE_STRING) {
-			ERROR(srv, "progress.methods option expects a list of strings, entry #%u is of type %s", i, li_value_type_string(v->type));
+		if (LI_VALUE_STRING != li_value_type(v)) {
+			ERROR(srv, "progress.methods option expects a list of strings, entry #%u is of type %s", _v_i, li_value_type_string(v));
 			return FALSE;
 		}
 
@@ -472,7 +471,7 @@ static gboolean progress_methods_parse(liServer *srv, liWorker *wrk, liPlugin *p
 		}
 
 		methods |= 1 << method;
-	}
+	LI_VALUE_END_FOREACH()
 
 	oval->number = (guint64) methods;
 	return TRUE;
@@ -482,12 +481,10 @@ static gboolean progress_ttl(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	mod_progress_data *pd = p->data;
 	UNUSED(userdata);
 
-	if (!val) {
-		ERROR(srv, "%s", "progress.ttl expects a number as parameter");
-		return FALSE;
-	}
-	if (val->type != LI_VALUE_NUMBER) {
-		ERROR(srv, "expected number, got %s", li_value_type_string(val->type));
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_NUMBER != li_value_type(val)) {
+		ERROR(srv, "expected number, got %s", li_value_type_string(val));
 		return FALSE;
 	}
 

@@ -64,11 +64,6 @@
 LI_API gboolean mod_rewrite_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_rewrite_free(liModules *mods, liModule *mod);
 
-typedef struct rewrite_plugin_data rewrite_plugin_data;
-struct rewrite_plugin_data {
-	GPtrArray *tmp_strings; /* array of (GString*) */
-};
-
 typedef struct rewrite_rule rewrite_rule;
 struct rewrite_rule {
 	liPattern *path, *querystring;
@@ -189,14 +184,12 @@ static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context
 	guint i;
 	rewrite_rule *rule;
 	rewrite_data *rd = param;
-	rewrite_plugin_data *rpd = rd->p->data;
 	gboolean debug = _OPTION(vr, rd->p, 0).boolean;
-
+	GString *dest_query = g_string_sized_new(31);
 	UNUSED(context);
 
 	for (i = 0; i < rd->rules->len; i++) {
 		GString *dest_path = vr->wrk->tmp_str;
-		GString *dest_query = g_ptr_array_index(rpd->tmp_strings, vr->wrk->ndx);
 
 		rule = &g_array_index(rd->rules, rewrite_rule, i);
 
@@ -220,10 +213,12 @@ static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context
 			}
 
 			/* stop at first matching regex */
-			return LI_HANDLER_GO_ON;
+			goto out;
 		}
 	}
 
+out:
+	g_string_free(dest_query, TRUE);
 	return LI_HANDLER_GO_ON;
 }
 
@@ -249,23 +244,14 @@ static void rewrite_free(liServer *srv, gpointer param) {
 }
 
 static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	GArray *arr;
-	liValue *v;
-	guint i;
 	rewrite_data *rd;
-	rewrite_plugin_data *rpd = p->data;
-
 	UNUSED(wrk);
 
-	if (!val || !(val->type == LI_VALUE_STRING || val->type == LI_VALUE_LIST)) {
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_STRING != li_value_type(val) && LI_VALUE_LIST != li_value_type(val)) {
 		ERROR(srv, "%s", "rewrite expects a either a string, a tuple of strings or a list of string tuples");
 		return NULL;
-	}
-
-	if (!rpd->tmp_strings->len) {
-		guint wc = srv->worker_count ? srv->worker_count : 1;
-		for (i = 0; i < wc; i++)
-			g_ptr_array_add(rpd->tmp_strings, g_string_sized_new(31));
 	}
 
 	rd = g_slice_new(rewrite_data);
@@ -273,9 +259,7 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	rd->rules = g_array_new(FALSE, FALSE, sizeof(rewrite_rule));
 	rd->raw = GPOINTER_TO_INT(userdata);
 
-	arr = val->data.list;
-
-	if (val->type == LI_VALUE_STRING) {
+	if (LI_VALUE_STRING == li_value_type(val)) {
 		/* rewrite "/foo/bar"; */
 		rewrite_rule rule = { NULL, NULL, NULL };
 
@@ -286,11 +270,11 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 		}
 
 		g_array_append_val(rd->rules, rule);
-	} else if (arr->len == 2 && g_array_index(arr, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(arr, liValue*, 1)->type == LI_VALUE_STRING) {
+	} else if (li_value_list_has_len(val, 2) && LI_VALUE_STRING == li_value_list_type_at(val, 0) && LI_VALUE_STRING == li_value_list_type_at(val, 1)) {
 		/* only one rule */
 		rewrite_rule rule = { NULL, NULL, NULL };
 
-		if (!rewrite_rule_parse(srv, g_array_index(arr, liValue*, 0)->data.string, g_array_index(arr, liValue*, 1)->data.string, &rule)) {
+		if (!rewrite_rule_parse(srv, li_value_list_at(val, 0)->data.string, li_value_list_at(val, 1)->data.string, &rule)) {
 			rewrite_free(NULL, rd);
 			return NULL;
 		}
@@ -298,26 +282,23 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 		g_array_append_val(rd->rules, rule);
 	} else {
 		/* probably multiple rules */
-		for (i = 0; i < arr->len; i++) {
+		LI_VALUE_FOREACH(v, val)
 			rewrite_rule rule = { NULL, NULL, NULL };
-			v = g_array_index(arr, liValue*, i);
 
-			if (v->type != LI_VALUE_LIST || v->data.list->len != 2 ||
-				g_array_index(v->data.list, liValue*, 0)->type != LI_VALUE_STRING || g_array_index(v->data.list, liValue*, 1)->type != LI_VALUE_STRING) {
-
+			if (!li_value_list_has_len(v, 2)
+					|| LI_VALUE_STRING != li_value_list_type_at(v, 0) || LI_VALUE_STRING != li_value_list_type_at(v, 1)) {
 				rewrite_free(NULL, rd);
 				ERROR(srv, "%s", "rewrite expects a either a tuple of strings or a list of those");
 				return NULL;
 			}
 
-
-			if (!rewrite_rule_parse(srv, g_array_index(v->data.list, liValue*, 0)->data.string, g_array_index(v->data.list, liValue*, 1)->data.string, &rule)) {
+			if (!rewrite_rule_parse(srv, li_value_list_at(v, 0)->data.string, li_value_list_at(v, 1)->data.string, &rule)) {
 				rewrite_free(NULL, rd);
 				return NULL;
 			}
 
 			g_array_append_val(rd->rules, rule);
-		}
+		LI_VALUE_END_FOREACH()
 	}
 
 	return li_action_new_function(rewrite, NULL, rewrite_free, rd);
@@ -343,30 +324,12 @@ static const liPluginSetup setups[] = {
 };
 
 
-static void plugin_rewrite_free(liServer *srv, liPlugin *p) {
-	guint i;
-	rewrite_plugin_data *data = p->data;
-
-	UNUSED(srv);
-
-	for (i = 0; i < data->tmp_strings->len; i++)
-		g_string_free(g_ptr_array_index(data->tmp_strings, i), TRUE);
-
-	g_ptr_array_free(data->tmp_strings, TRUE);
-	g_slice_free(rewrite_plugin_data, data);
-}
-
 static void plugin_rewrite_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
 	p->setups = setups;
-
-	p->free = plugin_rewrite_free;
-	
-	p->data = g_slice_new(rewrite_plugin_data);
-	((rewrite_plugin_data*)p->data)->tmp_strings = g_ptr_array_new();
 }
 
 

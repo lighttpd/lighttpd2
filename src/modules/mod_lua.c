@@ -204,53 +204,44 @@ static liAction* lua_handler_create(liServer *srv, liWorker *wrk, liPlugin* p, l
 	guint ttl = 0;
 	UNUSED(wrk); UNUSED(userdata);
 
-	if (val) {
-		if (val->type == LI_VALUE_STRING) {
-			v_filename = val;
-		} else if (val->type == LI_VALUE_LIST) {
-			GArray *l = val->data.list;
-			if (l->len > 0) v_filename = g_array_index(l, liValue*, 0);
-			if (l->len > 1) v_options = g_array_index(l, liValue*, 1);
-			if (l->len > 2) v_args = g_array_index(l, liValue*, 2);
-			if (l->len > 3) {
-				ERROR(srv, "%s", "lua.handler expects at most 3 arguments");
-				return NULL;
-			}
+	if (LI_VALUE_STRING == li_value_type(val)) {
+		v_filename = val;
+	} else if (LI_VALUE_LIST == li_value_type(val)) {
+		switch (li_value_list_len(val)) {
+		case 3: v_args     = li_value_list_at(val, 2); /* fall through */
+		case 2: v_options  = li_value_list_at(val, 1); /* fall through */
+		case 1: v_filename = li_value_list_at(val, 0); /* fall through */
+		case 0: break;
+		default:
+			ERROR(srv, "%s", "lua.handler expects at most 3 arguments");
+			return NULL;
 		}
 	}
 
-	if (v_filename && v_filename->type != LI_VALUE_STRING) {
-		v_filename = NULL;
-	}
-
-	if (NULL == v_filename) {
+	if (LI_VALUE_STRING != li_value_type(v_filename)) {
 		ERROR(srv, "%s", "lua.handler expects at least a filename, or a filename and some options");
 		return NULL;
 	}
-	if (NULL != v_options) {
-		GArray *list;
-		guint i;
 
+	if (NULL != v_options) {
 		if (NULL == (v_options = li_value_to_key_value_list(v_options))) {
 			ERROR(srv, "%s", "lua.handler expects options in a hash/key-value list");
 			return NULL;
 		}
 
-		list = v_options->data.list;
-
-		for (i = 0; i < list->len; ++i) {
-			liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
-			liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
+		LI_VALUE_FOREACH(entry, v_options)
+			liValue *entryKey = li_value_list_at(entry, 0);
+			liValue *entryValue = li_value_list_at(entry, 1);
 			GString *entryKeyStr;
 
-			if (entryKey->type == LI_VALUE_NONE) {
-				ERROR(srv, "%s", "lua.handler doesn't take null keys");
+			if (LI_VALUE_STRING != li_value_type(entryKey)) {
+				ERROR(srv, "%s", "lua.handler doesn't take default keys");
 				return NULL;
 			}
 			entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
 
 			if (g_string_equal(entryKeyStr, &lon_ttl)) {
-				if (entryValue->type != LI_VALUE_NUMBER || entryValue->data.number <= 0) {
+				if (LI_VALUE_NUMBER != li_value_type(entryValue) || entryValue->data.number <= 0) {
 					ERROR(srv, "lua.handler option '%s' expects positive integer as parameter", entryKeyStr->str);
 					return NULL;
 				}
@@ -259,7 +250,7 @@ static liAction* lua_handler_create(liServer *srv, liWorker *wrk, liPlugin* p, l
 				ERROR(srv, "unknown option for lua.handler '%s'", entryKeyStr->str);
 				return NULL;
 			}
-		}
+		LI_VALUE_END_FOREACH()
 	}
 
 	conf = lua_config_new(srv, p, li_value_extract_string(v_filename), ttl, li_value_extract(v_args));
@@ -277,17 +268,15 @@ struct luaPlugin {
 };
 
 static int push_args(lua_State *L, liValue *val) {
-	if (NULL == val) {
+	switch (li_value_type(val)) {
+	case LI_VALUE_NONE:
 		return 0;
-	} else if (val->type == LI_VALUE_LIST) {
-		GArray *list = val->data.list;
-		guint i;
-		for (i = 0; i < list->len; i++) {
-			liValue *subval = g_array_index(list, liValue*, i);
-			li_lua_push_value(L, subval);
-		}
-		return list->len;
-	} else {
+	case LI_VALUE_LIST:
+		LI_VALUE_FOREACH(entry, val)
+			li_lua_push_value(L, entry);
+		LI_VALUE_END_FOREACH()
+		return li_value_list_len(val);
+	default:
 		return li_lua_push_value(L, val);
 	}
 }
@@ -362,7 +351,7 @@ static void lua_plugin_free_data(liServer *srv, luaPlugin *lp) {
 	lua_State *L = srv->LL.L;
 	guint i;
 
-	if (L) li_lua_lock(&srv->LL);
+	if (NULL != L) li_lua_lock(&srv->LL);
 
 	for (i = 0; i < lp->actions->len; i++) {
 		liPluginAction *pa = &g_array_index(lp->actions, liPluginAction, i);
@@ -379,7 +368,7 @@ static void lua_plugin_free_data(liServer *srv, luaPlugin *lp) {
 	}
 	g_array_free(lp->setups, TRUE);
 
-	if (L) li_lua_unlock(&srv->LL);
+	if (NULL != L) li_lua_unlock(&srv->LL);
 
 	if (lp->filename)
 		g_string_free(lp->filename, TRUE);
@@ -554,49 +543,37 @@ static gboolean lua_plugin(liServer *srv, liPlugin *p, liValue *val, gpointer us
 	liValue *v_filename = NULL, *v_options = NULL, *v_args = NULL;
 	UNUSED(userdata);
 
-	if (val) {
-		if (val->type == LI_VALUE_STRING) {
-			v_filename = val;
-		} else if (val->type == LI_VALUE_LIST) {
-			GArray *l = val->data.list;
-			if (l->len > 0) v_filename = g_array_index(l, liValue*, 0);
-			if (l->len > 1) v_options = g_array_index(l, liValue*, 1);
-			if (l->len > 2) v_args = g_array_index(l, liValue*, 2);
-			if (l->len > 3) {
-				ERROR(srv, "%s", "lua.plugin expects at most 3 arguments");
-				return FALSE;
-			}
+	if (LI_VALUE_STRING == li_value_type(val)) {
+		v_filename = val;
+	} else if (LI_VALUE_LIST == li_value_type(val)) {
+		switch (li_value_list_len(val)) {
+		case 3: v_args     = li_value_list_at(val, 2); /* fall through */
+		case 2: v_options  = li_value_list_at(val, 1); /* fall through */
+		case 1: v_filename = li_value_list_at(val, 0); /* fall through */
+		case 0: break;
+		default:
+			ERROR(srv, "%s", "lua.plugin expects at most 3 arguments");
+			return FALSE;
 		}
 	}
 
-	if (v_filename && v_filename->type != LI_VALUE_STRING) {
-		v_filename = NULL;
-	}
-
-	if (!v_filename) {
+	if (LI_VALUE_STRING != li_value_type(v_filename)) {
 		ERROR(srv, "%s", "lua.plugin expects at least a filename, or a filename and some options");
 		return FALSE;
 	}
 
 	if (NULL != v_options) {
-		GArray *list;
-		guint i;
-
 		if (NULL == (v_options = li_value_to_key_value_list(v_options))) {
 			ERROR(srv, "%s", "lua.plugin expects options in a hash/key-value list");
 			return FALSE;
 		}
 
-		list = v_options->data.list;
-
-		for (i = 0; i < list->len; ++i) {
-			liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
-/*
-			liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
-*/
+		LI_VALUE_FOREACH(entry, v_options)
+			liValue *entryKey = li_value_list_at(entry, 0);
+			/* liValue *entryValue = li_value_list_at(entry, 1); */
 			GString *entryKeyStr;
 
-			if (entryKey->type == LI_VALUE_NONE) {
+			if (LI_VALUE_STRING != li_value_type(entryKey)) {
 				ERROR(srv, "%s", "lua.plugin doesn't take null keys");
 				return FALSE;
 			}
@@ -604,7 +581,7 @@ static gboolean lua_plugin(liServer *srv, liPlugin *p, liValue *val, gpointer us
 
 /*
 			if (g_string_equal(entryKeyStr, &lon_ttl)) {
-				if (entryValue->type != LI_VALUE_NUMBER || entryValue->data.number <= 0) {
+				if (LI_VALUE_NUMBER != li_value_type(entryValue) || entryValue->data.number <= 0) {
 					ERROR(srv, "lua.plugin option '%s' expects positive integer as parameter", entryKeyStr->str);
 					return NULL;
 				}
@@ -615,7 +592,7 @@ static gboolean lua_plugin(liServer *srv, liPlugin *p, liValue *val, gpointer us
 				ERROR(srv, "unknown option for lua.plugin '%s'", entryKeyStr->str);
 				return FALSE;
 			}
-		}
+		LI_VALUE_END_FOREACH()
 	}
 
 	return lua_plugin_load(srv, p, li_value_extract_string(v_filename), v_args);

@@ -242,16 +242,12 @@ static void redirect_free(liServer *srv, gpointer param) {
 }
 
 static liAction* redirect_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	GArray *arr;
-	liValue *v;
-	guint i;
 	redirect_data *rd;
-	redirect_rule rule;
+	UNUSED(wrk); UNUSED(userdata);
 
-	UNUSED(wrk);
-	UNUSED(userdata);
+	val = li_value_get_single_argument(val);
 
-	if (!val || !(val->type == LI_VALUE_STRING || val->type == LI_VALUE_LIST)) {
+	if (LI_VALUE_STRING != li_value_type(val) && LI_VALUE_LIST != li_value_type(val)) {
 		ERROR(srv, "%s", "redirect expects a either a string, a tuple of strings or a list of string tuples");
 		return NULL;
 	}
@@ -260,9 +256,9 @@ static liAction* redirect_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 	rd->p = p;
 	rd->rules = g_array_new(FALSE, FALSE, sizeof(redirect_rule));
 
-	arr = val->data.list;
+	if (LI_VALUE_STRING == li_value_type(val)) {
+		redirect_rule rule;
 
-	if (val->type == LI_VALUE_STRING) {
 		/* redirect "/foo/bar"; */
 		if (!redirect_rule_parse(srv, NULL, val->data.string, &rule)) {
 			redirect_free(NULL, rd);
@@ -270,9 +266,11 @@ static liAction* redirect_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 		}
 
 		g_array_append_val(rd->rules, rule);
-	} else if (arr->len == 2 && g_array_index(arr, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(arr, liValue*, 1)->type == LI_VALUE_STRING) {
+	} else if (li_value_list_has_len(val, 2) && LI_VALUE_STRING == li_value_list_type_at(val, 0) && LI_VALUE_STRING == li_value_list_type_at(val, 1)) {
+		redirect_rule rule;
+
 		/* only one rule */
-		if (!redirect_rule_parse(srv, g_array_index(arr, liValue*, 0)->data.string, g_array_index(arr, liValue*, 1)->data.string, &rule)) {
+		if (!redirect_rule_parse(srv, li_value_list_at(val, 0)->data.string, li_value_list_at(val, 1)->data.string, &rule)) {
 			redirect_free(NULL, rd);
 			return NULL;
 		}
@@ -280,26 +278,24 @@ static liAction* redirect_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 		g_array_append_val(rd->rules, rule);
 	} else {
 		/* probably multiple rules */
-		for (i = 0; i < arr->len; i++) {
-			v = g_array_index(arr, liValue*, i);
+		LI_VALUE_FOREACH(v, val)
+			redirect_rule rule;
 
-			if (v->type != LI_VALUE_LIST || v->data.list->len != 2 ||
-				g_array_index(v->data.list, liValue*, 0)->type != LI_VALUE_STRING || g_array_index(v->data.list, liValue*, 1)->type != LI_VALUE_STRING) {
-
+			if (!li_value_list_has_len(v, 2)
+					|| LI_VALUE_STRING != li_value_list_type_at(v, 0) || LI_VALUE_STRING != li_value_list_type_at(v, 1)) {
 				redirect_free(NULL, rd);
 				ERROR(srv, "%s", "redirect expects a either a tuple of strings or a list of those");
 				return NULL;
 			}
 
-			if (!redirect_rule_parse(srv, g_array_index(v->data.list, liValue*, 0)->data.string, g_array_index(v->data.list, liValue*, 1)->data.string, &rule)) {
+			if (!redirect_rule_parse(srv, li_value_list_at(val, 0)->data.string, li_value_list_at(val, 1)->data.string, &rule)) {
 				redirect_free(NULL, rd);
 				return NULL;
 			}
 
 			g_array_append_val(rd->rules, rule);
-		}
+		LI_VALUE_END_FOREACH()
 	}
-
 
 	return li_action_new_function(redirect, NULL, redirect_free, rd);
 }

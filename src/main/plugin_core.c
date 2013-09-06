@@ -13,37 +13,37 @@
 
 static liAction* core_list(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	liAction *a;
-	guint i;
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (!val) {
+	val = li_value_get_single_argument(val);
+
+	if (NULL == val) {
 		ERROR(srv, "%s", "need parameter");
 		return NULL;
 	}
 
-	if (val->type == LI_VALUE_ACTION) {
+	if (LI_VALUE_ACTION == li_value_type(val)) {
 		a = val->data.val_action.action;
 		li_action_acquire(a);
 		return a;
 	}
 
-	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "expected list, got %s", li_value_type_string(val->type));
+	if (LI_VALUE_LIST != li_value_type(val)) {
+		ERROR(srv, "expected list, got %s", li_value_type_string(val));
 		return NULL;
 	}
 
 	a = li_action_new_list();
-	for (i = 0; i < val->data.list->len; i++) {
-		liValue *oa = g_array_index(val->data.list, liValue*, i);
-		if (oa->type != LI_VALUE_ACTION) {
-			ERROR(srv, "expected action at entry %u of list, got %s", i, li_value_type_string(oa->type));
+	LI_VALUE_FOREACH(oa, val)
+		if (LI_VALUE_ACTION != li_value_type(oa)) {
+			ERROR(srv, "expected action at entry %u of list, got %s", _oa_i, li_value_type_string(oa));
 			li_action_release(srv, a);
 			return NULL;
 		}
 		assert(srv == oa->data.val_action.srv);
 		li_action_acquire(oa->data.val_action.action);
 		g_array_append_val(a->data.list, oa->data.val_action.action);
-	}
+	LI_VALUE_END_FOREACH()
 	return a;
 }
 
@@ -52,47 +52,45 @@ static liAction* core_when(liServer *srv, liWorker *wrk, liPlugin* p, liValue *v
 	liAction *a, *act = NULL, *act_else = NULL;
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (!val) {
+	if (NULL == val) {
 		ERROR(srv, "%s", "need parameter");
 		return NULL;
 	}
-	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "expected list, got %s", li_value_type_string(val->type));
+	if (LI_VALUE_LIST != li_value_type(val)) {
+		ERROR(srv, "expected list, got %s", li_value_type_string(val));
 		return NULL;
 	}
-	if (val->data.list->len == 2) {
+	if (li_value_list_has_len(val, 2)) {
 		val_act_else = NULL;
 		act_else = NULL;
-	} else if (val->data.list->len == 3) {
-		val_act_else = g_array_index(val->data.list, liValue*, 2);
+	} else if (li_value_list_has_len(val, 3)) {
+		val_act_else = li_value_list_at(val, 2);
 	} else {
-		ERROR(srv, "expected list with length 2 or 3, has length %u", val->data.list->len);
+		ERROR(srv, "expected list with length 2 or 3, has length %u", li_value_list_len(val));
 		return NULL;
 	}
-	val_cond = g_array_index(val->data.list, liValue*, 0);
-	val_act = g_array_index(val->data.list, liValue*, 1);
+	val_cond = li_value_list_at(val, 0);
+	val_act = li_value_list_at(val, 1);
 
-	if (NULL == val_cond || val_cond->type != LI_VALUE_CONDITION) {
-		ERROR(srv, "expected condition as first parameter, got %s", NULL == val_cond ? "NULL" : li_value_type_string(val_cond->type));
+	if (LI_VALUE_CONDITION != li_value_type(val_cond)) {
+		ERROR(srv, "expected condition as first parameter, got %s", NULL == val_cond ? "NULL" : li_value_type_string(val_cond));
 		return NULL;
 	}
-	if (NULL == val_act || val_act->type == LI_VALUE_NONE) {
+	if (LI_VALUE_NONE == li_value_type(val_act)) {
 		act = NULL;
-	} else if (val_act->type == LI_VALUE_ACTION) {
+	} else if (LI_VALUE_ACTION == li_value_type(val_act)) {
 		act = val_act->data.val_action.action;
 	} else {
-		ERROR(srv, "expected action as second parameter, got %s", li_value_type_string(val_act->type));
+		ERROR(srv, "expected action as second parameter, got %s", li_value_type_string(val_act));
 		return NULL;
 	}
-	if (NULL != val_act_else) {
-		if (val_act_else->type == LI_VALUE_NONE) {
-			act_else = NULL;
-		} else if (val_act_else->type == LI_VALUE_ACTION) {
-			act_else = val_act_else->data.val_action.action;
-		} else {
-			ERROR(srv, "expected action as third parameter, got %s", li_value_type_string(val_act_else->type));
-			return NULL;
-		}
+	if (LI_VALUE_NONE == li_value_type(val_act_else)) {
+		act_else = NULL;
+	} else if (LI_VALUE_ACTION == li_value_type(val_act_else)) {
+		act_else = val_act_else->data.val_action.action;
+	} else {
+		ERROR(srv, "expected action as third parameter, got %s", li_value_type_string(val_act_else));
+		return NULL;
 	}
 	li_condition_acquire(val_cond->data.val_cond.cond);
 	if (NULL != act) li_action_acquire(act);
@@ -240,39 +238,38 @@ static void core_docroot_free(liServer *srv, gpointer param) {
 
 static liAction* core_docroot(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	GArray *arr;
-	guint i;
-	liValue *v;
 	liPattern *pattern;
-
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (!val || (val->type != LI_VALUE_STRING && val->type != LI_VALUE_LIST)) {
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_STRING != li_value_type(val) && LI_VALUE_LIST != li_value_type(val)) {
 		ERROR(srv, "%s", "docroot action expects a string or list of strings as parameter");
 		return NULL;
 	}
 
 	arr = g_array_new(FALSE, TRUE, sizeof(liPattern*));
 
-	if (val->type == LI_VALUE_STRING) {
+	if (LI_VALUE_STRING == li_value_type(val)) {
 		pattern = li_pattern_new(srv, val->data.string->str);
 		if (NULL == pattern) return FALSE;
 		g_array_append_val(arr, pattern);
 	} else {
-		for (i = 0; i < val->data.list->len; i++) {
-			v = g_array_index(val->data.list, liValue*, i);
-
-			if (v->type != LI_VALUE_STRING) {
+		LI_VALUE_FOREACH(v, val)
+			if (LI_VALUE_STRING != li_value_type(v)) {
+				ERROR(srv, "%s", "docroot action expects a string or list of strings as parameter");
 				core_docroot_free(srv, arr);
 				return NULL;
 			}
 
 			pattern = li_pattern_new(srv, v->data.string->str);
 			if (NULL == pattern) {
+				ERROR(srv, "%s", "docroot: failed to parse pattern");
 				core_docroot_free(srv, arr);
 				return FALSE;
 			}
 			g_array_append_val(arr, pattern);
-		}
+		LI_VALUE_END_FOREACH()
 	}
 
 	return li_action_new_function(core_handle_docroot, NULL, core_docroot_free, arr);
@@ -330,6 +327,8 @@ static void core_alias_free(liServer *srv, gpointer _param) {
 	guint i;
 	UNUSED(srv);
 
+	if (NULL == param) return;
+
 	for (i = 0; i < param->len; i++) {
 		core_alias_config ac = g_array_index(param, core_alias_config, i);
 		g_string_free(ac.prefix, TRUE);
@@ -340,43 +339,49 @@ static void core_alias_free(liServer *srv, gpointer _param) {
 
 static liAction* core_alias(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	GArray *a = NULL;
-	GArray *vl, *vl1;
-	core_alias_config ac;
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_LIST) {
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_LIST != li_value_type(val)) {
 		ERROR(srv, "%s", "unexpected or no parameter for alias action");
 		return NULL;
 	}
-	vl = val->data.list;
-	if (vl->len == 2 && g_array_index(vl, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(vl, liValue*, 1)->type == LI_VALUE_STRING) {
-		a = g_array_sized_new(FALSE, TRUE, sizeof(core_alias_config), 1);
-		ac.prefix = li_value_extract_string(g_array_index(vl, liValue*, 0));
-		ac.path = li_value_extract_string(g_array_index(vl, liValue*, 1));
-		g_array_append_val(a, ac);
-	} else {
-		guint i;
-		a = g_array_sized_new(FALSE, TRUE, sizeof(core_alias_config), vl->len);
-		for (i = 0; i < vl->len; i++) {
-			if (g_array_index(vl, liValue*, i)->type != LI_VALUE_LIST) {
-				ERROR(srv, "%s", "unexpected entry in parameter for alias action");
-				goto error_free;
-			}
-			vl1 = g_array_index(vl, liValue*, i)->data.list;
-			if (g_array_index(vl1, liValue*, 0)->type == LI_VALUE_STRING && g_array_index(vl1, liValue*, 1)->type == LI_VALUE_STRING) {
-				ac.prefix = li_value_extract_string(g_array_index(vl1, liValue*, 0));
-				ac.path = li_value_extract_string(g_array_index(vl1, liValue*, 1));
-				g_array_append_val(a, ac);
-			} else {
-				ERROR(srv, "%s", "unexpected entry in parameter for alias action");
-				goto error_free;
-			}
+	if (li_value_list_has_len(val, 2)) {
+		liValue *vPrefix = li_value_list_at(val, 0);
+		liValue *vPath = li_value_list_at(val, 1);
+		if (NULL == vPrefix || NULL == vPath) goto fail;
+
+		if (LI_VALUE_LIST == li_value_type(vPrefix) && LI_VALUE_STRING == li_value_type(vPath)) {
+			core_alias_config ac;
+			a = g_array_sized_new(FALSE, TRUE, sizeof(core_alias_config), 1);
+			ac.prefix = li_value_extract_string(vPrefix);
+			ac.path = li_value_extract_string(vPath);
+			g_array_append_val(a, ac);
 		}
+	}
+
+	if (NULL == a) {
+		a = g_array_sized_new(FALSE, TRUE, sizeof(core_alias_config), li_value_list_len(val));
+		LI_VALUE_FOREACH(entry, val)
+			liValue *vPrefix, *vPath;
+			core_alias_config ac;
+
+			if (!li_value_list_has_len(entry, 2)) goto fail;
+			vPrefix = li_value_list_at(entry, 0);
+			vPath = li_value_list_at(entry, 1);
+			if (LI_VALUE_LIST != li_value_type(vPrefix) || LI_VALUE_STRING != li_value_type(vPath)) goto fail;
+
+			ac.prefix = li_value_extract_string(vPrefix);
+			ac.path = li_value_extract_string(vPath);
+			g_array_append_val(a, ac);
+		LI_VALUE_END_FOREACH()
 	}
 
 	return li_action_new_function(core_handle_alias, NULL, core_alias_free, a);
 
-error_free:
+fail:
+	ERROR(srv, "%s", "unexpected entry in parameter for alias action");
 	core_alias_free(srv, a);
 	return NULL;
 }
@@ -485,24 +490,28 @@ static void core_index_free(liServer *srv, gpointer param) {
 }
 
 static liAction* core_index(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	GArray *files;
-	guint i;
-
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_LIST) {
+	if (LI_VALUE_STRING == li_value_type(val)) {
+		li_value_wrap_in_list(val);
+	}
+
+	if (LI_VALUE_LIST != li_value_type(val)) {
 		ERROR(srv, "%s", "index action expects a list of strings as parameter");
 		return NULL;
 	}
 
-	files = val->data.list;
+	if (li_value_list_has_len(val, 1) && LI_VALUE_LIST == li_value_list_type_at(val, 1)) {
+		/* only extract if single element is a list */
+		val = li_value_get_single_argument(val);
+	}
 
-	for (i = 0; i < files->len; i++) {
-		if (g_array_index(files, liValue*, i)->type != LI_VALUE_STRING) {
+	LI_VALUE_FOREACH(entry, val)
+		if (LI_VALUE_STRING != li_value_type(entry)) {
 			ERROR(srv, "%s", "index action expects a list of strings as parameter");
 			return NULL;
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	return li_action_new_function(core_handle_index, NULL, core_index_free, li_value_extract_list(val));
 }
@@ -720,7 +729,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 
 static liAction* core_static(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
-	if (val) {
+	if (!li_value_is_nothing(val)) {
 		ERROR(srv, "%s", "static action doesn't have parameters");
 		return NULL;
 	}
@@ -730,7 +739,7 @@ static liAction* core_static(liServer *srv, liWorker *wrk, liPlugin* p, liValue 
 
 static liAction* core_static_no_fail(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
-	if (val) {
+	if (!li_value_is_nothing(val)) {
 		ERROR(srv, "%s", "static_no_fail action doesn't have parameters");
 		return NULL;
 	}
@@ -800,7 +809,7 @@ next_round:
 
 static liAction* core_pathinfo(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
-	if (val) {
+	if (!li_value_is_nothing(val)) {
 		ERROR(srv, "%s", "pathinfo action doesn't have parameters");
 		return NULL;
 	}
@@ -819,10 +828,11 @@ static liHandlerResult core_handle_status(liVRequest *vr, gpointer param, gpoint
 
 static liAction* core_status(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	gpointer ptr;
-
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_NUMBER) {
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_NUMBER != li_value_type(val)) {
 		ERROR(srv, "%s", "set_status action expects a number as parameter");
 		return NULL;
 	}
@@ -861,9 +871,11 @@ static liHandlerResult core_handle_log_write(liVRequest *vr, gpointer param, gpo
 
 static liAction* core_log_write(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	liPattern *pattern;
-
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
-	if (!val || val->type != LI_VALUE_STRING) {
+
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_STRING != li_value_type(val)) {
 		ERROR(srv, "%s", "log.write expects a string parameter");
 		return NULL;
 	}
@@ -919,46 +931,47 @@ static liHandlerResult core_handle_respond(liVRequest *vr, gpointer param, gpoin
 
 static liAction* core_respond(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	respond_param *rp;
-
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	val = li_value_get_single_argument(val);
+	val = li_value_get_single_argument(val);
 
 	rp = g_slice_new(respond_param);
 
-	if (!val) {
+	if (NULL == val) {
 		/* respond; */
 		rp->status_code = 200;
 		rp->pattern = NULL;
-	} else if (val->type == LI_VALUE_STRING) {
+	} else if (LI_VALUE_STRING == li_value_type(val)) {
 		/* respond "foo"; */
 		rp->status_code = 200;
 		rp->pattern = li_pattern_new(srv, val->data.string->str);
 
-		if (!rp->pattern) {
-			g_slice_free(respond_param, rp);
-			ERROR(srv, "%s", "'respond' action takes an optional string as parameter");
-			return NULL;
-		}
-	} else if (val->type == LI_VALUE_NUMBER) {
+		if (!rp->pattern) goto fail;
+	} else if (LI_VALUE_NUMBER == li_value_type(val)) {
 		/* respond 404; */
 		rp->status_code = val->data.number;
 		rp->pattern = NULL;
-	} else if (val->type == LI_VALUE_LIST && val->data.list->len == 2 && g_array_index(val->data.list, liValue*, 0)->type == LI_VALUE_NUMBER && g_array_index(val->data.list, liValue*, 1)->type == LI_VALUE_STRING) {
-		/* respond 200 => "foo"; */
-		rp->status_code = g_array_index(val->data.list, liValue*, 0)->data.number;
-		rp->pattern = li_pattern_new(srv, g_array_index(val->data.list, liValue*, 1)->data.string->str);
+	} else if (li_value_list_has_len(val, 2)) {
+		liValue *vCode = li_value_list_at(val, 0);
+		liValue *vText = li_value_list_at(val, 1);
+		if (LI_VALUE_NUMBER != li_value_type(vCode) || LI_VALUE_STRING != li_value_type(vText)) goto fail;
 
-		if (!rp->pattern) {
-			g_slice_free(respond_param, rp);
-			ERROR(srv, "%s", "'respond' action takes an optional string as parameter");
-			return NULL;
-		}
+		/* respond 200 => "foo"; */
+		rp->status_code = vCode->data.number;
+		rp->pattern = li_pattern_new(srv, vText->data.string->str);
+
+		if (!rp->pattern) goto fail;
 	} else {
-		g_slice_free(respond_param, rp);
-		ERROR(srv, "%s", "'respond' action takes an optional string as parameter");
-		return NULL;
+		goto fail;
 	}
 
 	return li_action_new_function(core_handle_respond, NULL, core_respond_free, rp);
+
+fail:
+	g_slice_free(respond_param, rp);
+	ERROR(srv, "%s", "'respond' action takes an optional string as parameter");
+	return NULL;
 }
 
 
@@ -992,21 +1005,24 @@ static liHandlerResult core_handle_env_set(liVRequest *vr, gpointer param, gpoin
 
 static liAction* core_env_set(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	liPattern *pattern;
-
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_LIST || val->data.list->len != 2
-		|| g_array_index(val->data.list, liValue*, 0)->type != LI_VALUE_STRING
-		|| g_array_index(val->data.list, liValue*, 1)->type != LI_VALUE_STRING) {
+	/* first argument is a key value list - list of list of list of strings */
+	val = li_value_get_single_argument(val);
+	val = li_value_get_single_argument(val);
+
+	if (!li_value_list_has_len(val, 2)
+		|| LI_VALUE_STRING != li_value_list_type_at(val, 0)
+		|| LI_VALUE_STRING != li_value_list_type_at(val, 1)) {
 		ERROR(srv, "%s", "'env.set' action requires a pair of strings as parameter");
 		return NULL;
 	}
 
-	if (NULL == (pattern = li_pattern_new(srv, g_array_index(val->data.list, liValue*, 1)->data.string->str)))
+	if (NULL == (pattern = li_pattern_new(srv, li_value_list_at(val, 1)->data.string->str)))
 		return NULL;
 
 	/* exchange second parameter (string) with the new pattern */
-	li_value_free(g_array_index(val->data.list, liValue*, 1));
+	li_value_free(li_value_list_at(val, 1));
 	g_array_index(val->data.list, liPattern*, 1) = pattern;
 
 	return li_action_new_function(core_handle_env_set, NULL, core_env_set_free, li_value_extract_list(val));
@@ -1033,21 +1049,24 @@ static liHandlerResult core_handle_env_add(liVRequest *vr, gpointer param, gpoin
 
 static liAction* core_env_add(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	liPattern *pattern;
-
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_LIST || val->data.list->len != 2
-		|| g_array_index(val->data.list, liValue*, 0)->type != LI_VALUE_STRING
-		|| g_array_index(val->data.list, liValue*, 1)->type != LI_VALUE_STRING) {
+	/* first argument is a key value list - list of list of list of strings */
+	val = li_value_get_single_argument(val);
+	val = li_value_get_single_argument(val);
+
+	if (!li_value_list_has_len(val, 2)
+		|| LI_VALUE_STRING != li_value_list_type_at(val, 0)
+		|| LI_VALUE_STRING != li_value_list_type_at(val, 1)) {
 		ERROR(srv, "%s", "'env.add' action requires a pair of strings as parameter");
 		return NULL;
 	}
 
-	if (NULL == (pattern = li_pattern_new(srv, g_array_index(val->data.list, liValue*, 1)->data.string->str)))
+	if (NULL == (pattern = li_pattern_new(srv, li_value_list_at(val, 1)->data.string->str)))
 		return NULL;
 
 	/* exchange second parameter (string) with the new pattern */
-	li_value_free(g_array_index(val->data.list, liValue*, 1));
+	li_value_free(li_value_list_at(val, 1));
 	g_array_index(val->data.list, liPattern*, 1) = pattern;
 
 	return li_action_new_function(core_handle_env_add, NULL, core_env_set_free, li_value_extract_list(val));
@@ -1062,7 +1081,6 @@ static void core_env_remove_free(liServer *srv, gpointer param) {
 
 static liHandlerResult core_handle_env_remove(liVRequest *vr, gpointer param, gpointer *context) {
 	GString *key = param;
-
 	UNUSED(context);
 
 	li_environment_remove(&vr->env, GSTR_LEN(key));
@@ -1073,7 +1091,9 @@ static liHandlerResult core_handle_env_remove(liVRequest *vr, gpointer param, gp
 static liAction* core_env_remove(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_STRING) {
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_STRING != li_value_type(val)) {
 		ERROR(srv, "%s", "'env.remove' action requires a string as parameter");
 		return NULL;
 	}
@@ -1093,7 +1113,7 @@ static liHandlerResult core_handle_env_clear(liVRequest *vr, gpointer param, gpo
 static liAction* core_env_clear(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val) {
+	if (!li_value_is_nothing(val)) {
 		ERROR(srv, "%s", "'env.clear' action doesn't have parameters");
 		return NULL;
 	}
@@ -1103,33 +1123,44 @@ static liAction* core_env_clear(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 
 
 static gboolean core_listen(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	GString *ipstr;
 	UNUSED(p); UNUSED(userdata);
 
-	if (val->type != LI_VALUE_STRING) {
-		ERROR(srv, "%s", "listen expects a string as parameter");
-		return FALSE;
+	val = li_value_get_single_argument(val);
+
+	if (NULL == val) goto fail;
+
+	if (LI_VALUE_STRING == li_value_type(val)) {
+		li_angel_listen(srv, val->data.string, NULL, NULL);
+	} else if (LI_VALUE_LIST == li_value_type(val)) {
+		LI_VALUE_FOREACH(ip, val);
+			if (LI_VALUE_STRING != li_value_type(ip)) goto fail;
+			li_angel_listen(srv, ip->data.string, NULL, NULL);
+		LI_VALUE_END_FOREACH()
+	} else {
+		goto fail;
 	}
 
-	ipstr = val->data.string;
-	li_angel_listen(srv, ipstr, NULL, NULL);
-
 	return TRUE;
+
+fail:
+	ERROR(srv, "%s", "listen expects a string or list of strings as parameter");
+	return FALSE;
 }
 
 
 static gboolean core_workers(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	gint workers;
 	UNUSED(p); UNUSED(userdata);
+	val = li_value_get_single_argument(val);
 
-	workers = val->data.number;
-	if (val->type != LI_VALUE_NUMBER || workers < 1) {
+	if (LI_VALUE_NUMBER != li_value_type(val) || (workers = val->data.number) < 1) {
 		ERROR(srv, "%s", "workers expects a positive integer as parameter");
 		return FALSE;
 	}
 
 	if (srv->worker_count != 0) {
-		ERROR(srv, "workers already called with '%i', overwriting", srv->worker_count);
+		ERROR(srv, "workers already called with '%i'", srv->worker_count);
+		return FALSE;
 	}
 	srv->worker_count = workers;
 	return TRUE;
@@ -1137,36 +1168,26 @@ static gboolean core_workers(liServer *srv, liPlugin* p, liValue *val, gpointer 
 
 static gboolean core_workers_cpu_affinity(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 #if defined(LIGHTY_OS_LINUX)
-	GArray *arr1, *arr2;
-	guint i, j;
-	liValue *v;
-
 	UNUSED(p); UNUSED(userdata);
 
-	if (val->type != LI_VALUE_LIST) {
+	if (LI_VALUE_LIST != li_value_type(val)) {
 		ERROR(srv, "%s", "workers.cpu_affinity expects a list of integers or list of list of integers");
 		return FALSE;
 	}
 
-	arr1 = val->data.list;
-
-	for (i = 0; i < arr1->len; i++) {
-		v = g_array_index(arr1, liValue*, i);
-		if (v->type == LI_VALUE_NUMBER)
-			continue;
-		if (v->type == LI_VALUE_LIST) {
-			arr2 = v->data.list;
-			for (j = 0; j < arr2->len; j++) {
-				if (g_array_index(arr2, liValue*, j)->type != LI_VALUE_NUMBER) {
+	LI_VALUE_FOREACH(v, val)
+		if (LI_VALUE_LIST == li_value_type(v)) {
+			LI_VALUE_FOREACH(v2, v)
+				if (LI_VALUE_NUMBER != li_value_type(v2)) {
 					ERROR(srv, "%s", "workers.cpu_affinity expects a list of integers or list of list of integers");
 					return FALSE;
 				}
-			}
-		} else {
+			LI_VALUE_END_FOREACH()
+		} else if (LI_VALUE_NUMBER != li_value_type(v)) {
 			ERROR(srv, "%s", "workers.cpu_affinity expects a list of integers or list of list of integers");
 			return FALSE;
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	srv->workers_cpu_affinity = li_value_copy(val);
 
@@ -1179,40 +1200,35 @@ static gboolean core_workers_cpu_affinity(liServer *srv, liPlugin* p, liValue *v
 }
 
 static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-	liValue *mods = li_value_new_list();
-
 	UNUSED(p); UNUSED(userdata);
 
 	if (!g_module_supported()) {
 		ERROR(srv, "%s", "module loading not supported on this platform");
-		li_value_free(mods);
 		return FALSE;
 	}
 
-	if (val->type == LI_VALUE_STRING) {
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_STRING == li_value_type(val)) {
 		/* load only one module */
-		liValue *name = li_value_new_string(li_value_extract_string(val));
-		g_array_append_val(mods->data.list, name);
-	} else if (val->type == LI_VALUE_LIST) {
+		li_value_wrap_in_list(val);
+	} else if (LI_VALUE_LIST == li_value_type(val)) {
 		/* load a list of modules */
-		for (guint i = 0; i < val->data.list->len; i++) {
-			liValue *v = g_array_index(val->data.list, liValue*, i);
-			if (v->type != LI_VALUE_STRING) {
-				ERROR(srv, "module_load takes either a string or a list of strings as parameter, list with %s entry given", li_value_type_string(v->type));
-				li_value_free(mods);
+		LI_VALUE_FOREACH(module, val)
+			if (LI_VALUE_STRING != li_value_type(module)) {
+				ERROR(srv, "module_load takes either a string or a list of strings as parameter, list with %s entry given",
+					li_value_type_string(module));
 				return FALSE;
 			}
-		}
-		g_array_free(mods->data.list, TRUE);
-		mods->data.list = li_value_extract_list(val);
+		LI_VALUE_END_FOREACH()
 	} else {
-		ERROR(srv, "module_load takes either a string or a list of strings as parameter, %s given", li_value_type_string(val->type));
+		ERROR(srv, "module_load takes either a string or a list of strings as parameter, %s given", li_value_type_string(val));
 		return FALSE;
 	}
 
 	/* parameter types ok, load modules */
-	for (guint i = 0; i < mods->data.list->len; i++) {
-		GString *name = g_array_index(mods->data.list, liValue*, i)->data.string;
+	LI_VALUE_FOREACH(module, val)
+		GString *name = module->data.string;
 		if (li_module_lookup(srv->modules, name->str)) {
 			DEBUG(srv, "module_load: module '%s' already loaded", name->str);
 			continue;
@@ -1220,14 +1236,11 @@ static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val, gpoin
 
 		if (!li_module_load(srv->modules, name->str)) {
 			ERROR(srv, "could not load module '%s': %s", name->str, g_module_error());
-			li_value_free(mods);
 			return FALSE;
 		}
 
 		DEBUG(srv, "loaded module '%s'", name->str);
-	}
-
-	li_value_free(mods);
+	LI_VALUE_END_FOREACH()
 
 	return TRUE;
 }
@@ -1235,7 +1248,7 @@ static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val, gpoin
 static gboolean core_io_timeout(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(p); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_NUMBER || val->data.number < 1) {
+	if (LI_VALUE_NUMBER != li_value_type(val) || val->data.number < 1) {
 		ERROR(srv, "%s", "io.timeout expects a positive number as parameter");
 		return FALSE;
 	}
@@ -1248,7 +1261,7 @@ static gboolean core_io_timeout(liServer *srv, liPlugin* p, liValue *val, gpoint
 static gboolean core_stat_cache_ttl(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(p); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_NUMBER || val->data.number < 0) {
+	if (LI_VALUE_NUMBER != li_value_type(val) || val->data.number < 0) {
 		ERROR(srv, "%s", "stat_cache.ttl expects a positive number as parameter");
 		return FALSE;
 	}
@@ -1261,7 +1274,7 @@ static gboolean core_stat_cache_ttl(liServer *srv, liPlugin* p, liValue *val, gp
 static gboolean core_tasklet_pool_threads(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(p); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_NUMBER) {
+	if (LI_VALUE_NUMBER != li_value_type(val)) {
 		ERROR(srv, "%s", "tasklet_pool.threads expects a number as parameter");
 		return FALSE;
 	}
@@ -1278,8 +1291,6 @@ static gboolean core_tasklet_pool_threads(liServer *srv, liPlugin* p, liValue *v
 
 static liLogMap* logmap_from_value(liServer *srv, liValue *val) {
 	liLogMap *log_map;
-	guint i;
-	GArray *list;
 	GString *default_path = NULL;
 
 	if (NULL == val) {
@@ -1291,22 +1302,21 @@ static liLogMap* logmap_from_value(liServer *srv, liValue *val) {
 		return NULL;
 	}
 
-	list = val->data.list;
 	log_map = li_log_map_new();
 
-	for (i = 0; i < list->len; ++i) {
-		liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
-		liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
+	LI_VALUE_FOREACH(entry, val)
+		liValue *entryKey = li_value_list_at(entry, 0);
+		liValue *entryValue = li_value_list_at(entry, 1);
 		GString *entryKeyStr;
 
-		if (LI_VALUE_STRING != entryValue->type) {
-			ERROR(srv, "log expects a hashtable/key-value list with string values as parameter, %s value given", li_value_type_string(entryValue->type));
+		if (LI_VALUE_STRING != li_value_type(entryValue)) {
+			ERROR(srv, "log expects a hashtable/key-value list with string values as parameter, %s value given", li_value_type_string(entryValue));
 			li_log_map_release(log_map);
 			return NULL;
 		}
 
 		/* NONE or STRING */
-		entryKeyStr = (LI_VALUE_STRING == entryKey->type) ? entryKey->data.string : NULL;
+		entryKeyStr = (LI_VALUE_STRING == li_value_type(entryKey)) ? entryKey->data.string : NULL;
 
 		if (NULL != entryKeyStr && g_str_equal(entryKeyStr->str, "*")) {
 			WARNING(srv, "%s", "log: found entry with string key \"*\". please convert the parameter to a key-value list and use the keyword default instead.");
@@ -1335,9 +1345,10 @@ static liLogMap* logmap_from_value(liServer *srv, liValue *val) {
 			}
 			log_map->targets[level] = li_value_extract_string(entryValue);
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	if (NULL != default_path) {
+		guint i;
 		for (i = 0; i < LI_LOG_LEVEL_COUNT; i++) {
 			/* do NOT overwrite other paths */
 			if (NULL != log_map->targets[i]) continue;
@@ -1369,10 +1380,11 @@ static liHandlerResult core_handle_log(liVRequest *vr, gpointer param, gpointer 
 
 static liAction* core_log(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	liLogMap *log_map;
-
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (!val) {
+	val = li_value_get_single_argument(val);
+
+	if (NULL == val) {
 		return li_action_new_function(core_handle_log, NULL, core_log_free, NULL);
 	}
 
@@ -1386,12 +1398,7 @@ static gboolean core_setup_log(liServer *srv, liPlugin* p, liValue *val, gpointe
 	liLogMap *log_map;
 	UNUSED(p); UNUSED(userdata);
 
-	if (!val) {
-		log_map = li_log_map_new_default();
-		li_log_context_set(&srv->logs.log_context, log_map);
-		li_log_map_release(log_map);
-		return TRUE;
-	}
+	val = li_value_get_single_argument(val);
 
 	log_map = logmap_from_value(srv, val);
 	if (NULL == log_map) return FALSE;
@@ -1416,22 +1423,17 @@ static gboolean core_setup_log_timestamp(liServer *srv, liPlugin* p, liValue *va
 }
 
 static gboolean core_option_static_exclude_exts_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
-	GArray *arr;
-	UNUSED(srv);
-	UNUSED(wrk);
-	UNUSED(p);
-	UNUSED(ndx);
+	UNUSED(srv); UNUSED(wrk); UNUSED(p); UNUSED(ndx);
 
-	if (!val) return TRUE;
+	if (NULL == val) return TRUE;
+	assert(LI_VALUE_LIST == val->type);
 
-	arr = val->data.list;
-	for (guint i = 0; i < arr->len; i++) {
-		liValue *v = g_array_index(arr, liValue*, i);
-		if (v->type != LI_VALUE_STRING) {
-			ERROR(srv, "static.exclude_extensions option expects a list of strings, entry #%u is of type %s", i, li_value_type_string(v->type));
+	LI_VALUE_FOREACH(v, val)
+		if (LI_VALUE_STRING != li_value_type(v)) {
+			ERROR(srv, "static.exclude_extensions option expects a list of strings, entry #%u is of type %s", _v_i, li_value_type_string(v));
 			return FALSE;
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	/* everything ok */
 	*oval = li_value_extract_list(val);
@@ -1441,49 +1443,36 @@ static gboolean core_option_static_exclude_exts_parse(liServer *srv, liWorker *w
 
 
 static gboolean core_option_mime_types_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
-	GArray *arr;
 	liMimetypeNode *node;
 
-	UNUSED(srv);
-	UNUSED(wrk);
-	UNUSED(p);
-	UNUSED(ndx);
+	UNUSED(srv); UNUSED(wrk); UNUSED(p); UNUSED(ndx);
 
 	*oval = node = li_mimetype_node_new();
 	node->mimetype = g_string_new_len(CONST_STR_LEN("application/octet-stream"));
 
 	/* default value */
-	if (!val) {
-		return TRUE;
-	}
+	if (NULL == val) return TRUE;
 
 	/* check if the passed val is of type (("a", "b"), ("x", y")) */
-	arr = val->data.list;
-	for (guint i = 0; i < arr->len; i++) {
-		liValue *v = g_array_index(arr, liValue*, i);
+	LI_VALUE_FOREACH(v, val)
 		liValue *v1, *v2;
-		if (v->type != LI_VALUE_LIST) {
-			ERROR(srv, "mime_types option expects a list of string tuples, entry #%u is of type %s", i, li_value_type_string(v->type));
+
+		if (!li_value_list_has_len(v, 2)) {
+			ERROR(srv, "mime_types option expects a list of string tuples, entry #%u is not a tuple", _v_i);
 			li_mimetype_node_free(node);
 			return FALSE;
 		}
 
-		if (v->data.list->len != 2) {
-			ERROR(srv, "mime_types option expects a list of string tuples, entry #%u is not a tuple", i);
-			li_mimetype_node_free(node);
-			return FALSE;
-		}
-
-		v1 = g_array_index(v->data.list, liValue*, 0);
-		v2 = g_array_index(v->data.list, liValue*, 1);
-		if (v1->type != LI_VALUE_STRING || v2->type != LI_VALUE_STRING) {
-			ERROR(srv, "mime_types option expects a list of string tuples, entry #%u is a (%s,%s) tuple", i, li_value_type_string(v1->type), li_value_type_string(v2->type));
+		v1 = li_value_list_at(v, 0);
+		v2 = li_value_list_at(v, 1);
+		if (LI_VALUE_STRING != li_value_type(v1) || LI_VALUE_STRING != li_value_type(v2)) {
+			ERROR(srv, "mime_types option expects a list of string tuples, entry #%u is a (%s,%s) tuple", _v_i, li_value_type_string(v1), li_value_type_string(v2));
 			li_mimetype_node_free(node);
 			return FALSE;
 		}
 
 		li_mimetype_insert(node, v1->data.string, li_value_extract_string(v2));
-	}
+	LI_VALUE_END_FOREACH()
 
 	return TRUE;
 }
@@ -1497,28 +1486,23 @@ static void core_option_mime_types_free(liServer *srv, liPlugin *p, size_t ndx, 
 }
 
 static gboolean core_option_etag_use_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, liOptionValue *oval) {
-	GArray *arr;
 	guint flags = 0;
-	UNUSED(p);
-	UNUSED(ndx);
-	UNUSED(wrk);
+	UNUSED(p); UNUSED(ndx); UNUSED(wrk);
 
 	/* default value */
-	if (!val) {
+	if (NULL == val) {
 		oval->number = LI_ETAG_USE_INODE | LI_ETAG_USE_MTIME | LI_ETAG_USE_SIZE;
 		return TRUE;
 	}
 
 	/* Need manual type check, as resulting option type is number */
-	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "etag.use option expects a list of strings, parameter is of type %s", li_value_type_string(val->type));
+	if (LI_VALUE_LIST != li_value_type(val)) {
+		ERROR(srv, "etag.use option expects a list of strings, parameter is of type %s", li_value_type_string(val));
 		return FALSE;
 	}
-	arr = val->data.list;
-	for (guint i = 0; i < arr->len; i++) {
-		liValue *v = g_array_index(arr, liValue*, i);
-		if (v->type != LI_VALUE_STRING) {
-			ERROR(srv, "etag.use option expects a list of strings, entry #%u is of type %s", i, li_value_type_string(v->type));
+	LI_VALUE_FOREACH(v, val)
+		if (LI_VALUE_STRING != li_value_type(v)) {
+			ERROR(srv, "etag.use option expects a list of strings, entry #%u is of type %s", _v_i, li_value_type_string(v));
 			return FALSE;
 		}
 
@@ -1532,7 +1516,7 @@ static gboolean core_option_etag_use_parse(liServer *srv, liWorker *wrk, liPlugi
 			ERROR(srv, "unknown etag.use flag: %s", v->data.string->str);
 			return FALSE;
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	oval->number = (guint64) flags;
 	return TRUE;
@@ -1578,34 +1562,29 @@ static liHandlerResult core_handle_header(liVRequest *vr, gpointer param, gpoint
 }
 
 static liAction* core_generic_header_add(liServer *srv, liValue *val, header_cb header_callback, gboolean use_req_header) {
-	GArray *l;
 	liPattern *pat;
 	header_ctx *ctx;
 
-	if (val->type != LI_VALUE_LIST) {
-		ERROR(srv, "'[req_]header.add/append/overwrite' action expects a string tuple as parameter, %s given", li_value_type_string(val->type));
+	val = li_value_get_single_argument(val);
+	val = li_value_get_single_argument(val);
+
+	if (!li_value_list_has_len(val, 2)) {
+		ERROR(srv, "'[req_]header.add/append/overwrite' action expects a string tuple as parameter, %s given", li_value_type_string(val));
 		return NULL;
 	}
 
-	l = val->data.list;
-
-	if (l->len != 2) {
-		ERROR(srv, "'[req_]header.add/append/overwrite' action expects a string tuple as parameter, list has %u entries", l->len);
-		return NULL;
-	}
-
-	if (g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING || g_array_index(l, liValue*, 0)->type != LI_VALUE_STRING) {
+	if (LI_VALUE_STRING != li_value_list_type_at(val, 0) || LI_VALUE_STRING != li_value_list_type_at(val, 1)) {
 		ERROR(srv, "%s", "'[req_]header.add/append/overwrite' action expects a string tuple as parameter");
 		return NULL;
 	}
 
-	if (NULL == (pat = li_pattern_new(srv, g_array_index(l, liValue*, 1)->data.string->str))) {
+	if (NULL == (pat = li_pattern_new(srv, li_value_list_at(val, 1)->data.string->str))) {
 		ERROR(srv, "%s", "'[req_]header.add/append/overwrite': parsing value pattern failed");
 		return NULL;
 	}
 
 	ctx = g_slice_new(header_ctx);
-	ctx->key = li_value_extract_string(g_array_index(l, liValue*, 0));
+	ctx->key = li_value_extract_string(li_value_list_at(val, 0));
 	ctx->value = pat;
 	ctx->cb = header_callback;
 	ctx->use_req_header = use_req_header;
@@ -1643,8 +1622,10 @@ static liHandlerResult core_handle_header_remove(liVRequest *vr, gpointer param,
 static liAction* core_header_remove(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val->type != LI_VALUE_STRING) {
-		ERROR(srv, "'header.remove' action expects a string as parameter, %s given", li_value_type_string(val->type));
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_STRING != li_value_type(val)) {
+		ERROR(srv, "'header.remove' action expects a string as parameter, %s given", li_value_type_string(val));
 		return NULL;
 	}
 
@@ -1663,8 +1644,10 @@ static liHandlerResult core_handle_req_header_remove(liVRequest *vr, gpointer pa
 static liAction* core_req_header_remove(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val->type != LI_VALUE_STRING) {
-		ERROR(srv, "'req_header.remove' action expects a string as parameter, %s given", li_value_type_string(val->type));
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_STRING != li_value_type(val)) {
+		ERROR(srv, "'req_header.remove' action expects a string as parameter, %s given", li_value_type_string(val));
 		return NULL;
 	}
 
@@ -1685,8 +1668,10 @@ static liAction* core_buffer_out(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 	gint64 limit;
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val->type != LI_VALUE_NUMBER) {
-		ERROR(srv, "'io.buffer_out' action expects an integer as parameter, %s given", li_value_type_string(val->type));
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_NUMBER != li_value_type(val)) {
+		ERROR(srv, "'io.buffer_out' action expects an integer as parameter, %s given", li_value_type_string(val));
 		return NULL;
 	}
 
@@ -1718,8 +1703,10 @@ static liAction* core_buffer_in(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	gint64 limit;
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val->type != LI_VALUE_NUMBER) {
-		ERROR(srv, "'io.buffer_in' action expects an integer as parameter, %s given", li_value_type_string(val->type));
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_NUMBER != li_value_type(val)) {
+		ERROR(srv, "'io.buffer_in' action expects an integer as parameter, %s given", li_value_type_string(val));
 		return NULL;
 	}
 
@@ -1758,43 +1745,44 @@ static void core_map_free(liServer *srv, gpointer param) {
 static liHandlerResult core_handle_map(liVRequest *vr, gpointer param, gpointer *context) {
 	liValue *v;
 	core_map_data *md = param;
-
 	UNUSED(context);
 
 	g_string_truncate(vr->wrk->tmp_str, 0);
 	li_pattern_eval(vr, vr->wrk->tmp_str, md->pattern, NULL, NULL, NULL, NULL);
 
 	v = g_hash_table_lookup(md->hash, vr->wrk->tmp_str);
-	if (v)
+	if (NULL != v) {
 		li_action_enter(vr, v->data.val_action.action);
-	else if (md->default_action)
+	} else if (NULL != md->default_action) {
 		li_action_enter(vr, md->default_action);
+	}
 
 	return LI_HANDLER_GO_ON;
 }
 
 static liAction* core_map(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	core_map_data *md;
-	guint i;
-	liValue *list, *l, *r, *v;
+	liValue *list, *l, *r;
 	liPattern *pattern;
-
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_LIST || val->data.list->len != 2) {
+	val = li_value_get_single_argument(val);
+	val = li_value_get_single_argument(val);
+
+	if (!li_value_list_has_len(val, 2)) {
 		ERROR(srv, "%s", "'map' action expects a string => (list of key => action pairs) as parameter");
 		return NULL;
 	}
 
-	l = g_array_index(val->data.list, liValue*, 0);
-	r = g_array_index(val->data.list, liValue*, 1);
-	if (l->type != LI_VALUE_STRING || r->type != LI_VALUE_LIST) {
+	l = li_value_list_at(val, 0);
+	r = li_value_list_at(val, 1);
+	if (LI_VALUE_STRING != li_value_type(l) || LI_VALUE_LIST != li_value_type(r)) {
 		ERROR(srv, "%s", "'map' action expects a string => (list of key => action pairs) as parameter");
 		return NULL;
 	}
 
 	pattern = li_pattern_new(srv, l->data.string->str);
-	if (!pattern) {
+	if (NULL == pattern) {
 		ERROR(srv, "'map' action: failed to compile pattern '%s'", l->data.string->str);
 		return NULL;
 	}
@@ -1802,54 +1790,49 @@ static liAction* core_map(liServer *srv, liWorker *wrk, liPlugin* p, liValue *va
 	md = g_slice_new(core_map_data);
 	md->pattern = pattern;
 	md->default_action = NULL;
-	md->hash = g_hash_table_new_full(
-		(GHashFunc) g_string_hash, (GEqualFunc) g_string_equal,
-		(GDestroyNotify) li_string_destroy_notify, (GDestroyNotify) li_value_free);
+	md->hash = li_value_new_hashtable();
 
 	list = r;
 
-	for (i = 0; i < list->data.list->len; i++) {
-		v = g_array_index(list->data.list, liValue*, i);
-
-		if (v->type != LI_VALUE_LIST || v->data.list->len != 2) {
+	LI_VALUE_FOREACH(v, list)
+		if (!li_value_list_has_len(v, 2)) {
 			ERROR(srv, "%s", "'map' action expects a string => (list of key => action pairs) as parameter");
 			core_map_free(srv, md);
 			return NULL;
 		}
 
-		l = g_array_index(v->data.list, liValue*, 0);
-		r = g_array_index(v->data.list, liValue*, 1);
+		l = li_value_list_at(v, 0);
+		r = li_value_list_at(v, 1);
 
-		if (r->type != LI_VALUE_ACTION) {
+		if (LI_VALUE_ACTION != li_value_type(r)) {
 			ERROR(srv, "%s", "'map' action expects a string => (list of key => action pairs) as parameter");
 			core_map_free(srv, md);
 			return NULL;
 		}
 
-		if (l->type == LI_VALUE_NONE) {
+		/* TODO: error on duplicate keys? right now last key wins. */
+		if (LI_VALUE_NONE == li_value_type(l)) {
+			if (NULL != md->default_action) {
+				li_action_release(srv, md->default_action);
+			}
 			/* default action */
 			md->default_action = li_value_extract_action(r);
-		} else if (l->type == LI_VALUE_STRING) {
+		} else if (LI_VALUE_STRING == li_value_type(l)) {
 			/* string => action */
-			g_hash_table_insert(md->hash, li_value_extract_string(l), li_value_copy(r));
-		} else if (l->type == LI_VALUE_LIST) {
+			g_hash_table_insert(md->hash, li_value_extract_string(l), li_value_extract(r));
+		} else if (LI_VALUE_LIST == li_value_type(l)) {
 			/* (string, string, ...) => action */
-			guint j;
-			liValue *v2;
-
-			for (j = 0; j < l->data.list->len; j++) {
-				v2 = g_array_index(l->data.list, liValue*, j);
-
-				if (v2->type != LI_VALUE_STRING) {
+			LI_VALUE_FOREACH(v2, l)
+				if (LI_VALUE_STRING != li_value_type(v2)) {
 					ERROR(srv, "%s", "'map' action expects a string => (list of key => action pairs) as parameter");
 					core_map_free(srv, md);
 					return NULL;
 				}
 
-				g_hash_table_insert(md->hash, li_value_extract_string(v2), li_value_copy(r));
-			}
+				g_hash_table_insert(md->hash, li_value_extract_string(v2), li_value_extract(r));
+			LI_VALUE_END_FOREACH()
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	return li_action_new_function(core_handle_map, NULL, core_map_free, md);
 }
@@ -1896,15 +1879,17 @@ static gboolean core_register_fetch_files_static(liServer *srv, liPlugin* p, liV
 	liFetchDatabase *db = NULL;
 	UNUSED(p); UNUSED(userdata);
 
-	if (LI_VALUE_LIST != val->type || 2 != val->data.list->len
-		|| LI_VALUE_STRING != g_array_index(val->data.list, liValue*, 0)->type
-		|| LI_VALUE_STRING != g_array_index(val->data.list, liValue*, 1)->type) {
+	val = li_value_get_single_argument(val);
+
+	if (!li_value_list_has_len(val, 2)
+		|| LI_VALUE_STRING != li_value_list_type_at(val, 0)
+		|| LI_VALUE_STRING != li_value_list_type_at(val, 1)) {
 		ERROR(srv, "%s", "fetch.files_static expects a two strings as parameter: \"<name>\" => \"/path/abc_*.d/file\"");
 		goto out;
 	}
 
-	name = g_array_index(val->data.list, liValue*, 0)->data.string->str;
-	pattern = g_array_index(val->data.list, liValue*, 1)->data.string;
+	name = li_value_list_at(val, 0)->data.string->str;
+	pattern = li_value_list_at(val, 1)->data.string;
 
 	wildcard = strchr(pattern->str, '*');
 	if (NULL == wildcard || NULL != strchr(wildcard + 1, '*')) {
@@ -2123,34 +2108,27 @@ static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk
 	{
 		cpu_set_t mask;
 		liValue *v = srv->workers_cpu_affinity;
-		GArray *arr;
 
-		if (!v)
-			return;
+		if (NULL == v) return;
 
-		arr = v->data.list;
-
-		if (wrk->ndx >= arr->len) {
+		if (wrk->ndx >= li_value_list_len(v)) {
 			WARNING(srv, "worker #%u has no entry in workers.cpu_affinity", wrk->ndx+1);
 			return;
 		}
 
 		CPU_ZERO(&mask);
 
-		v = g_array_index(arr, liValue*, wrk->ndx);
-		if (v->type == LI_VALUE_NUMBER) {
+		v = li_value_list_at(v, wrk->ndx);
+		if (LI_VALUE_NUMBER == li_value_type(v)) {
 			CPU_SET(v->data.number, &mask);
 			DEBUG(srv, "binding worker #%u to cpu %u", wrk->ndx+1, (guint)v->data.number);
 		} else {
-			guint i;
-
 			g_string_truncate(wrk->tmp_str, 0);
-			arr = v->data.list;
 
-			for (i = 0; i < arr->len; i++) {
-				CPU_SET(g_array_index(arr, liValue*, i)->data.number, &mask);
-				g_string_append_printf(wrk->tmp_str, i ? ",%u":"%u", (guint)g_array_index(arr, liValue*, i)->data.number);
-			}
+			LI_VALUE_FOREACH(entry, v)
+				CPU_SET(entry->data.number, &mask);
+				g_string_append_printf(wrk->tmp_str, _entry_i ? ",%u":"%u", (guint)entry->data.number);
+			LI_VALUE_END_FOREACH()
 
 			DEBUG(srv, "binding worker #%u to cpus %s", wrk->ndx+1, wrk->tmp_str->str);
 		}

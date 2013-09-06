@@ -1009,21 +1009,21 @@ static liAction* status_info_create(liServer *srv, liWorker *wrk, liPlugin* p, l
 	mod_status_param *param = g_slice_new0(mod_status_param);
 	UNUSED(wrk); UNUSED(userdata);
 
+	val = li_value_get_single_argument(val);
+
 	param->p = p;
 	param->short_info = FALSE;
 
-	if (val) {
-		if (val->type != LI_VALUE_STRING) {
-			ERROR(srv, "%s", "status.info expects either a string or nothing as parameter");
-			goto error_free_param;
-		}
-
+	if (LI_VALUE_STRING == li_value_type(val)) {
 		if (0 == strcmp(val->data.string->str, "short")) {
 			param->short_info = TRUE;
 		} else {
 			ERROR(srv, "status.info: unexpected parameter '%s'", val->data.string->str);
 			goto error_free_param;
 		}
+	} else if (!li_value_is_nothing(val)) {
+		ERROR(srv, "%s", "status.info expects either a string or nothing as parameter");
+		goto error_free_param;
 	}
 
 	return li_action_new_function(status_info, status_info_cleanup, status_info_free, param);

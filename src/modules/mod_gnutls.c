@@ -612,7 +612,6 @@ static void gnutls_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	mod_context *ctx;
 	int r;
-	guint i;
 
 	/* setup defaults */
 	gboolean have_listen_parameter = FALSE;
@@ -631,36 +630,38 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 
 	UNUSED(p); UNUSED(userdata);
 
+	val = li_value_get_single_argument(val);
+
 	if (NULL == (val = li_value_to_key_value_list(val))) {
 		ERROR(srv, "%s", "gnutls expects a hash/key-value list as parameter");
 		return FALSE;
 	}
 
-	for (i = 0; i < val->data.list->len; ++i) {
-		liValue *entryKey = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 0);
-		liValue *entryValue = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 1);
+	LI_VALUE_FOREACH(entry, val)
+		liValue *entryKey = li_value_list_at(entry, 0);
+		liValue *entryValue = li_value_list_at(entry, 1);
 		GString *entryKeyStr;
 
-		if (entryKey->type == LI_VALUE_NONE) {
-			ERROR(srv, "%s", "gnutls doesn't take null keys");
+		if (LI_VALUE_STRING != li_value_type(entryKey)) {
+			ERROR(srv, "%s", "gnutls doesn't take default keys");
 			return FALSE;
 		}
 		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
 
 		if (g_str_equal(entryKeyStr->str, "listen")) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "gnutls listen expects a string as parameter");
 				return FALSE;
 			}
 			have_listen_parameter = TRUE;
 		} else if (g_str_equal(entryKeyStr->str, "pemfile")) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "gnutls pemfile expects a string as parameter");
 				return FALSE;
 			}
 			have_pemfile_parameter = TRUE;
 		} else if (g_str_equal(entryKeyStr->str, "dh-params")) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "gnutls dh-params expects a string as parameter");
 				return FALSE;
 			}
@@ -670,7 +671,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			}
 			dh_params_file = entryValue->data.string->str;
 		} else if (g_str_equal(entryKeyStr->str, "priority")) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "gnutls priority expects a string as parameter");
 				return FALSE;
 			}
@@ -680,7 +681,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			}
 			priority = entryValue->data.string->str;
 		} else if (g_str_equal(entryKeyStr->str, "protect-against-beast")) {
-			if (entryValue->type != LI_VALUE_BOOLEAN) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "gnutls protect-against-beast expects a boolean as parameter");
 				return FALSE;
 			}
@@ -691,7 +692,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			have_protect_beast_parameter = TRUE;
 			protect_against_beast = entryValue->data.boolean;
 		} else if (g_str_equal(entryKeyStr->str, "session-db-size")) {
-			if (entryValue->type != LI_VALUE_NUMBER) {
+			if (LI_VALUE_NUMBER != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "gnutls session-db-size expects an integer as parameter");
 				return FALSE;
 			}
@@ -703,7 +704,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			session_db_size = entryValue->data.number;
 #ifdef USE_SNI
 		} else if (g_str_equal(entryKeyStr->str, "sni-backend")) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "gnutls sni-backend expects a string as parameter");
 				return FALSE;
 			}
@@ -713,7 +714,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			}
 			sni_backend = entryValue->data.string->str;
 		} else if (g_str_equal(entryKeyStr->str, "sni-fallback-pemfile")) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "gnutls sni-fallback-pemfile expects a string as parameter");
 				return FALSE;
 			}
@@ -734,7 +735,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			ERROR(srv, "invalid parameter for gnutls: %s", entryKeyStr->str);
 			return FALSE;
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	if (!have_listen_parameter) {
 		ERROR(srv, "%s", "gnutls needs a listen parameter");
@@ -778,12 +779,12 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	}
 #endif
 
-	for (i = 0; i < val->data.list->len; ++i) {
-		liValue *entryKey = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 0);
-		liValue *entryValue = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 1);
+	LI_VALUE_FOREACH(entry, val)
+		liValue *entryKey = li_value_list_at(entry, 0);
+		liValue *entryValue = li_value_list_at(entry, 1);
 		GString *entryKeyStr;
 
-		if (entryKey->type == LI_VALUE_NONE) continue;
+		if (LI_VALUE_STRING != li_value_type(entryKey)) continue;
 		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
 
 		if (g_str_equal(entryKeyStr->str, "pemfile")) {
@@ -795,7 +796,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 				goto error_free_ctx;
 			}
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	if (session_db_size > 0) ctx->session_db = li_ssl_session_db_new(session_db_size);
 
@@ -871,19 +872,19 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		}
 	}
 
-	for (i = 0; i < val->data.list->len; ++i) {
-		liValue *entryKey = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 0);
-		liValue *entryValue = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 1);
+	LI_VALUE_FOREACH(entry, val)
+		liValue *entryKey = li_value_list_at(entry, 0);
+		liValue *entryValue = li_value_list_at(entry, 1);
 		GString *entryKeyStr;
 
-		if (entryKey->type == LI_VALUE_NONE) continue;
+		if (LI_VALUE_STRING != li_value_type(entryKey)) continue;
 		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
 
 		if (g_str_equal(entryKeyStr->str, "listen")) {
 			mod_gnutls_context_acquire(ctx);
 			li_angel_listen(srv, entryValue->data.string, gnutls_setup_listen_cb, ctx);
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	mod_gnutls_context_release(ctx);
 

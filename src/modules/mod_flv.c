@@ -153,10 +153,9 @@ static liHandlerResult flv(liVRequest *vr, gpointer param, gpointer *context) {
 }
 
 static liAction* flv_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-
 	UNUSED(wrk); UNUSED(userdata);
 
-	if (val) {
+	if (!li_value_is_nothing(val)) {
 		ERROR(srv, "%s", "flv does not take any parameters");
 		return NULL;
 	}

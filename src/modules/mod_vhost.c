@@ -69,22 +69,24 @@ static liHandlerResult vhost_map(liVRequest *vr, gpointer param, gpointer *conte
 	liValue *v;
 	vhost_map_data *md = param;
 	gboolean debug = _OPTION(vr, md->plugin, 0).boolean;
-
 	UNUSED(context);
 
 	v = g_hash_table_lookup(md->hash, vr->request.uri.host);
 
-	if (v) {
-		if (debug)
+	if (NULL != v) {
+		if (debug) {
 			VR_DEBUG(vr, "vhost_map: host %s found in hashtable", vr->request.uri.host->str);
+		}
 		li_action_enter(vr, v->data.val_action.action);
-	} else if (md->default_action) {
-		if (debug)
+	} else if (NULL != md->default_action) {
+		if (debug) {
 			VR_DEBUG(vr, "vhost_map: host %s not found in hashtable, executing default action", vr->request.uri.host->str);
+		}
 		li_action_enter(vr, md->default_action->data.val_action.action);
 	} else {
-		if (debug)
+		if (debug) {
 			VR_DEBUG(vr, "vhost_map: neither host %s found in hashtable nor default action specified, doing nothing", vr->request.uri.host->str);
+		}
 	}
 
 	return LI_HANDLER_GO_ON;
@@ -105,27 +107,26 @@ static void vhost_map_free(liServer *srv, gpointer param) {
 
 static liAction* vhost_map_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	vhost_map_data *md;
-	guint i;
-	GArray *list;
 	UNUSED(wrk); UNUSED(userdata);
+
+	val = li_value_get_single_argument(val);
 
 	if (NULL == (val = li_value_to_key_value_list(val))) {
 		ERROR(srv, "%s", "vhost.map expects a hashtable/key-value list as parameter");
 		return NULL;
 	}
 
-	list = val->data.list;
 	md = g_slice_new0(vhost_map_data);
 	md->plugin = p;
 	md->hash = li_value_new_hashtable();
 
-	for (i = 0; i < list->len; ++i) {
-		liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
-		liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
+	LI_VALUE_FOREACH(entry, val)
+		liValue *entryKey = li_value_list_at(entry, 0);
+		liValue *entryValue = li_value_list_at(entry, 1);
 		GString *entryKeyStr;
 
-		if (LI_VALUE_ACTION != entryValue->type) {
-			ERROR(srv, "vhost.map expects a hashtable/key-value list with action values as parameter, %s value given", li_value_type_string(entryValue->type));
+		if (LI_VALUE_ACTION != li_value_type(entryValue)) {
+			ERROR(srv, "vhost.map expects a hashtable/key-value list with action values as parameter, %s value given", li_value_type_string(entryValue));
 			vhost_map_free(srv, md);
 			return NULL;
 		}
@@ -146,7 +147,7 @@ static liAction* vhost_map_create(liServer *srv, liWorker *wrk, liPlugin* p, liV
 				vhost_map_free(srv, md);
 				return NULL;
 			}
-			md->default_action = li_value_copy(entryValue);
+			md->default_action = li_value_extract(entryValue);
 		} else {
 			if (NULL != g_hash_table_lookup(md->hash, entryKeyStr)) {
 				ERROR(srv, "vhost.map: duplicate entry for '%s'", entryKeyStr->str);
@@ -154,9 +155,9 @@ static liAction* vhost_map_create(liServer *srv, liWorker *wrk, liPlugin* p, liV
 				vhost_map_free(srv, md);
 				return NULL;
 			}
-			g_hash_table_insert(md->hash, entryKeyStr, li_value_copy(entryValue));
+			g_hash_table_insert(md->hash, entryKeyStr, li_value_extract(entryValue));
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	return li_action_new_function(vhost_map, NULL, vhost_map_free, md);
 }
@@ -184,16 +185,19 @@ static liHandlerResult vhost_map_regex(liVRequest *vr, gpointer param, gpointer 
 	}
 
 	if (NULL != v) {
-		if (debug)
+		if (debug) {
 			VR_DEBUG(vr, "vhost_map_regex: host %s matches pattern \"%s\"", vr->request.uri.host->str, g_regex_get_pattern(entry->regex));
+		}
 		li_action_enter(vr, v->data.val_action.action);
-	} else if (mrd->default_action) {
-		if (debug)
+	} else if (NULL != mrd->default_action) {
+		if (debug) {
 			VR_DEBUG(vr, "vhost_map_regex: host %s didn't match, executing default action", vr->request.uri.host->str);
+		}
 		li_action_enter(vr, mrd->default_action->data.val_action.action);
 	} else {
-		if (debug)
+		if (debug) {
 			VR_DEBUG(vr, "vhost_map_regex: neither did %s match nor default action specified, doing nothing", vr->request.uri.host->str);
+		}
 	}
 
 	return LI_HANDLER_GO_ON;
@@ -213,35 +217,35 @@ static void vhost_map_regex_free(liServer *srv, gpointer param) {
 	}
 	g_array_free(list, TRUE);
 
-	if (NULL != mrd->default_action)
+	if (NULL != mrd->default_action) {
 		li_value_free(mrd->default_action);
+	}
 
 	g_slice_free(vhost_map_regex_data, mrd);
 }
 
 static liAction* vhost_map_regex_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	vhost_map_regex_data *mrd;
-	GArray *list;
-	guint i;
 	UNUSED(wrk); UNUSED(userdata);
+
+	val = li_value_get_single_argument(val);
 
 	if (NULL == (val = li_value_to_key_value_list(val))) {
 		ERROR(srv, "%s", "vhost.map_regex expects a hashtable/key-value list as parameter");
 		return NULL;
 	}
 
-	list = val->data.list;
 	mrd = g_slice_new0(vhost_map_regex_data);
 	mrd->plugin = p;
 	mrd->list = g_array_new(FALSE, FALSE, sizeof(vhost_map_regex_entry));
 
-	for (i = 0; i < list->len; ++i) {
-		liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
-		liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
+	LI_VALUE_FOREACH(entry, val)
+		liValue *entryKey = li_value_list_at(entry, 0);
+		liValue *entryValue = li_value_list_at(entry, 1);
 		GString *entryKeyStr;
 
-		if (LI_VALUE_ACTION != entryValue->type) {
-			ERROR(srv, "vhost.map_regex expects a hashtable/key-value list with action values as parameter, %s value given", li_value_type_string(entryValue->type));
+		if (LI_VALUE_ACTION != li_value_type(entryValue)) {
+			ERROR(srv, "vhost.map_regex expects a hashtable/key-value list with action values as parameter, %s value given", li_value_type_string(entryValue));
 			vhost_map_free(srv, mrd);
 			return NULL;
 		}
@@ -261,15 +265,15 @@ static liAction* vhost_map_regex_create(liServer *srv, liWorker *wrk, liPlugin* 
 				vhost_map_free(srv, mrd);
 				return NULL;
 			}
-			mrd->default_action = li_value_copy(entryValue);
+			mrd->default_action = li_value_extract(entryValue);
 		} else {
 			GError *err = NULL;
-			vhost_map_regex_entry entry;
+			vhost_map_regex_entry map_entry;
 
-			entry.regex = g_regex_new(entryKeyStr->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
+			map_entry.regex = g_regex_new(entryKeyStr->str, G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, &err);
 			g_string_free(entryKeyStr, TRUE);
 
-			if (NULL == entry.regex) {
+			if (NULL == map_entry.regex) {
 				assert(NULL != err);
 				vhost_map_regex_free(srv, mrd);
 				ERROR(srv, "vhost.map_regex: error compiling regex \"%s\": %s", entryKeyStr->str, err->message);
@@ -278,11 +282,11 @@ static liAction* vhost_map_regex_create(liServer *srv, liWorker *wrk, liPlugin* 
 			}
 			assert(NULL == err);
 
-			entry.action = li_value_copy(entryValue);
+			map_entry.action = li_value_extract(entryValue);
 
-			g_array_append_val(mrd->list, entry);
+			g_array_append_val(mrd->list, map_entry);
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	return li_action_new_function(vhost_map_regex, NULL, vhost_map_regex_free, mrd);
 }

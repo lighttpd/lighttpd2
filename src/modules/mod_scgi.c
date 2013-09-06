@@ -389,7 +389,9 @@ static liAction* scgi_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue 
 	scgi_context *ctx;
 	UNUSED(wrk); UNUSED(userdata); UNUSED(p);
 
-	if (val->type != LI_VALUE_STRING) {
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_STRING != li_value_type(val)) {
 		ERROR(srv, "%s", "scgi expects a string as parameter");
 		return FALSE;
 	}

@@ -373,28 +373,24 @@ static liAction* mod_limit_action_create(liServer *srv, liPlugin *p, mod_limit_c
 	gint limit = 0;
 	liAction *action_limit_reached = NULL;
 
-	if (!val || (val->type != LI_VALUE_NUMBER && val->type != LI_VALUE_LIST)) {
-		ERROR(srv, "%s expects either an integer > 0 as parameter, or a list of (int,action)", act_names[type]);
-		return NULL;
-	} else if (val->type == LI_VALUE_NUMBER) {
-		/* limit.* N; */
-		if (val->data.number < 1) {
-			ERROR(srv, "%s expects either an integer > 0 as parameter, or a list of (int,action)", act_names[type]);
-			return NULL;
-		}
+	val = li_value_get_single_argument(val);
+	val = li_value_get_single_argument(val);
 
+	if (LI_VALUE_NUMBER == li_value_type(val) && val->data.number > 0) {
+		/* limit.* N; */
 		limit = val->data.number;
 		action_limit_reached = NULL;
-	} else if (val->type == LI_VALUE_LIST) {
-		if (val->data.list->len != 2
-		|| g_array_index(val->data.list, liValue*, 0)->type != LI_VALUE_NUMBER
-		|| g_array_index(val->data.list, liValue*, 1)->type != LI_VALUE_ACTION) {
-			ERROR(srv, "%s expects either an integer > 0 as parameter, or a list of (int,action)", act_names[type]);
-			return NULL;
-		}
+	} else if (LI_VALUE_LIST == li_value_type(val)
+			&& li_value_list_has_len(val, 2)
+			&& LI_VALUE_NUMBER == li_value_list_type_at(val, 0)
+			&& li_value_list_at(val, 0)->data.number > 0
+			&& LI_VALUE_ACTION == li_value_list_type_at(val, 1)) {
 
-		limit = g_array_index(val->data.list, liValue*, 0)->data.number;
-		action_limit_reached = li_value_extract_action(g_array_index(val->data.list, liValue*, 1));
+		limit = li_value_list_at(val, 0)->data.number;
+		action_limit_reached = li_value_extract_action(li_value_list_at(val, 1));
+	} else {
+		ERROR(srv, "%s expects either an integer > 0 as parameter, or a list of (int > 0,action)", act_names[type]);
+		return NULL;
 	}
 
 	ctx = mod_limit_context_new(type, limit, action_limit_reached, p);

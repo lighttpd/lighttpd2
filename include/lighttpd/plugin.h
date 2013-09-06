@@ -126,7 +126,7 @@ LI_API gboolean li_plugin_config_setup(liServer *srv, const char *name, liValue 
 
 LI_API void li_plugins_init_lua(liLuaState *LL, liServer *srv, liWorker *wrk);
 
-extern liOptionPtrValue li_option_ptr_zero;
+extern const liOptionPtrValue li_option_ptr_zero;
 
 /* needs vrequest *vr and plugin *p */
 #define OPTION(idx) _OPTION(vr, p, idx)

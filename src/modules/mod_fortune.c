@@ -57,6 +57,12 @@ static liHandlerResult fortune_header_handle(liVRequest *vr, gpointer param, gpo
 
 static liAction* fortune_header(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(srv); UNUSED(wrk); UNUSED(val); UNUSED(userdata);
+
+	if (!li_value_is_nothing(val)) {
+		ERROR(srv, "%s", "fortnue.header doesn't take any arguments");
+		return NULL;
+	}
+
 	return li_action_new_function(fortune_header_handle, NULL, NULL, p->data);
 }
 
@@ -89,6 +95,12 @@ static liHandlerResult fortune_page_handle(liVRequest *vr, gpointer param, gpoin
 
 static liAction* fortune_page(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(srv); UNUSED(wrk); UNUSED(val); UNUSED(userdata);
+
+	if (!li_value_is_nothing(val)) {
+		ERROR(srv, "%s", "fortnue.header doesn't take any arguments");
+		return NULL;
+	}
+
 	return li_action_new_function(fortune_page_handle, NULL, NULL, p->data);
 }
 
@@ -101,8 +113,10 @@ static gboolean fortune_load(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	fortune_data *fd = p->data;
 	UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_STRING) {
-		ERROR(srv, "fortune.load takes a string as parameter, %s given", val ? li_value_type_string(val->type) : "none");
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_STRING != li_value_type(val)) {
+		ERROR(srv, "fortune.load takes a string as parameter, %s given", val ? li_value_type_string(val) : "none");
 		return FALSE;
 	}
 

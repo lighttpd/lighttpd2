@@ -184,7 +184,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		g_array_append_val(l->data.list, v);
 
-		_printf("list_push %s\n", li_value_type_string(v->type));
+		_printf("list_push %s\n", li_value_type_string(v));
 	}
 
 	action list_end {
@@ -214,7 +214,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		g_hash_table_insert(h->data.hash, str, v);
 
-		_printf("hash_push: %s: %s => %s\n", li_value_type_string(k->type), li_value_type_string(v->type), li_value_type_string(h->type));
+		_printf("hash_push: %s: %s => %s\n", li_value_type_string(k), li_value_type_string(v), li_value_type_string(h));
 
 		li_value_free(k);
 	}
@@ -251,7 +251,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		g_array_append_val(l->list, k);
 		g_array_append_val(l->list, v);
 
-		_printf("key-value pair: %s => %s in line %zd\n", li_value_type_string(k->type), li_value_type_string(v->type), ctx->line);
+		_printf("key-value pair: %s => %s in line %zd\n", li_value_type_string(k), li_value_type_string(v), ctx->line);
 
 		/* push list on the stack */
 		g_queue_push_head(ctx->value_stack, l);
@@ -275,7 +275,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				gboolean negative = FALSE;
 
 				if (v->type != LI_VALUE_STRING) {
-					ERROR(srv, "can only cast strings to integers, %s given", li_value_type_string(v->type));
+					ERROR(srv, "can only cast strings to integers, %s given", li_value_type_string(v));
 					return FALSE;
 				}
 
@@ -305,7 +305,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				GString *str;
 
 				if (v->type != LI_VALUE_NUMBER) {
-					ERROR(srv, "can only cast integers to strings, %s given", li_value_type_string(v->type));
+					ERROR(srv, "can only cast integers to strings, %s given", li_value_type_string(v));
 					return FALSE;
 				}
 
@@ -318,7 +318,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			ctx->cast = LI_CFG_PARSER_CAST_NONE;
 		}
 
-		_printf("value (%s) in line %zd\n", li_value_type_string(v->type), ctx->line);
+		_printf("value (%s) in line %zd\n", li_value_type_string(v), ctx->line);
 	}
 
 	action value_statement_start {
@@ -424,17 +424,17 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		if (v == NULL) {
 			WARNING(srv, "erronous value statement: %s %c %s in line %zd\n",
-				li_value_type_string(l->type), op,
-				li_value_type_string(r->type), ctx->line);
+				li_value_type_string(l), op,
+				li_value_type_string(r), ctx->line);
 			return FALSE;
 		}
 
 		_printf("value statement: %s %c%s %s => %s in line %zd\n",
-			li_value_type_string(l->type),
+			li_value_type_string(l),
 			op,
 			op == '=' ?  ">" : "",
-			li_value_type_string(r->type),
-			li_value_type_string(v->type),
+			li_value_type_string(r),
+			li_value_type_string(v),
 			ctx->line);
 
 		if (free_l)
@@ -555,7 +555,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		assert(name->type == LI_VALUE_STRING);
 
-		_printf("got action call: %s %s; in line %zd\n", name->data.string->str, val ? li_value_type_string(val->type) : "<none>", ctx->line);
+		_printf("got action call: %s %s; in line %zd\n", name->data.string->str, val ? li_value_type_string(val) : "<none>", ctx->line);
 
 		/* internal functions */
 		if (g_str_equal(name->data.string->str, "include")) {
@@ -591,7 +591,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			}
 
 			if (val->type != LI_VALUE_STRING) {
-				WARNING(srv, "include_shell directive takes a string as parameter, %s given", li_value_type_string(val->type));
+				WARNING(srv, "include_shell directive takes a string as parameter, %s given", li_value_type_string(val));
 				li_value_free(val);
 				return FALSE;
 			}
@@ -618,7 +618,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 			}
 
 			if (val->type != LI_VALUE_STRING) {
-				WARNING(srv, "include_lua directive takes a string as parameter, %s given", li_value_type_string(val->type));
+				WARNING(srv, "include_lua directive takes a string as parameter, %s given", li_value_type_string(val));
 				li_value_free(val);
 				return FALSE;
 			}
@@ -647,7 +647,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				}
 
 				tmpstr = li_value_to_string(val);
-				DEBUG(srv, "%s:%zd type: %s, value: %s", ctx->filename, ctx->line, li_value_type_string(val->type), tmpstr->str);
+				DEBUG(srv, "%s:%zd type: %s, value: %s", ctx->filename, ctx->line, li_value_type_string(val), tmpstr->str);
 				g_string_free(tmpstr, TRUE);
 			}
 
@@ -662,7 +662,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 				_printf("%s", "... which is a user defined action\n");
 
 				if (uservar->type != LI_VALUE_ACTION) {
-					WARNING(srv, "value of type action expected, got %s", li_value_type_string(uservar->type));
+					WARNING(srv, "value of type action expected, got %s", li_value_type_string(uservar));
 					li_value_free(name);
 					if (val)
 						li_value_free(val);
@@ -743,7 +743,7 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 		name = g_queue_pop_head(ctx->value_stack);
 		assert(name->type == LI_VALUE_STRING);
 
-		_printf("uservar definition %s = %s in line %zd\n", name->data.string->str, li_value_type_string(v->type), ctx->line);
+		_printf("uservar definition %s = %s in line %zd\n", name->data.string->str, li_value_type_string(v), ctx->line);
 
 		if (NULL != g_hash_table_lookup(srv->setups, name->data.string->str)) {
 			WARNING(srv, "cannot define uservar with name '%s', a setup action with same name exists already", name->data.string->str);
@@ -853,9 +853,9 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 		if (ctx->condition_nonbool) {
 			if (ctx->condition_with_key) {
-				_printf("got condition: %s[%s] %s %s in line %zd\n", varname->data.string->str, key->data.string->str, li_comp_op_to_string(ctx->op), li_value_type_string(val->type), ctx->line);
+				_printf("got condition: %s[%s] %s %s in line %zd\n", varname->data.string->str, key->data.string->str, li_comp_op_to_string(ctx->op), li_value_type_string(val), ctx->line);
 			} else {
-				_printf("got condition: %s %s %s in line %zd\n", varname->data.string->str, li_comp_op_to_string(ctx->op), li_value_type_string(val->type), ctx->line);
+				_printf("got condition: %s %s %s in line %zd\n", varname->data.string->str, li_comp_op_to_string(ctx->op), li_value_type_string(val), ctx->line);
 			}
 		} else {
 			if (ctx->condition_with_key) {

@@ -403,7 +403,7 @@ static void al_option_accesslog_free(liServer *srv, liPlugin *p, size_t ndx, gpo
 	UNUSED(p);
 	UNUSED(ndx);
 
-	if (!oval) return;
+	if (NULL == oval) return;
 
 	g_string_free(oval, TRUE);
 }
@@ -413,13 +413,13 @@ static gboolean al_option_accesslog_parse(liServer *srv, liWorker *wrk, liPlugin
 	UNUSED(p);
 	UNUSED(ndx);
 
-	if (!val) {
+	if (NULL == val) {
 		/* default */
 		return TRUE;
 	}
 
-	if (val->type != LI_VALUE_STRING) {
-		ERROR(srv, "accesslog option expects a string as parameter, %s given", li_value_type_string(val->type));
+	if (LI_VALUE_STRING != li_value_type(val)) {
+		ERROR(srv, "accesslog option expects a string as parameter, %s given", li_value_type_string(val));
 		return FALSE;
 	}
 
@@ -436,13 +436,13 @@ static void al_option_accesslog_format_free(liServer *srv, liPlugin *p, size_t n
 	UNUSED(p);
 	UNUSED(ndx);
 
-	if (!oval) return;
+	if (NULL == oval) return;
 
 	arr = oval;
 
 	for (i = 0; i < arr->len; i++) {
 		al_format_entry *afe = &g_array_index(arr, al_format_entry, i);
-		if (afe->key)
+		if (NULL != afe->key)
 			g_string_free(afe->key, TRUE);
 	}
 
@@ -452,21 +452,19 @@ static void al_option_accesslog_format_free(liServer *srv, liPlugin *p, size_t n
 static gboolean al_option_accesslog_format_parse(liServer *srv, liWorker *wrk, liPlugin *p, size_t ndx, liValue *val, gpointer *oval) {
 	GArray *arr;
 
-	UNUSED(wrk);
-	UNUSED(p);
-	UNUSED(ndx);
+	UNUSED(wrk); UNUSED(p); UNUSED(ndx);
 
-	if (!val) {
+	if (NULL == val) {
 		/* default */
 		arr = al_parse_format(srv, AL_DEFAULT_FORMAT);
-	} else if (val->type != LI_VALUE_STRING) {
-		ERROR(srv, "accesslog.format option expects a string as parameter, %s given", li_value_type_string(val->type));
+	} else if (LI_VALUE_STRING != li_value_type(val)) {
+		ERROR(srv, "accesslog.format option expects a string as parameter, %s given", li_value_type_string(val));
 		return FALSE;
 	} else {
 		arr = al_parse_format(srv, val->data.string->str);
 	}
 
-	if (!arr) {
+	if (NULL == arr) {
 		ERROR(srv, "%s", "failed to parse accesslog format");
 		return FALSE;
 	}

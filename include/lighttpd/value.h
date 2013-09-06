@@ -46,7 +46,8 @@ LI_API void li_value_clear(liValue *val); /* frees content, sets value to LI_VAL
 LI_API void li_value_free(liValue* val);
 LI_API void li_value_move(liValue *dest, liValue *src);
 
-LI_API const char* li_value_type_string(liValueType type);
+LI_API const char* li_valuetype_string(liValueType type);
+INLINE const char* li_value_type_string(liValue *val);
 
 LI_API GString *li_value_to_string(liValue *val);
 
@@ -66,7 +67,65 @@ LI_API liCondition* li_value_extract_condition(liValue *val);
 /* move the value content to a new value, set the old type to none */
 LI_API liValue* li_value_extract(liValue *val);
 
-/* converts value type to LI_VALUE_LIST, makes sure list contains (key,value) tuples, and the keys are all LI_VALUE_STRING or LI_VALUE_NONE */
+/* converts value type to LI_VALUE_LIST, makes sure list contains (key,value) tuples, and the keys are all LI_VALUE_STRING or NULL / LI_VALUE_NONE */
 LI_API liValue* li_value_to_key_value_list(liValue *val);
+
+/* if val is list with exactly one element, return the element. otherwise return val */
+INLINE liValue* li_value_get_single_argument(liValue *val);
+
+/* returns whether val == 0 || (val->type == NONE) || (val->type == LIST && 0 == val->list->len) */
+INLINE gboolean li_value_is_nothing(liValue *val);
+
+/* returns type of value or LI_VALUE_NONE for NULL */
+INLINE liValueType li_value_type(liValue *val);
+
+/* returns whether val is a list and has length len */
+INLINE gboolean li_value_list_has_len(liValue *val, guint len);
+/* returns length of list or 0 if not a list */
+INLINE guint li_value_list_len(liValue *val);
+/* returns entry of list or NULL if not a list or out of bounds */
+INLINE liValue* li_value_list_at(liValue* val, guint ndx);
+/* returns type of list entry, or LI_VALUE_NONE if not a list or NULL entry or out of bounds */
+INLINE liValueType li_value_list_type_at(liValue *val, guint ndx);
+
+#define LI_VALUE_FOREACH(entry, list) { \
+	guint _ ## entry ## _i, _ ## entry ## _len = li_value_list_len(list); \
+	for (_ ## entry ## _i = 0; _ ## entry ## _i < _ ## entry ## _len; ++ _ ## entry ## _i ) { \
+		liValue *entry = li_value_list_at(list, _ ## entry ## _i);
+#define LI_VALUE_END_FOREACH() } }
+
+/* inline implementations */
+INLINE const char* li_value_type_string(liValue *val) {
+	return NULL == val ? "NULL" : li_valuetype_string(val->type);
+}
+
+INLINE liValue* li_value_get_single_argument(liValue *val) {
+	return li_value_list_has_len(val, 1) ? li_value_list_at(val, 0) : val;
+}
+
+INLINE gboolean li_value_is_nothing(liValue *val) {
+	return NULL == val || LI_VALUE_NONE == val->type || (LI_VALUE_LIST == val->type && 0 == val->data.list->len);
+}
+
+INLINE liValueType li_value_type(liValue *val) {
+	return NULL == val ? LI_VALUE_NONE : val->type;
+}
+
+INLINE gboolean li_value_list_has_len(liValue *val, guint len) {
+	return (NULL != val && LI_VALUE_LIST == val->type && len == val->data.list->len);
+}
+
+INLINE guint li_value_list_len(liValue *val) {
+	return (NULL != val && LI_VALUE_LIST == val->type) ? val->data.list->len : 0;
+}
+
+INLINE liValue* li_value_list_at(liValue* val, guint ndx) {
+	if (NULL == val || LI_VALUE_LIST != val->type || ndx >= val->data.list->len) return NULL;
+	return g_array_index(val->data.list, liValue*, ndx);
+}
+
+INLINE liValueType li_value_list_type_at(liValue *val, guint ndx) {
+	return li_value_type(li_value_list_at(val, ndx));
+}
 
 #endif

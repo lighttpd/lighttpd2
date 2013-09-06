@@ -590,15 +590,18 @@ static void dirlist_free(liServer *srv, gpointer param) {
 
 	UNUSED(srv);
 
-	if (data->css)
+	if (NULL != data->css) {
 		g_string_free(data->css, TRUE);
+	}
 
-	for (i = 0; i < data->exclude_suffix->len; i++)
+	for (i = 0; i < data->exclude_suffix->len; i++) {
 		g_string_free(g_ptr_array_index(data->exclude_suffix, i), TRUE);
+	}
 	g_ptr_array_free(data->exclude_suffix, TRUE);
 
-	for (i = 0; i < data->exclude_prefix->len; i++)
+	for (i = 0; i < data->exclude_prefix->len; i++) {
 		g_string_free(g_ptr_array_index(data->exclude_prefix, i), TRUE);
+	}
 	g_ptr_array_free(data->exclude_prefix, TRUE);
 
 	g_string_free(data->content_type, TRUE);
@@ -608,13 +611,11 @@ static void dirlist_free(liServer *srv, gpointer param) {
 
 static liAction* dirlist_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	dirlist_data *data;
-	guint i;
-	guint j;
-	liValue *v, *tmpval;
-	GString *k;
 	UNUSED(wrk); UNUSED(userdata);
 
-	if (val && val->type != LI_VALUE_LIST) {
+	val = li_value_get_single_argument(val);
+
+	if (NULL != val && NULL == (val = li_value_to_key_value_list(val))) {
 		ERROR(srv, "%s", "dirlist expects an optional list of string-value pairs");
 		return NULL;
 	}
@@ -631,148 +632,148 @@ static liAction* dirlist_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	data->exclude_prefix = g_ptr_array_new();
 	data->content_type = g_string_new("text/html; charset=utf-8");
 
-	if (val) {
-		for (i = 0; i < val->data.list->len; i++) {
-			tmpval = g_array_index(val->data.list, liValue*, i);
-			if (tmpval->type != LI_VALUE_LIST || tmpval->data.list->len != 2 ||
-				g_array_index(tmpval->data.list, liValue*, 0)->type != LI_VALUE_STRING) {
-				ERROR(srv, "%s", "dirlist expects an optional list of string-value pairs");
+	LI_VALUE_FOREACH(entry, val)
+		liValue *entryKey = li_value_list_at(entry, 0);
+		liValue *entryValue = li_value_list_at(entry, 1);
+		GString *entryKeyStr;
+
+		if (LI_VALUE_STRING != li_value_type(entryKey)) {
+			ERROR(srv, "%s", "dirlist doesn't take default keys");
+			dirlist_free(srv, data);
+			return NULL;
+		}
+		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+		/* TODO: check for duplicate keys? */
+		if (g_str_equal(entryKeyStr->str, "sort")) { /* "name", "size" or "type" */
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: sort parameter must be a string");
 				dirlist_free(srv, data);
 				return NULL;
 			}
-
-			k = g_array_index(tmpval->data.list, liValue*, 0)->data.string;
-			v = g_array_index(tmpval->data.list, liValue*, 1);
-
-			if (g_str_equal(k->str, "sort")) { /* "name", "size" or "type" */
-				if (v->type != LI_VALUE_STRING) {
-					ERROR(srv, "%s", "dirlist: sort parameter must be a string");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				/* TODO */
-				WARNING(srv, "%s", "dirlist: sort parameter not supported yet!");
-			} else if (g_str_equal(k->str, "css")) {
-				if (v->type != LI_VALUE_STRING) {
-					ERROR(srv, "%s", "dirlist: css parameter must be a string");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				data->css = g_string_new_len(GSTR_LEN(v->data.string));
-			} else if (g_str_equal(k->str, "hide-dotfiles")) {
-				if (v->type != LI_VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlist: hide-dotfiles parameter must be a boolean (true or false)");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				data->hide_dotfiles = v->data.boolean;
-			} else if (g_str_equal(k->str, "hide-tildefiles")) {
-				if (v->type != LI_VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlist: hide-tildefiles parameter must be a boolean (true or false)");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				data->hide_tildefiles = v->data.boolean;
-			} else if (g_str_equal(k->str, "hide-directories")) {
-				if (v->type != LI_VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlist: hide-directories parameter must be a boolean (true or false)");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				data->hide_directories = v->data.boolean;
-			} else if (g_str_equal(k->str, "include-header")) {
-				if (v->type != LI_VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlist: include-header parameter must be a boolean (true or false)");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				data->include_header = v->data.boolean;
-			} else if (g_str_equal(k->str, "hide-header")) {
-				if (v->type != LI_VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlist: hide-header parameter must be a boolean (true or false)");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				data->hide_header = v->data.boolean;
-			} else if (g_str_equal(k->str, "encode-header")) {
-				if (v->type != LI_VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlist: encode-header parameter must be a boolean (true or false)");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				data->encode_header = v->data.boolean;
-			} else if (g_str_equal(k->str, "include-readme")) {
-				if (v->type != LI_VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlist: include-readme parameter must be a boolean (true or false)");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				data->include_readme = v->data.boolean;
-			} else if (g_str_equal(k->str, "hide-readme")) {
-				if (v->type != LI_VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlist: hide-readme parameter must be a boolean (true or false)");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				data->hide_readme = v->data.boolean;
-			} else if (g_str_equal(k->str, "encode-readme")) {
-				if (v->type != LI_VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlist: encode-readme parameter must be a boolean (true or false)");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				data->encode_readme = v->data.boolean;
-			} else if (g_str_equal(k->str, "exclude-suffix")) {
-				if (v->type != LI_VALUE_LIST) {
+			/* TODO */
+			WARNING(srv, "%s", "dirlist: sort parameter not supported yet!");
+		} else if (g_str_equal(entryKeyStr->str, "css")) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: css parameter must be a string");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			if (NULL != data->css) g_string_free(data->css, TRUE);
+			data->css = li_value_extract_string(entryValue);
+		} else if (g_str_equal(entryKeyStr->str, "hide-dotfiles")) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: hide-dotfiles parameter must be a boolean (true or false)");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			data->hide_dotfiles = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "hide-tildefiles")) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: hide-tildefiles parameter must be a boolean (true or false)");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			data->hide_tildefiles = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "hide-directories")) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: hide-directories parameter must be a boolean (true or false)");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			data->hide_directories = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "include-header")) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: include-header parameter must be a boolean (true or false)");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			data->include_header = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "hide-header")) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: hide-header parameter must be a boolean (true or false)");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			data->hide_header = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "encode-header")) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: encode-header parameter must be a boolean (true or false)");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			data->encode_header = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "include-readme")) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: include-readme parameter must be a boolean (true or false)");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			data->include_readme = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "hide-readme")) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: hide-readme parameter must be a boolean (true or false)");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			data->hide_readme = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "encode-readme")) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: encode-readme parameter must be a boolean (true or false)");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			data->encode_readme = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "exclude-suffix")) {
+			if (LI_VALUE_LIST != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: exclude-suffix parameter must be a list of strings");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			LI_VALUE_FOREACH(suffix, entryValue)
+				if (LI_VALUE_STRING != li_value_type(suffix)) {
 					ERROR(srv, "%s", "dirlist: exclude-suffix parameter must be a list of strings");
 					dirlist_free(srv, data);
 					return NULL;
+				} else {
+					g_ptr_array_add(data->exclude_suffix, li_value_extract_string(suffix));
 				}
-				for (j = 0; j < v->data.list->len; j++) {
-					if (v->type != LI_VALUE_LIST) {
-						ERROR(srv, "%s", "dirlist: exclude-suffix parameter must be a list of strings");
-						dirlist_free(srv, data);
-						return NULL;
-					} else {
-						g_ptr_array_add(data->exclude_suffix, g_string_new_len(GSTR_LEN(g_array_index(v->data.list, liValue*, j)->data.string)));
-					}
-				}
-			} else if (g_str_equal(k->str, "exclude-prefix")) {
-				if (v->type != LI_VALUE_LIST) {
-					ERROR(srv, "%s", "dirlist: exclude-prefix parameter must be a list of strings");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				for (j = 0; j < v->data.list->len; j++) {
-					if (v->type != LI_VALUE_LIST) {
-						ERROR(srv, "%s", "dirlist: exclude-prefix parameter must be a list of strings");
-						dirlist_free(srv, data);
-						return NULL;
-					} else {
-						g_ptr_array_add(data->exclude_prefix, g_string_new_len(GSTR_LEN(g_array_index(v->data.list, liValue*, j)->data.string)));
-					}
-				}
-			} else if (g_str_equal(k->str, "debug")) {
-				if (v->type != LI_VALUE_BOOLEAN) {
-					ERROR(srv, "%s", "dirlist: debug parameter must be a boolean (true or false)");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				data->debug = v->data.boolean;
-			} else if (g_str_equal(k->str, "content-type")) {
-				if (v->type != LI_VALUE_STRING) {
-					ERROR(srv, "%s", "dirlist: content-type parameter must be a string");
-					dirlist_free(srv, data);
-					return NULL;
-				}
-				g_string_assign(data->content_type, v->data.string->str);
-			} else {
-				ERROR(srv, "dirlist: unknown parameter \"%s\"", k->str);
+			LI_VALUE_END_FOREACH()
+		} else if (g_str_equal(entryKeyStr->str, "exclude-prefix")) {
+			if (LI_VALUE_LIST != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: exclude-prefix parameter must be a list of strings");
 				dirlist_free(srv, data);
 				return NULL;
 			}
+			LI_VALUE_FOREACH(prefix, entryValue)
+				if (LI_VALUE_STRING != li_value_type(prefix)) {
+					ERROR(srv, "%s", "dirlist: exclude-prefix parameter must be a list of strings");
+					dirlist_free(srv, data);
+					return NULL;
+				} else {
+					g_ptr_array_add(data->exclude_prefix, li_value_extract_string(prefix));
+				}
+			LI_VALUE_END_FOREACH()
+		} else if (g_str_equal(entryKeyStr->str, "debug")) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: debug parameter must be a boolean (true or false)");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			data->debug = entryValue->data.boolean;
+		} else if (g_str_equal(entryKeyStr->str, "content-type")) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "dirlist: content-type parameter must be a string");
+				dirlist_free(srv, data);
+				return NULL;
+			}
+			g_string_assign(data->content_type, entryValue->data.string->str);
+		} else {
+			ERROR(srv, "dirlist: unknown parameter \"%s\"", entryKeyStr->str);
+			dirlist_free(srv, data);
+			return NULL;
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	return li_action_new_function(dirlist, NULL, dirlist_free, data);
 }

@@ -61,11 +61,11 @@ struct liServerSetup {
 	gpointer userdata;
 };
 
-static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt);
-static gboolean plugin_load_default_optionptr(liServer *srv, liServerOptionPtr *sopt);
+static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt, const char *name);
+static gboolean plugin_load_default_optionptr(liServer *srv, liServerOptionPtr *sopt, const char *name);
 static void li_plugin_free_default_options(liServer *srv, liPlugin *p);
 
-liOptionPtrValue li_option_ptr_zero = { 0, { 0 } , 0 };
+const liOptionPtrValue li_option_ptr_zero = { 0, { 0 } , 0 };
 
 static liPlugin* plugin_new(const gchar *name) {
 	liPlugin *p = g_slice_new0(liPlugin);
@@ -294,7 +294,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 			so->p = p;
 			so->default_value = po->default_value;
 			g_hash_table_insert(srv->options, (gchar*) po->name, so);
-			plugin_load_default_option(srv, so);
+			plugin_load_default_option(srv, so, po->name);
 		}
 	}
 
@@ -314,7 +314,7 @@ liPlugin *li_plugin_register(liServer *srv, const gchar *name, liPluginInitCB in
 			so->p = p;
 			so->default_value = po->default_value;
 			g_hash_table_insert(srv->optionptrs, (gchar*) po->name, so);
-			plugin_load_default_optionptr(srv, so);
+			plugin_load_default_optionptr(srv, so, po->name);
 		}
 	}
 
@@ -361,25 +361,25 @@ static liServerOption* find_option(liServer *srv, const char *name) {
 }
 
 static gboolean li_parse_option(liServer *srv, liWorker *wrk, liServerOption *sopt, const char *name, liValue *val, liOptionSet *mark) {
-	assert(NULL != srv && NULL != wrk && NULL != sopt && NULL != name && NULL != val && NULL != mark);
+	assert(NULL != srv && NULL != wrk && NULL != sopt && NULL != name && NULL != mark);
 
-	if (sopt->type != val->type && sopt->type != LI_VALUE_NONE) {
+	if (NULL != val && sopt->type != val->type && sopt->type != LI_VALUE_NONE) {
 		ERROR(srv, "Unexpected value type '%s', expected '%s' for option %s",
-			li_value_type_string(val->type), li_value_type_string(sopt->type), name);
+			li_value_type_string(val), li_valuetype_string(sopt->type), name);
 		return FALSE;
 	}
 
-	if (!sopt->parse_option) {
+	if (NULL == sopt->parse_option) {
 		switch (sopt->type) {
 		case LI_VALUE_BOOLEAN:
-			mark->value.boolean = val->data.boolean;
+			mark->value.boolean = (NULL == val) ? GPOINTER_TO_INT(sopt->default_value) : val->data.boolean;
 			break;
 		case LI_VALUE_NUMBER:
-			mark->value.number = val->data.number;
+			mark->value.number = (NULL == val) ? GPOINTER_TO_INT(sopt->default_value) : val->data.number;
 			break;
 		default:
 			ERROR(srv, "Invalid scalar option type '%s' for option %s",
-				li_value_type_string(sopt->type), name);
+				li_valuetype_string(sopt->type), name);
 			return FALSE;
 		}
 	} else {
@@ -402,16 +402,26 @@ static gboolean li_parse_optionptr(liServer *srv, liWorker *wrk, liServerOptionP
 	liOptionPtrValue *oval;
 	gpointer ptr = NULL;
 
-	assert(NULL != srv && NULL != wrk && NULL != sopt && NULL != name && NULL != val && NULL != mark);
+	assert(NULL != srv && NULL != wrk && NULL != sopt && NULL != name && NULL != mark);
 
-	if (sopt->type != val->type && sopt->type != LI_VALUE_NONE) {
+	if (NULL != val && sopt->type != val->type && sopt->type != LI_VALUE_NONE) {
 		ERROR(srv, "Unexpected value type '%s', expected '%s' for option %s",
-			li_value_type_string(val->type), li_value_type_string(sopt->type), name);
+			li_value_type_string(val), li_valuetype_string(sopt->type), name);
 		return FALSE;
 	}
 
-	if (!sopt->parse_option) {
-		ptr = li_value_extract_ptr(val);
+	if (NULL == sopt->parse_option) {
+		if (NULL == val) {
+			switch (sopt->type) {
+			case LI_VALUE_STRING:
+				ptr = g_string_new((const char*) sopt->default_value);
+				break;
+			default:
+				ptr = NULL;
+			}
+		} else {
+			ptr = li_value_extract_ptr(val);
+		}
 	} else {
 		if (!sopt->parse_option(srv, wrk, sopt->p, sopt->module_index, val, &ptr)) {
 			/* errors should be logged by parse function */
@@ -419,7 +429,7 @@ static gboolean li_parse_optionptr(liServer *srv, liWorker *wrk, liServerOptionP
 		}
 	}
 
-	if (ptr) {
+	if (NULL != ptr) {
 		oval = g_slice_new0(liOptionPtrValue);
 		oval->refcount = 1;
 		oval->sopt = sopt;
@@ -479,6 +489,12 @@ void li_release_optionptr(liServer *srv, liOptionPtrValue *value) {
 	g_slice_free(liOptionPtrValue, value);
 }
 
+static liValue* option_value(liValue *val) {
+	if (li_value_list_has_len(val, 1)) return li_value_list_at(val, 0);
+	if (li_value_list_has_len(val, 0)) return NULL;
+	return val;
+}
+
 liAction *li_plugin_config_action(liServer *srv, liWorker *wrk, const gchar *name, liValue *val) {
 	liAction *a = NULL;
 	liServerAction *sa;
@@ -492,13 +508,13 @@ liAction *li_plugin_config_action(liServer *srv, liWorker *wrk, const gchar *nam
 	} else if (NULL != (sopt = find_option(srv, name))) {
 		liOptionSet setting;
 
-		if (!li_parse_option(srv, wrk, sopt, name, val, &setting)) goto exit;
+		if (!li_parse_option(srv, wrk, sopt, name, option_value(val), &setting)) goto exit;
 
 		a = li_action_new_setting(setting);
 	} else if (NULL != (soptptr = find_optionptr(srv, name))) {
 		liOptionPtrSet setting;
 
-		if (!li_parse_optionptr(srv, wrk, soptptr, name, val, &setting)) goto exit;
+		if (!li_parse_optionptr(srv, wrk, soptptr, name, option_value(val), &setting)) goto exit;
 
 		a = li_action_new_settingptr(setting);
 	} else if (NULL != g_hash_table_lookup(srv->setups, name)) {
@@ -527,14 +543,14 @@ gboolean li_plugin_config_setup(liServer *srv, const char *name, liValue *val) {
 	} else if (NULL != (sopt = find_option(srv, name))) {
 		liOptionSet setting;
 
-		if (!li_parse_option(srv, srv->main_worker, sopt, name, val, &setting)) goto exit;
+		if (!li_parse_option(srv, srv->main_worker, sopt, name, option_value(val), &setting)) goto exit;
 
 		g_array_index(srv->option_def_values, liOptionValue, sopt->index) = setting.value;
 		result = TRUE;
 	} else if (NULL != (soptptr = find_optionptr(srv, name))) {
 		liOptionPtrSet setting;
 
-		if (!li_parse_optionptr(srv, srv->main_worker, soptptr, name, val, &setting)) goto exit;
+		if (!li_parse_optionptr(srv, srv->main_worker, soptptr, name, option_value(val), &setting)) goto exit;
 
 		li_release_optionptr(srv, g_array_index(srv->optionptr_def_values, liOptionPtrValue*, soptptr->index));
 		g_array_index(srv->optionptr_def_values, liOptionPtrValue*, soptptr->index) = setting.value;
@@ -583,74 +599,33 @@ void li_plugins_handle_vrclose(liVRequest *vr) {
 	}
 }
 
-static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt) {
-	liOptionValue oval = {0};
+static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt, const char *name) {
+	liOptionSet setting;
+	assert(NULL != sopt);
 
-	if (!sopt)
-		return FALSE;
-
-	if (!sopt->parse_option) {
-		switch (sopt->type) {
-		case LI_VALUE_BOOLEAN:
-			oval.boolean = GPOINTER_TO_INT(sopt->default_value);
-			break;
-		case LI_VALUE_NUMBER:
-			oval.number = GPOINTER_TO_INT(sopt->default_value);
-			break;
-		default:
-			ERROR(srv, "Invalid type '%s' for scalar option",
-				li_value_type_string(sopt->type));
-			return FALSE;
-		}
-	} else {
-		if (!sopt->parse_option(srv, srv->main_worker, sopt->p, sopt->module_index, NULL, &oval)) {
-			/* errors should be logged by parse function */
-			return FALSE;
-		}
-	}
+	if (!li_parse_option(srv, srv->main_worker, sopt, name, NULL, &setting)) return FALSE;
+	assert(setting.ndx == sopt->index);
 
 	if (srv->option_def_values->len <= sopt->index)
 		g_array_set_size(srv->option_def_values, sopt->index + 1);
 
-	g_array_index(srv->option_def_values, liOptionValue, sopt->index) = oval;
+	g_array_index(srv->option_def_values, liOptionValue, sopt->index) = setting.value;
 
 	return TRUE;
 }
 
-static gboolean plugin_load_default_optionptr(liServer *srv, liServerOptionPtr *sopt) {
-	gpointer ptr = NULL;
-	liOptionPtrValue *oval = NULL;
+static gboolean plugin_load_default_optionptr(liServer *srv, liServerOptionPtr *sopt, const char *name) {
+	liOptionPtrSet setting;
+	assert(NULL != sopt);
 
-	if (!sopt)
-		return FALSE;
-
-	if (!sopt->parse_option) {
-		switch (sopt->type) {
-		case LI_VALUE_STRING:
-			ptr = g_string_new((const char*) sopt->default_value);
-			break;
-		default:
-			ptr = NULL;
-		}
-	} else {
-		if (!sopt->parse_option(srv, srv->main_worker, sopt->p, sopt->module_index, NULL, &ptr)) {
-			/* errors should be logged by parse function */
-			return FALSE;
-		}
-	}
-
-	if (ptr) {
-		oval = g_slice_new0(liOptionPtrValue);
-		oval->refcount = 1;
-		oval->data.ptr = ptr;
-		oval->sopt = sopt;
-	}
+	if (!li_parse_optionptr(srv, srv->main_worker, sopt, name, NULL, &setting)) return FALSE;
+	assert(setting.ndx == sopt->index);
 
 	if (srv->optionptr_def_values->len <= sopt->index)
 		g_array_set_size(srv->optionptr_def_values, sopt->index + 1);
 
 	li_release_optionptr(srv, g_array_index(srv->optionptr_def_values, liOptionPtrValue*, sopt->index));
-	g_array_index(srv->optionptr_def_values, liOptionPtrValue*, sopt->index) = oval;
+	g_array_index(srv->optionptr_def_values, liOptionPtrValue*, sopt->index) = setting.value;
 
 	return TRUE;
 }

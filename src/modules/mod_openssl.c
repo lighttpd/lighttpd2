@@ -337,23 +337,22 @@ static liHandlerResult openssl_setenv(liVRequest *vr, gpointer param, gpointer *
 
 static const char openssl_setenv_config_error[] = "openssl.setenv expects a string or a list of strings consisting of: client, client-cert, server, server-cert";
 static liAction* openssl_setenv_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	guint i;
-	liValue *v;
 	guint params = 0;
-
 	UNUSED(srv); UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val && val->type == LI_VALUE_STRING)
-		li_value_wrap_in_list(val);
+	val = li_value_get_single_argument(val);
 
-	if (!val || val->type != LI_VALUE_LIST) {
+	if (LI_VALUE_STRING == li_value_type(val)) {
+		li_value_wrap_in_list(val);
+	}
+
+	if (LI_VALUE_LIST != li_value_type(val)) {
 		ERROR(srv, "%s", openssl_setenv_config_error);
 		return NULL;
 	}
 
-	for (i = 0; i < val->data.list->len; i++) {
-		v = g_array_index(val->data.list, liValue*, i);
-		if (v->type != LI_VALUE_STRING) {
+	LI_VALUE_FOREACH(v, val)
+		if (LI_VALUE_STRING != li_value_type(v)) {
 			ERROR(srv, "%s", openssl_setenv_config_error);
 			return NULL;
 		}
@@ -369,7 +368,7 @@ static liAction* openssl_setenv_create(liServer *srv, liWorker *wrk, liPlugin* p
 			ERROR(srv, "%s", openssl_setenv_config_error);
 			return NULL;
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	return li_action_new_function(openssl_setenv, NULL, NULL, GUINT_TO_POINTER(params));
 }
@@ -487,8 +486,6 @@ static int openssl_verify_any_cb(int ok, X509_STORE_CTX *ctx) { UNUSED(ok); UNUS
 static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	openssl_context *ctx;
 	STACK_OF(X509_NAME) *client_ca_list;
-	liValue *v;
-	guint i;
 
 	const char
 		*default_ciphers = "ECDHE-RSA-AES256-SHA384:AES256-SHA256:RC4-SHA:RC4:HIGH:!MD5:!aNULL:!EDH:!AESGCM",
@@ -520,30 +517,32 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 
 	UNUSED(p); UNUSED(userdata);
 
+	val = li_value_get_single_argument(val);
+
 	if (NULL == (val = li_value_to_key_value_list(val))) {
 		ERROR(srv, "%s", "openssl expects a hash/key-value list as parameter");
 		return FALSE;
 	}
 
-	for (i = 0; i < val->data.list->len; ++i) {
-		liValue *entryKey = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 0);
-		liValue *entryValue = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 1);
+	LI_VALUE_FOREACH(entry, val)
+		liValue *entryKey = li_value_list_at(entry, 0);
+		liValue *entryValue = li_value_list_at(entry, 1);
 		GString *entryKeyStr;
 
-		if (entryKey->type == LI_VALUE_NONE) {
-			ERROR(srv, "%s", "openssl doesn't take null keys");
+		if (LI_VALUE_STRING != li_value_type(entryKey)) {
+			ERROR(srv, "%s", "openssl doesn't take default keys");
 			return FALSE;
 		}
 		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
 
 		if (g_str_equal(entryKeyStr->str, "listen")) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl listen expects a string as parameter");
 				return FALSE;
 			}
 			have_listen_parameter = TRUE;
 		} else if (g_str_equal(entryKeyStr->str, "pemfile")) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl pemfile expects a string as parameter");
 				return FALSE;
 			}
@@ -553,7 +552,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			}
 			pemfile = entryValue->data.string->str;
 		} else if (g_str_equal(entryKeyStr->str, "ca-file")) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl ca-file expects a string as parameter");
 				return FALSE;
 			}
@@ -563,7 +562,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			}
 			ca_file = entryValue->data.string->str;
 		} else if (g_str_equal(entryKeyStr->str, "ciphers")) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl ciphers expects a string as parameter");
 				return FALSE;
 			}
@@ -576,7 +575,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 #ifndef USE_OPENSSL_DH
 			WARNING(srv, "%s", "the openssl library in use doesn't support DH => dh-params has no effect");
 #endif
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl dh-params expects a string as parameter");
 				return FALSE;
 			}
@@ -589,7 +588,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 #ifndef USE_OPENSSL_ECDH
 			WARNING(srv, "%s", "the openssl library in use doesn't support ECDH => ecdh-curve has no effect");
 #endif
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl ecdh-curve expects a string as parameter");
 				return FALSE;
 			}
@@ -599,9 +598,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			}
 			ecdh_curve = entryValue->data.string->str;
 		} else if (g_str_equal(entryKeyStr->str, "options")) {
-			guint j;
-
-			if (entryValue->type != LI_VALUE_LIST) {
+			if (LI_VALUE_LIST != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl options expects a list of strings as parameter");
 				return FALSE;
 			}
@@ -610,9 +607,8 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 				return FALSE;
 			}
 			have_options_parameter = TRUE;
-			for (j = 0; j < entryValue->data.list->len; j++) {
-				v = g_array_index(entryValue->data.list, liValue*, j);
-				if (v->type != LI_VALUE_STRING) {
+			LI_VALUE_FOREACH(v, entryValue)
+				if (LI_VALUE_STRING != li_value_type(v)) {
 					ERROR(srv, "%s", "openssl options expects a list of strings as parameter");
 					return FALSE;
 				}
@@ -620,9 +616,9 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 					ERROR(srv, "openssl option unknown: %s", v->data.string->str);
 					return FALSE;
 				}
-			}
+			LI_VALUE_END_FOREACH()
 		} else if (g_str_equal(entryKeyStr->str, "verify")) {
-			if (entryValue->type != LI_VALUE_BOOLEAN) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl verify expects a boolean as parameter");
 				return FALSE;
 			}
@@ -634,7 +630,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			if (entryValue->data.boolean)
 				verify_mode |= SSL_VERIFY_PEER;
 		} else if (g_str_equal(entryKeyStr->str, "verify-any")) {
-			if (entryValue->type != LI_VALUE_BOOLEAN) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl verify-any expects a boolean as parameter");
 				return FALSE;
 			}
@@ -645,7 +641,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			have_verify_any_parameter = TRUE;
 			verify_any = entryValue->data.boolean;
 		} else if (g_str_equal(entryKeyStr->str, "verify-depth")) {
-			if (entryValue->type != LI_VALUE_NUMBER) {
+			if (LI_VALUE_NUMBER != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl verify-depth expects a number as parameter");
 				return FALSE;
 			}
@@ -656,7 +652,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			have_verify_depth_parameter = TRUE;
 			verify_depth = entryValue->data.number;
 		} else if (g_str_equal(entryKeyStr->str, "verify-require")) {
-			if (entryValue->type != LI_VALUE_BOOLEAN) {
+			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl verify-require expects a boolean as parameter");
 				return FALSE;
 			}
@@ -668,7 +664,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			if (entryValue->data.boolean)
 				verify_mode |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
 		} else if (g_str_equal(entryKeyStr->str, "client-ca-file")) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl client-ca-file expects a string as parameter");
 				return FALSE;
 			}
@@ -682,14 +678,14 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			return FALSE;
 
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	if (!have_listen_parameter) {
 		ERROR(srv, "%s", "openssl needs a listen parameter");
 		return FALSE;
 	}
 
-	if (!pemfile) {
+	if (NULL == pemfile) {
 		ERROR(srv, "%s", "openssl needs a pemfile");
 		return FALSE;
 	}
@@ -767,7 +763,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 	UNUSED(default_ecdh_curve);
 #endif
 
-	if (ca_file) {
+	if (NULL != ca_file) {
 		if (1 != SSL_CTX_load_verify_locations(ctx->ssl_ctx, ca_file, NULL)) {
 			ERROR(srv, "SSL_CTX_load_verify_locations('%s'): %s", ca_file, ERR_error_string(ERR_get_error(), NULL));
 			goto error_free_socket;
@@ -801,7 +797,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		SSL_CTX_set_verify_depth(ctx->ssl_ctx, verify_depth);
 	}
 
-	if (client_ca_file) {
+	if (NULL != client_ca_file) {
 		if (SSL_CTX_load_verify_locations(ctx->ssl_ctx, client_ca_file, NULL) != 1) {
 			ERROR(srv, "SSL_CTX_load_verify_locations('%s'): %s", client_ca_file, ERR_error_string(ERR_get_error(), NULL));
 			goto error_free_socket;
@@ -816,19 +812,19 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 	SSL_CTX_set_default_read_ahead(ctx->ssl_ctx, 1);
 	SSL_CTX_set_mode(ctx->ssl_ctx, SSL_CTX_get_mode(ctx->ssl_ctx) | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
 
-	for (i = 0; i < val->data.list->len; ++i) {
-		liValue *entryKey = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 0);
-		liValue *entryValue = g_array_index(g_array_index(val->data.list, liValue*, i)->data.list, liValue*, 1);
+	LI_VALUE_FOREACH(entry, val)
+		liValue *entryKey = li_value_list_at(entry, 0);
+		liValue *entryValue = li_value_list_at(entry, 1);
 		GString *entryKeyStr;
 
-		if (entryKey->type == LI_VALUE_NONE) continue;
+		if (LI_VALUE_STRING != li_value_type(entryKey)) continue;
 		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
 
 		if (g_str_equal(entryKeyStr->str, "listen")) {
 			mod_openssl_context_acquire(ctx);
 			li_angel_listen(srv, entryValue->data.string, openssl_setup_listen_cb, ctx);
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	mod_openssl_context_release(ctx);
 

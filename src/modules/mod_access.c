@@ -115,23 +115,19 @@ static void access_check_free(liServer *srv, gpointer param) {
 }
 
 static liAction* access_check_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
-	GArray *arr;
-	liValue *v, *ip;
-	guint i, j;
-	guint32 ipv4, netmaskv4;
-	gboolean deny = FALSE;
 	access_check_data *acd = NULL;
 
-	UNUSED(srv);
-	UNUSED(wrk);
-	UNUSED(userdata);
+	UNUSED(srv); UNUSED(wrk); UNUSED(userdata);
 
-	if (!val || val->type != LI_VALUE_LIST || (val->data.list->len != 1 && val->data.list->len != 2)) {
+	val = li_value_get_single_argument(val);
+	if (LI_VALUE_STRING == li_value_list_type_at(val, 0)) {
+		li_value_wrap_in_list(val);
+	}
+
+	if (!li_value_list_has_len(val, 1) && !li_value_list_has_len(val, 2)) {
 		ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
 		return NULL;
 	}
-
-	arr = val->data.list;
 
 	acd = g_slice_new0(access_check_data);
 	acd->p = p;
@@ -140,43 +136,44 @@ static liAction* access_check_create(liServer *srv, liWorker *wrk, liPlugin* p, 
 	li_radixtree_insert(acd->ipv4, NULL, 0, GINT_TO_POINTER(ACCESS_DENY));
 	li_radixtree_insert(acd->ipv6, NULL, 0, GINT_TO_POINTER(ACCESS_DENY));
 
-	for (i = 0; i < arr->len; i++) {
-		v = g_array_index(arr, liValue*, i);
+	LI_VALUE_FOREACH(v, val)
+		liValue *vAD, *vIPs;
+		gboolean deny = FALSE;
 
-		if (v->type != LI_VALUE_LIST || v->data.list->len != 2) {
+		if (!li_value_list_has_len(v, 2)) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
 			goto failed_free_acd;
 		}
 
-		v = g_array_index(v->data.list, liValue*, 0);
+		vAD = li_value_list_at(v, 0);
 
-		if (v->type != LI_VALUE_STRING) {
+		if (LI_VALUE_STRING != li_value_type(vAD)) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
 			goto failed_free_acd;
 		}
 
-		if (g_str_equal(v->data.string->str, "allow")) {
+		if (g_str_equal(vAD->data.string->str, "allow")) {
 			deny = FALSE;
-		} else if (g_str_equal(v->data.string->str, "deny")) {
+		} else if (g_str_equal(vAD->data.string->str, "deny")) {
 			deny = TRUE;
 		} else {
-			ERROR(srv, "access_check: invalid option \"%s\"", v->data.string->str);
+			ERROR(srv, "access_check: invalid option \"%s\"", vAD->data.string->str);
 			goto failed_free_acd;
 		}
 
-		v = g_array_index(g_array_index(arr, liValue*, i)->data.list, liValue*, 1);
+		vIPs = li_value_list_at(v, 1);
 
-		if (v->type != LI_VALUE_LIST) {
+		if (LI_VALUE_LIST != li_value_type(vIPs)) {
 			ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
 			goto failed_free_acd;
 		}
 
-		for (j = 0; j < v->data.list->len; j++) {
+		LI_VALUE_FOREACH(ip, vIPs)
+			guint32 ipv4, netmaskv4;
 			guint8 ipv6_addr[16];
 			guint ipv6_network;
-			ip = g_array_index(v->data.list, liValue*, j);
 
-			if (ip->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(ip)) {
 				ERROR(srv, "%s", "access_check expects a list of one or two string,list tuples as parameter");
 				goto failed_free_acd;
 			}
@@ -196,8 +193,8 @@ static liAction* access_check_create(liServer *srv, liWorker *wrk, liPlugin* p, 
 				ERROR(srv, "access_check: error parsing ip: %s", ip->data.string->str);
 				goto failed_free_acd;
 			}
-		}
-	}
+		LI_VALUE_END_FOREACH()
+	LI_VALUE_END_FOREACH()
 
 	return li_action_new_function(access_check, NULL, access_check_free, acd);
 
@@ -231,7 +228,7 @@ static liHandlerResult access_deny(liVRequest *vr, gpointer param, gpointer *con
 static liAction* access_deny_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(srv); UNUSED(wrk); UNUSED(userdata);
 
-	if (val) {
+	if (!li_value_is_nothing(val)) {
 		ERROR(srv, "%s", "access.deny doesn't expect any parameters");
 		return NULL;
 	}

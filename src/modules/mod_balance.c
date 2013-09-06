@@ -126,34 +126,38 @@ static void balancer_free(liServer *srv, balancer *b) {
 }
 
 static gboolean balancer_fill_backends(balancer *b, liServer *srv, liValue *val) {
-	if (val->type == LI_VALUE_ACTION) {
-		backend be = { val->data.val_action.action, 0, BE_ALIVE, 0 };
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_ACTION == li_value_type(val)) {
+		backend be;
+		be.act = val->data.val_action.action;
+		be.load = 0; be.state = BE_ALIVE; be.wake = 0;
 		assert(srv == val->data.val_action.srv);
 		li_action_acquire(be.act);
 		g_array_append_val(b->backends, be);
 		return TRUE;
-	} else if (val->type == LI_VALUE_LIST) {
-		guint i;
-		if (val->data.list->len == 0) {
+	} else if (LI_VALUE_LIST == li_value_type(val)) {
+		if (li_value_list_has_len(val, 0)) {
 			ERROR(srv, "%s", "expected non-empty list");
 			return FALSE;
 		}
-		for (i = 0; i < val->data.list->len; i++) {
-			liValue *oa = g_array_index(val->data.list, liValue*, i);
-			if (oa->type != LI_VALUE_ACTION) {
-				ERROR(srv, "expected action at entry %u of list, got %s", i, li_value_type_string(oa->type));
+		LI_VALUE_FOREACH(oa, val)
+			if (LI_VALUE_ACTION != li_value_type(oa)) {
+				ERROR(srv, "expected action at entry %u of list, got %s", _oa_i, li_value_type_string(oa));
 				return FALSE;
 			}
 			assert(srv == oa->data.val_action.srv);
 			{
-				backend be = { oa->data.val_action.action, 0, BE_ALIVE, 0 };
+				backend be;
+				be.act = oa->data.val_action.action;
+				be.load = 0; be.state = BE_ALIVE; be.wake = 0;
 				li_action_acquire(be.act);
 				g_array_append_val(b->backends, be);
 			}
-		}
+		LI_VALUE_END_FOREACH()
 		return TRUE;
 	} else {
-		ERROR(srv, "expected list, got %s", li_value_type_string(val->type));
+		ERROR(srv, "expected list, got %s", li_value_type_string(val));
 		return FALSE;
 	}
 }
@@ -520,7 +524,7 @@ static void balancer_act_free(liServer *srv, gpointer param) {
 static liAction* balancer_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	balancer *b;
 
-	if (!val) {
+	if (NULL == val) {
 		ERROR(srv, "%s", "need parameter");
 		return NULL;
 	}

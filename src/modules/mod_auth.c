@@ -492,29 +492,27 @@ static liAction* auth_generic_create(liServer *srv, liWorker *wrk, liPlugin* p, 
 	liValue *realm = NULL;
 	gboolean have_ttl_parameter = FALSE;
 	gint ttl = 10;
-	GArray *list;
-	guint i;
+
+	val = li_value_get_single_argument(val);
 
 	if (NULL == (val = li_value_to_key_value_list(val))) {
 		ERROR(srv, "%s expects a hashtable/key-value list with at least 3 elements: method, realm and file", actname);
 		return NULL;
 	}
 
-	list = val->data.list;
-
-	for (i = 0; i < list->len; ++i) {
-		liValue *entryKey = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 0);
-		liValue *entryValue = g_array_index(g_array_index(list, liValue*, i)->data.list, liValue*, 1);
+	LI_VALUE_FOREACH(entry, val)
+		liValue *entryKey = li_value_list_at(entry, 0);
+		liValue *entryValue = li_value_list_at(entry, 1);
 		GString *entryKeyStr;
 
-		if (entryKey->type == LI_VALUE_NONE) {
-			ERROR(srv, "%s doesn't take null keys", actname);
+		if (LI_VALUE_NONE == li_value_type(entryKey)) {
+			ERROR(srv, "%s doesn't take default keys", actname);
 			return NULL;
 		}
 		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
 
 		if (g_string_equal(entryKeyStr, &aon_method)) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "auth option '%s' expects string as parameter", entryKeyStr->str);
 				return NULL;
 			}
@@ -524,7 +522,7 @@ static liAction* auth_generic_create(liServer *srv, liWorker *wrk, liPlugin* p, 
 			}
 			method = entryValue->data.string;
 		} else if (g_string_equal(entryKeyStr, &aon_realm)) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "auth option '%s' expects string as parameter", entryKeyStr->str);
 				return NULL;
 			}
@@ -534,7 +532,7 @@ static liAction* auth_generic_create(liServer *srv, liWorker *wrk, liPlugin* p, 
 			}
 			realm = entryValue;
 		} else if (g_string_equal(entryKeyStr, &aon_file)) {
-			if (entryValue->type != LI_VALUE_STRING) {
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "auth option '%s' expects string as parameter", entryKeyStr->str);
 				return NULL;
 			}
@@ -544,7 +542,7 @@ static liAction* auth_generic_create(liServer *srv, liWorker *wrk, liPlugin* p, 
 			}
 			file = entryValue->data.string;
 		} else if (g_string_equal(entryKeyStr, &aon_ttl)) {
-			if (entryValue->type != LI_VALUE_NUMBER || entryValue->data.number < 0) {
+			if (LI_VALUE_NUMBER != li_value_type(entryValue) || entryValue->data.number < 0) {
 				ERROR(srv, "auth option '%s' expects non-negative number as parameter", entryKeyStr->str);
 				return NULL;
 			}
@@ -558,7 +556,7 @@ static liAction* auth_generic_create(liServer *srv, liWorker *wrk, liPlugin* p, 
 			ERROR(srv, "unknown auth option '%s'", entryKeyStr->str);
 			return NULL;
 		}
-	}
+	LI_VALUE_END_FOREACH()
 
 	if (NULL == method || NULL == realm || NULL == file) {
 		ERROR(srv, "%s expects a hashtable/key-value list with 3 elements: method, realm and file", actname);
@@ -634,7 +632,7 @@ static liAction* auth_deny(liServer *srv, liWorker *wrk, liPlugin* p, liValue *v
 	UNUSED(wrk);
 	UNUSED(userdata);
 
-	if (val) {
+	if (!li_value_is_nothing(val)) {
 		ERROR(srv, "%s", "'auth.deny' action doesn't have parameters");
 		return NULL;
 	}

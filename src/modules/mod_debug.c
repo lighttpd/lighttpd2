@@ -333,7 +333,7 @@ static liHandlerResult debug_show_connections(liVRequest *vr, gpointer param, gp
 static liAction* debug_show_connections_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(wrk); UNUSED(userdata);
 
-	if (val) {
+	if (!li_value_is_nothing(val)) {
 		ERROR(srv, "%s", "debug.show_connections doesn't expect any parameters");
 		return NULL;
 	}
@@ -357,15 +357,18 @@ static liHandlerResult debug_profiler_dump(liVRequest *vr, gpointer param, gpoin
 
 static liAction* debug_profiler_dump_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	gpointer ptr;
-
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val && val->type != LI_VALUE_NUMBER) {
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_NONE == li_value_type(val)) {
+		ptr = GINT_TO_POINTER(10240);
+	} else if (LI_VALUE_NUMBER == li_value_type(val)) {
+		ptr = GINT_TO_POINTER(val->data.number);
+	} else {
 		ERROR(srv, "%s", "debug.profiler_dump takes an optional integer (minsize) as parameter");
 		return NULL;
 	}
-
-	ptr = GINT_TO_POINTER(val ? val->data.number : 10240);
 
 	return li_action_new_function(debug_profiler_dump, NULL, NULL, ptr);
 }

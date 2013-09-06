@@ -187,11 +187,12 @@ static liHandlerResult core_handle_throttle_pool(liVRequest *vr, gpointer param,
 static liAction* core_throttle_pool(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	liThrottlePool *pool = NULL;
 	gint64 rate, burst;
-
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val->type != LI_VALUE_NUMBER) {
-		ERROR(srv, "'io.throttle_pool' action expects a number as parameter, %s given", li_value_type_string(val->type));
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_NUMBER != li_value_type(val)) {
+		ERROR(srv, "'io.throttle_pool' action expects a number as parameter, %s given", li_value_type_string(val));
 		return NULL;
 	}
 
@@ -252,8 +253,10 @@ static liAction* core_throttle_ip(liServer *srv, liWorker *wrk, liPlugin* p, liV
 	throttle_ip_pools *pools;
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val->type != LI_VALUE_NUMBER) {
-		ERROR(srv, "'io.throttle_ip' action expects a positiv integer as parameter, %s given", li_value_type_string(val->type));
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_NUMBER != li_value_type(val)) {
+		ERROR(srv, "'io.throttle_ip' action expects a positiv integer as parameter, %s given", li_value_type_string(val));
 		return NULL;
 	}
 
@@ -299,22 +302,25 @@ static liAction* core_throttle_connection(liServer *srv, liWorker *wrk, liPlugin
 	guint64 rate, burst;
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val->type == LI_VALUE_LIST && val->data.list->len == 2) {
-		liValue *v1 = g_array_index(val->data.list, liValue*, 0);
-		liValue *v2 = g_array_index(val->data.list, liValue*, 1);
+	val = li_value_get_single_argument(val);
+	val = li_value_get_single_argument(val);
 
-		if (v1->type != LI_VALUE_NUMBER || v2->type != LI_VALUE_NUMBER) {
+	if (li_value_list_has_len(val, 2)) {
+		liValue *v1 = li_value_list_at(val, 0);
+		liValue *v2 = li_value_list_at(val, 1);
+
+		if (LI_VALUE_NUMBER != li_value_type(v1) || LI_VALUE_NUMBER != li_value_type(v2)) {
 			ERROR(srv, "%s", "'io.throttle' action expects a positiv integer or a pair of those as parameter");
 			return NULL;
 		}
 
 		rate = v2->data.number;
 		burst = v1->data.number;
-	} else if (val->type == LI_VALUE_NUMBER) {
+	} else if (LI_VALUE_NUMBER == li_value_type(val)) {
 		rate = val->data.number;
 		burst  = 2 * rate;
 	} else {
-		ERROR(srv, "'io.throttle' action expects a positiv integer or a pair of those as parameter, %s given", li_value_type_string(val->type));
+		ERROR(srv, "'io.throttle' action expects a positiv integer or a pair of those as parameter, %s given", li_value_type_string(val));
 		return NULL;
 	}
 

@@ -339,7 +339,9 @@ static liAction* cache_etag_create(liServer *srv, liWorker *wrk, liPlugin* p, li
 	cache_etag_context *ctx;
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
-	if (val->type != LI_VALUE_STRING) {
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_STRING != li_value_type(val)) {
 		ERROR(srv, "%s", "cache.disk.etag expects a string as parameter");
 		return FALSE;
 	}
