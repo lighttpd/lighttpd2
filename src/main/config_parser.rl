@@ -531,7 +531,7 @@ static gboolean scope_setvar(liConfigTokenizerContext *ctx, GString *name, liVal
 	scope = ctx->current_scope;
 	/* search whether name already exists in a scope. otherwise make it local */
 	while (NULL != scope) {
-		if (g_hash_table_contains(scope->variables, name)) {
+		if (NULL != g_hash_table_lookup(scope->variables, name)) {
 			g_hash_table_insert(scope->variables, g_string_new_len(GSTR_LEN(name)), value);
 			return TRUE;
 		}
@@ -540,7 +540,7 @@ static gboolean scope_setvar(liConfigTokenizerContext *ctx, GString *name, liVal
 
 	if (ctx->master_config) {
 		/* modify global vars in master config */
-		if (NULL != ctx->srv->config_global_vars && g_hash_table_contains(ctx->srv->config_global_vars, name)) {
+		if (NULL != ctx->srv->config_global_vars && NULL != g_hash_table_lookup(ctx->srv->config_global_vars, name)) {
 			g_hash_table_insert(ctx->srv->config_global_vars, g_string_new_len(GSTR_LEN(name)), value);
 			return TRUE;
 		}
