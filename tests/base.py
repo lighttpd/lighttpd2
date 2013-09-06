@@ -113,7 +113,7 @@ class TestBase(object):
 			self.tests.append_config(("\n# %s \n" % (self.name)) + self.plain_config)
 		if None != self.config:
 			errorlog = self.PrepareFile("log/error.log-%s" % self.vhost, "")
-			errorconfig = Env.debug and " " or """log [ "*" => "file:%s" ];""" % (errorlog)
+			errorconfig = Env.debug and " " or """log [ default => "file:%s" ];""" % (errorlog)
 			accesslog = self.PrepareFile("log/access.log-%s" % self.vhost, "")
 			if None != self.vhostdir:
 				docroot = 'docroot "%s";' % self.vhostdir
@@ -328,7 +328,7 @@ class Tests(object):
 		print >> Env.log, "[Start] Preparing tests"
 		cache_disk_etag_dir = self.PrepareDir(os.path.join("tmp", "cache_etag"))
 		errorlog = self.PrepareFile("log/error.log", "")
-		errorconfig = Env.debug and " " or """log [ "*" => "file:%s" ];""" % (errorlog)
+		errorconfig = Env.debug and " " or """log [ default => "file:%s" ];""" % (errorlog)
 		accesslog = self.PrepareFile("log/access.log", "")
 		self.config = """
 setup {{
@@ -344,7 +344,7 @@ setup {{
 	);
 
 	listen "127.0.0.2:{Env.port}";
-	log [ "*" => "stderr" ];
+	log [ default => "stderr" ];
 
 	lua.plugin "{Env.luadir}/core.lua";
 	lua.plugin "{Env.luadir}/secdownload.lua";
@@ -379,10 +379,10 @@ var.reg_vhosts = [];
 
 		self.config += """
 
-var.reg_vhosts = var.reg_vhosts + [ "default" => {{
+var.reg_vhosts = var.reg_vhosts + [ default => {{
 	defaultaction;
 }} ];
-var.vhosts = var.vhosts + [ "default" => {{
+var.vhosts = var.vhosts + [ default => {{
 	vhost.map_regex var.reg_vhosts;
 }} ];
 
