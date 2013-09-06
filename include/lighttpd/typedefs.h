@@ -33,6 +33,7 @@ typedef struct liActionFunc liActionFunc;
 typedef struct liBalancerFunc liBalancerFunc;
 
 typedef enum {
+	LI_ACTION_TNOTHING,
 	LI_ACTION_TSETTING,
 	LI_ACTION_TSETTINGPTR,
 	LI_ACTION_TFUNCTION,

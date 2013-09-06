@@ -17,8 +17,6 @@ static liValue* lua_params_to_value(liServer *srv, lua_State *L) {
 	case 0:
 	case 1: /* first parameter is the table the __call method is for */
 		return NULL;
-	case 2:
-		return li_value_from_lua(srv, L);
 	default:
 		val = li_value_new_list();
 		g_array_set_size(val->data.list, lua_gettop(L) - 1);

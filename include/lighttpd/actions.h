@@ -85,11 +85,15 @@ LI_API liHandlerResult li_action_execute(liVRequest *vr);
 LI_API void li_action_release(liServer *srv, liAction *a);
 LI_API void li_action_acquire(liAction *a);
 /* create new action */
-LI_API liAction *li_action_new_setting(liOptionSet setting);
-LI_API liAction *li_action_new_settingptr(liOptionPtrSet setting);
-LI_API liAction *li_action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup, liActionFreeCB ffree, gpointer param);
-LI_API liAction *li_action_new_list(void);
-LI_API liAction *li_action_new_condition(liCondition *cond, liAction *target, liAction *target_else);
-LI_API liAction *li_action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB bfallback, liBackendFinishedCB bfinished, liBalancerFreeCB bfree, gpointer param, gboolean provide_backlog);
+LI_API liAction* li_action_new(void);
+LI_API liAction* li_action_new_setting(liOptionSet setting);
+LI_API liAction* li_action_new_settingptr(liOptionPtrSet setting);
+LI_API liAction* li_action_new_function(liActionFuncCB func, liActionCleanupCB fcleanup, liActionFreeCB ffree, gpointer param);
+LI_API liAction* li_action_new_list(void);
+LI_API liAction* li_action_new_condition(liCondition *cond, liAction *target, liAction *target_else);
+LI_API liAction* li_action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB bfallback, liBackendFinishedCB bfinished, liBalancerFreeCB bfree, gpointer param, gboolean provide_backlog);
+
+/* assert(list->refcount == 1)! converts list to a list in place if necessary */
+LI_API void li_action_append_inplace(liAction *list, liAction *element);
 
 #endif

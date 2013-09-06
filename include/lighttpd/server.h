@@ -82,6 +82,8 @@ struct liServer {
 	GHashTable *plugins;      /**< const gchar* => (liPlugin*) */
 	liPlugin *core_plugin;
 
+	GHashTable *config_global_vars; /** for later reuse, (GString*) => (liValue*) */
+
 	/* registered by plugins */
 	GHashTable *options;      /**< const gchar* => (liServerOption*) */
 	GHashTable *optionptrs;   /**< const gchar* => (liServerOptionPtr*) */

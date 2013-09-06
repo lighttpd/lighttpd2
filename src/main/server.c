@@ -93,6 +93,7 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 	srv->prepare_callbacks = g_array_new(FALSE, TRUE, sizeof(liServerPrepareCallbackData));
 
 	srv->mainaction = NULL;
+	srv->config_global_vars = li_value_new_hashtable();
 
 	srv->action_mutex = g_mutex_new();
 
@@ -166,6 +167,9 @@ void li_server_free(liServer* srv) {
 	}
 
 	li_action_release(srv, srv->mainaction);
+	srv->mainaction = NULL;
+	g_hash_table_destroy(srv->config_global_vars);
+	srv->config_global_vars = NULL;
 
 	li_event_clear(&srv->state_ready_watcher);
 	g_mutex_free(srv->statelock);

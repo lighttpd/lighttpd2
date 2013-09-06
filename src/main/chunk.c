@@ -5,7 +5,7 @@
 #include <fcntl.h>
 
 GQuark li_chunk_error_quark(void) {
-	return g_quark_from_string("g-chunk-error-quark");
+	return g_quark_from_string("li-chunk-error-quark");
 }
 
 /******************

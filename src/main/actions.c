@@ -18,6 +18,8 @@ void li_action_release(liServer *srv, liAction *a) {
 	assert(g_atomic_int_get(&a->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&a->refcount)) {
 		switch (a->type) {
+		case LI_ACTION_TNOTHING:
+			break;
 		case LI_ACTION_TSETTING:
 			break;
 		case LI_ACTION_TSETTINGPTR:
@@ -52,6 +54,15 @@ void li_action_release(liServer *srv, liAction *a) {
 void li_action_acquire(liAction *a) {
 	assert(g_atomic_int_get(&a->refcount) > 0);
 	g_atomic_int_inc(&a->refcount);
+}
+
+liAction* li_action_new(void) {
+	liAction *a = g_slice_new(liAction);
+
+	a->refcount = 1;
+	a->type = LI_ACTION_TNOTHING;
+
+	return a;
 }
 
 liAction *li_action_new_setting(liOptionSet setting) {
@@ -128,12 +139,35 @@ liAction *li_action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB 
 	return a;
 }
 
+void li_action_append_inplace(liAction *list, liAction *element) {
+	assert(NULL != list && NULL != element);
+	assert(1 == g_atomic_int_get(&list->refcount));
+
+	if (LI_ACTION_TLIST != list->type) {
+		liAction *wrapped = NULL;
+		if (LI_ACTION_TNOTHING != list->type) {
+			wrapped = li_action_new();
+			*wrapped = *list;
+		}
+		memset(list, 0, sizeof(*list));
+		list->refcount = 1;
+		list->type = LI_ACTION_TLIST;
+		list->data.list = g_array_new(FALSE, TRUE, sizeof(liAction *));
+		if (NULL != wrapped) g_array_append_val(list->data.list, wrapped);
+	}
+	if (LI_ACTION_TNOTHING != element->type) {
+		li_action_acquire(element);
+		g_array_append_val(list->data.list, element);
+	}
+}
+
 static void action_stack_element_release(liServer *srv, liVRequest *vr, action_stack_element *ase) {
 	liAction *a = ase->act;
 
 	if (!ase || !a) return;
 
 	switch (a->type) {
+	case LI_ACTION_TNOTHING:
 	case LI_ACTION_TSETTING:
 	case LI_ACTION_TSETTINGPTR:
 		break;
@@ -313,6 +347,9 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 		ase_ndx = as->stack->len - 1; /* sometimes the stack gets modified - reread "ase" after that */
 
 		switch (a->type) {
+		case LI_ACTION_TNOTHING:
+			action_stack_pop(srv, vr, as);
+			break;
 		case LI_ACTION_TSETTING:
 			vr->options[a->data.setting.ndx] = a->data.setting.value;
 			action_stack_pop(srv, vr, as);

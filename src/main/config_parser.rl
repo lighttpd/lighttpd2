@@ -5,19 +5,130 @@
 # include <lighttpd/config_lua.h>
 #endif
 
-#if 0
-	#define _printf(fmt, ...) g_print(fmt, __VA_ARGS__)
-#else
-	#define _printf(fmt, ...) /* */
-#endif
+#include <stdarg.h>
 
-/** config parser state machine **/
+#define KV_LISTING_MAX 100
 
-static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *param);
+typedef enum {
+	TK_ERROR,
+	TK_EOF,
+	TK_AND,
+	TK_ASSIGN,
+	TK_ASSOCICATE,
+	TK_CAST_STRING,
+	TK_CAST_INT,
+	TK_COMMA,
+	TK_CURLY_CLOSE,
+	TK_CURLY_OPEN,
+	TK_DEFAULT,
+	TK_DIVIDE,
+	TK_ELSE,
+	TK_EQUAL,
+	TK_FALSE,
+	TK_GLOBAL,
+	TK_GREATER,
+	TK_GREATER_EQUAL,
+	TK_IF,
+	TK_INCLUDE,
+	TK_INCLUDE_LUA,
+	TK_INCLUDE_SHELL,
+	TK_INTEGER,
+	TK_LESS,
+	TK_LESS_EQUAL,
+	TK_LOCAL,
+	TK_MATCH,
+	TK_MINUS,
+	TK_MULTIPLY,
+	TK_NAME,
+	TK_NONE,
+	TK_NOT,
+	TK_NOT_EQUAL,
+	TK_NOT_MATCH,
+	TK_NOT_PREFIX,
+	TK_NOT_SUBNET,
+	TK_NOT_SUFFIX,
+	TK_OR,
+	TK_PARA_CLOSE,
+	TK_PARA_OPEN,
+	TK_PLUS,
+	TK_PREFIX,
+	TK_SEMICOLON,
+	TK_SETUP,
+	TK_SQUARE_CLOSE,
+	TK_SQUARE_OPEN,
+	TK_STRING,
+	TK_SUBNET,
+	TK_SUFFIX,
+	TK_TRUE
+} liConfigToken;
+
+typedef struct liConfigScope liConfigScope;
+struct liConfigScope {
+	liConfigScope *parent;
+
+	GHashTable *variables;
+};
+
+typedef struct liConfigTokenizerContext liConfigTokenizerContext;
+struct liConfigTokenizerContext {
+	liServer *srv;
+	liWorker *wrk;
+	gboolean master_config; /* whether includes/changing global vars are allowed */
+
+	/* ragel vars */
+	int cs;
+	const char *p, *pe, *eof;
+
+	/* remember token start position for error messages */
+	const char *token_start;
+	gsize token_line;
+	const gchar *token_line_start;
+
+	/* mark start of strings and similar */
+	const gchar *mark;
+
+	/* number stuff */
+	gboolean negative;
+	gint64 suffix_factor;
+
+	/* information about currently parsed file */
+	const gchar *filename;
+	const gchar *content; /* pointer to the data */
+	gsize len;
+	gsize line; /* holds current line */
+	const gchar *line_start;
+
+	/* result */
+	GString *token_string;
+	gint64 token_number;
+
+	/* TK_ERROR => have to parse it. parsing returns the token, but you can put it back here */
+	/* only put the last token back, as on the next parse call token_string and token_number get reset */
+	liConfigToken next_token;
+
+	/* variable storage */
+	liConfigScope *current_scope;
+};
+
+typedef struct liConditionTree liConditionTree;
+struct liConditionTree {
+	gboolean negated;
+
+	liCondition *condition;
+
+	liConfigToken op;
+	liConditionTree *left, *right;
+};
+
+static liConfigToken tokenizer_error(liConfigTokenizerContext *ctx, GError **error, const char *fmt, ...) G_GNUC_PRINTF(3, 4);
+
+GQuark li_config_error_quark(void) {
+	return g_quark_from_string("li-config-error-quark");
+}
 
 %%{
 	## ragel stuff
-	machine config_parser;
+	machine config_tokenizer;
 
 	variable p ctx->p;
 	variable pe ctx->pe;
@@ -25,1475 +136,1748 @@ static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *pa
 
 	access ctx->;
 
-	prepush {
-		/* _printf("current stacksize: %d, top: %d\n", ctx->stacksize, ctx->top); */
-		/* increase stacksize if necessary */
-		if (ctx->stacksize == ctx->top)
-		{
-			/* increase stacksize by 8 */
-			ctx->stack = g_realloc(ctx->stack, sizeof(int) * (ctx->stacksize + 8));
-			ctx->stacksize += 8;
+	action mark {
+		ctx->mark = fpc;
+	}
+
+	action name {
+		g_string_append_len(ctx->token_string, ctx->mark, fpc - ctx->mark);
+		return TK_NAME;
+	}
+
+	action char {
+		g_string_append_c(ctx->token_string, fc);
+	}
+	action echar {
+		switch (fc) {
+		case 't':
+			g_string_append_c(ctx->token_string, '\t');
+			break;
+		case 'r':
+			g_string_append_c(ctx->token_string, '\r');
+			break;
+		case 'n':
+			g_string_append_c(ctx->token_string, '\n');
+			break;
+		case '"':
+		case '\'':
+		case '\\':
+			g_string_append_c(ctx->token_string, fc);
+			break;
+		default:
+			g_string_append_c(ctx->token_string, '\\');
+			g_string_append_c(ctx->token_string, fc);
+			break;
 		}
 	}
-
-	## actions
-	action mark { ctx->mark = fpc; }
-
-	# basic types
-	action none {
-		liValue *v;
-
-		v = li_value_new_none();
-		g_queue_push_head(ctx->value_stack, v);
-
-		_printf("got 'none' value in line %zd\n", ctx->line);
+	action xchar {
+		char xstr[3] = "  ";
+		xstr[0] = fpc[-1]; xstr[1] = fpc[0];
+		g_string_append_c(ctx->token_string, strtol(xstr, NULL, 16));
 	}
-
-	action boolean {
-		liValue *v;
-
-		v = li_value_new_bool(*ctx->mark == 't' ? TRUE : FALSE);
-		g_queue_push_head(ctx->value_stack, v);
-
-		_printf("got boolean %s in line %zd\n", *ctx->mark == 't' ? "true" : "false", ctx->line);
-	}
-
-	action integer {
-		liValue *v;
-		gint64 i = 0;
-
-		for (gchar *c = ctx->mark; c < fpc; c++)
-			i = i * 10 + *c - 48;
-
-		v = li_value_new_number(i);
-		/* push value onto stack */
-		g_queue_push_head(ctx->value_stack, v);
-
-		_printf("got integer %" G_GINT64_FORMAT " in line %zd\n", i, ctx->line);
-	}
-
-	action integer_suffix {
-		liValue *v;
-		GString *str;
-
-		v = g_queue_peek_head(ctx->value_stack);
-
-		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
-
-		     if (g_str_equal(str->str, "kbyte")) v->data.number *= 1024;
-		else if (g_str_equal(str->str, "mbyte")) v->data.number *= 1024 * 1024;
-		else if (g_str_equal(str->str, "gbyte")) v->data.number *= 1024 * 1024 * 1024;
-		else if (g_str_equal(str->str, "tbyte")) v->data.number *= 1024 * 1024 * 1024 * G_GINT64_CONSTANT(1024);
-
-		else if (g_str_equal(str->str, "kbit")) v->data.number *= 1024 / 8;
-		else if (g_str_equal(str->str, "mbit")) v->data.number *= 1024 * 1024 / 8;
-		else if (g_str_equal(str->str, "gbit")) v->data.number *= 1024 * 1024 * 1024 / 8;
-		else if (g_str_equal(str->str, "tbit")) v->data.number *= 1024 * 1024 * 1024 * G_GINT64_CONSTANT(1024) / 8;
-
-		else if (g_str_equal(str->str, "min")) v->data.number *= 60;
-		else if (g_str_equal(str->str, "hours")) v->data.number *= 60 * 60;
-		else if (g_str_equal(str->str, "days")) v->data.number *= 60 * 60 * 24;
-
-		g_string_free(str, TRUE);
-
-		_printf("got int with suffix: %" G_GINT64_FORMAT "\n", v->data.number);
-	}
-
 	action string {
-		liValue *v;
-		GString *str;
-		gchar ch;
+		++fpc;
+		return TK_STRING;
+	}
 
-		str = g_string_sized_new(fpc - ctx->mark - 2);
-		for (gchar *c = (ctx->mark+1); c != (fpc-1); c++) {
-			if (*c != '\\')
-				g_string_append_c(str, *c);
-			else {
-				guint avail = fpc - 1 - c;
-				if (avail == 0) {
-					ERROR(srv, "%s", "invalid \\ at end of string");
-					g_string_free(str, TRUE);
-					return FALSE;
-				}
-
-				switch (*(c+1)) {
-				case '\\': g_string_append_c(str, '\\'); c++; break;
-				case '"': g_string_append_c(str, '"'); c++; break;
-				case 'n': g_string_append_c(str, '\n'); c++; break;
-				case 'r': g_string_append_c(str, '\r'); c++; break;
-				case 't': g_string_append_c(str, '\t'); c++; break;
-				case 'x':
-					if (avail < 3 || !(
-						((*(c+2) >= '0' && *(c+2) <= '9') || (*(c+2) >= 'A' && *(c+2) <= 'F') || (*(c+2) >= 'a' && *(c+2) <= 'f')) &&
-						((*(c+3) >= '0' && *(c+3) <= '9') || (*(c+3) >= 'A' && *(c+3) <= 'F') || (*(c+3) >= 'a' && *(c+3) <= 'f')))) {
-						ERROR(srv, "%s", "invalid \\xHH in string");
-						g_string_free(str, TRUE);
-						return FALSE;
-					}
-					/* append char from hex */
-					/* first char */
-					if (*(c+2) <= '9')
-						ch = 16 * (*(c+2) - '0');
-					else if (*(c+2) <= 'F')
-						ch = 16 * (10 + *(c+2) - 'A');
-					else
-						ch = 16 * (10 + *(c+2) - 'a');
-					/* second char */
-					if (*(c+3) <= '9')
-						ch += *(c+3) - '0';
-					else if (*(c+3) <= 'F')
-						ch += 10 + *(c+3) - 'A';
-					else
-						ch += 10 + *(c+3) - 'a';
-					c += 3;
-					g_string_append_c(str, ch);
-					break;
-				default:
-					g_string_append_c(str, '\\');
-				}
-			}
+	action e_char {
+		g_string_append_c(ctx->token_string, fc);
+	}
+	action e_echar {
+		switch (fc) {
+		case 't':
+			g_string_append_c(ctx->token_string, '\t');
+			break;
+		case 'r':
+			g_string_append_c(ctx->token_string, '\r');
+			break;
+		case 'n':
+			g_string_append_c(ctx->token_string, '\n');
+			break;
+		default:
+			g_string_append_c(ctx->token_string, fc);
+			break;
 		}
-
-		v = li_value_new_string(str);
-		g_queue_push_head(ctx->value_stack, v);
-
-		_printf("got string %s", "");
-		for (gchar *c = ctx->mark + 1; c < fpc - 1; c++) _printf("%c", *c);
-		_printf(" in line %zd\n", ctx->line);
+	}
+	action e_xchar {
+		char xstr[3] = "  ";
+		xstr[0] = fpc[-1]; xstr[1] = fpc[0];
+		g_string_append_c(ctx->token_string, strtol(xstr, NULL, 16));
+	}
+	action e_string {
+		++fpc;
+		return TK_STRING;
 	}
 
-	# advanced types
-	action list_start {
-		liValue *v;
-
-		/* create new list value and put it on stack, list entries are put in it by getting the previous value from the stack */
-		v = li_value_new_list();
-		g_queue_push_head(ctx->value_stack, v);
-
-		fcall list_scanner;
+	action int_start {
+		ctx->negative = FALSE;
+		ctx->token_number = 0;
+		ctx->suffix_factor = 1;
 	}
-
-	action list_push {
-		liValue *v, *l;
-
-		/* pop current value from stack and append it to the new top of the stack value (the list) */
-		v = g_queue_pop_head(ctx->value_stack);
-
-		l = g_queue_peek_head(ctx->value_stack);
-		assert(l->type == LI_VALUE_LIST);
-
-		g_array_append_val(l->data.list, v);
-
-		_printf("list_push %s\n", li_value_type_string(v));
+	action int_negative {
+		ctx->negative = TRUE;
 	}
-
-	action list_end {
-		fret;
-	}
-
-	action hash_start {
-		liValue *v;
-
-		/* create new hash value and put it on stack, if a key-value pair is encountered, get it by walking 2 steps back the stack */
-		v = li_value_new_hash();
-		g_queue_push_head(ctx->value_stack, v);
-
-		fcall hash_scanner;
-	}
-
-	action hash_push {
-		liValue *k, *v, *h; /* key value hashtable */
-		GString *str;
-
-		v = g_queue_pop_head(ctx->value_stack);
-		k = g_queue_pop_head(ctx->value_stack);
-		h = g_queue_peek_head(ctx->value_stack);
-
-		/* duplicate key so value can be free'd */
-		str = g_string_new_len(k->data.string->str, k->data.string->len);
-
-		g_hash_table_insert(h->data.hash, str, v);
-
-		_printf("hash_push: %s: %s => %s\n", li_value_type_string(k), li_value_type_string(v), li_value_type_string(h));
-
-		li_value_free(k);
-	}
-
-	action hash_end {
-		fret;
-	}
-
-	action block_start {
-		_printf("%s", "block_start\n");
-		fcall block_scanner;
-	}
-
-	action block_end {
-		_printf("%s", "block_end\n");
-		fret;
-	}
-
-	action keyvalue_start {
-		/* fpc--; */
-		_printf("keyvalue start in line %zd\n", ctx->line);
-		fcall key_value_scanner;
-	}
-
-	action keyvalue_end {
-		liValue *k, *v, *l;
-		/* we have a key and a value on the stack; convert them to a list with 2 elements */
-
-		v = g_queue_pop_head(ctx->value_stack);
-		k = g_queue_pop_head(ctx->value_stack);
-
-		l = li_value_new_list();
-
-		g_array_append_val(l->list, k);
-		g_array_append_val(l->list, v);
-
-		_printf("key-value pair: %s => %s in line %zd\n", li_value_type_string(k), li_value_type_string(v), ctx->line);
-
-		/* push list on the stack */
-		g_queue_push_head(ctx->value_stack, l);
-
-		/* fpc--; */
-
-		fret;
-	}
-
-	action liValue {
-		liValue *v;
-
-		v = g_queue_peek_head(ctx->value_stack);
-
-		/* check if we need to cast the value */
-		if (ctx->cast != LI_CFG_PARSER_CAST_NONE) {
-			if (ctx->cast == LI_CFG_PARSER_CAST_INT) {
-				/* cast string to integer */
-				gint x = 0;
-				guint i = 0;
-				gboolean negative = FALSE;
-
-				if (v->type != LI_VALUE_STRING) {
-					ERROR(srv, "can only cast strings to integers, %s given", li_value_type_string(v));
-					return FALSE;
-				}
-
-				if (v->data.string->str[0] == '-') {
-					negative = TRUE;
-					i++;
-				}
-
-				for (; i < v->data.string->len; i++) {
-					gchar c = v->data.string->str[i];
-					if (c < '0' || c > '9') {
-						ERROR(srv, "%s", "cast(int) parameter doesn't look like a numerical string");
-						return FALSE;
-					}
-					x = x * 10 + c - '0';
-				}
-
-				if (negative)
-					x *= -1;
-
-				g_string_free(v->data.string, TRUE);
-				v->data.number = x;
-				v->type = LI_VALUE_NUMBER;
+	action dec_digit {
+		gint64 digit = fc - '0';
+		if (ctx->negative) {
+			if (ctx->token_number < G_MININT64 / 10 + digit) {
+				return tokenizer_error(ctx, error, "integer overflow");
 			}
-			else if (ctx->cast == LI_CFG_PARSER_CAST_STR) {
-				/* cast integer to string */
-				GString *str;
-
-				if (v->type != LI_VALUE_NUMBER) {
-					ERROR(srv, "can only cast integers to strings, %s given", li_value_type_string(v));
-					return FALSE;
-				}
-
-				str = g_string_sized_new(0);
-				g_string_printf(str, "%" G_GINT64_FORMAT, v->data.number);
-				v->data.string = str;
-				v->type = LI_VALUE_STRING;
-			}
-
-			ctx->cast = LI_CFG_PARSER_CAST_NONE;
-		}
-
-		_printf("value (%s) in line %zd\n", li_value_type_string(v), ctx->line);
-	}
-
-	action value_statement_start {
-		fcall value_statement_scanner;
-	}
-
-	action value_statement_end {
-		fret;
-	}
-
-	action value_statement_op {
-		g_queue_push_head(ctx->value_op_stack, ctx->mark);
-	}
-
-	action value_statement {
-		/* value (+|-|*|/) value */
-		/* compute new value out of the two */
-		liValue *l, *r, *v;
-		gboolean free_l, free_r;
-		gchar op;
-
-		free_l = free_r = TRUE;
-
-		r = g_queue_pop_head(ctx->value_stack);
-		l = g_queue_pop_head(ctx->value_stack);
-		v = NULL;
-
-		op = *(gchar*)g_queue_pop_head(ctx->value_op_stack);
-
-		if (op == '=') {
-			/* value => value */
-			free_l = FALSE;
-			free_r = FALSE;
-			v = li_value_new_list();
-			g_array_append_val(v->data.list, l);
-			g_array_append_val(v->data.list, r);
-		} else if (l->type == LI_VALUE_NUMBER && r->type == LI_VALUE_NUMBER) {
-			switch (op) {
-				case '+': v = li_value_new_number(l->data.number + r->data.number); break;
-				case '-': v = li_value_new_number(l->data.number - r->data.number); break;
-				case '*': v = li_value_new_number(l->data.number * r->data.number); break;
-				case '/': v = li_value_new_number(l->data.number / r->data.number); break;
-			}
-		} else if (l->type == LI_VALUE_STRING) {
-			v = l;
-			free_l = FALSE;
-
-			if (r->type == LI_VALUE_STRING && op == '+') {
-				/* str + str */
-				v->data.string = g_string_append_len(v->data.string, GSTR_LEN(r->data.string));
-			} else if (r->type == LI_VALUE_NUMBER && op == '+') {
-				/* str + int */
-				g_string_append_printf(v->data.string, "%" G_GINT64_FORMAT, r->data.number);
-			} else if (r->type == LI_VALUE_NUMBER && op == '*') {
-				/* str * int */
-				if (r->data.number < 0) {
-					ERROR(srv, "string multiplication with negative number (%" G_GINT64_FORMAT ")?", r->data.number);
-					return FALSE;
-				} else if (r->data.number == 0) {
-					v->data.string = g_string_truncate(v->data.string, 0);
-				} else {
-					GString *str;
-					str = g_string_new_len(l->data.string->str, l->data.string->len);
-					for (gint i = 1; i < r->data.number; i++)
-						v->data.string = g_string_append_len(v->data.string, str->str, str->len);
-					g_string_free(str, TRUE);
-				}
-			}
-			else
-				v = NULL;
-		} else if (l->type == LI_VALUE_LIST) {
-			if (op == '+') {
-				/* append r to the end of l */
-				free_l = FALSE; /* use l as the new o */
-				free_r = FALSE; /* r gets appended to o */
-				v = l;
-
-				g_array_append_val(l->data.list, r);
-			} else if (op == '*') {
-				/* merge l and r */
-				if (r->type == LI_VALUE_LIST) {
-					/* merge lists */
-					free_l = FALSE;
-					g_array_append_vals(l->data.list, r->data.list->data, r->data.list->len);
-					g_array_set_size(r->data.list, 0);
-					v = l;
-				}
-			}
-		}
-		else if (l->type == LI_VALUE_HASH && r->type == LI_VALUE_HASH && op == '+') {
-			/* merge hashtables */
-			GHashTableIter iter;
-			gpointer key, val;
-			free_l = FALSE; /* keep l, it's the new o */
-			v = l;
-
-			g_hash_table_iter_init(&iter, r->data.hash);
-			while (g_hash_table_iter_next(&iter, &key, &val)) {
-				g_hash_table_insert(v->data.hash, key, val);
-				g_hash_table_iter_steal(&iter); /* steal key->value so it doesn't get deleted when destroying r */
-			}
-		}
-
-		if (v == NULL) {
-			WARNING(srv, "erronous value statement: %s %c %s in line %zd\n",
-				li_value_type_string(l), op,
-				li_value_type_string(r), ctx->line);
-			return FALSE;
-		}
-
-		_printf("value statement: %s %c%s %s => %s in line %zd\n",
-			li_value_type_string(l),
-			op,
-			op == '=' ?  ">" : "",
-			li_value_type_string(r),
-			li_value_type_string(v),
-			ctx->line);
-
-		if (free_l)
-			li_value_free(l);
-		if (free_r)
-			li_value_free(r);
-
-		g_queue_push_head(ctx->value_stack, v);
-	}
-
-	action varname {
-		/* varname, push it as string value onto the stack */
-		liValue *v;
-		GString *str;
-
-		str = g_string_new_len(ctx->mark, fpc - ctx->mark);
-		v = li_value_new_string(str);
-		g_queue_push_head(ctx->value_stack, v);
-		_printf("got varname %s\n", str->str);
-	}
-
-	action actionref {
-		/* varname is on the stack */
-		liValue *name, *v;
-
-		name = g_queue_pop_head(ctx->value_stack);
-		assert(name->type == LI_VALUE_STRING);
-
-		_printf("got actionref: %s in line %zd\n", name->data.string->str, ctx->line);
-
-		/* there are some special variables that we just create here */
-		if (g_str_equal(name->data.string->str, "sys.pid")) {
-			v = li_value_new_number(getpid());
-		} else if (g_str_equal(name->data.string->str, "sys.cwd")) {
-			gchar cwd[1024];
-
-			if (NULL != getcwd(cwd, 1023)) {
-				v = li_value_new_string(g_string_new(cwd));
-			} else {
-				ERROR(srv, "failed to get CWD: %s", g_strerror(errno));
-				li_value_free(name);
-				return FALSE;
-			}
-		} else if (g_str_equal(name->data.string->str, "sys.version")) {
-			v = li_value_new_string(g_string_new(PACKAGE_VERSION));
-		} else if (g_str_has_prefix(name->data.string->str, "sys.env.")) {
-			/* look up string in environment, push value onto stack */
-			gchar *env = getenv(name->data.string->str + sizeof("sys.env.") - 1);
-			if (env == NULL) {
-				ERROR(srv, "unknown environment variable: %s", name->data.string->str + sizeof("sys.env.") - 1);
-				li_value_free(name);
-				return FALSE;
-			}
-
-			v = li_value_new_string(g_string_new(env));
+			ctx->token_number = 10*ctx->token_number - digit;
 		} else {
-			/* look up uservar in hashtable, copy and push value onto stack */
-			v = g_hash_table_lookup(ctx->uservars, name->data.string);
-
-			if (v == NULL) {
-				WARNING(srv, "unknown uservar '%s'", name->data.string->str);
-				li_value_free(name);
-				return FALSE;
+			if (ctx->token_number > G_MAXINT64 / 10 - digit) {
+				return tokenizer_error(ctx, error, "integer overflow");
 			}
-
-			v = li_value_copy(v);
+			ctx->token_number = 10*ctx->token_number + digit;
 		}
-
-		g_queue_push_head(ctx->value_stack, v);
-		li_value_free(name);
 	}
-
-	action operator {
-		if ((fpc - ctx->mark) == 1) {
-			switch (*ctx->mark) {
-				case '<': ctx->op = LI_CONFIG_COND_LT; break;
-				case '>': ctx->op = LI_CONFIG_COND_GT; break;
+	action oct_digit {
+		gint64 digit = fc - '0';
+		if (ctx->negative) {
+			if (ctx->token_number < G_MININT64 / 8 + digit) {
+				return tokenizer_error(ctx, error, "integer overflow");
 			}
+			ctx->token_number = 8*ctx->token_number - digit;
 		} else {
-			     if (*ctx->mark == '>' && *(ctx->mark+1) == '=') ctx->op = LI_CONFIG_COND_GE;
-			else if (*ctx->mark == '<' && *(ctx->mark+1) == '=') ctx->op = LI_CONFIG_COND_LE;
-			else if (*ctx->mark == '=' && *(ctx->mark+1) == '=') ctx->op = LI_CONFIG_COND_EQ;
-			else if (*ctx->mark == '!' && *(ctx->mark+1) == '=') ctx->op = LI_CONFIG_COND_NE;
-			else if (*ctx->mark == '=' && *(ctx->mark+1) == '^') ctx->op = LI_CONFIG_COND_PREFIX;
-			else if (*ctx->mark == '!' && *(ctx->mark+1) == '^') ctx->op = LI_CONFIG_COND_NOPREFIX;
-			else if (*ctx->mark == '=' && *(ctx->mark+1) == '$') ctx->op = LI_CONFIG_COND_SUFFIX;
-			else if (*ctx->mark == '!' && *(ctx->mark+1) == '$') ctx->op = LI_CONFIG_COND_NOSUFFIX;
-			else if (*ctx->mark == '=' && *(ctx->mark+1) == '~') ctx->op = LI_CONFIG_COND_MATCH;
-			else if (*ctx->mark == '!' && *(ctx->mark+1) == '~') ctx->op = LI_CONFIG_COND_NOMATCH;
-			else if (*ctx->mark == '=' && *(ctx->mark+1) == '/') ctx->op = LI_CONFIG_COND_IP;
-			else if (*ctx->mark == '!' && *(ctx->mark+1) == '/') ctx->op = LI_CONFIG_COND_NOTIP;
+			if (ctx->token_number > G_MAXINT64 / 8 - digit) {
+				return tokenizer_error(ctx, error, "integer overflow");
+			}
+			ctx->token_number = 8*ctx->token_number + digit;
 		}
 	}
-
-	# statements
-	action action_call_noparam {
-		ctx->action_call_with_param = FALSE;
-	}
-
-	action action_call_param {
-		ctx->action_call_with_param = TRUE;
-	}
-
-	action action_call {
-		liValue *val, *name, *uservar;
-		liAction *a, *al;
-
-		if (ctx->action_call_with_param) {
-			/* top of the stack is the value, then the varname as string value */
-			val = g_queue_pop_head(ctx->value_stack);
-			name = g_queue_pop_head(ctx->value_stack);
+	action hex_digit {
+		gint64 digit;
+		if (fc >= '0' && fc <= '9') digit = fc - '0';
+		else if (fc >= 'a' && fc <= 'f') digit = fc - 'a' + 10;
+		else /*if (fc >= 'A' && fc <= 'F')*/ digit = fc - 'A' + 10;
+		if (ctx->negative) {
+			if (ctx->token_number < G_MININT64 / 16 + digit) {
+				return tokenizer_error(ctx, error, "integer overflow");
+			}
+			ctx->token_number = 16*ctx->token_number - digit;
 		} else {
-			val = NULL;
-			name = g_queue_pop_head(ctx->value_stack);
-		}
-
-		ctx->action_call_with_param = FALSE;
-
-		assert(name->type == LI_VALUE_STRING);
-
-		_printf("got action call: %s %s; in line %zd\n", name->data.string->str, val ? li_value_type_string(val) : "<none>", ctx->line);
-
-		/* internal functions */
-		if (g_str_equal(name->data.string->str, "include")) {
-			li_value_free(name);
-
-			if (ctx->in_setup_block) {
-				WARNING(srv, "%s", "include directives not supported in setup blocks");
-				return FALSE;
+			if (ctx->token_number > G_MAXINT64 / 16 - digit) {
+				return tokenizer_error(ctx, error, "integer overflow");
 			}
-
-			if (!val) {
-				WARNING(srv, "%s", "include directive takes a string as parameter");
-				return FALSE;
-			}
-
-			if (!config_parser_include(srv, ctx_stack, val->data.string->str)) {
-				li_value_free(val);
-				return FALSE;
-			}
-
-			li_value_free(val);
-		} else if (g_str_equal(name->data.string->str, "include_shell")) {
-			li_value_free(name);
-
-			if (ctx->in_setup_block) {
-				WARNING(srv, "%s", "include directives not supported in setup blocks");
-				return FALSE;
-			}
-
-			if (!val) {
-				WARNING(srv, "%s", "include_shell directive takes a string as parameter");
-				return FALSE;
-			}
-
-			if (val->type != LI_VALUE_STRING) {
-				WARNING(srv, "include_shell directive takes a string as parameter, %s given", li_value_type_string(val));
-				li_value_free(val);
-				return FALSE;
-			}
-
-			if (!config_parser_shell(srv, ctx_stack, val->data.string->str)) {
-				li_value_free(val);
-				return FALSE;
-			}
-
-			li_value_free(val);
-		}
-#ifdef HAVE_LUA_H
-		else if (g_str_equal(name->data.string->str, "include_lua")) {
-			li_value_free(name);
-
-			if (ctx->in_setup_block) {
-				WARNING(srv, "%s", "include directives not supported in setup blocks");
-				return FALSE;
-			}
-
-			if (!val) {
-				WARNING(srv, "%s", "include_lua directive takes a string as parameter");
-				return FALSE;
-			}
-
-			if (val->type != LI_VALUE_STRING) {
-				WARNING(srv, "include_lua directive takes a string as parameter, %s given", li_value_type_string(val));
-				li_value_free(val);
-				return FALSE;
-			}
-
-			if (!li_config_lua_load(&srv->LL, srv, srv->main_worker, val->data.string->str, &a, TRUE, NULL)) {
-				ERROR(srv, "include_lua '%s' failed", val->data.string->str);
-				li_value_free(val);
-				return FALSE;
-			}
-
-			/* include lua doesn't need to produce an action */
-			if (a != NULL) {
-				al = g_queue_peek_head(ctx->action_list_stack);
-				g_array_append_val(al->data.list, a);
-			}
-
-			li_value_free(val);
-		}
-#endif
-		else if (g_str_has_prefix(name->data.string->str, "__")) {
-			if (g_str_equal(name->data.string->str + 2, "print")) {
-				GString *tmpstr;
-				if (!val) {
-					WARNING(srv, "%s", "__print directive needs a parameter");
-					return FALSE;
-				}
-
-				tmpstr = li_value_to_string(val);
-				DEBUG(srv, "%s:%zd type: %s, value: %s", ctx->filename, ctx->line, li_value_type_string(val), tmpstr->str);
-				g_string_free(tmpstr, TRUE);
-			}
-
-			li_value_free(name);
-			if (val)
-				li_value_free(val);
-		}
-		/* normal action call */
-		else {
-			/* user defined action */
-			if (NULL != (uservar = g_hash_table_lookup(ctx->uservars, name->data.string))) {
-				_printf("%s", "... which is a user defined action\n");
-
-				if (uservar->type != LI_VALUE_ACTION) {
-					WARNING(srv, "value of type action expected, got %s", li_value_type_string(uservar));
-					li_value_free(name);
-					if (val)
-						li_value_free(val);
-					return FALSE;
-				} else if (val) {
-					WARNING(srv, "%s", "user defined actions don't take a parameter");
-					li_value_free(name);
-					li_value_free(val);
-					return FALSE;
-				} else if (ctx->in_setup_block) {
-					WARNING(srv, "%s", "user defined actions can't be called in a setup block");
-					li_value_free(name);
-					return FALSE;
-				}
-
-				a = uservar->data.val_action.action;
-				li_action_acquire(a);
-				al = g_queue_peek_head(ctx->action_list_stack);
-				g_array_append_val(al->data.list, a);
-			}
-			/* setup action */
-			else if (ctx->in_setup_block) {
-				_printf("%s", "... which is a setup action\n");
-
-				if (!li_plugin_config_setup(srv, name->data.string->str, val)) {
-					li_value_free(name);
-					return FALSE;
-				}
-			}
-			/* normal action */
-			else {
-				_printf("%s", "... which is a normal action\n");
-
-				al = g_queue_peek_head(ctx->action_list_stack);
-				a = li_plugin_config_action(srv, srv->main_worker, name->data.string->str, val);
-
-				if (a == NULL) {
-					li_value_free(name);
-					return FALSE;
-				}
-
-				g_array_append_val(al->data.list, a);
-			}
-
-			li_value_free(name);
+			ctx->token_number = 16*ctx->token_number + digit;
 		}
 	}
-
-	action setup_block_start {
-		_printf("setup block start in line %zd\n", ctx->line);
-
-		if (ctx->in_setup_block) {
-			WARNING(srv, "%s", "already in a setup block");
-			return FALSE;
-		}
-
-		ctx->in_setup_block = TRUE;
-	}
-
-	action setup_block_end {
-		liValue *v;
-
-		_printf("setup block end in line %zd\n", ctx->line);
-		/* pop option stack */
-		v = g_queue_pop_head(ctx->value_stack);
-		li_value_free(v);
-		ctx->in_setup_block = FALSE;
-	}
-
-	action uservar_definition {
-		/* assignment vor user defined variable, insert into hashtable */
-		liValue *name, *v;
-		GString *str;
-		gpointer old_key;
-		gpointer old_val;
-
-		v = g_queue_pop_head(ctx->value_stack);
-		name = g_queue_pop_head(ctx->value_stack);
-		assert(name->type == LI_VALUE_STRING);
-
-		_printf("uservar definition %s = %s in line %zd\n", name->data.string->str, li_value_type_string(v), ctx->line);
-
-		if (NULL != g_hash_table_lookup(srv->setups, name->data.string->str)) {
-			WARNING(srv, "cannot define uservar with name '%s', a setup action with same name exists already", name->data.string->str);
-			li_value_free(name);
-			li_value_free(v);
-			return FALSE;
-		}
-
-		if (NULL != g_hash_table_lookup(srv->actions, name->data.string->str)) {
-			WARNING(srv, "cannot define uservar with name '%s', an action with same name exists already", name->data.string->str);
-			li_value_free(name);
-			li_value_free(v);
-			return FALSE;
-		}
-
-		if (NULL != g_hash_table_lookup(srv->options, name->data.string->str)) {
-			WARNING(srv, "cannot define uservar with name '%s', an option with same name exists already", name->data.string->str);
-			li_value_free(name);
-			li_value_free(v);
-			return FALSE;
-		}
-
-		if (NULL != g_hash_table_lookup(srv->optionptrs, name->data.string->str)) {
-			WARNING(srv, "cannot define uservar with name '%s', an option with same name exists already", name->data.string->str);
-			li_value_free(name);
-			li_value_free(v);
-			return FALSE;
-		}
-
-		str = li_value_extract_string(name);
-
-		/* free old key and value if we are overwriting it */
-		if (g_hash_table_lookup_extended(ctx->uservars, str, &old_key, &old_val)) {
-			g_hash_table_remove(ctx->uservars, str);
-			g_string_free(old_key, TRUE);
-			li_value_free(old_val);
-		}
-
-		g_hash_table_insert(ctx->uservars, str, v);
-		li_value_free(name);
-	}
-
-	action action_block_start {
-		liAction *al;
-
-		_printf("action block start in line %zd\n", ctx->line);
-
-		/* create new action list and put it on the stack */
-		al = li_action_new_list();
-		g_queue_push_head(ctx->action_list_stack, al);
-
-		fcall block_scanner;
-	}
-
-	action action_block_end {
-		liValue *v;
-		liAction *a;
-
-		_printf("action block end in line %zd\n", ctx->line);
-
-		/* pop action list stack */
-		a = g_queue_pop_head(ctx->action_list_stack);
-		v = li_value_new_action(srv, a);
-		g_queue_push_head(ctx->value_stack, v);
-	}
-
-	action cond_key { ctx->condition_with_key = TRUE; _printf("%s", "cond_key\n"); }
-	action cond_and_or {
-		_printf("%s", "and_or: ");
-		for (gchar *c = ctx->mark; c < fpc; c++) _printf("%c", *c);
-		_printf("%s", "\n");
-
-		/* we use spacial values 0x1 and 0x2 to indicate "and" or "or" on the condition stack */
-		if (strncmp(ctx->mark, "and", fpc - ctx->mark) == 0) {
-			/* we got an 'or', push special value 0x1 on condition stack */
-			g_queue_push_head(ctx->condition_stack, GINT_TO_POINTER(0x1));
-		} else {
-
-			/* we got an 'or', push special value 0x2 on condition stack */
-			g_queue_push_head(ctx->condition_stack, GINT_TO_POINTER(0x2));
-		}
-	}
-	action condition {
-		/* stack: value, varname OR value, key, varname */
-		liValue *val, *varname, *key;
-		liCondition *cond;
-		liConditionLValue *lvalue;
-		liCondLValue lvalue_type;
-
-		_printf("%s", "condition\n");
-
-		/* if condition is nonbool, then it has a value and maybe a key too on the stack */
-		if (ctx->condition_nonbool) {
-			val = g_queue_pop_head(ctx->value_stack);
-			if (ctx->condition_with_key)
-				key = g_queue_pop_head(ctx->value_stack);
-			else
-				key = NULL;
-		} else {
-			val = NULL;
-			key = NULL;
-		}
-
-		/* pop varname from stack, this will be the lval */
-		varname = g_queue_pop_head(ctx->value_stack);
-		assert(varname->type == LI_VALUE_STRING);
-
-		if (ctx->condition_nonbool) {
-			if (ctx->condition_with_key) {
-				_printf("got condition: %s[%s] %s %s in line %zd\n", varname->data.string->str, key->data.string->str, li_comp_op_to_string(ctx->op), li_value_type_string(val), ctx->line);
-			} else {
-				_printf("got condition: %s %s %s in line %zd\n", varname->data.string->str, li_comp_op_to_string(ctx->op), li_value_type_string(val), ctx->line);
+	action integer_suffix {
+		if (ctx->negative) {
+			if (ctx->token_number < G_MININT64 / ctx->suffix_factor) {
+				return tokenizer_error(ctx, error, "integer overflow in suffix");
 			}
-		} else {
-			if (ctx->condition_with_key) {
-				_printf("got condition: %s[%s] in line %zd\n", varname->data.string->str, key->data.string->str, ctx->line);
-			} else {
-				_printf("got condition: %s in line %zd\n", varname->data.string->str, ctx->line);
+		} else if (ctx->token_number < 0) {
+			if (ctx->token_number > G_MAXINT64 / ctx->suffix_factor) {
+				return tokenizer_error(ctx, error, "integer overflow in suffix");
 			}
 		}
-
-		/* create condition lvalue */
-		lvalue_type = li_cond_lvalue_from_string(GSTR_LEN(varname->data.string));
-
-		if (lvalue_type == LI_COMP_UNKNOWN) {
-			ERROR(srv, "unknown lvalue for condition: %s", varname->data.string->str);
-			return FALSE;
-		}
-
-		if ((lvalue_type == LI_COMP_REQUEST_HEADER || lvalue_type == LI_COMP_ENVIRONMENT || lvalue_type == LI_COMP_RESPONSE_HEADER) && key == NULL) {
-			ERROR(srv, "%s conditional needs a key", varname->data.string->str);
-			return FALSE;
-		}
-
-		lvalue = li_condition_lvalue_new(lvalue_type, key ? li_value_extract_string(key) : NULL);
-
-		/* if condition is non-boolean, then we have a rval */
-		if (ctx->condition_nonbool) {
-			if (val->type == LI_VALUE_STRING) {
-				cond = li_condition_new_string(srv, ctx->op, lvalue, li_value_extract_string(val));
-			} else if (val->type == LI_VALUE_NUMBER) {
-				cond = li_condition_new_int(srv, ctx->op, lvalue, val->data.number);
-			} else {
-				cond = NULL;
-			}
-		} else {
-			/* boolean condition */
-			cond = li_condition_new_bool(srv, lvalue, !ctx->condition_negated);
-		}
-
-		if (cond == NULL) {
-			ERROR(srv, "%s", "could not create condition");
-			return FALSE;
-		}
-
-		g_queue_push_head(ctx->condition_stack, cond);
-
-		li_value_free(varname);
-		if (ctx->condition_nonbool) {
-			li_value_free(key);
-			li_value_free(val);
-		}
-
-		ctx->condition_with_key = FALSE;
-		ctx->condition_nonbool = FALSE;
-		ctx->condition_negated = FALSE;
+		ctx->token_number *= ctx->suffix_factor;
+	}
+	action integer {
+		return TK_INTEGER;
 	}
 
-	action cond_if {
-		liValue *v;
-		liAction *a, *target_action, *action_list, *action_last_or;
-		liCondition *cond, *cond_operator;
-		guint i;
-		GArray *arr;
-
-		arr = g_array_new(FALSE, TRUE, sizeof(liAction*));
-		cond = g_queue_pop_head(ctx->condition_stack);
-		v = g_queue_pop_head(ctx->value_stack);
-		target_action = li_value_extract_action(v);
-		li_value_free(v);
-		action_list = g_queue_peek_head(ctx->action_list_stack);
-
-		a = li_action_new_condition(cond, target_action, NULL);
-		g_array_append_val(arr, a);
-		action_last_or = NULL;
-		_printf("new condition action: %p, target: %p\n", (void*)a, (void*)target_action);
-
-		while (NULL != (cond_operator = g_queue_pop_head(ctx->condition_stack))) {
-
-			if (cond_operator == GINT_TO_POINTER(0x1)) {
-				/* 'and' */
-				/* mark target pointer as 'and' */
-				liAction *trgt = a;
-
-				cond = g_queue_pop_head(ctx->condition_stack);
-
-				li_action_acquire(trgt);
-				if (action_last_or)
-					li_action_acquire(action_last_or);
-				a = li_action_new_condition(cond, trgt, action_last_or);
-				_printf("new AND condition action: %p, target: %p, else: %p\n", (void*)a, (void*)trgt, (void*)action_last_or);
-				g_array_append_val(arr, a);
-			} else if (cond_operator == GINT_TO_POINTER(0x2)) {
-				cond = g_queue_pop_head(ctx->condition_stack);
-
-				/* 'or' */
-				action_last_or = a;
-				li_action_acquire(target_action);
-				if (action_last_or)
-					li_action_acquire(action_last_or);
-				a = li_action_new_condition(cond, target_action, action_last_or);
-				_printf("new OR condition action: %p, target: %p, else: %p\n", (void*)a, (void*)target_action, (void*)action_last_or);
-				g_array_append_val(arr, a);
-			} else {
-				g_queue_push_head(ctx->condition_stack, cond_operator);
-				break;
-			}
-		}
-
-		for (i = 0; i < arr->len - 1; i++)
-			li_action_release(srv, g_array_index(arr, liAction*, i));
-		g_array_free(arr, TRUE);
-
-		g_array_append_val(action_list->data.list, a);
-	}
-
-	action cond_else {
-		/*
-			else block WITHOUT condition
-			- pop current action list from stack
-			- peek previous action list from stack
-			- get last action from action list
-			- put current action list as target_else of the last action
-		*/
-		liValue *v;
-		liAction *action_list, *target, *a;
-		GQueue *stack = g_queue_new();
-
-		v = g_queue_pop_head(ctx->value_stack);
-		target = li_value_extract_action(v);
-		li_value_free(v);
-		action_list = g_queue_peek_head(ctx->action_list_stack);
-		/* last action in the list is our condition */
-		a = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
-
-		/* loop over all actions and patch all target_else which are NULL */
-		while (TRUE) {
-			if (a == NULL || a->type != LI_ACTION_TCONDITION || a == target) {
-				if (NULL == (a = g_queue_pop_head(stack)))
-					break;
-
-				continue;
-			}
-
-			_printf("a: %p ? %p : %p\n", (void*)a, (void*)a->data.condition.target, (void*)a->data.condition.target_else);
-
-			if (!a->data.condition.target_else) {
-				_printf("%s", "patching condition for else\n");
-				a->data.condition.target_else = target;
-				li_action_acquire(target);
-			} else {
-				g_queue_push_head(stack, a->data.condition.target);
-				a = a->data.condition.target_else;
-				continue;
-			}
-
-			if (a->data.condition.target) {
-				g_queue_push_head(stack, a->data.condition.target_else);
-				a = a->data.condition.target;
-				continue;
-			}
-
-			a = g_queue_pop_head(stack);
-		}
-
-		li_action_release(srv, target);
-		g_queue_free(stack);
-		_printf("got cond_else in line %zd\n", ctx->line);
-	}
-
-	action cond_else_if {
-		/*
-			else block WITH condition
-			- peek current action list from stack
-			- get last action from action list, this is our target action
-			- get second last action from action list, this is the condition to modify
-			- put target action as target_else of the last condition
-		*/
-		liAction *action_list, *target, *a;
-		GQueue *stack = g_queue_new();
-
-		/* remove current condition action from list and put it as the else target of the previous condition action */
-		action_list = g_queue_peek_head(ctx->action_list_stack);
-		target = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
-		a = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 2);
-		g_array_remove_index(action_list->data.list, action_list->data.list->len - 1);
-
-		/* loop over all actions and patch all target_else which are NULL */
-		while (TRUE) {
-			if (a == NULL || a->type != LI_ACTION_TCONDITION || a == target) {
-				if (NULL == (a = g_queue_pop_head(stack)))
-					break;
-
-				continue;
-			}
-
-			_printf("a: %p ? %p : %p\n", (void*)a, (void*)a->data.condition.target, (void*)a->data.condition.target_else);
-
-			if (!a->data.condition.target_else) {
-				_printf("%s", "patching condition for else\n");
-				a->data.condition.target_else = target;
-				li_action_acquire(target);
-			} else {
-				g_queue_push_head(stack, a->data.condition.target);
-				a = a->data.condition.target_else;
-				continue;
-			}
-
-			if (a->data.condition.target) {
-				g_queue_push_head(stack, a->data.condition.target_else);
-				a = a->data.condition.target;
-				continue;
-			}
-
-			a = g_queue_pop_head(stack);
-		}
-
-		li_action_release(srv, target);
-		g_queue_free(stack);
-		_printf("got cond_else_if in line %zd\n", ctx->line);
-	}
-
-	action condition_chain {
-#if 0
-		liAction *action_list, *cond;
-
-		action_list = g_queue_peek_head(ctx->action_list_stack);
-		/* last action in the list is our condition */
-		cond = g_array_index(action_list->data.list, liAction*, action_list->data.list->len - 1);
-#endif
-		_printf("got condition_chain in line %zd\n", ctx->line);
-	}
+	noise_char = [\t \r\n#];
+	operator_char = [+\-*/=<>!^$~;(){}[\]] | '"' | "'";
+	operator_separator_char = [;,(){}[\]];
+	keywords = ( 'and' | 'default' | 'else' | 'false' | 'global' | 'if' | 'include' | 'include_lua' | 'include_shell' | 'local' | 'none' | 'not' | 'or' | 'setup' | 'true' );
 
 
-	## definitions
-
-	# misc stuff
-	line_sane = ( '\n' ) >{ ctx->line++; };
-	line_weird = ( '\r' ) >{ ctx->line++; };
+	line_sane = ( '\n' ) >{ ctx->line++; ctx->line_start = fpc + 1; };
+	line_weird = ( '\r' ) >{ ctx->line++; ctx->line_start = fpc + 1; };
 	line_insane = ( '\r' ( '\n' >{ ctx->line--; } ) );
 	line = ( line_sane | line_weird | line_insane );
 
 	ws = ( '\t' | ' ' );
 	comment = ( '#' (any - line)* line );
-	noise = ( ws | line | comment );
+	noise = ( ws | line | comment )**;
 
-	# basic types
-	none = ( 'none' | 'default' ) %none;
-	boolean = ( 'true' | 'false' ) %boolean;
-	integer_suffix_bytes = ( 'byte' | 'kbyte' | 'mbyte' | 'gbyte' | 'tbyte' | 'pbyte' );
-	integer_suffix_bits = ( 'bit' | 'kbit' | 'mbit' | 'gbit' | 'tbit' | 'pbit' );
-	integer_suffix_seconds = ( 'sec' | 'min' | 'hours' | 'days' );
-	integer_suffix = ( integer_suffix_bytes | integer_suffix_bits | integer_suffix_seconds ) >mark %integer_suffix;
-	integer = ( ('0' | ( [1-9] [0-9]* )) %integer integer_suffix? );
-	escaped_hex = ( '\\x' xdigit{2} );
-	special_chars = ( '\\' [nrt\\] );
-	#string = ( '"' ( ( any - ["\\] ) | special_chars | escaped_hex | '\\"' )* '"' ) %string;
-	#string = ( '"' ( ( any - ["\\] ) | '\\"' )* '"' ) %string;
-	string = ( '"' ( ( any - ["\\] ) | escaped_hex | ( '\\' ( any - [x]) ) )* '"' ) %string;
+	integer_suffix_bytes =
+		( 'byte'    %{ ctx->suffix_factor = G_GINT64_CONSTANT(1); }
+		| 'kbyte'   %{ ctx->suffix_factor = G_GINT64_CONSTANT(1024); }
+		| 'mbyte'   %{ ctx->suffix_factor = G_GINT64_CONSTANT(1024)*1024; }
+		| 'gbyte'   %{ ctx->suffix_factor = G_GINT64_CONSTANT(1024)*1024*1024; }
+		| 'tbyte'   %{ ctx->suffix_factor = G_GINT64_CONSTANT(1024)*1024*1024*1024; }
+		| 'pbyte'   %{ ctx->suffix_factor = G_GINT64_CONSTANT(1024)*1024*1024*1024*1024; }
+		);
+	integer_suffix_bits =
+		( 'bit'     %{ ctx->token_number /= 8; ctx->suffix_factor = G_GINT64_CONSTANT(1); }
+		| 'kbit'    %{ ctx->suffix_factor = G_GINT64_CONSTANT(1024) / 8; }
+		| 'mbit'    %{ ctx->suffix_factor = G_GINT64_CONSTANT(1024)*1024 / 8; }
+		| 'gbit'    %{ ctx->suffix_factor = G_GINT64_CONSTANT(1024)*1024*1024 / 8; }
+		| 'tbit'    %{ ctx->suffix_factor = G_GINT64_CONSTANT(1024)*1024*1024*1024 / 8; }
+		| 'pbit'    %{ ctx->suffix_factor = G_GINT64_CONSTANT(1024)*1024*1024*1024*1024 / 8; }
+		);
+	integer_suffix_seconds =
+		( 'sec'     %{ ctx->suffix_factor = G_GINT64_CONSTANT(1); }
+		| 'min'     %{ ctx->suffix_factor = G_GINT64_CONSTANT(60); }
+		| 'hours'   %{ ctx->suffix_factor = G_GINT64_CONSTANT(3600); }
+		| 'days'    %{ ctx->suffix_factor = G_GINT64_CONSTANT(24)*3600; }
+		);
+	integer_suffix = ( integer_suffix_bytes | integer_suffix_bits | integer_suffix_seconds ) %integer_suffix;
+	integer_base = ('-'@int_negative)?
+		( ([1-9] [0-9]*)$dec_digit
+		| '0'
+		| '0' ([0-9]+)$oct_digit
+		| '0x' (xdigit+)$hex_digit
+		)>int_start;
+	# noise_char only matches after integer_suffix, as noise matches all noice chars greedy
+	integer = (integer_base noise integer_suffix?)%integer (noise_char | operator_char);
 
-	# casts
-	cast = ( 'cast(' ( 'int' %{ctx->cast = LI_CFG_PARSER_CAST_INT;} | 'str' %{ctx->cast = LI_CFG_PARSER_CAST_STR;} ) ')' ws* );
+	string =
+		( ( '"' ( (any - [\\"])@char | ('\\' [^x])@echar | ('\\x' xdigit{2})@xchar )* '"' ) @string
+		| ( "'" ( (any - [\\'])@char | ('\\' [^x])@echar | ('\\x' xdigit{2})@xchar )* "'" ) @string
+		| ( 'e"' ( (any - [\\"])@e_char | ('\\' [trn\\"'])@e_echar | ('\\x' xdigit{2})@e_xchar )* '"' ) @e_string
+		| ( "e'" ( (any - [\\'])@e_char | ('\\' [trn\\"'])@e_echar | ('\\x' xdigit{2})@e_xchar )* "'" ) @e_string
+		);
 
-	keywords = ( 'true' | 'false' | 'if' | 'else' | 'setup' | 'none' | 'default' );
+	keyword =
+		( 'and'           %{ return TK_AND; }
+		| 'default'       %{ return TK_DEFAULT; }
+		| 'else'          %{ return TK_ELSE; }
+		| 'false'         %{ return TK_FALSE; }
+		| 'global'        %{ return TK_GLOBAL; }
+		| 'if'            %{ return TK_IF; }
+		| 'include'       %{ return TK_INCLUDE; }
+		| 'include_lua'   %{ return TK_INCLUDE_LUA; }
+		| 'include_shell' %{ return TK_INCLUDE_SHELL; }
+		| 'local'         %{ return TK_LOCAL; }
+		| 'none'          %{ return TK_NONE; }
+		| 'not'           %{ return TK_NOT; }
+		| 'or'            %{ return TK_OR; }
+		| 'setup'         %{ return TK_SETUP; }
+		| 'true'          %{ return TK_TRUE; }
+		) %(identifier, 1) (noise_char | operator_char)?;
 
-	# advanced types
-	varname = ( '__' ? (alpha ( alnum | [._] )*) - keywords ) >mark %varname;
-	actionref = ( varname ) %actionref;
-	list = ( '(' >list_start );
-	hash = ( '[' >hash_start );
+	name = ( (alpha | '_') (alnum | [._])* - keywords) >mark %name (noise_char | operator_char)?;
 
-	action_block = ( '{' >action_block_start ) %action_block_end;
-	setup_block = ( 'setup' noise+ action_block >setup_block_start ) %setup_block_end;
+	cast =
+		( 'cast' noise '(' noise 'int' noise ')'      @{ ++fpc; return TK_CAST_INT; }
+		| 'cast' noise '(' noise 'string' noise ')'   @{ ++fpc; return TK_CAST_STRING; }
+		);
 
-	value = ( ( none | boolean | integer | string | list | hash | actionref | action_block ) >mark ) %liValue;
-	value_statement_op = ( '+' | '-' | '*' | '/' | '=>' ) >mark >value_statement_op;
-	value_statement = ( noise* cast? value (ws* value_statement_op ws* cast? value %value_statement)* noise* );
-	hash_elem = ( noise* string >mark noise* '=>' value_statement );
+	single_operator =
+		( ';'    @{ ++fpc; return TK_SEMICOLON; }
+		| ','    @{ ++fpc; return TK_COMMA; }
+		| '('    @{ ++fpc; return TK_PARA_OPEN; }
+		| ')'    @{ ++fpc; return TK_PARA_CLOSE; }
+		| '['    @{ ++fpc; return TK_SQUARE_OPEN; }
+		| ']'    @{ ++fpc; return TK_SQUARE_CLOSE; }
+		| '{'    @{ ++fpc; return TK_CURLY_OPEN; }
+		| '}'    @{ ++fpc; return TK_CURLY_CLOSE; }
+		);
 
-	# conditions
-	cond_lval = ( varname );
-	cond_rval = ( value_statement ) %{ ctx->condition_nonbool = TRUE; };
-	cond_negated = ( '!' ) %{ ctx->condition_negated = TRUE; };
-	cond_key = ( '[' string >mark ']' ) %cond_key;
-	cond_operator = ( '==' | '!=' | '=^' | '!^' | '=$' | '!$' | '<' | '<=' | '>' | '>=' | '=~' | '!~' | '=/' | '!/' ) >mark %operator;
-	cond_and_or = ( 'and' | 'or' ) >mark %cond_and_or;
-	condition = ( cond_negated? cond_lval cond_key? ws+ ( cond_operator ws+ cond_rval  )? ) <: '' %condition;
-	cond_if = ( 'if' noise+ condition ( cond_and_or noise+ condition )* action_block ) %cond_if;
-	cond_else_if = ( 'else' noise+ cond_if ) %cond_else_if;
-	cond_else = ( 'else' noise+ action_block ) %cond_else;
-	condition_chain = ( cond_if (noise+ cond_else_if)* (noise+ cond_else)? ) %condition_chain;
+	operator =
+		 # minus not accepted here in front of a digit
+		  '-'    %{ return TK_MINUS; } (noise_char | operator_separator_char | alpha | '_' | '"' | "'")? |
+		( '+'    %{ return TK_PLUS; }
+		| '*'    %{ return TK_MULTIPLY; }
+		| '/'    %{ return TK_DIVIDE; }
+		| '!'    %{ return TK_NOT; }
+		| '=='   %{ return TK_EQUAL; }
+		| '!='   %{ return TK_NOT_EQUAL; }
+		| '=^'   %{ return TK_PREFIX; }
+		| '!^'   %{ return TK_NOT_PREFIX; }
+		| '=$'   %{ return TK_SUFFIX; }
+		| '!$'   %{ return TK_NOT_SUFFIX; }
+		| '<'    %{ return TK_LESS; }
+		| '<='   %{ return TK_LESS_EQUAL; }
+		| '>'    %{ return TK_GREATER; }
+		| '>='   %{ return TK_GREATER_EQUAL; }
+		| '=~'   %{ return TK_MATCH; }
+		| '!~'   %{ return TK_NOT_MATCH; }
+		| '=/'   %{ return TK_SUBNET; }
+		| '!/'   %{ return TK_NOT_SUBNET; }
+		| '='    %{ return TK_ASSIGN; }
+		| '=>'   %{ return TK_ASSOCICATE; }
+		) (noise_char | operator_separator_char | alnum | '_' | '"' | "'")?;
 
-	# statements
-	uservar_definition = ( varname ws+ '=' ws+ value_statement ';' ) %uservar_definition;
-	action_call_noparam = ( varname ws* ';' ) %action_call_noparam;
-	action_call_param = ( varname ws+ value_statement ';' ) %action_call_param;
-	action_call = ( action_call_noparam | action_call_param ) %action_call;
-	statement = ( action_call | uservar_definition | condition_chain | setup_block );
+	endoffile = '' %{ fpc = NULL; return TK_EOF; };
 
-	# scanner
-	list_scanner := ( ((value_statement %list_push ( ',' value_statement %list_push )*)  | noise*) ')' >list_end );
-	hash_scanner := ( ((hash_elem %hash_push ( ',' hash_elem %hash_push )*) | noise*) ']' >hash_end );
-	block_scanner := ( (noise | statement)* '}' >block_end );
-
-	main := (noise | statement)* '\00';
+	token :=
+		noise
+		( endoffile | keyword | name | cast | single_operator | operator | integer | string );
 }%%
 
 %% write data;
 
-static liConfigParserContext *config_parser_context_new(liServer *srv, GList *ctx_stack) {
-	liConfigParserContext *ctx;
+static void set_config_error(liConfigTokenizerContext *ctx, GError **error, const char *fmt, va_list ap) {
+	GString *msg = g_string_sized_new(127);
 
-	UNUSED(srv);
+	g_string_vprintf(msg, fmt, ap);
 
-	ctx = g_slice_new0(liConfigParserContext);
+	g_set_error(error, LI_CONFIG_ERROR, 0, "error in %s:%" G_GSIZE_FORMAT ":%" G_GSIZE_FORMAT ": %s", ctx->filename, ctx->token_line, 1 + ctx->token_start - ctx->token_line_start, msg->str);
+	g_string_free(msg, TRUE);
+}
 
+static liConfigToken tokenizer_error(liConfigTokenizerContext *ctx, GError **error, const char *fmt, ...) {
+	va_list ap;
+
+	va_start(ap, fmt);
+	set_config_error(ctx, error, fmt, ap);
+	va_end(ap);
+
+	return TK_ERROR;
+}
+
+static gboolean parse_error(liConfigTokenizerContext *ctx, GError **error, const char *fmt, ...) {
+	va_list ap;
+
+	va_start(ap, fmt);
+	set_config_error(ctx, error, fmt, ap);
+	va_end(ap);
+
+	return FALSE;
+}
+
+
+
+static void tokenizer_init(liServer *srv, liWorker *wrk, liConfigTokenizerContext *ctx, const gchar *filename, const gchar *content, gsize len) {
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->srv = srv;
+	ctx->wrk = wrk;
+	ctx->p = content;
+	ctx->pe = ctx->eof = content + len;
+
+	ctx->filename = filename;
+	ctx->content = content;
+	ctx->len = len;
 	ctx->line = 1;
+	ctx->line_start = ctx->content;
 
-	/* allocate stack of 8 items. sufficient for most configs, will grow when needed */
-	ctx->stack = (int*) g_malloc(sizeof(int) * 8);
-	ctx->stacksize = 8;
-
-	if (ctx_stack != NULL) {
-		/* inherit old stacks */
-		ctx->action_list_stack = ((liConfigParserContext*) ctx_stack->data)->action_list_stack;
-		ctx->value_stack = ((liConfigParserContext*) ctx_stack->data)->value_stack;
-		ctx->condition_stack = ((liConfigParserContext*) ctx_stack->data)->condition_stack;
-		ctx->value_op_stack = ((liConfigParserContext*) ctx_stack->data)->value_op_stack;
-		ctx->uservars = ((liConfigParserContext*) ctx_stack->data)->uservars;
-	}
-	else {
-		ctx->uservars = g_hash_table_new_full((GHashFunc) g_string_hash, (GEqualFunc) g_string_equal, NULL, NULL);
-
-		ctx->action_list_stack = g_queue_new();
-		ctx->value_stack = g_queue_new();
-		ctx->condition_stack = g_queue_new();
-		ctx->value_op_stack = g_queue_new();
-	}
-
-	return ctx;
+	ctx->token_string = g_string_sized_new(31);
 }
 
-static void config_parser_context_free(liServer *srv, liConfigParserContext *ctx, gboolean free_queues) {
-	g_free(ctx->stack);
+static gboolean tokenizer_init_file(liServer *srv, liWorker *wrk, liConfigTokenizerContext *ctx, const gchar *filename, GError **error) {
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->srv = srv;
+	ctx->wrk = wrk;
+	if (!g_file_get_contents(filename, (gchar**) &ctx->content, &ctx->len, error)) return FALSE;
 
-	if (free_queues) {
-		if (g_queue_get_length(ctx->value_stack) > 0) {
-			liValue *v;
-			while ((v = g_queue_pop_head(ctx->value_stack)))
-				li_value_free(v);
-		}
+	ctx->p = ctx->content;
+	ctx->pe = ctx->eof = ctx->content + ctx->len;
 
-		if (g_queue_get_length(ctx->condition_stack) > 0) {
-			liCondition *c;
-			while ((c = g_queue_pop_head(ctx->condition_stack)))
-				li_condition_release(srv, c);
-		}
+	ctx->filename = filename;
+	ctx->line = 1;
+	ctx->line_start = ctx->content;
 
-		g_queue_free(ctx->action_list_stack);
-		g_queue_free(ctx->value_stack);
-		g_queue_free(ctx->condition_stack);
-		g_queue_free(ctx->value_op_stack);
-	}
+	ctx->token_string = g_string_sized_new(31);
 
-	g_slice_free(liConfigParserContext, ctx);
+	return TRUE;
 }
 
-GList* li_config_parser_init(liServer* srv) {
-	liConfigParserContext *ctx = config_parser_context_new(srv, NULL);
-
-	srv->mainaction = li_action_new_list();
-	g_queue_push_head(ctx->action_list_stack, srv->mainaction);
-
-	return g_list_append(NULL, ctx);
+static void tokenizer_clear(liConfigTokenizerContext *ctx) {
+	g_string_free(ctx->token_string, TRUE);
 }
 
-void li_config_parser_finish(liServer *srv, GList *ctx_stack, gboolean free_all) {
-	liConfigParserContext *ctx;
-	GHashTableIter iter;
-	gpointer key, val;
-	GList *l;
+static liConfigToken tokenizer_next(liConfigTokenizerContext *ctx, GError **error) {
+	g_string_truncate(ctx->token_string, 0);
+	ctx->token_number = 0;
 
-	_printf("ctx_stack size: %u\n", g_list_length(ctx_stack));
+	if (NULL == ctx->p) return tokenizer_error(ctx, error, "already reached end of file");
 
-	/* clear all contexts from the stack */
-	l = g_list_nth(ctx_stack, 1);
-	while (l) {
-		ctx = l->data;
-		config_parser_context_free(srv, ctx, FALSE);
-		l = l->next;
-	}
-
-	if (free_all) {
-		ctx = (liConfigParserContext*) ctx_stack->data;
-
-		g_hash_table_iter_init(&iter, ctx->uservars);
-
-		while (g_hash_table_iter_next(&iter, &key, &val)) {
-			li_value_free(val);
-			g_string_free(key, TRUE);
-		}
-
-		g_hash_table_destroy(ctx->uservars);
-
-
-		config_parser_context_free(srv, ctx, TRUE);
-
-		g_list_free(ctx_stack);
-	}
-}
-
-static gboolean config_parser_buffer(liServer *srv, GList *ctx_stack);
-
-gboolean li_config_parser_file(liServer *srv, GList *ctx_stack, const gchar *path) {
-	liConfigParserContext *ctx;
-	gboolean res;
-	GError *err = NULL;
-
-	ctx = config_parser_context_new(srv, ctx_stack);
-	ctx->filename = (gchar*) path;
-
-	if (!g_file_get_contents(path, &ctx->ptr, &ctx->len, &err)) {
-		/* could not read file */
-		WARNING(srv, "could not read config file \"%s\". reason: \"%s\" (%d)", path, err->message, err->code);
-		config_parser_context_free(srv, ctx, FALSE);
-		g_error_free(err);
-		return FALSE;
-	}
-
-	/* push on stack */
-	ctx_stack = g_list_prepend(ctx_stack, ctx);
-
-	res = config_parser_buffer(srv, ctx_stack);
-
-	if (!res)
-		WARNING(srv, "config parsing failed in line %zd of %s", ctx->line, ctx->filename);
-
-	/* pop from stack */
-	ctx_stack = g_list_delete_link(ctx_stack, ctx_stack);
-
-	/* have to free the buffer on our own */
-	g_free(ctx->ptr);
-	config_parser_context_free(srv, ctx, FALSE);
-
-	return res;
-}
-
-static gboolean config_parser_shell(liServer *srv, GList *ctx_stack, const gchar *command) {
-	gboolean res;
-	gchar* _stdout;
-	gchar* _stderr;
-	gint status;
-	liConfigParserContext *ctx;
-	GError *err = NULL;
-
-	ctx = config_parser_context_new(srv, ctx_stack);
-	ctx->filename = (gchar*) command;
-
-	if (!g_spawn_command_line_sync(command, &_stdout, &_stderr, &status, &err)) {
-		WARNING(srv, "error launching shell command \"%s\": %s (%d)", command, err->message, err->code);
-		config_parser_context_free(srv, ctx, FALSE);
-		g_error_free(err);
-		return FALSE;
-	}
-
-	if (status != 0) {
-		WARNING(srv, "shell command \"%s\" exited with status %d", command, status);
-		DEBUG(srv, "stdout:\n-----\n%s\n-----\nstderr:\n-----\n%s\n-----", _stdout, _stderr);
-		g_free(_stdout);
-		g_free(_stderr);
-		config_parser_context_free(srv, ctx, FALSE);
-		return FALSE;
-	}
-
-	ctx->len = strlen(_stdout);
-	ctx->ptr = _stdout;
-
-	DEBUG(srv, "included shell output from \"%s\" (%zu bytes)", command, ctx->len);
-
-	/* push on stack */
-	ctx_stack = g_list_prepend(ctx_stack, ctx);
-	/* parse buffer */
-	res = config_parser_buffer(srv, ctx_stack);
-	/* pop from stack */
-	ctx_stack = g_list_delete_link(ctx_stack, ctx_stack);
-
-	g_free(_stdout);
-	g_free(_stderr);
-	config_parser_context_free(srv, ctx, FALSE);
-
-	return res;
-}
-
-static gboolean config_parser_buffer(liServer *srv, GList *ctx_stack) {
-	liConfigParserContext *ctx;
-
-	/* get top of stack */
-	ctx = (liConfigParserContext*) ctx_stack->data;
-
-	ctx->p = ctx->ptr;
-	ctx->pe = ctx->ptr + ctx->len + 1; /* marks the end of the data to scan (+1 because of trailing \0 char) */
+	ctx->token_start = ctx->p;
+	ctx->token_line = ctx->line;
+	ctx->token_line_start = ctx->line_start;
 
 	%% write init;
 
 	%% write exec;
 
-	if (ctx->cs == config_parser_error || ctx->cs == config_parser_first_final) {
-		/* parse error */
-		WARNING(srv, "parse error in line %zd of \"%s\" at character '%c' (0x%.2x)", ctx->line, ctx->filename, *ctx->p, *ctx->p);
+	return tokenizer_error(ctx, error, "couldn't parse token");
+}
+
+
+
+#define NEXT(token) do { \
+		if (TK_ERROR != ctx->next_token) { token = ctx->next_token; ctx->next_token = TK_ERROR; } \
+		else if (TK_ERROR == (token = tokenizer_next(ctx, error))) goto error; \
+	} while (0)
+#define REMEMBER(token) do { \
+		assert(TK_ERROR == ctx->next_token); /* mustn't contain a token */ \
+		ctx->next_token = token; \
+	} while (0)
+
+
+static void scope_enter(liConfigTokenizerContext *ctx) {
+	liConfigScope *scope = g_slice_new0(liConfigScope);
+	scope->parent = ctx->current_scope;
+	scope->variables = li_value_new_hashtable();
+	ctx->current_scope = scope;
+}
+
+static void scope_leave(liConfigTokenizerContext *ctx) {
+	liConfigScope *scope = ctx->current_scope;
+	assert(NULL != scope);
+	ctx->current_scope = scope->parent;
+
+	g_hash_table_destroy(scope->variables);
+
+	scope->variables = NULL;
+	scope->parent = NULL;
+	g_slice_free(liConfigScope, scope);
+}
+
+/* copy name, takeover value */
+static gboolean scope_setvar(liConfigTokenizerContext *ctx, GString *name, liValue *value, GError **error) {
+	liConfigScope *scope;
+
+	if (g_str_has_prefix(name->str, "sys.")) {
+		li_value_free(value);
+		return parse_error(ctx, error, "sys.* variables are read only");
+	}
+
+	scope = ctx->current_scope;
+	/* search whether name already exists in a scope. otherwise make it local */
+	while (NULL != scope) {
+		if (g_hash_table_contains(scope->variables, name)) {
+			g_hash_table_insert(scope->variables, g_string_new_len(GSTR_LEN(name)), value);
+			return TRUE;
+		}
+		scope = scope->parent;
+	}
+
+	if (ctx->master_config) {
+		/* modify global vars in master config */
+		if (NULL != ctx->srv->config_global_vars && g_hash_table_contains(ctx->srv->config_global_vars, name)) {
+			g_hash_table_insert(ctx->srv->config_global_vars, g_string_new_len(GSTR_LEN(name)), value);
+			return TRUE;
+		}
+	}
+
+	if (NULL != ctx->current_scope) {
+		g_hash_table_insert(ctx->current_scope->variables, g_string_new_len(GSTR_LEN(name)), value);
+		return TRUE;
+	}
+
+	/* no scope... do nothing */
+	li_value_free(value);
+	return parse_error(ctx, error, "can't write variable without scope");
+}
+
+/* copy name, takeover value */
+static gboolean scope_local_setvar(liConfigTokenizerContext *ctx, GString *name, liValue *value, GError **error) {
+	if (g_str_has_prefix(name->str, "sys.")) {
+		li_value_free(value);
+		return parse_error(ctx, error, "sys.* variables are read only");
+	}
+
+	if (NULL != ctx->current_scope) {
+		g_hash_table_insert(ctx->current_scope->variables, g_string_new_len(GSTR_LEN(name)), value);
+		return TRUE;
+	}
+
+	/* no scope... do nothing */
+	li_value_free(value);
+	return parse_error(ctx, error, "can't write variable without scope");
+}
+
+/* copy name, takeover value */
+static gboolean scope_global_setvar(liConfigTokenizerContext *ctx, GString *name, liValue *value, GError **error) {
+	if (g_str_has_prefix(name->str, "sys.")) {
+		li_value_free(value);
+		return parse_error(ctx, error, "sys.* variables are read only");
+	}
+
+	if (!ctx->master_config) {
+		li_value_free(value);
+		return parse_error(ctx, error, "modifying global variables not allowed in this context");
+	}
+
+	if (NULL == ctx->srv->config_global_vars) {
+		li_value_free(value);
+		return parse_error(ctx, error, "no global variable scope");
+	}
+
+	g_hash_table_insert(ctx->srv->config_global_vars, g_string_new_len(GSTR_LEN(name)), value);
+	return TRUE;
+}
+
+/* read-only pointer, no reference, return NULL if not found - no error */
+/* only to read "action" variables */
+static liValue* scope_peekvar(liConfigTokenizerContext *ctx, GString *name) {
+	liConfigScope *scope = ctx->current_scope;
+	liValue *value;
+
+	/* can't peek sys. vars */
+	if (g_str_has_prefix(name->str, "sys.")) return NULL;
+
+	while (NULL != scope) {
+		if (NULL != (value = g_hash_table_lookup(scope->variables, name))) {
+			return value;
+		}
+		scope = scope->parent;
+	}
+
+	if (NULL != ctx->srv->config_global_vars && NULL != (value = g_hash_table_lookup(ctx->srv->config_global_vars, name))) {
+		return value;
+	}
+
+	return NULL;
+}
+
+static liValue* scope_getvar(liConfigTokenizerContext *ctx, GString *name, GError **error) {
+	liValue *value;
+
+	if (g_str_has_prefix(name->str, "sys.")) {
+		if (g_str_equal(name->str, "sys.pid")) {
+			return li_value_new_number(getpid());
+		} else if (g_str_equal(name->str, "sys.cwd")) {
+			gchar cwd[1024];
+
+			if (NULL != getcwd(cwd, sizeof(cwd)-1)) {
+				return li_value_new_string(g_string_new(cwd));
+			} else {
+				parse_error(ctx, error, "failed to get CWD: %s", g_strerror(errno));
+				return NULL;
+			}
+		} else if (g_str_equal(name->str, "sys.version")) {
+			return li_value_new_string(g_string_new(PACKAGE_VERSION));
+		} else if (g_str_has_prefix(name->str, "sys.env.")) {
+			/* look up string in environment, push value onto stack */
+			gchar *env = getenv(name->str + sizeof("sys.env.") - 1);
+			if (env == NULL) {
+				parse_error(ctx, error, "undefined environment variable: %s", name->str + sizeof("sys.env.") - 1);
+				return NULL;
+			}
+			return li_value_new_string(g_string_new(env));
+		}
+		parse_error(ctx, error, "unknown sys.* variable: %s", name->str);
+		return NULL;
+	}
+
+	value = scope_peekvar(ctx, name);
+	if (NULL != value) return li_value_copy(value);
+
+	parse_error(ctx, error, "undefined variable '%s'", name->str);
+
+	return NULL;
+}
+
+
+static gboolean p_include(liAction *list, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_include_lua(liAction *list, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_include_shell(liAction *list, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_setup(GString *name, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_setup_block(liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_action(liAction *list, GString *name, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_actions(gboolean block, liAction *list, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_value_list(gint *key_value_nesting, liValue **result, gboolean key_value_list, liValue *pre_value, liConfigToken end, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_value_group(gint *key_value_nesting, liValue **value, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_value(gint *key_value_nesting, liValue **value, liConfigToken preOp, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_vardef(GString *name, int normalLocalGlobal, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_parameter_values(liValue **result, liConfigTokenizerContext *ctx, GError **error);
+
+static liAction* cond_walk(liServer *srv, liConditionTree *tree, liAction *positive, liAction *negative);
+static gboolean p_condition_value(liConditionTree **cond, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_condition_expr(liConditionTree **tree, liConfigToken preOp, liConfigTokenizerContext *ctx, GError **error);
+static gboolean p_condition(liAction *list, liConfigTokenizerContext *ctx, GError **error);
+
+/* whether token can be start of a value */
+static gboolean is_value_start_token(liConfigToken token) {
+	switch (token) {
+	case TK_CAST_STRING:
+	case TK_CAST_INT:
+	case TK_CURLY_OPEN:
+	case TK_DEFAULT:
+	case TK_FALSE:
+	case TK_INTEGER:
+	case TK_MINUS:
+	case TK_NAME:
+	case TK_NONE:
+	case TK_NOT:
+	case TK_PARA_OPEN:
+	case TK_SQUARE_OPEN:
+	case TK_STRING:
+	case TK_TRUE:
+		return TRUE;
+	default:
 		return FALSE;
+	}
+}
+
+
+static int _op_precedence(liConfigToken op) {
+	switch (op) {
+	case TK_AND:
+		return 1;
+	case TK_OR:
+		return 2;
+	case TK_PLUS:
+	case TK_MINUS:
+		return 3;
+	case TK_MULTIPLY:
+	case TK_DIVIDE:
+		return 4;
+	default:
+		return 0;
+	}
+}
+/* returns TRUE iff a <op1> b <op2> c == (a <op1> b) <op2> c
+ *   returns TRUE if <op2> isn't an operator
+ *   returns FALSE if <op1> isn't an operator but <op2> is
+ */
+static gboolean operator_precedence(liConfigToken op1, liConfigToken op2) {
+	return _op_precedence(op1) >= _op_precedence(op2);
+}
+
+/* overflow checks, assuming two-complement representation, i.e. G_MININT64 == (-G_MAXINT64)+  - 1, -G_MININT64 "==" G_MININT64 */
+static gboolean overflow_op_plus_int(gint64 a, gint64 b) {
+	if (a < 0) {
+		if (b >= 0) return FALSE;
+		return (a < G_MININT64 - b);
+	} else {
+		if (b <= 0) return FALSE;
+		return (a > G_MAXINT64 - b);
+	}
+}
+
+static gboolean overflow_op_minus_int(gint64 a, gint64 b) {
+	if (a < 0) {
+		if (b <= 0) return FALSE;
+		return (a < G_MININT64 + b);
+	} else {
+		if (b >= 0) return FALSE;
+		return (a > G_MAXINT64 + b);
+	}
+}
+
+static gboolean overflow_op_multiply_int(gint64 a, gint64 b) {
+	if (0 == a || 0 == b) return FALSE;
+	if (a < 0) {
+		if (b > 0) return (a < G_MININT64 / b);
+		if (G_MININT64 == a || G_MININT64 == b) return TRUE;
+		/* b < 0 */ return ((-a) > G_MAXINT64 / (-b));
+	} else { /* a > 0 */
+		if (b < 0) return (b < G_MININT64 / a);
+		/* b > 0 */ return (a > G_MAXINT64 / b);
+	}
+}
+
+static gboolean overflow_op_divide_int(gint64 a, gint64 b) {
+	/* only MIN INT / -1 == MAX INT + 1 overflows */
+	return (-1 == b && G_MININT64 == a);
+}
+
+/* always frees v1 and v2 */
+static gboolean op_execute(liValue **vresult, liConfigToken op, liValue *v1, liValue *v2, liConfigTokenizerContext *ctx, GError **error) {
+	if (li_value_type(v1) == li_value_type(v2)) {
+		switch (li_value_type(v1)) {
+		case LI_VALUE_NUMBER:
+			switch (op) {
+			case TK_AND:
+			case TK_OR:
+				parse_error(ctx, error, "boolean operations not allowed on numbers");
+				goto error;
+			case TK_PLUS:
+				if (overflow_op_plus_int(v1->data.number, v2->data.number)) {
+					parse_error(ctx, error, "overflow in addition");
+					goto error;
+				}
+				*vresult = li_value_new_number(v1->data.number + v2->data.number);
+				break;
+			case TK_MINUS:
+				if (overflow_op_minus_int(v1->data.number, v2->data.number)) {
+					parse_error(ctx, error, "overflow in subtraction");
+					goto error;
+				}
+				*vresult = li_value_new_number(v1->data.number - v2->data.number);
+				break;
+			case TK_MULTIPLY:
+				if (overflow_op_multiply_int(v1->data.number, v2->data.number)) {
+					parse_error(ctx, error, "overflow in product");
+					goto error;
+				}
+				*vresult = li_value_new_number(v1->data.number + v2->data.number);
+				break;
+			case TK_DIVIDE:
+				if (0 == v2->data.number) {
+					parse_error(ctx, error, "divide by zero");
+					goto error;
+				}
+				if (overflow_op_divide_int(v1->data.number, v2->data.number)) {
+					parse_error(ctx, error, "overflow in quotient");
+					goto error;
+				}
+				*vresult = li_value_new_number(v1->data.number + v2->data.number);
+				break;
+			default:
+				parse_error(ctx, error, "unsupported operation on numbers");
+				goto error;
+			}
+			break;
+		case LI_VALUE_LIST:
+			switch (op) {
+			case TK_PLUS:
+				*vresult = li_value_new_list();
+				LI_VALUE_FOREACH(entry, v1)
+					li_value_list_append(*vresult, li_value_extract(entry));
+				LI_VALUE_END_FOREACH()
+				LI_VALUE_FOREACH(entry, v2)
+					li_value_list_append(*vresult, li_value_extract(entry));
+				LI_VALUE_END_FOREACH()
+				break;
+			default:
+				parse_error(ctx, error, "unsupported operation on lists");
+				goto error;
+			}
+			break;
+		case LI_VALUE_STRING:
+			switch (op) {
+			case TK_PLUS:
+				g_string_append_len(v1->data.string, GSTR_LEN(v2->data.string));
+				*vresult = v1;
+				v1 = NULL;
+				break;
+			default:
+				parse_error(ctx, error, "unsupported operation on strings");
+				goto error;
+			}
+			break;
+		default:
+			parse_error(ctx, error, "operations (+,-,*,/) on %s not supported", li_value_type_string(v1));
+			goto error;
+		}
+	} else {
+		parse_error(ctx, error, "operations (+,-,*,/) on mixed value types not allowed");
+		goto error;
+	}
+
+	li_value_free(v1);
+	li_value_free(v2);
+	return TRUE;
+
+error:
+	li_value_free(v1);
+	li_value_free(v2);
+	return FALSE;
+}
+
+static gboolean include_file(liAction *list, GString *filename, liConfigTokenizerContext *ctx, GError **error) {
+	liConfigTokenizerContext subctx;
+	gboolean result;
+
+	if (!tokenizer_init_file(ctx->srv, ctx->wrk, &subctx, filename->str, error)) {
+		return FALSE;
+	}
+
+	subctx.master_config = ctx->master_config;
+
+	scope_enter(&subctx);
+	subctx.current_scope->parent = ctx->current_scope;
+	result = p_actions(FALSE, list, &subctx, error);
+	scope_leave(&subctx);
+	g_free((gchar*) subctx.content);
+	tokenizer_clear(&subctx);
+
+	return result;
+}
+
+static gboolean p_include(liAction *list, liConfigTokenizerContext *ctx, GError **error) {
+	liValue *parameters = NULL;
+	liValue *val_fname;
+	GString *fname;
+
+	if (!p_parameter_values(&parameters, ctx, error)) return FALSE;
+
+	val_fname = li_value_get_single_argument(parameters);
+	if (NULL == val_fname || LI_VALUE_STRING != li_value_type(val_fname)) {
+		parse_error(ctx, error, "include directive takes a string as parameter");
+		goto error;
+	}
+	fname = val_fname->data.string;
+
+	if (!ctx->master_config) {
+		parse_error(ctx, error, "include not allowed");
+		goto error;
+	}
+
+	if (NULL == strchr(fname->str, '*') && NULL == strchr(fname->str, '?')) {
+		if (!include_file(list, fname, ctx, error)) goto error;
+	} else {
+		gchar *separator;
+		GPatternSpec *pattern;
+		gsize basedir_len;
+		GDir *dir;
+		const gchar *filename;
+		GError *err = NULL;
+
+		if (NULL == (separator = strrchr(fname->str, G_DIR_SEPARATOR))) {
+			pattern = g_pattern_spec_new(fname->str);
+			g_string_assign(fname, ".");
+		} else {
+			pattern = g_pattern_spec_new(separator + 1);
+			g_string_truncate(fname, separator - fname->str);
+		}
+
+		dir = g_dir_open(fname->str, 0, &err);
+		if (NULL == dir) {
+			parse_error(ctx, error, "include couldn't open directory: %s", err->message);
+			g_error_free(err);
+			goto error;
+		}
+		g_string_append_c(fname, G_DIR_SEPARATOR);
+		basedir_len = fname->len;
+
+		/* loop through all filenames in the directory and include matching ones */
+		while (NULL != (filename = g_dir_read_name(dir))) {
+			if (!g_pattern_match_string(pattern, filename))
+				continue;
+			g_string_truncate(fname, basedir_len);
+			g_string_append(fname, filename);
+
+			if (!include_file(list, fname, ctx, error)) {
+				g_pattern_spec_free(pattern);
+				g_dir_close(dir);
+				goto error;
+			}
+		}
+
+		g_pattern_spec_free(pattern);
+		g_dir_close(dir);
+	}
+
+	li_value_free(parameters);
+	return TRUE;
+
+error:
+	li_value_free(parameters);
+	return FALSE;
+}
+
+static gboolean p_include_lua(liAction *list, liConfigTokenizerContext *ctx, GError **error) {
+	liValue *parameters = NULL;
+	liValue *val_fname;
+	liAction *a;
+
+	if (!p_parameter_values(&parameters, ctx, error)) return FALSE;
+
+	val_fname = li_value_get_single_argument(parameters);
+	if (NULL == val_fname || LI_VALUE_STRING != li_value_type(val_fname)) {
+		li_value_free(parameters);
+		return parse_error(ctx, error, "include_lua directive takes a string as parameter");
+	}
+
+	if (!ctx->master_config) {
+		li_value_free(parameters);
+		return parse_error(ctx, error, "include_lua not allowed");
+	}
+
+#ifdef HAVE_LUA_H
+	assert(ctx->wrk == ctx->srv->main_worker);
+	if (!li_config_lua_load(&ctx->srv->LL, ctx->srv, ctx->wrk, val_fname->data.string->str, &a, TRUE, NULL)) {
+		parse_error(ctx, error, "include_lua '%s' failed", val_fname->data.string->str);
+		li_value_free(parameters);
+		return FALSE;
+	}
+
+	/* include lua doesn't need to produce an action */
+	if (NULL != a) {
+		li_action_append_inplace(list, a);
+		li_action_release(ctx->srv, a);
+	}
+
+	li_value_free(parameters);
+	return TRUE;
+#else
+	li_value_free(parameters);
+	return parse_error(ctx, error, "compiled without lua, include_lua not supported");
+#endif
+}
+
+static gboolean p_include_shell(liAction *list, liConfigTokenizerContext *ctx, GError **error) {
+	liValue *parameters = NULL;
+	liValue *val_command;
+	GString *command;
+	gchar *cmd_stdout = NULL;
+	liConfigTokenizerContext subctx;
+	gboolean result;
+
+	if (!p_parameter_values(&parameters, ctx, error)) return FALSE;
+
+	val_command = li_value_get_single_argument(parameters);
+	if (NULL == val_command || LI_VALUE_STRING != li_value_type(val_command)) {
+		parse_error(ctx, error, "include_shell directive takes a string as parameter");
+		goto error;
+	}
+	command = val_command->data.string;
+
+	if (!ctx->master_config) {
+		parse_error(ctx, error, "include_shell not allowed");
+		goto error;
+	}
+
+	{
+		gint status;
+		GError *err = NULL;
+
+		if (!g_spawn_command_line_sync(command->str, &cmd_stdout, NULL, &status, &err)) {
+			parse_error(ctx, error, "include_shell '%s' failed: %s", command->str, err->message);
+			g_error_free(err);
+			goto error;
+		}
+
+		if (0 != status) {
+			parse_error(ctx, error, "include_shell '%s' retured non-zero status: %i", command->str, status);
+			goto error;
+		}
+	}
+
+	g_string_prepend_len(command, CONST_STR_LEN("shell: "));
+
+	tokenizer_init(ctx->srv, ctx->wrk, &subctx, command->str, cmd_stdout, strlen(cmd_stdout));
+
+	subctx.master_config = ctx->master_config;
+
+	scope_enter(&subctx);
+	subctx.current_scope->parent = ctx->current_scope;
+	result = p_actions(FALSE, list, &subctx, error);
+	scope_leave(&subctx);
+	g_free((gchar*) subctx.content);
+	tokenizer_clear(&subctx);
+	li_value_free(parameters);
+
+	return result;
+
+error:
+	li_value_free(parameters);
+	return FALSE;
+}
+
+
+static gboolean p_setup(GString *name, liConfigTokenizerContext *ctx, GError **error) {
+	liValue *parameters = NULL;
+
+	if (!p_parameter_values(&parameters, ctx, error)) return FALSE;
+
+	if (!li_plugin_config_setup(ctx->srv, name->str, parameters)) {
+		return parse_error(ctx, error, "setup '%s' failed", name->str);
 	}
 
 	return TRUE;
 }
 
-static gboolean config_parser_include(liServer *srv, GList *ctx_stack, gchar *param) {
-	GPatternSpec *pattern;
-	GDir *dir;
-	gchar *pos;
-	const gchar *filename;
-	GString *path;
-	guint len;
-	liConfigParserContext *ctx = (liConfigParserContext*) ctx_stack->data;
-	GError *err = NULL;
-	gboolean found_file = FALSE;
+static gboolean p_setup_block(liConfigTokenizerContext *ctx, GError **error) {
+	liConfigToken token;
+	GString *name;
+	gboolean result;
 
-
-	/* check if we got a pattern or just normal filename */
-	if (!strchr(param, '*') && !strchr(param, '?')) {
-		/* no pattern */
-		return li_config_parser_file(srv, ctx_stack, param);
+	NEXT(token);
+	switch (token) {
+	case TK_CURLY_CLOSE:
+		return TRUE;
+	case TK_NAME:
+		name = g_string_new_len(GSTR_LEN(ctx->token_string));
+		result = p_setup(name, ctx, error);
+		g_string_free(name, TRUE);
+		if (!result) return FALSE;
+		break;
+	case TK_INCLUDE:
+	case TK_INCLUDE_LUA:
+	case TK_INCLUDE_SHELL:
+		return parse_error(ctx, error, "include not supported in setup mode");
+	default:
+		return parse_error(ctx, error, "expected name or block end }");
 	}
 
-	/* check for absolute or relative path to split directory and file name */
-	if (param[0] == G_DIR_SEPARATOR) {
-		/* absolute path */
-		pos = strrchr(param, G_DIR_SEPARATOR);
-		path = g_string_new_len(param, pos -param + 1);
-		pattern = g_pattern_spec_new(pos+1);
-	} else {
-		/* relative path */
-		pos = strrchr(ctx->filename, G_DIR_SEPARATOR);
+	return p_setup_block(ctx, error);
 
-		if (pos) {
-			path = g_string_new_len(ctx->filename, pos - ctx->filename + 1);
-		} else {
-			/* current working directory */
-			path = g_string_new_len(CONST_STR_LEN("." G_DIR_SEPARATOR_S));
+error:
+	return FALSE;
+}
+
+static gboolean p_action(liAction *list, GString *name, liConfigTokenizerContext *ctx, GError **error) {
+	liValue *parameters = NULL;
+	liAction *a = NULL;
+	liValue *alias;
+
+	alias = scope_peekvar(ctx, name);
+	if (NULL != alias) {
+		liConfigToken token;
+		if (li_value_type(alias) != LI_VALUE_ACTION) {
+			return parse_error(ctx, error, "'%s' is not an action variable", name->str);
 		}
-
-		pos = strrchr(param, G_DIR_SEPARATOR);
-
-		if (pos) {
-			g_string_append_len(path, param, pos - param + 1);
-			pattern = g_pattern_spec_new(pos+1);
-		} else {
-			pattern = g_pattern_spec_new(param);
+		NEXT(token);
+		if (token != TK_SEMICOLON) {
+			return parse_error(ctx, error, "action alias '%s' doesn't take any parameter, expected ';'", name->str);
 		}
-	}
-
-	/* we got the directory, check for matching names */
-	dir = g_dir_open(path->str, 0, &err);
-
-	if (!dir) {
-		ERROR(srv, "include: could not open directory \"%s\": %s", path->str, err->message);
-		g_string_free(path, TRUE);
-		g_error_free(err);
-		g_pattern_spec_free(pattern);
+		li_action_append_inplace(list, alias->data.val_action.action);
+		return TRUE;
+error:
 		return FALSE;
 	}
 
-	len = path->len;
+	if (!p_parameter_values(&parameters, ctx, error)) return FALSE;
 
-	/* loop through all filenames in the directory and include matching ones */
-	while (NULL != (filename = g_dir_read_name(dir))) {
-		if (!g_pattern_match_string(pattern, filename))
-			continue;
-
-		found_file = TRUE;
-
-		g_string_append(path, filename);
-
-		if (!li_config_parser_file(srv, ctx_stack, path->str)) {
-			g_string_free(path, TRUE);
-			g_pattern_spec_free(pattern);
-			g_dir_close(dir);
-			return FALSE;
-		}
-
-		g_string_truncate(path, len);
+	if (g_str_equal(name->str, "__print")) {
+		GString *s = li_value_to_string(parameters);
+		DEBUG(ctx->srv, "config __print: %s", s->str);
+		g_string_free(s, TRUE);
+		return TRUE;
+	} else if (NULL == (a = li_plugin_config_action(ctx->srv, ctx->wrk, name->str, parameters))) {
+		return parse_error(ctx, error, "action '%s' failed", name->str);
 	}
 
-	g_string_free(path, TRUE);
-	g_pattern_spec_free(pattern);
-	g_dir_close(dir);
+	li_action_append_inplace(list, a);
 
-	if (!found_file) {
-		WARNING(srv, "include: no matching file found for path \"%s\"", param);
+	return TRUE;
+}
+
+/* parse actions until EOF (if !block) or '}' (if block, TK_CURLY_CLOSE) */
+static gboolean p_actions(gboolean block, liAction *list, liConfigTokenizerContext *ctx, GError **error) {
+	liConfigToken token;
+	GString *name = NULL;
+	gboolean result;
+
+	NEXT(token);
+	switch (token) {
+	case TK_SETUP:
+		NEXT(token);
+		switch (token) {
+		case TK_CURLY_OPEN:
+			if (!p_setup_block(ctx, error)) return FALSE;
+			break;
+		case TK_NAME:
+			name = g_string_new_len(GSTR_LEN(ctx->token_string));
+			result = p_setup(name, ctx, error);
+			g_string_free(name, TRUE); name = NULL;
+			if (!result) return FALSE;
+			break;
+		case TK_INCLUDE:
+		case TK_INCLUDE_LUA:
+		case TK_INCLUDE_SHELL:
+			return parse_error(ctx, error, "include not supported in setup mode");
+		default:
+			return parse_error(ctx, error, "expected name or block start '{'");
+		}
+		break;
+	case TK_NAME:
+		name = g_string_new_len(GSTR_LEN(ctx->token_string));
+		NEXT(token);
+		switch (token) {
+		case TK_ASSIGN:
+			if (!p_vardef(name, 0, ctx, error)) goto error;
+			break;
+		default:
+			REMEMBER(token);
+			if (!p_action(list, name, ctx, error)) goto error;
+			break;
+		}
+		g_string_free(name, TRUE); name = NULL;
+		break;
+	case TK_LOCAL:
+		NEXT(token);
+		if (TK_NAME != token) return parse_error(ctx, error, "expected variable name after 'local'");
+		name = g_string_new_len(GSTR_LEN(ctx->token_string));
+		NEXT(token);
+		if (TK_ASSIGN != token) {
+			parse_error(ctx, error, "expected '=' after variable name");
+			goto error;
+		}
+		if (!p_vardef(name, 1, ctx, error)) goto error;
+		g_string_free(name, TRUE); name = NULL;
+		break;
+	case TK_GLOBAL:
+		NEXT(token);
+		if (TK_NAME != token) return parse_error(ctx, error, "expected variable name after 'global'");
+		name = g_string_new_len(GSTR_LEN(ctx->token_string));
+		NEXT(token);
+		if (TK_ASSIGN != token) {
+			parse_error(ctx, error, "expected '=' after variable name");
+			goto error;
+		}
+		if (!p_vardef(name, 2, ctx, error)) goto error;
+		g_string_free(name, TRUE); name = NULL;
+		break;
+	case TK_INCLUDE:
+		if (!p_include(list, ctx, error)) goto error;
+		break;
+	case TK_INCLUDE_LUA:
+		if (!p_include_lua(list, ctx, error)) goto error;
+		break;
+	case TK_INCLUDE_SHELL:
+		if (!p_include_shell(list, ctx, error)) goto error;
+		break;
+	case TK_IF:
+		if (!p_condition(list, ctx, error)) goto error;
+		break;
+	case TK_EOF:
+		if (block) return parse_error(ctx, error, "unexpected end of file, expected name or '}'");
+		return TRUE;
+	case TK_CURLY_CLOSE:
+		if (!block) return parse_error(ctx, error, "expected end of file instead of '}'");
+		return TRUE;
+	default:
+		return parse_error(ctx, error, "unexpected token; expected action");
+	}
+
+	return p_actions(block, list, ctx, error);
+
+error:
+	if (NULL != name) g_string_free(name, TRUE); name = NULL;
+	return FALSE;
+}
+
+static gboolean p_value_list(gint *key_value_nesting, liValue **result, gboolean key_value_list, liValue *pre_value, liConfigToken end, liConfigTokenizerContext *ctx, GError **error) {
+	liValue *list = li_value_new_list();
+	gint kv_nesting = *key_value_nesting;
+	liValue *value = NULL, *key = NULL;
+
+	for (;;) {
+		gint sub_kv_nesting;
+		liConfigToken token;
+
+		if (NULL == pre_value) {
+			NEXT(token);
+			if (end == token) break;
+			if (TK_COMMA == token) continue;
+			REMEMBER(token);
+
+			if (!p_value(&sub_kv_nesting, &value, TK_ERROR, ctx, error)) goto error;
+			if (sub_kv_nesting < kv_nesting) kv_nesting = sub_kv_nesting;
+		} else {
+			value = pre_value;
+			pre_value = NULL;
+		}
+
+		NEXT(token);
+		if (!key_value_list && TK_ASSOCICATE == token) {
+			key_value_list = TRUE;
+			if (li_value_list_len(list) > 0) {
+				return parse_error(ctx, error, "unexpected '=>'");
+				goto error;
+			}
+		}
+		if (key_value_list) {
+			liValue *pair;
+
+			if (TK_ASSOCICATE != token) {
+				parse_error(ctx, error, "expected '=>'");
+				goto error;
+			}
+			key = value;
+			value = NULL;
+			if (!p_value(&sub_kv_nesting, &value, TK_ERROR, ctx, error)) goto error;
+
+			pair = li_value_new_list();
+			li_value_list_append(pair, key);
+			li_value_list_append(pair, value);
+			li_value_list_append(list, pair);
+			value = key = NULL;
+		} else {
+			REMEMBER(token);
+			li_value_list_append(list, value);
+			value = NULL;
+		}
+	}
+
+	if (key_value_list) *key_value_nesting = 0;
+	else *key_value_nesting = kv_nesting + 1;
+	*result = list;
+	return TRUE;
+
+error:
+	li_value_free(list);
+	li_value_free(value);
+	li_value_free(key);
+	return FALSE;
+}
+
+static gboolean p_value_group(gint *key_value_nesting, liValue **value, liConfigTokenizerContext *ctx, GError **error) {
+	liValue *v = NULL;
+	liConfigToken token;
+
+	if (!p_value(key_value_nesting, &v, TK_ERROR, ctx, error)) return FALSE;
+
+	NEXT(token);
+	switch (token) {
+	case TK_PARA_CLOSE:
+		*value = v;
+		return TRUE;
+	case TK_COMMA:
+		/* a list */
+		REMEMBER(token);
+		return p_value_list(key_value_nesting, value, FALSE, v, TK_PARA_CLOSE, ctx, error);
+	case TK_ASSOCICATE:
+		/* a key-value list */
+		REMEMBER(token);
+		return p_value_list(key_value_nesting, value, TRUE, v, TK_PARA_CLOSE, ctx, error);
+	default:
+		li_value_free(v);
+		return parse_error(ctx, error, "expected ')'");
+	}
+
+error:
+	li_value_free(v);
+	return FALSE;
+}
+
+/* preOp: TK_ERROR - no operator before value
+ *        TK_NOT - unary operator before value (not, casts)
+ */
+static gboolean p_value(gint *key_value_nesting, liValue **value, liConfigToken preOp, liConfigTokenizerContext *ctx, GError **error) {
+	liConfigToken token;
+	liValue *v = NULL, *vcast;
+	gint kv_nesting = KV_LISTING_MAX;
+
+	NEXT(token);
+	if (!is_value_start_token(token)) return parse_error(ctx, error, "expected value");
+	switch (token) {
+	case TK_CAST_STRING: {
+			GString *s;
+
+			if (!p_value(&kv_nesting, &v, TK_NOT, ctx, error)) return FALSE;
+			s = li_value_to_string(v);
+			if (NULL == s) s = g_string_sized_new(0);
+			li_value_free(v);
+			v = li_value_new_string(s);
+			return parse_error(ctx, error, "casts not supported yet");
+		}
+		break;
+	case TK_CAST_INT:
+		if (!p_value(&kv_nesting, &v, TK_NOT, ctx, error)) return FALSE;
+		switch (li_value_type(v)) {
+		case LI_VALUE_NUMBER:
+			break; /* nothing to do */
+		case LI_VALUE_BOOLEAN:
+			vcast = v;
+			v = li_value_new_number(vcast->data.boolean ? 1 : 0);
+			li_value_free(vcast);
+			break;
+		case LI_VALUE_STRING: {
+				GString *s = v->data.string;
+				gchar *endptr = NULL;
+				gint64 i;
+
+				errno = 0;
+				i = g_ascii_strtoll(s->str, &endptr, 10);
+				if (errno != 0 || endptr != s->str + s->len || s->len == 0) {
+					li_value_free(v);
+					return parse_error(ctx, error, "cast(int) failed, not a valid number: '%s'", s->str);
+				}
+				li_value_free(v);
+				v = li_value_new_number(i);
+			}
+		default:
+			parse_error(ctx, error, "cast(int) from %s not supported yet", li_value_type_string(v));
+			li_value_free(v);
+			return FALSE;
+		}
+		break;
+	case TK_CURLY_OPEN:
+		{
+			liAction *alist = li_action_new_list();
+			scope_enter(ctx);
+			if (!p_actions(TRUE, alist, ctx, error)) {
+				scope_leave(ctx);
+				li_action_release(ctx->srv, alist);
+				return FALSE;
+			}
+			scope_leave(ctx);
+			v = li_value_new_action(ctx->srv, alist);
+		}
+		break;
+	case TK_DEFAULT:
+		v = li_value_new_none();
+		break;
+	case TK_FALSE:
+		v = li_value_new_bool(FALSE);
+		break;
+	case TK_INTEGER:
+		v = li_value_new_number(ctx->token_number);
+		break;
+	case TK_MINUS:
+		if (!p_value(&kv_nesting, &v, TK_NOT, ctx, error)) return FALSE;
+		if (li_value_type(v) == LI_VALUE_NUMBER) {
+			if (v->data.number == G_MININT64) {
+				li_value_free(v);
+				return parse_error(ctx, error, "'-' overflow on minimum int value");
+			}
+			v->data.number = -v->data.number;
+		} else {
+			li_value_free(v);
+			return parse_error(ctx, error, "'-' only supported for integer values");
+		}
+		break;
+	case TK_NAME:
+		v = scope_getvar(ctx, ctx->token_string, error);
+		if (NULL == v) return FALSE;
+		break;
+	case TK_NONE:
+		v = li_value_new_none();
+		break;
+	case TK_NOT:
+		if (!p_value(&kv_nesting, &v, TK_NOT, ctx, error)) return FALSE;
+		if (li_value_type(v) == LI_VALUE_BOOLEAN) {
+			v->data.boolean = !v->data.boolean;
+		} else {
+			li_value_free(v);
+			return parse_error(ctx, error, "'not' only supported for boolean values");
+		}
+		break;
+	case TK_PARA_OPEN:
+		if (!p_value_group(&kv_nesting, &v, ctx, error)) return FALSE;
+		break;
+	case TK_SQUARE_OPEN:
+		if (!p_value_list(&kv_nesting, &v, FALSE, NULL, TK_SQUARE_CLOSE, ctx, error)) return FALSE;
+		break;
+	case TK_STRING:
+		v = li_value_new_string(g_string_new_len(GSTR_LEN(ctx->token_string)));
+		break;
+	case TK_TRUE:
+		v = li_value_new_bool(TRUE);
+		break;
+	default:
+		/* is_value_start_token should have been false */
+		return parse_error(ctx, error, "internal error: unsupported value type");
+	}
+
+	if (preOp == TK_NOT) {
+		/* had unary operator before it */
+		*value = v;
+		*key_value_nesting = kv_nesting;
+		return TRUE;
+	}
+
+	for (;;) {
+		liValue *v2 = NULL, *vresult = NULL;
+		gint sub_kv_nesting = KV_LISTING_MAX;
+
+		NEXT(token);
+		if (operator_precedence(preOp, token)) {
+			REMEMBER(token);
+			*value = v;
+			*key_value_nesting = kv_nesting;
+			return TRUE;
+		}
+
+		if (!p_value(&sub_kv_nesting, &v2, token, ctx, error)) {
+			li_value_free(v);
+			return FALSE;
+		}
+		if (sub_kv_nesting < kv_nesting) kv_nesting = sub_kv_nesting;
+
+		if (!op_execute(&vresult, token, v, v2, ctx, error)) return FALSE;
+		v = vresult;
+	}
+
+error:
+	li_value_free(v);
+	return FALSE;
+}
+
+static gboolean p_parameter_values(liValue **result, liConfigTokenizerContext *ctx, GError **error) {
+	gint key_value_nesting = KV_LISTING_MAX;
+	liValue *value = NULL;
+	liConfigToken token;
+
+	NEXT(token);
+	if (token == TK_SEMICOLON) {
+		*result = NULL;
+		return TRUE;
+	}
+	REMEMBER(token);
+
+	if (!p_value(&key_value_nesting, &value, TK_ERROR, ctx, error)) return FALSE;
+
+	NEXT(token);
+	switch (token) {
+	case TK_SEMICOLON:
+		break;
+	case TK_COMMA:
+		/* a list */
+		REMEMBER(token);
+		if (!p_value_list(&key_value_nesting, &value, FALSE, value, TK_SEMICOLON, ctx, error)) return FALSE;
+		break;
+	case TK_ASSOCICATE:
+		/* a key-value list */
+		REMEMBER(token);
+		if (!p_value_list(&key_value_nesting, &value, TRUE, value, TK_SEMICOLON, ctx, error)) return FALSE;
+		break;
+	default:
+		li_value_free(value);
+		return parse_error(ctx, error, "expected ';'");
+	}
+
+	/* goal: return a list of parameters. a key-value list should be interpreted as a single value, and not
+	 * get split into parameters.
+	 */
+	switch (key_value_nesting) {
+	case 0:
+		/* outer key-value list, wrap once */
+		li_value_wrap_in_list(value);
+		break;
+	default:
+		/* always have a list of parameters */
+		if (LI_VALUE_LIST != li_value_type(value)) li_value_wrap_in_list(value);
+		break;
+	}
+
+/*
+	{
+		GString *s = li_value_to_string(value);
+		DEBUG(ctx->srv, "parameters: %s", s->str);
+		g_string_free(s, TRUE);
+	}
+	DEBUG(ctx->srv, "nested kv: %i", key_value_nesting);
+*/
+
+	*result = value;
+	return TRUE;
+
+error:
+	li_value_free(value);
+	return FALSE;
+}
+
+
+static gboolean p_vardef(GString *name, int normalLocalGlobal, liConfigTokenizerContext *ctx, GError **error) {
+	liValue *value = NULL;
+	gint key_value_nesting;
+	liConfigToken token;
+
+	if (!p_value(&key_value_nesting, &value, TK_ERROR, ctx, error)) return FALSE;
+	NEXT(token);
+	if (TK_SEMICOLON != token) {
+		li_value_free(value);
+		return parse_error(ctx, error, "expected ';'");
+	}
+
+	switch (normalLocalGlobal) {
+	case 0:
+		return scope_setvar(ctx, name, value, error);
+	case 1:
+		return scope_local_setvar(ctx, name, value, error);
+	case 2:
+		return scope_global_setvar(ctx, name, value, error);
+	default:
+		assert(normalLocalGlobal >= 0 && normalLocalGlobal <= 2);
+	}
+
+error:
+	li_value_free(value);
+	return FALSE;
+}
+
+static liAction* cond_walk(liServer *srv, liConditionTree *tree, liAction *positive, liAction *negative) {
+	liAction *a = NULL;
+	assert(NULL != tree);
+
+	if (tree->negated) {
+		liAction *tmp = negative; negative = positive; positive = tmp;
+	}
+
+	if (NULL != tree->condition) {
+		assert(NULL == tree->left && NULL == tree->right);
+		if (NULL == positive && NULL == negative) {
+			li_condition_release(srv, tree->condition);
+		} else {
+			a = li_action_new_condition(tree->condition, positive, negative);
+		}
+	} else switch (tree->op) {
+	case TK_AND:
+		a = cond_walk(srv, tree->left, cond_walk(srv, tree->right, positive, negative), negative);
+		break;
+	case TK_OR:
+		a = cond_walk(srv, tree->left, positive, cond_walk(srv, tree->right, positive, negative));
+		break;
+	default:
+		assert(TK_AND == tree->op || TK_OR == tree->op);
+	}
+
+	g_slice_free(liConditionTree, tree);
+	return a;
+}
+
+static gboolean p_condition_value(liConditionTree **tree, liConfigTokenizerContext *ctx, GError **error) {
+	liConfigToken token;
+	liCondLValue lval;
+	liConditionLValue *lvalue = NULL;
+	gint key_value_nesting = -1;
+	liValue *rvalue = NULL;
+	liCondition *cond = NULL;
+	liCompOperator compop;
+
+	NEXT(token);
+	if (TK_NAME != token) return parse_error(ctx, error, "expected a condition variable");
+	lval = li_cond_lvalue_from_string(GSTR_LEN(ctx->token_string));
+	if (LI_COMP_UNKNOWN == lval) return parse_error(ctx, error, "unknown condition variable: %s", ctx->token_string->str);
+
+	if (LI_COMP_REQUEST_HEADER == lval || LI_COMP_ENVIRONMENT == lval || LI_COMP_RESPONSE_HEADER == lval) {
+		NEXT(token);
+		if (TK_SQUARE_OPEN != token) return parse_error(ctx, error, "condition variable %s requires a key", li_cond_lvalue_to_string(lval));
+		NEXT(token);
+		if (TK_STRING != token) return parse_error(ctx, error, "expected a string as key to condition variable");
+		lvalue = li_condition_lvalue_new(lval, g_string_new_len(GSTR_LEN(ctx->token_string)));
+		NEXT(token);
+		if (TK_SQUARE_OPEN != token) {
+			parse_error(ctx, error, "expected ']'");
+			goto error;
+		}
+	} else {
+		NEXT(token);
+		if (TK_SQUARE_OPEN == token) return parse_error(ctx, error, "condition variable %s doesn't use a key", li_cond_lvalue_to_string(lval));
+		REMEMBER(token);
+		lvalue = li_condition_lvalue_new(lval, NULL);
+	}
+
+	NEXT(token);
+	switch (token) {
+	case TK_AND:
+	case TK_OR:
+	case TK_PARA_CLOSE:
+	case TK_CURLY_OPEN:
+		REMEMBER(token);
+		cond = li_condition_new_bool(ctx->srv, lvalue, TRUE);
+		goto boolcond;
+	case TK_EQUAL:
+		compop = LI_CONFIG_COND_EQ;
+		break;
+	case TK_GREATER:
+		compop = LI_CONFIG_COND_GT;
+		break;
+	case TK_GREATER_EQUAL:
+		compop = LI_CONFIG_COND_GE;
+		break;
+	case TK_LESS:
+		compop = LI_CONFIG_COND_LT;
+		break;
+	case TK_LESS_EQUAL:
+		compop = LI_CONFIG_COND_LE;
+		break;
+	case TK_MATCH:
+		compop = LI_CONFIG_COND_MATCH;
+		break;
+	case TK_NOT_EQUAL:
+		compop = LI_CONFIG_COND_NE;
+		break;
+	case TK_NOT_MATCH:
+		compop = LI_CONFIG_COND_NOMATCH;
+		break;
+	case TK_NOT_PREFIX:
+		compop = LI_CONFIG_COND_NOPREFIX;
+		break;
+	case TK_NOT_SUBNET:
+		compop = LI_CONFIG_COND_NOTIP;
+		break;
+	case TK_NOT_SUFFIX:
+		compop = LI_CONFIG_COND_NOSUFFIX;
+		break;
+	case TK_PREFIX:
+		compop = LI_CONFIG_COND_NOSUFFIX;
+		break;
+	case TK_SUBNET:
+		compop = LI_CONFIG_COND_IP;
+		break;
+	case TK_SUFFIX:
+		compop = LI_CONFIG_COND_SUFFIX;
+		break;
+	default:
+		parse_error(ctx, error, "expected comparison operator");
+		goto error;
+	}
+
+	if (!p_value(&key_value_nesting, &rvalue, TK_OR, ctx, error)) goto error;
+
+	switch (li_value_type(rvalue)) {
+	case LI_VALUE_STRING:
+		cond = li_condition_new_string(ctx->srv, compop, lvalue, li_value_extract_string(rvalue));
+		break;
+	case LI_VALUE_NUMBER:
+		cond = li_condition_new_int(ctx->srv, compop, lvalue, rvalue->data.number);
+		break;
+	default:
+		parse_error(ctx, error, "wrong value type, require string or integer");
+		goto error;
+	}
+	li_value_free(rvalue);
+
+boolcond:
+
+	*tree = g_slice_new0(liConditionTree);
+	(*tree)->negated = FALSE;
+	(*tree)->condition = cond;
+
+	return TRUE;
+
+error:
+	li_condition_lvalue_release(lvalue);
+	li_value_free(rvalue);
+	return FALSE;
+}
+
+static gboolean p_condition_expr(liConditionTree **tree, liConfigToken preOp, liConfigTokenizerContext *ctx, GError **error) {
+	liConditionTree *leave = NULL;
+	liConditionTree *result = NULL;
+	liConfigToken token;
+	liConfigToken op = TK_ERROR;
+
+	for (;;) {
+		gboolean negated = FALSE;
+		NEXT(token);
+		if (TK_NOT == token) {
+			negated = TRUE;
+			NEXT(token);
+		}
+
+		if (TK_PARA_OPEN == token) {
+			if (!p_condition_expr(&leave, TK_ERROR, ctx, error)) goto error;
+			NEXT(token);
+			if (TK_PARA_CLOSE != token) {
+				parse_error(ctx, error, "expected ')'");
+				goto error;
+			}
+		} else {
+			REMEMBER(token);
+			if (!p_condition_value(&leave, ctx, error)) goto error;
+		}
+		if (negated) leave->negated = !leave->negated;
+
+		if (result == NULL) {
+			result = leave;
+		} else {
+			liConditionTree *tmp = g_slice_new0(liConditionTree);
+			tmp->negated = FALSE;
+			tmp->op = op;
+			tmp->left = result;
+			tmp->right = leave;
+			result = tmp;
+		}
+		leave = NULL;
+
+		NEXT(token);
+		switch (token) {
+		case TK_PARA_CLOSE:
+		case TK_CURLY_OPEN:
+			REMEMBER(token);
+			*tree = result;
+			return TRUE;
+		case TK_AND:
+		case TK_OR:
+			if (operator_precedence(preOp, token)) {
+				REMEMBER(token);
+				*tree = result;
+				return TRUE;
+			}
+			op = token;
+			break;
+		default:
+			parse_error(ctx, error, "unexpected token in conditional");
+			goto error;
+		}
+	}
+
+error:
+	if (NULL != result) cond_walk(ctx->srv, result, NULL, NULL);
+	return FALSE;
+}
+
+static gboolean p_condition(liAction *list, liConfigTokenizerContext *ctx, GError **error) {
+	liConditionTree *tree = NULL;
+	liConfigToken token;
+	liAction *positive = NULL, *negative = NULL;
+
+	if (!p_condition_expr(&tree, TK_ERROR, ctx, error)) return FALSE;
+
+	NEXT(token);
+	if (TK_CURLY_OPEN != token) {
+		parse_error(ctx, error, "expected '{'");
+		goto error;
+	}
+
+	positive = li_action_new();
+	if (!p_actions(TRUE, positive, ctx, error)) goto error;
+
+	NEXT(token);
+	if (TK_ELSE == token) {
+		negative = li_action_new();
+		NEXT(token);
+		switch (token) {
+		case TK_CURLY_OPEN:
+			if (!p_actions(TRUE, negative, ctx, error)) goto error;
+			break;
+		case TK_IF:
+			if (!p_condition(negative, ctx, error)) goto error;
+			break;
+		default:
+			parse_error(ctx, error, "expected '{' or 'if' after 'else'");
+			goto error;
+		}
+	} else {
+		REMEMBER(token);
+	}
+
+	{
+		liAction *a = cond_walk(ctx->srv, tree, positive, negative);
+		li_action_append_inplace(list, a);
 	}
 
 	return TRUE;
+
+error:
+	if (NULL != tree) cond_walk(ctx->srv, tree, NULL, NULL);
+	li_action_release(ctx->srv, positive);
+	li_action_release(ctx->srv, negative);
+	return FALSE;
 }
 
 gboolean li_config_parse(liServer *srv, const gchar *config_path) {
-	GTimeVal start, end;
-	gulong s, millis, micros;
-	guint64 d;
-	liAction *a;
-	liConfigParserContext *ctx;
-	GList *ctx_stack = NULL;
+	liConfigTokenizerContext ctx;
+	GError *error = NULL;
+	gboolean result;
 
-	g_get_current_time(&start);
-
-	/* standard config frontend */
-	ctx_stack = li_config_parser_init(srv);
-	ctx = (liConfigParserContext*) ctx_stack->data;
-	if (!li_config_parser_file(srv, ctx_stack, config_path)) {
-		li_config_parser_finish(srv, ctx_stack, TRUE);
-		return FALSE; /* no cleanup on config error, same as config test */
+	if (!tokenizer_init_file(srv, srv->main_worker, &ctx, config_path, &error)) {
+		ERROR(srv, "%s", error->message);
+		g_error_free(error);
+		return FALSE;
 	}
 
-	/* append fallback "static" action */
-	a = li_plugin_config_action(srv, srv->main_worker, "static", NULL);
-	g_array_append_val(srv->mainaction->data.list, a);
+	ctx.master_config = TRUE;
+	srv->mainaction = li_action_new();
 
-	g_get_current_time(&end);
-	d = end.tv_sec - start.tv_sec;
-	d *= 1000000;
-	d += end.tv_usec - start.tv_usec;
-	s = d / 1000000;
-	millis = (d - s) / 1000;
-	micros = (d - s - millis) %1000;
-	DEBUG(srv, "parsed config file in %lus, %lums, %luus", s, millis, micros);
+	scope_enter(&ctx);
+	result = p_actions(FALSE, srv->mainaction, &ctx, &error);
+	scope_leave(&ctx);
+	g_free((gchar*) ctx.content);
+	tokenizer_clear(&ctx);
 
-	if (g_queue_get_length(ctx->value_stack) != 0 || g_queue_get_length(ctx->action_list_stack) != 1)
-		DEBUG(srv, "value_stack: %u action_list_stack: %u (should be 0:1)", g_queue_get_length(ctx->value_stack), g_queue_get_length(ctx->action_list_stack));
+	if (!result) {
+		ERROR(srv, "config error: %s", error->message);
+		g_error_free(error);
+		return FALSE;
+	}
 
-	li_config_parser_finish(srv, ctx_stack, FALSE);
-
-	li_config_parser_finish(srv, ctx_stack, TRUE);
+	{
+		liAction *a_static = li_plugin_config_action(srv, srv->main_worker, "static", NULL);
+		if (NULL == a_static) {
+			ERROR(srv, "%s", "config error: couldn't create static action");
+			return FALSE;
+		}
+		li_action_append_inplace(srv->mainaction, a_static);
+		li_action_release(srv, a_static);
+	}
 
 	return TRUE;
+}
+
+liAction* li_config_parse_live(liWorker *wrk, const gchar *sourcename, const char *source, gsize sourcelen, GError **error) {
+	liAction *list = li_action_new();
+	liConfigTokenizerContext ctx;
+	gboolean result;
+
+	tokenizer_init(wrk->srv, wrk, &ctx, sourcename, source, sourcelen);
+	ctx.master_config = FALSE;
+
+	scope_enter(&ctx);
+	result = p_actions(FALSE, list, &ctx, error);
+	scope_leave(&ctx);
+	tokenizer_clear(&ctx);
+
+	if (!result) {
+		li_action_release(wrk->srv, list);
+		list = NULL;
+	}
+
+	return list;
 }
