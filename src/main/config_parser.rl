@@ -1127,6 +1127,7 @@ error:
 	}
 
 	li_action_append_inplace(list, a);
+	li_action_release(ctx->srv, a);
 
 	return TRUE;
 }
@@ -1818,6 +1819,7 @@ static gboolean p_condition(liAction *list, liConfigTokenizerContext *ctx, GErro
 	{
 		liAction *a = cond_walk(ctx->srv, tree, positive, negative);
 		li_action_append_inplace(list, a);
+		li_action_release(ctx->srv, a);
 	}
 
 	return TRUE;
