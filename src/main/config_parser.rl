@@ -1051,7 +1051,13 @@ static gboolean p_setup(GString *name, liConfigTokenizerContext *ctx, GError **e
 
 	if (!p_parameter_values(&parameters, ctx, error)) return FALSE;
 
-	if (!li_plugin_config_setup(ctx->srv, name->str, parameters)) {
+	if (g_str_equal(name->str, "__print")) {
+		GString *s = li_value_to_string(parameters);
+		DEBUG(ctx->srv, "config __print: %s", s->str);
+		g_string_free(s, TRUE);
+		li_value_free(parameters);
+		return TRUE;
+	} else if (!li_plugin_config_setup(ctx->srv, name->str, parameters)) {
 		return parse_error(ctx, error, "setup '%s' failed", name->str);
 	}
 
@@ -1114,6 +1120,7 @@ error:
 		GString *s = li_value_to_string(parameters);
 		DEBUG(ctx->srv, "config __print: %s", s->str);
 		g_string_free(s, TRUE);
+		li_value_free(parameters);
 		return TRUE;
 	} else if (NULL == (a = li_plugin_config_action(ctx->srv, ctx->wrk, name->str, parameters))) {
 		return parse_error(ctx, error, "action '%s' failed", name->str);
@@ -1611,7 +1618,7 @@ static gboolean p_condition_value(liConditionTree **tree, liConfigTokenizerConte
 		if (TK_STRING != token) return parse_error(ctx, error, "expected a string as key to condition variable");
 		lvalue = li_condition_lvalue_new(lval, g_string_new_len(GSTR_LEN(ctx->token_string)));
 		NEXT(token);
-		if (TK_SQUARE_OPEN != token) {
+		if (TK_SQUARE_CLOSE != token) {
 			parse_error(ctx, error, "expected ']'");
 			goto error;
 		}

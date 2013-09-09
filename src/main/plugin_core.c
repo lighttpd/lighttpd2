@@ -1880,11 +1880,12 @@ static gboolean core_register_fetch_files_static(liServer *srv, liPlugin* p, liV
 	UNUSED(p); UNUSED(userdata);
 
 	val = li_value_get_single_argument(val);
+	val = li_value_get_single_argument(val);
 
 	if (!li_value_list_has_len(val, 2)
 		|| LI_VALUE_STRING != li_value_list_type_at(val, 0)
 		|| LI_VALUE_STRING != li_value_list_type_at(val, 1)) {
-		ERROR(srv, "%s", "fetch.files_static expects a two strings as parameter: \"<name>\" => \"/path/abc_*.d/file\"");
+		ERROR(srv, "%s", "fetch.files_static expects two strings as parameter: \"<name>\" => \"/path/abc_*.d/file\"");
 		goto out;
 	}
 

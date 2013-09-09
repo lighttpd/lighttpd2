@@ -363,6 +363,10 @@ static liServerOption* find_option(liServer *srv, const char *name) {
 static gboolean li_parse_option(liServer *srv, liWorker *wrk, liServerOption *sopt, const char *name, liValue *val, liOptionSet *mark) {
 	assert(NULL != srv && NULL != wrk && NULL != sopt && NULL != name && NULL != mark);
 
+	if (NULL != val && LI_VALUE_LIST == sopt->type && val->type != LI_VALUE_LIST) {
+		li_value_wrap_in_list(val);
+	}
+
 	if (NULL != val && sopt->type != val->type && sopt->type != LI_VALUE_NONE) {
 		ERROR(srv, "Unexpected value type '%s', expected '%s' for option %s",
 			li_value_type_string(val), li_valuetype_string(sopt->type), name);
