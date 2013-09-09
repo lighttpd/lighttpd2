@@ -288,7 +288,7 @@ static liAction* redirect_create(liServer *srv, liWorker *wrk, liPlugin* p, liVa
 				return NULL;
 			}
 
-			if (!redirect_rule_parse(srv, li_value_list_at(val, 0)->data.string, li_value_list_at(val, 1)->data.string, &rule)) {
+			if (!redirect_rule_parse(srv, li_value_list_at(v, 0)->data.string, li_value_list_at(v, 1)->data.string, &rule)) {
 				redirect_free(NULL, rd);
 				return NULL;
 			}
