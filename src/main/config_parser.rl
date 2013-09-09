@@ -1673,7 +1673,7 @@ static gboolean p_condition_value(liConditionTree **tree, liConfigTokenizerConte
 		compop = LI_CONFIG_COND_NOSUFFIX;
 		break;
 	case TK_PREFIX:
-		compop = LI_CONFIG_COND_NOSUFFIX;
+		compop = LI_CONFIG_COND_PREFIX;
 		break;
 	case TK_SUBNET:
 		compop = LI_CONFIG_COND_IP;
