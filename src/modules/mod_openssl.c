@@ -598,6 +598,8 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			}
 			ecdh_curve = entryValue->data.string->str;
 		} else if (g_str_equal(entryKeyStr->str, "options")) {
+			/* accept single parameter too */
+			if (LI_VALUE_STRING == li_value_type(entryValue)) li_value_wrap_in_list(entryValue);
 			if (LI_VALUE_LIST != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl options expects a list of strings as parameter");
 				return FALSE;

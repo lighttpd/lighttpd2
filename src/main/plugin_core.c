@@ -1248,6 +1248,8 @@ static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val, gpoin
 static gboolean core_io_timeout(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(p); UNUSED(userdata);
 
+	val = li_value_get_single_argument(val);
+
 	if (LI_VALUE_NUMBER != li_value_type(val) || val->data.number < 1) {
 		ERROR(srv, "%s", "io.timeout expects a positive number as parameter");
 		return FALSE;
@@ -1261,6 +1263,8 @@ static gboolean core_io_timeout(liServer *srv, liPlugin* p, liValue *val, gpoint
 static gboolean core_stat_cache_ttl(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(p); UNUSED(userdata);
 
+	val = li_value_get_single_argument(val);
+
 	if (LI_VALUE_NUMBER != li_value_type(val) || val->data.number < 0) {
 		ERROR(srv, "%s", "stat_cache.ttl expects a positive number as parameter");
 		return FALSE;
@@ -1273,6 +1277,8 @@ static gboolean core_stat_cache_ttl(liServer *srv, liPlugin* p, liValue *val, gp
 
 static gboolean core_tasklet_pool_threads(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(p); UNUSED(userdata);
+
+	val = li_value_get_single_argument(val);
 
 	if (LI_VALUE_NUMBER != li_value_type(val)) {
 		ERROR(srv, "%s", "tasklet_pool.threads expects a number as parameter");
@@ -1412,6 +1418,13 @@ static gboolean core_setup_log(liServer *srv, liPlugin* p, liValue *val, gpointe
 static gboolean core_setup_log_timestamp(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	UNUSED(p);
 	UNUSED(userdata);
+
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_STRING != li_value_type(val)) {
+		ERROR(srv, "%s", "log.timestamp expects a string as parameter");
+		return FALSE;
+	}
 
 	if (NULL != srv->logs.timestamp.format) {
 		g_string_free(srv->logs.timestamp.format, TRUE);
