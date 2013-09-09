@@ -549,6 +549,13 @@ static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 	}
 #endif
 
+#ifdef GNUTLS_ALPN_MAND
+	{
+		static const gnutls_datum_t proto_http1 = { (unsigned char*) CONST_STR_LEN("http/1.1") };
+		gnutls_alpn_set_protocols(session, &proto_http1, 1, 0);
+	}
+#endif
+
 	conctx = g_slice_new0(mod_connection_ctx);
 	conctx->session = session;
 	conctx->sock_stream = li_iostream_new(con->wrk, fd, tcp_io_cb, conctx);
