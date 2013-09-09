@@ -279,7 +279,7 @@ GQuark li_config_error_quark(void) {
 	}
 
 	noise_char = [\t \r\n#];
-	operator_char = [+\-*/=<>!^$~;(){}[\]] | '"' | "'";
+	operator_char = [+\-*/=<>!^$~;,(){}[\]] | '"' | "'";
 	operator_separator_char = [;,(){}[\]];
 	keywords = ( 'and' | 'default' | 'else' | 'false' | 'global' | 'if' | 'include' | 'include_lua' | 'include_shell' | 'local' | 'none' | 'not' | 'or' | 'setup' | 'true' );
 
