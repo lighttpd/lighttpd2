@@ -632,7 +632,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 #endif
 		;
 	gboolean
-		protect_against_beast = TRUE;
+		protect_against_beast = FALSE;
 	gint64 session_db_size = 256;
 
 	UNUSED(p); UNUSED(userdata);
