@@ -352,7 +352,7 @@ static liAction* core_alias(liServer *srv, liWorker *wrk, liPlugin* p, liValue *
 		liValue *vPath = li_value_list_at(val, 1);
 		if (NULL == vPrefix || NULL == vPath) goto fail;
 
-		if (LI_VALUE_LIST == li_value_type(vPrefix) && LI_VALUE_STRING == li_value_type(vPath)) {
+		if (LI_VALUE_STRING == li_value_type(vPrefix) && LI_VALUE_STRING == li_value_type(vPath)) {
 			core_alias_config ac;
 			a = g_array_sized_new(FALSE, TRUE, sizeof(core_alias_config), 1);
 			ac.prefix = li_value_extract_string(vPrefix);
@@ -370,7 +370,7 @@ static liAction* core_alias(liServer *srv, liWorker *wrk, liPlugin* p, liValue *
 			if (!li_value_list_has_len(entry, 2)) goto fail;
 			vPrefix = li_value_list_at(entry, 0);
 			vPath = li_value_list_at(entry, 1);
-			if (LI_VALUE_LIST != li_value_type(vPrefix) || LI_VALUE_STRING != li_value_type(vPath)) goto fail;
+			if (LI_VALUE_STRING != li_value_type(vPrefix) || LI_VALUE_STRING != li_value_type(vPath)) goto fail;
 
 			ac.prefix = li_value_extract_string(vPrefix);
 			ac.path = li_value_extract_string(vPath);
