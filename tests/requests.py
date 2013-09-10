@@ -6,6 +6,7 @@ import StringIO
 import sys
 import zlib
 import bz2
+import os
 
 from base import *
 
@@ -72,7 +73,13 @@ class CurlRequest(TestBase):
 		if None != self.ACCEPT_ENCODING:
 			reqheaders += ["Accept-Encoding: " + self.ACCEPT_ENCODING]
 		c = pycurl.Curl()
-		c.setopt(pycurl.URL, self.SCHEME + ("://127.0.0.2:%i" % (Env.port + self.PORT)) + self.URL)
+		c.setopt(pycurl.CAINFO, os.path.join(Env.sourcedir, "tests", "ca", "ca.crt"))
+		if hasattr(pycurl, 'RESOLVE'):
+			c.setopt(pycurl.URL, self.SCHEME + ("://%s:%i" % (self.vhost or '127.0.0.2', Env.port + self.PORT)) + self.URL)
+			c.setopt(pycurl.RESOLVE, ['%s:%i:127.0.0.2' % (self.vhost, Env.port + self.PORT)])
+		else:
+			c.setopt(pycurl.URL, self.SCHEME + ("://127.0.0.2:%i" % (Env.port + self.PORT)) + self.URL)
+			c.setopt(pycurl.SSL_VERIFYHOST, 0)
 		c.setopt(pycurl.HTTPHEADER, reqheaders)
 		c.setopt(pycurl.NOSIGNAL, 1)
 		c.setopt(pycurl.TIMEOUT, 2)

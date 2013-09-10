@@ -15,7 +15,7 @@ class Memcached(Service):
 	def __init__(self):
 		super(Memcached, self).__init__()
 		self.sockfile = os.path.join(base.Env.dir, "tmp", "sockets", self.name + ".sock")
-		self.binary = [ os.path.join(base.Env.sourcedir, "run-memcached.py") ]
+		self.binary = [ os.path.join(base.Env.sourcedir, "tests", "run-memcached.py") ]
 
 
 	def Prepare(self):

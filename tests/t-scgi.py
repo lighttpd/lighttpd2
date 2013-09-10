@@ -14,7 +14,7 @@ class SCGI(Service):
 	def __init__(self):
 		super(SCGI, self).__init__()
 		self.sockfile = os.path.join(base.Env.dir, "tmp", "sockets", self.name + ".sock")
-		self.binary = [ os.path.join(base.Env.sourcedir, "run-scgi-envcheck.py") ]
+		self.binary = [ os.path.join(base.Env.sourcedir, "tests", "run-scgi-envcheck.py") ]
 
 	def Prepare(self):
 		sockdir = self.tests.PrepareDir(os.path.join("tmp", "sockets"))

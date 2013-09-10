@@ -69,7 +69,7 @@ def fix_test_name(name):
 	return name
 
 def load_test_file(name):
-	path = os.path.join(Env.sourcedir, name)
+	path = os.path.join(Env.sourcedir, 'tests', name)
 	file = open(path)
 	(modname, ext) = os.path.splitext(name)
 	module = imp.load_module(modname, file, path, (ext, 'r', imp.PY_SOURCE))
@@ -318,7 +318,7 @@ class Tests(object):
 		self.vhosts_config += config
 
 	def LoadTests(self):
-		files = os.listdir(Env.sourcedir)
+		files = os.listdir(os.path.join(Env.sourcedir, "tests"))
 		files = filter(lambda x: x[-3:] == '.py', files)
 		files = filter(lambda x: x[:2] == 't-', files)
 		files.sort()
@@ -343,6 +343,7 @@ class Tests(object):
 		accesslog = self.PrepareFile("log/access.log", "")
 		self.config = """
 global var.docdir = "{Env.docdir}";
+global var.ssldir = "{Env.sourcedir}/tests/ca";
 global var.default_docroot = "{Env.defaultwww}";
 
 setup {{
@@ -353,11 +354,24 @@ setup {{
 		"mod_cache_disk_etag",
 		"mod_deflate",
 		"mod_dirlist",
+		"mod_gnutls",
 		"mod_lua",
+		"mod_openssl",
 		"mod_vhost"
 	];
 
 	listen "127.0.0.2:{Env.port}";
+	gnutls [
+		"listen" => "127.0.0.2:" + cast(string)({Env.port} + 1),
+		"pemfile" => var.ssldir + "/server_test1.ssl.pem",
+		"pemfile" => var.ssldir + "/server_test2.ssl.pem",
+	];
+	openssl [
+		"listen" => "127.0.0.2:" + cast(string)({Env.port} + 2),
+		"pemfile" => var.ssldir + "/server_test1.ssl.pem",
+		"ca-file" => var.ssldir + "/intermediate.crt",
+	];
+
 	log [ default => "stderr" ];
 
 	lua.plugin var.docdir + "/core.lua";
@@ -451,7 +465,9 @@ instance {{
 }}
 
 allow-listen {{ ip "127.0.0.2:{Env.port}"; }}
-""".format(Env = Env, valgrindconfig = valgrindconfig))
+allow-listen {{ ip "127.0.0.2:{gnutlsport}"; }}
+allow-listen {{ ip "127.0.0.2:{opensslport}"; }}
+""".format(Env = Env, gnutlsport = Env.port+1, opensslport = Env.port + 2, valgrindconfig = valgrindconfig))
 
 		print >> Env.log, "[Done] Preparing tests"
 
