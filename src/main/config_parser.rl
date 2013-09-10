@@ -1141,6 +1141,9 @@ static gboolean p_actions(gboolean block, liAction *list, liConfigTokenizerConte
 	NEXT(token);
 	switch (token) {
 	case TK_SETUP:
+		if (!ctx->master_config) {
+			return parse_error(ctx, error, "setup not allowed in this context");
+		}
 		NEXT(token);
 		switch (token) {
 		case TK_CURLY_OPEN:
