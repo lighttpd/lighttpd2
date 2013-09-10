@@ -1588,9 +1588,11 @@ static liAction* cond_walk(liServer *srv, liConditionTree *tree, liAction *posit
 		}
 	} else switch (tree->op) {
 	case TK_AND:
+		if (NULL != negative) li_action_acquire(negative);
 		a = cond_walk(srv, tree->left, cond_walk(srv, tree->right, positive, negative), negative);
 		break;
 	case TK_OR:
+		if (NULL != positive) li_action_acquire(positive);
 		a = cond_walk(srv, tree->left, positive, cond_walk(srv, tree->right, positive, negative));
 		break;
 	default:
