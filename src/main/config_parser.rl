@@ -281,7 +281,7 @@ GQuark li_config_error_quark(void) {
 	noise_char = [\t \r\n#];
 	operator_char = [+\-*/=<>!^$~;,(){}[\]] | '"' | "'";
 	operator_separator_char = [;,(){}[\]];
-	keywords = ( 'and' | 'default' | 'else' | 'false' | 'global' | 'if' | 'include' | 'include_lua' | 'include_shell' | 'local' | 'none' | 'not' | 'or' | 'setup' | 'true' );
+	keywords = ( 'and' | 'default' | 'cast' | 'else' | 'false' | 'global' | 'if' | 'include' | 'include_lua' | 'include_shell' | 'local' | 'none' | 'not' | 'or' | 'setup' | 'true' );
 
 
 	line_sane = ( '\n' ) >{ ctx->line++; ctx->line_start = fpc + 1; };
@@ -1343,7 +1343,7 @@ static gboolean p_value(gint *key_value_nesting, liValue **value, liConfigToken 
 			if (NULL == s) s = g_string_sized_new(0);
 			li_value_free(v);
 			v = li_value_new_string(s);
-			return parse_error(ctx, error, "casts not supported yet");
+			break;
 		}
 		break;
 	case TK_CAST_INT:
