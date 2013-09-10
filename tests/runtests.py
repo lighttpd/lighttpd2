@@ -72,7 +72,7 @@ Env.force_cleanup = options.force_cleanup
 Env.port = find_port(options.port)
 Env.tests = options.tests
 Env.sourcedir = os.path.abspath(os.path.dirname(__file__))
-Env.luadir = os.path.join(os.path.dirname(Env.sourcedir), "doc")
+Env.docdir = os.path.join(os.path.dirname(Env.sourcedir), "doc")
 Env.debugRequests = options.debug_requests
 Env.strace = options.strace
 Env.truss = options.truss
@@ -119,7 +119,8 @@ try:
 	try:
 		tests.Prepare()
 	except:
-		raise
+		import traceback
+		print >> sys.stderr, traceback.format_exc()
 	else:
 		if tests.Run():
 			failed = False
@@ -127,7 +128,10 @@ try:
 		tests.Cleanup()
 		if not Env.no_cleanup and not failed:
 			os.remove(os.path.join(Env.dir, "tests.log"))
-
+except:
+	import traceback
+	print >> sys.stderr, traceback.format_exc()
+	failed = True
 finally:
 	try:
 		if Env.force_cleanup:

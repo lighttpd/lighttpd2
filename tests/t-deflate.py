@@ -3,13 +3,6 @@
 from base import *
 from requests import *
 
-TEST_TXT="""Hi!
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-"""
-
 class DeflateRequest(CurlRequest):
 	URL = "/test.txt"
 	EXPECT_RESPONSE_BODY = TEST_TXT
@@ -51,6 +44,8 @@ class Test(GroupTest):
 	group = [TestGzip, TestXGzip, TestDeflate, TestBzip2, TestXBzip2, TestDisableDeflate]
 
 	def Prepare(self):
-		self.PrepareVHostFile("test.txt", TEST_TXT)
 		# deflate is enabled global too; force it here anyway
-		self.config = """if req.query == "nodeflate" { req_header.remove "Accept-Encoding"; } static; do_deflate;"""
+		self.config = """
+defaultaction;
+if req.query == "nodeflate" { req_header.remove "Accept-Encoding"; } static; do_deflate;
+"""

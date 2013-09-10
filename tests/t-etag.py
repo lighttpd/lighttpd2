@@ -3,13 +3,6 @@
 from base import *
 from requests import *
 
-TEST_TXT="""Hi!
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-"""
-
 retrieved_etag1 = None
 
 class TestGetEtag1(CurlRequest):

@@ -5,13 +5,6 @@ from requests import *
 import time
 from md5 import md5
 
-TEST_TXT="""Hi!
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-"""
-
 def securl(prefix, path, secret, tstamp = None):
 	if tstamp == None: tstamp = time.time()
 	tstamp = '%x' % int(tstamp)
@@ -40,10 +33,9 @@ class SecdownloadGone(CurlRequest):
 
 class Test(GroupTest):
 	group = [SecdownloadFail, SecdownloadSuccess, SecdownloadGone]
+	config = """
+secdownload ( "prefix" => "/", "document-root" => var.default_docroot, "secret" => "abc", "timeout" => 600 );
+"""
 
 	def Prepare(self):
-		self.PrepareVHostFile("test.txt", TEST_TXT)
-		self.config = """
-			secdownload ( "prefix" => "/", "document-root" => "{docroot}", "secret" => "abc", "timeout" => 600 );
-		""".format(docroot = self.vhostdir)
 		self.vhostdir = None

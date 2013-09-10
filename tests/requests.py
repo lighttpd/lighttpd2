@@ -9,6 +9,13 @@ import bz2
 
 from base import *
 
+TEST_TXT="""Hi!
+0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+"""
+
 class CurlRequestException(Exception):
 	def __init__(self, value): self.value = value
 	def __str__(self): return repr(self.value)
@@ -26,8 +33,8 @@ class CurlRequest(TestBase):
 	EXPECT_RESPONSE_CODE = None
 	EXPECT_RESPONSE_HEADERS = []
 
-	def __init__(self):
-		super(CurlRequest, self).__init__()
+	def __init__(self, parent):
+		super(CurlRequest, self).__init__(parent)
 		self.resp_header_list = []
 		self.resp_headers = { }
 		self.resp_first_line = None

@@ -50,6 +50,7 @@ import sys
 import traceback
 import re
 import subprocess
+import inspect
 
 from service import *
 
@@ -90,17 +91,22 @@ class TestBase(object):
 	runnable = True
 	todo = False
 	subdomains = False # set to true to match all subdomains too
+	inherit_docroot = False
 
-	def __init__(self):
+	def __init__(self, parent = None):
 		self._test_cleanup_files = []
 		self._test_cleanup_dirs = []
 		self._test_failed = False # "not run" is "successful"
+		self._parent = parent
 
 	# internal methods, do not override
 	def _register(self, tests):
 		self.tests = tests
 		if not self.vhost: self.vhost = vhostname(self.name)
-		self.vhostdir = os.path.join(Env.dir, 'www', 'vhosts', self.vhost)
+		if self.inherit_docroot:
+			self.vhostdir = self._parent.vhostdir
+		else:
+			self.vhostdir = os.path.join(Env.dir, 'www', 'vhosts', self.vhost)
 		if self.FeatureCheck():
 			tests.add_test(self)
 			return True
@@ -116,7 +122,7 @@ class TestBase(object):
 			errorconfig = Env.debug and " " or """log [ default => "file:%s" ];""" % (errorlog)
 			accesslog = self.PrepareFile("log/access.log-%s" % self.vhost, "")
 			if None != self.vhostdir:
-				docroot = 'docroot "%s";' % self.vhostdir
+				docroot = 'local var.docroot = "%s"; docroot var.docroot;' % self.vhostdir
 			else:
 				docroot = ''
 			if self.subdomains:
@@ -228,9 +234,14 @@ class GroupTest(TestBase):
 
 	def __init__(self):
 		super(GroupTest, self).__init__()
+		test_module = self.__class__.__module__
+		module_classes = inspect.getmembers(sys.modules[test_module], lambda member: inspect.isclass(member) and member.__module__ == test_module)
+		for name, obj in module_classes:
+			if name.startswith("Test") and not obj in self.group and obj != self.__class__:
+				print >> sys.stderr, "Test class", name, "not listed in group test list in", test_module, ".", self.__class__.__name__
 		self.subtests = []
 		for c in self.group:
-			t = c()
+			t = c(self)
 			self.subtests.append(t)
 
 	def _register(self, tests):
@@ -331,35 +342,53 @@ class Tests(object):
 		errorconfig = Env.debug and " " or """log [ default => "file:%s" ];""" % (errorlog)
 		accesslog = self.PrepareFile("log/access.log", "")
 		self.config = """
+global var.docdir = "{Env.docdir}";
+global var.default_docroot = "{Env.defaultwww}";
+
 setup {{
 	workers 2;
 
-	module_load (
+	module_load [
 		"mod_accesslog",
 		"mod_cache_disk_etag",
 		"mod_deflate",
 		"mod_dirlist",
 		"mod_lua",
 		"mod_vhost"
-	);
+	];
 
 	listen "127.0.0.2:{Env.port}";
 	log [ default => "stderr" ];
 
-	lua.plugin "{Env.luadir}/core.lua";
-	lua.plugin "{Env.luadir}/secdownload.lua";
+	lua.plugin var.docdir + "/core.lua";
+	lua.plugin var.docdir + "/secdownload.lua";
 
 	accesslog.format "%h %V %u %t \\"%r\\" %>s %b \\"%{{Referer}}i\\" \\"%{{User-Agent}}i\\"";
 	accesslog "{accesslog}";
+
+	debug.log_request_handling true;
+
+	# default values, just check whether they parse
+	static.range_requests true;
+	keepalive.timeout 5;
+	keepalive.requests 0;
+	etag.use ["inode", "mtime", "size"];
+	stat.async true;
+	buffer_request_body true;
+
+	io.timeout 300;
+	stat_cache.ttl 10;
 }}
 
 {errorconfig}
 
-defaultaction = {{
-	docroot "{Env.defaultwww}";
+include var.docdir + "/mimetypes.conf";
+
+global defaultaction = {{
+	docroot var.default_docroot;
 }};
 
-do_deflate = {{
+global do_deflate = {{
 	if request.is_handled {{
 		deflate;
 	}}
