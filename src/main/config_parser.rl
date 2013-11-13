@@ -1066,8 +1066,7 @@ static gboolean p_setup(GString *name, liConfigTokenizerContext *ctx, GError **e
 
 static gboolean p_setup_block(liConfigTokenizerContext *ctx, GError **error) {
 	liConfigToken token;
-	GString *name;
-	gboolean result;
+	GString *name = NULL;
 
 	NEXT(token);
 	switch (token) {
@@ -1075,9 +1074,17 @@ static gboolean p_setup_block(liConfigTokenizerContext *ctx, GError **error) {
 		return TRUE;
 	case TK_NAME:
 		name = g_string_new_len(GSTR_LEN(ctx->token_string));
-		result = p_setup(name, ctx, error);
-		g_string_free(name, TRUE);
-		if (!result) return FALSE;
+		NEXT(token);
+		switch (token) {
+		case TK_ASSIGN:
+			if (!p_vardef(name, 0, ctx, error)) goto error;
+			break;
+		default:
+			REMEMBER(token);
+			if (!p_setup(name, ctx, error)) goto error;
+			break;
+		}
+		g_string_free(name, TRUE); name = NULL;
 		break;
 	case TK_INCLUDE:
 	case TK_INCLUDE_LUA:
@@ -1090,6 +1097,7 @@ static gboolean p_setup_block(liConfigTokenizerContext *ctx, GError **error) {
 	return p_setup_block(ctx, error);
 
 error:
+	if (NULL != name) g_string_free(name, TRUE); name = NULL;
 	return FALSE;
 }
 
@@ -1136,7 +1144,6 @@ error:
 static gboolean p_actions(gboolean block, liAction *list, liConfigTokenizerContext *ctx, GError **error) {
 	liConfigToken token;
 	GString *name = NULL;
-	gboolean result;
 
 	NEXT(token);
 	switch (token) {
@@ -1147,13 +1154,11 @@ static gboolean p_actions(gboolean block, liAction *list, liConfigTokenizerConte
 		NEXT(token);
 		switch (token) {
 		case TK_CURLY_OPEN:
-			if (!p_setup_block(ctx, error)) return FALSE;
+			if (!p_setup_block(ctx, error)) goto error;
 			break;
 		case TK_NAME:
 			name = g_string_new_len(GSTR_LEN(ctx->token_string));
-			result = p_setup(name, ctx, error);
-			g_string_free(name, TRUE); name = NULL;
-			if (!result) return FALSE;
+			if (!p_setup(name, ctx, error)) goto error;
 			break;
 		case TK_INCLUDE:
 		case TK_INCLUDE_LUA:
