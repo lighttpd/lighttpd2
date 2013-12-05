@@ -90,7 +90,7 @@ static void proxy_send_headers(liVRequest *vr, liChunkQueue *out) {
 		}
 	}
 
-	if (vr->request.content_length > 0) {
+	if (LI_HTTP_METHOD_GET != vr->request.http_method && LI_HTTP_METHOD_HEAD != vr->request.http_method) {
 		g_string_append_printf(head, "Content-Length: %" LI_GOFFSET_MODIFIER "i\r\n", vr->request.content_length);
 	}
 
