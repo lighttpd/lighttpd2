@@ -31,7 +31,7 @@ AM_PROG_AR
 
 AC_PATH_PROG([RAGEL], [ragel])
 if test "x$RAGEL" = "x"; then
-	AC_MSG_ERROR([ragel not found])
+  AC_MSG_ERROR([ragel not found])
 fi
 AC_SUBST([RAGEL])
 
@@ -49,15 +49,15 @@ AC_PROG_LIBTOOL
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS([ \
-	unistd.h \
-	stddef.h \
-	sys/mman.h \
-	sys/resource.h \
-	sys/sendfile.h \
-	sys/types.h \
-	sys/uio.h \
-	sys/un.h \
-	execinfo.h \
+  unistd.h \
+  stddef.h \
+  sys/mman.h \
+  sys/resource.h \
+  sys/sendfile.h \
+  sys/types.h \
+  sys/uio.h \
+  sys/un.h \
+  execinfo.h \
 ])
 
 # pkglibdir
@@ -89,23 +89,23 @@ LIBEV_CFLAGS=""
 LIBEV_LIBS=""
 
 PKG_CHECK_MODULES([LIBEV], [libev], [], [
-	# no pkg-config for libev, searching manually:
+  # no pkg-config for libev, searching manually:
 
-	if test "$WITH_LIBEV" != "yes"; then
-		LIBEV_CFLAGS="-I$WITH_LIBEV/include"
-		LIBEV_LIBS="-L$WITH_LIBEV/lib -lev"
-	else
-		AC_CHECK_HEADERS([ev.h],[
-			AC_CHECK_LIB([ev], [ev_time], [
-					LIBEV_LIBS="-lev"
-				],[
-					AC_MSG_ERROR([libev not found])
-				]
-			)],[
-				AC_MSG_ERROR([libev not found])
-			]
-		)
-	fi
+  if test "$WITH_LIBEV" != "yes"; then
+    LIBEV_CFLAGS="-I$WITH_LIBEV/include"
+    LIBEV_LIBS="-L$WITH_LIBEV/lib -lev"
+  else
+    AC_CHECK_HEADERS([ev.h],[
+      AC_CHECK_LIB([ev], [ev_time], [
+          LIBEV_LIBS="-lev"
+        ],[
+          AC_MSG_ERROR([libev not found])
+        ]
+      )],[
+        AC_MSG_ERROR([libev not found])
+      ]
+    )
+  fi
 ])
 
 AC_SUBST([LIBEV_CFLAGS])
@@ -218,20 +218,20 @@ AC_SEARCH_LIBS([kvm_open],[kvm])
 
 # Checks for library functions.
 AC_CHECK_FUNCS([ \
-	chroot \
-	getrlimit \
-	gmtime_r \
-	inet_aton \
-	inet_ntop \
-	localtime_r \
-	madvise \
-	mmap \
-	posix_fadvise \
-	sendfile \
-	sendfile64 \
-	sendfilev \
-	writev \
-	accept4 \
+  chroot \
+  getrlimit \
+  gmtime_r \
+  inet_aton \
+  inet_ntop \
+  localtime_r \
+  madvise \
+  mmap \
+  posix_fadvise \
+  sendfile \
+  sendfile64 \
+  sendfilev \
+  writev \
+  accept4 \
 ])
 
 dnl Check for IPv6 support
@@ -417,16 +417,17 @@ if test x$extrawarnings = xtrue; then
 fi
 
 AC_CONFIG_FILES([Makefile \
-	doc/Makefile \
-	include/Makefile \
-	include/lighttpd/Makefile \
-	src/Makefile \
-	src/common/Makefile \
-	src/main/Makefile \
-	src/angel/Makefile \
-	src/modules/Makefile \
-	src/unittests/Makefile \
-	src/lighttpd2.pc \
-	tests/Makefile \
+  contrib/Makefile \
+  doc/Makefile \
+  include/Makefile \
+  include/lighttpd/Makefile \
+  src/Makefile \
+  src/common/Makefile \
+  src/main/Makefile \
+  src/angel/Makefile \
+  src/modules/Makefile \
+  src/unittests/Makefile \
+  src/lighttpd2.pc \
+  tests/Makefile \
 ])
 AC_OUTPUT

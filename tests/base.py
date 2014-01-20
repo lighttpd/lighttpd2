@@ -342,7 +342,7 @@ class Tests(object):
 		errorconfig = Env.debug and " " or """log [ default => "file:%s" ];""" % (errorlog)
 		accesslog = self.PrepareFile("log/access.log", "")
 		self.config = """
-global var.docdir = "{Env.docdir}";
+global var.contribdir = "{Env.contribdir}";
 global var.ssldir = "{Env.sourcedir}/tests/ca";
 global var.default_docroot = "{Env.defaultwww}";
 
@@ -374,8 +374,8 @@ setup {{
 
 	log [ default => "stderr" ];
 
-	lua.plugin var.docdir + "/core.lua";
-	lua.plugin var.docdir + "/secdownload.lua";
+	lua.plugin var.contribdir + "/core.lua";
+	lua.plugin var.contribdir + "/secdownload.lua";
 
 	accesslog.format "%h %V %u %t \\"%r\\" %>s %b \\"%{{Referer}}i\\" \\"%{{User-Agent}}i\\"";
 	accesslog "{accesslog}";
@@ -396,7 +396,7 @@ setup {{
 
 {errorconfig}
 
-include var.docdir + "/mimetypes.conf";
+include var.contribdir + "/mimetypes.conf";
 
 global defaultaction = {{
 	docroot var.default_docroot;

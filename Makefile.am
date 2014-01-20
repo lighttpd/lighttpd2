@@ -1,4 +1,4 @@
-SUBDIRS=doc src include tests
+SUBDIRS=contrib doc src include tests
 
 ACLOCAL_AMFLAGS=-I m4
 EXTRA_DIST=autogen.sh CMakeLists.txt
