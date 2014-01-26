@@ -1,41 +1,6 @@
 /*
  * mod_openssl - ssl support
  *
- * Description:
- *     mod_openssl listens on separate sockets for ssl connections (https://...)
- *
- * Setups:
- *     openssl        - setup a ssl socket; takes a hash/key-value list of following parameters:
- *       listen         - (mandatory) the socket address (same as standard listen)
- *       pemfile        - (mandatory) contains key and certificate (+ optional chain) for the key (PEM format)
- *       ca-file        - contains certificate chain
- *       ciphers        - contains colon separated list of allowed ciphers
- *                        default: "ECDHE-RSA-AES256-SHA384:AES256-SHA256:RC4-SHA:RC4:HIGH:!MD5:!aNULL:!EDH:!AESGCM"
- *       options        - (list of strings) set OpenSSL-specific options (default: NO_SSLv2, CIPHER_SERVER_PREFERENCE, NO_COMPRESSION)
- *                        to overwrite defaults you need to explicitly specify the reverse flag (toggle "NO_" prefix)
- *                        example: use sslv2 and compression: [ options: ("SSLv2", "COMPRESSION") ]
- *       verify         - (boolean) enable client certificate verification (default: false)
- *       verify-any     - (boolean) allow all CAs and self-signed certificates (for manual checking, default: false)
- *       verify-depth   - (number) sets client verification depth (default: 1)
- *       verify-require - (boolean) abort clients failing verification (default: false)
- *       client-ca-file - (string) path to file containing client CA certificates
- *
- * Actions:
- *     openssl.setenv [options] - set SSL environment strings
- *         options: (list), may contain strings:
- *             "client"      - set SSL_CLIENT_S_DN_ short-named entries
- *             "client-cert" - set SSL_CLIENT_CERT to client certificate PEM
- *             "server"      - set SSL_SERVER_S_DN_ short-named entries
- *             "server-cert" - set SSL_SERVER_CERT to server certificate PEM
- *
- * Example config:
- *     setup openssl (
- *       "listen": "0.0.0.0:443",
- *       "listen": "0.0.0.0:443",
- *       "pemfile": "server.pem"
- *     );
- *     openssl.setenv "client";
- *
  * Author:
  *     Copyright (c) 2009-2013 Stefan Bühler, Joe Presbrey
  */

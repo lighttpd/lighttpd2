@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>add "Expires" and "Cache-Control" headers to the response</short>
+
+	<description>
+		<textile><![CDATA[
+			This allows you to control client-side caching of responses based on a simple rule/formula.
+			If a response is cached using an "Expires" and "Cache-Control" header, then the client will not issue a new request for it until the date specified by the header is reached.
+
+			Adding expire headers to static content like css, javascript, images or similar, can greatly reduce the amount of requests you get and therefor save resources.
+			Use "modification" as @<base>@ if your content changes in specific intervals like every 15 minutes.
+		]]></textile>
+	</description>
+
+	<action name="expire">
+		<short>adds an "Expires" header to the response</short>
+		<parameter name="rule">
+			<short>the rule to calculate the "Expires" header value with</short>
+		</parameter>
+		<description>
+			<textile><![CDATA[
+				The rule/formula used here, complies with the one mod_expire for Apache uses:
+
+				<pre>
+				<base> [plus] (<num> <type>)+
+				</pre>
+
+				* @<base>@ is one of "access", "now" or "modification"; "now" being equivalent to "access".
+				* "@plus@" is optional and does nothing.
+				* @<num>@ is any positive integer.
+				* @<type>@ is one of "seconds, "minutes", "hours", "days", "weeks", "months" or "years".
+
+				The trailing "s" in @<type>@ is optional.
+
+				If you use "modification" as @<base>@ and the file does not exist or cannot be accessed, mod_expire will do nothing and request processing will go on.
+
+				The expire action will overwrite any existing "Expires" header.
+				It will append the max-age value to any existing "Cache-Control" header.
+			]]></textile>
+		</description>
+
+		<example>
+			<description>
+				Cache image, css, txt and js files for 1 week.
+			</description>
+			<config>
+				setup {
+					module_load "mod_expire";
+				}
+
+				if req.path =~ "\.(jpe?g|png|gif|txt|css|js)$" {
+					expire "access plus 1 week";
+				}
+			</config>
+		</example>
+	</action>
+
+</module>

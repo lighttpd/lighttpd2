@@ -1,55 +1,7 @@
 /*
  * mod_auth - require authentication from clients using username + password
  *
- * Description:
- *     mod_auth lets you require authentication from clients using a username and password.
- *     It supports basic and digest authentication methods as well as plaintext, htpass and htdigest backends.
- *
- *     Basic:
- *         The "basic" method transfers the username and the password in cleartext over the network (base64 encoded)
- *         and might result in security problems if not used in conjunction with a crypted channel between client and server.
- *         It is recommend to use https in conjunction with basic authentication.
- *
- *     Digest:
- *         The "digest" method only transfers a hashed value over the network which performs a lot of work to harden
- *         the authentication process in insecure networks (like the internet).
- *
  * Relevant RFCs: 2617
- *
- * Setups:
- *     none
- * Options:
- *     auth.debug = <true|false>;
- *         - if set, debug information is written to the log
- * Actions:
- *     auth.plain ["method": method, "realm": realm, "file": path, "ttl": 10];
- *         - requires authentication using a plaintext file containing user:password pairs seperated by newlines (\n)
- *     auth.htpasswd ["method": method, "realm": realm, "file": path, "ttl": 10];
- *         - requires authentication using a htpasswd file containing user:encrypted_password pairs seperated by newlines (\n)
- *         - passwords are encrypted using crypt(3), use the htpasswd binary from apache to manage the file
- *           + hashes starting with "$apr1$" ARE supported (htpasswd -m)
- *           + hashes starting with "{SHA}" ARE supported (followed by sha1_base64(password), htpasswd -s)
- *         - only supports "basic" method
- *     auth.htdigest ["method": method, "realm": realm, "file": path, "ttl": 10];
- *         - requires authentication using a htdigest file containing user:realm:hashed_password tuples seperated by newlines (\n)
- *         - passwords are saved as (modified) md5 hashes:
- *             md5hex(username + ":" + realm + ":" + password)
- *
- *     ttl specifies how often lighty checks the files for modifications (in seconds), 0 means it will never check after the first load.
- *
- *     auth.deny;
- *         - handles request with "401 Unauthorized"
- *
- * Example config:
- *     # /members/ is for known users only
- *     if request.path =^ "/members/" {
- *         auth.plain ["method": "basic", "realm": "members only", "file": "/etc/lighttpd/users.txt"];
- *     }
- *     if req.env["REMOTE_USER"] !~ "^(admin1|user2|user3)$" { auth.deny; }
- *
- *
- * Tip:
- *     The digest method is broken in Internet Explorer < 7. Use basic instead if this is a problem for you. (not supported for now anyway)
  *
  * Todo:
  *     - method: digest

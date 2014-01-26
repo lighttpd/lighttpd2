@@ -1,36 +1,6 @@
 /*
  * mod_deflate - compress content on the fly
  *
- * Description:
- *     compress content on the fly
- *
- *     Does not compress:
- *      - response status: 100, 101, 204, 205, 206, 304
- *      - already compressed content
- *      - if more than one etag response header is sent
- *      - if no common encoding is found
- *
- *     Supported encodings
- *      - gzip, deflate (needs zlib)
- *      - bzip2 (needs bzip2)
- *
- *     + Modifies etag response header (if present)
- *     + Adds "Vary: Accept-Encoding" response header
- *     + Resets Content-Length header
- *
- * Setups:
- *     none
- *
- * Options:
- *     deflate.debug <boolean>
- *
- * Actions:
- *     deflate [ "encodings": "deflate,gzip,bzip2", "blocksize": 4096, "output-buffer": 4096, "compression-level": 1 ];
- *       - options are all optional, default values shown in line above :)
- *
- * Example config:
- *     deflate;
- *
  * Author:
  *     Copyright (c) 2009 Stefan Bühler
  *     Copyright (c) 2010 Thomas Porzelt

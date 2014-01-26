@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>mod_deflate compresses content on the fly</short>
+
+	<action name="deflate">
+		<short>waits for response headers; if the response can be compressed deflate adds a filter to compress it</short>
+		<parameter name="options">
+			<table>
+				<entry name="encodings">
+					<short>supported method, depends on whats compiled in (default: "deflate,gzip,bzip2")</short>
+				</entry>
+				<entry name="blocksize">
+					<short>blocksize is the number of kilobytes to compress at one time, it allows the webserver to do other work (network I/O) in between compression (default: 4096)</short>
+				</entry>
+				<entry name="output-buffer">
+					<short>output-buffer is a per connection buffer for compressed output, it can help decrease the response size (fewer chunks to encode). If it is set to zero a shared buffer will be used. (default: 4096)</short>
+				</entry>
+				<entry name="compression-level">
+					<short>0-9: lower numbers means faster compression but results in larger files/output, high numbers might take longer on compression but results in smaller files/output (depending on files ability to be compressed), this option is used for all selected encoding variants (default: 1)</short>
+				</entry>
+			</table>
+		</parameter>
+		<example>
+			<config>
+				deflate [ "encodings" => "deflate,gzip,bzip2", "blocksize" => 4096, "output-buffer" => 4096, "compression-level" => 1 ];
+			</config>
+		</example>
+		<example>
+			<config>
+				deflate [ "compression-level" => 6 ];
+			</config>
+		</example>
+	</action>
+
+	<option name="deflate.debug">
+		<short>enable debug output</short>
+		<default><value>false</value></default>
+	</option>
+
+	<section title="Notes">
+		<textile>
+			*Important*: As deflate; waits for the response headers, you must handle the request before it (see below how to check whether the request is handled).
+			If the request is not handled, you will get a "500 - Internal error" and a message in the error.log.
+
+			Does not compress:
+			* response status: 100, 101, 204, 205, 206, 304
+			* already compressed content
+			* if more than one etag response header is sent
+			* if no common encoding is found
+
+			Supported encodings
+			* gzip, deflate (needs zlib)
+			* bzip2 (needs bzip2)
+
+			* Modifies etag response header (if present)
+			* Adds "Vary: Accept-Encoding" response header
+			* Resets Content-Length header
+		</textile>
+	</section>
+
+	<example title="Simple config" anchor="#">
+		<config>
+			setup {
+				module_load "mod_deflate";
+			}
+
+			# define our own "action"
+			do_deflate = {
+				# make sure static files get handled before we try deflate
+				static;
+				# we can only wait for response headers if we already have a request handler! (static only handles GET/HEAD requests)
+				if request.is_handled {
+					# limit content-types we want to compress -> see mimetypes
+					if response.header["Content-Type"] =~ "^(.*/javascript|text/.*)(;|$)" {
+						deflate;
+					}
+				}
+			};
+
+			# now add do_deflate; in places where you want deflate. for example at the end of your config:
+
+			do_deflate;
+		</config>
+	</example>
+
+	<example title="Extended config (makes use of mod_cache_disk_etag)" anchor="#">
+		<config>
+			setup {
+				module_load ("mod_deflate", "mod_cache_disk_etag");
+			}
+
+			# define our own "action"
+			do_deflate = {
+				# make sure static files get handled before we try deflate
+				static;
+				# we can only wait for response headers if we already have a request handler! (static only handles GET/HEAD requests)
+				if request.is_handled {
+					# limit content-types we want to compress -> see mimetypes
+					if response.header["Content-Type"] =~ "^(.*/javascript|text/.*)(;|$)" {
+						deflate;
+						# the following block needs mod_cache_disk_etag (and is optional)
+						# only cache compressed result of static files
+						if physical.is_file {
+							cache.disk.etag "/var/cache/lighttpd/cache_etag";
+						}
+					}
+				}
+			};
+
+			# now add do_deflate; in places where you want deflate. for example at the end of your config:
+
+			do_deflate;
+		</config>
+	</example>
+</module>

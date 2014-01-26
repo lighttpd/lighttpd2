@@ -1,51 +1,6 @@
 /*
  * mod_rewrite - modify request path and querystring with support for regular expressions
  *
- * Description:
- *     mod_rewrite lets you modify (rewrite) the path and querystring of a request.
- *     It supports matching regular expressions and substitution with captured substrings as well as other placeholders.
- *     A so called rewrite rule consist of a regular expression and a target string.
- *
- *     If your rewrite target does not contain any questionmark (?), then the querystring will not be altered.
- *     If it does, then it will be overwritten. To append the original querystring, use %{request.query}.
- *
- *     Placeholders:
- *         - $1..9 replaced by captured substring of current regex
- *         - $0 replaced by whole string that matched the regex
- *         - %0..9 same as $n but uses regex from previous conditional
- *         - %{var} with var being one of the req.* or phys.* e.g. %{request.host}
- *           supported vars: request.host, request.path, request.query, request.remoteip, request.localip, request.content_length
- *         - %{enc:var} same as %{var} but urlencoded e.g. %{enc:request.path}
- *
- *     ?, $ and % can be escaped using \?, \$ and \% respectively.
- *
- * Setups:
- *     none
- * Options:
- *     rewrite.debug = <true|false>;
- *         - if set, debug information is written to the log
- * Actions:
- *     rewrite "/new/path";
- *         - sets request.path to "/new/path", substituting all placeholders. $0..$9 get replaced by empty strings.
- *     rewrite "regex" => "/new/path";
- *         - sets request.path to "/new/path" if "regex" matched the original req.path.
- *         - $0..$9 get replaced by the captured substrings of the regular expression "regex".
- *     rewrite ("regex1" => "/new/path1", ..., "regexN" => "/new/pathN");
- *         - traverses the list of rewrite rules.
- *         - rewrites request.path to the corresponding "/new/path" if the regex matches and stops traversing the list.
- *
- * Example config:
- *     rewrite (
- *         "^/article/(\d+)/.*$" => "/article.php?id=$1",
- *         "^/download/(\d+)/(.*)$" => "/download.php?fileid=$1&filename=$2"
- *     );
- *     rewrite "^/user/(.+)$" => "/user.php?name=$1";
- *
- *
- * Tip:
- *     As both config parser and regex compiler use backslashes to escape special characters, you will have to escape them twice.
- *     For example "^foo\\dbar$" will end up as "^foo\dbar$" as regex input, which would match things like "foo3bar".
- *
  * Todo:
  *     - implement rewrite_optimized which reorders rules according to hitcount
  *     - implement rewrite_raw which uses the raw uri

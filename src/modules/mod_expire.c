@@ -1,44 +1,6 @@
 /*
  * mod_expire - add "Expires" and "Cache-Control" headers to response
  *
- * Description:
- *     mod_expire lets you control client-side caching of responses based on a simple rule/formula.
- *     If a response is cached using an "Expires" and "Cache-Control" header, then the client will not issue a new
- *     request for it until the date specified by the header is reached.
- *
- *     The rule/formula used here, complies with the one mod_expire for Apache uses:
- *     <base> [plus] (<num> <type>)+
- *     Where <base> is one of "access", "now" or "modification" - "now" being equivalent to "access".
- *     <plus> is optional and does nothing.
- *     <num> is any positive integer.
- *     <type> is one of "seconds, "minutes", "hours", "days", "weeks", "months" or "years".
- *     The trailing s in <type> is optional.
- *
- *     If you use "modification" as <base> and the file does not exist or cannot be accessed,
- *     mod_expire will do nothing and request processing will go on.
- *
- *     The expire action will overwrite any existing "Expires" header.
- *     It will append the max-age value to any existing "Cache-Control" header.
- *
- * Setups:
- *     none
- * Options:
- *     none
- * Actions:
- *     expire "rule";
- *         - adds an Expires header to the response based on the specified rule.
- *
- * Example config:
- *     if request.path =~ "^/(css|js|images)/" {
- *         expire "access plus 1 day";
- *     }
- *
- *
- * Tip:
- *     Adding expire headers to static content like css, javascript, images or similar,
- *     can greatly reduce the amount of requests you get and therefor save resources.
- *     Use "modification" as <base> if your content changes in specific intervals like every 15 minutes.
- *
  * Todo:
  *     none
  *

@@ -1,36 +1,6 @@
 /*
  * mod_flv - flash pseudo streaming
  *
- * Description:
- *     mod_flv lets you stream .flv files in a way that flash players can seek into positions in the timeline.
- *
- * Setups:
- *     none
- *
- * Options:
- *     none
- *
- * Actions:
- *     flv;
- *         - enables .flv pseudo streaming
- *
- * Example config:
- *     if phys.path =$ ".flv" {
- *         flv;
- *     }
- *
- * Tip:
- *     Use caching and bandwidth throttling to save traffic.
- *     To prevent the player from buffering at the beginning, use a small burst threshold.
- *
- *     if phys.path =$ ".flv" {
- *         expire "access 1 month";
- *         io.throttle 500kbyte => 150kbyte;
- *         flv;
- *     }
- *
- *     This config will make browsers cache videos for 1 month and limit bandwidth to 150 kilobyte/s after 500 kilobytes.
- *
  * Todo:
  *     - flv audio container support?
  *

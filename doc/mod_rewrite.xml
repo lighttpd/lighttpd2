@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>modifies request path and querystring</short>
+
+	<description>
+		<textile>
+			It supports matching "regular expressions":core_regex.html#core_regex and "substitution":core_pattern.html#core_pattern with captured substrings as well as other placeholders.
+
+			If your rewrite target does not contain any questionmark (@?@), then the querystring will not be altered.
+			If it does contain @?@ the querystring will be overwritten with the part after the @?@. To append the original querystring, use @%{request.query}@.
+
+			*IMPORTANT*: rewrite only changes the url, not the physical filename that it got mapped to by docroot or alias actions. So you need your docroot and alias actions after the rewrite.
+			If you have conditional rewrites like @if !phys.is_file { rewrite ... }@ you need docroot/alias both before (so it can check for the physical file) *and* after it (to build the new physical path).
+		</textile>
+	</description>
+
+	<action name="rewrite">
+		<short>modify request path and querystring</short>
+		<parameter name="rule">
+			<short>a simple target string or one rule, mapping a regular expression to a target string, or a list of rules.</short>
+		</parameter>
+		<description>
+			<textile>
+				* The target string is a "pattern":core_pattern.html#core_pattern.
+				* The "regular expressions":core_regex.html#core_regex are used to match the request path (always starts with "/" and does *not* include the query string!)
+				* If a list of rules is given, rewrite stops on the first match.
+				* Replaces the query string iff the target string contains an @?@
+			</textile>
+		</description>
+		<example title="Example: rewrite always">
+			<config>
+				setup {
+					module_load "mod_rewrite";
+				}
+				rewrite "/new/path";
+			</config>
+		</example>
+		<example title="Example: rewrite if match">
+			<config>
+				setup {
+					module_load "mod_rewrite";
+				}
+				rewrite "regex" => "/new/path";
+			</config>
+		</example>
+		<example title="Example: rewrite on first match">
+			<config>
+				setup {
+					module_load "mod_rewrite";
+				}
+				rewrite ("regex1" => "/new/path1", ..., "regexN" => "/new/pathN");
+			</config>
+		</example>
+		<example title="Example: pretty urls">
+			<description>
+				<textile>
+					Note: you really should move the logic for such rewrites into your application, and just rewrite all pretty urls to your index.php without putting the actions into the querystring.
+				</textile>
+			</description>
+			<config><![CDATA[
+				setup {
+					module_load "mod_rewrite";
+				}
+
+				# bad: routing login in webserver config:
+				rewrite (
+					"^/article/(\d+)/.*$" => "/article.php?id=$1",
+					"^/download/(\d+)/(.*)$" => "/download.php?fileid=$1&filename=$2"
+				);
+				rewrite "^/user/(.+)$" => "/user.php?name=$1";
+
+				# good: handle it in the backend (easier to port the config)
+				rewrite "^/(article|download|user)(/|$)" => "/index.php";
+			]]></config>
+		</example>
+	</action>
+
+	<option name="rewrite.debug">
+		<short>enable debug output</short>
+		<default><value>false</value></default>
+	</option>
+
+</module>

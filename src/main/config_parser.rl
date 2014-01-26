@@ -700,9 +700,9 @@ static gboolean is_value_start_token(liConfigToken token) {
 
 static int _op_precedence(liConfigToken op) {
 	switch (op) {
-	case TK_AND:
-		return 1;
 	case TK_OR:
+		return 1;
+	case TK_AND:
 		return 2;
 	case TK_PLUS:
 	case TK_MINUS:

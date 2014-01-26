@@ -1,47 +1,5 @@
-
 /*
  * mod_limit - limit concurrent connections or requests per second
- *
- * Description:
- *     mod_limit lets you limit the number of concurrent connections or requests per second.
- *     Both limits can be "in total" or per IP.
- *
- * Setups:
- *     none
- *
- * Options:
- *     none
-
- * Actions:
- *     limit.con <limit> [=> action];
- *         - <limit> is the number of concurrent connections
- *         - [action] is an action to be executed if the limit is reached
- *     limit.con_ip <limit> [=> action];
- *         - <limit> is the number of concurrent connections per IP
- *         - [action] is an action to be executed if the limit is reached
- *     limit.req <limit> [=> action];
- *         - <limit> is the number of requests per second
- *         - [action] is an action to be executed if the limit is reached
- *     limit.req_ip <limit> [=> action];
- *         - <limit> is the number of requests per second per IP
- *         - [action] is an action to be executed if the limit is reached
- *
- * Example config:
- *     if req.path =^ "/downloads/" {
- *         limit.con 10;
- *         limit.con_ip 1;
- *     }
- *
- *     This config snippet will allow only 10 active downloads overall and 1 per IP.
- *
- *     if req.path == "/login" {
- *         limit.req_ip 1 => ${ log.write "Possible bruteforce from %{req.remoteip}"; };
- *     }
- *
- *     This config snippet will write a message to the log containing the clien IP address if the /login page is hit more than once in a second.
- *
- * Todo:
- *     -
  *
  * Author:
  *     Copyright (c) 2010 Thomas Porzelt

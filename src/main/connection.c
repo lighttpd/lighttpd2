@@ -3,6 +3,8 @@
 #include <lighttpd/throttle.h>
 #include <lighttpd/plugin_core.h>
 
+#define LI_CONNECTION_DEFAULT_CHUNKQUEUE_LIMIT (256*1024)
+
 void li_connection_simple_tcp(liConnection **pcon, liIOStream *stream, gpointer *context, liIOStreamEvent event) {
 	liConnection *con;
 	goffset transfer_in = 0, transfer_out = 0;
@@ -533,8 +535,8 @@ void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, 
 
 	assert(NULL != con->con_sock.raw_in || NULL != con->con_sock.raw_out);
 
-	li_chunkqueue_use_limit(con->con_sock.raw_in->out, 256*1024);
-	li_chunkqueue_use_limit(con->con_sock.raw_out->out, 256*1024);
+	li_chunkqueue_use_limit(con->con_sock.raw_in->out, LI_CONNECTION_DEFAULT_CHUNKQUEUE_LIMIT);
+	li_chunkqueue_use_limit(con->con_sock.raw_out->out, LI_CONNECTION_DEFAULT_CHUNKQUEUE_LIMIT);
 
 	li_stream_connect(&con->out, con->con_sock.raw_out);
 	li_stream_connect(con->con_sock.raw_in, &con->in);
@@ -842,8 +844,8 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 	memset(&con->in_chunked_decode_state, 0, sizeof(con->in_chunked_decode_state));
 
 	/* restore chunkqueue limits */
-	li_chunkqueue_use_limit(con->con_sock.raw_in->out, 512*1024);
-	li_chunkqueue_use_limit(con->con_sock.raw_out->out, 512*1024);
+	li_chunkqueue_use_limit(con->con_sock.raw_in->out, LI_CONNECTION_DEFAULT_CHUNKQUEUE_LIMIT);
+	li_chunkqueue_use_limit(con->con_sock.raw_out->out, LI_CONNECTION_DEFAULT_CHUNKQUEUE_LIMIT);
 
 	/* reset stats */
 	con->info.stats.bytes_in = G_GUINT64_CONSTANT(0);

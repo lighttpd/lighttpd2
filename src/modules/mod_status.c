@@ -1,33 +1,6 @@
 /*
  * mod_status - display server status
  *
- * Description:
- *     mod_status can display a page with statistics like requests, traffic and active connections.
- *     It can be customized with different stylesheets (css)
- *
- * Setups:
- *     none
- * Options:
- *     status.css <name|url> - set the stylesheet to use, optional
- *         type: string; values: "default", "blue" or a url to an external css file
- * Actions:
- *     status.info           - returns the status info page to the client
- *     status.info "short"   - returns only "non-sensitive" data; no connection details, no runtime section
- *
- *  The status page accepts parameters in the query-string:
- *   - mode=runtimes : show runtime information
- *   - format=plain : returns "short" information in plain text format, easy to parse
- *   - auto : returns "legacy" plain text format, for 1.5 migration or apache_ munin plugins
- *
- * Example config:
- *     req.path == "/srv-status" {
- *         status.css = "http://mydomain/status.css";
- *         status.info;
- *     }
- *
- * Todo:
- *     -
- *
  * Author:
  *     Copyright (c) 2008-2010 Thomas Porzelt
  * License:

@@ -1,34 +1,6 @@
 /*
  * mod_memcached - cache content on memcached servers
  *
- * Description:
- *     cache content on memcached servers
- *
- * Setups:
- *     none
- * Options:
- *     none
- * Actions:
- *       (trailing parameters are optional)
- *     memcached.lookup <options>, <action-hit>, <action-miss>
- *     memcached.store  <options>
- *        options: hash of
- *            - server: socket address as string (default: 127.0.0.1:11211)
- *            - flags: flags for storing (default 0)
- *            - ttl: ttl for storing (default 0 - forever)
- *            - maxsize: maximum size in bytes we want to store
- *            - headers: whether to store/lookup headers too (not supported yet)
- *              if disabled: get mime-type from request.uri.path for lookup
- *            - key: pattern for lookup/store key
- *              default: "%{req.path}"
- *
- * Example config:
- *     memcached.lookup [], ${ header.add "X-Memcached" => "Hit" }, ${ header.add "X-Memcached" => "Miss" };
- *
- *     memcached.lookup ["key": "%{req.scheme}://%{req.host}%{req.path}"];
- *
- * Exports a lua api to per-worker luaStates too.
- *
  * Todo:
  *  - store/lookup headers too
  *

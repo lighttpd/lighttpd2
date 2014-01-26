@@ -1,49 +1,8 @@
 /*
  * mod_redirect - redirect clients by sending a http status code 301 plus Location header
  *
- * Description:
- *     mod_redirect acts similar to mod_rewrite but redirects clients instead of rewriting the request.
- *     It supports matching regular expressions and substitution with captured substrings as well as other placeholders.
- *     A so called redirect rule consist of a regular expression and a target string.
- *
- *     Placeholders:
- *         - $1..9 replaced by captured substring of current regex
- *         - $0 replaced by whole string that matched the regex
- *         - %0..9 same as $n but uses regex from previous conditional
- *         - %{var} with var being one of the req.* or phys.* e.g. %{request.host}
- *           supported vars: request.host, request.path, request.query, request.remoteip, request.localip, request.content_length
- *         - %{enc:var} same as %{var} but urlencoded e.g. %{enc:request.path}
- *
- *     ?, $ and % can be escaped using \?, \$ and \% respectively.
- *
- * Setups:
- *     none
- * Options:
- *     redirect.debug = <true|false>;
- *         - if set, debug information is written to the log
- * Actions:
- *     redirect "http://example.tld/";
- *         - redirects the client, substituting all placeholders. $0..$9 get replaced by empty strings.
- *     redirect "regex" => "/new/path";
- *         - redirects client if "regex" matched the request.path.
- *         - $0..$9 get replaced by the captured substrings of the regular expression "regex".
- *     redirect ("regex1" => "/new/path1", ..., "regexN" => "/new/pathN");
- *         - traverses the list of redirect rules.
- *         - redirects client to the corresponding "/new/path" if the regex matches and stops traversing the list.
- *
- * Example config:
- *     # redirect all non www. requests. for example: foo.tld/bar?x=y to www.foo.tld/bar?x=y
- *     if request.host !~ "^www\.(.*)$" {
- *         redirect "." => "http://www.%1/$0?%{request.query}";
- *     }
- *
- *
- * Tip:
- *     As both config parser and regex compiler use backslashes to escape special characters, you will have to escape them twice.
- *     For example "^foo\\dbar$" will end up as "^foo\dbar$" as regex input, which would match things like "foo3bar".
- *
  * Todo:
- *     none
+ *     support "//example.com/path" targets, keeping the current scheme
  *
  * Authors:
  *     Copyright (c) 2009 Thomas Porzelt

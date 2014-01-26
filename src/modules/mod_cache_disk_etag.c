@@ -1,23 +1,6 @@
 /*
  * mod_cache_disk_etag - cache generated content on disk if etag header is set
  *
- * Description:
- *     cache generated content on disk if etag header is set
- *
- * Setups:
- *     none
- * Options:
- *     none
- * Actions:
- *     cache.disk.etag <path>  - cache in specified directory
- *         path: string
- *       This blocks action progress until the response headers are
- *       done (i.e. there has to be a content generator before it (like fastcgi/static file)
- *       You could insert it multiple times of course (e.g. before and after deflate).
- *
- * Example config:
- *     cache.disk.etag "/var/lib/lighttpd/cache_etag"
- *
  * Todo:
  *  - use stat cache
  *

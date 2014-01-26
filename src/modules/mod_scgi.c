@@ -1,19 +1,5 @@
 /*
- * mod_scgi - connect to scgi backends for generating content
- *
- * Description:
- *     mod_scgi connects to a backend over tcp or unix sockets
- *
- * Setups:
- *     none
- * Options:
- *     none
- * Actions:
- *     scgi <socket>  - connect to backend at <socket>
- *         socket: string, either "ip:port" or "unix:/path"
- *
- * Example config:
- *     scgi "127.0.0.1:9090"
+ * mod_scgi - connect to SCGI backends for generating response content
  *
  * Author:
  *     Copyright (c) 2013 Stefan Bühler

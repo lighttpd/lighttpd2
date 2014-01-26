@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>connect to FastCGI backends for generating response content</short>
+
+	<action name="fastcgi">
+		<short>connect to FastCGI backend</short>
+		<parameter name="socket">
+			<short>socket to connect to, either "ip:port" or "unix:/path"</short>
+		</parameter>
+		<description>
+			<textile>
+				Don't confuse FastCGI with CGI! Not all CGI backends can be used as FastCGI backends (but you can use "fcgi-cgi":https://redmine.lighttpd.net/projects/fcgi-cgi/wiki to run CGI backends with lighttpd2).
+			</textile>
+		</description>
+		<example>
+			<config>
+				fastcgi "127.0.0.1:9090"
+			</config>
+		</example>
+		<example>
+			<description>
+				<textile>
+					Start php for example with spawn-fcgi: @spawn-fcgi -n -s /var/run/lighttpd2/php.sock -- /usr/bin/php5-cgi@
+				</textile>
+			</description>
+			<config>
+				setup {
+					module_load "mod_fastcgi";
+				}
+
+				if phys.path =$ ".php" {
+					fastcgi "unix:/var/run/lighttpd2/php.sock";
+				}
+			</config>
+		</example>
+	</action>
+</module>

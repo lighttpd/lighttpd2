@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>redirect clients by sending a http status code 301 plus Location header</short>
+
+	<description>
+		<textile>
+			It supports matching "regular expressions":core_regex.html#core_regex and "substitution":core_pattern.html#core_pattern with captured substrings as well as other placeholders.
+		</textile>
+	</description>
+
+	<action name="redirect">
+		<short>redirect clients</short>
+		<parameter name="rule">
+			<short>a simple target string or one rule, mapping a regular expression to a target string, or a list of rules.</short>
+		</parameter>
+		<description>
+			<textile>
+				* The target string is a "pattern":core_pattern.html#core_pattern.
+				* The "regular expressions":core_regex.html#core_regex are used to match the request path (always starts with "/"!)
+				* If a list of rules is given, redirect stops on the first match.
+				* By default the target string is interpreted as absolute uri; if it starts with '?' it will replace the query string, if it starts with '/' it will replace the current path, and if it starts with './' it is interpreted relative to the current "directory" in the path.
+			</textile>
+		</description>
+		<example title="Example: redirect always (http to https)">
+			<config>
+				setup {
+					module_load "mod_redirect";
+				}
+				if request.scheme == "http" {
+					if request.query == "" {
+						redirect "https://%{request.host}%{enc:request.path}";
+					} else {
+						redirect "https://%{request.host}%{enc:request.path}?%{request.query}";
+					}
+				}
+			</config>
+		</example>
+		<example title="Example: redirect always (prepend www)">
+			<config>
+				setup {
+					module_load "mod_redirect";
+				}
+				if request.host !~ "^www\.(.*)$" {
+					if request.query == "" {
+						redirect "http://www.%{request.host}%{enc:request.path}";
+					} else {
+						redirect "http://www.%{request.host}%{enc:request.path}?%{request.query}";
+					}
+				}
+			</config>
+		</example>
+		<example title="Example: redirect if match">
+			<config>
+				setup {
+					module_load "mod_redirect";
+				}
+				redirect "^/old_url$" => "http://new.example.tld/url"
+			</config>
+		</example>
+
+		<example>
+			<description>
+				redirect all non www. requests. for example: foo.tld/bar?x=y to www.foo.tld/bar?x=y
+			</description>
+			<config>
+				if request.host !~ "^www\.(.*)$" {
+					redirect "." => "http://www.%1/$0?%{request.query}";
+				}
+			</config>
+		</example>
+	</action>
+
+	<option name="redirect.debug">
+		<short>enable debug output</short>
+		<default><value>false</value></default>
+	</option>
+</module>

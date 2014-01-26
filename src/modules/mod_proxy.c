@@ -1,19 +1,5 @@
 /*
- * mod_proxy - connect to proxy backends for generating content
- *
- * Description:
- *     mod_proxy connects to a backend over tcp or unix sockets
- *
- * Setups:
- *     none
- * Options:
- *     none
- * Actions:
- *     proxy <socket>  - connect to backend at <socket>
- *         socket: string, either "ip:port" or "unix:/path"
- *
- * Example config:
- *     proxy "127.0.0.1:9090"
+ * mod_proxy - connect to HTTP backends for generating response content
  *
  * TODO:
  *     - keep-alive connections

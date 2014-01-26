@@ -1,26 +1,6 @@
 /*
  * mod_accesslog - log access to the server
  *
- * Description:
- *     mod_accesslog can log requests handled by lighttpd to files, pipes or syslog
- *     the format of the logs can be customized by using printf-style placeholders
- *
- * Setups:
- *     none
- * Options:
- *     accesslog = <file>;           - log target
- *         type: string
- *         default: none
- *     accesslog.format = <format>;  - log format
- *         type: string
- *         default: "%h %V %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
- * Actions:
- *     none
- *
- * Example config:
- *     accesslog = "/var/log/lighttpd/access.log";
- *     accesslog.format = "%h %V %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"";
- *
  * Todo:
  *     - implement format key for %t: %{format}t
  *     - implement missing format identifiers

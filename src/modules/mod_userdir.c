@@ -1,25 +1,6 @@
 /*
  * mod_userdir - user-specific document roots
  *
- * Description:
- *     mod_userdir allows you to have user-specific document roots being accessed through http://domain/~user/
- *
- * Setups:
- *     none
- *
- * Options:
- *     none
- *
- * Actions:
- *     userdir <path>;
- *         - if not starting with a slash, maps a request path of /~user/ to a docroot of ~user/<path>/
- *         - if starting with a slash, maps a request path of /~user/ to a docroot of <path>
- *         - * in <path> is replaced by the requested username
- *         - $1-9 are replace by the n-th letter of the requested username
- *
- * Example config:
- *     userdir "public_html"; # maps /~lighty/ to ~lighty/public_html/ (e.g. /home/lighty/public_html/ on most systems)
- *
  * Todo:
  *     - userdir.exclude / userdir.include options/setups to allow certain users to be excluded or included
  *

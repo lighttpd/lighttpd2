@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<chapter xmlns="urn:lighttpd.net:lighttpd2/doc1" title="Main Configuration">
+
+	<description>
+		<textile>
+			At the heart of each webserver is the configuration file. It controls the whole behaviour and therefore has to be mighty but at the same time easy enough to get the desired results without hassle.
+			In the lighttpd config you control how it reacts on requests. To achieve this you have to express some kind of logic - just like in a programming language.
+		</textile>
+	</description>
+
+	<section title="Basic Syntax">
+		<textile><![CDATA[
+			The syntax for the lighttpd 2.0 configuration file is somewhat similar to various programming languages - kind of a mixture. But don't be afraid, it is really simple. No pointers involved :)
+			The basic blocks are "values":#core_config__values, "variables":#core_config__variables, "function calls":#core_config__funcalls and "conditions":#core_config__conditions.
+		]]></textile>
+	</section>
+
+	<section title="Values" anchor="values">
+		<section title="Boolean">
+			<textile><![CDATA[
+				There are two boolean values:
+				* @true@
+				* @false@
+			]]></textile>
+		</section>
+
+		<section title="Integers">
+			<textile><![CDATA[
+				Integers are stored as signed ints with 64 bits (max value around 9 * 10^18). There are three basic ways to use them:
+				* decimal integers: starting with any non zero digit, like @128@
+				* octal integers: starting with a zero, like @0644@
+				* hexadecimal integers: starting with @0x@ like @0xff@
+
+				All three can have a suffix representing a factor the number gets multiplied with:
+				* @byte@: @1@
+				* @kbyte@: @1024@
+				* @mbyte@: @1024*1024@
+				* @gbyte@: @1024*1024*1024@
+				* @tbyte@: @1024*1024*1024*1024@
+				* @pbyte@: @1024*1024*1024*1024*1024@
+				* @bit@: @1 / 8@
+				* @kbit@: @1024 / 8@
+				* @mbit@: @1024*1024 / 8@
+				* @gbit@: @1024*1024*1024 / 8@
+				* @tbit@: @1024*1024*1024*1024 / 8@
+				* @pbit@: @1024*1024*1024*1024*1024 / 8@
+				* @sec@: @1@
+				* @min@: @60@
+				* @hours@: @3600@
+				* @days@: @24*3600@
+
+				For sizes the base unit is byte, and for intervalls seconds.
+			]]></textile>
+		</section>
+
+		<section title="Strings">
+			<textile><![CDATA[
+				There are 4 ways to specify a string:
+				* @'hello world'@
+				* @"hello world"@
+				* @e'hello world'@
+				* @e"hello world"@
+
+				The basic escape rules are the same for both:
+				* @"\n"@ is a newline, @"\r"@ a carriage return, @"\t"@ a tab stop
+				* @"\\"@ is one @\@, @"\""@ is one double quote @"@ and @"\'"@ a single quote @'@
+				* escaping single/double quote is optional if the symbol is not used to terminate the string, i.e. @'\"'@ = @'"'@ and @"\'"@ = @"'"@
+				* @"\xNN"@: NN must be hexadecimal characters, and the string is replaced with the decoded 8-bit value as a single byte
+				* All other @\@ occurences are *not* removed from the string.
+
+				The @e'..'@ and @e"..."@ variant do not allow any occurences of the last kind to happen.
+
+				All other characters are allowed (the strings are parsed as 8-bit binary; lighttpd2 usually doesn't care about the encoding).
+			]]></textile>
+		</section>
+
+		<section title="Lists">
+			<textile><![CDATA[
+				Lists are ordered collections of other values:
+				* @[1, true, "foo"]@ (simple list)
+				* @[]@ (empty list)
+				* @[1]@ (list with one element)
+				* @[[1,2],[3,4],5]@ (nested lists)
+				* @[1,2,]@ (final value can have a trailing @,@ too)
+				* @(1, 2, 3)@ (alternative brackets with more than one element)
+
+				Note that @(1)@ is not a list; parentheses can also be used to group expressions as in @1*(2+3)@, and it is therefore recommend to use only @[]@ to specify lists.
+			]]></textile>
+		</section>
+
+		<section title="Key-Value Lists">
+				<textile><![CDATA[
+				Key-value lists associates keys to values (both can be of any type); the syntax is:
+				* @[ "a" => 1, "b" => 10 ]@
+
+				As with normal lists the final value can have a trailing @,@ too. You cannot mix simple values and key-value associations in one list (nesting them works).
+
+				The @key => value@ operator is also only syntactic sugar for a @[key, value]@ list, the above example is the same as:
+				* @[ [a, 1], [b, 10] ]@
+
+				This especially means that key-value lists are ordered too, although they can get converted to hash tables in certain function calls internally.
+			]]></textile>
+		</section>
+
+		<section title="Expressions">
+			<textile><![CDATA[
+				There are operators available for some value types:
+				* for integers: @+@, @-@, @*@ and @/@
+				* for strings: @+@ (concatenate two strings)
+				* for lists: @+@ (append lists)
+
+				Also you can cast strings and booleans to integers and any value to strings:
+				* @cast(int) "256"@ (only supports decimal representations and no suffix like above)
+				* @cast(int) true@ (@true@ maps to @1@ and @false@ to @0@)
+				* @cast(string) 5@
+
+				Expressions can be grouped to override default association:
+				* @3 * (1 + 2)@ vs. @3 * 1 + 2@ and so on
+			]]></textile>
+		</section>
+
+		<section title="Action Blocks">
+			<textile><![CDATA[
+				An action block consists of a list of function calls (in action context) and conditionals; it is treated like a value, i.e. can be assigned to variables and used as parameter in function calls.
+
+				Action blocks can also contain variable assignments and setup blocks/function calls, which are not part of the "action block value" itself, but are evaluated while parsing the config.
+
+				The syntax is:
+
+				<pre>
+				{
+					log "hello world";
+					if req.path =$ ".hidden" { static; }
+				}
+				</pre>
+
+				The complete config is an action block too (but without the surrounding curly braces); conditionals also use action blocks for their branches.
+
+				Each action block that is not a condition branch starts a new nested variable scope;
+			]]></textile>
+		</section>
+
+		<section title="Variables" anchor="variables">
+			<textile><![CDATA[
+				Variable names start with a alphabetic character (@a-z@ and @A-Z@) or an underscore @_@, and are followed by alphanumeric characters, underscores @_@ and dots @.@; keywords are not allowed as variable names.
+
+				Variables store values, and the name can be used in place of an actual value; later modifications to a variable have no influence on previous uses (i.e. are only evaluated while *parsing* the config).
+
+				Variables are assigned values with @=@ (and a terminating @;@)
+
+				<pre>
+				my_types = [".txt" => "text/html"];
+				php = {
+					if phys.path =$ ".php" { fastcgi "unix:/var/run/lighttpd/php.sock"; }
+				};
+				</pre>
+
+				By default variables assignment overwrites an existing variable (in its previous scope) or, if it doesn't exist, creates a new one in the local scope (i.e. it will only be available in the current scope and nested descendants).
+
+				You can explicitly create a new variable in the local scope (hiding variables in parent scopes with the same name) by prefixing the assignment with @local@:
+				@local wwwpath = "/var/www/example.com";
+
+				You can also create variables in the global scope by prefixing the assignment with @global@.
+				The main config already is in a nested scope (i.e. *not* the global scope). The global scope is not destroyed after config loading, and can be used in delayed config loading (say from SQL in the future).
+
+				If a variable name is used in a context it will always use the definition from the nearest scope.
+			]]></textile>
+
+			<example>
+				<description>
+					This example illustrates that variables are evaluated while parsing the config.
+				</description>
+				<config>
+					foo = "bar";
+					if req.path == "/somepath" {
+						foo = "baz";
+					}
+
+					# at this point foo will ALWAYS contain "baz" no matter if "/somepath" was requested or not
+				</config>
+			</example>
+
+			<example>
+				<description>
+					This example illustrates scoping.
+				</description>
+				<config>
+					foo = "bar";
+					php = {
+						local foo = "baz";
+						# in this block (and nested blocks within) foo is now "baz"
+						# ...
+					};
+					# foo is now "bar" again
+				</config>
+			</example>
+		</section>
+
+		<section title="Special Variables">
+			<textile><![CDATA[
+				@sys.*@ variables are readonly. right now the following @sys.*@ variables are available:
+				* @sys.pid@: the process id of lighttpd
+				* @sys.cwd@: the current working directory
+				* @sys.env.X@: the system environment variable with name @X@ (for any @X@)
+			]]></textile>
+		</section>
+	</section>
+
+	<section title="Function calls" anchor="funcalls">
+		<textile><![CDATA[
+			There are three types of function calls:
+			* actions
+			* setups
+			* options
+
+			Actions can only be used in action (block) context, setups only in setup (block) context, and options can be used in both.
+
+			A setup context is started with the keyword @setup@, and is followed by either a single setup function call or a setup block.
+
+			Setup function calls are run immediately when they occur (they are used to "setup" the webserver environment, like listening on TCP sockets, and setting default options), while action function calls are run for each request (mapping request urls to physical paths, handling requests, modifying the default options).
+
+			The actions, setups and options are provided by the "modules":index_modules.html#index_modules.
+		]]></textile>
+
+		<section title="Includes">
+			<textile><![CDATA[
+				Includes are similar to function calls in the syntax, but are directly handled by the config parser. They are only allowed in action context, as they insert a reference to an action block at the point they are used.
+
+				There are three types of includes:
+				* @include "/etc/lighttpd/vhosts/*.conf";@: include files like the main config itself; the path can contain wildcards
+				* @include_shell "/etc/lighttpd/config_generator.sh";@: runs the specified command, and parses the output of it as config file
+				* @include_lua "/etc/lighttpd/complex.lua"@: includes a Lua config file
+
+				Includes also create a new nested scope.
+			]]></textile>
+		</section>
+
+		<section title="Debug Print">
+			<textile><![CDATA[
+				Similar to includes @__print@ is a special function, but is available in action and setup context. It logs the string values of its parameter(s) with log level "debug".
+			]]></textile>
+		</section>
+	</section>
+
+	<section title="Conditions" anchor="conditions">
+		<textile><![CDATA[
+			Conditions (known from Lighttpd 1.x) are the equivalent to "if"s in most programming languages. There are also "else" and "elseif" equivalents.
+			They are created by a comparison of a condition variable and a value that is evaluated at runtime (for each request).
+			Conditions can be nested, and you can group them with @and@ and @or@ operators. @and@ binds stronger than @or@, although it is preferred to group them with parentheses.
+		]]></textile>
+
+		<example>
+			<config>
+				if req.host == "mydomain.tld" {
+					if req.path == "/" or req.path == "/index.html" {
+						static;
+					} else if req.path == "/upload" {
+						if req.content_length > 100mbyte {
+							access.deny;
+						} else {
+							proxy "127.0.0.1:8080";
+						}
+					}
+				}
+			</config>
+		</example>
+
+		<section title="Syntax">
+			<textile><![CDATA[
+				The basic syntax forms are:
+				* @if <expr> { ... }@
+				* @if <expr> { ... } else { ... }@
+				* @if <expr> { ... } else if <expr2> { ... }@
+				* @if <expr> { ... } else if <expr2> { ... } ...@ (continue with @else@ or @else if@)
+
+				A condition expression @<expr>@ is:
+				* @(<expr>)@
+				* @<expr1> and <expr2>@
+				* @<expr1> or <expr1>@ (@<expr1> and <expr2> or <expr3>@ = @(<expr1> and <expr2>) or <expr3>@; @and@ has higher precedence)
+				* @<condvar> <op> <value>@ for @<condvar>@ being a condition variable (with a type different from boolean), @<op>@ an condition operator and @<value>@ a string or a number.
+				* @<condvar>@ or @!<condvar>@ for a boolean condition variable.
+			]]></textile>
+		</section>
+
+		<section title="Condition variables" anchor="condition_vars">
+			<textile><![CDATA[
+				There are three categories of condvars:
+				* request.xyz (can be abbreviated by req.xyz)
+				* physical.xyz (can be abbreviated by phys.xyz)
+				* response.xyz (can be abbreviated by resp.xyz)
+
+				table(table table-striped).
+				|_. variable |_. description |
+				| req.localip | ip address of the listing socket, the client connected to (filename for unix sockets) |
+				| req.localport | port number of the listening socket, -1 for unix sockets |
+				| req.remoteip | ip address of the client |
+				| req.remoteport | port number of the client, -1 for unix sockets |
+				| req.path | the _path_ part of the requested url. not including the querystring. |
+				| req.host | requested hostname |
+				| req.scheme | scheme of the request. "http" or "https" |
+				| req.query | the _querystring_ of the requested url |
+				| req.method | method of the request. "GET", "POST", "HEAD" etc. |
+				| req.length | integer. length of the content for e.g. POST methods |
+				| req.header["name"] | request header _name_ e.g. req.header["referer"] |
+				| req.is_handled | boolean condition, does request already have a handler (static, fastcgi..) |
+				| req.env["name"] | (short for req.environment["name"]) CGI environment |
+				| | |
+				| phys.path | physical path of the file to be served. e.g. document root + path |
+				| phys.exists | boolean condition, indicates whether the requested file exist |
+				| phys.size | integer. size of the requested file. -1 if file doesn't exist |
+				| phys.is_dir | boolean condition, indicates whether the requested file is a directory |
+				| phys.is_file | boolean condition, indicates whether the requested file is a normal file (e.g. no unix socket etc) |
+				| phys.docroot | document root |
+				| phys.pathinfo | pathinfo |
+				| | |
+				| resp.status | response status code (blocks request until response header is available) |
+				| resp.header["name"] | response header (blocks request until response header is available) |
+			]]></textile>
+		</section>
+
+		<section title="Condition operators">
+			<textile><![CDATA[
+				table(table table-striped).
+				|_. op |_. description |_. op |_. description |
+				| <notextile>==</notextile> | compares two values on equality | != | negative == |
+				| <= | less than or equal | < | less than |
+				| >= | greater than or equal | > | greater than |
+				| =~ | regular expression match | !~ | negative =~ |
+				| =^ | prefix match | !^ | negative =^ |
+				| =$ | suffix match | !$ | negative =$ |
+				| =/ | cidr match | !/ | negative =/ |
+			]]></textile>
+		</section>
+
+	</section>
+</chapter>

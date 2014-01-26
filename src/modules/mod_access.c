@@ -1,39 +1,6 @@
 /*
  * mod_access - restrict access to the webserver for certain clients
  *
- * Description:
- *     mod_access lets you filter clients by IP address.
- *
- * Setups:
- *     access.load "file";
- *         - Loads access rules from a file. One rule per line in the format <action> <ip>.
- *           Example file (\n is newline): allow 127.0.0.1\ndeny 10.0.0.0/8\nallow 192.168.0.0/24
- * Options:
- *     access.redirect_url = "url";
- *         - if set, clients are redirected to this url if access is refused
- * Actions:
- *     access.deny;
- *         - Denies access by returning a 403 status code
- *     access.check ("allow" => iplist, "deny" => iplist);
- *         - "allow" and "deny" are optional. If left out, they default to "all"
- *         - iplists are lists of strings representing IP addresses with optional CIDR suffix
- *         - To represent all IPs, you can either use "x.x.x.x/0" or "all"
- *
- * Example config:
- *     access.redirect_url = "http://www.example.tld/denied.html";
- *     access.check (
- *         "allow" => ("127.0.0.0/24", "192.168.0.0/16", "::1"),
- *         "deny" => ( "all" )
- *     );
- *     if req.path =$ ".inc" { access.deny; }
- *
- *     This config snippet will grant access only to clients from the local network (127.0.0.* or 192.168.*.*).
- *     Additionally it will deny access to any file ending with ".inc", no matter what client.
- *     Clients that are denied access, will be redirected to http://www.example.tld/denied.html
- *
- * Tip:
- *     none
- *
  * Todo:
  *     - access.redirect_url
  *

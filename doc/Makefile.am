@@ -1,1 +1,42 @@
 dist_man8_MANS=lighttpd2.8 lighttpd2-worker.8
+EXTRA_DIST=\
+	jquery-1.10.1.min.js \
+	bootstrap.min.js \
+	bootstrap.min.css \
+	bootstrap-theme.min.css \
+	style.css \
+	doc_schema.xsd \
+	core_config.xml \
+	core_fetch.xml \
+	core_pattern.xml \
+	core_regex.xml \
+	mod_accesslog.xml \
+	mod_access.xml \
+	mod_auth.xml \
+	mod_balance.xml \
+	mod_cache_disk_etag.xml \
+	mod_core.lua.xml \
+	mod_debug.xml \
+	mod_deflate.xml \
+	mod_dirlist.xml \
+	mod_expire.xml \
+	mod_fastcgi.xml \
+	mod_flv.xml \
+	mod_fortune.xml \
+	mod_gnutls.xml \
+	mod_limit.xml \
+	mod_lua.xml \
+	mod_memcached.xml \
+	mod_openssl.xml \
+	mod_progress.xml \
+	mod_proxy.xml \
+	mod_redirect.xml \
+	mod_rewrite.xml \
+	mod_scgi.xml \
+	mod_secdownload.lua.xml \
+	mod_status.xml \
+	mod_throttle.xml \
+	mod_userdir.xml \
+	mod_vhost.xml \
+	plugin_core.xml \
+	compile.rb

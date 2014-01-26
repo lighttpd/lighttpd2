@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<chapter xmlns="urn:lighttpd.net:lighttpd2/doc1" title="Regular expressions">
+	<description>
+		<textile>
+			lighttpd2 uses the "Perl-compatible regular expressions" implementation from GLib, see their "Regular expression syntax":https://developer.gnome.org/glib/stable/glib-regex-syntax.html documentation.
+
+			The config format has different ways to provide strings (you can quote with either @'@ or @"@; the character used to quote has to be escaped with @\@ if used inside the string).
+			The simple (standard) way @"text"@ has the following escape rules:
+			* @"\n"@ is a newline, @"\r"@ a carriage return, @"\t"@ a tab stop
+			* @"\\"@ is one @\@, @"\""@ is one double quote @"@ and @"\'"@ a single quote @'@
+			* escaping single/double quote is optional if the symbol is not used to terminate the string, i.e. @'\"'@ = @'"'@ and @"\'"@ = @"'"@
+			* @"\xNN"@: NN must be hexadecimal characters, and the string is replaced with the decoded 8-bit value as a single byte
+			* All other @\@ occurences are *not* removed from the string.
+
+			This way is the preferred one for regular expressions; only to actually match a @\@ you have to do additional escaping (@"\\\\"@; @"\x5C"@ = @"\\"@ is not working), and @\\@ is usually not doing what you wanted (matching a digit: @"\\d"@ = @"\d"@). All other escape rules are compatible with what pcre is doing.
+
+			The second way is to place an @e@ before the string like this: @e"text"@. It has the same rules like the normal string, but does not allow unknown escape sequences (the last rule above).
+			To match a digit with pcre this way you'd have to write @e"\\d"@ instead of @"\d"@.
+		</textile>
+	</description>
+</chapter>

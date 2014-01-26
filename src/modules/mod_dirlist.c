@@ -1,47 +1,6 @@
 /*
  * mod_dirlist - directory listing
  *
- * Description:
- *     mod_dirlist enables you to list files inside a directory.
- *     The output can be customized in various ways from style via css to excluding certain entries.
- *
- * Setups:
- *     none
- * Options:
- *     none
- * Actions:
- *     dirlist [options] - show directory listing
- *         options: optional (not required), array, can contain any of the following string => value pairs:
- *             "sort" => criterium             - string, one of "name", "size" or "type"
- *             "css" => url                    - string, external css to use for styling, default: use internal css
- *
- *             "hide-dotfiles" => bool         - hide entries beginning with a dot, default: true
- *             "hide-tildefiles" => bool       - hide entries ending with a tilde (~), often used for backups, default: true
- *             "hide-directories" => bool      - hide directories from the directory listing, default: false
- *
- *             "include-header" => bool        - include HEADER.txt above the directory listing, default: false
- *             "hide-header" => bool           - hide HEADER.txt from the directory listing, default: false
- *             "encode-header" => bool         - html-encode HEADER.txt (if included), set to false if it contains real HTML, default: true
- *
- *             "include-readme" => bool        - include README.txt below the directory listing, default: true
- *             "hide-readme" => bool           - hide README.txt from the directory listing, default: false
- *             "encode-readme" => bool         - html-encode README.txt (if included), set to false if it contains real HTML, default: true
- *
- *             "exclude-suffix" => suffixlist  - list of strings, filter entries that end with one of the strings supplied
- *             "exclude-prefix" => prefixlist  - list of strings, filter entries that begin with one of the strings supplied
- *
- *             "debug" => bool                 - outout debug information to log, default: false
- *
- * Example config:
- *     if req.path =^ "/files/" {
- *         dirlist ("include-header" => true, "hide-header" => true, "hide->suffix" => (".bak"));
- *     }
- *         - shows a directory listing including the content of HEADER.txt above the list and hiding itself from it
- *           also hides all files ending in ".bak"
- *
- * Tip:
- *     xyz
- *
  * Todo:
  *     - make output generating "async", give up control every N entries
  *     - filters for entries (pattern, regex)
@@ -779,8 +738,6 @@ static liAction* dirlist_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 }
 
 static const liPluginOption options[] = {
-	{ "dirlist.debug", LI_VALUE_BOOLEAN, 0, NULL },
-
 	{ NULL, 0, 0, NULL }
 };
 

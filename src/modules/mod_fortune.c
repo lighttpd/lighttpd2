@@ -1,28 +1,6 @@
 /*
  * mod_fortune - fortune cookies for everyone
  *
- * Description:
- *     mod_fortune loads quotes (aka fortune coookies) from a file and provides actions
- *     to add a random quote as response header (X-fortune) or display it as a page
- *
- * Setups:
- *     fortune.load <filename> - loads cookies from a file, can be called multiple times to load data from multiple files
- * Options:
- *     none
- * Actions:
- *     fortune.header          - adds a random quote as response header X-fortune
- *     fortune.page            - returns a random quote as response content
- *
- * Example config:
- *     setup {
- *         fortune.load "/var/www/fortunes.txt";
- *     }
- *
- *     req.path == "/fortune" {
- *         fortune.page;
- *     } else {
- *         fortune.header;
- *     }
  */
 
 #include <lighttpd/base.h>

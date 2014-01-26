@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>connect to HTTP backends for generating response content</short>
+
+	<action name="proxy">
+		<short>connect to HTTP backend</short>
+		<parameter name="socket">
+			<short>socket to connect to, either "ip:port" or "unix:/path"</short>
+		</parameter>
+		<example>
+			<config>
+				setup {
+					module_load "mod_proxy";
+				}
+
+				proxy "127.0.0.1:8080";
+			</config>
+		</example>
+	</action>
+</module>

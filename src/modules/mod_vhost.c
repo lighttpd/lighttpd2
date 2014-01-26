@@ -1,36 +1,6 @@
 /*
  * mod_vhost - virtual hosting
  *
- * Description:
- *     mod_vhost offers various ways to implement virtual webhosts.
- *     It can map hostnames to actions and offers multiple ways to do so.
- *     These ways differ in the flexibility of mapping (what to map and what to map to) as well as performance.
- *
- * Setups:
- *     none
- * Options:
- *     vhost.debug = <true|false> - enable debug output
- * Actions:
- *     vhost.map ( "host1" => action1, "host2" => action2, "default" => action0 );
- *         - lookup action by using the hostname as the key of the hashtable
- *         - if not found, use default action
- *         - fast and flexible but no matching on hostnames possible
- *     vhost.map_regex ( "host1regex" => action1, "host2regex" => action2, "default" => action0 );
- *         - lookup action by traversing the list and applying a regex match of the hostname on each entry
- *         - uses first matching entry; if no match, use default action
- *         - slowest method but the most flexible one
- *
- * Example config:
- *
- *     mydom1 {...} mydom2 {...} defaultdom {...}
- *     vhost.map ( "dom1.com" => mydom1, "dom2.tld" => mydom2, "default" => defaultdom );
- *     vhost.map_regex ( "^(.+\.)?dom1\.com$" => mydom1, "^dom2\.(com|net|org)$" => mydom2, "default" => defaultdom );
- *
- * Tip:
- *     You can combine vhost.map and vhost.map_regex to create a reasonably fast and flexible vhost mapping mechanism.
- *     Just use a vhost.map_regex action as the default fallback action in vhost.map.
- *     This way, the expensive vhost.map_regex is only used if the vhost was not found in vhost.map.
- *
  * Todo:
  *     -
  *

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>displays a page with internal statistics like amount of requests (total or per second), active connections etc.</short>
+
+	<option name="status.css">
+		<short>defines the stylesheet to use. available: unset (default), "blue" or any url you wish</short>
+		<parameter name="url" />
+		<default><text>not set</text></default>
+		<example>
+			<config>
+				status.css = "blue";
+			</config>
+		</example>
+	</option>
+
+	<action name="status.info">
+		<short>returns the status page to the client</short>
+		<parameter name="mode">
+			<short>(optional) "short"</short>
+		</parameter>
+		<description>
+			<textile>
+				The "short" mode removes connection and runtime details (recommended for "public" status).
+
+				The status page accepts the following query-string parameters:
+				*  @?mode=runtime@: shows the runtime details
+				* "@format=plain@: shows the "short" stats in plain text format
+			</textile>
+		</description>
+		<example>
+			<description>
+				If /server-status is requested, a page with lighttpd statistics is displayed.
+			</description>
+			<config>
+				setup {
+					module_load "mod_status";
+				}
+
+				if req.path == "/server-status" {
+					status.info;
+				}
+			</config>
+		</example>
+	</action>
+</module>

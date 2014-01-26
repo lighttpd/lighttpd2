@@ -1,27 +1,5 @@
 /*
- * mod_lua - include lua actions
- *
- * Description:
- *     mod_lua
- *
- * Setups:
- *     lua.plugin (filename, { options }, <lua-args>)
- *         - No options available yet
- *         - Can register setup.* and action.* callbacks (like any c module)
- *           via creating a setups / actions table in the global lua namespace
- * Options:
- *     none
- * Actions:
- *     lua.handler (filename, { "ttl" => 300 }, <lua-args>)
- *         - Basically the same as include_lua (no setup.* calls allowed), but loads the script
- *           in a worker specific lua_State, so it doesn't use the server wide lua lock.
- *         - You can give a ttl, after which the file is checked for modifications
- *           and reloaded. The default value 0 disables reloading.
- *         - The third parameter is available as second parameter in the lua file:
- *             local filename, args = ...
- *
- * Example config:
- *     lua.handler "/etc/lighttpd/pathrewrite.lua";
+ * mod_lua - load lua plugins and actions
  *
  * Todo:
  *     - Add more lua plugin features (plugin hooks)

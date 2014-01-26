@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>provides flash pseudo streaming</short>
+
+	<action name="flv">
+		<short>pseudo stream the current file as flash</short>
+		<description>
+			<textile>
+				Lets flash players seek with the "start" query string parameter to an (byte) offset in the file, and prepends a simple flash header before streaming the file from that offset.
+
+				Uses "video/x-flv" as hard-coded content type.
+			</textile>
+		</description>
+		<example>
+			<config>
+				if phys.path =$ ".flv" {
+					flv;
+				}
+			</config>
+		</example>
+		<example>
+			<description>
+				<textile>
+					Use caching and bandwidth throttling to save traffic. Use a small burst threshold to prevent the player from buffering at the beginning.
+
+					This config will make browsers cache videos for 1 month and limit bandwidth to 150 kilobyte/s after 500 kilobytes.
+				</textile>
+			</description>
+			<config>
+				if phys.path =$ ".flv" {
+					expire "access 1 month";
+					io.throttle 500kbyte => 150kbyte;
+					flv;
+				}
+			</config>
+		</example>
+	</action>
+</module>

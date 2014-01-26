@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<schema
+	xmlns="http://www.w3.org/2001/XMLSchema"
+	xmlns:d="urn:lighttpd.net:lighttpd2/doc1"
+	targetNamespace="urn:lighttpd.net:lighttpd2/doc1"
+	elementFormDefault="qualified">
+
+	<!-- root nodes -->
+	<element name="module" type="d:ModuleType" />
+	<element name="chapter" type="d:ChapterType" />
+
+	<complexType name="ModuleType">
+		<sequence>
+			<!-- a module requires a short description -->
+			<element name="short" type="string" />
+			<!-- optional description to print below ToC -->
+			<element name="description" type="d:DescriptionType" minOccurs="0" />
+
+			<!-- a module cannot contain more simple text; include it in a section -->
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="action" type="d:ActionSetupType" />
+				<element name="setup" type="d:ActionSetupType" />
+				<element name="option" type="d:OptionType" />
+
+				<element name="example" type="d:ExampleType" />
+				<element name="section" type="d:ModuleSectionType" />
+			</choice>
+		</sequence>
+
+		<!-- optional title, defaults to module name, which is the basename -->
+		<attribute name="title" type="token" use="optional" />
+		<!-- order modules / chapters. defaults to name -->
+		<attribute name="order" type="Name" use="optional" />
+	</complexType>
+
+	<complexType name="ActionSetupParameterTypeParameterTableEntryType">
+		<sequence>
+			<element name="short" type="string" />
+		</sequence>
+		<attribute name="name" type="Name" use="required" />
+	</complexType>
+
+	<complexType name="ActionSetupParameterTypeParameterTableType">
+		<sequence>
+			<element name="entry" type="d:ActionSetupParameterTypeParameterTableEntryType" maxOccurs="unbounded" />
+		</sequence>
+	</complexType>
+
+	<complexType name="ActionSetupParameterType">
+		<choice>
+			<element name="short" type="string" />
+			<element name="table" type="d:ActionSetupParameterTypeParameterTableType" />
+		</choice>
+
+		<!-- a parameter requires a name -->
+		<attribute name="name" type="Name" use="required" />
+	</complexType>
+
+	<complexType name="ActionSetupType">
+		<sequence>
+			<element name="short" type="string" />
+			<element name="parameter" type="d:ActionSetupParameterType" minOccurs="0" maxOccurs="unbounded" />
+			<element name="description" type="d:DescriptionType" minOccurs="0" />
+			<element name="example" type="d:ExampleType" minOccurs="0" maxOccurs="unbounded" />
+		</sequence>
+		<attribute name="name" type="Name" use="required" />
+	</complexType>
+
+	<complexType name="OptionParameterType">
+		<!-- a parameter requires a name -->
+		<attribute name="name" type="Name" use="required" />
+	</complexType>
+
+	<complexType name="OptionDefaultType">
+		<choice>
+			<element name="text" type="string" />
+			<element name="value" type="string" />
+		</choice>
+	</complexType>
+
+	<complexType name="OptionType">
+		<sequence>
+			<element name="short" type="string" />
+			<!-- has exactly one parameter, defaults to name "value" -->
+			<element name="parameter" type="d:OptionParameterType" minOccurs="0" />
+			<element name="default" type="d:OptionDefaultType" />
+			<element name="description" type="d:DescriptionType" minOccurs="0" />
+			<element name="example" type="d:ExampleType" minOccurs="0" maxOccurs="unbounded" />
+		</sequence>
+		<attribute name="name" type="Name" use="required" />
+	</complexType>
+
+	<complexType name="DescriptionType" mixed="true">
+		<sequence>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="html" type="anyType" />
+				<element name="textile" type="anyType" />
+				<element name="markdown" type="anyType" />
+			</choice>
+		</sequence>
+	</complexType>
+
+	<complexType name="ExampleType">
+		<sequence>
+			<element name="description" type="d:DescriptionType" minOccurs="0" />
+			<element name="config" type="string" />
+		</sequence>
+		<!-- title defaults to "Example" -->
+		<attribute name="title" type="token" use="optional" />
+		<!-- set anchor (id attribute of <h*> node); set to '#' to generate a unique anchor; if no anchor is set no ToC entry is created -->
+		<attribute name="anchor" type="token" use="optional" />
+	</complexType>
+
+	<complexType name="ModuleSectionType" mixed="true">
+		<sequence>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="action" type="d:ActionSetupType" />
+				<element name="setup" type="d:ActionSetupType" />
+				<element name="option" type="d:OptionType" />
+
+				<element name="html" type="anyType" />
+				<element name="textile" type="anyType" />
+				<element name="markdown" type="anyType" />
+				<element name="example" type="d:ExampleType" />
+				<element name="section" type="d:ModuleSectionType" />
+			</choice>
+		</sequence>
+		<!-- a section requires a title -->
+		<attribute name="title" type="token" use="required" />
+		<!-- set anchor (id attribute of <h*> node); set to '#' to generate a unique anchor; if no anchor is set no ToC entry is created -->
+		<attribute name="anchor" type="token" use="optional" />
+	</complexType>
+
+
+
+	<complexType name="ChapterType">
+		<sequence>
+			<!-- optional description to print below ToC -->
+			<element name="description" type="d:DescriptionType" minOccurs="0" />
+
+			<!-- a chapter cannot contain more simple text; include it in a section -->
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="example" type="d:ExampleType" />
+				<element name="section" type="d:ChapterSectionType" />
+			</choice>
+		</sequence>
+
+		<!-- a chapter requires a title -->
+		<attribute name="title" type="token" use="required" />
+		<!-- order modules / chapters. defaults to name -->
+		<attribute name="order" type="Name" use="optional" />
+	</complexType>
+
+	<complexType name="ChapterSectionType" mixed="true">
+		<sequence>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="html" type="anyType" />
+				<element name="textile" type="anyType" />
+				<element name="markdown" type="anyType" />
+				<element name="example" type="d:ExampleType" />
+				<element name="section" type="d:ChapterSectionType" />
+			</choice>
+		</sequence>
+		<!-- a section requires a title -->
+		<attribute name="title" type="token" use="required" />
+		<!-- set anchor (id attribute of <h*> node); set to '#' to generate a unique anchor; if no anchor is set no ToC entry is created -->
+		<attribute name="anchor" type="token" use="optional" />
+	</complexType>
+
+</schema>

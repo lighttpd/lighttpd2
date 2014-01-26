@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>connect to SCGI backends for generating response content</short>
+
+	<action name="scgi">
+		<short>connect to SCGI backend</short>
+		<parameter name="socket">
+			<short>socket to connect to, either "ip:port" or "unix:/path"</short>
+		</parameter>
+		<example>
+			<config>
+				setup {
+					module_load "mod_scgi";
+				}
+
+				if req.path =^ "/RPC2" {
+					scgi "127.0.0.1:5000";
+				}
+			</config>
+		</example>
+	</action>
+
+</module>

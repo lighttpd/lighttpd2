@@ -1,34 +1,5 @@
 /*
- * mod_gnutls - ssl support
- *
- * Description:
- *     mod_gnutls listens on separate sockets for ssl connections (https://...)
- *
- * Setups:
- *     gnutls        - setup a ssl socket; takes a hash/key-value list of following parameters:
- *       listen                  - (mandatory) the socket address (same as standard listen)
- *       pemfile                 - (mandatory) contains key and certificate and intermediate certificates ("chain") for the key (PEM format)
- *       priority                - contains priority string (specifying ciphers and gnutls options), default: "NORMAL"
- *       protect-against-beast   - whether to append ":-CIPHER-ALL:+ARCFOUR-128" for SSL3/TLS1.0 connections to priority
- *       dh-params               - file with genereated dh-params. default: pre generated 4096-bit params included in the source
- *       session-db-size         - size of session db (TLS session cookies). set to <= 0 to disable. default: 256
- *     when SNI was enabled
- *       sni-backend             - "fetch" backend name to search certificates in with the SNI servername as key
- *       sni-fallback-pemfile    - certificate to use if request contained SNI servername, but the sni-backend didn't find anything
- *                                 if request didn't contain SNI the standard "pemfile"(s) are used
- *   NOTES:
- *     * gnutls has some SNI support builtin - you can just load all certificates with multiple "pemfile" parameters,
- *       and gnutls will try to pick the right one.
- *     * listen and pemfile can be specified more than once
- *     * certificates in a file have to be ordered from bottom to top (each certificate is followed by the one that signed it)
- *
- * Example config:
- *     setup gnutls ( "listen" => "0.0.0.0:8443", "listen" => "[::]:8443", "pemfile" => "server.pem" ];
- *
- *     setup {
- *       fetch.files_static "sni" => "/etc/lighttpd2/certs/sni_*_server.pem";
- *       gnutls ( "listen" => "0.0.0.0:8443", "listen" => "[::]:8443", "pemfile" => "server.pem", "sni-backend" => "sni" );
- *     }
+ * mod_gnutls - TLS listen support
  *
  * TODO:
  *   * support client certificate authentication: http://www.gnutls.org/manual/gnutls.html#Client-certificate-authentication
@@ -206,7 +177,6 @@ static void mod_gnutls_context_release(mod_context *ctx) {
 		gnutls_priority_deinit(ctx->server_priority_beast);
 		gnutls_priority_deinit(ctx->server_priority);
 		gnutls_certificate_free_credentials(ctx->server_cert);
-		gnutls_dh_params_deinit(ctx->dh_params);
 #ifdef HAVE_SESSION_TICKET
 		/* wtf. why is there no function in gnutls for this... */
 		if (NULL != ctx->ticket_key.data) {
@@ -232,7 +202,7 @@ static void mod_gnutls_context_release(mod_context *ctx) {
 			ctx->sni_fallback_cert = NULL;
 		}
 #endif
-
+		gnutls_dh_params_deinit(ctx->dh_params);
 
 		g_slice_free(mod_context, ctx);
 	}
@@ -837,17 +807,20 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 				gnutls_strerror_name(r), gnutls_strerror(r));
 			goto error_free_ctx;
 		}
-
-		gnutls_certificate_set_dh_params(ctx->server_cert, ctx->dh_params);
 	} else {
 		if (GNUTLS_E_SUCCESS != (r = load_dh_params_4096(&ctx->dh_params))) {
 			ERROR(srv, "couldn't load dh parameters(%s): %s",
 				gnutls_strerror_name(r), gnutls_strerror(r));
 			goto error_free_ctx;
 		}
-
-		gnutls_certificate_set_dh_params(ctx->server_cert, ctx->dh_params);
 	}
+
+	gnutls_certificate_set_dh_params(ctx->server_cert, ctx->dh_params);
+#ifdef USE_SNI
+	if (NULL != ctx->sni_fallback_cert) {
+		gnutls_certificate_set_dh_params(ctx->sni_fallback_cert, ctx->dh_params);
+	}
+#endif
 
 	if (priority) {
 		const char *errpos = NULL;

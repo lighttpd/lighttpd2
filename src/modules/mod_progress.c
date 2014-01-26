@@ -1,56 +1,6 @@
 /*
  * mod_progress - track connection progress (state) via a unique identifier
  *
- * Description:
- *     mod_progress lets you track connection progress (or rather state) using a lookup table
- *     in which connections are registered via a random unique identifier specified with the request
- *
- * Setups:
- *     progress.ttl <duration>;
- *         - Sets the time to live in seconds for entries after a disconnect in the internal lookup table.
- *           Defaults to 30 seconds.
- * Options:
- *     progress.debug = <true|false>;
- *         - if true, debug info is written to the log
- *     progress.methods = <methods>;
- *         - list of methods that should be tracked, defaults to POST only. Example: progress.methods = ("GET", "POST");
- * Actions:
- *     progress.track;
- *         - tracks the current connection if the X-Progress-ID querystring key is supplied
- *     progress.show [format];
- *         - returns the current progress/state of
- *         - [format] can be one of "legacy", "json" or "jsonp" . See example responses below.
- *           Defaults to "json".
- *
- * Examples responses:
- *     - legacy format
- *       new Object({"state": "running"", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0})
- *     - json format
- *       {"state": "running", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0}
- *     - jsonp format (function name specified via X-Progress-Callback querystring key, defaults to "progress")
- *       progress({"state": "running", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0})
- *
- * Possible response objects:
- *     - {"state": "unknown"}
- *     - {"state": "running", "received": <bytes_recived>, "sent": <bytes_sent>, "request_size": <bytes>, "response_size": <bytes>}
- *     - {"state": "done", "received": <bytes_recived>, "sent": <bytes_sent>, "request_size": <bytes>, "response_size": <bytes>}
- *     - {"state": "error", "status": <http_status>}
- *
- * Example config:
- *     if req.path == "/upload.php" {
- *         progress.track;
- *     } else if req.path == "/progress" {
- *         progress.show;
- *     }
- *
- *     The config snippet will track all POST requests (uploads) to /upload.php?X-Progress-ID=<id>
- *     where <id> is a random unqiue ID.
- *     The progress of a particular request can then be fetched via /progress?X-Progress-ID=<id>
- *     where <id> is the ID specified with the POST request to /upload.php
- *
- * Tip:
- *     none
- *
  * Todo:
  *     - stop waitqueues
  *     - "dump" format to return an array of all tracked requests?

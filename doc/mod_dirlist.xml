@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>lists files inside a directory. The output can be customized in various ways from style via css to excluding certain entries.</short>
+
+	<action name="dirlist">
+		<short>lists file in a directory</short>
+		<parameter name="options">
+			<table>
+				<entry name="css">
+					<short>string: url to external stylesheet (default: inline internal css)</short>
+				</entry>
+				<entry name="hide-dotfiles">
+					<short>boolean: hide entries beginning with a dot (default: true)</short>
+				</entry>
+				<entry name="hide-tildefiles">
+					<short>boolean: hide entries ending with a tilde (~), often used for backups (default: true)</short>
+				</entry>
+				<entry name="hide-directories">
+					<short>boolean: hide directories from the directory listing (default: false)</short>
+				</entry>
+				<entry name="include-header">
+					<short>boolean: include HEADER.txt above the directory listing (default: false)</short>
+				</entry>
+				<entry name="hide-header">
+					<short>boolean: hide HEADER.txt from the directory listing (default: false)</short>
+				</entry>
+				<entry name="encode-header">
+					<short>boolean: html-encode HEADER.txt (if included), set to false if it contains real HTML (default: true)</short>
+				</entry>
+				<entry name="include-readme">
+					<short>boolean: include README.txt below the directory listing (default: true)</short>
+				</entry>
+				<entry name="hide-readme">
+					<short>boolean: hide README.txt from the directory listing (default: false)</short>
+				</entry>
+				<entry name="encode-readme">
+					<short>boolean: html-encode README.txt (if included), set to false if it contains real HTML (default: true)</short>
+				</entry>
+				<entry name="exclude-suffix">
+					<short>list of strings: hide entries that end with one of the strings supplied (default: empty list)</short>
+				</entry>
+				<entry name="exclude-prefix">
+					<short>list of strings: hide entries that begin with one of the strings supplied (default: empty list)</short>
+				</entry>
+				<entry name="debug">
+					<short>boolean: output debug information to log (default: false)</short>
+				</entry>
+				<entry name="content-type">
+					<short>string: content-type to return in HTTP response headers (default: "text/html; charset=utf-8")</short>
+				</entry>
+			</table>
+		</parameter>
+
+		<example>
+			<description>
+				shows a directory listing including the content of HEADER.txt above the list and hiding itself from it; also hides all files ending in ".bak"
+			</description>
+			<config>
+				setup {
+					module_load ("mod_dirlist");
+				}
+
+				if req.path =^ "/files/" {
+					dirlist ("include-header" => true, "hide-header" => true, "hide->suffix" => (".bak"));
+				}
+			</config>
+		</example>
+	</action>
+
+</module>
+

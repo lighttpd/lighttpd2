@@ -1,21 +1,5 @@
 /*
- * mod_fastcgi - connect to fastcgi backends for generating content
- *
- * Description:
- *     mod_fastcgi connects to a backend over tcp or unix sockets
- *
- * Setups:
- *     none
- * Options:
- *     fastcgi.log_plain_errors <value> - whether to prepend timestamp and other info to
- *                                        fastcgi stderr lines in the "backend" log.
- *         type: boolean
- * Actions:
- *     fastcgi <socket>  - connect to backend at <socket>
- *         socket: string, either "ip:port" or "unix:/path"
- *
- * Example config:
- *     fastcgi "127.0.0.1:9090"
+ * mod_fastcgi - connect to fastcgi backends for generating response content
  *
  * Todo:
  *     - reuse fastcgi connections (keepalive)

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>requires authentication from clients using a username and password. It supports the basic (digest not yet) authentication method as well as plaintext, htpasswd and htdigest backends.</short>
+
+	<description>
+		<textile>
+			*IMPORTANT NOTE*: You need to put the auth actions before generating content! If a content handler is already active (like php or static or dirlist), auth will be ignored!
+
+			* Basic:
+			  The "basic" method transfers the username and the password in cleartext over the network (base64 encoded) and might result in security problems if not used in conjunction with an encrypted communication channel between client and server.
+			  It is recommend to use https in conjunction with basic authentication.
+
+			* Digest (not supported yet):
+			  The "digest" method only transfers a hashed value over the network which performs a lot of work to harden the authentication process in insecure networks (like the internet).
+			  The "digest" method doesn't work with the htpasswd backend, only with plaintext and htdigest.
+
+			*NOTE*: The digest method is broken in Internet Explorer &lt; 7. Use basic instead if this is a problem for you. (not supported for now anyway)
+		</textile>
+	</description>
+
+
+	<action name="auth.plain">
+		<short>requires authentication using a plaintext file</short>
+		<parameter name="options">
+			<table>
+				<entry name="method">
+					<short>"basic" or "digest" - for now only "basic" is supported, but you still have to specify it.</short>
+				</entry>
+				<entry name="realm">
+					<short>the realm name to send in the "Need authentication" response to the browser; used in the hash for htdigest too.</short>
+				</entry>
+				<entry name="file">
+					<short>the filename of the backend data</short>
+				</entry>
+				<entry name="ttl">
+					<short>(optional) after how many seconds lighty reloads the password file if it got changed and is needed again (defaults to 10 seconds)</short>
+				</entry>
+			</table>
+		</parameter>
+		<description>
+			requires authentication using a plaintext file containing user:password pairs seperated by newlines (\n).
+		</description>
+	</action>
+
+	<action name="auth.htpasswd">
+		<short>requires authentication using a htpasswd file</short>
+		<parameter name="options">
+			<table>
+				<entry name="method">
+					<short>only "basic" is supported</short>
+				</entry>
+				<entry name="realm">
+					<short>the realm name to send in the "Need authentication" response to the browser; used in the hash for htdigest too.</short>
+				</entry>
+				<entry name="file">
+					<short>the filename of the backend data</short>
+				</entry>
+				<entry name="ttl">
+					<short>(optional) after how many seconds lighty reloads the password file if it got changed and is needed again (defaults to 10 seconds)</short>
+				</entry>
+			</table>
+		</parameter>
+		<description>
+			<textile>
+				* requires authentication using a htpasswd file containing user:encrypted_password pairs seperated by newlines (\n)
+				* passwords are encrypted using crypt(3), use the htpasswd binary from apache to manage the file
+				** hashes starting with "$apr1$" ARE supported (htpasswd -m)
+				** hashes starting with "{SHA}" ARE supported (followed by sha1_base64(password), htpasswd -s)
+			</textile>
+		</description>
+	</action>
+
+	<action name="auth.htdigest">
+		<short>requires authentication using a htdigest file</short>
+		<parameter name="options">
+			<table>
+				<entry name="method">
+					<short>"basic" or "digest" - for now only "basic" is supported, but you still have to specify it.</short>
+				</entry>
+				<entry name="realm">
+					<short>the realm name to send in the "Need authentication" response to the browser; used in the hash for htdigest too.</short>
+				</entry>
+				<entry name="file">
+					<short>the filename of the backend data</short>
+				</entry>
+				<entry name="ttl">
+					<short>(optional) after how many seconds lighty reloads the password file if it got changed and is needed again (defaults to 10 seconds)</short>
+				</entry>
+			</table>
+		</parameter>
+		<description>
+			<textile>
+				* requires authentication using a htdigest file containing user:realm:hashed_password tuples seperated by newlines (\n)
+				* the hashes are bound to the realm, so you can't change the realm without resetting the passwords
+				* passwords are saved as (modified) md5 hashes:
+				  @md5hex(username + ":" + realm + ":" + password)@
+			</textile>
+		</description>
+	</action>
+
+	<action name="auth.deny">
+		<short>handles request with "401 Unauthorized"</short>
+	</action>
+
+	<option name="auth.debug">
+		<short>enable debug output</short>
+		<default><value>false</value></default>
+	</option>
+
+	<example>
+		<config>
+			setup {
+				module_load "mod_auth";
+			}
+
+			#/members/ is for known users only
+			if request.path =^ "/members/" {
+				auth.plain [ "method" => "basic", "realm" => "members only", "file" => "/etc/lighttpd/users.txt"];
+				if req.env["REMOTE_USER"] !~ "^(admin1|user2|user3)$" { auth.deny; }
+			}
+		</config>
+	</example>
+
+	<example>
+		<description>
+			<textile>
+				You can use @auth.require_user@ from the mod_lua plugin "contrib/core.lua":http://git.lighttpd.net/lighttpd/lighttpd2/tree/contrib/core.lua for the REMOTE_USER check too:
+			</textile>
+		</description>
+
+		<config>
+			setup {
+				module_load ("mod_auth", "mod_lua");
+				lua.plugin "contrib/core.lua";
+			}
+
+			#/members/ is for known users only
+			if request.path =^ "/members/" {
+				auth.plain [ "method" => "basic", "realm" => "members only", "file" => "/etc/lighttpd/users.txt"];
+				auth.require_user ("admin1", "user2", "user3");
+			}
+		</config>
+	</example>
+</module>

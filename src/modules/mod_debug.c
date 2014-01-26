@@ -1,27 +1,6 @@
 /*
  * mod_debug - utilities to debug lighttpd
  *
- * Description:
- *     mod_debug offers various utilities to aid you debug a problem.
- *
- * Setups:
- *     none
- * Options:
- *     none
- * Actions:
- *     debug.show_connections;
- *         - shows a page similar to the one from mod_status, listing all active connections
- *         - by specifying one or more "connection ids" via querystring (parameter "con"),
- *           one can request additional debug output for specific connections
- *     debug.profiler_dump;
- *         - dumps all allocated memory to the profiler output file if profiling enabled (LIGHTY_PROFILE_MEM=profiler.log)
- *
- * Example config:
- *     if req.path == "/debug/connections" { debug.show_connections; }
- *
- * Tip:
- *     none
- *
  * Todo:
  *     - prettier output
  *     - more detailed output

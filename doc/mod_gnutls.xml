@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>listens on separate sockets for TLS connections (https) using GnuTLS</short>
+
+	<setup name="gnutls">
+		<short>setup a TLS socket</short>
+		<parameter name="options">
+			<table>
+				<entry name="listen">
+					<short>(mandatory) the socket address to listen on (same as "listen":plugin_core.html#plugin_core__setup_listen), can be specified more than once to setup multiple sockets with the same options</short>
+				</entry>
+				<entry name="pemfile">
+					<short>(mandatory) file containing the private key, certificate and intermediate certificates (the root certificate is usually not included)</short>
+				</entry>
+				<entry name="priority">
+					<short>GnuTLS priority string, specifying ciphers and other GnuTLS options (default: "NORMAL")</short>
+				</entry>
+				<entry name="dh-params">
+					<short>filename with generated dh-params (default: fixed 4096-bit parameters)</short>
+				</entry>
+				<entry name="protect-against-beast">
+					<short>whether to force RC4 on TLS1.0 and SSL3.0 connections by appending ":-CIPHER-ALL:+ARCFOUR-128" to the priority string (default: false)</short>
+				</entry>
+				<entry name="session-db-size">
+					<short>size of session database, 0 to disable session support (TLS ticket support is always enabled if GnuTLS supports it)</short>
+				</entry>
+				<entry name="sni-backend">
+					<short>"fetch" backend name to search certificates in with the SNI servername as key (only available if SNI in lighttpd2 was enabled)</short>
+				</entry>
+				<entry name="sni-fallback-pemfile">
+					<short>certificate to use if request contained SNI servername, but the sni-backend didn't find anything; if request didn't contain SNI the standard "pemfile"(s) are used</short>
+				</entry>
+			</table>
+		</parameter>
+
+		<example title="Simple TLS on IPv4 and IPv6">
+			<config>
+				setup {
+					module_load "mod_gnutls";
+					gnutls (
+						"priority" => "PFS:-3DES-CBC:-ARCFOUR-128:-VERS-SSL3.0:-SHA1:+SHA1:+RSA:%SERVER_PRECEDENCE",
+						"listen" => "0.0.0.0:443",
+						"listen" => "[::]:443",
+						"pemfile" => "/etc/certs/lighttpd.pem"
+					);
+				}
+			</config>
+		</example>
+
+		<example title="TLS with simple SNI">
+			<config>
+				setup {
+					module_load "mod_gnutls";
+					gnutls (
+						"priority" => "PFS:-3DES-CBC:-ARCFOUR-128:-VERS-SSL3.0:-SHA1:+SHA1:+RSA:%SERVER_PRECEDENCE",
+						"listen" => "0.0.0.0:443",
+						"listen" => "[::]:443",
+						"pemfile" => "/etc/certs/www.example.com.pem"
+						"pemfile" => "/etc/certs/mail.example.com.pem"
+					);
+				}
+			</config>
+		</example>
+
+		<example title="TLS with SNI from fetch backend">
+			<description>
+				<textile>
+					For a SNI hostname @example.com@ lighttpd2 will try to find the private key and certificate(s) in @/etc/certs/lighttpd_sni_example.com.pem@.
+				</textile>
+			</description>
+			<config>
+				setup {
+					fetch.files_static "sni" => "/etc/certs/lighttpd_sni_*.pem";
+
+					module_load "mod_gnutls";
+					gnutls (
+						"priority" => "PFS:-3DES-CBC:-ARCFOUR-128:-VERS-SSL3.0:-SHA1:+SHA1:+RSA:%SERVER_PRECEDENCE",
+						"sni-backend" => "sni",
+						"listen" => "0.0.0.0:443",
+						"listen" => "[::]:443",
+						"pemfile" => "/etc/certs/lighttpd.pem"
+					);
+				}
+			</config>
+		</example>
+	</setup>
+
+	<section title="Server Name Indication (SNI)">
+		<textile>
+			"TLS SNI":http://en.wikipedia.org/wiki/Server_Name_Indication means that a client can send the hostname of the server it tries to connect to *unencrypted* in the TLS handshake.
+			If you want to host multiple hostnames on the same IP address (quite common) there are some options how to do it (they can be combined):
+			* Use a wildcard as "CommonName" (CN) in the certificate like @*.example.com@ (although this usually doesn't match @example.com@)
+			* Use "Subject Alternative Names" in the certificate
+			* Provide different certificates based on the SNI hostname in the TLS handshake.
+
+			Clients supporting SNI usually support the other options too, but not all clients support SNI.
+
+			GnuTLS has some basic SNI support built in; if you specify multiple @pemfile@ s in the options, it will pick the first with a certificate that matches the SNI hostname.
+
+			lighttpd2 has an optional extended SNI support (which has to be enabled at compile time, and is required for the @sni-*@ options to be available). It is designed to load certificates asynchronously from backends (files, SQL, ...) on demand, using the "fetch API":core_fetch.html#core_fetch.
+			In this case lighttpd2 will fetch the certificate based on the SNI hostname from the given @sni-backend@ before GnuTLS is started for a connection.
+			If a SNI hostname was given by the client, but no certificate was found in the backend, it will use @sni-fallback-pemfile@ (if set) instead of @pemfile@.
+
+			Combining @sni-backend@, @sni-fallback-pemfile@ and multiple @pemfile@ s won't work - it will only use the first configured @pemfile@ (if no SNI hostname was given by the client, otherwise @sni-*@ certificates are used).
+
+			Also note that lighttpd2 does NOT verify whether the SNI hostname matches the hostname in the HTTP request. SNI is only used by the client to tell the server for which hostname it should send the certificate (i.e. what the client is using to verify it).
+		</textile>
+	</section>
+
+	<section title="GnuTLS priority string">
+		<textile>
+			The GnuTLS priority string configures which ciphers and protocol versions are available, and also a small set of options (workarounds to activate and so on).
+
+			Example: @"SECURE:-VERS-SSL3.0:-SHA1:+SHA1:-RSA:+RSA:%SERVER_PRECEDENCE"@
+			* @SECURE@: starts with @SECURE@ level: only secure ciphers and secure curves
+			* @-VERS-SSL3.0@: disables SSL3.0 support (all clients should support at least TLS1.0 now)
+			* @-SHA1:SHA1@ puts SHA1 back at the list for MAC algorithms (preferring the other SHA variants)
+			* @-RSA:+RSA@: prefer (RSA) DHE/ECDHE key exchanges over simple RSA
+			* @%SERVER_PRECEDENCE@ a flag telling GnuTLS to use its own order of preference instead of the order provided by the client.
+
+			See also:
+			* "Priority strings":http://gnutls.org/manual/html_node/Priority-Strings.html#Priority-Strings (GnuTLS manual)
+			* "GnuTLS Priority Strings":http://blog.lighttpd.net/gnutls-priority-strings.html
+			* @gnutls-cli -l --priority "SECURE:-VERS-SSL3.0:-SHA1:+SHA1:-RSA:+RSA:%SERVER_PRECEDENCE"@
+		</textile>
+	</section>
+
+	<section title="protect-against-beast">
+		<textile>
+			"BEAST":http://en.wikipedia.org/wiki/Transport_Layer_Security#BEAST_attack is considered mitigated on clients by many now, so this workaround is no longer recommended and disabled by default.
+
+			It enabled it will enforce the usage of RC4 on TLS1.0 and before (TLS1.1 and TLS1.2 are not vulnerable); but RC4 has issues on its own.
+		</textile>
+	</section>
+
+	<section title="DH parameters">
+		<textile>
+			The @DHE_RSA@ key exchange requires parameters (similar to the curves used for @ECDHE_RSA@); the parameters specify a prime @p@ and a group generator @g@ of the multiplicative group of integers modulo @p@ (i.e. for all @x@ in @1..p-1@ exists an @e@ with @g^e = x@); sometimes @g@ might only create a sufficiently large subgroup (for example of size @(p-1)/2@ for Sophie Germain primes).
+
+			The security of the DH key exchange depends (among other things) on the bit length of @p@; therefore lighttpd includes default 4096-bit parameters (provided by the GnuTLS certtool with @certtool --get-dh-params --bits=4096@ in version 3.0.22), and these should be safe to use.
+
+			You can use either GnuTLS or openssl to generate your own parameters:
+			* @certtool --generate-dh-params --bits=2048@
+			* @openssl dhparam -dsaparam 2048@
+			* @openssl dhparam -2 2048@
+			* @openssl dhparam -5 2048@
+
+			The GnuTLS @certtool@ only generates "dsaparam" style parameters (any prime with a large generator), while @openssl@ can generate parameters with a generator of 2 or 5 combined with a Sophie Germain prime @p@ (i.e. (p-1)/2 is a prime too); such strong parameters take a lot more time to generate.
+			("dsaparam" style parameters should not be reused, i.e. one should generate a new private key for each connection.)
+
+			See also:
+			* "Diffie-Hellman(-Merkle) key exchange":http://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange
+		</textile>
+	</section>
+</module>

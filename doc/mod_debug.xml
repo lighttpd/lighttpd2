@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:lighttpd.net:lighttpd2/doc1">
+	<short>
+		offers various utilities to aid you debug a problem.
+	</short>
+
+	<action name="debug.show_connections">
+		<short>shows a page similar to the one from mod_status, listing all active connections</short>
+		<description>
+			By specifying one or more "connection ids" via querystring (parameter "con"), one can request additional debug output for specific connections.
+		</description>
+		<example>
+			<config>
+				if req.path == "/debug/connections" { debug.show_connections; }
+			</config>
+		</example>
+	</action>
+
+	<action name="debug.profiler_dump">
+		<short>dumps all allocated memory to the profiler output file if profiling enabled</short>
+
+		<description>
+			<textile>
+				lighttpd2 needs to be compiled with profiler support, and profiling has to be enabled by setting the environment variable @LIGHTY_PROFILE_MEM@ to the path of a target log file.
+			</textile>
+		</description>
+	</action>
+</module>
