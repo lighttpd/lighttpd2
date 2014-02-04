@@ -101,7 +101,7 @@ static const gchar html_top[] =
 	"			<strong>Memory Usage</strong>: <span>%s</span>"
 	"			<strong>Uptime</strong>: <span>%s</span>\n"
 	"			<strong>Started at</strong>: <span>%s</span>\n"
-	"			<strong>Version</strong>: <span>" PACKAGE_VERSION " (" __DATE__ " " __TIME__ ")</span>\n"
+	"			<strong>Version</strong>: <span>" PACKAGE_VERSION "(" PACKAGE_BUILD_DATE ")</span>\n"
 	"		</div>\n";
 static const gchar html_top_short[] =
 	"		<div class=\"header\">Lighttpd Server Status</div>\n"
