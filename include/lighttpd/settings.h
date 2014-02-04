@@ -217,8 +217,13 @@
 # define INLINE static
 #endif
 
-#ifndef PACKAGE_BUILD_DATE
-# define PACKAGE_BUILD_DATE __DATE__ " " __TIME__
+#ifdef PACKAGE_NO_BUILD_DATE
+# undef PACKAGE_BUILD_DATE
+# define PACKAGE_BUILD_DATE "(build date not available)"
+#else
+# ifndef PACKAGE_BUILD_DATE
+#  define PACKAGE_BUILD_DATE __DATE__ " " __TIME__
+# endif
 #endif
 
 #include <lighttpd/sys_memory.h>
