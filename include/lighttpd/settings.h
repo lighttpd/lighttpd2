@@ -218,7 +218,7 @@
 #endif
 
 #ifndef PACKAGE_BUILD_DATE
-# define PACKAGE_BUILD_DATE (__DATE__ " " __TIME__)
+# define PACKAGE_BUILD_DATE __DATE__ " " __TIME__
 #endif
 
 #include <lighttpd/sys_memory.h>
