@@ -225,15 +225,21 @@ static mod_context *mod_gnutls_context_new(liServer *srv) {
 	}
 
 	if (GNUTLS_E_SUCCESS != (r = gnutls_priority_init(&ctx->server_priority, "NORMAL", NULL))) {
-		ERROR(srv, "gnutls_priority_init failed(%s): %s",
+		ERROR(srv, "gnutls_priority_init('NORMAL') failed(%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error1;
 	}
 
 	if (GNUTLS_E_SUCCESS != (r = gnutls_priority_init(&ctx->server_priority_beast, "NORMAL:-CIPHER-ALL:+ARCFOUR-128", NULL))) {
-		ERROR(srv, "gnutls_priority_init failed(%s): %s",
-			gnutls_strerror_name(r), gnutls_strerror(r));
-		goto error2;
+		int r1;
+		if (GNUTLS_E_SUCCESS != (r1 = gnutls_priority_init(&ctx->server_priority_beast, "NORMAL", NULL))) {
+			ERROR(srv, "gnutls_priority_init('NORMAL') failed(%s): %s",
+				gnutls_strerror_name(r1), gnutls_strerror(r1));
+			goto error2;
+		} else {
+			ERROR(srv, "gnutls_priority_init('NORMAL:-CIPHER-ALL:+ARCFOUR-128') failed(%s): %s. Using 'NORMAL' instead (BEAST mitigation not available)",
+				gnutls_strerror_name(r), gnutls_strerror(r));
+		}
 	}
 
 #ifdef HAVE_SESSION_TICKET
