@@ -201,7 +201,7 @@ gboolean li_plugins_config_load(liServer *srv, const gchar *filename) {
 	return TRUE;
 }
 
-void li_plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
+gboolean li_plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
 	liPlugins *ps = &srv->plugins;
 	server_item *si;
 
@@ -219,24 +219,36 @@ void li_plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
 		WARNING(srv, "Unknown item '%s' - perhaps you forgot to load the module? (ignored)", itemname->str);
 	} else {
 		liValue **optlist = g_slice_alloc0(sizeof(liValue*) * si->option_count);
-		GHashTableIter opti;
-		gpointer k, v;
 		guint i;
-		gboolean valid = TRUE;
 
 		/* find options and assign them by id */
-		g_hash_table_iter_init(&opti, hash->data.hash);
-		while (g_hash_table_iter_next(&opti, &k, &v)) {
-			const gchar *optkey = ((GString*) k)->str;
+		hash = li_value_get_single_argument(hash);
+		if (LI_VALUE_LIST != li_value_type(hash)) {
+			ERROR(srv, "invalid type '%s' of parameter list", li_value_type_string(hash));
+			return FALSE;
+		}
+
+		LI_VALUE_FOREACH(entry, hash)
+			liValue *entryKey = li_value_list_at(entry, 0);
+			liValue *entryValue = li_value_list_at(entry, 1);
+			GString *entryKeyStr;
+
+			if (LI_VALUE_STRING != li_value_type(entryKey)) {
+				ERROR(srv, "invalid key of type %s", li_value_type_string(entryKey));
+				return FALSE;
+			}
+			entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
 			for (i = 0; i < si->option_count; i++) {
-				if (0 == g_strcmp0(si->p_item->options[i].name, optkey)) break;
+				if (0 == g_strcmp0(si->p_item->options[i].name, entryKeyStr->str)) break;
 			}
 			if (i == si->option_count) {
-				WARNING(srv, "Unknown option '%s' in item '%s' (ignored)", optkey, itemname->str);
+				ERROR(srv, "Unknown option '%s' in item '%s'", entryKeyStr->str, itemname->str);
+				return FALSE;
 			} else {
-				optlist[i] = v;
+				optlist[i] = entryValue;
 			}
-		}
+		LI_VALUE_END_FOREACH()
 
 		/* validate options */
 		for (i = 0; i < si->option_count; i++) {
@@ -244,24 +256,24 @@ void li_plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
 			if (0 != (pi->flags & LI_PLUGIN_ITEM_OPTION_MANDATORY)) {
 				if (!optlist[i]) {
 					ERROR(srv, "Missing mandatory option '%s' in item '%s'", pi->name, itemname->str);
-					valid = FALSE;
+					return FALSE;
 				}
 			}
 			if (pi->type != LI_VALUE_NONE && optlist[i] && optlist[i]->type != pi->type) {
 				/* TODO: convert from string if possible */
 				ERROR(srv, "Invalid value type of option '%s' in item '%s', got '%s' but expected '%s'",
 					pi->name, itemname->str, li_value_type_string(optlist[i]), li_valuetype_string(pi->type));
-				valid = FALSE;
+				return FALSE;
 			}
 		}
 
-		if (valid) {
-			g_assert(si->p_item->handle_parse_item);
-			si->p_item->handle_parse_item(srv, si->p, optlist);
-		}
+		g_assert(si->p_item->handle_parse_item);
+		si->p_item->handle_parse_item(srv, si->p, optlist);
 
 		g_slice_free1(sizeof(liValue*) * si->option_count, optlist);
 	}
+
+	return TRUE;
 }
 
 static gboolean plugins_activate_module(liServer *srv, server_module *sm) {

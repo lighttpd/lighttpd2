@@ -78,7 +78,7 @@ LI_API void li_plugins_clear(liServer *srv);
 LI_API void li_plugins_config_clean(liServer *srv);
 LI_API gboolean li_plugins_config_load(liServer *srv, const gchar *filename);
 
-LI_API void li_plugins_handle_item(liServer *srv, GString *itemname, liValue *hash);
+LI_API gboolean li_plugins_handle_item(liServer *srv, GString *itemname, liValue *hash);
 
 /* "core" is a reserved module name for interal use */
 LI_API gboolean li_plugins_load_module(liServer *srv, const gchar *name);

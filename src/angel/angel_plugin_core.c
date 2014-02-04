@@ -273,7 +273,7 @@ static const liPluginItemOption core_listen_options[] = {
 
 static const liPluginItem core_items[] = {
 	{ "instance", core_instance_parse, core_instance_options },
-	{ "allow-listen", core_listen_parse, core_listen_options },
+	{ "allow_listen", core_listen_parse, core_listen_options },
 	{ NULL, NULL, NULL }
 };
 
