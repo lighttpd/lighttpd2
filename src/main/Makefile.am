@@ -14,7 +14,6 @@ lighttpd_shared_src= \
 	chunk_parser.c \
 	collect.c \
 	condition.c \
-	config_parser.c \
 	connection.c \
 	environment.c \
 	etag.c \
@@ -22,9 +21,6 @@ lighttpd_shared_src= \
 	filter_chunked.c \
 	filter_buffer_on_disk.c \
 	http_headers.c \
-	http_range_parser.c \
-	http_request_parser.c \
-	http_response_parser.c \
 	lighttpd_glue.c \
 	log.c \
 	mimetype.c \
@@ -42,12 +38,19 @@ lighttpd_shared_src= \
 	stream_http_response.c \
 	stream_simple_socket.c \
 	throttle.c \
-	url_parser.c \
 	value.c \
 	virtualrequest.c \
 	worker.c \
 	 \
 	plugin_core.c
+
+parsers= \
+	config_parser.c \
+	http_range_parser.c \
+	http_request_parser.c \
+	http_response_parser.c \
+	url_parser.c
+nodist_lighttpd_shared_src=$(parsers)
 
 lua_src= \
 	actions_lua.c \
@@ -72,7 +75,9 @@ if USE_LUA
 lighttpd_shared_src+=$(lua_src)
 endif
 
-BUILT_SOURCES=config_parser.c http_range_parser.c http_request_parser.c http_response_parser.c url_parser.c
+BUILT_SOURCES=$(parsers)
+CLEANFILES=$(parsers)
+EXTRA_DIST=config_parser.rl http_range_parser.rl http_request_parser.rl  http_response_parser.rl url_parser.rl
 
 config_parser.c: config_parser.rl
 	$(RAGEL) -C -T0 -o $@ $<
@@ -85,9 +90,8 @@ http_response_parser.c: http_response_parser.rl
 url_parser.c: url_parser.rl
 	$(RAGEL) -C -T1 -o $@ $<
 
-EXTRA_DIST=config_parser.rl http_range_parser.rl http_request_parser.rl  http_response_parser.rl url_parser.rl
-
 liblighttpd2_shared_la_SOURCES=$(lighttpd_shared_src)
+nodist_liblighttpd2_shared_la_SOURCES=$(nodist_lighttpd_shared_src)
 liblighttpd2_shared_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS)
 liblighttpd2_shared_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)
 liblighttpd2_shared_la_LIBADD=../common/liblighttpd2-common.la

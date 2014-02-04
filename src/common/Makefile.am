@@ -10,7 +10,6 @@ common_src= \
 	events.c \
 	fetch.c \
 	idlist.c \
-	ip_parsers.c \
 	jobqueue.c \
 	memcached.c \
 	mempool.c \
@@ -22,18 +21,22 @@ common_src= \
 	utils.c \
 	waitqueue.c
 
+parsers=ip_parsers.c
+nodist_common_src=$(parsers)
+
 if WITH_PROFILER
 common_src+= profiler.c
 endif
-EXTRA_liblighttpd2_common_la_SOURCES=$(lua_src) profiler.c
+EXTRA_liblighttpd2_common_la_SOURCES=profiler.c
 
-BUILT_SOURCES=ip_parsers.c
+BUILT_SOURCES=$(parsers)
+CLEANFILES=$(parsers)
+EXTRA_DIST=ip_parsers.rl
 
 ip_parsers.c: ip_parsers.rl
 	$(RAGEL) -C -T1 -o $@ $<
 
-EXTRA_DIST=ip_parsers.rl
-
 liblighttpd2_common_la_SOURCES=$(common_src)
+nodist_liblighttpd2_common_la_SOURCES=$(nodist_common_src)
 liblighttpd2_common_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS)
 liblighttpd2_common_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(CRYPT_LIB)
