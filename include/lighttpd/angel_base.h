@@ -11,7 +11,7 @@
 
 #include <lighttpd/angel_typedefs.h>
 
-#include <lighttpd/angel_value.h>
+#include <lighttpd/value.h>
 #include <lighttpd/angel_data.h>
 #include <lighttpd/angel_connection.h>
 #include <lighttpd/angel_log.h>

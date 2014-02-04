@@ -18,7 +18,7 @@ struct liOptionPtrValue {
 
 /* some common pointer types */
 		GString *string;
-		GArray *list;
+		GPtrArray *list;
 		GHashTable *hash;
 		liAction *action;
 		liCondition *cond;

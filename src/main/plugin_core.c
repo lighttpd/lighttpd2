@@ -393,7 +393,7 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 	struct stat st;
 	gint err;
 	GString *file, *tmp_docroot, *tmp_path;
-	GArray *files = param;
+	GPtrArray *files = param;
 	gint contextNdx = GPOINTER_TO_INT(*context);
 
 	UNUSED(context);
@@ -433,7 +433,7 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 
 	/* loop through the list to find a possible index file */
 	for (i = contextNdx - 1; i < files->len; i++) {
-		file = g_array_index(files, liValue*, i)->data.string;
+		file = ((liValue*)g_ptr_array_index(files, i))->data.string;
 
 		if (file->str[0] == '/') {
 			/* entries beginning with a slash shall be looked up directly at the docroot */
@@ -478,15 +478,8 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 }
 
 static void core_index_free(liServer *srv, gpointer param) {
-	guint i;
-	GArray *files = param;
-
 	UNUSED(srv);
-
-	for (i = 0; i < files->len; i++)
-		li_value_free(g_array_index(files, liValue*, i));
-
-	g_array_free(files, TRUE);
+	li_value_list_free((GPtrArray*) param);
 }
 
 static liAction* core_index(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
@@ -522,7 +515,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 	struct stat st;
 	int err;
 	liHandlerResult res;
-	GArray *exclude_arr = CORE_OPTIONPTR(LI_CORE_OPTION_STATIC_FILE_EXCLUDE_EXTENSIONS).list;
+	GPtrArray *exclude_arr = CORE_OPTIONPTR(LI_CORE_OPTION_STATIC_FILE_EXCLUDE_EXTENSIONS).list;
 	static const gchar boundary[] = "fkj49sn38dcn3";
 	gboolean no_fail = GPOINTER_TO_INT(param);
 
@@ -559,7 +552,7 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 		g_free(basep);
 
 		for (i = 0; i < exclude_arr->len; i++) {
-			liValue *v = g_array_index(exclude_arr, liValue*, i);
+			liValue *v = g_ptr_array_index(exclude_arr, i);
 			if (li_string_suffix(tmp_str, GSTR_LEN(v->data.string))) {
 				if (no_fail) return LI_HANDLER_GO_ON;
 
@@ -974,19 +967,23 @@ fail:
 	return NULL;
 }
 
+typedef struct {
+	GString *key;
+	liPattern *pattern;
+} env_set_add_ctx;
 
-static void core_env_set_free(liServer *srv, gpointer param) {
-	GArray *arr = param;
+static void core_env_set_add_free(liServer *srv, gpointer param) {
+	env_set_add_ctx *ctx = param;
 
 	UNUSED(srv);
 
-	li_value_free(g_array_index(arr, liValue*, 0));
-	li_pattern_free(g_array_index(arr, liPattern*, 1));
-	g_array_free(arr, TRUE);
+	g_string_free(ctx->key, TRUE);
+	li_pattern_free(ctx->pattern);
+	g_slice_free(env_set_add_ctx, ctx);
 }
 
 static liHandlerResult core_handle_env_set(liVRequest *vr, gpointer param, gpointer *context) {
-	GArray *arr = param;
+	env_set_add_ctx *ctx = param;
 	GMatchInfo *match_info = NULL;
 
 	UNUSED(context);
@@ -997,14 +994,15 @@ static liHandlerResult core_handle_env_set(liVRequest *vr, gpointer param, gpoin
 	}
 
 	g_string_truncate(vr->wrk->tmp_str, 0);
-	li_pattern_eval(vr, vr->wrk->tmp_str, g_array_index(arr, liPattern*, 1), NULL, NULL, li_pattern_regex_cb, match_info);
-	li_environment_set(&vr->env, GSTR_LEN(g_array_index(arr, liValue*, 0)->data.string), GSTR_LEN(vr->wrk->tmp_str));
+	li_pattern_eval(vr, vr->wrk->tmp_str, ctx->pattern, NULL, NULL, li_pattern_regex_cb, match_info);
+	li_environment_set(&vr->env, GSTR_LEN(ctx->key), GSTR_LEN(vr->wrk->tmp_str));
 
 	return LI_HANDLER_GO_ON;
 }
 
 static liAction* core_env_set(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	liPattern *pattern;
+	env_set_add_ctx *ctx;
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
 	/* first argument is a key value list - list of list of list of strings */
@@ -1021,16 +1019,16 @@ static liAction* core_env_set(liServer *srv, liWorker *wrk, liPlugin* p, liValue
 	if (NULL == (pattern = li_pattern_new(srv, li_value_list_at(val, 1)->data.string->str)))
 		return NULL;
 
-	/* exchange second parameter (string) with the new pattern */
-	li_value_free(li_value_list_at(val, 1));
-	g_array_index(val->data.list, liPattern*, 1) = pattern;
+	ctx = g_slice_new0(env_set_add_ctx);
+	ctx->key = li_value_extract_string(li_value_list_at(val, 0));
+	ctx->pattern = pattern;
 
-	return li_action_new_function(core_handle_env_set, NULL, core_env_set_free, li_value_extract_list(val));
+	return li_action_new_function(core_handle_env_set, NULL, core_env_set_add_free, ctx);
 }
 
 
 static liHandlerResult core_handle_env_add(liVRequest *vr, gpointer param, gpointer *context) {
-	GArray *arr = param;
+	env_set_add_ctx *ctx = param;
 	GMatchInfo *match_info = NULL;
 
 	UNUSED(context);
@@ -1041,14 +1039,15 @@ static liHandlerResult core_handle_env_add(liVRequest *vr, gpointer param, gpoin
 	}
 
 	g_string_truncate(vr->wrk->tmp_str, 0);
-	li_pattern_eval(vr, vr->wrk->tmp_str, g_array_index(arr, liPattern*, 1), NULL, NULL, li_pattern_regex_cb, match_info);
-	li_environment_insert(&vr->env, GSTR_LEN(g_array_index(arr, liValue*, 0)->data.string), GSTR_LEN(vr->wrk->tmp_str));
+	li_pattern_eval(vr, vr->wrk->tmp_str, ctx->pattern, NULL, NULL, li_pattern_regex_cb, match_info);
+	li_environment_insert(&vr->env, GSTR_LEN(ctx->key), GSTR_LEN(vr->wrk->tmp_str));
 
 	return LI_HANDLER_GO_ON;
 }
 
 static liAction* core_env_add(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	liPattern *pattern;
+	env_set_add_ctx *ctx;
 	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
 
 	/* first argument is a key value list - list of list of list of strings */
@@ -1065,11 +1064,11 @@ static liAction* core_env_add(liServer *srv, liWorker *wrk, liPlugin* p, liValue
 	if (NULL == (pattern = li_pattern_new(srv, li_value_list_at(val, 1)->data.string->str)))
 		return NULL;
 
-	/* exchange second parameter (string) with the new pattern */
-	li_value_free(li_value_list_at(val, 1));
-	g_array_index(val->data.list, liPattern*, 1) = pattern;
+	ctx = g_slice_new0(env_set_add_ctx);
+	ctx->key = li_value_extract_string(li_value_list_at(val, 0));
+	ctx->pattern = pattern;
 
-	return li_action_new_function(core_handle_env_add, NULL, core_env_set_free, li_value_extract_list(val));
+	return li_action_new_function(core_handle_env_add, NULL, core_env_set_add_free, ctx);
 }
 
 

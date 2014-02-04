@@ -19,6 +19,7 @@ common_src= \
 	sys_socket.c \
 	tasklet.c \
 	utils.c \
+	value.c \
 	waitqueue.c
 
 parsers=ip_parsers.c

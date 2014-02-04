@@ -67,7 +67,7 @@ static void lua_push_kvlist_metatable(lua_State *L) {
 
 static liValue* li_value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 	liValue *val = NULL, *sub_option;
-	GArray *list = NULL;
+	GPtrArray *list = NULL;
 	GHashTable *hash = NULL;
 	int ikey;
 	GString *skey;
@@ -91,9 +91,9 @@ static liValue* li_value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 			sub_option = li_value_from_lua(srv, L);
 			if (!sub_option) continue;
 			if ((size_t) ikey >= list->len) {
-				g_array_set_size(list, ikey + 1);
+				g_ptr_array_set_size(list, ikey + 1);
 			}
-			g_array_index(list, liValue*, ikey) = sub_option;
+			g_ptr_array_index(list, ikey) = sub_option;
 			break;
 
 		case LUA_TSTRING:
@@ -235,14 +235,11 @@ int li_lua_push_value(lua_State *L, liValue *value) {
 		lua_pushlstring(L, GSTR_LEN(value->data.string));
 		break;
 	case LI_VALUE_LIST: {
-		GArray *list = value->data.list;
-		guint i;
 		lua_newtable(L);
-		for (i = 0; i < list->len; i++) {
-			liValue *subval = g_array_index(list, liValue*, i);
-			li_lua_push_value(L, subval);
-			lua_rawseti(L, -2, i + 1);
-		}
+		LI_VALUE_FOREACH(entry, value)
+			li_lua_push_value(L, entry);
+			lua_rawseti(L, -2, _entry_i + 1);
+		LI_VALUE_END_FOREACH()
 		/* kvlist lookup for string/nil keys */
 		lua_push_kvlist_metatable(L);
 		lua_setmetatable(L, -2);

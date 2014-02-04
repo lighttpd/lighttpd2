@@ -250,7 +250,7 @@ void li_plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
 			if (pi->type != LI_VALUE_NONE && optlist[i] && optlist[i]->type != pi->type) {
 				/* TODO: convert from string if possible */
 				ERROR(srv, "Invalid value type of option '%s' in item '%s', got '%s' but expected '%s'",
-					pi->name, itemname->str, li_value_type_string(optlist[i]->type), li_value_type_string(pi->type));
+					pi->name, itemname->str, li_value_type_string(optlist[i]), li_valuetype_string(pi->type));
 				valid = FALSE;
 			}
 		}

@@ -197,6 +197,7 @@ SET(COMMON_SRC
 	sys_socket.c
 	tasklet.c
 	utils.c
+	value.c
 	waitqueue.c
 )
 

@@ -365,7 +365,7 @@ static void al_handle_vrclose(liVRequest *vr, liPlugin *p) {
 	GString *msg;
 	liResponse *resp = &vr->response;
 	GString *log_path = OPTIONPTR(AL_OPTION_ACCESSLOG).ptr;
-	GArray *format = OPTIONPTR(AL_OPTION_ACCESSLOG_FORMAT).list;
+	GArray *format = OPTIONPTR(AL_OPTION_ACCESSLOG_FORMAT).ptr;
 
 	if (LI_VRS_CLEAN == vr->state || resp->http_status == 0 || !log_path || !format)
 		/* if status code is zero, it means the connection was closed while in keep alive state or similar and no logging is needed */

@@ -19,10 +19,10 @@ static liValue* lua_params_to_value(liServer *srv, lua_State *L) {
 		return NULL;
 	default:
 		val = li_value_new_list();
-		g_array_set_size(val->data.list, lua_gettop(L) - 1);
+		g_ptr_array_set_size(val->data.list, lua_gettop(L) - 1);
 		while (lua_gettop(L) > 1) {
 			subval = li_value_from_lua(srv, L);
-			g_array_index(val->data.list, liValue*, lua_gettop(L) - 1) = subval;
+			g_ptr_array_index(val->data.list, lua_gettop(L) - 1) = subval;
 		}
 		return val;
 	}

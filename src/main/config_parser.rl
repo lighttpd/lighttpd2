@@ -810,10 +810,7 @@ static gboolean op_execute(liValue **vresult, liConfigToken op, liValue *v1, liV
 		case LI_VALUE_LIST:
 			switch (op) {
 			case TK_PLUS:
-				*vresult = li_value_new_list();
-				LI_VALUE_FOREACH(entry, v1)
-					li_value_list_append(*vresult, li_value_extract(entry));
-				LI_VALUE_END_FOREACH()
+				*vresult = li_value_extract(v1);
 				LI_VALUE_FOREACH(entry, v2)
 					li_value_list_append(*vresult, li_value_extract(entry));
 				LI_VALUE_END_FOREACH()

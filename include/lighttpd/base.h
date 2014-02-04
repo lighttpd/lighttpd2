@@ -24,6 +24,7 @@
 #include <lighttpd/radix.h>
 #include <lighttpd/fetch.h>
 
+#include <lighttpd/value.h>
 #include <lighttpd/base_lua.h>
 #include <lighttpd/log.h>
 #include <lighttpd/server.h>
@@ -32,7 +33,6 @@
 #include <lighttpd/condition.h>
 #include <lighttpd/ip_parsers.h>
 #include <lighttpd/options.h>
-#include <lighttpd/value.h>
 #include <lighttpd/actions.h>
 #include <lighttpd/plugin.h>
 #include <lighttpd/http_headers.h>

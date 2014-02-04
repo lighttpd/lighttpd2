@@ -249,21 +249,6 @@ typedef enum {
 typedef struct liThrottleState liThrottleState;
 typedef struct liThrottlePool liThrottlePool;
 
-/* value.h */
-
-typedef struct liValue liValue;
-
-typedef enum {
-	LI_VALUE_NONE,
-	LI_VALUE_BOOLEAN,
-	LI_VALUE_NUMBER,
-	LI_VALUE_STRING,
-	LI_VALUE_LIST,
-	LI_VALUE_HASH,
-	LI_VALUE_ACTION,     /**< shouldn't be used for options, but may be needed for constructing actions */
-	LI_VALUE_CONDITION   /**< shouldn't be used for options, but may be needed for constructing actions */
-} liValueType;
-
 /* virtualrequest.h */
 
 typedef struct liConCallbacks liConCallbacks;

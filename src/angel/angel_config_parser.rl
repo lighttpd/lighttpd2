@@ -210,18 +210,6 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 		ctx->curvalue = li_value_new_number(ctx->number);
 	}
 
-	action value_range {
-		liValueRange vr = { ctx->number2, ctx->number };
-		ctx->curvalue = li_value_new_range(vr);
-		if (ctx->number2 > ctx->number) {
-			GString *tmp = li_value_to_string(ctx->curvalue);
-			UPDATE_COLUMN();
-			PARSE_ERROR_FMT("range broken: %s (from > to)", tmp->str);
-			g_string_free(tmp, TRUE);
-			ctx->cs = angel_config_parser_error; fbreak;
-		}
-	}
-
 	action value_string {
 		ctx->curvalue = li_value_new_string(ctx->token);
 		ctx->token = g_string_sized_new(0);
@@ -347,7 +335,7 @@ static gchar *format_char(pcontext *ctx, gchar c) {
 	number = (('-'@{ctx->negate = TRUE;})? (digit digit**) $number_digit) >{ ctx->number = 0; ctx->negate = FALSE; };
 
 	value_bool = ('true'i | 'enabled'i) %value_true | ('false'i | 'disabled'i) %value_false;
-	value_number = number noise** ('-'@{ ctx->number2 = ctx->number; } (noise*) $err(error_expected_number) number %value_range | '' %value_number);
+	value_number = number %value_number;
 	value_string = string @value_string;
 	value_list = '(' @value_list_start;
 	value_hash = '[' @value_hash_start;
