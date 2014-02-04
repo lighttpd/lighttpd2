@@ -216,6 +216,9 @@ AC_SEARCH_LIBS([inet_addr],[nsl socket])
 ## freebsd: kvm
 AC_SEARCH_LIBS([kvm_open],[kvm])
 
+## math functions
+AC_SEARCH_LIBS([fmod],[m])
+
 # Checks for library functions.
 AC_CHECK_FUNCS([ \
   chroot \
