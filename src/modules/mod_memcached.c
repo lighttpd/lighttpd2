@@ -567,7 +567,7 @@ static liAction* mc_lookup_create(liServer *srv, liWorker *wrk, liPlugin* p, liV
 	UNUSED(userdata);
 
 	if (LI_VALUE_LIST == li_value_type(val) && li_value_list_len(val) <= 3
-			&& (LI_VALUE_LIST == li_value_list_type_at(val, 0) || LI_VALUE_HASH == li_value_list_type_at(val, 0) || LI_VALUE_NONE == li_value_list_type_at(val, 0))
+			&& (LI_VALUE_LIST == li_value_list_type_at(val, 0) || LI_VALUE_NONE == li_value_list_type_at(val, 0))
 			&& (LI_VALUE_ACTION == li_value_list_type_at(val, 1) || LI_VALUE_NONE == li_value_list_type_at(val, 1))
 			&& (LI_VALUE_ACTION == li_value_list_type_at(val, 2) || LI_VALUE_NONE == li_value_list_type_at(val, 2))
 			) {

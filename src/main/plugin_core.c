@@ -1342,7 +1342,7 @@ static liLogMap* logmap_from_value(liServer *srv, liValue *val) {
 
 		if (NULL != entryKeyStr && g_str_equal(entryKeyStr->str, "*")) {
 			WARNING(srv, "%s", "log: found entry with string key \"*\". please convert the parameter to a key-value list and use the keyword default instead.");
-			/* TODO: remove support for "default" (LI_VALUE_HASH) */
+			/* TODO: remove support for "default" */
 			entryKeyStr = NULL;
 		}
 

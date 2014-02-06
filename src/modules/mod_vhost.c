@@ -106,7 +106,7 @@ static liAction* vhost_map_create(liServer *srv, liWorker *wrk, liPlugin* p, liV
 
 		if (NULL != entryKeyStr && g_str_equal(entryKeyStr->str, "default")) {
 			WARNING(srv, "%s", "vhost.map: found entry with string key \"default\". please convert the parameter to a key-value list and use the keyword default instead.");
-			/* TODO: remove support for "default" (LI_VALUE_HASH) */
+			/* TODO: remove support for "default" */
 			g_string_free(entryKeyStr, TRUE);
 			entryKeyStr = NULL;
 		}
@@ -225,7 +225,7 @@ static liAction* vhost_map_regex_create(liServer *srv, liWorker *wrk, liPlugin* 
 
 		if (NULL != entryKeyStr && g_str_equal(entryKeyStr->str, "default")) {
 			WARNING(srv, "%s", "vhost.map_regex: found entry with string key \"default\". please convert the parameter to a key-value list and use the keyword default instead.");
-			/* TODO: remove support for "default" (LI_VALUE_HASH) */
+			/* TODO: remove support for "default" */
 			g_string_free(entryKeyStr, TRUE);
 			entryKeyStr = NULL;
 		}

@@ -66,54 +66,44 @@ static void lua_push_kvlist_metatable(lua_State *L) {
 
 
 static liValue* li_value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
-	liValue *val = NULL, *sub_option;
-	GPtrArray *list = NULL;
-	GHashTable *hash = NULL;
+	liValue *val, *entry;
+	gboolean is_list = FALSE, is_hash = FALSE;
 	int ikey;
-	GString *skey;
+	liValue *kv_key, *kv_pair;
+
+	val = li_value_new_list();
 
 	ndx = li_lua_fixindex(L, ndx);
 	lua_pushnil(L);
 	while (lua_next(L, ndx) != 0) {
 		switch (lua_type(L, -2)) {
 		case LUA_TNUMBER:
-			if (hash) goto mixerror;
-			if (!list) {
-				val = li_value_new_list();
-				list = val->data.list;
-			}
+			if (is_hash) goto mixerror;
+			is_list = TRUE;
 			ikey = lua_tointeger(L, -2) - 1;
 			if (ikey < 0) {
 				ERROR(srv, "Invalid key < 0: %i - skipping entry", ikey + 1);
 				lua_pop(L, 1);
 				continue;
 			}
-			sub_option = li_value_from_lua(srv, L);
-			if (!sub_option) continue;
-			if ((size_t) ikey >= list->len) {
-				g_ptr_array_set_size(list, ikey + 1);
-			}
-			g_ptr_array_index(list, ikey) = sub_option;
+			entry = li_value_from_lua(srv, L);
+			if (NULL == entry) continue;
+			li_value_list_set(val, ikey, entry);
 			break;
 
 		case LUA_TSTRING:
-			if (list) goto mixerror;
-			if (!hash) {
-				val = li_value_new_hash();
-				hash = val->data.hash;
-			}
-			skey = li_lua_togstring(L, -2);
-			if (g_hash_table_lookup(hash, skey)) {
-				ERROR(srv, "Key already exists in hash: '%s' - skipping entry", skey->str);
-				lua_pop(L, 1);
+			if (is_list) goto mixerror;
+			is_hash = TRUE;
+			kv_key = li_value_new_string(li_lua_togstring(L, -2));
+			entry = li_value_from_lua(srv, L);
+			if (NULL == entry) {
+				li_value_free(kv_key);
 				continue;
 			}
-			sub_option = li_value_from_lua(srv, L);
-			if (!sub_option) {
-				g_string_free(skey, TRUE);
-				continue;
-			}
-			g_hash_table_insert(hash, skey, sub_option);
+			kv_pair = li_value_new_list();
+			li_value_list_append(kv_pair, kv_key);
+			li_value_list_append(kv_pair, entry);
+			li_value_list_append(val, kv_pair);
 			break;
 
 		default:
@@ -243,20 +233,6 @@ int li_lua_push_value(lua_State *L, liValue *value) {
 		/* kvlist lookup for string/nil keys */
 		lua_push_kvlist_metatable(L);
 		lua_setmetatable(L, -2);
-	} break;
-	case LI_VALUE_HASH: {
-		GHashTableIter it;
-		gpointer pkey, pvalue;
-		lua_newtable(L);
-
-		g_hash_table_iter_init(&it, value->data.hash);
-		while (g_hash_table_iter_next(&it, &pkey, &pvalue)) {
-			GString *key = pkey;
-			liValue *subval = pvalue;
-			lua_pushlstring(L, GSTR_LEN(key));
-			li_lua_push_value(L, subval);
-			lua_rawset(L, -3);
-		}
 	} break;
 	case LI_VALUE_ACTION:
 		li_action_acquire(value->data.val_action.action);

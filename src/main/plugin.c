@@ -478,10 +478,6 @@ void li_release_optionptr(liServer *srv, liOptionPtrValue *value) {
 			if (value->data.list)
 				li_value_list_free(value->data.list);
 			break;
-		case LI_VALUE_HASH:
-			if (value->data.hash)
-				g_hash_table_destroy(value->data.hash);
-			break;
 		case LI_VALUE_ACTION:
 			if (value->data.action)
 				li_action_release(srv, value->data.action);

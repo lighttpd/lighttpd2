@@ -44,13 +44,6 @@ static void _value_hash_free_value(gpointer data) {
 	li_value_free((liValue*) data);
 }
 
-liValue* li_value_new_hash(void) {
-	liValue *v = g_slice_new0(liValue);
-	v->data.hash = li_value_new_hashtable();
-	v->type = LI_VALUE_HASH;
-	return v;
-}
-
 GHashTable *li_value_new_hashtable(void) {
 	return g_hash_table_new_full(
 		(GHashFunc) g_string_hash, (GEqualFunc) g_string_equal,
@@ -89,17 +82,6 @@ liValue* li_common_value_copy_(liValue* val) {
 			g_ptr_array_index(n->data.list, i) = li_value_copy(g_ptr_array_index(val->data.list, i));
 		}
 		return n;
-	/* hash: iterate over hashtable, clone each value */
-	case LI_VALUE_HASH:
-		n = li_value_new_hash();
-		{
-			GHashTableIter iter;
-			gpointer k, v;
-			g_hash_table_iter_init(&iter, val->data.hash);
-			while (g_hash_table_iter_next(&iter, &k, &v))
-				g_hash_table_insert(n->data.hash, g_string_new_len(GSTR_LEN((GString*)k)), li_value_copy((liValue*)v));
-		}
-		return n;
 	}
 	return NULL;
 }
@@ -123,9 +105,6 @@ void li_common_value_clear_(liValue *val) {
 		break;
 	case LI_VALUE_LIST:
 		li_value_list_free(val->data.list);
-		break;
-	case LI_VALUE_HASH:
-		g_hash_table_destroy(val->data.hash);
 		break;
 	}
 	_li_value_clear(val);
@@ -156,8 +135,6 @@ const char* li_common_valuetype_string_(liValueType type) {
 		return "string";
 	case LI_VALUE_LIST:
 		return "list";
-	case LI_VALUE_HASH:
-		return "hash";
 	}
 	return "<unknown>";
 }
@@ -203,30 +180,6 @@ GString *li_common_value_to_string_(liValue *val) {
 		}
 		g_string_append_c(str, ')');
 		break;
-	case LI_VALUE_HASH:
-		{
-			GHashTableIter iter;
-			gpointer k, v;
-			GString *tmp;
-			guint i = 0;
-
-			str = g_string_new_len(CONST_STR_LEN("["));
-
-			g_hash_table_iter_init(&iter, val->data.hash);
-			while (g_hash_table_iter_next(&iter, &k, &v)) {
-				if (i)
-					g_string_append_len(str, CONST_STR_LEN(", "));
-				tmp = li_value_to_string((liValue*)v);
-				g_string_append_len(str, GSTR_LEN((GString*)k));
-				g_string_append_len(str, CONST_STR_LEN(" => "));
-				g_string_append_len(str, GSTR_LEN(tmp));
-				g_string_free(tmp, TRUE);
-				i++;
-			}
-
-			g_string_append_c(str, ']');
-		}
-		break;
 	}
 
 	return str;
@@ -250,9 +203,6 @@ gpointer li_common_value_extract_ptr_(liValue *val) {
 	case LI_VALUE_LIST:
 		ptr = val->data.list;
 		break;
-	case LI_VALUE_HASH:
-		ptr =  val->data.hash;
-		break;
 	}
 	_li_value_clear(val);
 	return ptr;
@@ -275,14 +225,6 @@ GPtrArray* li_value_extract_list(liValue *val) {
 	return result;
 }
 
-GHashTable* li_value_extract_hash(liValue *val) {
-	GHashTable* result;
-	if (NULL == val || val->type != LI_VALUE_HASH) return NULL;
-	result = val->data.hash;
-	_li_value_clear(val);
-	return result;
-}
-
 liValue* li_value_extract(liValue *val) {
 	liValue *v;
 	if (NULL == val) return NULL;
@@ -295,35 +237,7 @@ liValue* li_value_extract(liValue *val) {
 liValue* li_value_to_key_value_list(liValue *val) {
 	if (NULL == val) return NULL;
 
-	if (LI_VALUE_HASH == val->type) {
-		GHashTable *table = li_value_extract_hash(val);
-		GPtrArray *list;
-
-		GHashTableIter hti;
-		gpointer hkey, hvalue;
-
-		{
-			/* convert val to list */
-			liValue *vlist = li_value_new_list();
-			li_value_move(val, vlist);
-			li_value_free(vlist);
-		}
-		list = val->data.list;
-
-		g_hash_table_iter_init(&hti, table);
-		while (g_hash_table_iter_next(&hti, &hkey, &hvalue)) {
-			GString *htkey = hkey; liValue *htval = hvalue;
-			liValue *hkeyval = li_value_new_string(htkey);
-			liValue *pair = li_value_new_list();
-			g_ptr_array_add(pair->data.list, hkeyval);
-			g_ptr_array_add(pair->data.list, htval);
-			g_ptr_array_add(list, pair);
-		}
-		g_hash_table_steal_all(table); /* content was moved to list */
-		g_hash_table_destroy(table);
-
-		return val;
-	} else if (LI_VALUE_LIST == val->type) {
+	if (LI_VALUE_LIST == val->type) {
 		if (li_value_list_has_len(val, 2) &&
 				(LI_VALUE_STRING == li_value_list_type_at(val, 0) || LI_VALUE_NONE == li_value_list_type_at(val, 0))) {
 			/* single key-value pair */

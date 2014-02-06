@@ -19,7 +19,6 @@ typedef enum
 	, LI_VALUE_NUMBER
 	, LI_VALUE_STRING
 	, LI_VALUE_LIST
-	, LI_VALUE_HASH
 #ifdef _LIGHTTPD_BASE_H_
 	, LI_VALUE_ACTION      /**< shouldn't be used for options, but may be needed for constructing actions */
 	, LI_VALUE_CONDITION   /**< shouldn't be used for options, but may be needed for constructing actions */
@@ -34,8 +33,6 @@ struct liValue {
 		GString *string;
 		/* array of (liValue*) */
 		GPtrArray *list;
-		/* hash GString => value */
-		GHashTable *hash;
 		struct {
 			struct liServer *srv;    /* needed for destruction */
 			struct liAction *action;
@@ -52,7 +49,6 @@ LI_API liValue* li_value_new_bool(gboolean val);
 LI_API liValue* li_value_new_number(gint64 val);
 LI_API liValue* li_value_new_string(GString *val);
 LI_API liValue* li_value_new_list(void);
-LI_API liValue* li_value_new_hash(void);
 #ifdef _LIGHTTPD_BASE_H_
 LI_API liValue* li_value_new_action(liServer *srv, liAction *a);
 LI_API liValue* li_value_new_condition(liServer *srv, liCondition *c);
@@ -88,7 +84,6 @@ LI_API gpointer li_value_extract_ptr(liValue *val);
 LI_API gpointer li_common_value_extract_ptr_(liValue *val); /* internal function */
 LI_API GString* li_value_extract_string(liValue *val);
 LI_API GPtrArray* li_value_extract_list(liValue *val);
-LI_API GHashTable* li_value_extract_hash(liValue *val);
 #ifdef _LIGHTTPD_BASE_H_
 LI_API liAction* li_value_extract_action(liValue *val);
 LI_API liCondition* li_value_extract_condition(liValue *val);
@@ -117,6 +112,8 @@ INLINE guint li_value_list_len(liValue *val);
 INLINE liValue* li_value_list_at(liValue* val, guint ndx);
 /* returns type of list entry, or LI_VALUE_NONE if not a list or NULL entry or out of bounds */
 INLINE liValueType li_value_list_type_at(liValue *val, guint ndx);
+/* set list entry at given index */
+INLINE void li_value_list_set(liValue *val, guint ndx, liValue *entry);
 
 #define LI_VALUE_FOREACH(entry, list) { \
 	guint _ ## entry ## _i, _ ## entry ## _len = li_value_list_len(list); \
@@ -156,6 +153,19 @@ INLINE liValue* li_value_list_at(liValue* val, guint ndx) {
 
 INLINE liValueType li_value_list_type_at(liValue *val, guint ndx) {
 	return li_value_type(li_value_list_at(val, ndx));
+}
+
+INLINE void li_value_list_set(liValue *val, guint ndx, liValue *entry) {
+	GPtrArray *list;
+	if (NULL == val || LI_VALUE_LIST != val->type) {
+		li_value_free(entry);
+	}
+	list = val->data.list;
+	if (ndx <= list->len) {
+		g_ptr_array_set_size(list, ndx + 1);
+	}
+	li_value_free(g_ptr_array_index(list, ndx));
+	g_ptr_array_index(list, ndx) = entry;
 }
 
 #endif
