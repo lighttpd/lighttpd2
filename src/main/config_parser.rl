@@ -1693,7 +1693,7 @@ static gboolean p_condition_value(liConditionTree **tree, liConfigTokenizerConte
 		goto error;
 	}
 
-	if (!p_value(&key_value_nesting, &rvalue, TK_OR, ctx, error)) goto error;
+	if (!p_value(&key_value_nesting, &rvalue, TK_NOT, ctx, error)) goto error;
 
 	switch (li_value_type(rvalue)) {
 	case LI_VALUE_STRING:
