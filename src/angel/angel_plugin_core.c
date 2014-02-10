@@ -1,5 +1,6 @@
 
 #include <lighttpd/angel_plugin_core.h>
+#include <lighttpd/angel_config_parser.h>
 #include <lighttpd/ip_parsers.h>
 
 #include <fnmatch.h>
@@ -28,186 +29,271 @@ struct listen_ref_resource {
 	listen_socket *sock;
 };
 
-static void core_instance_parse(liServer *srv, liPlugin *p, liValue **options) {
-	GPtrArray *cmd, *env;
-	gchar **cmdarr, **envarr;
-	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
-	uid_t uid = -1;
-	gid_t gid = -1;
-	GString *user = NULL;
-	gint64 rlim_core = -1, rlim_nofile = -1;
-
-	if (config->load_instconf) {
-		ERROR(srv, "%s", "Already configure the instance");
-		config->load_failed = FALSE;
-		return;
+static liValue* core_parse_check_parameter_string(liValue *value, const char* item, GError **err) {
+	value = li_value_get_single_argument(value);
+	if (LI_VALUE_STRING != li_value_type(value)) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"%s: expecting a string as parameter", item);
+		return NULL;
 	}
 
-	/* set user and group */
-	if (options[0]) {
-		struct passwd *pwd;
-		user = options[0]->data.string;
-		if (NULL == (pwd = getpwnam(user->str))) {
-			ERROR(srv, "can't find username '%s'", user->str);
-			config->load_failed = FALSE;
-			return;
-		}
-
-		uid = pwd->pw_uid;
-		gid = pwd->pw_gid;
+	return value;
+}
+/* destroys value, extracting the contained string into *target */
+static gboolean core_parse_store_string(liValue *value, const char* item, GString** target, GError **err) {
+	if (NULL != *target) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"%s: already specified, can only be used once", item);
+		return FALSE;
 	}
 
-	if (options[1]) {
-		struct group *grp;
-		GString *group = options[1]->data.string;
-		if (NULL == (grp = getgrnam(group->str))) {
-			ERROR(srv, "can't find groupname '%s'", group->str);
-			config->load_failed = FALSE;
-			return;
-		}
+	if (NULL == (value = core_parse_check_parameter_string(value, item, err))) return FALSE;
+	*target = li_value_extract_string(value);
 
-		gid = grp->gr_gid;
+	return TRUE;
+}
+/* destroys value, adding the contained strings (char*) to target */
+static gboolean core_parse_store_string_list(liValue *value, const char* item, GPtrArray* list, GError **err) {
+	value = li_value_get_single_argument(value);
+	if (LI_VALUE_STRING == li_value_type(value)) {
+		li_value_wrap_in_list(value);
+	}
+	else if (LI_VALUE_LIST != li_value_type(value)) goto parameter_type_error;
+
+	LI_VALUE_FOREACH(entry, value)
+		if (LI_VALUE_STRING != li_value_type(entry)) goto parameter_type_error;
+
+		g_ptr_array_add(list, g_string_free(li_value_extract_string(entry), FALSE));
+	LI_VALUE_END_FOREACH()
+
+	return TRUE;
+
+parameter_type_error:
+	g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+		"%s: expecting string list as parameter", item);
+	return FALSE;
+}
+/* extract the contained integer into *target */
+static gboolean core_parse_store_integer(liValue *value, const char* item, gint64* target, GError **err) {
+	value = li_value_get_single_argument(value);
+	if (LI_VALUE_NUMBER != li_value_type(value)) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"%s: expecting a number as parameter", item);
+		return FALSE;
 	}
 
-	if (0 == uid) {
-		ERROR(srv, "%s", "I will not set uid to 0");
-		config->load_failed = FALSE;
-		return;
-	}
-	if (0 == gid) {
-		ERROR(srv, "%s", "I will not set gid to 0");
-		config->load_failed = FALSE;
-		return;
-	}
+	*target = value->data.number;
 
-	/* check types in lists */
-	if (options[6]) {
-		GPtrArray *wrapper_lst = options[6]->data.list;
-		guint i;
-		for (i = 0; i < wrapper_lst->len; i++) {
-			liValue *wi = g_ptr_array_index(wrapper_lst, i);
-			if (wi->type != LI_VALUE_STRING) {
-				ERROR(srv, "Entry %i in wrapper list is not a string", i);
-				config->load_failed = FALSE;
-				return;
-			}
-		}
-	}
-	if (options[7]) { /* env */
-		GPtrArray *env_lst = options[7]->data.list;
-		guint i;
-		for (i = 0; i < env_lst->len; i++) {
-			liValue *ei = g_ptr_array_index(env_lst, i);
-			if (ei->type != LI_VALUE_STRING) {
-				ERROR(srv, "Entry %i in env list is not a string", i);
-				config->load_failed = FALSE;
-				return;
-			}
-		}
-	}
-	if (options[8]) { /* copy-env */
-		GPtrArray *env_lst = options[8]->data.list;
-		guint i;
-		for (i = 0; i < env_lst->len; i++) {
-			liValue *ei = g_ptr_array_index(env_lst, i);
-			if (ei->type != LI_VALUE_STRING) {
-				ERROR(srv, "Entry %i in copy-env list is not a string", i);
-				config->load_failed = FALSE;
-				return;
-			}
-		}
-	}
-
-	env = g_ptr_array_new();
-
-	if (options[7]) { /* env */
-		GPtrArray *env_lst = options[7]->data.list;
-		guint i;
-		for (i = 0; i < env_lst->len; i++) {
-			liValue *ei = g_ptr_array_index(env_lst, i);
-			g_ptr_array_add(env, g_strndup(GSTR_LEN(ei->data.string)));
-		}
-	}
-	if (options[8]) { /* copy-env */
-		GPtrArray *env_lst = options[8]->data.list;
-		guint i;
-		for (i = 0; i < env_lst->len; i++) {
-			liValue *ei = g_ptr_array_index(env_lst, i);
-			const char *val = getenv(ei->data.string->str);
-			size_t vallen, keylen = ei->data.string->len;
-			gchar *entry;
-			if (!val) continue;
-
-			vallen = strlen(val);
-			entry = g_malloc(keylen + 1 /* "=" */ + vallen + 1 /* \0 */);
-			memcpy(entry, ei->data.string->str, keylen);
-			entry[keylen] = '=';
-			memcpy(entry + keylen+1, val, vallen);
-			entry[keylen + vallen + 1] = '\0';
-			g_ptr_array_add(env, entry);
-		}
-	}
-
-
-	cmd = g_ptr_array_new();
-
-	if (options[6]) {
-		GPtrArray *wrapper_lst = options[6]->data.list;
-		guint i;
-		for (i = 0; i < wrapper_lst->len; i++) {
-			liValue *wi = g_ptr_array_index(wrapper_lst, i);
-			g_ptr_array_add(cmd, g_strndup(GSTR_LEN(wi->data.string)));
-		}
-	}
-
-	if (options[2]) {
-		g_ptr_array_add(cmd, g_strndup(GSTR_LEN(options[2]->data.string)));
-	} else {
-		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN(DEFAULT_LIBEXECDIR "/lighttpd2-worker")));
-	}
-
-	g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("--angel")));
-	g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("-c")));
-	if (options[3]) {
-		g_ptr_array_add(cmd, g_strndup(GSTR_LEN(options[3]->data.string)));
-	} else if (options[4]) {
-		g_ptr_array_add(cmd, g_strndup(GSTR_LEN(options[4]->data.string)));
-		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("-l")));
-	} else {
-		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("/etc/lighttpd2/lighttpd.conf")));
-	}
-
-	if (options[5]) {
-		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("-m")));
-		g_ptr_array_add(cmd, g_strndup(GSTR_LEN(options[5]->data.string)));
-	}
-
-	if (options[9]) rlim_core = options[9]->data.number;
-	if (options[10]) rlim_nofile = options[10]->data.number;
-
-	g_ptr_array_add(cmd, NULL);
-	g_ptr_array_add(env, NULL);
-	cmdarr = (gchar**) g_ptr_array_free(cmd, FALSE);
-	envarr = (gchar**) g_ptr_array_free(env, FALSE);
-	config->load_instconf = li_instance_conf_new(cmdarr, envarr, user, uid, gid, rlim_core, rlim_nofile);
+	return TRUE;
 }
 
-static const liPluginItemOption core_instance_options[] = {
-	/*  0 */ { "user", LI_VALUE_STRING, 0 },
-	/*  1 */ { "group", LI_VALUE_STRING, 0 },
-	/*  2 */ { "binary", LI_VALUE_STRING, 0 },
-	/*  3 */ { "config", LI_VALUE_STRING, 0 },
-	/*  4 */ { "luaconfig", LI_VALUE_STRING, 0 },
-	/*  5 */ { "modules", LI_VALUE_STRING, 0 },
-	/*  6 */ { "wrapper", LI_VALUE_LIST, 0 },
-	/*  7 */ { "env", LI_VALUE_LIST, 0 },
-	/*  8 */ { "copy-env", LI_VALUE_LIST, 0 },
-	/*  9 */ { "max-core-file-size", LI_VALUE_NUMBER, 0 },
-	/* 10 */ { "max-open-files", LI_VALUE_NUMBER, 0 },
-	{ NULL, 0, 0 }
-};
+
+static gboolean core_parse_user(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	struct passwd *pwd;
+	GString *user;
+	UNUSED(srv);
+
+	if (!core_parse_store_string(value, "user", &pc->parsing.user, err)) return FALSE;
+
+	user = pc->parsing.user;
+	if (NULL == (pwd = getpwnam(user->str))) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"user: couldn't find user '%s' ", user->str);
+		return FALSE;
+	}
+	if (0 == pwd->pw_uid) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"user: will not changed to uid 0");
+		return FALSE;
+	}
+	if (0 == pwd->pw_gid) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"user: will not changed to gid 0");
+		return FALSE;
+	}
+
+	pc->parsing.user_uid = pwd->pw_uid;
+	pc->parsing.user_gid = pwd->pw_gid;
+
+	return TRUE;
+}
+
+static gboolean core_parse_group(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	struct group *grp;
+	GString *group;
+	UNUSED(srv);
+
+	if (!core_parse_store_string(value, "group", &pc->parsing.group, err)) return FALSE;
+
+	group = pc->parsing.group;
+	if (NULL == (grp = getgrnam(group->str))) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"group: couldn't find group '%s' ", group->str);
+		return FALSE;
+	}
+	if (0 == grp->gr_gid) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"group: will not changed to gid 0");
+		return FALSE;
+	}
+
+	pc->parsing.group_gid = grp->gr_gid;
+
+	return TRUE;
+}
+
+static gboolean core_parse_binary(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	UNUSED(srv);
+
+	return core_parse_store_string(value, "binary", &pc->parsing.binary, err);
+}
+
+static gboolean core_parse_config(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	UNUSED(srv);
+
+	if (NULL != pc->parsing.luaconfig) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"config: already specified luaconfig");
+		return FALSE;
+	}
+
+	return core_parse_store_string(value, "config", &pc->parsing.config, err);
+}
+
+static gboolean core_parse_luaconfig(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	UNUSED(srv);
+
+	if (NULL != pc->parsing.config) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"luaconfig: already specified config");
+		return FALSE;
+	}
+
+	return core_parse_store_string(value, "luaconfig", &pc->parsing.luaconfig, err);
+}
+
+static gboolean core_parse_modules_path(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	UNUSED(srv);
+
+	return core_parse_store_string(value, "modules_path", &pc->parsing.modules_path, err);
+}
+
+static void add_env(GPtrArray *env, const char *key, size_t keylen, const char *value, size_t valuelen) {
+	gchar* entry = g_malloc(keylen + 1 /* "=" */ + valuelen + 1 /* \0 */);
+	memcpy(entry, key, keylen);
+	entry[keylen] = '=';
+	memcpy(entry + keylen + 1, value, valuelen);
+	entry[keylen + valuelen + 1] = '\0';
+	g_ptr_array_add(env, entry);
+}
+
+static gboolean core_parse_env(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	UNUSED(srv);
+
+	value = li_value_get_single_argument(value);
+	if (LI_VALUE_LIST != li_value_type(value)) goto parameter_type_error;
+	if (li_value_list_has_len(value, 2) && LI_VALUE_STRING == li_value_list_type_at(value, 0) && LI_VALUE_STRING == li_value_list_type_at(value, 1)) {
+		if (NULL == strchr(li_value_list_at(value, 0)->data.string->str, '=')) {
+			/* no '=' in first string: single key => value pair; otherwise a list with two entries ['foo=x', 'bar=y'] */
+			li_value_wrap_in_list(value);
+		}
+	}
+
+	LI_VALUE_FOREACH(entry, value)
+		if (LI_VALUE_STRING == li_value_type(entry)) {
+			g_ptr_array_add(pc->parsing.env, g_string_free(li_value_extract_string(entry), FALSE));
+		} else {
+			liValue *key = li_value_list_at(entry, 0);
+			liValue *val = li_value_list_at(entry, 1);
+			if (!li_value_list_has_len(entry, 2) || LI_VALUE_STRING != li_value_type(key) || LI_VALUE_STRING != li_value_type(val)) goto parameter_type_error;
+			add_env(pc->parsing.env, GSTR_LEN(key->data.string), GSTR_LEN(val->data.string));
+		}
+	LI_VALUE_END_FOREACH()
+
+	return TRUE;
+
+parameter_type_error:
+	g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+		"env: expecting key-value/string list as parameter");
+	return FALSE;
+}
+
+static gboolean core_parse_copy_env(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	UNUSED(srv);
+
+	value = li_value_get_single_argument(value);
+	if (LI_VALUE_STRING == li_value_type(value)) {
+		li_value_wrap_in_list(value);
+	}
+	else if (LI_VALUE_LIST != li_value_type(value)) goto parameter_type_error;
+
+	LI_VALUE_FOREACH(entry, value)
+		const char *val;
+		size_t vallen;
+		if (LI_VALUE_STRING != li_value_type(entry)) goto parameter_type_error;
+
+		val = getenv(entry->data.string->str);
+		if (NULL == val) continue;
+		vallen = strlen(val);
+
+		add_env(pc->parsing.env, GSTR_LEN(entry->data.string), val, vallen);
+	LI_VALUE_END_FOREACH()
+
+	return TRUE;
+
+parameter_type_error:
+	g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+		"copy_env: expecting string list as parameter");
+	return FALSE;
+}
+
+static gboolean core_parse_wrapper(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	UNUSED(srv);
+
+	return core_parse_store_string_list(value, "wrapper", pc->parsing.wrapper, err);
+}
+
+static gboolean core_parse_max_core_file_size(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	UNUSED(srv);
+
+	if (-1 != pc->parsing.rlim_core) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"max_core_file_size: already specified");
+		return FALSE;
+	}
+
+	return core_parse_store_integer(value, "max_core_file_size", &pc->parsing.rlim_core, err);
+}
+
+static gboolean core_parse_max_open_files(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	UNUSED(srv);
+
+	if (-1 != pc->parsing.rlim_nofile) {
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"max_open_files: already specified");
+		return FALSE;
+	}
+
+	return core_parse_store_integer(value, "max_open_files", &pc->parsing.rlim_nofile, err);
+}
+
+
+
 
 static void core_listen_mask_free(liPluginCoreListenMask *mask) {
+	if (NULL == mask) return;
+
 	switch (mask->type) {
 	case LI_PLUGIN_CORE_LISTEN_MASK_IPV4:
 	case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
@@ -219,63 +305,169 @@ static void core_listen_mask_free(liPluginCoreListenMask *mask) {
 	g_slice_free(liPluginCoreListenMask, mask);
 }
 
-static void core_listen_parse(liServer *srv, liPlugin *p, liValue **options) {
-	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
-	gboolean have_type = FALSE;
+static gboolean core_parse_allow_listen_ip(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	liPluginCoreListenMask *mask;
+	UNUSED(srv);
 
-	liPluginCoreListenMask *mask = g_slice_new0(liPluginCoreListenMask);
+	if (NULL == (value = core_parse_check_parameter_string(value, "allow_listen_ip", err))) return FALSE;
 
-	if (options[0]) { /* ip */
-		if (have_type) goto only_one_type;
-		have_type = TRUE;
-		if (li_parse_ipv4(options[0]->data.string->str, &mask->value.ipv4.addr, &mask->value.ipv4.networkmask, &mask->value.ipv4.port)) {
-			mask->type = LI_PLUGIN_CORE_LISTEN_MASK_IPV4;
-		} else if (li_parse_ipv6(options[0]->data.string->str, mask->value.ipv6.addr, &mask->value.ipv6.network, &mask->value.ipv6.port)) {
-			mask->type = LI_PLUGIN_CORE_LISTEN_MASK_IPV6;
-		} else {
-			ERROR(srv, "couldn't parse ip/network:port in listen mask '%s'", options[0]->data.string->str);
-			config->load_failed = FALSE;
-			g_slice_free(liPluginCoreListenMask, mask);
-			return;
-		}
-	}
-
-	if (options[1]) { /* unix */
-		if (have_type) goto only_one_type;
-		have_type = TRUE;
-		mask->type = LI_PLUGIN_CORE_LISTEN_MASK_UNIX;
-		mask->value.unix_socket.path = g_string_new_len(GSTR_LEN(options[2]->data.string));
-	}
-
-	if (!have_type) {
-		ERROR(srv, "%s", "no options found in listen mask");
-		config->load_failed = FALSE;
+	mask = g_slice_new0(liPluginCoreListenMask);
+	if (li_parse_ipv4(value->data.string->str, &mask->value.ipv4.addr, &mask->value.ipv4.networkmask, &mask->value.ipv4.port)) {
+		mask->type = LI_PLUGIN_CORE_LISTEN_MASK_IPV4;
+	} else if (li_parse_ipv6(value->data.string->str, mask->value.ipv6.addr, &mask->value.ipv6.network, &mask->value.ipv6.port)) {
+		mask->type = LI_PLUGIN_CORE_LISTEN_MASK_IPV6;
+	} else {
+		ERROR(srv, "couldn't parse ip/network:port in allow_listen_ip mask '%s'", value->data.string->str);
 		g_slice_free(liPluginCoreListenMask, mask);
-		return;
+		return FALSE;
 	}
 
-	g_ptr_array_add(config->load_listen_masks, mask);
-	return;
-
-only_one_type:
-	ERROR(srv, "%s", "you can only use one of 'ip' and 'unix' in listen masks");
-	config->load_failed = FALSE;
-	g_slice_free(liPluginCoreListenMask, mask);
-	return;
+	g_ptr_array_add(pc->parsing.listen_masks, mask);
+	return TRUE;
 }
 
-static const liPluginItemOption core_listen_options[] = {
-	/*  0 */ { "ip", LI_VALUE_STRING, 0 },
-	/*  1 */ { "unix", LI_VALUE_STRING, 0 },
-	{ NULL, 0, 0 }
-};
+static gboolean core_parse_allow_listen_unix(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+	liPluginCoreConfig *pc = p->data;
+	liPluginCoreListenMask *mask;
+	UNUSED(srv);
+
+	if (NULL == (value = core_parse_check_parameter_string(value, "allow_listen_unix", err))) return FALSE;
+
+	mask = g_slice_new0(liPluginCoreListenMask);
+	mask->type = LI_PLUGIN_CORE_LISTEN_MASK_UNIX;
+	mask->value.unix_socket.path = li_value_extract_string(value);
+
+	g_ptr_array_add(pc->parsing.listen_masks, mask);
+	return TRUE;
+}
 
 
 static const liPluginItem core_items[] = {
-	{ "instance", core_instance_parse, core_instance_options },
-	{ "allow_listen", core_listen_parse, core_listen_options },
-	{ NULL, NULL, NULL }
+	{ "user", core_parse_user },
+	{ "group", core_parse_group },
+	{ "binary", core_parse_binary },
+	{ "config", core_parse_config },
+	{ "luaconfig", core_parse_luaconfig },
+	{ "modules_path", core_parse_modules_path },
+	{ "wrapper", core_parse_wrapper },
+	{ "env", core_parse_env },
+	{ "copy_env", core_parse_copy_env },
+	{ "max_core_file_size", core_parse_max_core_file_size },
+	{ "max_open_files", core_parse_max_open_files },
+	{ "allow_listen_ip", core_parse_allow_listen_ip },
+	{ "allow_listen_unix", core_parse_allow_listen_unix },
+	{ NULL, NULL }
 };
+
+#define INIT_STR(N) /* GString, init to NULL */ \
+	if (NULL != pc->parsing.N) { \
+		g_string_free(pc->parsing.N, TRUE); \
+		pc->parsing.N = NULL; \
+	}
+#define INIT_STR_LIST(N) /* char* ptr array, init to empty array */ \
+	if (NULL != pc->parsing.N) { \
+		GPtrArray *a_ ## N = pc->parsing.N; \
+		guint i_ ## N; \
+		for (i_ ## N = 0; i_ ## N < a_ ## N->len; ++i_ ## N) { \
+			g_free(g_ptr_array_index(a_ ## N, i_ ## N)); \
+		} \
+		g_ptr_array_set_size(a_ ## N, 0); \
+	} else { \
+		pc->parsing.N = g_ptr_array_new(); \
+	}
+
+static void core_parse_init(liServer *srv, liPlugin *p) {
+	liPluginCoreConfig *pc = p->data;
+	UNUSED(srv);
+
+	INIT_STR_LIST(env);
+	INIT_STR(user);
+	pc->parsing.user_uid = (uid_t) -1;
+	pc->parsing.user_gid = (gid_t) -1;
+
+	INIT_STR(group);
+	pc->parsing.group_gid = (gid_t) -1;
+
+	INIT_STR(binary);
+	INIT_STR(config);
+	INIT_STR(luaconfig);
+	INIT_STR(modules_path);
+
+	INIT_STR_LIST(wrapper);
+
+	pc->parsing.rlim_core = pc->parsing.rlim_nofile = -1;
+
+	if (NULL != pc->parsing.instconf) {
+		li_instance_conf_release(pc->parsing.instconf);
+		pc->parsing.instconf = NULL;
+	}
+
+	if (NULL != pc->parsing.listen_masks) {
+		GPtrArray *a = pc->parsing.listen_masks;
+		guint i;
+		for (i = 0; i < a->len; ++i) {
+			core_listen_mask_free(g_ptr_array_index(a, i));
+		}
+		g_ptr_array_set_size(a, 0);
+	} else {
+		pc->parsing.listen_masks = g_ptr_array_new();
+	}
+}
+
+static gboolean core_check(liServer *srv, liPlugin *p, GError **err) {
+	GPtrArray *cmd;
+	GString *user;
+	gchar **cmdarr, **envarr;
+	liPluginCoreConfig *pc = p->data;
+	gid_t gid = ((gid_t)-1 != pc->parsing.group_gid) ? pc->parsing.group_gid : pc->parsing.user_gid;
+	UNUSED(srv);
+	UNUSED(err);
+
+	cmd = pc->parsing.wrapper;
+	pc->parsing.wrapper = NULL;
+
+	if (NULL != pc->parsing.binary) {
+		g_ptr_array_add(cmd, g_string_free(pc->parsing.binary, FALSE));
+		pc->parsing.binary = NULL;
+	} else {
+		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN(DEFAULT_LIBEXECDIR "/lighttpd2-worker")));
+	}
+
+	g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("--angel")));
+	g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("-c")));
+	if (NULL != pc->parsing.config) {
+		g_ptr_array_add(cmd, g_string_free(pc->parsing.config, FALSE));
+		pc->parsing.config = NULL;
+	} else if (NULL != pc->parsing.luaconfig) {
+		g_ptr_array_add(cmd, g_string_free(pc->parsing.luaconfig, FALSE));
+		pc->parsing.luaconfig = NULL;
+		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("-l")));
+	} else {
+		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("/etc/lighttpd2/lighttpd.conf")));
+	}
+
+	if (NULL != pc->parsing.modules_path) {
+		g_ptr_array_add(cmd, g_strndup(CONST_STR_LEN("-m")));
+		g_ptr_array_add(cmd, g_string_free(pc->parsing.modules_path, FALSE));
+		pc->parsing.modules_path = NULL;
+	}
+
+	g_ptr_array_add(cmd, NULL);
+	g_ptr_array_add(pc->parsing.env, NULL);
+	cmdarr = (gchar**) g_ptr_array_free(cmd, FALSE);
+	envarr = (gchar**) g_ptr_array_free(pc->parsing.env, FALSE);
+	pc->parsing.env = NULL;
+
+	user = pc->parsing.user;
+	pc->parsing.user = NULL;
+
+	pc->parsing.instconf = li_instance_conf_new(cmdarr, envarr, user, pc->parsing.user_uid, gid,
+		pc->parsing.rlim_core, pc->parsing.rlim_nofile);
+
+	return TRUE;
+}
+
 
 static listen_socket* listen_new_socket(liSocketAddress *addr, int fd) {
 	listen_socket *sock = g_slice_new0(listen_socket);
@@ -343,13 +535,7 @@ static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSo
 					if (!li_ipv4_in_ipv4_net(ipv4->sin_addr.s_addr, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
 					if ((mask->value.ipv4.port != port) && (mask->value.ipv4.port != 0 || (port != 80 && port != 443))) continue;
 					return TRUE;
-/* strict matches only */
-#if 0
-				case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
-					if (!li_ipv4_in_ipv6_net(ipv4->sin_addr.s_addr, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
-					if ((mask->value.ipv6.port != port) && (mask->value.ipv6.port != 0 || (port != 80 && port != 443))) continue;
-					return TRUE;
-#endif
+				/* strict matches only, no ipv4 in (ipv4-mapped) ipv6 */
 				default:
 					continue;
 				}
@@ -368,13 +554,7 @@ static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSo
 			for (i = 0; i < config->listen_masks->len; i++) {
 				mask = g_ptr_array_index(config->listen_masks, i);
 				switch (mask->type) {
-/* strict matches only */
-#if 0
-				case LI_PLUGIN_CORE_LISTEN_MASK_IPV4:
-					if (!li_ipv6_in_ipv4_net(ipv6->sin6_addr.s6_addr, mask->value.ipv4.addr, mask->value.ipv4.networkmask)) continue;
-					if ((mask->value.ipv4.port != port) && (mask->value.ipv4.port != 0 || (port != 80 && port != 443))) continue;
-					return TRUE;
-#endif
+				/* strict matches only, no (ipv4-mapped) ipv6 in ipv4 */
 				case LI_PLUGIN_CORE_LISTEN_MASK_IPV6:
 					if (!li_ipv6_in_ipv6_net(ipv6->sin6_addr.s6_addr, mask->value.ipv6.addr, mask->value.ipv6.network)) continue;
 					if ((mask->value.ipv6.port != port) && (mask->value.ipv6.port != 0 || (port != 80 && port != 443))) continue;
@@ -676,14 +856,19 @@ static void core_log_open_file(liServer *srv, liPlugin *p, liInstance *i, gint32
 	}
 }
 
-static void core_clean(liServer *srv, liPlugin *p);
 static void core_free(liServer *srv, liPlugin *p) {
 	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 	guint i;
 
 	li_event_clear(&config->sig_hup);
 
-	core_clean(srv, p);
+	core_parse_init(srv, p);
+	g_ptr_array_free(config->parsing.env, TRUE);
+	config->parsing.env = NULL;
+	g_ptr_array_free(config->parsing.wrapper, TRUE);
+	config->parsing.wrapper = NULL;
+	g_ptr_array_free(config->parsing.listen_masks, TRUE);
+	config->parsing.listen_masks = NULL;
 
 	if (config->instconf) {
 		li_instance_conf_release(config->instconf);
@@ -700,36 +885,10 @@ static void core_free(liServer *srv, liPlugin *p) {
 		core_listen_mask_free(g_ptr_array_index(config->listen_masks, i));
 	}
 	g_ptr_array_free(config->listen_masks, TRUE);
-	g_ptr_array_free(config->load_listen_masks, TRUE);
 	g_hash_table_destroy(config->listen_sockets);
 	config->listen_masks = NULL;
-	config->load_listen_masks = NULL;
 
 	g_slice_free(liPluginCoreConfig, config);
-}
-
-static void core_clean(liServer *srv, liPlugin *p) {
-	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
-	guint i;
-	UNUSED(srv);
-
-	if (config->load_instconf) {
-		li_instance_conf_release(config->load_instconf);
-		config->load_instconf = NULL;
-	}
-
-	for (i = 0; i < config->load_listen_masks->len; i++) {
-		core_listen_mask_free(g_ptr_array_index(config->load_listen_masks, i));
-	}
-	g_ptr_array_set_size(config->load_listen_masks, 0);
-
-	config->load_failed = FALSE;
-}
-
-static gboolean core_check(liServer *srv, liPlugin *p) {
-	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
-	UNUSED(srv);
-	return !config->load_failed;
 }
 
 static void core_activate(liServer *srv, liPlugin *p) {
@@ -737,12 +896,12 @@ static void core_activate(liServer *srv, liPlugin *p) {
 	GPtrArray *tmp_ptrarray;
 	guint i;
 
-	if (config->instconf) {
+	if (NULL != config->instconf) {
 		li_instance_conf_release(config->instconf);
 		config->instconf = NULL;
 	}
 
-	if (config->inst) {
+	if (NULL != config->inst) {
 		li_instance_set_state(config->inst, LI_INSTANCE_FINISHED);
 		li_instance_release(config->inst);
 		config->inst = NULL;
@@ -754,12 +913,12 @@ static void core_activate(liServer *srv, liPlugin *p) {
 	g_ptr_array_set_size(config->listen_masks, 0);
 
 
-	config->instconf = config->load_instconf;
-	config->load_instconf = NULL;
+	config->instconf = config->parsing.instconf;
+	config->parsing.instconf = NULL;
 
-	tmp_ptrarray = config->load_listen_masks; config->load_listen_masks = config->listen_masks; config->listen_masks = tmp_ptrarray;
+	tmp_ptrarray = config->parsing.listen_masks; config->parsing.listen_masks = config->listen_masks; config->listen_masks = tmp_ptrarray;
 
-	if (config->instconf) {
+	if (NULL != config->instconf) {
 		config->inst = li_server_new_instance(srv, config->instconf);
 		li_instance_set_state(config->inst, LI_INSTANCE_RUNNING);
 	}
@@ -798,14 +957,14 @@ static gboolean core_init(liServer *srv, liPlugin *p) {
 	p->items = core_items;
 
 	p->handle_free = core_free;
-	p->handle_clean_config = core_clean;
+	p->handle_clean_config = core_parse_init;
 	p->handle_check_config = core_check;
 	p->handle_activate_config = core_activate;
 	p->handle_instance_replaced = core_instance_replaced;
 
-	config->listen_masks = g_ptr_array_new();
-	config->load_listen_masks = g_ptr_array_new();
+	core_parse_init(srv, p);
 	config->listen_sockets = g_hash_table_new_full(li_hash_sockaddr, li_equal_sockaddr, NULL, _listen_socket_free);
+	config->listen_masks = g_ptr_array_new();
 
 	li_angel_plugin_add_angel_cb(p, "listen", core_listen);
 	li_angel_plugin_add_angel_cb(p, "reached-state", core_reached_state);

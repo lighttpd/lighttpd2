@@ -6,7 +6,6 @@
 #endif
 
 typedef struct liPluginItem liPluginItem;
-typedef struct liPluginItemOption liPluginItemOption;
 typedef struct liPlugin liPlugin;
 typedef struct liPlugins liPlugins;
 
@@ -14,30 +13,18 @@ typedef gboolean (*liPluginInitCB)                (liServer *srv, liPlugin *p);
 typedef void     (*liPluginFreeCB)                (liServer *srv, liPlugin *p);
 
 typedef void     (*liPluginCleanConfigCB)         (liServer *srv, liPlugin *p);
-typedef gboolean (*liPluginCheckConfigCB)         (liServer *srv, liPlugin *p);
+typedef gboolean (*liPluginCheckConfigCB)         (liServer *srv, liPlugin *p, GError **err);
 typedef void     (*liPluginActivateConfigCB)      (liServer *srv, liPlugin *p);
-typedef void     (*liPluginParseItemCB)           (liServer *srv, liPlugin *p, liValue **options);
+typedef gboolean (*liPluginParseItemCB)           (liServer *srv, liPlugin *p, liValue *value, GError **err);
 
 typedef void     (*liPluginHandleCallCB)          (liServer *srv, liPlugin *p, liInstance *i, gint32 id, GString *data);
 
 typedef void     (*liPluginInstanceReplacedCB)    (liServer *srv, liPlugin *p, liInstance *oldi, liInstance *newi);
 typedef void     (*liPluginInstanceReachedStateCB)(liServer *srv, liPlugin *p, liInstance *i, liInstanceState s);
 
-typedef enum {
-	LI_PLUGIN_ITEM_OPTION_MANDATORY = 1
-} liPluginItemOptionFlags;
-
-struct liPluginItemOption {
-	const gchar *name; /**< name of the option */
-	liValueType type;   /**< type of the option; may be LI_VALUE_NONE to accept anything */
-	liPluginItemOptionFlags flags; /**< flags of the option */
-};
-
 struct liPluginItem {
 	const gchar *name;
 	liPluginParseItemCB handle_parse_item;
-
-	const liPluginItemOption *options;
 };
 
 struct liPlugin {
@@ -78,7 +65,7 @@ LI_API void li_plugins_clear(liServer *srv);
 LI_API void li_plugins_config_clean(liServer *srv);
 LI_API gboolean li_plugins_config_load(liServer *srv, const gchar *filename);
 
-LI_API gboolean li_plugins_handle_item(liServer *srv, GString *itemname, liValue *hash);
+LI_API gboolean li_plugins_handle_item(liServer *srv, GString *itemname, liValue *parameters, GError **err);
 
 /* "core" is a reserved module name for interal use */
 LI_API gboolean li_plugins_load_module(liServer *srv, const gchar *name);

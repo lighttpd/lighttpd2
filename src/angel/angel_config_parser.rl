@@ -646,6 +646,7 @@ error:
 
 static gboolean p_config_call(GString *name, liConfigTokenizerContext *ctx, GError **error) {
 	liValue *parameters = NULL;
+	gboolean res;
 
 	if (!p_parameter_values(&parameters, ctx, error)) return FALSE;
 
@@ -657,14 +658,10 @@ static gboolean p_config_call(GString *name, liConfigTokenizerContext *ctx, GErr
 		return TRUE;
 	}
 
-	if (!li_plugins_handle_item(ctx->srv, name, parameters)) {
-		parse_error(ctx, error, "handling config item '%s' failed", name->str);
-		li_value_free(parameters);
-		return FALSE;
-	}
+	res = li_plugins_handle_item(ctx->srv, name, parameters, error);
 	li_value_free(parameters);
 
-	return TRUE;
+	return res;
 }
 
 /* parse actions until EOF (if !block) or '}' (if block, TK_CURLY_CLOSE) */

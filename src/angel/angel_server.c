@@ -396,9 +396,7 @@ liInstanceConf* li_instance_conf_new(gchar **cmd, gchar **env, GString *username
 	ic->refcount = 1;
 	ic->cmd = cmd;
 	ic->env = env;
-	if (username) {
-		ic->username = g_string_new_len(GSTR_LEN(username));
-	}
+	ic->username = username;
 	ic->uid = uid;
 	ic->gid = gid;
 	ic->rlim_core = rlim_core;

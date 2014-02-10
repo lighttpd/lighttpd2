@@ -3,12 +3,34 @@
 
 #include <lighttpd/angel_base.h>
 
+typedef struct liPluginCoreParsing liPluginCoreParsing;
+struct liPluginCoreParsing {
+	GPtrArray *env; /* <gchar*> */
+
+	GString *user;
+	uid_t user_uid;
+	gid_t user_gid;
+
+	GString *group;
+	gid_t group_gid;
+
+	GString *binary;
+	GString *config;
+	GString *luaconfig;
+	GString *modules_path;
+	GPtrArray *wrapper; /* <gchar*> */
+
+	gint64 rlim_core, rlim_nofile;
+
+	liInstanceConf *instconf;
+
+	GPtrArray *listen_masks;
+};
+
 typedef struct liPluginCoreConfig liPluginCoreConfig;
 struct liPluginCoreConfig {
-	/* Load */
-	gboolean load_failed;
-	liInstanceConf *load_instconf;
-	GPtrArray *load_listen_masks;
+	/* Parsing/Load */
+	liPluginCoreParsing parsing;
 
 	/* Running */
 	liInstanceConf *instconf;

@@ -8,7 +8,6 @@
 typedef struct server_item server_item;
 struct server_item {
 	liPlugin *p;
-	guint option_count;
 	const liPluginItem *p_item;
 };
 
@@ -27,11 +26,7 @@ static void _server_item_free(gpointer p) {
 
 static server_item* server_item_new(liPlugin *p, const liPluginItem *p_item) {
 	server_item *si = g_slice_new(server_item);
-	const liPluginItemOption *pio;
-	guint cnt;
-	for (pio = p_item->options, cnt = 0; pio->name; pio++, cnt++) ;
 	si->p = p;
-	si->option_count = cnt;
 	si->p_item = p_item;
 	return si;
 }
@@ -157,8 +152,9 @@ gboolean li_plugins_config_load(liServer *srv, const gchar *filename) {
 	for (i = ps->load_plugins->len; i-- > 0; ) {
 		liPlugin *p = g_ptr_array_index(ps->load_plugins, i);
 		if (p->handle_check_config) {
-			if (!p->handle_check_config(srv, p)) {
-				ERROR(srv, "%s", "config check failed");
+			if (!p->handle_check_config(srv, p, &error)) {
+				ERROR(srv, "config check failed: %s", error->message);
+				g_error_free(error);
 				li_plugins_config_clean(srv);
 				return FALSE;
 			}
@@ -201,14 +197,14 @@ gboolean li_plugins_config_load(liServer *srv, const gchar *filename) {
 	return TRUE;
 }
 
-gboolean li_plugins_handle_item(liServer *srv, GString *itemname, liValue *hash) {
+gboolean li_plugins_handle_item(liServer *srv, GString *itemname, liValue *parameters, GError **err) {
 	liPlugins *ps = &srv->plugins;
 	server_item *si;
 
 #if 0
 	/* debug items */
 	{
-		GString *tmp = li_value_to_string(hash);
+		GString *tmp = li_value_to_string(parameters);
 		ERROR(srv, "Item '%s': %s", itemname->str, tmp->str);
 		g_string_free(tmp, TRUE);
 	}
@@ -216,64 +212,12 @@ gboolean li_plugins_handle_item(liServer *srv, GString *itemname, liValue *hash)
 
 	si = g_hash_table_lookup(ps->load_items, itemname->str);
 	if (!si) {
-		WARNING(srv, "Unknown item '%s' - perhaps you forgot to load the module? (ignored)", itemname->str);
+		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+			"Unknown item '%s' - perhaps you forgot to load the module?", itemname->str);
+		return FALSE;
 	} else {
-		liValue **optlist = g_slice_alloc0(sizeof(liValue*) * si->option_count);
-		guint i;
-
-		/* find options and assign them by id */
-		hash = li_value_get_single_argument(hash);
-		if (LI_VALUE_LIST != li_value_type(hash)) {
-			ERROR(srv, "invalid type '%s' of parameter list", li_value_type_string(hash));
-			return FALSE;
-		}
-
-		LI_VALUE_FOREACH(entry, hash)
-			liValue *entryKey = li_value_list_at(entry, 0);
-			liValue *entryValue = li_value_list_at(entry, 1);
-			GString *entryKeyStr;
-
-			if (LI_VALUE_STRING != li_value_type(entryKey)) {
-				ERROR(srv, "invalid key of type %s", li_value_type_string(entryKey));
-				return FALSE;
-			}
-			entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
-
-			for (i = 0; i < si->option_count; i++) {
-				if (0 == g_strcmp0(si->p_item->options[i].name, entryKeyStr->str)) break;
-			}
-			if (i == si->option_count) {
-				ERROR(srv, "Unknown option '%s' in item '%s'", entryKeyStr->str, itemname->str);
-				return FALSE;
-			} else {
-				optlist[i] = entryValue;
-			}
-		LI_VALUE_END_FOREACH()
-
-		/* validate options */
-		for (i = 0; i < si->option_count; i++) {
-			const liPluginItemOption *pi = &si->p_item->options[i];
-			if (0 != (pi->flags & LI_PLUGIN_ITEM_OPTION_MANDATORY)) {
-				if (!optlist[i]) {
-					ERROR(srv, "Missing mandatory option '%s' in item '%s'", pi->name, itemname->str);
-					return FALSE;
-				}
-			}
-			if (pi->type != LI_VALUE_NONE && optlist[i] && optlist[i]->type != pi->type) {
-				/* TODO: convert from string if possible */
-				ERROR(srv, "Invalid value type of option '%s' in item '%s', got '%s' but expected '%s'",
-					pi->name, itemname->str, li_value_type_string(optlist[i]), li_valuetype_string(pi->type));
-				return FALSE;
-			}
-		}
-
-		g_assert(si->p_item->handle_parse_item);
-		si->p_item->handle_parse_item(srv, si->p, optlist);
-
-		g_slice_free1(sizeof(liValue*) * si->option_count, optlist);
+		return si->p_item->handle_parse_item(srv, si->p, parameters, err);
 	}
-
-	return TRUE;
 }
 
 static gboolean plugins_activate_module(liServer *srv, server_module *sm) {

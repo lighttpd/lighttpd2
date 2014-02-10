@@ -249,15 +249,22 @@ class Documentation
 	end
 end
 
-
-class ModuleDocumentation < Documentation
+class GenericModuleDocumentation < Documentation
 	def initialize(filename, xml)
 		super(File.basename(filename, '.xml'))
+		self.title = basename unless self.title
 
-		self.title = basename
 		render_main { _parse_module(xml.root) }
 
 		store_toc
+	end
+
+	def link(html_builder)
+		html_builder.a({:href => self.filename + '#' + escape_anchor(self.basename)}, self.title)
+	end
+
+	def short
+		@short
 	end
 
 	def _parse_short(xmlParent, makeDiv = false)
@@ -306,14 +313,25 @@ class ModuleDocumentation < Documentation
 		}
 	end
 
-	def _parse_aso(xml, type)
+	def _parse_example(xml)
+		nest(xml['title'] || 'Example', xml['anchor'], 'example') {
+			_parse_description(xml)
+
+			config = xml.xpath('d:config[1]', XPATH_NAMESPACES)
+			_parse_code(config[0])
+		}
+	end
+
+	def _parse_item(xml, type, anchor_prefix = nil, title_suffix = nil)
 		name = xml['name']
 		raise "#{type} requires a name" unless name
 		parameter_names = xml.xpath('d:parameter', XPATH_NAMESPACES).map { |p| p['name'] }
 		parameter_names = ['value'] if parameter_names.length == 0 and type == 'option'
 
-		title = "#{name} (#{type})"
-		anchor = "#{type}_#{name}"
+		anchor_prefix ||= "#{type}_"
+		title_suffix ||= " (#{type})"
+		title = "#{name}#{title_suffix}"
+		anchor = "#{anchor_prefix}#{name}"
 		cls = "aso #{type}"
 		short = nil
 
@@ -355,25 +373,24 @@ class ModuleDocumentation < Documentation
 		[name, filename + '#' + anchor, short, self]
 	end
 
+end
+
+
+class ModuleDocumentation < GenericModuleDocumentation
+	def initialize(filename, xml)
+		super(filename, xml)
+	end
+
 	def _parse_action(xml)
-		@actions << _parse_aso(xml, 'action')
+		@actions << _parse_item(xml, 'action')
 	end
 
 	def _parse_setup(xml)
-		@setups << _parse_aso(xml, 'setup')
+		@setups << _parse_item(xml, 'setup')
 	end 
 
 	def _parse_option(xml)
-		@options << _parse_aso(xml, 'option')
-	end
-
-	def _parse_example(xml)
-		nest(xml['title'] || 'Example', xml['anchor'], 'example') {
-			_parse_description(xml)
-
-			config = xml.xpath('d:config[1]', XPATH_NAMESPACES)
-			_parse_code(config[0])
-		}
+		@options << _parse_item(xml, 'option')
 	end
 
 	def _parse_section(xml)
@@ -418,13 +435,59 @@ class ModuleDocumentation < Documentation
 			end
 		}
 	end
+end
 
-	def short
-		@short
+class AngelModuleDocumentation < GenericModuleDocumentation
+	def initialize(filename, xml)
+		@items = []
+		super(filename, xml)
 	end
 
-	def link(html_builder)
-		html_builder.a({:href => self.filename + '#' + escape_anchor(self.basename)}, self.basename)
+	def _parse_item(xml)
+		@items << super(xml, 'item', '', '')
+	end
+
+	def _parse_section(xml)
+		title = xml['title']
+		raise 'section requires a title' unless title
+
+		nest(title, xml['anchor'] || '#', 'section') {
+			xml.children.each do |child|
+				if child.text?
+					text = child.content.strip
+					@html.p text if text.length > 0
+				elsif ['item','html','textile','markdown','example','section'].include? child.name
+					self.send('_parse_' + child.name, child)
+				else
+					raise 'invalid section element ' + child.name
+				end
+			end
+		}
+	end
+
+	def _parse_module(xml)
+		raise 'unexpected root node' if xml.name != 'angel-module'
+
+		self.title = xml['title'] || self.title
+		self.ordername = xml['order']
+
+		nest(title, '', 'module') {
+			@html.p {
+				@html.text (basename + ' ')
+				@short = _parse_short(xml, false)
+			}
+			_parse_description(xml)
+
+			xml.element_children.each do |child|
+				if ['item','example','section'].include? child.name
+					self.send('_parse_' + child.name, child)
+				elsif ['short', 'description'].include? child.name
+					nil # skip
+				else
+					raise 'invalid module element ' + child.name
+				end
+			end
+		}
 	end
 end
 
@@ -599,6 +662,8 @@ def loadXML(filename)
 
 	if xml.root.name == 'module'
 		ModuleDocumentation.new(filename, xml)
+	elsif xml.root.name == 'angel-module'
+		AngelModuleDocumentation.new(filename, xml)
 	elsif xml.root.name == 'chapter'
 		ChapterDocumentation.new(filename, xml)
 	end

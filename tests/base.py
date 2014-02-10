@@ -446,27 +446,25 @@ if request.is_handled {{
 			if Env.valgrind_leak != "":
 				suppressions = ', "--suppressions=' + Env.valgrind_leak + '"'
 			valgrindconfig = """
-	"env" => [ "G_SLICE=always-malloc", "G_DEBUG=gc-friendly,fatal-criticals,resident-modules" ],
-	"wrapper" => [ "{valgrind}", "--leak-check=full", "--show-reachable=yes", "--leak-resolution=high" {suppressions} ],
+	env [ "G_SLICE=always-malloc", "G_DEBUG=gc-friendly,fatal-criticals,resident-modules" ];
+	wrapper [ "{valgrind}", "--leak-check=full", "--show-reachable=yes", "--leak-resolution=high" {suppressions} ];
 """.format(valgrind = Env.valgrind, suppressions = suppressions)
 		elif Env.valgrind:
 			valgrindconfig = """
-	"env" => [ "G_SLICE=always-malloc", "G_DEBUG=gc-friendly,fatal-criticals,resident-modules" ],
-	"wrapper" => [ "{valgrind}" ],
+	env [ "G_SLICE=always-malloc", "G_DEBUG=gc-friendly,fatal-criticals,resident-modules" ];
+	wrapper [ "{valgrind}" ];
 """.format(valgrind = Env.valgrind)
 
 		Env.angelconf = self.PrepareFile("conf/angel.conf", """
-instance [
-	"binary" => "{Env.worker}",
-	"config" => "{Env.lighttpdconf}",
-	"modules" => "{Env.plugindir}",
-	"copy-env" => [ "PATH" ],
+binary "{Env.worker}";
+config "{Env.lighttpdconf}";
+modules_path "{Env.plugindir}";
+copy_env [ "PATH" ];
 {valgrindconfig}
-];
 
-allow_listen [ "ip" => "127.0.0.2:{Env.port}", ];
-allow_listen [ "ip" => "127.0.0.2:{gnutlsport}", ];
-allow_listen [ "ip" => "127.0.0.2:{opensslport}", ];
+allow_listen_ip "127.0.0.2:{Env.port}";
+allow_listen_ip "127.0.0.2:{gnutlsport}";
+allow_listen_ip "127.0.0.2:{opensslport}";
 """.format(Env = Env, gnutlsport = Env.port+1, opensslport = Env.port + 2, valgrindconfig = valgrindconfig))
 
 		print >> Env.log, "[Done] Preparing tests"

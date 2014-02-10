@@ -7,6 +7,7 @@
 
 	<!-- root nodes -->
 	<element name="module" type="d:ModuleType" />
+	<element name="angel-module" type="d:AngelModuleType" />
 	<element name="chapter" type="d:ChapterType" />
 
 	<complexType name="ModuleType">
@@ -159,6 +160,57 @@
 				<element name="markdown" type="anyType" />
 				<element name="example" type="d:ExampleType" />
 				<element name="section" type="d:ChapterSectionType" />
+			</choice>
+		</sequence>
+		<!-- a section requires a title -->
+		<attribute name="title" type="token" use="required" />
+		<!-- set anchor (id attribute of <h*> node); set to '#' to generate a unique anchor; if no anchor is set no ToC entry is created -->
+		<attribute name="anchor" type="token" use="optional" />
+	</complexType>
+
+
+	<complexType name="AngelModuleType">
+		<sequence>
+			<!-- a module requires a short description (not yet, only have "angel_plugin_core") -->
+			<!-- <element name="short" type="string" /> -->
+			<!-- optional description to print below ToC -->
+			<element name="description" type="d:DescriptionType" minOccurs="0" />
+
+			<!-- a module cannot contain more simple text; include it in a section -->
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="item" type="d:AngelItemType" />
+
+				<element name="example" type="d:ExampleType" />
+				<element name="section" type="d:AngelModuleSectionType" />
+			</choice>
+		</sequence>
+
+		<!-- optional title, defaults to module name, which is the basename -->
+		<attribute name="title" type="token" use="optional" />
+		<!-- order modules / chapters. defaults to name -->
+		<attribute name="order" type="Name" use="optional" />
+	</complexType>
+
+	<complexType name="AngelItemType">
+		<sequence>
+			<element name="short" type="string" />
+			<element name="parameter" type="d:ActionSetupParameterType" minOccurs="0" maxOccurs="unbounded" />
+			<element name="description" type="d:DescriptionType" minOccurs="0" />
+			<element name="example" type="d:ExampleType" minOccurs="0" maxOccurs="unbounded" />
+		</sequence>
+		<attribute name="name" type="Name" use="required" />
+	</complexType>
+
+	<complexType name="AngelModuleSectionType" mixed="true">
+		<sequence>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="item" type="d:AngelItemType" />
+
+				<element name="html" type="anyType" />
+				<element name="textile" type="anyType" />
+				<element name="markdown" type="anyType" />
+				<element name="example" type="d:ExampleType" />
+				<element name="section" type="d:AngelModuleSectionType" />
 			</choice>
 		</sequence>
 		<!-- a section requires a title -->
