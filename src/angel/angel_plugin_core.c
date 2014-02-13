@@ -305,41 +305,50 @@ static void core_listen_mask_free(liPluginCoreListenMask *mask) {
 	g_slice_free(liPluginCoreListenMask, mask);
 }
 
-static gboolean core_parse_allow_listen_ip(liServer *srv, liPlugin *p, liValue *value, GError **err) {
+static gboolean core_parse_allow_listen(liServer *srv, liPlugin *p, liValue *value, GError **err) {
 	liPluginCoreConfig *pc = p->data;
-	liPluginCoreListenMask *mask;
 	UNUSED(srv);
 
-	if (NULL == (value = core_parse_check_parameter_string(value, "allow_listen_ip", err))) return FALSE;
-
-	mask = g_slice_new0(liPluginCoreListenMask);
-	if (li_parse_ipv4(value->data.string->str, &mask->value.ipv4.addr, &mask->value.ipv4.networkmask, &mask->value.ipv4.port)) {
-		mask->type = LI_PLUGIN_CORE_LISTEN_MASK_IPV4;
-	} else if (li_parse_ipv6(value->data.string->str, mask->value.ipv6.addr, &mask->value.ipv6.network, &mask->value.ipv6.port)) {
-		mask->type = LI_PLUGIN_CORE_LISTEN_MASK_IPV6;
-	} else {
-		ERROR(srv, "couldn't parse ip/network:port in allow_listen_ip mask '%s'", value->data.string->str);
-		g_slice_free(liPluginCoreListenMask, mask);
-		return FALSE;
+	value = li_value_get_single_argument(value);
+	if (LI_VALUE_LIST != li_value_type(value)) {
+		li_value_wrap_in_list(value);
 	}
 
-	g_ptr_array_add(pc->parsing.listen_masks, mask);
+	LI_VALUE_FOREACH(entry, value)
+		GString *s;
+		liPluginCoreListenMask *mask;
+
+		if (LI_VALUE_STRING != li_value_type(entry)) goto parameter_type_error;
+		s = entry->data.string;
+
+		mask = g_slice_new0(liPluginCoreListenMask);
+		if (li_string_prefix(s, CONST_STR_LEN("unix:/"))) {
+			mask->type = LI_PLUGIN_CORE_LISTEN_MASK_UNIX;
+			mask->value.unix_socket.path = li_value_extract_string(entry);
+			g_string_erase(mask->value.unix_socket.path, 0, 5); /* remove "unix:" prefix */
+		}
+		else if (li_parse_ipv4(s->str, &mask->value.ipv4.addr, &mask->value.ipv4.networkmask, &mask->value.ipv4.port)) {
+			mask->type = LI_PLUGIN_CORE_LISTEN_MASK_IPV4;
+		}
+		else if (li_parse_ipv6(s->str, mask->value.ipv6.addr, &mask->value.ipv6.network, &mask->value.ipv6.port)) {
+			mask->type = LI_PLUGIN_CORE_LISTEN_MASK_IPV6;
+		}
+		else {
+			g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+				"allow_listen: couldn't parse socket address mask '%s'", s->str);
+			g_slice_free(liPluginCoreListenMask, mask);
+			return FALSE;
+		}
+
+		g_ptr_array_add(pc->parsing.listen_masks, mask);
+	LI_VALUE_END_FOREACH()
+
 	return TRUE;
-}
 
-static gboolean core_parse_allow_listen_unix(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
-	liPluginCoreListenMask *mask;
-	UNUSED(srv);
-
-	if (NULL == (value = core_parse_check_parameter_string(value, "allow_listen_unix", err))) return FALSE;
-
-	mask = g_slice_new0(liPluginCoreListenMask);
-	mask->type = LI_PLUGIN_CORE_LISTEN_MASK_UNIX;
-	mask->value.unix_socket.path = li_value_extract_string(value);
-
-	g_ptr_array_add(pc->parsing.listen_masks, mask);
-	return TRUE;
+parameter_type_error:
+	g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
+		"allow_listen: expecting string list as parameter");
+	return FALSE;
 }
 
 
@@ -355,8 +364,7 @@ static const liPluginItem core_items[] = {
 	{ "copy_env", core_parse_copy_env },
 	{ "max_core_file_size", core_parse_max_core_file_size },
 	{ "max_open_files", core_parse_max_open_files },
-	{ "allow_listen_ip", core_parse_allow_listen_ip },
-	{ "allow_listen_unix", core_parse_allow_listen_unix },
+	{ "allow_listen", core_parse_allow_listen },
 	{ NULL, NULL }
 };
 
@@ -425,7 +433,7 @@ static gboolean core_check(liServer *srv, liPlugin *p, GError **err) {
 	UNUSED(err);
 
 	cmd = pc->parsing.wrapper;
-	pc->parsing.wrapper = NULL;
+	pc->parsing.wrapper = g_ptr_array_new();
 
 	if (NULL != pc->parsing.binary) {
 		g_ptr_array_add(cmd, g_string_free(pc->parsing.binary, FALSE));
@@ -457,7 +465,7 @@ static gboolean core_check(liServer *srv, liPlugin *p, GError **err) {
 	g_ptr_array_add(pc->parsing.env, NULL);
 	cmdarr = (gchar**) g_ptr_array_free(cmd, FALSE);
 	envarr = (gchar**) g_ptr_array_free(pc->parsing.env, FALSE);
-	pc->parsing.env = NULL;
+	pc->parsing.env = g_ptr_array_new();
 
 	user = pc->parsing.user;
 	pc->parsing.user = NULL;

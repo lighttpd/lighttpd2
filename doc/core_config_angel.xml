@@ -214,34 +214,30 @@
 			</example>
 		</item>
 
-		<item name="allow_listen_ip">
-			<short>allow worker to listen on a TCP socket</short>
-			<parameter name="mask">
-				<short>network mask (CIDR) + optional port</short>
+		<item name="allow_listen">
+			<short>allow worker to listen on sockets</short>
+			<parameter name="list">
+				<short>list of network mask (CIDR) + optional port or unix domain socket addresses</short>
 			</parameter>
 			<description>
-				The worker uses the angel to bind TCP sockets; the angel checks whether those binds are allowed. If no @allow_listen_ip@ or @allow_listen_unix@ is specified, all TCP binds (IPv4 and IPv6) using port 80 or 443 are allowed.
-				IPv4 and IPv6 use different masks (no IPv4 to IPv6 mapping), the network length for the CIDR mask is optional (defaulting to a host address), and the port is optional too (allowing both 80 and 443 if omitted).
+				<textile>
+					The worker uses the angel to bind TCP/unix sockets; the angel checks whether those binds are allowed. If no @allow_listen@ is specified, all TCP binds (IPv4 and IPv6) using port 80 or 443 are allowed.
+					IPv4 and IPv6 use different masks (no IPv4 to IPv6 mapping), the network length for the CIDR mask is optional (defaults to a host address), and the port is optional too (allowing both 80 and 443 if omitted).
+					Formats:
+					* TCP on IPv4: @ipv4@, @ipv4:port@, @ipv4/net@, @ipv4/net:port@
+					* TCP on IPv6: @ipv6@, @ipv6/net@, @[ipv6]@, @[ipv6/net]@, @[ipv6]:port@, @[ipv6/net]:port@
+					* Unix domain: @unix:/wildcard/path/to/*.socket@
+				</textile>
 			</description>
 			<example>
 				<description>
-					Only allow port 8080 for IPv4 and IPv6.
+					Only allow TCP port 8080 for IPv4 and IPv6 and unix domain socket @/run/lighttpd/internal.sock@.
 				</description>
 				<config>
-					allow_listen_ip "0.0.0.0/0:8080";
-					allow_listen_ip "[::/0]:8080";
+					allow_listen [ "0.0.0.0/0:8080", "[::/0]:8080" ];
+					allow_listen "unix:/run/lighttpd/internal.sock";
 				</config>
 			</example>
-		</item>
-
-		<item name="allow_listen_unix">
-			<short>allow worker to listen on a unix socket</short>
-			<parameter name="path">
-				<short>path for a unix socket</short>
-			</parameter>
-			<description>
-				The path can contain wildcards.
-			</description>
 		</item>
 
 	</section>
