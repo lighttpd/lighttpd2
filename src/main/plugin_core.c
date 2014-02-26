@@ -395,6 +395,7 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 	GString *file, *tmp_docroot, *tmp_path;
 	GPtrArray *files = param;
 	gint contextNdx = GPOINTER_TO_INT(*context);
+	gboolean is_dir = TRUE, need_redirect = FALSE;
 
 	UNUSED(context);
 
@@ -404,25 +405,27 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 	}
 
 	if (0 == contextNdx) {
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "index: stat phys file: '%s'", vr->physical.path->str);
+		}
 		res = li_stat_cache_get(vr, vr->physical.path, &st, &err, NULL);
 		if (res == LI_HANDLER_WAIT_FOR_EVENT)
 			return LI_HANDLER_WAIT_FOR_EVENT;
 
-		if (res == LI_HANDLER_ERROR) {
-			/* we ignore errors here so a later action can deal with it (e.g. 'static') */
+		if (LI_HANDLER_GO_ON == res && S_ISREG(st.st_mode)) {
 			return LI_HANDLER_GO_ON;
 		}
 
-		if (!S_ISDIR(st.st_mode))
-			return LI_HANDLER_GO_ON;
+		i = 0;
+		is_dir = (LI_HANDLER_ERROR != res && S_ISDIR(st.st_mode));
+	} else {
+		i = (contextNdx >> 1) - 1;
+		is_dir = (0 != (contextNdx & 0x1));
+	}
 
-		/* need trailing slash */
-		if (vr->request.uri.path->len == 0 || vr->request.uri.path->str[vr->request.uri.path->len-1] != '/') {
-			li_vrequest_redirect_directory(vr);
-			return LI_HANDLER_GO_ON;
-		}
-
-		contextNdx = 1;
+	if (is_dir) {
+		/* need trailing slash? */
+		need_redirect = vr->request.uri.path->len == 0 || vr->request.uri.path->str[vr->request.uri.path->len-1] != '/';
 	}
 
 	/* we use two temporary strings here, one to append to docroot and one to append to physical path */
@@ -432,22 +435,36 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 	tmp_path = g_string_new_len(GSTR_LEN(vr->physical.path));
 
 	/* loop through the list to find a possible index file */
-	for (i = contextNdx - 1; i < files->len; i++) {
+	for (; i < files->len; i++) {
 		file = ((liValue*)g_ptr_array_index(files, i))->data.string;
 
 		if (file->str[0] == '/') {
 			/* entries beginning with a slash shall be looked up directly at the docroot */
 			g_string_truncate(tmp_docroot, vr->physical.doc_root->len);
 			g_string_append_len(tmp_docroot, GSTR_LEN(file));
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "trying index file: '%s' -> '%s'", file->str, tmp_docroot->str);
+			}
 			res = li_stat_cache_get(vr, tmp_docroot, &st, &err, NULL);
 		} else {
+			if (!is_dir) continue;
+
+			if (need_redirect) {
+				li_vrequest_redirect_directory(vr);
+				g_string_free(tmp_path, TRUE);
+				return LI_HANDLER_GO_ON;
+			}
+
 			g_string_truncate(tmp_path, vr->physical.path->len);
 			g_string_append_len(tmp_path, GSTR_LEN(file));
+			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+				VR_DEBUG(vr, "trying index file: '%s' -> '%s'", file->str, tmp_path->str);
+			}
 			res = li_stat_cache_get(vr, tmp_path, &st, &err, NULL);
 		}
 
 		if (res == LI_HANDLER_WAIT_FOR_EVENT) {
-			*context = GINT_TO_POINTER(i + 1);
+			*context = GINT_TO_POINTER(2*(i + 1) + (is_dir ? 1 : 0));
 			g_string_free(tmp_path, TRUE);
 			return LI_HANDLER_WAIT_FOR_EVENT;
 		}

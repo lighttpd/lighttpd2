@@ -57,6 +57,23 @@ defaultaction;
 index "index.html", "test.txt";
 """
 
+class TestIndexNotExisting1(CurlRequest):
+	URL = "/not-existing"
+	EXPECT_RESPONSE_CODE = 404
+	config = """
+defaultaction;
+index "index.html", "test.txt";
+"""
+
+class TestIndex3(CurlRequest):
+	URL = "/not-existing"
+	EXPECT_RESPONSE_BODY = TEST_TXT
+	EXPECT_RESPONSE_CODE = 200
+	config = """
+defaultaction;
+index "/index.html", "/test.txt";
+"""
+
 class TestSimpleInfo(CurlRequest):
 	URL = "/?a_simple_query"
 	EXPECT_RESPONSE_BODY = "a_simple_query"
@@ -145,6 +162,8 @@ class Test(GroupTest):
 		TestSimpleRespond,
 		TestIndex1,
 		TestIndex2,
+		TestIndexNotExisting1,
+		TestIndex3,
 		TestSimpleInfo,
 		TestBadRequest1,
 		TestStaticExcludeExtensions1,

@@ -225,6 +225,14 @@
 			<description>
 				<textile>
 					If the physical path is a directory search for the specified filenames; prefix a filename with '/' to search in the doc-root.
+
+					It works like this:
+					* if current physical path points to a regular file do nothing
+					* walk through the list of filenames to look for:
+					** if filename does not start with '/' and the current physical path doesn't point to a directory, ignore the entry
+					** if filename does not start with '/' and the url didn't end in a '/', redirect request to url with '/' appended
+					** if filename does not start with '/' search for it in current physical path (which is a directory)
+					** if filename does start with '/' search for it in the doc-root
 				</textile>
 			</description>
 			<example>
