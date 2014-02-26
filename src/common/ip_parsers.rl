@@ -102,11 +102,13 @@ gboolean li_parse_ipv4(const char *str, guint32 *ip, guint32 *netmask, guint16 *
 	# so we don't need pe/eof vars
 	end = (space | 0) @{ cs = ipv6_parser_first_final; fbreak; };
 
+	ipv6_bracket_cidr = "[" ipv6_data ( "]" network? | network "]" );
+
 	ipv6 := ( ( ipv6_data ) | ( "[" ipv6_data "]" ) ) end;
-	ipv6_cidr := ( ( ipv6_data network? ) | ( "[" ipv6_data network? "]" ) ) end;
+	ipv6_cidr := ( ( ipv6_data network? ) | ( ipv6_bracket_cidr ) ) end;
 
 	ipv6_socket := ( ( ipv6_data ) | ( "[" ipv6_data "]" port? ) ) end;
-	ipv6_socket_cidr := ( ( ipv6_data network? ) | ( "[" ipv6_data network? "]" port?) ) end;
+	ipv6_socket_cidr := ( ( ipv6_data network? ) | ( ipv6_bracket_cidr port?) ) end;
 
 	write data;
 }%%
