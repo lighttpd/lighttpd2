@@ -334,6 +334,7 @@ static liHandlerResult scgi_handle(liVRequest *vr, gpointer param, gpointer *con
 	liBackendWait *bwait = (liBackendWait*) *context;
 	liBackendConnection *bcon = NULL;
 	scgi_context *ctx = (scgi_context*) param;
+	liBackendResult bres;
 
 	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
 
@@ -344,16 +345,15 @@ static liHandlerResult scgi_handle(liVRequest *vr, gpointer param, gpointer *con
 		return LI_HANDLER_ERROR;
 	}
 
-	switch (li_backend_get(vr, ctx->pool, &bcon, &bwait)) {
+	bres = li_backend_get(vr, ctx->pool, &bcon, &bwait);
+	*context = bwait;
+	switch (bres) {
 	case LI_BACKEND_SUCCESS:
 		assert(NULL == bwait);
 		assert(NULL != bcon);
-		*context = bwait;
 		break;
 	case LI_BACKEND_WAIT:
 		assert(NULL != bwait);
-		*context = bwait;
-
 		return LI_HANDLER_WAIT_FOR_EVENT;
 	case LI_BACKEND_TIMEOUT:
 		li_vrequest_backend_dead(vr);

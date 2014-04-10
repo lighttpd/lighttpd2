@@ -101,21 +101,21 @@ static liHandlerResult fastcgi_handle(liVRequest *vr, gpointer param, gpointer *
 	fastcgi_context *ctx = (fastcgi_context*) param;
 	liFastCGIBackendWait *bwait = *context;
 	liFastCGIBackendConnection *bcon;
+	liBackendResult bres;
 
 	if (li_vrequest_is_handled(vr)) return LI_HANDLER_GO_ON;
 
 	LI_VREQUEST_WAIT_FOR_REQUEST_BODY(vr);
 
-	switch (li_fastcgi_backend_get(vr, ctx->pool, &bcon, &bwait)) {
+	bres = li_fastcgi_backend_get(vr, ctx->pool, &bcon, &bwait);
+	*context = bwait;
+	switch (bres) {
 	case LI_BACKEND_SUCCESS:
 		assert(NULL == bwait);
 		assert(NULL != bcon);
-		*context = bwait;
 		break;
 	case LI_BACKEND_WAIT:
 		assert(NULL != bwait);
-		*context = bwait;
-
 		return LI_HANDLER_WAIT_FOR_EVENT;
 	case LI_BACKEND_TIMEOUT:
 		li_vrequest_backend_dead(vr);
