@@ -159,14 +159,14 @@ liLogMap* li_log_map_new_default(void) {
 }
 
 void li_log_map_acquire(liLogMap *log_map) {
-	assert(g_atomic_int_get(&log_map->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&log_map->refcount) > 0);
 	g_atomic_int_inc(&log_map->refcount);
 }
 
 void li_log_map_release(liLogMap *log_map) {
 	if (!log_map) return;
 
-	assert(g_atomic_int_get(&log_map->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&log_map->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&log_map->refcount)) {
 		for (guint i = 0; i < LI_LOG_LEVEL_COUNT; ++i) {
 			if (NULL != log_map->targets[i]) {
@@ -379,7 +379,7 @@ static void log_watcher_cb(liEventBase *watcher, int events) {
 			}
 			else {
 				bytes_written += write_res;
-				assert(bytes_written <= (gssize) msg->len);
+				LI_FORCE_ASSERT(bytes_written <= (gssize) msg->len);
 			}
 		}
 
@@ -474,7 +474,7 @@ gchar* li_log_level_str(liLogLevel log_level) {
 
 void li_log_thread_start(liServer *srv) {
 	GError *err = NULL;
-	assert(NULL == srv->logs.thread);
+	LI_FORCE_ASSERT(NULL == srv->logs.thread);
 
 	srv->logs.thread = g_thread_create((GThreadFunc)log_thread, srv, TRUE, &err);
 

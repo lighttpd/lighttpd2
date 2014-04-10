@@ -413,7 +413,7 @@ static liConfigToken tokenizer_next(liConfigTokenizerContext *ctx, GError **erro
 		else if (TK_ERROR == (token = tokenizer_next(ctx, error))) goto error; \
 	} while (0)
 #define REMEMBER(token) do { \
-		assert(TK_ERROR == ctx->next_token); /* mustn't contain a token */ \
+		LI_FORCE_ASSERT(TK_ERROR == ctx->next_token); /* mustn't contain a token */ \
 		ctx->next_token = token; \
 	} while (0)
 

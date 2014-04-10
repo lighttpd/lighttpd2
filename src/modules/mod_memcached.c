@@ -69,7 +69,7 @@ static const GString
 ;
 
 static void mc_ctx_acquire(memcached_ctx* ctx) {
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&ctx->refcount) > 0);
 	g_atomic_int_inc(&ctx->refcount);
 }
 
@@ -83,7 +83,7 @@ static void mc_ctx_release(liServer *_srv, gpointer param) {
 	if (NULL == ctx) return;
 	srv = ctx->srv;
 
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&ctx->refcount) > 0);
 	if (!g_atomic_int_dec_and_test(&ctx->refcount)) return;
 
 	if (ctx->worker_client_ctx) {
@@ -502,7 +502,7 @@ static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 		liMemcachedRequest *req;
 		memcached_ctx *ctx = mf->ctx;
 
-		assert(0 == f->in->length);
+		LI_FORCE_ASSERT(0 == f->in->length);
 
 		f->out->is_closed = TRUE;
 

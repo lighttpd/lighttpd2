@@ -231,7 +231,7 @@ static void wait_for_request_body_stream_cb(liStream *stream, liStreamEvent even
 			liChunkQueue *in = ws->stream.source->out, *out = ws->stream.out;
 			while (in->length > 0) {
 				liChunk *c = li_chunkqueue_first_chunk(in);
-				assert(NULL != c);
+				LI_FORCE_ASSERT(NULL != c);
 				if (FILE_CHUNK != c->type) {
 					ws->have_mem_chunk = TRUE;
 					li_chunkqueue_steal_all(out, in);
@@ -291,7 +291,7 @@ static gboolean wait_for_request_body_stream_ready(liStream *stream) {
 	wait_for_request_body_stream *ws;
 
 	if (NULL == stream) return FALSE;
-	assert(wait_for_request_body_stream_cb == stream->cb);
+	LI_FORCE_ASSERT(wait_for_request_body_stream_cb == stream->cb);
 	ws = LI_CONTAINER_OF(stream, wait_for_request_body_stream, stream);
 	return ws->ready;
 }
@@ -361,9 +361,9 @@ gboolean li_vrequest_handle_indirect(liVRequest *vr, liPlugin *p) {
 void li_vrequest_indirect_connect(liVRequest *vr, liStream *backend_drain, liStream* backend_source) {
 	liStream *req_in;
 
-	assert(LI_VRS_READ_CONTENT == vr->state);
-	assert(NULL != backend_drain);
-	assert(NULL != backend_source);
+	LI_FORCE_ASSERT(LI_VRS_READ_CONTENT == vr->state);
+	LI_FORCE_ASSERT(NULL != backend_drain);
+	LI_FORCE_ASSERT(NULL != backend_source);
 
 	li_stream_acquire(backend_drain);
 	li_stream_acquire(backend_source);
@@ -395,7 +395,7 @@ void li_vrequest_indirect_connect(liVRequest *vr, liStream *backend_drain, liStr
 
 /* received all response headers/status code - call once from your indirect handler */
 void li_vrequest_indirect_headers_ready(liVRequest* vr) {
-	assert(LI_VRS_HANDLE_RESPONSE_HEADERS > vr->state);
+	LI_FORCE_ASSERT(LI_VRS_HANDLE_RESPONSE_HEADERS > vr->state);
 
 	vr->state = LI_VRS_HANDLE_RESPONSE_HEADERS;
 
@@ -403,7 +403,7 @@ void li_vrequest_indirect_headers_ready(liVRequest* vr) {
 }
 
 void li_vrequest_connection_upgrade(liVRequest *vr, liStream *backend_drain, liStream *backend_source) {
-	assert(LI_VRS_HANDLE_RESPONSE_HEADERS > vr->state);
+	LI_FORCE_ASSERT(LI_VRS_HANDLE_RESPONSE_HEADERS > vr->state);
 
 	/* abort config handling. no filter, no more headers, ... */
 	vr->state = LI_VRS_WRITE_CONTENT;

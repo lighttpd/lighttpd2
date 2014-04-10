@@ -124,7 +124,7 @@ cleanup_fail:
 
 static void auth_file_data_release(AuthFileData *data) {
 	if (!data) return;
-	assert(g_atomic_int_get(&data->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&data->refcount) > 0);
 	if (!g_atomic_int_dec_and_test(&data->refcount)) return;
 
 	g_hash_table_destroy(data->users);

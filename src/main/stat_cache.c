@@ -121,7 +121,7 @@ static void stat_cache_run(gpointer data) {
 			sce->data.err = errno;
 		} else {
 			size = li_dirent_buf_size(dirp);
-			assert(size != (gsize)-1);
+			LI_FORCE_ASSERT(size != (gsize)-1);
 			entry = g_slice_alloc(size);
 
 			sce->dirlist = g_array_sized_new(FALSE, FALSE, sizeof(liStatCacheEntryData), 32);
@@ -187,7 +187,7 @@ static liStatCacheEntry *stat_cache_entry_new(liStatCache *sc, GString *path) {
 static void stat_cache_entry_free(liStatCacheEntry *sce) {
 	guint i;
 
-	assert(sce->vrequests->len == 0);
+	LI_FORCE_ASSERT(sce->vrequests->len == 0);
 
 	g_string_free(sce->data.path, TRUE);
 	g_ptr_array_free(sce->vrequests, TRUE);

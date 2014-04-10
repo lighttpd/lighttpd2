@@ -172,7 +172,7 @@ static const liFetchCallbacks fetch_cert_callbacks = {
 
 static void mod_gnutls_context_release(mod_context *ctx) {
 	if (!ctx) return;
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&ctx->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
 		gnutls_priority_deinit(ctx->server_priority_beast);
 		gnutls_priority_deinit(ctx->server_priority);
@@ -209,7 +209,7 @@ static void mod_gnutls_context_release(mod_context *ctx) {
 }
 
 static void mod_gnutls_context_acquire(mod_context *ctx) {
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&ctx->refcount) > 0);
 	g_atomic_int_inc(&ctx->refcount);
 }
 
@@ -271,7 +271,7 @@ error0:
 
 static void tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
 	mod_connection_ctx *conctx = stream->data;
-	assert(NULL == conctx->sock_stream || conctx->sock_stream == stream);
+	LI_FORCE_ASSERT(NULL == conctx->sock_stream || conctx->sock_stream == stream);
 
 	if (LI_IOSTREAM_DESTROY == event) {
 		li_stream_simple_socket_close(stream, TRUE); /* kill it, ssl sent an close alert message */
@@ -288,9 +288,9 @@ static void tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
 
 	switch (event) {
 	case LI_IOSTREAM_DESTROY:
-		assert(NULL == conctx->sock_stream);
-		assert(NULL == conctx->tls_filter);
-		assert(NULL == conctx->con);
+		LI_FORCE_ASSERT(NULL == conctx->sock_stream);
+		LI_FORCE_ASSERT(NULL == conctx->tls_filter);
+		LI_FORCE_ASSERT(NULL == conctx->con);
 		stream->data = NULL;
 		g_slice_free(mod_connection_ctx, conctx);
 		return;
@@ -316,7 +316,7 @@ static void handshake_cb(liGnuTLSFilter *f, gpointer data, liStream *plain_sourc
 static void close_cb(liGnuTLSFilter *f, gpointer data) {
 	mod_connection_ctx *conctx = data;
 	liConnection *con = conctx->con;
-	assert(conctx->tls_filter == f);
+	LI_FORCE_ASSERT(conctx->tls_filter == f);
 
 	conctx->tls_filter = NULL;
 	li_gnutls_filter_free(f);
@@ -329,7 +329,7 @@ static void close_cb(liGnuTLSFilter *f, gpointer data) {
 
 	if (NULL != conctx->con) {
 		liStream *raw_out = con->con_sock.raw_out, *raw_in = con->con_sock.raw_in;
-		assert(con->con_sock.data == conctx);
+		LI_FORCE_ASSERT(con->con_sock.data == conctx);
 		conctx->con = NULL;
 		con->con_sock.data = NULL;
 		con->con_sock.callbacks = NULL;
@@ -368,7 +368,7 @@ static void close_cb(liGnuTLSFilter *f, gpointer data) {
 	}
 #endif
 
-	assert(NULL != conctx->sock_stream);
+	LI_FORCE_ASSERT(NULL != conctx->sock_stream);
 	li_iostream_safe_release(&conctx->sock_stream);
 }
 
@@ -409,9 +409,9 @@ static void gnutls_tcp_finished(liConnection *con, gboolean aborted) {
 	con->con_sock.callbacks = NULL;
 
 	if (NULL != conctx) {
-		assert(con == conctx->con);
+		LI_FORCE_ASSERT(con == conctx->con);
 		close_cb(conctx->tls_filter, conctx);
-		assert(NULL == con->con_sock.data);
+		LI_FORCE_ASSERT(NULL == con->con_sock.data);
 	}
 
 	{
@@ -446,7 +446,7 @@ static const liConnectionSocketCallbacks gnutls_tcp_cbs = {
 static void sni_job_cb(liJob *job) {
 	mod_connection_ctx *conctx = LI_CONTAINER_OF(job, mod_connection_ctx, sni_job);
 
-	assert(NULL != conctx->client_hello_stream);
+	LI_FORCE_ASSERT(NULL != conctx->client_hello_stream);
 
 	conctx->sni_entry = li_fetch_get(conctx->ctx->sni_db, conctx->sni_server_name, conctx->sni_jobref, &conctx->sni_db_wait);
 	if (conctx->sni_entry != NULL) {

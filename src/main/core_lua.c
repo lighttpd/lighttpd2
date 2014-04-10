@@ -11,7 +11,7 @@ liLuaState *li_lua_state_get(lua_State *L) {
 	LL = lua_touserdata(L, -1);
 	lua_pop(L, 1);
 
-	assert(LL != NULL && LL->L == L);
+	LI_FORCE_ASSERT(LL != NULL && LL->L == L);
 
 	return LL;
 }

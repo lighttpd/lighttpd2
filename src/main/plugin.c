@@ -361,7 +361,7 @@ static liServerOption* find_option(liServer *srv, const char *name) {
 }
 
 static gboolean li_parse_option(liServer *srv, liWorker *wrk, liServerOption *sopt, const char *name, liValue *val, liOptionSet *mark) {
-	assert(NULL != srv && NULL != wrk && NULL != sopt && NULL != name && NULL != mark);
+	LI_FORCE_ASSERT(NULL != srv && NULL != wrk && NULL != sopt && NULL != name && NULL != mark);
 
 	if (NULL != val && LI_VALUE_LIST == sopt->type && val->type != LI_VALUE_LIST) {
 		li_value_wrap_in_list(val);
@@ -406,7 +406,7 @@ static gboolean li_parse_optionptr(liServer *srv, liWorker *wrk, liServerOptionP
 	liOptionPtrValue *oval;
 	gpointer ptr = NULL;
 
-	assert(NULL != srv && NULL != wrk && NULL != sopt && NULL != name && NULL != mark);
+	LI_FORCE_ASSERT(NULL != srv && NULL != wrk && NULL != sopt && NULL != name && NULL != mark);
 
 	if (NULL != val && LI_VALUE_LIST == sopt->type && val->type != LI_VALUE_LIST) {
 		li_value_wrap_in_list(val);
@@ -454,11 +454,11 @@ static gboolean li_parse_optionptr(liServer *srv, liWorker *wrk, liServerOptionP
 
 void li_release_optionptr(liServer *srv, liOptionPtrValue *value) {
 	liServerOptionPtr *sopt;
-	assert(NULL != srv);
+	LI_FORCE_ASSERT(NULL != srv);
 
 	if (NULL == value) return;
 
-	assert(g_atomic_int_get(&value->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&value->refcount) > 0);
 	if (!g_atomic_int_dec_and_test(&value->refcount)) return;
 
 	sopt = value->sopt;
@@ -605,10 +605,10 @@ void li_plugins_handle_vrclose(liVRequest *vr) {
 
 static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt, const char *name) {
 	liOptionSet setting;
-	assert(NULL != sopt);
+	LI_FORCE_ASSERT(NULL != sopt);
 
 	if (!li_parse_option(srv, srv->main_worker, sopt, name, NULL, &setting)) return FALSE;
-	assert(setting.ndx == sopt->index);
+	LI_FORCE_ASSERT(setting.ndx == sopt->index);
 
 	if (srv->option_def_values->len <= sopt->index)
 		g_array_set_size(srv->option_def_values, sopt->index + 1);
@@ -620,10 +620,10 @@ static gboolean plugin_load_default_option(liServer *srv, liServerOption *sopt, 
 
 static gboolean plugin_load_default_optionptr(liServer *srv, liServerOptionPtr *sopt, const char *name) {
 	liOptionPtrSet setting;
-	assert(NULL != sopt);
+	LI_FORCE_ASSERT(NULL != sopt);
 
 	if (!li_parse_optionptr(srv, srv->main_worker, sopt, name, NULL, &setting)) return FALSE;
-	assert(setting.ndx == sopt->index);
+	LI_FORCE_ASSERT(setting.ndx == sopt->index);
 
 	if (srv->optionptr_def_values->len <= sopt->index)
 		g_array_set_size(srv->optionptr_def_values, sopt->index + 1);

@@ -39,5 +39,5 @@ ip_parsers.c: ip_parsers.rl
 
 liblighttpd2_common_la_SOURCES=$(common_src)
 nodist_liblighttpd2_common_la_SOURCES=$(nodist_common_src)
-liblighttpd2_common_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS)
-liblighttpd2_common_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(CRYPT_LIB)
+liblighttpd2_common_la_CPPFLAGS=$(common_cflags) $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LIBUNWIND_CFLAGS)
+liblighttpd2_common_la_LDFLAGS=-release $(PACKAGE_VERSION) -export-dynamic $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(CRYPT_LIB) $(LIBUNWIND_LIBS)

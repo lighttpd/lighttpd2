@@ -1,5 +1,6 @@
 
 #include <lighttpd/radix.h>
+#include <lighttpd/utils.h>
 
 /* internal data is saved in "host"-order; search from high to low bit */
 typedef guint32 rdxBase;
@@ -87,13 +88,13 @@ gpointer li_radixtree_insert(liRadixTree *tree, const void *key, guint32 bits, g
 			/* split node */
 			liRadixNode *newnode;
 			guint32 width = (node->width > bits) ? bits : node->width;
-			assert(width <= RDXBITS);
+			LI_FORCE_ASSERT(width <= RDXBITS);
 			mask = RDX_MASK(width);
 			while ((current & mask) != (node->key & mask)) {
 				width--;
 				mask <<= 1;
 			}
-			assert(width <= RDXBITS-1);
+			LI_FORCE_ASSERT(width <= RDXBITS-1);
 			newnode = g_slice_new0(liRadixNode);
 			newnode->width = width;
 			newnode->key = current & mask;

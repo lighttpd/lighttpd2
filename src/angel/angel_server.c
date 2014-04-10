@@ -387,7 +387,7 @@ void li_instance_release(liInstance *i) {
 }
 
 void li_instance_acquire(liInstance *i) {
-	assert(g_atomic_int_get(&i->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&i->refcount) > 0);
 	g_atomic_int_inc(&i->refcount);
 }
 
@@ -406,7 +406,7 @@ liInstanceConf* li_instance_conf_new(gchar **cmd, gchar **env, GString *username
 
 void li_instance_conf_release(liInstanceConf *ic) {
 	if (!ic) return;
-	assert(g_atomic_int_get(&ic->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&ic->refcount) > 0);
 	if (!g_atomic_int_dec_and_test(&ic->refcount)) return;
 
 	if (ic->username) g_string_free(ic->username, TRUE);
@@ -416,7 +416,7 @@ void li_instance_conf_release(liInstanceConf *ic) {
 }
 
 void li_instance_conf_acquire(liInstanceConf *ic) {
-	assert(g_atomic_int_get(&ic->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&ic->refcount) > 0);
 	g_atomic_int_inc(&ic->refcount);
 }
 

@@ -26,13 +26,13 @@ liChunkFile *li_chunkfile_new(GString *name, int fd, gboolean is_temp) {
 }
 
 void li_chunkfile_acquire(liChunkFile *cf) {
-	assert(g_atomic_int_get(&cf->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&cf->refcount) > 0);
 	g_atomic_int_inc(&cf->refcount);
 }
 
 void li_chunkfile_release(liChunkFile *cf) {
 	if (!cf) return;
-	assert(g_atomic_int_get(&cf->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&cf->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&cf->refcount)) {
 		if (-1 != cf->fd) close(cf->fd);
 		cf->fd = -1;
@@ -330,9 +330,9 @@ liCQLimit* li_cqlimit_new(void) {
 }
 
 void li_cqlimit_reset(liCQLimit *cql) {
-	assert(cql->current == 0);
-	assert(cql->io_watcher == NULL);
-	assert(cql->notify == NULL);
+	LI_FORCE_ASSERT(cql->current == 0);
+	LI_FORCE_ASSERT(cql->io_watcher == NULL);
+	LI_FORCE_ASSERT(cql->notify == NULL);
 	cql->current = 0;
 	cql->limit = -1;
 	cql->io_watcher = NULL;
@@ -340,13 +340,13 @@ void li_cqlimit_reset(liCQLimit *cql) {
 }
 
 void li_cqlimit_acquire(liCQLimit *cql) {
-	assert(g_atomic_int_get(&cql->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&cql->refcount) > 0);
 	g_atomic_int_inc(&cql->refcount);
 }
 
 void li_cqlimit_release(liCQLimit *cql) {
 	if (!cql) return;
-	assert(g_atomic_int_get(&cql->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&cql->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&cql->refcount)) {
 		g_slice_free(liCQLimit, cql);
 	}
@@ -377,13 +377,13 @@ static void cqlimit_update(liChunkQueue *cq, goffset d) {
 
 	if (!cq) return;
 	cq->mem_usage += d;
-	assert(cq->mem_usage >= 0);
+	LI_FORCE_ASSERT(cq->mem_usage >= 0);
 	cql = cq->limit;
 	/* g_printerr("cqlimit_update: cq->mem_usage: %"LI_GOFFSET_FORMAT"\n", cq->mem_usage); */
 
 	if (!cql) return;
 	cql->current += d;
-	assert(cql->current >= 0);
+	LI_FORCE_ASSERT(cql->current >= 0);
 	/* g_printerr("cqlimit_update: cql->current: %"LI_GOFFSET_FORMAT", cql->limit: %"LI_GOFFSET_FORMAT"\n", cql->current, cql->limit); */
 	if (cql->locked) {
 		if (cql->limit <= 0 || cql->current < cql->limit) {
@@ -436,7 +436,7 @@ void li_chunkqueue_reset(liChunkQueue *cq) {
 	cq->is_closed = FALSE;
 	cq->bytes_in = cq->bytes_out = cq->length = 0;
 	g_queue_foreach(&cq->queue, __chunk_free, cq);
-	assert(cq->mem_usage == 0);
+	LI_FORCE_ASSERT(cq->mem_usage == 0);
 	cq->mem_usage = 0;
 	g_queue_init(&cq->queue); /* should be empty now */
 }
@@ -446,7 +446,7 @@ void li_chunkqueue_free(liChunkQueue *cq) {
 	g_queue_foreach(&cq->queue, __chunk_free, cq);
 	li_cqlimit_release(cq->limit);
 	cq->limit = NULL;
-	assert(cq->mem_usage == 0);
+	LI_FORCE_ASSERT(cq->mem_usage == 0);
 	cq->mem_usage = 0;
 	g_slice_free(liChunkQueue, cq);
 }
@@ -543,7 +543,7 @@ void li_chunkqueue_append_buffer2(liChunkQueue *cq, liBuffer *buffer, gsize offs
 		li_buffer_release(buffer);
 		return;
 	}
-	assert(offset + length <= buffer->used);
+	LI_FORCE_ASSERT(offset + length <= buffer->used);
 	c = chunk_new();
 	c->type = BUFFER_CHUNK;
 	c->data.buffer.buffer = buffer;
@@ -916,7 +916,7 @@ LI_API void li_chunkqueue_update_last_buffer_size(liChunkQueue *cq, goffset add_
 	liChunk *c = g_queue_peek_tail(&cq->queue);
 	liBuffer *buf;
 
-	assert(c && c->type == BUFFER_CHUNK);
+	LI_FORCE_ASSERT(c && c->type == BUFFER_CHUNK);
 	buf = c->data.buffer.buffer;
 	buf->used += add_length;
 	c->data.buffer.length += add_length;

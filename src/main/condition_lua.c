@@ -36,7 +36,7 @@ static void lua_settop_in_dicts(lua_State *L, const gchar *path) {
 
 	ndx = lua_gettop(L);
 	segments = g_strsplit(path, ".", 10);
-	assert(segments[0]);
+	LI_FORCE_ASSERT(segments[0]);
 	for (i = 0, curtable = LUA_GLOBALSINDEX; segments[i+1]; i++) {
 		lua_getfield(L, curtable, segments[i]);
 		if (lua_isnil(L, -1) || !lua_istable(L, -1)) {

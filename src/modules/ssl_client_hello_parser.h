@@ -72,7 +72,7 @@ INLINE liStream* li_ssl_client_hello_stream(liEventLoop *loop, liSSLClientHelloC
 
 INLINE void li_ssl_client_hello_stream_ready(liStream *stream) {
 	liSSLClientHelloParserStream *pstream = LI_CONTAINER_OF(stream, liSSLClientHelloParserStream, stream);
-	assert(_li_ssl_client_hello_stream_cb == stream->cb);
+	LI_FORCE_ASSERT(_li_ssl_client_hello_stream_cb == stream->cb);
 
 	pstream->parser.finished = pstream->parser.forward = TRUE;
 	li_stream_again(stream);
@@ -293,7 +293,7 @@ INLINE liSSLClientHelloParserResult _li_ssl_client_hello_parse(liSSLClientHelloP
 				{
 					guint take = MIN(context->client_hello_remaining, (guint) (client_hello_pe - p));
 					context->client_hello_remaining -= take;
-					assert(client_hello_pe == p + take);
+					LI_FORCE_ASSERT(client_hello_pe == p + take);
 				}
 
 				while (p < client_hello_pe) {

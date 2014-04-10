@@ -28,7 +28,7 @@ static liServerSocket* server_socket_new(liServer *srv, int fd) {
 
 void li_server_socket_release(liServerSocket* sock) {
 	if (!sock) return;
-	assert(g_atomic_int_get(&sock->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&sock->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&sock->refcount)) {
 		if (sock->release_cb) sock->release_cb(sock);
 
@@ -40,7 +40,7 @@ void li_server_socket_release(liServerSocket* sock) {
 }
 
 void li_server_socket_acquire(liServerSocket* sock) {
-	assert(g_atomic_int_get(&sock->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&sock->refcount) > 0);
 	g_atomic_int_inc(&sock->refcount);
 }
 
@@ -278,7 +278,7 @@ void li_server_loop_init(liServer *srv) {
 	evloop = ev_default_loop(srv->loop_flags);
 
 	if (NULL == evloop) {
-		li_fatal ("could not initialise libev, bad $LIBEV_FLAGS in environment?");
+		LI_FATAL("could not initialise libev, bad $LIBEV_FLAGS in environment?");
 		return;
 	}
 
@@ -334,7 +334,7 @@ static gboolean li_server_worker_init(liServer *srv) {
 		struct ev_loop *loop;
 
 		if (NULL == (loop = ev_loop_new(srv->loop_flags))) {
-			li_fatal ("could not create extra libev loops");
+			LI_FATAL("could not create extra libev loops");
 			return FALSE;
 		}
 		wrk = g_array_index(srv->workers, liWorker*, i) = li_worker_new(srv, loop);

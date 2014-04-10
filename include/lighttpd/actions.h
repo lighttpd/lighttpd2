@@ -93,7 +93,7 @@ LI_API liAction* li_action_new_list(void);
 LI_API liAction* li_action_new_condition(liCondition *cond, liAction *target, liAction *target_else);
 LI_API liAction* li_action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB bfallback, liBackendFinishedCB bfinished, liBalancerFreeCB bfree, gpointer param, gboolean provide_backlog);
 
-/* assert(list->refcount == 1)! converts list to a list in place if necessary */
+/* LI_FORCE_ASSERT(list->refcount == 1)! converts list to a list in place if necessary */
 LI_API void li_action_append_inplace(liAction *list, liAction *element);
 
 #endif

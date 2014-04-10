@@ -158,7 +158,7 @@ static proxy_context* proxy_context_new(liServer *srv, GString *dest_socket) {
 
 static void proxy_context_release(proxy_context *ctx) {
 	if (!ctx) return;
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&ctx->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
 		li_backend_pool_free(ctx->pool);
 		g_string_free(ctx->socket_str, TRUE);
@@ -167,7 +167,7 @@ static void proxy_context_release(proxy_context *ctx) {
 }
 
 static void proxy_context_acquire(proxy_context *ctx) {
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&ctx->refcount) > 0);
 	g_atomic_int_inc(&ctx->refcount);
 }
 
@@ -263,11 +263,11 @@ static liHandlerResult proxy_handle(liVRequest *vr, gpointer param, gpointer *co
 	*context = bwait;
 	switch (bres) {
 	case LI_BACKEND_SUCCESS:
-		assert(NULL == bwait);
-		assert(NULL != bcon);
+		LI_FORCE_ASSERT(NULL == bwait);
+		LI_FORCE_ASSERT(NULL != bcon);
 		break;
 	case LI_BACKEND_WAIT:
-		assert(NULL != bwait);
+		LI_FORCE_ASSERT(NULL != bwait);
 		return LI_HANDLER_WAIT_FOR_EVENT;
 	case LI_BACKEND_TIMEOUT:
 		li_vrequest_backend_dead(vr);

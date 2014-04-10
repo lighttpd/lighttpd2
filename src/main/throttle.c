@@ -239,12 +239,12 @@ void li_throttle_update(liThrottleState *state, guint used) {
 }
 
 void li_throttle_pool_acquire(liThrottlePool *pool) {
-	assert(g_atomic_int_get(&pool->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&pool->refcount) > 0);
 	g_atomic_int_inc(&pool->refcount);
 }
 
 void li_throttle_pool_release(liThrottlePool *pool, liServer *srv) {
-	assert(g_atomic_int_get(&pool->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&pool->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&pool->refcount)) {
 		g_mutex_free(pool->rearm_mutex);
 		pool->rearm_mutex = NULL;
@@ -259,8 +259,8 @@ void li_throttle_pool_release(liThrottlePool *pool, liServer *srv) {
 gboolean li_throttle_add_pool(liWorker *wrk, liThrottleState *state, liThrottlePool *pool) {
 	liThrottlePoolState *pstate;
 	guint i, len;
-	assert(NULL != wrk);
-	assert(NULL != state);
+	LI_FORCE_ASSERT(NULL != wrk);
+	LI_FORCE_ASSERT(NULL != state);
 
 	if (NULL == pool) return FALSE;
 	for (i = 0, len = state->pools->len; i < len; ++i) {
@@ -278,7 +278,7 @@ gboolean li_throttle_add_pool(liWorker *wrk, liThrottleState *state, liThrottleP
 
 void li_throttle_remove_pool(liWorker *wrk, liThrottleState *state, liThrottlePool *pool) {
 	guint i, len;
-	assert(NULL != wrk);
+	LI_FORCE_ASSERT(NULL != wrk);
 	if (NULL == state || NULL == pool) return;
 
 	for (i = 0, len = state->pools->len; i < len; ++i) {
@@ -309,7 +309,7 @@ void li_throttle_set(liWorker *wrk, liThrottleState *state, guint rate, guint bu
 
 void li_throttle_free(liWorker *wrk, liThrottleState *state) {
 	guint i, len;
-	assert(NULL != wrk);
+	LI_FORCE_ASSERT(NULL != wrk);
 
 	if (NULL == state) return;
 

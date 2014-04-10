@@ -65,8 +65,6 @@
 #define GUSTR_LEN(x) ((const guchar*) ((x)->str)), ((x)->len)
 #define GSTR_SAFE_STR(x) ((x && x->str) ? x->str : "(null)")
 
-#include <assert.h>
-
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
 #endif

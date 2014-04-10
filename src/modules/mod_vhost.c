@@ -244,13 +244,13 @@ static liAction* vhost_map_regex_create(liServer *srv, liWorker *wrk, liPlugin* 
 			g_string_free(entryKeyStr, TRUE);
 
 			if (NULL == map_entry.regex) {
-				assert(NULL != err);
+				LI_FORCE_ASSERT(NULL != err);
 				vhost_map_regex_free(srv, mrd);
 				ERROR(srv, "vhost.map_regex: error compiling regex \"%s\": %s", entryKeyStr->str, err->message);
 				g_error_free(err);
 				return NULL;
 			}
-			assert(NULL == err);
+			LI_FORCE_ASSERT(NULL == err);
 
 			map_entry.action = li_value_extract(entryValue);
 

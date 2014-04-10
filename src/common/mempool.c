@@ -1,5 +1,6 @@
 
 #include <lighttpd/mempool.h>
+#include <lighttpd/utils.h>
 
 #ifdef WITH_PROFILER
 #include <lighttpd/profiler.h>
@@ -224,7 +225,7 @@ static mp_magazine* mp_mag_new(mp_pool *pool) {
 /* do NOT call with lock held */
 static inline void mp_mag_release(mp_magazine *mag) {
 	if (!mag) return;
-	assert(g_atomic_int_get(&mag->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&mag->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&mag->refcount)) {
 		MP_LOCK_FREE(mag->mutex);
 		g_slice_free(mp_magazine, mag);
@@ -232,7 +233,7 @@ static inline void mp_mag_release(mp_magazine *mag) {
 }
 
 static inline void mp_mag_acquire(mp_magazine *mag) {
-	assert(g_atomic_int_get(&mag->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&mag->refcount) > 0);
 	g_atomic_int_inc(&mag->refcount);
 }
 

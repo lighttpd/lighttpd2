@@ -201,8 +201,8 @@ INLINE li_tstamp li_event_time(void) {
 }
 
 INLINE void li_event_attach_(liEventLoop *loop, liEventBase *base) {
-	assert(NULL == base->link_watchers.data);
-	assert(NULL != loop);
+	LI_FORCE_ASSERT(NULL == base->link_watchers.data);
+	LI_FORCE_ASSERT(NULL != loop);
 
 	base->link_watchers.data = loop;
 	g_queue_push_tail_link(&loop->watchers, &base->link_watchers);
@@ -238,8 +238,8 @@ INLINE liEventLoop* li_event_get_loop_(liEventBase *base) {
 INLINE void li_event_start_(liEventBase *base) {
 	liEventLoop *loop = base->link_watchers.data;
 
-	assert(NULL != base->callback);
-	assert(LI_EVT_NONE != base->type);
+	LI_FORCE_ASSERT(NULL != base->callback);
+	LI_FORCE_ASSERT(LI_EVT_NONE != base->type);
 
 	if (base->active) return;
 	base->active = 1;
@@ -251,8 +251,8 @@ INLINE void li_event_start_(liEventBase *base) {
 		case LI_EVT_IO:
 			{
 				liEventIO *io = li_event_io_from(base);
-				assert(!ev_is_active(&io->libevmess.w));
-				assert(-1 != io->libevmess.io.fd);
+				LI_FORCE_ASSERT(!ev_is_active(&io->libevmess.w));
+				LI_FORCE_ASSERT(-1 != io->libevmess.io.fd);
 				ev_io_start(loop->loop, &io->libevmess.io);
 				if (!base->keep_loop_alive) ev_unref(loop->loop);
 			}
@@ -260,7 +260,7 @@ INLINE void li_event_start_(liEventBase *base) {
 		case LI_EVT_TIMER:
 			{
 				liEventTimer *timer = li_event_timer_from(base);
-				assert(!ev_is_active(&timer->libevmess.w));
+				LI_FORCE_ASSERT(!ev_is_active(&timer->libevmess.w));
 				if (0 >= timer->libevmess.timer.repeat) timer->libevmess.timer.repeat = 0.0001;
 				ev_timer_again(loop->loop, &timer->libevmess.timer);
 				if (!base->keep_loop_alive) ev_unref(loop->loop);
@@ -269,7 +269,7 @@ INLINE void li_event_start_(liEventBase *base) {
 		case LI_EVT_ASYNC:
 			{
 				liEventAsync *async = li_event_async_from(base);
-				assert(!ev_is_active(&async->libevmess.w));
+				LI_FORCE_ASSERT(!ev_is_active(&async->libevmess.w));
 				ev_async_start(loop->loop, &async->libevmess.async);
 				if (!base->keep_loop_alive) ev_unref(loop->loop);
 			}
@@ -277,7 +277,7 @@ INLINE void li_event_start_(liEventBase *base) {
 		case LI_EVT_CHILD:
 			{
 				liEventChild *child = li_event_child_from(base);
-				assert(!ev_is_active(&child->libevmess.w));
+				LI_FORCE_ASSERT(!ev_is_active(&child->libevmess.w));
 				ev_child_start(loop->loop, &child->libevmess.child);
 				if (!base->keep_loop_alive) ev_unref(loop->loop);
 			}
@@ -285,7 +285,7 @@ INLINE void li_event_start_(liEventBase *base) {
 		case LI_EVT_SIGNAL:
 			{
 				liEventSignal *sig = li_event_signal_from(base);
-				assert(!ev_is_active(&sig->libevmess.w));
+				LI_FORCE_ASSERT(!ev_is_active(&sig->libevmess.w));
 				ev_signal_start(loop->loop, &sig->libevmess.sig);
 				if (!base->keep_loop_alive) ev_unref(loop->loop);
 			}
@@ -293,7 +293,7 @@ INLINE void li_event_start_(liEventBase *base) {
 		case LI_EVT_PREPARE:
 			{
 				liEventPrepare *prepare = li_event_prepare_from(base);
-				assert(!ev_is_active(&prepare->libevmess.w));
+				LI_FORCE_ASSERT(!ev_is_active(&prepare->libevmess.w));
 				ev_prepare_start(loop->loop, &prepare->libevmess.prepare);
 				if (!base->keep_loop_alive) ev_unref(loop->loop);
 			}
@@ -301,7 +301,7 @@ INLINE void li_event_start_(liEventBase *base) {
 		case LI_EVT_CHECK:
 			{
 				liEventCheck *check = li_event_check_from(base);
-				assert(!ev_is_active(&check->libevmess.w));
+				LI_FORCE_ASSERT(!ev_is_active(&check->libevmess.w));
 				ev_check_start(loop->loop, &check->libevmess.check);
 				if (!base->keep_loop_alive) ev_unref(loop->loop);
 			}
@@ -316,8 +316,8 @@ INLINE void li_event_stop_(liEventBase *base) {
 	if (!base->active) return;
 	base->active = 0;
 
-	assert(NULL != base->callback);
-	assert(LI_EVT_NONE != base->type);
+	LI_FORCE_ASSERT(NULL != base->callback);
+	LI_FORCE_ASSERT(LI_EVT_NONE != base->type);
 
 	if (NULL != loop) {
 		switch (base->type) {
@@ -326,7 +326,7 @@ INLINE void li_event_stop_(liEventBase *base) {
 		case LI_EVT_IO:
 			{
 				liEventIO *io = li_event_io_from(base);
-				assert(ev_is_active(&io->libevmess.w));
+				LI_FORCE_ASSERT(ev_is_active(&io->libevmess.w));
 				if (!base->keep_loop_alive) ev_ref(loop->loop);
 				ev_io_stop(loop->loop, &io->libevmess.io);
 			}
@@ -334,7 +334,7 @@ INLINE void li_event_stop_(liEventBase *base) {
 		case LI_EVT_TIMER:
 			{
 				liEventTimer *timer = li_event_timer_from(base);
-				assert(ev_is_active(&timer->libevmess.w));
+				LI_FORCE_ASSERT(ev_is_active(&timer->libevmess.w));
 				if (!base->keep_loop_alive) ev_ref(loop->loop);
 				ev_timer_stop(loop->loop, &timer->libevmess.timer);
 			}
@@ -342,7 +342,7 @@ INLINE void li_event_stop_(liEventBase *base) {
 		case LI_EVT_ASYNC:
 			{
 				liEventAsync *async = li_event_async_from(base);
-				assert(ev_is_active(&async->libevmess.w));
+				LI_FORCE_ASSERT(ev_is_active(&async->libevmess.w));
 				if (!base->keep_loop_alive) ev_ref(loop->loop);
 				ev_async_stop(loop->loop, &async->libevmess.async);
 			}
@@ -350,7 +350,7 @@ INLINE void li_event_stop_(liEventBase *base) {
 		case LI_EVT_CHILD:
 			{
 				liEventChild *child = li_event_child_from(base);
-				assert(ev_is_active(&child->libevmess.w));
+				LI_FORCE_ASSERT(ev_is_active(&child->libevmess.w));
 				if (!base->keep_loop_alive) ev_ref(loop->loop);
 				ev_child_stop(loop->loop, &child->libevmess.child);
 			}
@@ -358,7 +358,7 @@ INLINE void li_event_stop_(liEventBase *base) {
 		case LI_EVT_SIGNAL:
 			{
 				liEventSignal *sig = li_event_signal_from(base);
-				assert(ev_is_active(&sig->libevmess.w));
+				LI_FORCE_ASSERT(ev_is_active(&sig->libevmess.w));
 				if (!base->keep_loop_alive) ev_ref(loop->loop);
 				ev_signal_stop(loop->loop, &sig->libevmess.sig);
 			}
@@ -366,7 +366,7 @@ INLINE void li_event_stop_(liEventBase *base) {
 		case LI_EVT_PREPARE:
 			{
 				liEventPrepare *prepare = li_event_prepare_from(base);
-				assert(ev_is_active(&prepare->libevmess.w));
+				LI_FORCE_ASSERT(ev_is_active(&prepare->libevmess.w));
 				if (!base->keep_loop_alive) ev_ref(loop->loop);
 				ev_prepare_stop(loop->loop, &prepare->libevmess.prepare);
 			}
@@ -374,7 +374,7 @@ INLINE void li_event_stop_(liEventBase *base) {
 		case LI_EVT_CHECK:
 			{
 				liEventCheck *check = li_event_check_from(base);
-				assert(ev_is_active(&check->libevmess.w));
+				LI_FORCE_ASSERT(ev_is_active(&check->libevmess.w));
 				if (!base->keep_loop_alive) ev_ref(loop->loop);
 				ev_check_stop(loop->loop, &check->libevmess.check);
 			}
@@ -473,7 +473,7 @@ INLINE int li_event_io_fd(liEventIO *io) {
 }
 
 INLINE liEventIO* li_event_io_from(liEventBase *base) {
-	assert(LI_EVT_IO == base->type);
+	LI_FORCE_ASSERT(LI_EVT_IO == base->type);
 	return LI_CONTAINER_OF(base, liEventIO, base);
 }
 
@@ -484,7 +484,7 @@ INLINE void li_event_timer_once(liEventTimer *timer, li_tstamp timeout) {
 }
 
 INLINE liEventTimer* li_event_timer_from(liEventBase *base) {
-	assert(LI_EVT_TIMER == base->type);
+	LI_FORCE_ASSERT(LI_EVT_TIMER == base->type);
 	return LI_CONTAINER_OF(base, liEventTimer, base);
 }
 
@@ -494,7 +494,7 @@ INLINE void li_event_async_send(liEventAsync *async) {
 }
 
 INLINE liEventAsync* li_event_async_from(liEventBase *base){
-	assert(LI_EVT_ASYNC == base->type);
+	LI_FORCE_ASSERT(LI_EVT_ASYNC == base->type);
 	return LI_CONTAINER_OF(base, liEventAsync, base);
 }
 
@@ -507,7 +507,7 @@ INLINE int li_event_child_status(liEventChild *child) {
 }
 
 INLINE liEventChild* li_event_child_from(liEventBase *base) {
-	assert(LI_EVT_CHILD == base->type);
+	LI_FORCE_ASSERT(LI_EVT_CHILD == base->type);
 	return LI_CONTAINER_OF(base, liEventChild, base);
 }
 
@@ -516,17 +516,17 @@ INLINE int li_event_signal_signum(liEventSignal *sig) {
 }
 
 INLINE liEventSignal* li_event_signal_from(liEventBase *base) {
-	assert(LI_EVT_SIGNAL == base->type);
+	LI_FORCE_ASSERT(LI_EVT_SIGNAL == base->type);
 	return LI_CONTAINER_OF(base, liEventSignal, base);
 }
 
 INLINE liEventPrepare* li_event_prepare_from(liEventBase *base) {
-	assert(LI_EVT_PREPARE == base->type);
+	LI_FORCE_ASSERT(LI_EVT_PREPARE == base->type);
 	return LI_CONTAINER_OF(base, liEventPrepare, base);
 }
 
 INLINE liEventCheck* li_event_check_from(liEventBase *base) {
-	assert(LI_EVT_CHECK == base->type);
+	LI_FORCE_ASSERT(LI_EVT_CHECK == base->type);
 	return LI_CONTAINER_OF(base, liEventCheck, base);
 }
 

@@ -105,9 +105,9 @@ static void S_backend_pool_worker_remove_con(liBackendPool_p *pool, liBackendCon
 	gint last_reserved_ndx = last_active_ndx + wpool->reserved;
 	gint last_idle_ndx = last_reserved_ndx + wpool->idle;
 
-	assert(con->ndx >= 0 && (guint)con->ndx < wpool->connections->len);
-	assert(g_ptr_array_index(wpool->connections, con->ndx) == con);
-	assert(last_idle_ndx == (gint) wpool->connections->len - 1);
+	LI_FORCE_ASSERT(con->ndx >= 0 && (guint)con->ndx < wpool->connections->len);
+	LI_FORCE_ASSERT(g_ptr_array_index(wpool->connections, con->ndx) == con);
+	LI_FORCE_ASSERT(last_idle_ndx == (gint) wpool->connections->len - 1);
 
 	if (ndx <= last_active_ndx) {
 		--wpool->active;
@@ -205,7 +205,7 @@ static void S_backend_pool_worker_insert_con(liBackendPool_p *pool, liWorker *wr
 			con->ndx = wpool->active + wpool->reserved;
 		}
 		g_ptr_array_index(wpool->connections, con->ndx) = con;
-		assert(con->ndx == min_ndx);
+		LI_FORCE_ASSERT(con->ndx == min_ndx);
 	} else if (con->ndx > max_ndx) {
 		if ((guint) con->ndx > wpool->active + wpool->reserved - 1) {
 			liBackendConnection_p *move = g_ptr_array_index(wpool->connections, wpool->active + wpool->reserved - 1);
@@ -220,9 +220,9 @@ static void S_backend_pool_worker_insert_con(liBackendPool_p *pool, liWorker *wr
 			con->ndx = wpool->active - 1;
 		}
 		g_ptr_array_index(wpool->connections, con->ndx) = con;
-		assert(con->ndx == max_ndx);
+		LI_FORCE_ASSERT(con->ndx == max_ndx);
 	} else {
-		assert(con->ndx >= min_ndx && con->ndx <= max_ndx);
+		LI_FORCE_ASSERT(con->ndx >= min_ndx && con->ndx <= max_ndx);
 	}
 }
 
@@ -516,7 +516,7 @@ static void S_backend_pool_distribute(liBackendPool_p *pool, liWorker *wrk) {
 				guint src = 0;
 				guint i;
 
-				assert(pool->idle >= use);
+				LI_FORCE_ASSERT(pool->idle >= use);
 				for (i = 0; i < worker_count; ++i) {
 					liBackendWorkerPool *wpool = &pool->worker_pools[i];
 
@@ -527,7 +527,7 @@ static void S_backend_pool_distribute(liBackendPool_p *pool, liWorker *wrk) {
 
 						while (0 == pool->worker_pools[src].idle) {
 							++src;
-							assert(src < worker_count);
+							LI_FORCE_ASSERT(src < worker_count);
 						}
 						srcpool = &pool->worker_pools[src];
 						con = g_ptr_array_index(srcpool->connections, srcpool->active + srcpool->reserved);
@@ -650,7 +650,7 @@ static void backend_pool_worker_run_reserved(liBackendWorkerPool *wpool) {
 		liBackendConnection_p *con = g_ptr_array_index(wpool->connections, wpool->active);
 		if (NULL == con->worker) {
 			/* attach */
-			assert(con->worker_next == wrk);
+			LI_FORCE_ASSERT(con->worker_next == wrk);
 			con->worker = wrk;
 			con->worker_next = NULL;
 
@@ -671,10 +671,10 @@ static void backend_pool_worker_run_reserved(liBackendWorkerPool *wpool) {
 			}
 		}
 
-		assert(NULL != con->wait);
+		LI_FORCE_ASSERT(NULL != con->wait);
 
 		if (NULL == con->worker_next) {
-			assert(con->wait->vr->wrk == wrk);
+			LI_FORCE_ASSERT(con->wait->vr->wrk == wrk);
 			if (!con->active) {
 				con->active = TRUE;
 				S_backend_pool_worker_insert_con(pool, wrk, con);
@@ -795,7 +795,7 @@ static void backend_pool_worker_init_done(gpointer cbdata, gpointer fdata, GPtrA
 }
 
 static void S_backend_pool_init(liWorker *wrk, liBackendPool_p *pool) {
-	assert(!pool->shutdown);
+	LI_FORCE_ASSERT(!pool->shutdown);
 
 	if (pool->initialized) return;
 
@@ -847,10 +847,10 @@ static gpointer backend_pool_worker_shutdown(liWorker *wrk, gpointer fdata) {
 	}
 	li_waitqueue_stop(&wpool->connect_queue);
 
-	assert(0 == wpool->active);
-	assert(0 == wpool->reserved);
-	assert(0 == wpool->idle);
-	assert(0 == wpool->pending);
+	LI_FORCE_ASSERT(0 == wpool->active);
+	LI_FORCE_ASSERT(0 == wpool->reserved);
+	LI_FORCE_ASSERT(0 == wpool->idle);
+	LI_FORCE_ASSERT(0 == wpool->pending);
 
 	g_ptr_array_free(wpool->connections, TRUE);
 
@@ -892,8 +892,8 @@ void li_backend_pool_free(liBackendPool *bpool) {
 
 	g_mutex_lock(pool->lock);
 
-	assert(0 == pool->active);
-	assert(!pool->shutdown);
+	LI_FORCE_ASSERT(0 == pool->active);
+	LI_FORCE_ASSERT(!pool->shutdown);
 
 	pool->shutdown = TRUE;
 
@@ -916,8 +916,8 @@ liBackendResult li_backend_get(liVRequest *vr, liBackendPool *bpool, liBackendCo
 	liBackendResult result = LI_BACKEND_TIMEOUT;
 	liBackendWait *bwait = NULL;
 
-	assert(pbcon);
-	assert(pbwait);
+	LI_FORCE_ASSERT(pbcon);
+	LI_FORCE_ASSERT(pbwait);
 
 	g_mutex_lock(pool->lock);
 	S_backend_pool_init(vr->wrk, pool);
@@ -926,7 +926,7 @@ liBackendResult li_backend_get(liVRequest *vr, liBackendPool *bpool, liBackendCo
 
 	if (*pbwait) {
 		bwait = *pbwait;
-		assert(vr == bwait->vr);
+		LI_FORCE_ASSERT(vr == bwait->vr);
 	} else if (pool->ts_disabled_till > li_cur_ts(vr->wrk)) {
 		goto out;
 	} else {
@@ -961,7 +961,7 @@ liBackendResult li_backend_get(liVRequest *vr, liBackendPool *bpool, liBackendCo
 		S_backend_pool_distribute(pool, vr->wrk);
 	}
 
-	assert(bwait);
+	LI_FORCE_ASSERT(bwait);
 
 	if (bwait->failed) {
 		bwait->vr = NULL;
@@ -1010,14 +1010,14 @@ void li_backend_wait_stop(liVRequest *vr, liBackendPool *bpool, liBackendWait **
 	liBackendPool_p *pool = LI_CONTAINER_OF(bpool, liBackendPool_p, public);
 	liBackendWait *bwait;
 
-	assert(pbwait);
+	LI_FORCE_ASSERT(pbwait);
 	bwait = *pbwait;
 
 	if (!bwait) return;
 
 	*pbwait = NULL;
 
-	assert(vr == bwait->vr);
+	LI_FORCE_ASSERT(vr == bwait->vr);
 
 	if (bwait->failed) {
 		bwait->vr = NULL;

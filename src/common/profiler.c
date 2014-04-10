@@ -103,7 +103,7 @@ static gpointer profiler_try_malloc(gsize n_bytes) {
 static gpointer profiler_malloc(gsize n_bytes) {
 	gpointer p = profiler_try_malloc(n_bytes);
 
-	assert(p);
+	LI_FORCE_ASSERT(p);
 
 	return p;
 }
@@ -137,7 +137,7 @@ static gpointer profiler_try_realloc(gpointer mem, gsize n_bytes) {
 static gpointer profiler_realloc(gpointer mem, gsize n_bytes) {
 	gpointer p = profiler_try_realloc(mem, n_bytes);
 
-	assert(p);
+	LI_FORCE_ASSERT(p);
 
 	return p;
 }
@@ -157,13 +157,13 @@ static gpointer profiler_calloc(gsize n_blocks, gsize n_bytes) {
 		li_profiler_hashtable_insert(p, n_bytes);
 	}
 
-	assert(p);
+	LI_FORCE_ASSERT(p);
 
 	return p;
 }
 
 static void profiler_free(gpointer mem) {
-	assert(mem);
+	LI_FORCE_ASSERT(mem);
 	li_profiler_hashtable_remove(mem);
 	free(mem);
 }

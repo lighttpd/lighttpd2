@@ -269,13 +269,13 @@ liConditionLValue* li_condition_lvalue_new(liCondLValue type, GString *key) {
 }
 
 void li_condition_lvalue_acquire(liConditionLValue *lvalue) {
-	assert(g_atomic_int_get(&lvalue->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&lvalue->refcount) > 0);
 	g_atomic_int_inc(&lvalue->refcount);
 }
 
 void li_condition_lvalue_release(liConditionLValue *lvalue) {
 	if (!lvalue) return;
-	assert(g_atomic_int_get(&lvalue->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&lvalue->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&lvalue->refcount)) {
 		if (lvalue->key) g_string_free(lvalue->key, TRUE);
 		g_slice_free(liConditionLValue, lvalue);
@@ -424,14 +424,14 @@ static void condition_free(liCondition *c) {
 }
 
 void li_condition_acquire(liCondition *c) {
-	assert(g_atomic_int_get(&c->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&c->refcount) > 0);
 	g_atomic_int_inc(&c->refcount);
 }
 
 void li_condition_release(liServer *srv, liCondition* c) {
 	UNUSED(srv);
 	if (!c) return;
-	assert(g_atomic_int_get(&c->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&c->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&c->refcount)) {
 		condition_free(c);
 	}

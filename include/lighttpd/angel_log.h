@@ -5,13 +5,11 @@
 #error Please include <lighttpd/angel_base.h> instead of this file
 #endif
 
-/* #include <lighttpd/valgrind/valgrind.h> */
-
 #define SEGFAULT(srv, fmt, ...) \
 	do { \
-		li_log_write_(srv, LI_LOG_LEVEL_ABORT, LI_LOG_FLAG_TIMESTAMP, "(crashing) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
-		/* VALGRIND_PRINTF_BACKTRACE(fmt, __VA_ARGS__); */\
-		abort();\
+		li_log_write_(srv, LI_LOG_LEVEL_ABORT, LI_LOG_FLAG_TIMESTAMP, "(crashing) %s:%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
+		li_print_backtrace_stderr(); \
+		abort(); \
 	} while(0)
 
 #define ERROR(srv, fmt, ...) \

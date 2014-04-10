@@ -70,9 +70,9 @@ struct simple_tcp_connection {
 
 static void simple_tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
 	simple_tcp_connection *data = stream->data;
-	assert(NULL != data);
-	assert(NULL == data->con || data == data->con->con_sock.data);
-	assert(NULL == data->sock_stream || stream == data->sock_stream);
+	LI_FORCE_ASSERT(NULL != data);
+	LI_FORCE_ASSERT(NULL == data->con || data == data->con->con_sock.data);
+	LI_FORCE_ASSERT(NULL == data->sock_stream || stream == data->sock_stream);
 
 	li_connection_simple_tcp(&data->con, stream, &data->simple_tcp_context, event);
 
@@ -84,8 +84,8 @@ static void simple_tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
 
 	switch (event) {
 	case LI_IOSTREAM_DESTROY:
-		assert(NULL == data->con);
-		assert(NULL == data->sock_stream);
+		LI_FORCE_ASSERT(NULL == data->con);
+		LI_FORCE_ASSERT(NULL == data->sock_stream);
 		stream->data = NULL;
 		g_slice_free(simple_tcp_connection, data);
 		break;
@@ -162,13 +162,13 @@ static void con_iostream_close(liConnection *con) { /* force close */
 		con->info.aborted = TRUE;
 		con->con_sock.callbacks->finish(con, TRUE);
 	}
-	assert(NULL == con->con_sock.data);
+	LI_FORCE_ASSERT(NULL == con->con_sock.data);
 }
 static void con_iostream_shutdown(liConnection *con) { /* (try) regular shutdown */
 	if (con->con_sock.callbacks) {
 		con->con_sock.callbacks->finish(con, FALSE);
 	}
-	assert(NULL == con->con_sock.data);
+	LI_FORCE_ASSERT(NULL == con->con_sock.data);
 }
 
 
@@ -502,7 +502,7 @@ void li_connection_update_io_wait(liConnection *con) {
 
 
 void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, liServerSocket *srv_sock) {
-	assert(NULL == con->con_sock.data);
+	LI_FORCE_ASSERT(NULL == con->con_sock.data);
 
 	con->srv_sock = srv_sock;
 	con->state = LI_CON_STATE_REQUEST_START;
@@ -533,7 +533,7 @@ void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, 
 		simple_tcp_new(con, s);
 	}
 
-	assert(NULL != con->con_sock.raw_in || NULL != con->con_sock.raw_out);
+	LI_FORCE_ASSERT(NULL != con->con_sock.raw_in || NULL != con->con_sock.raw_out);
 
 	li_chunkqueue_use_limit(con->con_sock.raw_in->out, LI_CONNECTION_DEFAULT_CHUNKQUEUE_LIMIT);
 	li_chunkqueue_use_limit(con->con_sock.raw_out->out, LI_CONNECTION_DEFAULT_CHUNKQUEUE_LIMIT);
@@ -612,28 +612,28 @@ static void connection_keepalive_cb(liEventBase *watcher, int events) {
 
 static void mainvr_handle_response_error(liVRequest *vr) {
 	liConnection* con = li_connection_from_vrequest(vr);
-	assert(NULL != con);
+	LI_FORCE_ASSERT(NULL != con);
 
 	li_connection_error(con);
 }
 
 static liThrottleState* mainvr_throttle_out(liVRequest *vr) {
 	liConnection* con = li_connection_from_vrequest(vr);
-	assert(NULL != con);
+	LI_FORCE_ASSERT(NULL != con);
 
 	return con->con_sock.callbacks->throttle_out(con);
 }
 
 static liThrottleState* mainvr_throttle_in(liVRequest *vr) {
 	liConnection* con = li_connection_from_vrequest(vr);
-	assert(NULL != con);
+	LI_FORCE_ASSERT(NULL != con);
 
 	return con->con_sock.callbacks->throttle_in(con);
 }
 
 static void mainvr_connection_upgrade(liVRequest *vr, liStream *backend_drain, liStream *backend_source) {
 	liConnection* con = li_connection_from_vrequest(vr);
-	assert(NULL != con);
+	LI_FORCE_ASSERT(NULL != con);
 
 	if (con->response_headers_sent || NULL != con->out.source) {
 		li_connection_error(con);
@@ -858,8 +858,8 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 }
 
 void li_connection_free(liConnection *con) {
-	assert(NULL == con->con_sock.data);
-	assert(LI_CON_STATE_DEAD == con->state);
+	LI_FORCE_ASSERT(NULL == con->con_sock.data);
+	LI_FORCE_ASSERT(LI_CON_STATE_DEAD == con->state);
 
 	con->response_headers_sent = FALSE;
 	con->expect_100_cont = FALSE;

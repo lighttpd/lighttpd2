@@ -268,6 +268,18 @@ if test "ac_cv_sockaddr_storage_support" = yes; then
 fi
 
 
+dnl Checking for libunwind
+AC_MSG_CHECKING(for libunwind)
+AC_ARG_WITH(libunwind,
+    AC_HELP_STRING([--with-libunwind],[Include libunwind support for backtraces on assert failures]),
+    [WITH_LIBUNWIND=$withval],[WITH_LIBUNWIND=no])
+
+if test "$WITH_LIBUNWIND" != "no"; then
+  PKG_CHECK_MODULES(LIBUNWIND, libunwind)
+  AC_DEFINE(HAVE_LIBUNWIND, 1, [Have libunwind support])
+fi
+
+
 dnl Check for openssl
 AC_MSG_CHECKING([for OpenSSL])
 AC_ARG_WITH([openssl],

@@ -1,6 +1,7 @@
 #define _LIGHTTPD_COMMON_VALUE_C_
 
 #include <lighttpd/value.h>
+#include <lighttpd/utils.h>
 
 liValue* li_value_new_none(void) {
 	liValue *v = g_slice_new0(liValue);
@@ -51,13 +52,13 @@ GHashTable *li_value_new_hashtable(void) {
 }
 
 void li_value_list_append(liValue *list, liValue *item) {
-	assert(LI_VALUE_LIST == list->type);
+	LI_FORCE_ASSERT(LI_VALUE_LIST == list->type);
 	g_ptr_array_add(list->data.list, item);
 }
 
 void li_value_wrap_in_list(liValue *val) {
 	liValue *item;
-	assert(NULL != val);
+	LI_FORCE_ASSERT(NULL != val);
 
 	item = li_value_extract(val);
 	val->type = LI_VALUE_LIST;
@@ -117,7 +118,7 @@ void li_value_free(liValue* val) {
 }
 
 void li_value_move(liValue *dest, liValue *src) {
-	assert(NULL != dest && NULL != src && dest != src);
+	LI_FORCE_ASSERT(NULL != dest && NULL != src && dest != src);
 	li_value_clear(dest);
 	*dest = *src;
 	_li_value_clear(src);

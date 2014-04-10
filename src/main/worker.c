@@ -563,7 +563,7 @@ void li_worker_con_put(liConnection *con) {
 	if (con->idx != wrk->connections_active) {
 		/* Swap [con->idx] and [wrk->connections_active] */
 		liConnection *tmp;
-		assert(con->idx < wrk->connections_active); /* con must be an active connection */
+		LI_FORCE_ASSERT(con->idx < wrk->connections_active); /* con must be an active connection */
 		tmp = g_array_index(wrk->connections, liConnection*, wrk->connections_active);
 		tmp->idx = con->idx;
 		con->idx = -1;

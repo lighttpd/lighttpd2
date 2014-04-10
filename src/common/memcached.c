@@ -835,14 +835,14 @@ static void li_memcached_con_free(liMemcachedCon* con) {
 
 void li_memcached_con_release(liMemcachedCon* con) {
 	if (!con) return;
-	assert(g_atomic_int_get(&con->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&con->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&con->refcount)) {
 		li_memcached_con_free(con);
 	}
 }
 
 void li_memcached_con_acquire(liMemcachedCon* con) {
-	assert(g_atomic_int_get(&con->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&con->refcount) > 0);
 	g_atomic_int_inc(&con->refcount);
 }
 

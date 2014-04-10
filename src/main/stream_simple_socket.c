@@ -33,7 +33,7 @@ void li_stream_simple_socket_close(liIOStream *stream, gboolean aborted) {
 		li_stream_disconnect(&stream->stream_out);
 		li_worker_add_closing_socket(wrk, fd);
 	}
-	assert(-1 == li_event_io_fd(&stream->io_watcher));
+	LI_FORCE_ASSERT(-1 == li_event_io_fd(&stream->io_watcher));
 }
 
 static void stream_simple_socket_read_throttle_notify(liThrottleState *state, gpointer data) {

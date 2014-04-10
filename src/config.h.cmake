@@ -105,6 +105,9 @@
 #cmakedefine  HAVE_LUA_H
 #cmakedefine  HAVE_LIBLUA
 
+/* libunwind */
+#cmakedefine  HAVE_LIBUNWIND
+
 /* inotify */
 #cmakedefine  HAVE_INOTIFY_INIT
 #cmakedefine  HAVE_SYS_INOTIFY_H

@@ -495,7 +495,7 @@ static liConfigToken tokenizer_next(liConfigTokenizerContext *ctx, GError **erro
 		else if (TK_ERROR == (token = tokenizer_next(ctx, error))) goto error; \
 	} while (0)
 #define REMEMBER(token) do { \
-		assert(TK_ERROR == ctx->next_token); /* mustn't contain a token */ \
+		LI_FORCE_ASSERT(TK_ERROR == ctx->next_token); /* mustn't contain a token */ \
 		ctx->next_token = token; \
 	} while (0)
 
@@ -509,7 +509,7 @@ static void scope_enter(liConfigTokenizerContext *ctx) {
 
 static void scope_leave(liConfigTokenizerContext *ctx) {
 	liConfigScope *scope = ctx->current_scope;
-	assert(NULL != scope);
+	LI_FORCE_ASSERT(NULL != scope);
 	ctx->current_scope = scope->parent;
 
 	g_hash_table_destroy(scope->variables);
@@ -962,7 +962,7 @@ static gboolean p_include_lua(liAction *list, liConfigTokenizerContext *ctx, GEr
 	}
 
 #ifdef HAVE_LUA_H
-	assert(ctx->wrk == ctx->srv->main_worker);
+	LI_FORCE_ASSERT(ctx->wrk == ctx->srv->main_worker);
 	if (!li_config_lua_load(&ctx->srv->LL, ctx->srv, ctx->wrk, val_fname->data.string->str, &a, TRUE, NULL)) {
 		parse_error(ctx, error, "include_lua '%s' failed", val_fname->data.string->str);
 		li_value_free(parameters);
@@ -1565,7 +1565,7 @@ static gboolean p_vardef(GString *name, int normalLocalGlobal, liConfigTokenizer
 	case 2:
 		return scope_global_setvar(ctx, name, value, error);
 	default:
-		assert(normalLocalGlobal >= 0 && normalLocalGlobal <= 2);
+		LI_FORCE_ASSERT(normalLocalGlobal >= 0 && normalLocalGlobal <= 2);
 	}
 
 error:
@@ -1575,14 +1575,14 @@ error:
 
 static liAction* cond_walk(liServer *srv, liConditionTree *tree, liAction *positive, liAction *negative) {
 	liAction *a = NULL;
-	assert(NULL != tree);
+	LI_FORCE_ASSERT(NULL != tree);
 
 	if (tree->negated) {
 		liAction *tmp = negative; negative = positive; positive = tmp;
 	}
 
 	if (NULL != tree->condition) {
-		assert(NULL == tree->left && NULL == tree->right);
+		LI_FORCE_ASSERT(NULL == tree->left && NULL == tree->right);
 		if (NULL == positive && NULL == negative) {
 			li_condition_release(srv, tree->condition);
 		} else {
@@ -1598,7 +1598,7 @@ static liAction* cond_walk(liServer *srv, liConditionTree *tree, liAction *posit
 		a = cond_walk(srv, tree->left, positive, cond_walk(srv, tree->right, positive, negative));
 		break;
 	default:
-		assert(TK_AND == tree->op || TK_OR == tree->op);
+		LI_FORCE_ASSERT(TK_AND == tree->op || TK_OR == tree->op);
 	}
 
 	g_slice_free(liConditionTree, tree);

@@ -121,7 +121,7 @@ liNetworkStatus li_network_read(int fd, liChunkQueue *cq, goffset read_max, liBu
 					*buffer = buf = li_buffer_new(blocksize);
 				}
 			}
-			assert(*buffer == buf);
+			LI_FORCE_ASSERT(*buffer == buf);
 		} else {
 			if (buf == NULL) {
 				buf = li_buffer_new(blocksize);

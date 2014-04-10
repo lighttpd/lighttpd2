@@ -87,7 +87,7 @@ static void append_to_lru(liFetchEntryP *pentry) {
 	GQueue *q = NULL != pentry->public.data ? &db->lru_queue : &db->lru_negative_queue;
 	guint limit = NULL != pentry->public.data ? db->cache_size : db->neg_cache_size;
 
-	assert(LI_ENTRY_VALID == pentry->state);
+	LI_FORCE_ASSERT(LI_ENTRY_VALID == pentry->state);
 	g_queue_push_tail_link(q, &pentry->lru_link);
 	while (q->length > limit) {
 		GList *lru_link  =g_queue_peek_head_link(q);
@@ -97,15 +97,15 @@ static void append_to_lru(liFetchEntryP *pentry) {
 }
 
 static void fetch_db_int_acquire(liFetchDatabase* db) {
-	assert(g_atomic_int_get(&db->internal_refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&db->internal_refcount) > 0);
 	g_atomic_int_inc(&db->internal_refcount);
 }
 
 static void fetch_db_int_release(liFetchDatabase* db) {
-	assert(g_atomic_int_get(&db->internal_refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&db->internal_refcount) > 0);
 	if (g_atomic_int_dec_and_test(&db->internal_refcount)) {
 		db->internal_refcount = 1;
-		assert(NULL == db->cache);
+		LI_FORCE_ASSERT(NULL == db->cache);
 
 		if (NULL != db->callbacks->free_db) db->callbacks->free_db(db->data);
 
@@ -113,33 +113,33 @@ static void fetch_db_int_release(liFetchDatabase* db) {
 		db->lock = NULL;
 		db->data = NULL;
 		db->callbacks = NULL;
-		assert(1 == db->internal_refcount);
+		LI_FORCE_ASSERT(1 == db->internal_refcount);
 		g_slice_free(liFetchDatabase, db);
 	}
 }
 
 void li_fetch_database_acquire(liFetchDatabase* db) {
-	assert(g_atomic_int_get(&db->refcount) > 0);
-	assert(g_atomic_int_get(&db->internal_refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&db->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&db->internal_refcount) > 0);
 	g_atomic_int_inc(&db->refcount);
 }
 
 void li_fetch_database_release(liFetchDatabase* db) {
-	assert(g_atomic_int_get(&db->refcount) > 0);
-	assert(g_atomic_int_get(&db->internal_refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&db->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&db->internal_refcount) > 0);
 	if (g_atomic_int_dec_and_test(&db->refcount)) {
 		GHashTable *cache = db->cache;
 		db->refcount = 1;
 
 		g_mutex_lock(db->lock);
 
-			assert(NULL != cache);
+			LI_FORCE_ASSERT(NULL != cache);
 			db->cache = NULL;
 			g_hash_table_destroy(cache);
 
 		g_mutex_unlock(db->lock);
 
-		assert(1 == db->refcount);
+		LI_FORCE_ASSERT(1 == db->refcount);
 		db->refcount = 0;
 		fetch_db_int_release(db);
 	}
@@ -147,7 +147,7 @@ void li_fetch_database_release(liFetchDatabase* db) {
 
 void li_fetch_entry_acquire(liFetchEntry *entry) {
 	liFetchEntryP *pentry = LI_CONTAINER_OF(entry, liFetchEntryP, public);
-	assert(g_atomic_int_get(&pentry->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&pentry->refcount) > 0);
 	g_atomic_int_inc(&pentry->refcount);
 }
 
@@ -156,7 +156,7 @@ void li_fetch_entry_release(liFetchEntry *entry) {
 	if (NULL == entry) return;
 
 	pentry = LI_CONTAINER_OF(entry, liFetchEntryP, public);
-	assert(g_atomic_int_get(&pentry->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&pentry->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&pentry->refcount)) {
 		liFetchEntryState state = g_atomic_int_get(&pentry->state);
 		liFetchDatabase *db = pentry->db;
@@ -167,11 +167,11 @@ void li_fetch_entry_release(liFetchEntry *entry) {
 		g_string_free(pentry->public.key, TRUE);
 		pentry->public.key = NULL;
 
-		assert(LI_ENTRY_INVALID == state);
+		LI_FORCE_ASSERT(LI_ENTRY_INVALID == state);
 
 		pentry->db = NULL;
 		fetch_db_int_release(db);
-		assert(1 == pentry->refcount);
+		LI_FORCE_ASSERT(1 == pentry->refcount);
 		pentry->refcount = 0;
 		g_slice_free(liFetchEntryP, pentry);
 	}
@@ -188,7 +188,7 @@ void li_fetch_invalidate(liFetchDatabase* db, GString *key) {
 		if (NULL == pentry) goto out;
 
 		state = g_atomic_int_get(&pentry->state);
-		assert(LI_ENTRY_REFRESH_NEW != state && LI_ENTRY_INVALID != state); /* this is never in the cache */
+		LI_FORCE_ASSERT(LI_ENTRY_REFRESH_NEW != state && LI_ENTRY_INVALID != state); /* this is never in the cache */
 		switch (state) {
 		case LI_ENTRY_LOOKUP:
 			goto out;
@@ -221,7 +221,7 @@ static void cache_delete_data_cb(gpointer data) {
 	GQueue wait_queue = G_QUEUE_INIT;
 	liFetchEntryP *new_entry = NULL;
 
-	assert(LI_ENTRY_REFRESH_NEW != state && LI_ENTRY_INVALID != state); /* this is never in the cache */
+	LI_FORCE_ASSERT(LI_ENTRY_REFRESH_NEW != state && LI_ENTRY_INVALID != state); /* this is never in the cache */
 
 	switch (state) {
 	case LI_ENTRY_LOOKUP:
@@ -248,8 +248,8 @@ static void cache_delete_data_cb(gpointer data) {
 	g_atomic_int_set(&pentry->state, LI_ENTRY_INVALID);
 
 	if (NULL != new_entry) {
-		assert(pentry == new_entry->refreshing);
-		assert(LI_ENTRY_REFRESH_NEW == g_atomic_int_get(&new_entry->state));
+		LI_FORCE_ASSERT(pentry == new_entry->refreshing);
+		LI_FORCE_ASSERT(LI_ENTRY_REFRESH_NEW == g_atomic_int_get(&new_entry->state));
 		new_entry->refreshing = NULL;
 		g_atomic_int_set(&new_entry->state, LI_ENTRY_INVALID);
 		li_fetch_entry_release(&pentry->public);
@@ -290,7 +290,7 @@ void li_fetch_entry_ready(liFetchEntry *entry) {
 
 		if (LI_ENTRY_INVALID == state) goto out;
 
-		assert(LI_ENTRY_LOOKUP == state);
+		LI_FORCE_ASSERT(LI_ENTRY_LOOKUP == state);
 
 		g_atomic_int_set(&pentry->state, LI_ENTRY_VALID);
 		append_to_lru(pentry);
@@ -373,14 +373,14 @@ void li_fetch_entry_refresh_skip(liFetchEntry *new_entry) {
 
 		if (LI_ENTRY_INVALID == state) goto out;
 
-		assert(LI_ENTRY_REFRESH_NEW == state);
+		LI_FORCE_ASSERT(LI_ENTRY_REFRESH_NEW == state);
 
 		pentry = pnew_entry->refreshing;
 		pnew_entry->refreshing = NULL;
-		assert(pnew_entry == pentry->refreshing);
+		LI_FORCE_ASSERT(pnew_entry == pentry->refreshing);
 
 		state = g_atomic_int_get(&pentry->state);
-		assert(LI_ENTRY_REFRESH_OLD == state || LI_ENTRY_REFRESH_INVALID == state);
+		LI_FORCE_ASSERT(LI_ENTRY_REFRESH_OLD == state || LI_ENTRY_REFRESH_INVALID == state);
 		if (LI_ENTRY_REFRESH_OLD == state) {
 			g_atomic_int_set(&pentry->state, LI_ENTRY_VALID);
 			append_to_lru(pentry);
@@ -426,14 +426,14 @@ void li_fetch_entry_refresh_ready(liFetchEntry *new_entry) {
 
 		if (LI_ENTRY_INVALID == state) goto out;
 
-		assert(LI_ENTRY_REFRESH_NEW == state);
+		LI_FORCE_ASSERT(LI_ENTRY_REFRESH_NEW == state);
 
 		pentry = pnew_entry->refreshing;
 		pnew_entry->refreshing = NULL;
-		assert(pnew_entry == pentry->refreshing);
+		LI_FORCE_ASSERT(pnew_entry == pentry->refreshing);
 
 		state = g_atomic_int_get(&pentry->state);
-		assert(LI_ENTRY_REFRESH_OLD == state || LI_ENTRY_REFRESH_INVALID == state);
+		LI_FORCE_ASSERT(LI_ENTRY_REFRESH_OLD == state || LI_ENTRY_REFRESH_INVALID == state);
 
 		wait_queue = entry_extract_wait_queue(pnew_entry);
 
@@ -460,7 +460,7 @@ gboolean li_fetch_entry_revalidate(liFetchEntry *entry) {
 	liFetchDatabase *db = pentry->db;
 	liFetchEntryState state = g_atomic_int_get(&pentry->state);
 
-	assert(LI_ENTRY_REFRESH_NEW != state);
+	LI_FORCE_ASSERT(LI_ENTRY_REFRESH_NEW != state);
 	switch (state) {
 	case LI_ENTRY_LOOKUP:
 		return FALSE;
@@ -506,7 +506,7 @@ liFetchEntry* li_fetch_get2(liFetchDatabase* db, GString *key, liFetchWakeupCB w
 	liFetchEntryP *result = NULL;
 	liFetchEntryState state;
 
-	assert(NULL != wakeup);
+	LI_FORCE_ASSERT(NULL != wakeup);
 
 	g_mutex_lock(db->lock);
 
@@ -536,7 +536,7 @@ liFetchEntry* li_fetch_get2(liFetchDatabase* db, GString *key, liFetchWakeupCB w
 		pentry_new = pentry;
 
 		state = g_atomic_int_get(&pentry->state);
-		assert(LI_ENTRY_REFRESH_NEW != state);
+		LI_FORCE_ASSERT(LI_ENTRY_REFRESH_NEW != state);
 		switch (state) {
 		case LI_ENTRY_LOOKUP:
 			/* lookup in progress, just register wakeup */

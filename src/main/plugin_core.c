@@ -40,7 +40,7 @@ static liAction* core_list(liServer *srv, liWorker *wrk, liPlugin* p, liValue *v
 			li_action_release(srv, a);
 			return NULL;
 		}
-		assert(srv == oa->data.val_action.srv);
+		LI_FORCE_ASSERT(srv == oa->data.val_action.srv);
 		li_action_acquire(oa->data.val_action.action);
 		g_array_append_val(a->data.list, oa->data.val_action.action);
 	LI_VALUE_END_FOREACH()
@@ -1455,7 +1455,7 @@ static gboolean core_option_static_exclude_exts_parse(liServer *srv, liWorker *w
 	UNUSED(srv); UNUSED(wrk); UNUSED(p); UNUSED(ndx);
 
 	if (NULL == val) return TRUE;
-	assert(LI_VALUE_LIST == val->type);
+	LI_FORCE_ASSERT(LI_VALUE_LIST == val->type);
 
 	LI_VALUE_FOREACH(v, val)
 		if (LI_VALUE_STRING != li_value_type(v)) {

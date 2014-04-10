@@ -142,8 +142,8 @@ static void f_close_ssl(liOpenSSLFilter *f) {
 
 		f->closing = TRUE;
 
-		assert(NULL != f->crypt_source.out);
-		assert(NULL != f->crypt_source.out->limit);
+		LI_FORCE_ASSERT(NULL != f->crypt_source.out);
+		LI_FORCE_ASSERT(NULL != f->crypt_source.out->limit);
 		limit = f->crypt_source.out->limit;
 		limit->notify = NULL;
 		limit->context = NULL;
@@ -163,11 +163,11 @@ static void f_close_ssl(liOpenSSLFilter *f) {
 	}
 }
 static void f_acquire(liOpenSSLFilter *f) {
-	assert(f->refcount > 0);
+	LI_FORCE_ASSERT(f->refcount > 0);
 	++f->refcount;
 }
 static void f_release(liOpenSSLFilter *f) {
-	assert(f->refcount > 0);
+	LI_FORCE_ASSERT(f->refcount > 0);
 	if (0 == --f->refcount) {
 		f->refcount = 1;
 		f_close_ssl(f);
@@ -327,7 +327,7 @@ static void do_ssl_read(liOpenSSLFilter *f) {
 				f->raw_in_buffer = buf = li_buffer_new(blocksize);
 			}
 		}
-		assert(f->raw_in_buffer == buf);
+		LI_FORCE_ASSERT(f->raw_in_buffer == buf);
 
 		r = SSL_read(f->ssl, buf->addr + buf->used, buf->alloc_size - buf->used);
 		if (f->client_initiated_renegotiation) {
@@ -399,7 +399,7 @@ static void do_ssl_write(liOpenSSLFilter *f) {
 	/* use space in (encrypted) outgoing buffer as amounts of bytes we try to write from (plain) output
 	 * don't care if we write a little bit more than the limit allowed */
 	write_max = li_chunkqueue_limit_available(f->crypt_source.out);
-	assert(write_max >= 0); /* we set a limit! */
+	LI_FORCE_ASSERT(write_max >= 0); /* we set a limit! */
 	if (0 == write_max) goto out;
 	/* if we start writing, try to write at least blocksize bytes */
 	if (write_max < blocksize) write_max = blocksize;
@@ -688,7 +688,7 @@ liOpenSSLFilter* li_openssl_filter_new(
 }
 
 void li_openssl_filter_free(liOpenSSLFilter *f) {
-	assert(NULL != f->callbacks);
+	LI_FORCE_ASSERT(NULL != f->callbacks);
 	f->callbacks = NULL;
 	f->callback_data = NULL;
 

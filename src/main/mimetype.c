@@ -2,8 +2,6 @@
 #include <lighttpd/base.h>
 #include <lighttpd/plugin_core.h>
 
-#include <assert.h>
-
 #define MIME_COUNT_CHILDREN(x)	(x->cmin == 0 ? 0 : ((guint)x->cmax - x->cmin + 1))
 #define MIME_MARK_NODE(x)		((gpointer)((uintptr_t)x | 1))
 #define MIME_UNMARK_NODE(x)		((gpointer)((uintptr_t)x & (~1)))
@@ -43,7 +41,7 @@ static void mimetype_insert(liMimetypeNode *node, GString *suffix, GString *mime
 	guchar c, cdiff;
 	gpointer ptr;
 	liMimetypeNode *next_node;
-	assert(!MIME_IS_NODE(mimetype));
+	LI_FORCE_ASSERT(!MIME_IS_NODE(mimetype));
 
 	/* start of suffix reached */
 	if (depth == suffix->len) {
@@ -55,7 +53,7 @@ static void mimetype_insert(liMimetypeNode *node, GString *suffix, GString *mime
 	}
 
 	c = (guchar) suffix->str[suffix->len - depth - 1];
-	assert(c != '\0');
+	LI_FORCE_ASSERT(c != '\0');
 
 	if (NULL == node->children) {
 		node->cmin = node->cmax = c;

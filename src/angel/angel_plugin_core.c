@@ -498,7 +498,7 @@ static void listen_ref_release(liServer *srv, liInstance *i, liPlugin *p, liInst
 	UNUSED(i);
 	UNUSED(srv);
 
-	assert(g_atomic_int_get(&sock->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&sock->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&sock->refcount)) {
 		liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 

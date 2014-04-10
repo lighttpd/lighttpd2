@@ -67,12 +67,12 @@ void li_stream_init(liStream* stream, liEventLoop *loop, liStreamCB cb) {
 }
 
 void li_stream_acquire(liStream* stream) {
-	assert(g_atomic_int_get(&stream->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&stream->refcount) > 0);
 	g_atomic_int_inc(&stream->refcount);
 }
 
 void li_stream_release(liStream* stream) {
-	assert(g_atomic_int_get(&stream->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&stream->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&stream->refcount)) {
 		li_job_clear(&stream->new_data_job);
 		li_chunkqueue_free(stream->out);
@@ -83,9 +83,9 @@ void li_stream_release(liStream* stream) {
 
 void li_stream_connect(liStream *source, liStream *dest) {
 	/* streams must be "valid" */
-	assert(source->refcount > 0 && dest->refcount > 0);
+	LI_FORCE_ASSERT(source->refcount > 0 && dest->refcount > 0);
 
-	assert(NULL == source->dest && NULL == dest->source);
+	LI_FORCE_ASSERT(NULL == source->dest && NULL == dest->source);
 	if (NULL != source->dest || NULL != dest->source) {
 		g_error("Can't connect already connected streams");
 	}
@@ -127,8 +127,8 @@ void li_stream_connect(liStream *source, liStream *dest) {
 
 static void _disconnect(liStream *source, liStream *dest) {
 	/* streams must be "valid" */
-	assert(g_atomic_int_get(&source->refcount) > 0 && g_atomic_int_get(&dest->refcount) > 0);
-	assert(source->dest == dest && dest->source == source);
+	LI_FORCE_ASSERT(g_atomic_int_get(&source->refcount) > 0 && g_atomic_int_get(&dest->refcount) > 0);
+	LI_FORCE_ASSERT(source->dest == dest && dest->source == source);
 
 	source->dest = NULL;
 	dest->source = NULL;
@@ -323,8 +323,8 @@ static void iostream_destroy(liIOStream *iostream) {
 
 	li_iostream_throttle_clear(iostream);
 
-	assert(1 == iostream->stream_out.refcount);
-	assert(1 == iostream->stream_in.refcount);
+	LI_FORCE_ASSERT(1 == iostream->stream_out.refcount);
+	LI_FORCE_ASSERT(1 == iostream->stream_in.refcount);
 
 	g_slice_free(liIOStream, iostream);
 }

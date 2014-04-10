@@ -114,7 +114,7 @@ INLINE void li_lua_lock(liLuaState *LL) {
 	gboolean b;
 	g_static_rec_mutex_lock(&LL->lualock);
 	b = lua_checkstack(LL->L, LUA_MINSTACK);
-	assert(b);
+	LI_FORCE_ASSERT(b);
 }
 
 INLINE void li_lua_unlock(liLuaState *LL) {

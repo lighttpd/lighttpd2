@@ -115,7 +115,7 @@ static gboolean balancer_fill_backends(balancer *b, liServer *srv, liValue *val)
 		backend be;
 		be.act = val->data.val_action.action;
 		be.load = 0; be.state = BE_ALIVE; be.wake = 0;
-		assert(srv == val->data.val_action.srv);
+		LI_FORCE_ASSERT(srv == val->data.val_action.srv);
 		li_action_acquire(be.act);
 		g_array_append_val(b->backends, be);
 		return TRUE;
@@ -129,7 +129,7 @@ static gboolean balancer_fill_backends(balancer *b, liServer *srv, liValue *val)
 				ERROR(srv, "expected action at entry %u of list, got %s", _oa_i, li_value_type_string(oa));
 				return FALSE;
 			}
-			assert(srv == oa->data.val_action.srv);
+			LI_FORCE_ASSERT(srv == oa->data.val_action.srv);
 			{
 				backend be;
 				be.act = oa->data.val_action.action;

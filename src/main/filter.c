@@ -29,7 +29,7 @@ static void filter_handle_data(liFilter *filter) {
 		goffset curoutlen = filter->stream.out->length;
 		gboolean curout_closed = filter->stream.out->is_closed;
 
-		assert(NULL != filter->out);
+		LI_FORCE_ASSERT(NULL != filter->out);
 
 		switch (filter->handle_data(filter->vr, filter)) {
 		case LI_HANDLER_GO_ON:
@@ -144,7 +144,7 @@ static void li_filter_stop(liFilter *filter) {
 	filter->vr = NULL;
 
 	/* remove from vr filters list */
-	assert(vr->filters->len > 0);
+	LI_FORCE_ASSERT(vr->filters->len > 0);
 	if (vr->filters->len - 1 != filter->filter_ndx) {
 		/* not the last filter, swap: */
 		liFilter *last = g_ptr_array_index(vr->filters, vr->filters->len - 1);
@@ -168,12 +168,12 @@ liFilter* li_vrequest_add_filter_in(liVRequest *vr, liFilterHandlerCB handle_dat
 	f = li_filter_new(vr, handle_data, handle_free, handle_event, param);
 
 	if (NULL == vr->filters_in_first) {
-		assert(NULL == vr->filters_in_last);
+		LI_FORCE_ASSERT(NULL == vr->filters_in_last);
 
 		vr->filters_in_first = &f->stream;
 		vr->filters_in_last = &f->stream;
 	} else {
-		assert(NULL != vr->filters_in_last);
+		LI_FORCE_ASSERT(NULL != vr->filters_in_last);
 
 		li_stream_connect(vr->filters_in_last, &f->stream);
 		vr->filters_in_last = &f->stream;
@@ -191,12 +191,12 @@ liFilter* li_vrequest_add_filter_out(liVRequest *vr, liFilterHandlerCB handle_da
 	f = li_filter_new(vr, handle_data, handle_free, handle_event, param);
 
 	if (NULL == vr->filters_out_first) {
-		assert(NULL == vr->filters_out_last);
+		LI_FORCE_ASSERT(NULL == vr->filters_out_last);
 
 		vr->filters_out_first = &f->stream;
 		vr->filters_out_last = &f->stream;
 	} else {
-		assert(NULL != vr->filters_out_last);
+		LI_FORCE_ASSERT(NULL != vr->filters_out_last);
 
 		li_stream_connect(vr->filters_out_last, &f->stream);
 		vr->filters_out_last = &f->stream;

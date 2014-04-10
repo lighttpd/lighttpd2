@@ -129,14 +129,14 @@ static void backend_detach_thread(liBackendPool *bpool, liWorker *wrk, liBackend
 	liFastCGIBackendContext *ctx = bcon->data;
 	UNUSED(bpool);
 
-	assert(wrk == ctx->wrk);
+	LI_FORCE_ASSERT(wrk == ctx->wrk);
 	ctx->wrk = NULL;
 
 	li_stream_disconnect(&ctx->fcgi_out);
 	li_stream_disconnect_dest(&ctx->fcgi_in);
 
-	assert(2 == ctx->fcgi_in.refcount);
-	assert(2 == ctx->fcgi_out.refcount);
+	LI_FORCE_ASSERT(2 == ctx->fcgi_in.refcount);
+	LI_FORCE_ASSERT(2 == ctx->fcgi_out.refcount);
 
 	li_iostream_detach(ctx->iostream);
 	li_stream_detach(&ctx->fcgi_out);
@@ -176,7 +176,7 @@ static void backend_new(liBackendPool *bpool, liWorker *wrk, liBackendConnection
 }
 
 static void backend_ctx_unref(liFastCGIBackendContext *ctx) {
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&ctx->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
 		g_slice_free(liFastCGIBackendContext, ctx);
 	}
@@ -186,12 +186,12 @@ static void backend_close(liBackendPool *bpool, liWorker *wrk, liBackendConnecti
 	liFastCGIBackendContext *ctx = bcon->data;
 	UNUSED(bpool);
 
-	assert(NULL != ctx->pool);
-	assert(wrk == ctx->wrk);
+	LI_FORCE_ASSERT(NULL != ctx->pool);
+	LI_FORCE_ASSERT(wrk == ctx->wrk);
 
 	ctx->pool = NULL;
 
-	assert(NULL == ctx->currentcon);
+	LI_FORCE_ASSERT(NULL == ctx->currentcon);
 
 	fcgi_debug("backend_close\n");
 
@@ -199,7 +199,7 @@ static void backend_close(liBackendPool *bpool, liWorker *wrk, liBackendConnecti
 		int fd;
 		li_stream_simple_socket_close(ctx->iostream, FALSE);
 		fd = li_iostream_reset(ctx->iostream);
-		assert(-1 == fd);
+		LI_FORCE_ASSERT(-1 == fd);
 		ctx->iostream = NULL;
 	}
 	li_stream_reset(&ctx->fcgi_in);
@@ -248,14 +248,14 @@ static void fastcgi_check_put(liFastCGIBackendContext *ctx) {
 	if (NULL != ctx->iostream) {
 		li_event_io_set_fd(&ctx->subcon->watcher, li_event_io_fd(&ctx->iostream->io_watcher));
 		li_event_set_keep_loop_alive(&ctx->iostream->io_watcher, FALSE);
-		assert(NULL == ctx->iostream->stream_in.out->limit);
-		assert(NULL == ctx->iostream->stream_out.out->limit);
+		LI_FORCE_ASSERT(NULL == ctx->iostream->stream_in.out->limit);
+		LI_FORCE_ASSERT(NULL == ctx->iostream->stream_out.out->limit);
 	} else {
 		li_event_io_set_fd(&ctx->subcon->watcher, -1);
 	}
 
-	assert(NULL == ctx->fcgi_in.out->limit);
-	assert(NULL == ctx->fcgi_out.out->limit);
+	LI_FORCE_ASSERT(NULL == ctx->fcgi_in.out->limit);
+	LI_FORCE_ASSERT(NULL == ctx->fcgi_out.out->limit);
 
 	fcgi_debug("li_backend_put\n");
 	li_backend_put(ctx->wrk, ctx->pool->public.subpool, ctx->subcon, TRUE); /* disable keep-alive for now */
@@ -280,7 +280,7 @@ static void fastcgi_reset(liFastCGIBackendContext *ctx) {
 		ctx->iostream = NULL;
 		li_stream_simple_socket_close(iostream, TRUE);
 		fd = li_iostream_reset(iostream);
-		assert(-1 == fd);
+		LI_FORCE_ASSERT(-1 == fd);
 
 		li_stream_disconnect(&ctx->fcgi_out);
 		li_stream_disconnect_dest(&ctx->fcgi_in);
@@ -387,7 +387,7 @@ static void stream_send_begin(liChunkQueue *out, guint16 requestid) {
 	GByteArray *buf = g_byte_array_sized_new(16);
 	guint16 w;
 
-	assert(1 == requestid);
+	LI_FORCE_ASSERT(1 == requestid);
 
 	stream_build_fcgi_record(buf, FCGI_BEGIN_REQUEST, requestid, 8);
 	w = htons(FCGI_RESPONDER);
@@ -822,8 +822,8 @@ liBackendResult li_fastcgi_backend_get(liVRequest *vr, liFastCGIBackendPool *bpo
 		liFastCGIBackendContext *ctx = subcon->data;
 		liStream *http_out;
 
-		assert(NULL != ctx);
-		assert(LI_BACKEND_SUCCESS == res);
+		LI_FORCE_ASSERT(NULL != ctx);
+		LI_FORCE_ASSERT(LI_BACKEND_SUCCESS == res);
 		con->ctx = ctx;
 		con->vr = vr;
 		ctx->currentcon = con;
@@ -832,21 +832,21 @@ liBackendResult li_fastcgi_backend_get(liVRequest *vr, liFastCGIBackendPool *bpo
 
 		fcgi_debug("li_fastcgi_backend_get: got backend\n");
 
-		assert(vr->wrk == li_worker_from_iostream(ctx->iostream));
-		assert(vr->wrk == li_worker_from_stream(&ctx->fcgi_in));
-		assert(vr->wrk == li_worker_from_stream(&ctx->fcgi_out));
+		LI_FORCE_ASSERT(vr->wrk == li_worker_from_iostream(ctx->iostream));
+		LI_FORCE_ASSERT(vr->wrk == li_worker_from_stream(&ctx->fcgi_in));
+		LI_FORCE_ASSERT(vr->wrk == li_worker_from_stream(&ctx->fcgi_out));
 
-		assert(li_event_active(&ctx->iostream->io_watcher));
+		LI_FORCE_ASSERT(li_event_active(&ctx->iostream->io_watcher));
 		li_event_set_keep_loop_alive(&ctx->iostream->io_watcher, TRUE);
 
-		assert(NULL == ctx->fcgi_in.dest);
-		assert(NULL == ctx->fcgi_out.source);
+		LI_FORCE_ASSERT(NULL == ctx->fcgi_in.dest);
+		LI_FORCE_ASSERT(NULL == ctx->fcgi_out.source);
 
-		assert(NULL != ctx->iostream);
-		assert(-1 != li_event_io_fd(&ctx->iostream->io_watcher));
+		LI_FORCE_ASSERT(NULL != ctx->iostream);
+		LI_FORCE_ASSERT(-1 != li_event_io_fd(&ctx->iostream->io_watcher));
 
-		assert(ctx->iostream->stream_in.dest == &ctx->fcgi_in);
-		assert(ctx->iostream->stream_out.source == &ctx->fcgi_out);
+		LI_FORCE_ASSERT(ctx->iostream->stream_in.dest == &ctx->fcgi_in);
+		LI_FORCE_ASSERT(ctx->iostream->stream_out.source == &ctx->fcgi_out);
 
 		ctx->stdin_closed = ctx->stdout_closed = ctx->stderr_closed = ctx->request_done = FALSE;
 		li_chunkqueue_reset(ctx->fcgi_in.out);
@@ -863,8 +863,8 @@ liBackendResult li_fastcgi_backend_get(liVRequest *vr, liFastCGIBackendPool *bpo
 		li_stream_release(http_out);
 	} else {
 		*pbcon = NULL;
-		assert(LI_BACKEND_SUCCESS != res);
-		if (LI_BACKEND_WAIT == res) assert(NULL != subwait);
+		LI_FORCE_ASSERT(LI_BACKEND_SUCCESS != res);
+		if (LI_BACKEND_WAIT == res) LI_FORCE_ASSERT(NULL != subwait);
 
 		fcgi_debug("li_fastcgi_backend_get: still waiting\n");
 	}
@@ -883,7 +883,7 @@ void li_fastcgi_backend_put(liFastCGIBackendConnection *bcon) {
 	liFastCGIBackendConnection_p *con = LI_CONTAINER_OF(bcon, liFastCGIBackendConnection_p, public);
 	liFastCGIBackendContext *ctx = con->ctx;
 
-	assert(NULL != ctx && con == ctx->currentcon);
+	LI_FORCE_ASSERT(NULL != ctx && con == ctx->currentcon);
 	ctx->currentcon = NULL;
 	con->ctx = NULL;
 	con->vr = NULL;

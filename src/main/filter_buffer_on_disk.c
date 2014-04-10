@@ -119,7 +119,7 @@ static void bod_handle_data(bod_state *state) {
 		char *data = NULL;
 		GError *err;
 
-		assert(UNUSED_CHUNK != c->type);
+		LI_FORCE_ASSERT(UNUSED_CHUNK != c->type);
 		switch (c->type) {
 		case UNUSED_CHUNK:
 			/* shouldn't happen anyway, but stealing it is ok here too */
@@ -231,7 +231,7 @@ void li_filter_buffer_on_disk_stop(liStream *stream) {
 	bod_state *state;
 
 	if (NULL == stream) return;
-	assert(bod_cb == stream->cb);
+	LI_FORCE_ASSERT(bod_cb == stream->cb);
 
 	li_stream_acquire(stream);
 	state = LI_CONTAINER_OF(stream, bod_state, stream);

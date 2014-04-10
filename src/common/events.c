@@ -103,9 +103,9 @@ struct ev_loop* li_event_loop_clear(liEventLoop *loop) {
 
 	while (NULL != (lnk = loop->watchers.head)) {
 		liEventBase *base = LI_CONTAINER_OF(lnk, liEventBase, link_watchers);
-		assert(li_event_attached_(base));
+		LI_FORCE_ASSERT(li_event_attached_(base));
 		li_event_detach_(base);
-		assert(lnk != loop->watchers.head);
+		LI_FORCE_ASSERT(lnk != loop->watchers.head);
 	}
 	loop->loop = NULL;
 	return evloop;
@@ -155,8 +155,8 @@ static void event_io_cb(struct ev_loop *loop, ev_io *w, int revents) {
 	liEventLoop *my_loop = io->base.link_watchers.data;
 	int events = 0;
 
-	assert(NULL != my_loop);
-	assert(loop == my_loop->loop);
+	LI_FORCE_ASSERT(NULL != my_loop);
+	LI_FORCE_ASSERT(loop == my_loop->loop);
 
 	if (revents & EV_READ) events |= LI_EV_READ;
 	if (revents & EV_WRITE) events |= LI_EV_WRITE;
@@ -193,7 +193,7 @@ void li_event_io_set_fd(liEventIO *io, int fd) {
 
 	if (li_event_attached(io) && li_event_active(io)) {
 		liEventLoop *loop = io->base.link_watchers.data;
-		assert(NULL != loop);
+		LI_FORCE_ASSERT(NULL != loop);
 
 		ev_ref(loop->loop);
 
@@ -213,7 +213,7 @@ void li_event_io_set_events(liEventIO *io, int events) {
 
 	if (li_event_attached(io) && li_event_active(io)) {
 		liEventLoop *loop = io->base.link_watchers.data;
-		assert(NULL != loop);
+		LI_FORCE_ASSERT(NULL != loop);
 
 		ev_ref(loop->loop);
 
@@ -239,8 +239,8 @@ static void event_timer_cb(struct ev_loop *loop, ev_timer *w, int revents) {
 	liEventLoop *my_loop = timer->base.link_watchers.data;
 	UNUSED(revents);
 
-	assert(NULL != my_loop);
-	assert(loop == my_loop->loop);
+	LI_FORCE_ASSERT(NULL != my_loop);
+	LI_FORCE_ASSERT(loop == my_loop->loop);
 
 	if (ev_is_active(w)) {
 		if (!timer->base.keep_loop_alive) ev_ref(loop);
@@ -267,8 +267,8 @@ static void event_async_cb(struct ev_loop *loop, ev_async *w, int revents) {
 	liEventLoop *my_loop = async->base.link_watchers.data;
 	UNUSED(revents);
 
-	assert(NULL != my_loop);
-	assert(loop == my_loop->loop);
+	LI_FORCE_ASSERT(NULL != my_loop);
+	LI_FORCE_ASSERT(loop == my_loop->loop);
 
 	async->base.callback(&async->base, LI_EV_WAKEUP);
 }
@@ -290,8 +290,8 @@ static void event_child_cb(struct ev_loop *loop, ev_child *w, int revents) {
 	liEventLoop *my_loop = child->base.link_watchers.data;
 	UNUSED(revents);
 
-	assert(NULL != my_loop);
-	assert(loop == my_loop->loop);
+	LI_FORCE_ASSERT(NULL != my_loop);
+	LI_FORCE_ASSERT(loop == my_loop->loop);
 
 	if (ev_is_active(w)) {
 		if (!child->base.keep_loop_alive) ev_ref(loop);
@@ -320,8 +320,8 @@ static void event_signal_cb(struct ev_loop *loop, ev_signal *w, int revents) {
 	liEventLoop *my_loop = sig->base.link_watchers.data;
 	UNUSED(revents);
 
-	assert(NULL != my_loop);
-	assert(loop == my_loop->loop);
+	LI_FORCE_ASSERT(NULL != my_loop);
+	LI_FORCE_ASSERT(loop == my_loop->loop);
 
 	sig->base.callback(&sig->base, LI_EV_WAKEUP);
 }
@@ -344,8 +344,8 @@ static void event_prepare_cb(struct ev_loop *loop, ev_prepare *w, int revents) {
 	liEventLoop *my_loop = prepare->base.link_watchers.data;
 	UNUSED(revents);
 
-	assert(NULL != my_loop);
-	assert(loop == my_loop->loop);
+	LI_FORCE_ASSERT(NULL != my_loop);
+	LI_FORCE_ASSERT(loop == my_loop->loop);
 
 	prepare->base.callback(&prepare->base, LI_EV_WAKEUP);
 }
@@ -367,8 +367,8 @@ static void event_check_cb(struct ev_loop *loop, ev_check *w, int revents) {
 	liEventLoop *my_loop = check->base.link_watchers.data;
 	UNUSED(revents);
 
-	assert(NULL != my_loop);
-	assert(loop == my_loop->loop);
+	LI_FORCE_ASSERT(NULL != my_loop);
+	LI_FORCE_ASSERT(loop == my_loop->loop);
 
 	check->base.callback(&check->base, LI_EV_WAKEUP);
 }

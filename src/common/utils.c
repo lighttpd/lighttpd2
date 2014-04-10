@@ -15,9 +15,67 @@ union fdmsg {
   gchar buf[1000];
 };
 
+#ifdef HAVE_LIBUNWIND
+# define UNW_LOCAL_ONLY
+# include <libunwind.h>
 
-void li_fatal(const gchar* msg) {
-	fprintf(stderr, "%s\n", msg);
+void li_print_backtrace_stderr(void) {
+	unw_cursor_t cursor;
+	unw_context_t context;
+	unw_proc_info_t procinfo;
+	unw_word_t proc_offset;
+	void *proc_ip;
+	char procname[256];
+	int ret;
+	unsigned int frame = 0;
+
+	if (0 != (ret = unw_getcontext(&context))) goto error;
+	if (0 != (ret = unw_init_local(&cursor, &context))) goto error;
+
+	fprintf(stderr, "Backtrace:\n");
+
+	while (0 < (ret = unw_step(&cursor))) {
+		if (0 != (ret = unw_get_proc_info(&cursor, &procinfo))) goto error;
+
+		if (0 != (ret = unw_get_proc_name(&cursor, procname, sizeof(procname), &proc_offset))) {
+			switch (-ret) {
+			case UNW_ENOMEM:
+				memset(procname + sizeof(procname) - 4, '.', 3);
+				procname[sizeof(procname) - 1] = '\0';
+				break;
+			case UNW_ENOINFO:
+				procname[0] = '?';
+				procname[1] = '\0';
+				proc_offset = 0;
+				break;
+			default:
+				goto error;
+			}
+		}
+
+		++frame;
+		proc_ip = (void*) (intptr_t) (procinfo.start_ip + proc_offset);
+		fprintf(stderr, "%u: %s (+0x%x) [%p]\n", frame, procname, (unsigned int) proc_offset, proc_ip);
+	}
+
+	if (0 != ret) goto error;
+
+	return;
+
+error:
+	fprintf(stderr, "Error while generating backtrace: unwind error %i\n", (int) -ret);
+}
+#else
+void li_print_backtrace_stderr(void) {
+}
+#endif
+
+void li_fatal(const char *filename, unsigned int line, const char *function, const gchar* msg) {
+	if (!filename || !filename[0]) filename = "<unknown file>";
+	if (!function || !function[0]) function = "<unknown function>";
+	fprintf(stderr, "[%lu] %s:%u: %s: %s\n",
+		(gulong) getpid(), LI_REMOVE_PATH(filename), line, function, msg);
+	li_print_backtrace_stderr();
 	abort();
 }
 
@@ -960,7 +1018,7 @@ void li_safe_crypt(GString *dest, const GString *password, const GString *salt) 
 
 
 void li_g_queue_merge(GQueue *dest, GQueue *src) {
-	assert(dest != src);
+	LI_FORCE_ASSERT(dest != src);
 	if (g_queue_is_empty(src)) return; /* nothing to do */
 
 	/* if dest is empty, just swap dest / src */

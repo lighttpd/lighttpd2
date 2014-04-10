@@ -76,7 +76,7 @@ static throttle_ip_pools *ip_pools_new(guint plugin_id, guint rate, guint burst,
 }
 
 static void ip_pools_free(throttle_ip_pools *pools) {
-	assert(g_atomic_int_get(&pools->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&pools->refcount) > 0);
 
 	if (g_atomic_int_dec_and_test(&pools->refcount)) {
 		g_mutex_free(pools->lock);
@@ -100,7 +100,7 @@ static refcounted_pool_entry* create_ip_pool(liServer *srv, throttle_ip_pools *p
 		return NULL;
 	}
 
-	assert(g_atomic_int_get(&pools->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&pools->refcount) > 0);
 	g_atomic_int_inc(&pools->refcount);
 
 	g_mutex_lock(pools->lock);
@@ -120,7 +120,7 @@ static refcounted_pool_entry* create_ip_pool(liServer *srv, throttle_ip_pools *p
 				li_radixtree_insert(pools->ipv6_pools, &remote_addr->addr->ipv6.sin6_addr.s6_addr, pools->masklen_ipv6, result);
 			}
 		} else {
-			assert(g_atomic_int_get(&result->refcount) > 0);
+			LI_FORCE_ASSERT(g_atomic_int_get(&result->refcount) > 0);
 			g_atomic_int_inc(&result->refcount);
 		}
 	g_mutex_unlock(pools->lock);
@@ -145,8 +145,8 @@ static void free_ip_pool(liServer *srv, throttle_ip_pools *pools, liSocketAddres
 		} else {
 			entry = li_radixtree_lookup_exact(pools->ipv6_pools, &remote_addr->addr->ipv6.sin6_addr.s6_addr, pools->masklen_ipv6);
 		}
-		assert(NULL != entry);
-		assert(g_atomic_int_get(&entry->refcount) > 0);
+		LI_FORCE_ASSERT(NULL != entry);
+		LI_FORCE_ASSERT(g_atomic_int_get(&entry->refcount) > 0);
 		if (g_atomic_int_dec_and_test(&entry->refcount)) {
 			if (remote_addr->addr->plain.sa_family == AF_INET) {
 				li_radixtree_remove(pools->ipv4_pools, &remote_addr->addr->ipv4.sin_addr.s_addr, pools->masklen_ipv4);
@@ -227,9 +227,9 @@ static liHandlerResult core_handle_throttle_ip(liVRequest *vr, gpointer param, g
 			if (!li_throttle_add_pool(vr->wrk, state, entry->pool)) {
 				/* we already had a reference */
 				g_atomic_int_add(&pools->refcount, -1);
-				assert(g_atomic_int_get(&pools->refcount) > 0);
+				LI_FORCE_ASSERT(g_atomic_int_get(&pools->refcount) > 0);
 				g_atomic_int_add(&entry->refcount, -1);
-				assert(g_atomic_int_get(&entry->refcount) > 0);
+				LI_FORCE_ASSERT(g_atomic_int_get(&entry->refcount) > 0);
 			} else {
 				GArray *vr_ip_pools = (GArray*) g_ptr_array_index(vr->plugin_ctx, pools->plugin_id);
 				vr_ip_pools_entry ventry;

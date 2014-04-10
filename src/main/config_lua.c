@@ -122,7 +122,7 @@ static int li_lua_config_handle_server_setup(liServer *srv, liWorker *wrk, lua_S
 	gboolean result;
 	liValue *val;
 	liLuaState *LL = li_lua_state_get(L);
-	assert(srv->main_worker == wrk);
+	LI_FORCE_ASSERT(srv->main_worker == wrk);
 
 	lua_checkstack(L, 16);
 	val = lua_params_to_value(srv, L);
@@ -142,7 +142,7 @@ static int li_lua_config_handle_server_setup(liServer *srv, liWorker *wrk, lua_S
 }
 
 void li_lua_push_setup_table(liServer *srv, liWorker *wrk, lua_State *L) {
-	assert(srv->main_worker == wrk);
+	LI_FORCE_ASSERT(srv->main_worker == wrk);
 	lua_push_dynamic_hash(srv, wrk, L, li_lua_config_handle_server_setup);
 }
 
@@ -167,7 +167,7 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 	_DEBUG(srv, wrk, NULL, "Loaded config script '%s'", filename);
 
 	if (allow_setup) {
-		assert(wrk == srv->main_worker);
+		LI_FORCE_ASSERT(wrk == srv->main_worker);
 		li_lua_push_setup_table(srv, wrk, L);
 		lua_setfield(L, LUA_GLOBALSINDEX, "setup");
 	}
@@ -204,7 +204,7 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 	*pact = li_lua_get_action_ref(L, -1);
 	lua_pop(L, 1);
 
-	assert(lua_gettop(L) == lua_stack_top);
+	LI_FORCE_ASSERT(lua_gettop(L) == lua_stack_top);
 
 	li_lua_restore_globals(L);
 

@@ -169,7 +169,7 @@ void li_job_now(liJobQueue *jq, liJob *job) {
 
 		/* unqueue if queued */
 		if (NULL != job->link.data) {
-			assert(jq == job->link.data);
+			LI_FORCE_ASSERT(jq == job->link.data);
 			g_queue_unlink(&jq->queue, &job->link);
 			job->link.data = NULL;
 		}

@@ -141,8 +141,8 @@ static void f_close_gnutls(liGnuTLSFilter *f) {
 		f->closing = TRUE;
 		f->session = NULL;
 
-		assert(NULL != f->crypt_source.out);
-		assert(NULL != f->crypt_source.out->limit);
+		LI_FORCE_ASSERT(NULL != f->crypt_source.out);
+		LI_FORCE_ASSERT(NULL != f->crypt_source.out->limit);
 		limit = f->crypt_source.out->limit;
 		limit->notify = NULL;
 		limit->context = NULL;
@@ -159,11 +159,11 @@ static void f_close_gnutls(liGnuTLSFilter *f) {
 	}
 }
 static void f_acquire(liGnuTLSFilter *f) {
-	assert(f->refcount > 0);
+	LI_FORCE_ASSERT(f->refcount > 0);
 	++f->refcount;
 }
 static void f_release(liGnuTLSFilter *f) {
-	assert(f->refcount > 0);
+	LI_FORCE_ASSERT(f->refcount > 0);
 	if (0 == --f->refcount) {
 		f->refcount = 1;
 		f_close_gnutls(f);
@@ -255,7 +255,7 @@ static void do_handle_error(liGnuTLSFilter *f, const char *gnutlsfunc, int r, gb
 static gboolean do_gnutls_handshake(liGnuTLSFilter *f, gboolean writing) {
 	int r;
 
-	assert(!f->initial_handshaked_finished);
+	LI_FORCE_ASSERT(!f->initial_handshaked_finished);
 
 	r = gnutls_handshake(f->session);
 	if (GNUTLS_E_SUCCESS == r) {
@@ -312,7 +312,7 @@ static void do_gnutls_read(liGnuTLSFilter *f) {
 				f->raw_in_buffer = buf = li_buffer_new(blocksize);
 			}
 		}
-		assert(f->raw_in_buffer == buf);
+		LI_FORCE_ASSERT(f->raw_in_buffer == buf);
 
 		r = gnutls_record_recv(f->session, buf->addr + buf->used, buf->alloc_size - buf->used);
 		if (r < 0) {
@@ -377,7 +377,7 @@ static void do_gnutls_write(liGnuTLSFilter *f) {
 	/* use space in (encrypted) outgoing buffer as amounts of bytes we try to write from (plain) output
 	 * don't care if we write a little bit more than the limit allowed */
 	write_max = li_chunkqueue_limit_available(f->crypt_source.out);
-	assert(write_max >= 0); /* we set a limit! */
+	LI_FORCE_ASSERT(write_max >= 0); /* we set a limit! */
 	if (0 == write_max) goto out;
 	/* if we start writing, try to write at least blocksize bytes */
 	if (write_max < blocksize) write_max = blocksize;
@@ -657,7 +657,7 @@ liGnuTLSFilter* li_gnutls_filter_new(
 }
 
 void li_gnutls_filter_free(liGnuTLSFilter *f) {
-	assert(NULL != f->callbacks);
+	LI_FORCE_ASSERT(NULL != f->callbacks);
 	f->callbacks = NULL;
 	f->callback_data = NULL;
 

@@ -27,7 +27,7 @@ struct liSSLSessionDB {
 
 INLINE void li_ssl_session_db_data_release(liSSLSessionDBData *d) {
 	if (NULL == d) return;
-	assert(g_atomic_int_get(&d->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&d->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&d->refcount)) {
 		g_slice_free1(d->size + sizeof(liSSLSessionDBData), d);
 	}
@@ -118,7 +118,7 @@ INLINE liSSLSessionDBData* li_ssl_session_db_lookup(liSSLSessionDB *sdb, const u
 			g_queue_push_tail_link(&sdb->keys, &k->keys_link);
 
 			dvalue = value;
-			assert(g_atomic_int_get(&dvalue->refcount) > 0);
+			LI_FORCE_ASSERT(g_atomic_int_get(&dvalue->refcount) > 0);
 			g_atomic_int_inc(&dvalue->refcount);
 		}
 	g_mutex_unlock(sdb->mutex);

@@ -1,5 +1,6 @@
 
 #include <lighttpd/buffer.h>
+#include <lighttpd/utils.h>
 
 static void _buffer_init(liBuffer *buf, gsize alloc_size) {
 	buf->alloc_size = alloc_size;
@@ -47,13 +48,13 @@ liBuffer* li_buffer_new_slice(gsize max_size) {
 
 void li_buffer_release(liBuffer *buf) {
 	if (!buf) return;
-	assert(g_atomic_int_get(&buf->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&buf->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&buf->refcount)) {
 		_buffer_destroy(buf);
 	}
 }
 
 void li_buffer_acquire(liBuffer *buf) {
-	assert(g_atomic_int_get(&buf->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&buf->refcount) > 0);
 	g_atomic_int_inc(&buf->refcount);
 }

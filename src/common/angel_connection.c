@@ -489,7 +489,7 @@ static void angel_call_result_cb(liEventBase *watcher, int events) {
 	liAngelCall* call = LI_CONTAINER_OF(li_event_async_from(watcher), liAngelCall, result_watcher);
 	UNUSED(events);
 
-	assert(-1 == call->id);
+	LI_FORCE_ASSERT(-1 == call->id);
 
 	call->acon = NULL;
 

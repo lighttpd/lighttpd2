@@ -15,7 +15,7 @@ struct action_stack_element {
 void li_action_release(liServer *srv, liAction *a) {
 	guint i;
 	if (!a) return;
-	assert(g_atomic_int_get(&a->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&a->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&a->refcount)) {
 		switch (a->type) {
 		case LI_ACTION_TNOTHING:
@@ -52,7 +52,7 @@ void li_action_release(liServer *srv, liAction *a) {
 }
 
 void li_action_acquire(liAction *a) {
-	assert(g_atomic_int_get(&a->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&a->refcount) > 0);
 	g_atomic_int_inc(&a->refcount);
 }
 
@@ -140,8 +140,8 @@ liAction *li_action_new_balancer(liBackendSelectCB bselect, liBackendFallbackCB 
 }
 
 void li_action_append_inplace(liAction *list, liAction *element) {
-	assert(NULL != list && NULL != element);
-	assert(1 == g_atomic_int_get(&list->refcount));
+	LI_FORCE_ASSERT(NULL != list && NULL != element);
+	LI_FORCE_ASSERT(1 == g_atomic_int_get(&list->refcount));
 
 	if (LI_ACTION_TLIST != list->type) {
 		liAction *wrapped = NULL;

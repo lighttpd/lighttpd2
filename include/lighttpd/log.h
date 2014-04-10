@@ -16,27 +16,25 @@
  * Logs are sent once per event loop iteration to the logging thread in order to reduce syscalls and lock contention.
  */
 
-/* #include <lighttpd/valgrind/valgrind.h> */
-
 /* at least one of srv and wrk must not be NULL. log_map may be NULL. */
 #define _SEGFAULT(srv, wrk, log_map, fmt, ...) \
 	do { \
-		li_log_write(srv, NULL, NULL, LI_LOG_LEVEL_ABORT, LI_LOG_FLAG_TIMESTAMP, "(crashing) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__); \
-		/* VALGRIND_PRINTF_BACKTRACE(fmt, __VA_ARGS__); */\
-		abort();\
+		li_log_write(srv, NULL, NULL, LI_LOG_LEVEL_ABORT, LI_LOG_FLAG_TIMESTAMP, "(crashing) %s:%d: %s " fmt, LI_REMOVE_PATH(__FILE__), __LINE__, G_STRFUNC, __VA_ARGS__); \
+		li_print_backtrace_stderr(); \
+		abort(); \
 	} while(0)
 
 #define _ERROR(srv, wrk, ctx, fmt, ...) \
-	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_ERROR, LI_LOG_FLAG_TIMESTAMP, "(error) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_ERROR, LI_LOG_FLAG_TIMESTAMP, "(error) %s:%d: " fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _WARNING(srv, wrk, ctx, fmt, ...) \
-	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_WARNING, LI_LOG_FLAG_TIMESTAMP, "(warning) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_WARNING, LI_LOG_FLAG_TIMESTAMP, "(warning) %s:%d: " fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _INFO(srv, wrk, ctx, fmt, ...) \
-	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_INFO, LI_LOG_FLAG_TIMESTAMP, "(info) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_INFO, LI_LOG_FLAG_TIMESTAMP, "(info) %s:%d: " fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _DEBUG(srv, wrk, ctx, fmt, ...) \
-	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_DEBUG, LI_LOG_FLAG_TIMESTAMP, "(debug) %s.%d: "fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_DEBUG, LI_LOG_FLAG_TIMESTAMP, "(debug) %s:%d: " fmt, LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__)
 
 #define _BACKEND(srv, wrk, ctx, fmt, ...) \
 	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_BACKEND, LI_LOG_FLAG_TIMESTAMP, fmt, __VA_ARGS__)
@@ -44,7 +42,7 @@
 	li_log_split_lines_(srv, wrk, ctx, LI_LOG_LEVEL_BACKEND, LI_LOG_FLAG_TIMESTAMP, txt, fmt, __VA_ARGS__)
 
 #define _GERROR(srv, wrk, ctx, error, fmt, ...) \
-	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_ERROR, LI_LOG_FLAG_TIMESTAMP, "(error) %s.%d: " fmt "\n  %s", LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__, error ? error->message : "Empty GError")
+	li_log_write(srv, wrk, ctx, LI_LOG_LEVEL_ERROR, LI_LOG_FLAG_TIMESTAMP, "(error) %s:%d: " fmt "\n  %s", LI_REMOVE_PATH(__FILE__), __LINE__, __VA_ARGS__, error ? error->message : "Empty GError")
 
 #define VR_SEGFAULT(vr, fmt, ...) _SEGFAULT(vr->wrk->srv, vr->wrk, &vr->log_context, fmt, __VA_ARGS__)
 #define VR_ERROR(vr, fmt, ...)    _ERROR(vr->wrk->srv, vr->wrk, &vr->log_context, fmt, __VA_ARGS__)

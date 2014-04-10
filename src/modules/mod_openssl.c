@@ -65,7 +65,7 @@ static openssl_context* mod_openssl_context_new(void) {
 
 static void mod_openssl_context_release(openssl_context *ctx) {
 	if (NULL == ctx) return;
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&ctx->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&ctx->refcount)) {
 		if (NULL != ctx->ssl_ctx) {
 			SSL_CTX_free(ctx->ssl_ctx);
@@ -77,7 +77,7 @@ static void mod_openssl_context_release(openssl_context *ctx) {
 }
 
 static void mod_openssl_context_acquire(openssl_context *ctx) {
-	assert(g_atomic_int_get(&ctx->refcount) > 0);
+	LI_FORCE_ASSERT(g_atomic_int_get(&ctx->refcount) > 0);
 	g_atomic_int_inc(&ctx->refcount);
 }
 
@@ -85,7 +85,7 @@ static void mod_openssl_context_acquire(openssl_context *ctx) {
 
 static void tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
 	openssl_connection_ctx *conctx = stream->data;
-	assert(NULL == conctx->sock_stream || conctx->sock_stream == stream);
+	LI_FORCE_ASSERT(NULL == conctx->sock_stream || conctx->sock_stream == stream);
 
 	if (LI_IOSTREAM_DESTROY == event) {
 		li_stream_simple_socket_close(stream, TRUE); /* kill it, ssl sent an close alert message */
@@ -102,9 +102,9 @@ static void tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
 
 	switch (event) {
 	case LI_IOSTREAM_DESTROY:
-		assert(NULL == conctx->sock_stream);
-		assert(NULL == conctx->ssl_filter);
-		assert(NULL == conctx->con);
+		LI_FORCE_ASSERT(NULL == conctx->sock_stream);
+		LI_FORCE_ASSERT(NULL == conctx->ssl_filter);
+		LI_FORCE_ASSERT(NULL == conctx->con);
 		stream->data = NULL;
 		g_slice_free(openssl_connection_ctx, conctx);
 		return;
@@ -130,14 +130,14 @@ static void handshake_cb(liOpenSSLFilter *f, gpointer data, liStream *plain_sour
 static void close_cb(liOpenSSLFilter *f, gpointer data) {
 	openssl_connection_ctx *conctx = data;
 	liConnection *con = conctx->con;
-	assert(conctx->ssl_filter == f);
+	LI_FORCE_ASSERT(conctx->ssl_filter == f);
 
 	conctx->ssl_filter = NULL;
 	li_openssl_filter_free(f);
 
 	if (NULL != conctx->con) {
 		liStream *raw_out = con->con_sock.raw_out, *raw_in = con->con_sock.raw_in;
-		assert(con->con_sock.data == conctx);
+		LI_FORCE_ASSERT(con->con_sock.data == conctx);
 		conctx->con = NULL;
 		con->con_sock.data = NULL;
 		li_stream_acquire(raw_in);
@@ -166,7 +166,7 @@ static void openssl_tcp_finished(liConnection *con, gboolean aborted) {
 	con->con_sock.callbacks = NULL;
 
 	if (NULL != conctx) {
-		assert(con == conctx->con);
+		LI_FORCE_ASSERT(con == conctx->con);
 		close_cb(conctx->ssl_filter, conctx);
 	}
 
