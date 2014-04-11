@@ -8,6 +8,7 @@
 
 #include <lighttpd/settings.h>
 #include <lighttpd/profiler.h>
+#include <lighttpd/utils.h>
 #include <fcntl.h>
 
 #ifdef HAVE_EXECINFO_H
