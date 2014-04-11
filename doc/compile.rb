@@ -471,7 +471,7 @@ class AngelModuleDocumentation < GenericModuleDocumentation
 		self.title = xml['title'] || self.title
 		self.ordername = xml['order']
 
-		nest(title, '', 'module') {
+		nest(title, '', 'angel-module') {
 			@html.p {
 				@html.text (basename + ' ')
 				@short = _parse_short(xml, false)
