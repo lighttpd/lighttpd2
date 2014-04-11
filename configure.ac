@@ -275,8 +275,38 @@ AC_ARG_WITH(libunwind,
     [WITH_LIBUNWIND=$withval],[WITH_LIBUNWIND=no])
 
 if test "$WITH_LIBUNWIND" != "no"; then
-  PKG_CHECK_MODULES(LIBUNWIND, libunwind)
-  AC_DEFINE(HAVE_LIBUNWIND, 1, [Have libunwind support])
+  have_libunwind=no
+
+  PKG_CHECK_MODULES(LIBUNWIND, libunwind, [have_libunwind=yes], [
+    # pkg-config failed, search manually
+    OLDLIBS="$LIBS"
+    LIBS="$LIBS -lunwind"
+    AC_CACHE_CHECK([for libunwind support], [ac_cv_libunwind],
+      [AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+# define UNW_LOCAL_ONLY
+# include <libunwind.h>
+        ]], [[
+unw_context_t context;
+unw_getcontext(&context);
+        ]])],[ac_cv_libunwind=yes],[ac_cv_libunwind=no])])
+    LIBS="$OLDLIBS"
+
+    if test "$ac_cv_libunwind" = yes; then
+      LIBUNWIND_CFLAGS=
+      LIBUNWIND_LIBS=-lunwind
+    fi
+
+    have_libunwind="$ac_cv_libunwind"
+  ])
+
+  if test "$have_libunwind" = yes; then
+    AC_DEFINE(HAVE_LIBUNWIND, 1, [Have libunwind support])
+  else
+    AC_MSG_ERROR("couldn't find libunwind")
+  fi
+
+  AC_SUBST([LIBUNWIND_CFLAGS])
+  AC_SUBST([LIBUNWIND_LIBS])
 fi
 
 
