@@ -159,6 +159,7 @@ INLINE void li_value_list_set(liValue *val, guint ndx, liValue *entry) {
 	GPtrArray *list;
 	if (NULL == val || LI_VALUE_LIST != val->type) {
 		li_value_free(entry);
+		return;
 	}
 	list = val->data.list;
 	if (ndx <= list->len) {
