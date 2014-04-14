@@ -27,7 +27,7 @@ void li_idlist_free(liIDList *l) {
 
 static void mark_bit(GArray *a, gint id) {
 	guint ndx = id / UL_BITS, bndx = id % UL_BITS;
-	gulong bmask = 1 << bndx;
+	gulong bmask = 1ul << bndx;
 	g_assert(id >= 0 && ndx < a->len);
 
 	g_assert(0 == (g_array_index(a, gulong, ndx) & (bmask))); /* bit musn't be set */
@@ -36,7 +36,7 @@ static void mark_bit(GArray *a, gint id) {
 
 static void clear_bit(GArray *a, gint id) {
 	guint ndx = id / UL_BITS, bndx = id % UL_BITS;
-	gulong bmask = 1 << bndx;
+	gulong bmask = 1ul << bndx;
 	g_assert(id >= 0 && ndx < a->len);
 
 	g_assert(0 != (g_array_index(a, gulong, ndx) & (bmask))); /* bit must be set */
@@ -100,7 +100,7 @@ gint li_idlist_get(liIDList *l) {
 gboolean li_idlist_is_used(liIDList *l, gint id) {
 	GArray *a = l->bitvector;
 	guint ndx = id / UL_BITS, bndx = id % UL_BITS;
-	gulong bmask = 1 << bndx;
+	gulong bmask = 1ul << bndx;
 	if (id < 0 || ndx >= a->len) return FALSE;
 
 	return (0 != (g_array_index(a, gulong, ndx) & (bmask)));
