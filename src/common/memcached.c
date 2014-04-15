@@ -737,7 +737,7 @@ static void memcached_io_cb(liEventBase *watcher, int events) {
 
 	li_memcached_con_acquire(con); /* make sure con isn't freed in the middle of something */
 
-	if (events | LI_EV_WRITE) {
+	if (events & LI_EV_WRITE) {
 		int i;
 		ssize_t written, len;
 		gchar *data;
@@ -781,7 +781,7 @@ write_eagain:
 		send_queue_clean(&con->out);
 	}
 
-	if (events | LI_EV_READ) {
+	if (events & LI_EV_READ) {
 		do {
 			handle_read(con);
 		} while (con->remaining && con->remaining->used > 0);

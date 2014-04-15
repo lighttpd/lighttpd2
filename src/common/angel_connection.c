@@ -291,7 +291,7 @@ static gboolean angel_connection_read(liAngelConnection *acon, GError **err) {
 static void angel_connection_io_cb(liEventBase *watcher, int events) {
 	liAngelConnection *acon = LI_CONTAINER_OF(li_event_io_from(watcher), liAngelConnection, fd_watcher);
 
-	if (events | LI_EV_WRITE) {
+	if (events & LI_EV_WRITE) {
 		GString *out_str;
 		int i;
 		ssize_t written, len;
@@ -368,7 +368,7 @@ write_eagain:
 		if (out_queue_empty) li_event_io_rem_events(&acon->fd_watcher, LI_EV_WRITE);
 	}
 
-	if (events | LI_EV_READ) {
+	if (events & LI_EV_READ) {
 		GError *err = NULL;
 		if (!angel_connection_read(acon, &err)) {
 			li_event_clear(&acon->out_notify_watcher);
