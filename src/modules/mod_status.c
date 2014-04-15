@@ -508,7 +508,7 @@ static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result
 			html = status_info_full(vr, p, short_info, result, uptime, &totals, total_connections, &connection_count[0]);
 		}
 
-		li_vrequest_handle_direct(vr);
+		LI_FORCE_ASSERT(li_vrequest_handle_direct(vr));
 		vr->response.http_status = 200;
 		li_chunkqueue_append_string(vr->direct_out, html);
 		li_vrequest_joblist_append(vr);
@@ -954,7 +954,7 @@ static liHandlerResult status_info(liVRequest *vr, gpointer _param, gpointer *co
 			return status_info_runtime(vr, param->p);
 		} else {
 			vr->response.http_status = 403;
-			li_vrequest_handle_direct(vr);
+			LI_FORCE_ASSERT(li_vrequest_handle_direct(vr));
 		}
 	}
 
@@ -1233,7 +1233,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 		"</html>\n"
 	));
 
-	li_vrequest_handle_direct(vr);
+	LI_FORCE_ASSERT(li_vrequest_handle_direct(vr));
 	li_chunkqueue_append_string(vr->direct_out, html);
 	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html; charset=utf-8"));
 

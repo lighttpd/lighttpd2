@@ -430,7 +430,7 @@ static liHandlerResult vrequest_do_handle_actions(liVRequest *vr) {
 	case LI_HANDLER_GO_ON:
 		if (vr->state == LI_VRS_HANDLE_REQUEST_HEADERS) {
 			/* request not handled */
-			li_vrequest_handle_direct(vr);
+			LI_FORCE_ASSERT(li_vrequest_handle_direct(vr));
 			if (vr->request.http_method == LI_HTTP_METHOD_OPTIONS) {
 				vr->response.http_status = 200;
 				li_http_header_append(vr->response.headers, CONST_STR_LEN("Allow"), CONST_STR_LEN("OPTIONS, GET, HEAD, POST"));

@@ -21,6 +21,7 @@ LI_API void li_print_backtrace_stderr(void);
 LI_API void li_fd_init(int fd);
 LI_API void li_fd_no_block(int fd);
 LI_API void li_fd_block(int fd);
+LI_API void li_fd_close_on_exec(int fd);
 
 #ifndef LIGHTY_OS_WINDOWS
 /* return -2 for EAGAIN, -1 for some other error, 0 for success */

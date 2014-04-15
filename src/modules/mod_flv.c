@@ -74,10 +74,6 @@ static liHandlerResult flv(liVRequest *vr, gpointer param, gpointer *context) {
 	} else {
 		liChunkFile *cf;
 
-#ifdef FD_CLOEXEC
-		fcntl(fd, F_SETFD, FD_CLOEXEC);
-#endif
-
 		if (!li_vrequest_handle_direct(vr)) {
 			close(fd);
 			return LI_HANDLER_ERROR;

@@ -642,10 +642,6 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 		liChunkFile *cf;
 		static const GString default_mime_str = { CONST_STR_LEN("application/octet-stream"), 0 };
 
-#ifdef FD_CLOEXEC
-		fcntl(fd, F_SETFD, FD_CLOEXEC);
-#endif
-
 		if (!li_vrequest_handle_direct(vr)) {
 			close(fd);
 			return LI_HANDLER_ERROR;

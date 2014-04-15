@@ -337,7 +337,9 @@ static void backend_con_watch_connect_cb(liEventBase *watcher, int events) {
 		int err;
 		len = sizeof(err);
 #ifdef SO_ERROR
-		getsockopt(fd, SOL_SOCKET, SO_ERROR, (void*)&err, &len);
+		if (-1 == getsockopt(fd, SOL_SOCKET, SO_ERROR, (void*)&err, &len)) {
+			err = errno;
+		}
 #else
 		{
 			char ch;
@@ -409,7 +411,7 @@ static gboolean S_backend_connection_connect(liBackendWorkerPool *wpool) {
 		ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
 		return FALSE;
 	}
-	li_fd_init(fd);
+	li_fd_no_block(fd);
 
 	if (-1 == connect(fd, &config->sock_addr.addr->plain, config->sock_addr.len)) {
 		switch (errno) {

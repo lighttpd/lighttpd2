@@ -330,7 +330,9 @@ static void memcached_connect(liMemcachedCon *con) {
 		int err;
 		len = sizeof(err);
 #ifdef SO_ERROR
-		getsockopt(s, SOL_SOCKET, SO_ERROR, (void*)&err, &len);
+		if (-1 == getsockopt(s, SOL_SOCKET, SO_ERROR, (void*)&err, &len)) {
+			err = errno;
+		}
 #else
 		{
 			char ch;

@@ -21,7 +21,7 @@ static liServerSocket* server_socket_new(liServer *srv, int fd) {
 
 	sock->local_addr = li_sockaddr_local_from_socket(fd);
 	sock->refcount = 1;
-	li_fd_init(fd);
+	li_fd_no_block(fd);
 	li_event_io_init(&srv->main_worker->loop, &sock->watcher, li_server_listen_cb, fd, LI_EV_READ);
 	return sock;
 }

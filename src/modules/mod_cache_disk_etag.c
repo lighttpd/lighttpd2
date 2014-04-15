@@ -77,9 +77,6 @@ static gboolean cache_etag_file_start(liVRequest *vr, cache_etag_file *cfile) {
 		VR_ERROR(vr, "Couldn't create cache tempfile '%s': %s", cfile->tmpfilename->str, g_strerror(errno));
 		return FALSE;
 	}
-#ifdef FD_CLOEXEC
-	fcntl(cfile->fd, F_SETFD, FD_CLOEXEC);
-#endif
 	return TRUE;
 }
 
@@ -272,9 +269,6 @@ static liHandlerResult cache_etag_handle(liVRequest *vr, gpointer param, gpointe
 			return LI_HANDLER_GO_ON; /* no caching */
 		}
 		cfile->hit_fd = fd;
-#ifdef FD_CLOEXEC
-		fcntl(cfile->hit_fd, F_SETFD, FD_CLOEXEC);
-#endif
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 			VR_DEBUG(vr, "cache hit for '%s'", vr->request.uri.path->str);
 		}

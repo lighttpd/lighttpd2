@@ -81,7 +81,10 @@ void li_fatal(const char *filename, unsigned int line, const char *function, con
 
 void li_fd_no_block(int fd) {
 #ifdef O_NONBLOCK
-	fcntl(fd, F_SETFL, O_NONBLOCK | O_RDWR);
+	int flags = fcntl(fd, F_GETFL, 0);
+	if (0 == (flags & O_NONBLOCK)) {
+		LI_FORCE_ASSERT(-1 != fcntl(fd, F_SETFL, flags | O_NONBLOCK));
+	}
 #elif defined _WIN32
 	int i = 1;
 	ioctlsocket(fd, FIONBIO, &i);
@@ -92,7 +95,10 @@ void li_fd_no_block(int fd) {
 
 void li_fd_block(int fd) {
 #ifdef O_NONBLOCK
-	fcntl(fd, F_SETFL, O_RDWR);
+	int flags = fcntl(fd, F_GETFL, 0);
+	if (0 != (flags & O_NONBLOCK)) {
+		LI_FORCE_ASSERT(-1 != fcntl(fd, F_SETFL, flags & ~O_NONBLOCK));
+	}
 #elif defined _WIN32
 	int i = 0;
 	ioctlsocket(fd, FIONBIO, &i);
@@ -101,11 +107,20 @@ void li_fd_block(int fd) {
 #endif
 }
 
-void li_fd_init(int fd) {
+void li_fd_close_on_exec(int fd) {
 #ifdef FD_CLOEXEC
-	/* close fd on exec (cgi) */
-	fcntl(fd, F_SETFD, FD_CLOEXEC);
+	/* close fd on exec */
+	int flags = fcntl(fd, F_GETFD, 0);
+	if (0 == (flags & FD_CLOEXEC)) {
+		LI_FORCE_ASSERT(-1 != fcntl(fd, F_SETFD, flags | FD_CLOEXEC));
+	}
+#else
+	UNUSED(fd);
 #endif
+}
+
+void li_fd_init(int fd) {
+	li_fd_close_on_exec(fd);
 	li_fd_no_block(fd);
 }
 
@@ -679,7 +694,9 @@ liSocketAddress li_sockaddr_local_from_socket(gint fd) {
 	if (l <= sizeof(sa)) {
 		memcpy(saddr.addr, &sa.plain, l);
 	} else {
-		getsockname(fd, (struct sockaddr*) saddr.addr, &l);
+		if (-1 == getsockname(fd, (struct sockaddr*) saddr.addr, &l)) {
+			li_sockaddr_clear(&saddr);
+		}
 	}
 
 	return saddr;
@@ -699,7 +716,9 @@ liSocketAddress li_sockaddr_remote_from_socket(gint fd) {
 	if (l <= sizeof(sa)) {
 		memcpy(saddr.addr, &sa.plain, l);
 	} else {
-		getpeername(fd, (struct sockaddr*) saddr.addr, &l);
+		if (-1 == getpeername(fd, (struct sockaddr*) saddr.addr, &l)) {
+			li_sockaddr_clear(&saddr);
+		}
 	}
 
 	return saddr;

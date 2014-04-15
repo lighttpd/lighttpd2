@@ -63,9 +63,6 @@ liHandlerResult li_chunkfile_open(liChunkFile *cf, GError **err) {
 		g_set_error(err, LI_CHUNK_ERROR, 0, "li_chunkfile_open: Couldn't open file '%s': %s", GSTR_SAFE_STR(cf->name), g_strerror(errno));
 		return LI_HANDLER_ERROR;
 	}
-#ifdef FD_CLOEXEC
-	fcntl(cf->fd, F_SETFD, FD_CLOEXEC);
-#endif
 #if defined(HAVE_POSIX_FADVISE) && defined(POSIX_FADV_SEQUENTIAL)
 	/* tell the kernel that we want to stream the file */
 	if (-1 == posix_fadvise(cf->fd, 0, 0, POSIX_FADV_SEQUENTIAL)) {
