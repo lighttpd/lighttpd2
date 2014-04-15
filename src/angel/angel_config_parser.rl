@@ -839,6 +839,7 @@ static gboolean p_value(gint *key_value_nesting, liValue **value, liConfigToken 
 				li_value_free(v);
 				v = li_value_new_number(i);
 			}
+			break;
 		default:
 			parse_error(ctx, error, "cast(int) from %s not supported yet", li_value_type_string(v));
 			li_value_free(v);
