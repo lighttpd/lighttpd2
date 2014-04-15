@@ -724,7 +724,7 @@ static gboolean p_value_list(gint *key_value_nesting, liValue **result, gboolean
 		if (!key_value_list && TK_ASSOCICATE == token) {
 			key_value_list = TRUE;
 			if (li_value_list_len(list) > 0) {
-				return parse_error(ctx, error, "unexpected '=>'");
+				parse_error(ctx, error, "unexpected '=>'");
 				goto error;
 			}
 		}
