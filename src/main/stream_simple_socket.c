@@ -189,7 +189,7 @@ void li_stream_simple_socket_io_cb_with_context(liIOStream *stream, liIOStreamEv
 
 void li_stream_simple_socket_flush(liIOStream *stream) {
 	int val = 1;
-	int fd = fd = li_event_io_fd(&stream->io_watcher);
+	int fd = li_event_io_fd(&stream->io_watcher);
 	if (-1 != fd) {
 		/* setting TCP_NODELAY should flush the socket. if it fails it probably isn't a TCP socket,
 		 * so no need to disable TCP_NODELAY */
