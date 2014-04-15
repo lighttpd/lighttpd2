@@ -574,6 +574,7 @@ GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean sho
 	guint i;
 
 	if (!saddr) {
+		if (!dest) dest = g_string_sized_new(6);
 		li_string_assign_len(dest, CONST_STR_LEN("<null>"));
 		return dest;
 	}

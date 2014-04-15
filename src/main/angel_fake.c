@@ -7,143 +7,104 @@
 
 /* listen to a socket */
 int li_angel_fake_listen(liServer *srv, GString *str) {
-	guint32 ipv4;
-#ifdef HAVE_IPV6
-	guint8 ipv6[16];
-#endif
-	guint16 port;
+	liSocketAddress addr = li_sockaddr_from_string(str, 80);
+	liSockAddr *saddr = addr.addr;
+	GString *tmpstr;
+	int s, v;
 
+	if (NULL == saddr) {
+		ERROR(srv, "Invalid socket address: '%s'", str->str);
+		return -1;
+	}
+
+	tmpstr = li_sockaddr_to_string(addr, NULL, TRUE);
+
+	switch (saddr->plain.sa_family) {
 #ifdef HAVE_SYS_UN_H
-	if (0 == strncmp(str->str, "unix:/", 6)) {
-		int s;
-		struct sockaddr_un *un;
-		socklen_t slen = str->len + 1 - 5 + sizeof(un->sun_family);
-
-		un = g_malloc0(slen);
-		un->sun_family = AF_UNIX;
-		strcpy(un->sun_path, str->str + 5);
-
-		if (-1 == unlink(un->sun_path)) {
+	case AF_UNIX:
+		if (-1 == unlink(saddr->un.sun_path)) {
 			switch (errno) {
 			case ENOENT:
 				break;
 			default:
 				ERROR(srv, "removing old socket '%s' failed: %s\n", str->str, g_strerror(errno));
-				g_free(un);
-				return -1;
+				goto error;
 			}
 		}
-		if (-1 == (s = socket(AF_UNIX, SOCK_STREAM, 0))) {
+		if (-1 == (s = socket(saddr->plain.sa_family, SOCK_STREAM, 0))) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
-			g_free(un);
-			return -1;
+			goto error;
 		}
-		if (-1 == bind(s, (struct sockaddr*) un, slen)) {
+		if (-1 == bind(s, &saddr->plain, addr.len)) {
+			ERROR(srv, "Couldn't bind socket to '%s': %s", tmpstr->str, g_strerror(errno));
 			close(s);
-			ERROR(srv, "Couldn't bind socket to '%s': %s", str->str, g_strerror(errno));
-			g_free(un);
-			return -1;
+			goto error;
 		}
 		if (-1 == listen(s, 1000)) {
+			ERROR(srv, "Couldn't listen on '%s': %s", tmpstr->str, g_strerror(errno));
 			close(s);
-			ERROR(srv, "Couldn't listen on '%s': %s", str->str, g_strerror(errno));
-			g_free(un);
-			return -1;
+			goto error;
 		}
-		g_free(un);
-		DEBUG(srv, "listen to unix socket: '%s'", str->str);
-		return s;
-	} else
+		DEBUG(srv, "listen to unix socket: '%s'", tmpstr->str);
+		break;
 #endif
-	if (li_parse_ipv4(str->str, &ipv4, NULL, &port)) {
-		int s, v;
-		struct sockaddr_in addr;
-
-		if (!port) port = 80;
-		memset(&addr, 0, sizeof(addr));
-		addr.sin_family = AF_INET;
-		addr.sin_addr.s_addr = ipv4;
-		addr.sin_port = htons(port);
-		if (-1 == (s = socket(AF_INET, SOCK_STREAM, 0))) {
-			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
-			return -1;
-		}
-		v = 1;
-		if (-1 == setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &v, sizeof(v))) {
-			close(s);
-			ERROR(srv, "Couldn't setsockopt(SO_REUSEADDR): %s", g_strerror(errno));
-			return -1;
-		}
-		if (-1 == bind(s, (struct sockaddr*)&addr, sizeof(addr))) {
-			close(s);
-			ERROR(srv, "Couldn't bind socket to '%s': %s", inet_ntoa(addr.sin_addr), g_strerror(errno));
-			return -1;
-		}
-#ifdef TCP_FASTOPEN
-		v = 1000;
-		setsockopt(s, SOL_TCP, TCP_FASTOPEN, &v, sizeof(v));
-#endif
-		if (-1 == listen(s, 1000)) {
-			close(s);
-			ERROR(srv, "Couldn't listen on '%s': %s", inet_ntoa(addr.sin_addr), g_strerror(errno));
-			return -1;
-		}
-		DEBUG(srv, "listen to ipv4: '%s' port: %d", inet_ntoa(addr.sin_addr), port);
-		return s;
+	case AF_INET:
 #ifdef HAVE_IPV6
-	} else if (li_parse_ipv6(str->str, ipv6, NULL, &port)) {
-		GString *ipv6_str = g_string_sized_new(0);
-		int s, v;
-		struct sockaddr_in6 addr;
-		li_ipv6_tostring(ipv6_str, ipv6);
-		
-		if (!port) port = 80;
-		memset(&addr, 0, sizeof(addr));
-		addr.sin6_family = AF_INET6;
-		memcpy(&addr.sin6_addr, ipv6, 16);
-		addr.sin6_port = htons(port);
-		if (-1 == (s = socket(AF_INET6, SOCK_STREAM, 0))) {
+	case AF_INET6:
+#endif
+		if (-1 == (s = socket(saddr->plain.sa_family, SOCK_STREAM, 0))) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
-			g_string_free(ipv6_str, TRUE);
-			return -1;
+			goto error;
 		}
 		v = 1;
 		if (-1 == setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &v, sizeof(v))) {
-			close(s);
 			ERROR(srv, "Couldn't setsockopt(SO_REUSEADDR): %s", g_strerror(errno));
-			g_string_free(ipv6_str, TRUE);
-			return -1;
-		}
-		if (-1 == setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, &v, sizeof(v))) {
 			close(s);
+			goto error;
+		}
+#ifdef HAVE_IPV6
+		if (AF_INET6 == saddr->plain.sa_family && -1 == setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, &v, sizeof(v))) {
 			ERROR(srv, "Couldn't setsockopt(IPV6_V6ONLY): %s", g_strerror(errno));
-			g_string_free(ipv6_str, TRUE);
-			return -1;
-		}
-		if (-1 == bind(s, (struct sockaddr*)&addr, sizeof(addr))) {
 			close(s);
-			ERROR(srv, "Couldn't bind socket to '%s': %s", ipv6_str->str, g_strerror(errno));
-			g_string_free(ipv6_str, TRUE);
-			return -1;
+			goto error;
+		}
+#endif
+		if (-1 == bind(s, &saddr->plain, addr.len)) {
+			ERROR(srv, "Couldn't bind socket to '%s': %s", tmpstr->str, g_strerror(errno));
+			close(s);
+			goto error;
 		}
 #ifdef TCP_FASTOPEN
 		v = 1000;
 		setsockopt(s, SOL_TCP, TCP_FASTOPEN, &v, sizeof(v));
 #endif
 		if (-1 == listen(s, 1000)) {
+			ERROR(srv, "Couldn't listen on '%s': %s", tmpstr->str, g_strerror(errno));
 			close(s);
-			ERROR(srv, "Couldn't listen on '%s': %s", ipv6_str->str, g_strerror(errno));
-			g_string_free(ipv6_str, TRUE);
-			return -1;
+			goto error;
 		}
-		DEBUG(srv, "listen to ipv6: '%s' port: %d", ipv6_str->str, port);
-		g_string_free(ipv6_str, TRUE);
-		return s;
+#ifdef HAVE_IPV6
+		if (AF_INET6 == saddr->plain.sa_family) {
+			DEBUG(srv, "listen to ipv6: '%s'", tmpstr->str);
+		} else
 #endif
-	} else {
-		ERROR(srv, "Invalid ip: '%s'", str->str);
-		return -1;
+		{
+			DEBUG(srv, "listen to ipv4: '%s'", tmpstr->str);
+		}
+		break;
+	default:
+		ERROR(srv, "Unknown address family for '%s'", tmpstr->str);
+		goto error;
 	}
+
+	g_string_free(tmpstr, TRUE);
+	li_sockaddr_clear(&addr);
+	return s;
+
+error:
+	g_string_free(tmpstr, TRUE);
+	li_sockaddr_clear(&addr);
+	return -1;
 }
 
 /* print log messages during startup to stderr */
