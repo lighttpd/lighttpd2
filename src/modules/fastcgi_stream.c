@@ -594,8 +594,12 @@ static void fastcgi_stream_out(liStream *stream, liStreamEvent event) {
 }
 
 static void fastcgi_decode(liFastCGIBackendContext *ctx) {
-	liChunkQueue *in = ctx->iostream->stream_in.out;
-	liWorker *wrk = li_worker_from_iostream(ctx->iostream);
+	liChunkQueue *in;
+	liWorker *wrk;
+	LI_FORCE_ASSERT(NULL != ctx->iostream);
+
+	in = ctx->iostream->stream_in.out;
+	wrk = li_worker_from_iostream(ctx->iostream);
 
 	while (NULL != ctx->iostream && 0 < in->length) {
 		gboolean newdata = FALSE;
