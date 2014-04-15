@@ -154,6 +154,7 @@ GString *li_common_value_to_string_(liValue *val) {
 	switch (val->type) {
 	case LI_VALUE_NONE:
 		str = g_string_new("null");
+		break;
 	case LI_VALUE_BOOLEAN:
 		str = g_string_new(val->data.boolean ? "true" : "false");
 		break;
