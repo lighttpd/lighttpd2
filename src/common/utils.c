@@ -651,12 +651,12 @@ liSocketAddress li_sockaddr_from_string(const GString *str, guint tcp_default_po
 
 #ifdef HAVE_SYS_UN_H
 	if (0 == strncmp(str->str, "unix:/", 6)) {
-		/* try to support larger unix socket names than what fits in the default sockaddr_un struct */
-		saddr.len = str->len + 1 - 5 + sizeof(saddr.addr->un) - sizeof(saddr.addr->un.sun_path);
-		if (saddr.len < sizeof(saddr.addr->un)) saddr.len = sizeof(saddr.addr->un);
-		saddr.addr = (liSockAddr*) g_slice_alloc0(saddr.len);
-		saddr.addr->un.sun_family = AF_UNIX;
-		strcpy(saddr.addr->un.sun_path, str->str + 5);
+		if (str->len + 1 - 5 <= sizeof(saddr.addr->un.sun_path)) {
+			saddr.len = sizeof(saddr.addr->un);
+			saddr.addr = (liSockAddr*) g_slice_alloc0(saddr.len);
+			saddr.addr->un.sun_family = AF_UNIX;
+			memcpy(saddr.addr->un.sun_path, str->str + 5, str->len + 1 - 5);
+		}
 	} else
 #endif
 	if (li_parse_ipv4(str->str, &ipv4, NULL, &port)) {
@@ -692,7 +692,7 @@ liSocketAddress li_sockaddr_local_from_socket(gint fd) {
 	saddr.addr = (liSockAddr*) g_slice_alloc0(l);
 	saddr.len = l;
 	if (l <= sizeof(sa)) {
-		memcpy(saddr.addr, &sa.plain, l);
+		memcpy(saddr.addr, &sa, l);
 	} else {
 		if (-1 == getsockname(fd, (struct sockaddr*) saddr.addr, &l)) {
 			li_sockaddr_clear(&saddr);
@@ -714,7 +714,7 @@ liSocketAddress li_sockaddr_remote_from_socket(gint fd) {
 	saddr.addr = (liSockAddr*) g_slice_alloc0(l);
 	saddr.len = l;
 	if (l <= sizeof(sa)) {
-		memcpy(saddr.addr, &sa.plain, l);
+		memcpy(saddr.addr, &sa, l);
 	} else {
 		if (-1 == getpeername(fd, (struct sockaddr*) saddr.addr, &l)) {
 			li_sockaddr_clear(&saddr);

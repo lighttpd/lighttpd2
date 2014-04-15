@@ -419,7 +419,7 @@ static void li_server_listen_cb(liEventBase *watcher, int events) {
 		if (l <= sizeof(sa)) {
 			remote_addr.addr = g_slice_alloc(l);
 			remote_addr.len = l;
-			memcpy(remote_addr.addr, &sa.plain, l);
+			memcpy(remote_addr.addr, &sa, l);
 		} else {
 			remote_addr = li_sockaddr_remote_from_socket(s);
 		}
