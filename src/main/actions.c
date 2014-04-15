@@ -162,9 +162,9 @@ void li_action_append_inplace(liAction *list, liAction *element) {
 }
 
 static void action_stack_element_release(liServer *srv, liVRequest *vr, action_stack_element *ase) {
-	liAction *a = ase->act;
+	liAction *a;
 
-	if (!ase || !a) return;
+	if (NULL == ase || NULL == (a = ase->act)) return;
 
 	switch (a->type) {
 	case LI_ACTION_TNOTHING:
