@@ -142,6 +142,8 @@
 			<description>
 				<textile>
 					Default MIME type is "application/octet-stream". The sources contain a "mimetypes example config":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/mimetypes.conf with many standard mappings.
+
+					The longest matching suffix is used (@".tar.gz"@ always wins over @".gz"@), and in case of duplicate entries the last one is used.
 				</textile>
 			</description>
 			<example>
