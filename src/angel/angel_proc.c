@@ -170,15 +170,27 @@ liProc* li_proc_new(liServer *srv, gchar **args, gchar **env, uid_t uid, gid_t g
 #endif
 
 		if (gid != (gid_t) -1) {
-			setgid(gid);
-			setgroups(0, NULL);
-			if (username) initgroups(username, gid);
+			if (-1 == setgid(gid)) {
+				ERROR(srv, "setgid(%i) failed: %s", (int) gid, g_strerror(errno));
+				abort();
+			}
+			if (-1 == setgroups(0, NULL)) {
+				ERROR(srv, "setgroups failed: %s", g_strerror(errno));
+				abort();
+			}
+			if (username && -1 == initgroups(username, gid)) {
+				ERROR(srv, "initgroups('%s', %i) failed: %s", username, (int) gid, g_strerror(errno));
+				abort();
+			}
 		}
 
 		if (cb) cb(ctx);
 
 		if (uid != (uid_t) -1) {
-			setuid(uid);
+			if (-1 == setuid(uid)) {
+				ERROR(srv, "setuid(%i) failed: %s", (int) uid, g_strerror(errno));
+				abort();
+			}
 		}
 
 		if (NULL == env)
