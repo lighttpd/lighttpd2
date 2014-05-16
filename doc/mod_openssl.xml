@@ -16,7 +16,7 @@
 					<short>file containing the intermediate certificates</short>
 				</entry>
 				<entry name="ciphers">
-					<short>OpenSSL ciphers string</short>
+					<short>OpenSSL ciphers string (default: "aRSA+HIGH !3DES +kEDH +kRSA !kSRP !kPSK")</short>
 				</entry>
 				<entry name="dh-params">
 					<short>filename with generated dh-params (default: fixed 4096-bit parameters)</short>

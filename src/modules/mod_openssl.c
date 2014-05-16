@@ -493,7 +493,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 	STACK_OF(X509_NAME) *client_ca_list;
 
 	const char
-		*default_ciphers = "ECDHE-RSA-AES256-SHA384:AES256-SHA256:RC4-SHA:RC4:HIGH:!MD5:!aNULL:!EDH:!AESGCM",
+		*default_ciphers = "aRSA+HIGH !3DES +kEDH +kRSA !kSRP !kPSK",
 		*default_ecdh_curve = "prime256v1";
 
 	/* setup defaults */
