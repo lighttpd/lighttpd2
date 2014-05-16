@@ -1,5 +1,5 @@
 
-headerfiles=$(filter-out config.h,$(wildcard $(srcdir)/*.h))
+headerfiles=$(filter-out $(srcdir)/config.h,$(wildcard $(srcdir)/*.h))
 
 EXTRA_DIST=$(headerfiles)
 
