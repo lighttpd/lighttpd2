@@ -1,5 +1,7 @@
 #include <lighttpd/base.h>
 
+#include "../common/value_impl.c"
+
 liValue* li_value_new_action(liServer *srv, liAction *a) {
 	liValue *v = g_slice_new0(liValue);
 	v->data.val_action.srv = srv;
@@ -33,11 +35,6 @@ liValue* li_value_copy(liValue* val) {
 		return li_common_value_copy_(val);
 	}
 	return NULL;
-}
-
-static void _li_value_clear(liValue *val) {
-	memset(val, 0, sizeof(*val));
-	val->type = LI_VALUE_NONE;
 }
 
 void li_value_clear(liValue *val) {

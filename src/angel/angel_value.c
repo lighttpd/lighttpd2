@@ -1,5 +1,7 @@
 #include <lighttpd/angel_base.h>
 
+#include "../common/value_impl.c"
+
 liValue* li_value_copy(liValue* val) {
 	return li_common_value_copy_(val);
 }

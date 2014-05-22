@@ -338,7 +338,7 @@ SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd2-worker lighttpd2 lighttpd-$
 
 IF(BUILD_EXTRA_WARNINGS)
 	SET(WARN_CFLAGS " -g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wcast-align -Wsign-compare -Wnested-externs -Wpointer-arith -Wmissing-prototypes -Wshadow")
-	SET(WARN_LDFLAGS " -g -O2 -g2 -Wall -Wl,--as-needed")
+	SET(WARN_LDFLAGS " -g -O2 -g2 -Wall -Wl,--as-needed -Wl,--no-undefined")
 	# -Werror
 ELSE(BUILD_EXTRA_WARNINGS)
 	SET(WARN_CFLAGS "")
@@ -397,7 +397,7 @@ ENDIF(WITH_OPENSSL)
 TARGET_LINK_LIBRARIES(lighttpd-${PACKAGE_VERSION}-common ${COMMON_LDFLAGS} ${UNWIND_LDFLAGS})
 ADD_TARGET_PROPERTIES(lighttpd-${PACKAGE_VERSION}-common COMPILE_FLAGS ${COMMON_CFLAGS} ${UNWIND_CFLAGS})
 
-TARGET_LINK_LIBRARIES(lighttpd-${PACKAGE_VERSION}-shared ${COMMON_LDFLAGS})
+TARGET_LINK_LIBRARIES(lighttpd-${PACKAGE_VERSION}-shared ${COMMON_LDFLAGS} m)
 ADD_TARGET_PROPERTIES(lighttpd-${PACKAGE_VERSION}-shared COMPILE_FLAGS ${COMMON_CFLAGS})
 
 TARGET_LINK_LIBRARIES(lighttpd-${PACKAGE_VERSION}-sharedangel ${COMMON_LDFLAGS})
