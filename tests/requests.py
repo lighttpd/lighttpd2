@@ -82,7 +82,9 @@ class CurlRequest(TestBase):
 			c.setopt(pycurl.SSL_VERIFYHOST, 0)
 		c.setopt(pycurl.HTTPHEADER, reqheaders)
 		c.setopt(pycurl.NOSIGNAL, 1)
-		c.setopt(pycurl.TIMEOUT, 2)
+		# ssl connections sometimes have timeout issues. could be entropy related..
+		# use 10 second timeout instead of 2 for ssl - only 3 requests, shouldn't hurt
+		c.setopt(pycurl.TIMEOUT, ("http" == self.SCHEME and 2) or 10)
 		b = StringIO.StringIO()
 		c.setopt(pycurl.WRITEFUNCTION, b.write)
 		c.setopt(pycurl.HEADERFUNCTION, self._recv_header)
