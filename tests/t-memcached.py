@@ -6,6 +6,7 @@ from service import Service
 import socket
 import os
 import base
+import time
 
 
 class Memcached(Service):
@@ -44,6 +45,12 @@ class TestLookup1(CurlRequest):
 	EXPECT_RESPONSE_BODY = "Hello World!"
 	EXPECT_RESPONSE_CODE = 200
 	EXPECT_RESPONSE_HEADERS = [("X-Memcached-Hit", "true")]
+
+	def Run(self):
+		# storing might take some time: only after the request is actually
+		# finished does lighttpd start the memcache connection to store it
+		time.sleep(0.2)
+		return super(TestLookup1, self).Run()
 
 class Test(GroupTest):
 	group = [
