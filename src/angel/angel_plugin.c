@@ -135,17 +135,19 @@ gboolean li_plugins_config_load(liServer *srv, const gchar *filename) {
 	GError *error = NULL;
 	guint i;
 
-	if (!li_plugins_load_module(srv, NULL)) {
-		ERROR(srv, "%s", "failed loading core plugins");
-		li_plugins_config_clean(srv);
-		return FALSE;
-	}
+	if (filename) {
+		if (!li_plugins_load_module(srv, NULL)) {
+			ERROR(srv, "%s", "failed loading core plugins");
+			li_plugins_config_clean(srv);
+			return FALSE;
+		}
 
-	if (filename && !li_angel_config_parse_file(srv, filename, &error)) {
-		ERROR(srv, "failed to parse config file: %s", error->message);
-		g_error_free(error);
-		li_plugins_config_clean(srv);
-		return FALSE;
+		if (!li_angel_config_parse_file(srv, filename, &error)) {
+			ERROR(srv, "failed to parse config file: %s", error->message);
+			g_error_free(error);
+			li_plugins_config_clean(srv);
+			return FALSE;
+		}
 	}
 
 	/* check new config */
