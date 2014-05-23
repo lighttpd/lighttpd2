@@ -472,10 +472,12 @@ class AngelModuleDocumentation < GenericModuleDocumentation
 		self.ordername = xml['order']
 
 		nest(title, '', 'angel-module') {
-			@html.p {
-				@html.text (basename + ' ')
-				@short = _parse_short(xml, false)
-			}
+			if 'core_config_angel' != basename then
+				@html.p {
+					@html.text (basename + ' ')
+					@short = _parse_short(xml, false)
+				}
+			end
 			_parse_description(xml)
 
 			xml.element_children.each do |child|

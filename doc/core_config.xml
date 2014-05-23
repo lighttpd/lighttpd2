@@ -158,7 +158,10 @@
 				By default variables assignment overwrites an existing variable (in its previous scope) or, if it doesn't exist, creates a new one in the local scope (i.e. it will only be available in the current scope and nested descendants).
 
 				You can explicitly create a new variable in the local scope (hiding variables in parent scopes with the same name) by prefixing the assignment with @local@:
-				@local wwwpath = "/var/www/example.com";
+
+				<pre>
+				local wwwpath = "/var/www/example.com";
+				</pre>
 
 				You can also create variables in the global scope by prefixing the assignment with @global@.
 				The main config already is in a nested scope (i.e. *not* the global scope). The global scope is not destroyed after config loading, and can be used in delayed config loading (say from SQL in the future).
