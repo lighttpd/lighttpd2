@@ -20,7 +20,6 @@
 #include "ssl-session-db.h"
 
 #include <gnutls/gnutls.h>
-#include <glib-2.0/glib/galloca.h>
 
 #if GNUTLS_VERSION_NUMBER >= 0x020a00
 #define HAVE_SESSION_TICKET
