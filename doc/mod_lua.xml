@@ -2,6 +2,12 @@
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
 	<short>load lua plugins and actions</short>
 
+	<description>
+		<textile><![CDATA[
+			Also see "Lua API":core_lua.html#core_lua.
+		]]></textile>
+	</description>
+
 	<setup name="lua.plugin">
 		<short>load file as lua plugin</short>
 		<parameter name="filename">
@@ -30,11 +36,12 @@
 		</example>
 	</setup>
 
-	<section title="Example plugin" anchor="#">
-		<textile>
-			(see "contrib/core.lua":http://git.lighttpd.net/lighttpd/lighttpd2/tree/contrib/core.lua for a real example)
+	<example title="Example plugin" anchor="#">
+		<description><textile>
+			(see "contrib/core.lua":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua for a real example)
+		</textile></description>
 
-			<pre>
+		<config>
 			local filename, args = ...
 
 			-- args are from the lua.plugin line
@@ -49,8 +56,7 @@
 			actions = {
 				["simple"] = simple,
 			}
-			</pre>
-		</textile>
+		</config>
 	</section>
 
 	<action name="lua.handler">
@@ -70,14 +76,14 @@
 		</parameter>
 		<description>
 			<textile>
-				lua.handler is basically the same as "include_lua":plugin_core.html#plugin_core__action_include_lua with the following differences:
+				lua.handler is basically the same as "include_lua":core_config.html#core_config__includes with the following differences:
 				* each worker loads the lua file itself
 				* it isn't loaded before it is used, so you won't see errors in the script at load time
 				* it cannot call setup functions
 				* it supports arguments to the script (@local filename, args = ...@)
 				* doesn't lock the global lua lock, so it performs better when you use multiple workers
 
-				See "contrib/core.lua":http://git.lighttpd.net/lighttpd/lighttpd2/tree/contrib/core.lua for how we load some external actions like "contrib/core__xsendfile.lua":http://git.lighttpd.net/lighttpd/lighttpd2/tree/contrib/core__xsendfile.lua
+				See "contrib/core.lua":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua for how we load some external actions like "contrib/core__xsendfile.lua":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core__xsendfile.lua
 			</textile>
 		</description>
 		<example>

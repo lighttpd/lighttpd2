@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<chapter xmlns="urn:lighttpd.net:lighttpd2/doc1" title="Fetch API">
+<chapter xmlns="urn:lighttpd.net:lighttpd2/doc1" title="Fetch API" order="core_regex_after_01_fetch">
 	<description>
 		<textile>
 			The Fetch API provides a common interface between lighttpd modules to lookup entries in a database. Both lookup key and data are simple (binary) strings.

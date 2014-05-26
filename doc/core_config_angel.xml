@@ -3,7 +3,7 @@
 	<description>
 		<textile>
 			lighttpd2 consists of two main binaries: the angel (@lighttpd2@) and the worker (@lighttpd2-worker@). The "main configuration":core_config.html#core_config is used by the worker, and this chapter describes the configuration for the angel.
-			A standard distribution should install a angel config with reasonable defaults which should work for most basic setups.
+			A standard distribution should install a angel config in @/etc/lighttpd2/angel.conf@ with reasonable defaults which should work for most basic setups.
 		</textile>
 	</description>
 

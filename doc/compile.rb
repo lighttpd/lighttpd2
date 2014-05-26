@@ -50,6 +50,8 @@ class Documentation
 		@actions = []
 		@setups = []
 		@options = []
+
+		@sub_pages = []
 	end
 
 	def render_main
@@ -66,7 +68,7 @@ class Documentation
 
 	def title=(value)
 		@title = value
-		@html_doc.xpath('/html/head/title')[0].inner_html = value
+		@html_doc.xpath('/html/head/title')[0].inner_html = value ? 'lighttpd2 - ' + value : 'lighttpd2'
 	end
 
 	def to_html_fragment
@@ -91,6 +93,10 @@ class Documentation
 
 	def options
 		@options
+	end
+
+	def sub_pages
+		@sub_pages
 	end
 
 	def _store_toc(html, toc, rootToc = false)
@@ -601,6 +607,8 @@ class ModuleIndex < Documentation
 	def initialize(modules)
 		super('index_modules')
 
+		@sub_pages = modules
+
 		actions = []
 		setups = []
 		options = []
@@ -611,7 +619,7 @@ class ModuleIndex < Documentation
 		end
 
 		render_main do
-			nest('Modules overview', '', 'index_modules') {
+			nest('Module index', '', 'index_modules') {
 				modules_table(modules)
 				aso_html_table('action', actions.sort)
 				aso_html_table('setup', setups.sort)
@@ -619,7 +627,41 @@ class ModuleIndex < Documentation
 			}
 		end
 
-		self.title = "lighttpd2 - all in one"
+		self.title = "Module index"
+		store_toc
+	end
+end
+
+class IndexPage < Documentation
+	def list(pages)
+		return if pages.empty?
+		@html.ul do
+			pages.each do |page|
+				@html.li do
+					@html.a({:href => page.filename}, page.title)
+					list(page.sub_pages)
+				end
+			end
+		end
+	end
+
+
+	def initialize(pages)
+		super('index')
+
+		self.title = "Index"
+
+		render_main do
+			nest(self.title, '', 'index') do
+				@html.p do
+					@html << "The documentation is also available as a "
+					@html.a({:href => "all.html"}, "single HTML page")
+					@html << "."
+				end
+				list(pages)
+			end
+		end
+
 		store_toc
 	end
 end
@@ -632,26 +674,29 @@ class AllPage < Documentation
 		a['href'] = m[2] if m && @href_map[m[1]]
 	end
 
+	def append(pages)
+		pages.each do |page|
+			@href_map[page.filename] = true
+			@html << page.to_html_fragment
+			@toc += page.toc
+			append(page.sub_pages)
+		end
+	end
+
 	def initialize(pages)
 		super('all')
 
 		@href_map = {}
-		pages.each do |page|
-			@href_map[page.filename] = true
-		end
 
 		render_main do
-			pages.each do |page|
-				@html << page.to_html_fragment
-				@toc += page.toc
-			end
+			append(pages)
 		end
 
 		@html_doc.xpath('//a').each do |a|
 			fix_link(a)
 		end
 
-		self.title = "lighttpd2 - all in one"
+		self.title = "all in one"
 		store_toc
 	end
 end
@@ -688,11 +733,28 @@ if __FILE__ == $0
 	end
 
 	pages.sort!
-	pages << ModuleIndex.new(pages)
 
+	normal_pages = []
+	module_pages = []
+
+	pages.each do |page|
+		if page.is_a? ModuleDocumentation
+			module_pages << page
+		else
+			normal_pages << page
+		end
+	end
+
+	module_index_page = ModuleIndex.new(module_pages)
+
+	pages << module_index_page
+	normal_pages << module_index_page
 
 	pages.sort!
-	pages << AllPage.new(pages)
+	all_page = AllPage.new(normal_pages)
+	index_page = IndexPage.new(normal_pages)
+
+	pages << all_page << index_page
 
 	pages.sort!
 	pages.each { |page| page.write_disk(output_directory) }

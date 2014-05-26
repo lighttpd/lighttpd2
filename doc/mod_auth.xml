@@ -124,7 +124,7 @@
 	<example>
 		<description>
 			<textile>
-				You can use @auth.require_user@ from the mod_lua plugin "contrib/core.lua":http://git.lighttpd.net/lighttpd/lighttpd2/tree/contrib/core.lua for the REMOTE_USER check too:
+				You can use @auth.require_user@ from the mod_lua plugin "contrib/core.lua":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua for the REMOTE_USER check too:
 			</textile>
 		</description>
 

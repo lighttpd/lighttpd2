@@ -225,14 +225,14 @@
 			The actions, setups and options are provided by the "modules":index_modules.html#index_modules.
 		]]></textile>
 
-		<section title="Includes">
+		<section title="Includes" anchor="includes">
 			<textile><![CDATA[
 				Includes are similar to function calls in the syntax, but are directly handled by the config parser. They are only allowed in action context, as they insert a reference to an action block at the point they are used.
 
 				There are three types of includes:
 				* @include "/etc/lighttpd/vhosts/*.conf";@: include files like the main config itself; the path can contain wildcards
 				* @include_shell "/etc/lighttpd/config_generator.sh";@: runs the specified command, and parses the output of it as config file
-				* @include_lua "/etc/lighttpd/complex.lua"@: includes a Lua config file
+				* @include_lua "/etc/lighttpd/complex.lua"@: includes a Lua config file. The single action to be executed must be returned in the global @actions@ variable (or leave it empty to do nothing). See also "@lua.handler@":mod_lua.html#mod_lua__action_lua-handler
 
 				Includes also create a new nested scope.
 			]]></textile>
@@ -294,30 +294,30 @@
 
 				table(table table-striped).
 				|_. variable |_. description |
-				| req.localip | ip address of the listing socket, the client connected to (filename for unix sockets) |
-				| req.localport | port number of the listening socket, -1 for unix sockets |
-				| req.remoteip | ip address of the client |
-				| req.remoteport | port number of the client, -1 for unix sockets |
-				| req.path | the _path_ part of the requested url. not including the querystring. |
-				| req.host | requested hostname |
-				| req.scheme | scheme of the request. "http" or "https" |
-				| req.query | the _querystring_ of the requested url |
-				| req.method | method of the request. "GET", "POST", "HEAD" etc. |
-				| req.length | integer. length of the content for e.g. POST methods |
-				| req.header["name"] | request header _name_ e.g. req.header["referer"] |
-				| req.is_handled | boolean condition, does request already have a handler (static, fastcgi..) |
-				| req.env["name"] | (short for req.environment["name"]) CGI environment |
+				| request.localip | ip address of the listing socket, the client connected to (filename for unix sockets) |
+				| request.localport | port number of the listening socket, -1 for unix sockets |
+				| request.remoteip | ip address of the client |
+				| request.remoteport | port number of the client, -1 for unix sockets |
+				| request.path | the _path_ part of the requested url. not including the querystring. |
+				| request.host | requested hostname |
+				| request.scheme | scheme of the request. "http" or "https" |
+				| request.query | the _querystring_ of the requested url |
+				| request.method | method of the request. "GET", "POST", "HEAD" etc. |
+				| request.length | integer. length of the content for e.g. POST methods |
+				| request.header["name"] | request header _name_ e.g. request.header["referer"] |
+				| request.is_handled | boolean condition, does request already have a handler (static, fastcgi..) |
+				| request.environment["name"] | (or short request.env["name"]) CGI environment |
 				| | |
-				| phys.path | physical path of the file to be served. e.g. document root + path |
-				| phys.exists | boolean condition, indicates whether the requested file exist |
-				| phys.size | integer. size of the requested file. -1 if file doesn't exist |
-				| phys.is_dir | boolean condition, indicates whether the requested file is a directory |
-				| phys.is_file | boolean condition, indicates whether the requested file is a normal file (e.g. no unix socket etc) |
-				| phys.docroot | document root |
-				| phys.pathinfo | pathinfo |
+				| physical.path | physical path of the file to be served. e.g. document root + path |
+				| physical.exists | boolean condition, indicates whether the requested file exist |
+				| physical.size | integer. size of the requested file. -1 if file doesn't exist |
+				| physical.is_dir | boolean condition, indicates whether the requested file is a directory |
+				| physical.is_file | boolean condition, indicates whether the requested file is a normal file (e.g. no unix socket etc) |
+				| physical.docroot | document root |
+				| physical.pathinfo | pathinfo |
 				| | |
-				| resp.status | response status code (blocks request until response header is available) |
-				| resp.header["name"] | response header (blocks request until response header is available) |
+				| response.status | response status code (blocks request until response header is available) |
+				| response.header["name"] | response header (blocks request until response header is available) |
 			]]></textile>
 		</section>
 
