@@ -57,7 +57,7 @@
 				["simple"] = simple,
 			}
 		</config>
-	</section>
+	</example>
 
 	<action name="lua.handler">
 		<short>load file as lua config</short>
