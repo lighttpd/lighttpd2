@@ -34,4 +34,9 @@
 			</config>
 		</example>
 	</action>
+
+	<option name="fastcgi.log_plain_errors">
+		<short>whether to prepend timestamp and other info to FastCGI stderr lines in the "backend" log</short>
+		<default><value>false</value></default>
+	</option>
 </module>

@@ -3,13 +3,13 @@
 	<short>protects files with a time limited code</short>
 
 	<section title="Install">
-		<textile>
+		<textile><![CDATA[
 			By default distributions (and @make install@) should provide the necessary files; but you can always find them in the "contrib":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib folder:
 			* @secdownload.lua@
 			* @secdownload__secdownload.lua@
 
 			That way you can modify them for your own needs if you have to (although it is recommended to change the names of the files and the actions, so you don't get conflicts).
-		</textile>
+		]]></textile>
 	</section>
 
 	<action name="secdownload">
@@ -31,19 +31,19 @@
 			</table>
 		</parameter>
 		<description>
-			<textile>
-				The @prefix@ is not used to build the filename; include it manually in the @document-root@ (works like @"alias":plugin_core.html#plugin_core__action_alias "/prefix" => "/docroot").
+			<textile><![CDATA[
+				The @prefix@ is not used to build the filename; include it manually in the @document-root@ (works like @alias "/prefix" => "/docroot"@, see "@alias@":plugin_core.html#plugin_core__action_alias).
 				secdownload doesn't actually handle the (valid) request, it just provides the mapping to a filename (and rejects invalid requests).
-			</textile>
+			]]></textile>
 		</description>
 		<example>
-			<config>
+			<config><![CDATA[
 				setup {
 					module_load "mod_lua";
 					lua.plugin "secdownload.lua";
 				}
 				secdownload [ "prefix" => "/sec/", "document-root" => "/secret/path", "secret" => "abc", "timeout" => 600 ];
-			</config>
+			]]></config>
 		</example>
 	</action>
 

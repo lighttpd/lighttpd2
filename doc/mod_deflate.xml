@@ -39,7 +39,7 @@
 
 	<section title="Notes">
 		<textile>
-			*Important*: As deflate; waits for the response headers, you must handle the request before it (see below how to check whether the request is handled).
+			*Important*: As @deflate;@ waits for the response headers, you must handle the request before it (see below how to check whether the request is handled).
 			If the request is not handled, you will get a "500 - Internal error" and a message in the error.log.
 
 			Does not compress:

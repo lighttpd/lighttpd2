@@ -3,10 +3,10 @@
 	<short>allows you to have user-specific document roots being accessed through http://domain/~user/</short>
 
 	<description>
-		<textile>
+		<textile><![CDATA[
 			The document root can be built by using the home directory of a user which is specified by /~username/ at the beginning of the request path.
 			Alternatively, mod_userdir can build the docroot from a pattern similar to @vhost.pattern@ but using the username instead of the hostname.
-		</textile>
+		]]></textile>
 	</description>
 
 	<action name="userdir">
@@ -20,8 +20,8 @@
 				Otherwise the @path@ specifies the absolute docroot to be used.
 
 				Placeholders are:
-				* @*@ replaced by the complete username
-				* $1-9 replaced by the n-th letter of the username, e.g. $2 is the second letter
+				* @*@ is replaced by the complete username
+				* @$1@-@$9@ are replaced by the n-th letter of the username, e.g. @$2@ is the second letter
 
 				Examples:
 
@@ -38,13 +38,13 @@
 			]]></textile>
 		</description>
 		<example>
-			<config>
+			<config><![CDATA[
 				setup {
 					module_load "mod_userdir";
 				}
 
 				userdir "public_html";
-			</config>
+			]]></config>
 		</example>
 	</action>
 </module>

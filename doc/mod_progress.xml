@@ -3,7 +3,7 @@
 	<short>track connection progress (state) via a unique identifier</short>
 
 	<description>
-		<textile>
+		<textile><![CDATA[
 			mod_progress lets you track connection progress (or rather state) using a lookup table in which connections are registered via a random unique identifier specified with the request.
 			It is most commonly used to implement progress bars for file uploads.
 
@@ -13,7 +13,7 @@
 
 			A live demonstration of a progress bar implementation can be seen at http://demo.lighttpd.net/progress/
 			Check the sourcecode there for further insight.
-		</textile>
+		]]></textile>
 	</description>
 
 
@@ -29,12 +29,12 @@
 		<parameter name="methods" />
 		<default><value>("POST")</value></default>
 		<example>
-			<config>
+			<config><![CDATA[
 				setup {
 					module_load "mod_progress";
 					progress.methods ("PUT", "POST");
 				}
-			</config>
+			]]></config>
 		</example>
 	</option>
 
@@ -48,7 +48,7 @@
 			<short>(optional) output format, one of "legacy", "json" or "jsonp". Defaults to "json".</short>
 		</parameter>
 		<description>
-			<textile>
+			<textile><![CDATA[
 				Output formats:
 				* legacy: @new Object({"state": "running"", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0})@
 				* json: @{"state": "running", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0}@
@@ -65,18 +65,18 @@
 
 				@received@, @request_size@, @sent@ and @response_size@ are only available if @state@ is @"running"@ or @"done"@.
 				@status@ is only available if @state@ is @"error"@.
-			</textile>
+			]]></textile>
 		</description>
 
 		<example>
-			<config>
+			<config><![CDATA[
 				setup {
 					module_load "mod_progress";
 				}
 
 				if req.path == "/upload.php" { progress.track; }
 				if req.path == "/progress" { progress.show; }
-			</config>
+			]]></config>
 		</example>
 	</action>
 

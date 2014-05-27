@@ -8,12 +8,13 @@
 
 			*Hint:*
 			Use a cron-job like the following to remove old cached data, e.g. in crontab daily:
+
 			<pre>
-			 find /var/cache/lighttpd/cache_etag/ -type f -mtime +2 -exec rm -r {} \;
+			find /var/cache/lighttpd/cache_etag/ -type f -mtime +2 -exec rm -r {} \;
 			</pre>
 
 			*Hint:*
-			Have a look at mod_deflate to see this module in action.
+			Have a look at "mod_deflate":mod_deflate.html#mod_deflate to see this module in action.
 		</textile>
 	</description>
 

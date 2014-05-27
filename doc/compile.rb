@@ -6,6 +6,11 @@ require 'nokogiri'
 require 'bluecloth'
 require 'redcloth'
 
+# find all options, actions, setups in the c modules - can be used to check list for completeness (although it doesn't scan the lua modules):
+# awk '/static const liPluginOption/, /;/ {print; }' src/*/*.c | grep '"' | cut -d'"' -f2 | perl -e 'print sort <>;'
+# awk '/static const liPluginAction/, /;/ {print; }' src/*/*.c | grep '"' | cut -d'"' -f2 | perl -e 'print sort <>;'
+# awk '/static const liPluginSetup/, /;/ {print; }' src/*/*.c | grep '"' | cut -d'"' -f2 | perl -e 'print sort <>;'
+
 HTML_TEMPLATE='''
 <!DOCTYPE html>
 <html>

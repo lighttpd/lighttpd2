@@ -1,10 +1,6 @@
 /*
  * mod_rewrite - modify request path and querystring with support for regular expressions
  *
- * Todo:
- *     - implement rewrite_optimized which reorders rules according to hitcount
- *     - implement rewrite_raw which uses the raw uri
- *
  * Authors:
  *     Copyright (c) 2009 Thomas Porzelt
  *     Copyright (c) 2010 Stefan Bühler
