@@ -94,16 +94,9 @@ error:
 	return FALSE;
 }
 
-static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *dest_query, rewrite_rule *rule, gboolean raw) {
-	gchar *path;
+static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *dest_query, rewrite_rule *rule, gchar *path) {
 	GMatchInfo *match_info = NULL;
 	GMatchInfo *prev_match_info = NULL;
-
-	if (raw) {
-		path = vr->request.uri.raw_path->str;
-	} else {
-		path = vr->request.uri.path->str;
-	}
 
 	if (NULL != rule->regex && !g_regex_match(rule->regex, path, 0, &match_info)) {
 		if (NULL != match_info) {
@@ -137,6 +130,7 @@ static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context
 	rewrite_data *rd = param;
 	gboolean debug = _OPTION(vr, rd->p, 0).boolean;
 	GString *dest_query = g_string_sized_new(31);
+	gchar *path = rd->raw ? vr->request.uri.raw_path->str : vr->request.uri.path->str;
 	UNUSED(context);
 
 	for (i = 0; i < rd->rules->len; i++) {
@@ -144,18 +138,36 @@ static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context
 
 		rule = &g_array_index(rd->rules, rewrite_rule, i);
 
-		if (rewrite_internal(vr, dest_path, dest_query, rule, rd->raw)) {
+		if (rewrite_internal(vr, dest_path, dest_query, rule, path)) {
 			/* regex matched */
 			if (debug) {
-				VR_DEBUG(vr, "rewrite: path \"%s\" => \"%s\", query \"%s\" => \"%s\"",
-					vr->request.uri.path->str, dest_path->str,
-					vr->request.uri.query->str, dest_query->str
-				);
+				if (NULL != rule->querystring) {
+					VR_DEBUG(vr, "rewrite%s: path \"%s\" => \"%s\", query \"%s\" => \"%s\"",
+						rd->raw ? " (raw)" : "",
+						path, dest_path->str,
+						vr->request.uri.query->str, dest_query->str
+					);
+				} else {
+					VR_DEBUG(vr, "rewrite%s: path \"%s\" => \"%s\"",
+						rd->raw ? " (raw)" : "",
+						path, dest_path->str
+					);
+				}
 			}
 
 			/* change request path */
-			g_string_truncate(vr->request.uri.path, 0);
-			g_string_append_len(vr->request.uri.path, GSTR_LEN(dest_path));
+			if (rd->raw) {
+				g_string_truncate(vr->request.uri.raw_path, 0);
+				g_string_append_len(vr->request.uri.raw_path, GSTR_LEN(dest_path));
+				g_string_truncate(vr->request.uri.path, 0);
+				g_string_append_len(vr->request.uri.path, GSTR_LEN(dest_path));
+				li_url_decode(vr->request.uri.path);
+			} else {
+				g_string_truncate(vr->request.uri.path, 0);
+				g_string_append_len(vr->request.uri.path, GSTR_LEN(dest_path));
+				li_string_encode(vr->request.uri.path->str, vr->request.uri.raw_path, LI_ENCODING_URI);
+			}
+			li_path_simplify(vr->request.uri.path);
 
 			/* change request query */
 			if (NULL != rule->querystring) {

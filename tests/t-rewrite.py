@@ -22,6 +22,37 @@ class TestRewrite2(CurlRequest):
 rewrite "/somethingelse" => "/nothing", "^/somefile$" => "/test.txt";
 defaultaction;
 """
+
+# match decoded and simplified paths by default
+class TestRewrite3(CurlRequest):
+	URL = "/http://some%2Ffile"
+	EXPECT_RESPONSE_BODY = "/dest/file"
+	EXPECT_RESPONSE_CODE = 200
+	config = """
+rewrite "/http:/some(/.*)" => "/dest$1";
+respond 200 => "%{req.path}";
+"""
+
+# match raw paths and simplify path
+class TestRewrite4(CurlRequest):
+	URL = "/http://some%2Ffile"
+	EXPECT_RESPONSE_BODY = "/dest/http:/some/file"
+	EXPECT_RESPONSE_CODE = 200
+	config = """
+rewrite_raw "(/http://some%2F.*)" => "/dest$1";
+respond 200 => "%{req.path}";
+"""
+
+# match and write raw paths
+class TestRewrite5(CurlRequest):
+	URL = "/http://some%2Ffile"
+	EXPECT_RESPONSE_BODY = "/dest/http://some%2Ffile"
+	EXPECT_RESPONSE_CODE = 200
+	config = """
+rewrite_raw "(/http://some%2F.*)" => "/dest$1";
+respond 200 => "%{req.raw_path}";
+"""
+
 class Test(GroupTest):
 	plain_config = """
 setup { module_load "mod_rewrite"; }
@@ -29,5 +60,8 @@ setup { module_load "mod_rewrite"; }
 
 	group = [
 		TestRewrite1,
-		TestRewrite2
+		TestRewrite2,
+		TestRewrite3,
+		TestRewrite4,
+		TestRewrite5,
 	]

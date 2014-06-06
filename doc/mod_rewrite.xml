@@ -76,13 +76,15 @@
 	</action>
 
 	<action name="rewrite_raw">
-		<short>modify request path and querystring, matching raw path</short>
+		<short>modify request path and querystring, matching and writing raw path</short>
 		<parameter name="rule">
 			<short>a simple target string or one rule, mapping a regular expression to a target string, or a list of rules.</short>
 		</parameter>
 		<description>
 			<textile>
-				Similar to "@rewrite@":mod_rewrite.html#mod_rewrite__action_rewrite, but matches the raw path (i.e. the path before URL decoding and sanitizing).
+				Similar to "@rewrite@":mod_rewrite.html#mod_rewrite__action_rewrite, but matches the raw path (i.e. the path before URL decoding and sanitizing) and the result is decoded again.
+
+				"@rewrite@":mod_rewrite.html#mod_rewrite__action_rewrite write the result to @request.path@ and uses URL encoding to generate @request.raw_path@; "@rewrite_raw@":mod_rewrite.html#mod_rewrite__action_rewrite_raw writes @request.raw_path@ and decodes it into @request.path@. In both cases @request.path@ gets simplified afterwards.
 			</textile>
 		</description>
 	</action>
