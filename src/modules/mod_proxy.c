@@ -42,16 +42,13 @@ static void proxy_send_headers(liVRequest *vr, liChunkQueue *out) {
 	GString *head = g_string_sized_new(4095);
 	liHttpHeader *header;
 	GList *iter;
-	gchar *enc_path;
 	liHttpHeaderTokenizer header_tokenizer;
 	GString *tmp_str = vr->wrk->tmp_str;
 
 	g_string_append_len(head, GSTR_LEN(vr->request.http_method_str));
 	g_string_append_len(head, CONST_STR_LEN(" "));
 
-	enc_path = g_uri_escape_string(vr->request.uri.path->str, "/", FALSE);
-	g_string_append(head, enc_path);
-	g_free(enc_path);
+	g_string_append_len(head, GSTR_LEN(vr->request.uri.raw_path));
 
 	if (vr->request.uri.query->len > 0) {
 		g_string_append_len(head, CONST_STR_LEN("?"));

@@ -7,6 +7,11 @@
 		<parameter name="socket">
 			<short>socket to connect to, either "ip:port" or "unix:/path"</short>
 		</parameter>
+		<description>
+			<textile><![CDATA[
+				proxy combines @request.raw_path@ and @request.query@ for the URL to send to the backend.
+			]]></textile>
+		</description>
 		<example>
 			<config>
 				setup {
