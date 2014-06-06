@@ -107,6 +107,11 @@ class Documentation
 	def _store_toc(html, toc, rootToc = false)
 		return unless toc.length > 0
 		html.ul(:class => rootToc ? "nav bs-sidenav" : "nav" ) {
+			if rootToc and @basename != 'index' and @basename != 'all'
+				html.li(:class => 'index') {
+					html.a({:href => 'index.html'}, 'Index')
+				}
+			end
 			toc.each do |anchor, title, subtoc, cls|
 				html.li(:class => cls || '') {
 					html.a({:href => '#' + anchor}, title)
