@@ -14,7 +14,7 @@
 			* simple text. can contain special characters $ and % only when they are escaped with \ - remember, that the \ has to be escaped too for the config, so you'll probably have to use \\ to escape. You are allowed to escape ? too (used for special "split" in rewrite).
 			* "%" capture references (previous matching regular expression conditional); either followed by a single digit, or a range (see below for range syntax)
 			* "$" capture references (depends on action); either followed by a single digit, or a range (see below for range syntax)
-			* "%" references to "condition variables":core_config.html#core_connfig__condition_vars, for example: @%{req.path}@; the conditional can be prefixed with "enc:" (@%{enc:req.path}@), in which case the value will be urlencoded.
+			* "%" references to "condition variables":core_config.html#core_config__condition_vars, for example: @%{req.path}@; the conditional can be prefixed with "enc:" (@%{enc:req.path}@), in which case the value will be urlencoded.
 		</textile>
 	</section>
 

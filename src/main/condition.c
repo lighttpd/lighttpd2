@@ -7,6 +7,7 @@ static const liConditionValueType cond_value_hints[] = {
 	/* LI_COMP_REQUEST_REMOTEIP: */ LI_COND_VALUE_HINT_SOCKADDR,
 	/* LI_COMP_REQUEST_REMOTEPORT: */ LI_COND_VALUE_HINT_NUMBER,
 	/* LI_COMP_REQUEST_PATH: */ LI_COND_VALUE_HINT_STRING,
+	/* LI_COMP_REQUEST_RAW_PATH: */ LI_COND_VALUE_HINT_STRING,
 	/* LI_COMP_REQUEST_HOST: */ LI_COND_VALUE_HINT_ANY,
 	/* LI_COMP_REQUEST_SCHEME: */ LI_COND_VALUE_HINT_STRING,
 	/* LI_COMP_REQUEST_QUERY_STRING: */ LI_COND_VALUE_HINT_ANY,
@@ -94,6 +95,10 @@ liHandlerResult li_condition_get_value(GString *tmpstr, liVRequest *vr, liCondit
 	case LI_COMP_REQUEST_PATH:
 		res->match_type = LI_COND_VALUE_HINT_STRING;
 		res->data.str = vr->request.uri.path->str;
+		break;
+	case LI_COMP_REQUEST_RAW_PATH:
+		res->match_type = LI_COND_VALUE_HINT_STRING;
+		res->data.str = vr->request.uri.raw_path->str;
 		break;
 	case LI_COMP_REQUEST_HOST:
 		res->match_type = LI_COND_VALUE_HINT_STRING;
@@ -465,6 +470,7 @@ const char* li_cond_lvalue_to_string(liCondLValue t) {
 	case LI_COMP_REQUEST_REMOTEIP: return "request.remoteip";
 	case LI_COMP_REQUEST_REMOTEPORT: return "request.remoteport";
 	case LI_COMP_REQUEST_PATH: return "request.path";
+	case LI_COMP_REQUEST_RAW_PATH: return "request.raw_path";
 	case LI_COMP_REQUEST_HOST: return "request.host";
 	case LI_COMP_REQUEST_SCHEME: return "request.scheme";
 	case LI_COMP_REQUEST_QUERY_STRING: return "request.query";
@@ -512,6 +518,8 @@ liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
 			return LI_COMP_REQUEST_REMOTEPORT;
 		else if (strncmp(c, "path", len) == 0)
 			return LI_COMP_REQUEST_PATH;
+		else if (strncmp(c, "raw_path", len) == 0)
+			return LI_COMP_REQUEST_RAW_PATH;
 		else if (strncmp(c, "host", len) == 0)
 			return LI_COMP_REQUEST_HOST;
 		else if (strncmp(c, "scheme", len) == 0)
