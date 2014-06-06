@@ -53,6 +53,16 @@ rewrite_raw "(/http://some%2F.*)" => "/dest$1";
 respond 200 => "%{req.raw_path}";
 """
 
+# raw match and write query string
+class TestRewrite6(CurlRequest):
+	URL = "/http://some%2Ffile"
+	EXPECT_RESPONSE_BODY = "/http://some%2Ffile"
+	EXPECT_RESPONSE_CODE = 200
+	config = """
+rewrite_raw "(/http://some%2F.*)" => "/dest?$1";
+respond 200 => "%{req.query}";
+"""
+
 class Test(GroupTest):
 	plain_config = """
 setup { module_load "mod_rewrite"; }
@@ -64,4 +74,5 @@ setup { module_load "mod_rewrite"; }
 		TestRewrite3,
 		TestRewrite4,
 		TestRewrite5,
+		TestRewrite6,
 	]

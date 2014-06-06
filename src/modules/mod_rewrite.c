@@ -11,6 +11,7 @@
 #include <lighttpd/base.h>
 #include <lighttpd/encoding.h>
 #include <lighttpd/pattern.h>
+#include <lighttpd/url_parser.h>
 
 LI_API gboolean mod_rewrite_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_rewrite_free(liModules *mods, liModule *mod);
@@ -25,23 +26,24 @@ typedef struct rewrite_data rewrite_data;
 struct rewrite_data {
 	GArray *rules;
 	liPlugin *p;
-	gboolean raw;
 };
 
-static gboolean rewrite_rule_parse(liServer *srv, GString *regex, GString *str, rewrite_rule *rule) {
-	gchar *qs;
+static gboolean rewrite_rule_parse(liServer *srv, GString *regex, GString *str, rewrite_rule *rule, gboolean raw) {
+	gchar *qs = NULL;
 
 	rule->path = rule->querystring = NULL;
 	rule->regex = NULL;
 
-	/* find "not-escaped" ? */
-	for (qs = str->str; *qs; qs++) {
-		if ('\\' == *qs) {
-			qs++;
-			if (!*qs) break;
-		} else if ('?' == *qs) break;
+	if (!raw) {
+		/* find "not-escaped" ? */
+		for (qs = str->str; *qs; qs++) {
+			if ('\\' == *qs) {
+				qs++;
+				if (!*qs) break;
+			} else if ('?' == *qs) break;
+		}
+		if (!*qs) qs = NULL;
 	}
-	if (!*qs) qs = NULL;
 
 	if (NULL != qs) {
 		*qs = '\0'; /* restore later */
@@ -112,10 +114,11 @@ static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *de
 	}
 
 	g_string_truncate(dest_path, 0);
-	g_string_truncate(dest_query, 0);
+	if (NULL != dest_query) g_string_truncate(dest_query, 0);
 
 	li_pattern_eval(vr, dest_path, rule->path, li_pattern_regex_cb, match_info, li_pattern_regex_cb, prev_match_info);
 	if (NULL != rule->querystring) {
+		LI_FORCE_ASSERT(NULL != dest_query);
 		li_pattern_eval(vr, dest_query, rule->querystring, li_pattern_regex_cb, match_info, li_pattern_regex_cb, prev_match_info);
 	}
 
@@ -124,13 +127,44 @@ static gboolean rewrite_internal(liVRequest *vr, GString *dest_path, GString *de
 	return TRUE;
 }
 
+static liHandlerResult rewrite_raw(liVRequest *vr, gpointer param, gpointer *context) {
+	guint i;
+	rewrite_rule *rule;
+	rewrite_data *rd = param;
+	gboolean debug = _OPTION(vr, rd->p, 0).boolean;
+	gchar *path = vr->request.uri.raw_path->str;
+	UNUSED(context);
+
+	for (i = 0; i < rd->rules->len; i++) {
+		GString *dest_path = vr->wrk->tmp_str;
+
+		rule = &g_array_index(rd->rules, rewrite_rule, i);
+
+		if (rewrite_internal(vr, dest_path, NULL, rule, path)) {
+			/* regex matched */
+			if (debug) {
+				VR_DEBUG(vr, "rewrite_raw: path \"%s\" => \"%s\"", path, dest_path->str);
+			}
+
+			if (!li_parse_raw_path(&vr->request.uri, dest_path)) return LI_HANDLER_ERROR;
+
+			/* stop at first matching regex */
+			break;
+		}
+	}
+
+	return LI_HANDLER_GO_ON;
+}
+
+
+
 static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context) {
 	guint i;
 	rewrite_rule *rule;
 	rewrite_data *rd = param;
 	gboolean debug = _OPTION(vr, rd->p, 0).boolean;
 	GString *dest_query = g_string_sized_new(31);
-	gchar *path = rd->raw ? vr->request.uri.raw_path->str : vr->request.uri.path->str;
+	gchar *path = vr->request.uri.path->str;
 	UNUSED(context);
 
 	for (i = 0; i < rd->rules->len; i++) {
@@ -142,32 +176,16 @@ static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context
 			/* regex matched */
 			if (debug) {
 				if (NULL != rule->querystring) {
-					VR_DEBUG(vr, "rewrite%s: path \"%s\" => \"%s\", query \"%s\" => \"%s\"",
-						rd->raw ? " (raw)" : "",
+					VR_DEBUG(vr, "rewrite: path \"%s\" => \"%s\", query \"%s\" => \"%s\"",
 						path, dest_path->str,
 						vr->request.uri.query->str, dest_query->str
 					);
 				} else {
-					VR_DEBUG(vr, "rewrite%s: path \"%s\" => \"%s\"",
-						rd->raw ? " (raw)" : "",
+					VR_DEBUG(vr, "rewrite: path \"%s\" => \"%s\"",
 						path, dest_path->str
 					);
 				}
 			}
-
-			/* change request path */
-			if (rd->raw) {
-				g_string_truncate(vr->request.uri.raw_path, 0);
-				g_string_append_len(vr->request.uri.raw_path, GSTR_LEN(dest_path));
-				g_string_truncate(vr->request.uri.path, 0);
-				g_string_append_len(vr->request.uri.path, GSTR_LEN(dest_path));
-				li_url_decode(vr->request.uri.path);
-			} else {
-				g_string_truncate(vr->request.uri.path, 0);
-				g_string_append_len(vr->request.uri.path, GSTR_LEN(dest_path));
-				li_string_encode(vr->request.uri.path->str, vr->request.uri.raw_path, LI_ENCODING_URI);
-			}
-			li_path_simplify(vr->request.uri.path);
 
 			/* change request query */
 			if (NULL != rule->querystring) {
@@ -175,12 +193,23 @@ static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context
 				g_string_append_len(vr->request.uri.query, GSTR_LEN(dest_query));
 			}
 
+			/* change request path */
+			g_string_truncate(vr->request.uri.path, 0);
+			g_string_append_len(vr->request.uri.path, GSTR_LEN(dest_path));
+			li_path_simplify(vr->request.uri.path);
+
+			/* rebuild raw_path */
+			li_string_encode(vr->request.uri.path->str, vr->request.uri.raw_path, LI_ENCODING_URI);
+			if (vr->request.uri.query->len > 0) {
+				g_string_append_len(vr->request.uri.raw_path, CONST_STR_LEN("?"));
+				g_string_append_len(vr->request.uri.raw_path, GSTR_LEN(vr->request.uri.query));
+			}
+
 			/* stop at first matching regex */
-			goto out;
+			break;
 		}
 	}
 
-out:
 	g_string_free(dest_query, TRUE);
 	return LI_HANDLER_GO_ON;
 }
@@ -208,6 +237,7 @@ static void rewrite_free(liServer *srv, gpointer param) {
 
 static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
 	rewrite_data *rd;
+	gboolean raw = GPOINTER_TO_INT(userdata);
 	UNUSED(wrk);
 
 	val = li_value_get_single_argument(val);
@@ -220,13 +250,12 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	rd = g_slice_new(rewrite_data);
 	rd->p = p;
 	rd->rules = g_array_new(FALSE, FALSE, sizeof(rewrite_rule));
-	rd->raw = GPOINTER_TO_INT(userdata);
 
 	if (LI_VALUE_STRING == li_value_type(val)) {
 		/* rewrite "/foo/bar"; */
 		rewrite_rule rule = { NULL, NULL, NULL };
 
-		if (!rewrite_rule_parse(srv, NULL, val->data.string, &rule)) {
+		if (!rewrite_rule_parse(srv, NULL, val->data.string, &rule, raw)) {
 			rewrite_free(NULL, rd);
 			ERROR(srv, "rewrite: error parsing rule \"%s\"", val->data.string->str);
 			return NULL;
@@ -237,7 +266,7 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 		/* only one rule */
 		rewrite_rule rule = { NULL, NULL, NULL };
 
-		if (!rewrite_rule_parse(srv, li_value_list_at(val, 0)->data.string, li_value_list_at(val, 1)->data.string, &rule)) {
+		if (!rewrite_rule_parse(srv, li_value_list_at(val, 0)->data.string, li_value_list_at(val, 1)->data.string, &rule, raw)) {
 			rewrite_free(NULL, rd);
 			return NULL;
 		}
@@ -255,7 +284,7 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 				return NULL;
 			}
 
-			if (!rewrite_rule_parse(srv, li_value_list_at(v, 0)->data.string, li_value_list_at(v, 1)->data.string, &rule)) {
+			if (!rewrite_rule_parse(srv, li_value_list_at(v, 0)->data.string, li_value_list_at(v, 1)->data.string, &rule, raw)) {
 				rewrite_free(NULL, rd);
 				return NULL;
 			}
@@ -264,7 +293,7 @@ static liAction* rewrite_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 		LI_VALUE_END_FOREACH()
 	}
 
-	return li_action_new_function(rewrite, NULL, rewrite_free, rd);
+	return li_action_new_function(raw ? rewrite_raw : rewrite, NULL, rewrite_free, rd);
 }
 
 

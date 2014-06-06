@@ -9,7 +9,7 @@
 		</parameter>
 		<description>
 			<textile><![CDATA[
-				proxy combines @request.raw_path@ and @request.query@ for the URL to send to the backend.
+				proxy uses @request.raw_path@ for the URL (including the query string) to send to the backend.
 			]]></textile>
 		</description>
 		<example>

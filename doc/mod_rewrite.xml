@@ -84,7 +84,9 @@
 			<textile>
 				Similar to "@rewrite@":mod_rewrite.html#mod_rewrite__action_rewrite, but matches the raw path (i.e. the path before URL decoding and sanitizing) and the result is decoded again.
 
-				"@rewrite@":mod_rewrite.html#mod_rewrite__action_rewrite write the result to @request.path@ and uses URL encoding to generate @request.raw_path@; "@rewrite_raw@":mod_rewrite.html#mod_rewrite__action_rewrite_raw writes @request.raw_path@ and decodes it into @request.path@. In both cases @request.path@ gets simplified afterwards.
+				"@rewrite@":mod_rewrite.html#mod_rewrite__action_rewrite writes the result to @request.path@ and possibly @request.query@ and uses URL encoding to generate @request.raw_path@ from those.
+				"@rewrite_raw@":mod_rewrite.html#mod_rewrite__action_rewrite_raw writes @request.raw_path@ and decodes it into @request.path@ and @request.query@; this means the query string is always overwritten.
+				In both cases @request.path@ gets simplified afterwards.
 			</textile>
 		</description>
 	</action>

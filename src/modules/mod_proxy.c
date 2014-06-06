@@ -50,11 +50,6 @@ static void proxy_send_headers(liVRequest *vr, liChunkQueue *out) {
 
 	g_string_append_len(head, GSTR_LEN(vr->request.uri.raw_path));
 
-	if (vr->request.uri.query->len > 0) {
-		g_string_append_len(head, CONST_STR_LEN("?"));
-		g_string_append_len(head, GSTR_LEN(vr->request.uri.query));
-	}
-
 	switch (vr->request.http_version) {
 	case LI_HTTP_VERSION_1_1:
 		/* g_string_append_len(head, CONST_STR_LEN(" HTTP/1.1\r\n")); */

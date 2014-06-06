@@ -77,6 +77,7 @@
 	URI = (scheme >mark %save_scheme) "://" (authority >mark %save_authority) URI_path;
 
 	parse_URI := URI | ("*" >mark %save_path) | URI_path;
+	parse_URI_path := URI_path;
 	parse_Hostname := (host >mark_host %save_host) ( ":" port )?;
 
 	write data;
@@ -94,6 +95,31 @@ gboolean li_parse_raw_url(liRequestUri *uri) {
 	cs = url_parser_en_parse_URI;
 
 	%% write exec;
+
+	return (cs >= url_parser_first_final);
+}
+
+gboolean li_parse_raw_path(liRequestUri *uri, GString *input) {
+	const char *p, *pe, *eof;
+	const char *mark = NULL, *host_mark = NULL;
+	int cs;
+
+	p = input->str;
+	eof = pe = input->str + input->len;
+
+	g_string_truncate(uri->path, 0);
+	g_string_truncate(uri->raw_path, 0);
+	g_string_truncate(uri->query, 0);
+
+	%% write init nocs;
+	cs = url_parser_en_parse_URI_path;
+
+	%% write exec;
+
+	if (cs >= url_parser_first_final) {
+		li_url_decode(uri->path);
+		li_path_simplify(uri->path);
+	}
 
 	return (cs >= url_parser_first_final);
 }

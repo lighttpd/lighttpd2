@@ -299,7 +299,7 @@
 				| request.remoteip | ip address of the client |
 				| request.remoteport | port number of the client, -1 for unix sockets |
 				| request.path | the _path_ part of the requested url. not including the querystring. |
-				| request.raw_path | the raw _path_ part (not urldecoded, not simplified) of the requested url. not including the querystring. |
+				| request.raw_path | the raw _path_ (not urldecoded, not simplified) of the requested url, including the querystring. |
 				| request.host | requested hostname |
 				| request.scheme | scheme of the request. "http" or "https" |
 				| request.query | the _querystring_ of the requested url |
