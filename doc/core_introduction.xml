@@ -5,7 +5,7 @@
 		<textile><![CDATA[
 			You need two config files for lighttpd, which are usually in the following two locations:
 
-			* "@/etc/lighttpd2/lighttpd.conf@":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/lighttpd.conf: the main config, see "Main Configuration":core_config.html#core_config. It can be splitted into multiple files, see "Includes":core_config.html#core_config__includes.
+			* "@/etc/lighttpd2/lighttpd.conf@":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/lighttpd.conf: the main config, see "Main Configuration":core_config.html#core_config. It can be split into multiple files, see "Includes":core_config.html#core_config__includes.
 			* "@/etc/lighttpd2/angel.conf@":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/angel.conf: the angel config, see "Angel Configuration":core_config_angel.html#core_config_angel.
 
 			The "@contrib/@":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib directory in the sources includes example config files.
