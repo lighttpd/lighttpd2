@@ -92,6 +92,7 @@ class TestBase(object):
 	todo = False
 	subdomains = False # set to true to match all subdomains too
 	inherit_docroot = False
+	no_docroot = False
 
 	def __init__(self, parent = None):
 		self._test_cleanup_files = []
@@ -103,10 +104,13 @@ class TestBase(object):
 	def _register(self, tests):
 		self.tests = tests
 		if not self.vhost: self.vhost = vhostname(self.name)
-		if self.inherit_docroot:
-			self.vhostdir = self._parent.vhostdir
+		if not self.no_docroot:
+			if self.inherit_docroot:
+				self.vhostdir = self._parent.vhostdir
+			else:
+				self.vhostdir = os.path.join(Env.dir, 'www', 'vhosts', self.vhost)
 		else:
-			self.vhostdir = os.path.join(Env.dir, 'www', 'vhosts', self.vhost)
+			self.vhostdir = None
 		if self.FeatureCheck():
 			tests.add_test(self)
 			return True

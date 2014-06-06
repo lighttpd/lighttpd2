@@ -36,6 +36,4 @@ class Test(GroupTest):
 	config = """
 secdownload ( "prefix" => "/", "document-root" => var.default_docroot, "secret" => "abc", "timeout" => 600 );
 """
-
-	def Prepare(self):
-		self.vhostdir = None
+	no_docroot = True
