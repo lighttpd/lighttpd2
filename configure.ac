@@ -350,8 +350,13 @@ if test "x$use_openssl" = "xyes"; then
     OPENSSL_CFLAGS="$OPENSSL_CFLAGS -DOPENSSL_NO_KRB5"
   fi
 
+  OLD_LIBS="$LIBS"
+  OLD_LDFLAGS="$LDFLAGS"
+  OLD_CPPFLAGS="$CPPFLAGS"
+  LDFLAGS="$LDFLAGS $OPENSSL_LIBS"
+  CPPFLAGS="$CPPFLAGS $OPENSSL_CFLAGS"
+
   AC_CHECK_HEADERS([openssl/ssl.h])
-  OLDLIBS="$LIBS"
   AC_CHECK_LIB([crypto], [BIO_f_base64], [
     AC_CHECK_LIB([ssl], [SSL_new], [
       OPENSSL_LIBS="$OPENSSL_LIBS -lssl -lcrypto"
@@ -359,7 +364,10 @@ if test "x$use_openssl" = "xyes"; then
       AC_DEFINE([HAVE_OPENSSL], [], [Have openssl])
     ], [], [ -lcrypto "$DL_LIB" ])
   ], [], [])
-  LIBS="$OLDLIBS"
+
+  LIBS="$OLD_LIBS"
+  LDFLAGS="$OLD_LDFLAGS"
+  CPPFLAGS="$OLD_CPPFLAGS"
 
   if test "x$have_openssl" != "xyes"; then
     AC_MSG_ERROR([Couldn't find openssl])
