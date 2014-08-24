@@ -310,7 +310,7 @@
 				| request.environment["name"] | (or short request.env["name"]) CGI environment |
 				| | |
 				| physical.path | physical path of the file to be served. e.g. document root + path |
-				| physical.exists | boolean condition, indicates whether the requested file exist |
+				| physical.exists | boolean condition, indicates whether the requested file (normal file, directory or even a special file) exists |
 				| physical.size | integer. size of the requested file. -1 if file doesn't exist |
 				| physical.is_dir | boolean condition, indicates whether the requested file is a directory |
 				| physical.is_file | boolean condition, indicates whether the requested file is a normal file (e.g. no unix socket etc) |
