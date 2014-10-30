@@ -236,8 +236,14 @@ static void do_handle_error(liGnuTLSFilter *f, const char *gnutlsfunc, int r, gb
 		break;
 	default:
 		if (gnutls_error_is_fatal(r)) {
-			_ERROR(f->srv, f->wrk, f->log_context, "%s (%s): %s", gnutlsfunc,
-				gnutls_strerror_name(r), gnutls_strerror(r));
+			if (GNUTLS_E_FATAL_ALERT_RECEIVED == r || GNUTLS_E_WARNING_ALERT_RECEIVED == r) {
+				_ERROR(f->srv, f->wrk, f->log_context, "%s (%s): %s", gnutlsfunc,
+					gnutls_strerror_name(r),
+					gnutls_alert_get_name(gnutls_alert_get(f->session)));
+			} else {
+				_ERROR(f->srv, f->wrk, f->log_context, "%s (%s): %s", gnutlsfunc,
+					gnutls_strerror_name(r), gnutls_strerror(r));
+			}
 			if (f->initial_handshaked_finished) {
 				f_close_with_alert(f, r);
 			} else {
