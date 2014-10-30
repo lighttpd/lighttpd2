@@ -25,6 +25,10 @@
 #define HAVE_SESSION_TICKET
 #endif
 
+#if GNUTLS_VERSION_NUMBER >= 0x03010b
+#define HAVE_PIN
+#endif
+
 LI_API gboolean mod_gnutls_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_gnutls_free(liModules *mods, liModule *mod);
 
@@ -70,6 +74,7 @@ struct mod_context {
 	liFetchDatabase *sni_db, *sni_backend_db;
 	gnutls_certificate_credentials_t sni_fallback_cert;
 #endif
+	GString *pin;
 
 	unsigned int protect_against_beast:1;
 };
@@ -86,6 +91,26 @@ struct fetch_cert_backend_lookup {
 static void mod_gnutls_context_release(mod_context *ctx);
 static void mod_gnutls_context_acquire(mod_context *ctx);
 
+#if defined(HAVE_PIN)
+static int pin_callback(void *user, int attempt, const char *token_url, const char *token_label, unsigned int flags, char *pin, size_t pin_max) {
+	GString *pinString = user;
+	size_t saved_pin_len;
+	UNUSED(attempt);
+	UNUSED(token_url);
+	UNUSED(token_label);
+
+	if (NULL == pinString) return -1;
+
+	if (flags & GNUTLS_PIN_WRONG) return -1;
+
+	/* include terminating 0 */
+	saved_pin_len = 1 + pinString->len;
+	if (saved_pin_len > pin_max) return -1;
+
+	memcpy(pin, pinString->str, saved_pin_len);
+	return 0;
+}
+#endif /* defined(HAVE_PIN) */
 
 #ifdef USE_SNI
 static gnutls_certificate_credentials_t creds_from_gstring(mod_context *ctx, GString *str) {
@@ -100,9 +125,17 @@ static gnutls_certificate_credentials_t creds_from_gstring(mod_context *ctx, GSt
 	pemfile.data = (unsigned char*) str->str;
 	pemfile.size = str->len;
 
+#if defined(HAVE_PIN)
+	gnutls_certificate_set_pin_function(creds, pin_callback, ctx->pin);
+
+	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_mem2(creds, &pemfile, &pemfile, GNUTLS_X509_FMT_PEM, ctx->pin ? ctx->pin->str : NULL, 0))) {
+		goto error_free_creds;
+	}
+#else
 	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_mem(creds, &pemfile, &pemfile, GNUTLS_X509_FMT_PEM))) {
 		goto error_free_creds;
 	}
+#endif
 
 	gnutls_certificate_set_dh_params(creds, ctx->dh_params);
 
@@ -202,6 +235,11 @@ static void mod_gnutls_context_release(mod_context *ctx) {
 		}
 #endif
 		gnutls_dh_params_deinit(ctx->dh_params);
+
+		if (NULL != ctx->pin) {
+			g_string_free(ctx->pin, TRUE);
+			ctx->pin = NULL;
+		}
 
 		g_slice_free(mod_context, ctx);
 	}
@@ -591,6 +629,89 @@ static void gnutls_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 	srv_sock->release_cb = mod_gnutls_sock_release;
 }
 
+static gboolean creds_add_pemfile(liServer *srv, gnutls_certificate_credentials_t creds, liValue *pemfile, GString *pin) {
+	const char *keyfile = NULL;
+	const char *certfile = NULL;
+	int r;
+
+	if (LI_VALUE_STRING == li_value_type(pemfile)) {
+		keyfile = pemfile->data.string->str;
+		certfile = pemfile->data.string->str;
+	} else if (li_value_list_has_len(pemfile, 2)) {
+		if (NULL == (pemfile = li_value_to_key_value_list(pemfile))) {
+			ERROR(srv, "%s", "gnutls expects a hash/key-value list or a string as pemfile parameter");
+			return FALSE;
+		}
+
+		LI_VALUE_FOREACH(entry, pemfile)
+			liValue *entryKey = li_value_list_at(entry, 0);
+			liValue *entryValue = li_value_list_at(entry, 1);
+			GString *entryKeyStr;
+
+			if (LI_VALUE_STRING != li_value_type(entryKey)) {
+				ERROR(srv, "%s", "gnutls doesn't take default keys");
+				return FALSE;
+			}
+			entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+			if (g_str_equal(entryKeyStr->str, "key")) {
+				if (LI_VALUE_STRING != li_value_type(entryValue)) {
+					ERROR(srv, "%s", "gnutls pemfile.key expects a string as parameter");
+					return FALSE;
+				}
+				if (NULL != keyfile) {
+					ERROR(srv, "gnutls unexpected duplicate parameter pemfile %s", entryKeyStr->str);
+					return FALSE;
+				}
+				keyfile = entryValue->data.string->str;
+			} else if (g_str_equal(entryKeyStr->str, "cert")) {
+				if (LI_VALUE_STRING != li_value_type(entryValue)) {
+					ERROR(srv, "%s", "gnutls pemfile.cert expects a string as parameter");
+					return FALSE;
+				}
+				if (NULL != certfile) {
+					ERROR(srv, "gnutls unexpected duplicate parameter pemfile %s", entryKeyStr->str);
+					return FALSE;
+				}
+				certfile = entryValue->data.string->str;
+			} else {
+				ERROR(srv, "invalid parameter for gnutls: pemfile %s", entryKeyStr->str);
+				return FALSE;
+			}
+		LI_VALUE_END_FOREACH()
+	} else {
+		ERROR(srv, "%s", "gnutls expects a hash/key-value list or a string as pemfile parameter");
+		return FALSE;
+	}
+
+	if (NULL == keyfile || NULL == certfile) {
+		ERROR(srv, "%s", "gnutls: missing key or cert in pemfile parameter");
+		return FALSE;
+	}
+
+#if defined(HAVE_PIN)
+	gnutls_certificate_set_pin_function(creds, pin_callback, pin);
+
+	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_file2(creds, certfile, keyfile, GNUTLS_X509_FMT_PEM, pin ? pin->str : NULL, 0))) {
+		ERROR(srv, "gnutls_certificate_set_x509_key_file2 failed(certfile '%s', keyfile '%s', PEM) (%s): %s",
+			certfile, keyfile,
+			gnutls_strerror_name(r), gnutls_strerror(r));
+		return FALSE;
+	}
+#else
+	UNUSED(pin);
+
+	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_file(creds, certfile, keyfile, GNUTLS_X509_FMT_PEM))) {
+		ERROR(srv, "gnutls_certificate_set_x509_key_file failed(certfile '%s', keyfile '%s', PEM) (%s): %s",
+			certfile, keyfile,
+			gnutls_strerror_name(r), gnutls_strerror(r));
+		return FALSE;
+	}
+#endif
+
+	return TRUE;
+}
+
 static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	mod_context *ctx;
 	int r;
@@ -600,15 +721,14 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	gboolean have_pemfile_parameter = FALSE;
 	gboolean have_protect_beast_parameter = FALSE;
 	gboolean have_session_db_size_parameter = FALSE;
-	const char
-		*priority = NULL, *dh_params_file = NULL
+	const char *priority = NULL, *dh_params_file = NULL;
 #ifdef USE_SNI
-		,*sni_backend = NULL, *sni_fallback_pemfile = NULL
+	const char *sni_backend = NULL;
+	liValue *sni_fallback_pemfile = NULL;
 #endif
-		;
-	gboolean
-		protect_against_beast = FALSE;
+	gboolean protect_against_beast = FALSE;
 	gint64 session_db_size = 256;
+	liValue *pin = NULL;
 
 	UNUSED(p); UNUSED(userdata);
 
@@ -637,10 +757,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			}
 			have_listen_parameter = TRUE;
 		} else if (g_str_equal(entryKeyStr->str, "pemfile")) {
-			if (LI_VALUE_STRING != li_value_type(entryValue)) {
-				ERROR(srv, "%s", "gnutls pemfile expects a string as parameter");
-				return FALSE;
-			}
+			/* check type later */
 			have_pemfile_parameter = TRUE;
 		} else if (g_str_equal(entryKeyStr->str, "dh-params")) {
 			if (LI_VALUE_STRING != li_value_type(entryValue)) {
@@ -662,6 +779,21 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 				return FALSE;
 			}
 			priority = entryValue->data.string->str;
+		} else if (g_str_equal(entryKeyStr->str, "pin")) {
+#if defined(HAVE_PIN)
+			if (LI_VALUE_STRING != li_value_type(entryValue)) {
+				ERROR(srv, "%s", "gnutls pin expects a string as parameter");
+				return FALSE;
+			}
+			if (NULL != pin) {
+				ERROR(srv, "gnutls unexpected duplicate parameter %s", entryKeyStr->str);
+				return FALSE;
+			}
+			pin = entryValue;
+#else
+			ERROR(srv, "%s", "mod_gnutls: pin not supported; compile with gnutls >= 3.1.11");
+			return FALSE;
+#endif
 		} else if (g_str_equal(entryKeyStr->str, "protect-against-beast")) {
 			if (LI_VALUE_BOOLEAN != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "gnutls protect-against-beast expects a boolean as parameter");
@@ -696,15 +828,12 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			}
 			sni_backend = entryValue->data.string->str;
 		} else if (g_str_equal(entryKeyStr->str, "sni-fallback-pemfile")) {
-			if (LI_VALUE_STRING != li_value_type(entryValue)) {
-				ERROR(srv, "%s", "gnutls sni-fallback-pemfile expects a string as parameter");
-				return FALSE;
-			}
+			/* check type later */
 			if (NULL != sni_fallback_pemfile) {
 				ERROR(srv, "gnutls unexpected duplicate parameter %s", entryKeyStr->str);
 				return FALSE;
 			}
-			sni_fallback_pemfile = entryValue->data.string->str;
+			sni_fallback_pemfile = entryValue;
 #else
 		} else if (g_str_equal(entryKeyStr->str, "sni-backend")) {
 			ERROR(srv, "%s", "mod_gnutls was build without SNI support, invalid option sni-backend");
@@ -732,6 +861,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	if (!(ctx = mod_gnutls_context_new(srv))) return FALSE;
 
 	ctx->protect_against_beast = protect_against_beast;
+	ctx->pin = li_value_extract_string(pin);
 
 #ifdef USE_SNI
 	if (NULL != sni_backend) {
@@ -752,10 +882,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 			goto error_free_ctx;
 		}
 
-		if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_file(ctx->sni_fallback_cert, sni_fallback_pemfile, sni_fallback_pemfile, GNUTLS_X509_FMT_PEM))) {
-			ERROR(srv, "gnutls_certificate_set_x509_key_file failed(certfile '%s', keyfile '%s', PEM) (%s): %s",
-				sni_fallback_pemfile, sni_fallback_pemfile,
-				gnutls_strerror_name(r), gnutls_strerror(r));
+		if (!creds_add_pemfile(srv, ctx->sni_fallback_cert, sni_fallback_pemfile, ctx->pin)) {
 			goto error_free_ctx;
 		}
 	}
@@ -770,11 +897,8 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
 
 		if (g_str_equal(entryKeyStr->str, "pemfile")) {
-			const char *pemfile = entryValue->data.string->str;
-			if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_file(ctx->server_cert, pemfile, pemfile, GNUTLS_X509_FMT_PEM))) {
-				ERROR(srv, "gnutls_certificate_set_x509_key_file failed(certfile '%s', keyfile '%s', PEM) (%s): %s",
-					pemfile, pemfile,
-					gnutls_strerror_name(r), gnutls_strerror(r));
+
+			if (!creds_add_pemfile(srv, ctx->server_cert, entryValue, ctx->pin)) {
 				goto error_free_ctx;
 			}
 		}

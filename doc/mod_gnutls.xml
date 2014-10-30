@@ -10,7 +10,11 @@
 					<short>(mandatory) the socket address to listen on (same as "listen":plugin_core.html#plugin_core__setup_listen), can be specified more than once to setup multiple sockets with the same options</short>
 				</entry>
 				<entry name="pemfile">
-					<short>(mandatory) file containing the private key, certificate and intermediate certificates (the root certificate is usually not included)</short>
+					<short>(mandatory) file containing the private key, certificate and intermediate certificates (the root certificate is usually not
+					included); alternatively it can be a key-value list with a "key" and a "cert" entry.</short>
+				</entry>
+				<entry name="pin">
+					<short>the PIN (or password) to use when using PKCS #11 modules or encrypted keys. The pin is kept in memory.</short>
 				</entry>
 				<entry name="priority">
 					<short>GnuTLS priority string, specifying ciphers and other GnuTLS options (default: "NORMAL")</short>
@@ -28,7 +32,7 @@
 					<short>"fetch" backend name to search certificates in with the SNI servername as key (only available if SNI in lighttpd2 was enabled)</short>
 				</entry>
 				<entry name="sni-fallback-pemfile">
-					<short>certificate to use if request contained SNI servername, but the sni-backend didn't find anything; if request didn't contain SNI the standard "pemfile"(s) are used</short>
+					<short>certificate to use if request contained SNI servername, but the sni-backend didn't find anything; if request didn't contain SNI the standard "pemfile"(s) are used; similarly with "pemfile" it can also be a key-value list with a "key" and a "cert" entry.</short>
 				</entry>
 			</table>
 		</parameter>
@@ -79,6 +83,42 @@
 						"listen" => "0.0.0.0:443",
 						"listen" => "[::]:443",
 						"pemfile" => "/etc/certs/lighttpd.pem"
+					);
+				}
+			</config>
+		</example>
+
+		<example title="Simple TLS on IPv4 and IPv6 with separate files for key and certificate and encrypted key">
+			<config>
+				setup {
+					module_load "mod_gnutls";
+					gnutls (
+						"priority" => "PFS:-3DES-CBC:-ARCFOUR-128:-VERS-SSL3.0:-SHA1:+SHA1:+RSA:%SERVER_PRECEDENCE",
+						"listen" => "0.0.0.0:443",
+						"listen" => "[::]:443",
+						"pin" => "passwordForEncryptedKey",
+						"pemfile" => (
+							"key" => "/etc/certs/lighttpd_key.pem",
+							"cert" => "/etc/certs/lighttpd_cert.pem"
+						)
+					);
+				}
+			</config>
+		</example>
+
+		<example title="Simple TLS on IPv4 and IPv6 with SoftHSM">
+			<config>
+				setup {
+					module_load "mod_gnutls";
+					gnutls (
+						"priority" => "PFS:-3DES-CBC:-ARCFOUR-128:-VERS-SSL3.0:-SHA1:+SHA1:+RSA:%SERVER_PRECEDENCE",
+						"listen" => "0.0.0.0:443",
+						"listen" => "[::]:443",
+						"pin" => "SoftHSM-pin",
+						"pemfile" => (
+							"key" => "pkcs11:model=SoftHSM;manufacturer=SoftHSM;serial=1;token=master-key;id=%ac%d5%52%69%16%09%2c%0c%9c%b0%ec%6c%3d%3b%c6%4d%55%4c%40%49;object=my-key;object-type=private",
+							"cert" => "pkcs11:model=SoftHSM;manufacturer=SoftHSM;serial=1;token=master-key;id=%ac%d5%52%69%16%09%2c%0c%9c%b0%ec%6c%3d%3b%c6%4d%55%4c%40%49;object=my-key;object-type=cert"
+						)
 					);
 				}
 			</config>
