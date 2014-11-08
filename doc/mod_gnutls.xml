@@ -187,11 +187,12 @@
 
 			The GnuTLS @certtool@ only generates "DSA" parameters (any prime with a large generator), while @openssl@ can generate "DH" parameters with a generator of 2 or 5 combined with a Sophie Germain prime @(p-1)/2@ (i.e. both @p@ and @(p-1)/2@ are primes) or "DSA" parameters using the @-dsaparam@ option.
 
-			"DH" parameters take a lot more time to generate, but you can reuse keys for those. Keys for "DSA" parameters should not be reused, i.e. one should generate a new private key for each connection, which is the case in mod_gnutls. The default parameters provided by lighttpd are "DH" parameters.
+			"DH" parameters take a lot more time to generate, but you can reuse keys for those (although it is not recommended, search for @SSL_OP_SINGLE_DH_USE@ in the openssl manual on @SSL_CTX_set_tmp_dh_callback@). Keys for "DSA" parameters should not be reused, i.e. one should generate a new private key for each connection, which is the case in mod_gnutls. The default parameters provided by lighttpd are "DH" parameters.
 
 			See also:
 			* "Diffie-Hellman(-Merkle) key exchange":http://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange
 			* "OpenSSL: Documents, dhparam(1)":https://www.openssl.org/docs/apps/dhparam.html
+			* "OpenSSL: Documents, SSL_CTX_set_tmp_dh_callback(3)":https://www.openssl.org/docs/ssl/SSL_CTX_set_tmp_dh_callback.html#NOTES
 		</textile>
 	</section>
 </module>
