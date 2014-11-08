@@ -175,9 +175,9 @@
 
 	<section title="DH parameters">
 		<textile>
-			The @DHE_RSA@ key exchange requires parameters (similar to the curves used for @ECDHE_RSA@); the parameters specify a prime @p@ and a group generator @g@ of the multiplicative group of integers modulo @p@ (i.e. for all @x@ in @1..p-1@ exists an @e@ with @g^e = x@); sometimes @g@ might only create a sufficiently large subgroup (for example of size @(p-1)/2@ for Sophie Germain primes).
+			The @DHE_RSA@ key exchange requires parameters (similar to the curves used for @ECDHE_RSA@); the parameters specify a prime @p@ and a group generator @g@ of the multiplicative group of integers modulo @p@ (i.e. for all @x@ in @1..p-1@ exists an @e@ with @g^e = x@); sometimes @g@ might only create a sufficiently large subgroup (for example of size @(p-1)/2@).
 
-			The security of the DH key exchange depends (among other things) on the bit length of @p@; therefore lighttpd includes default 4096-bit parameters (provided by the GnuTLS certtool with @certtool --get-dh-params --bits=4096@ in version 3.0.22), and these should be safe to use.
+			The security of the DH key exchange depends (among other things) on the bit length of @p@; therefore lighttpd includes default 4096-bit parameters (provided by the GnuTLS certtool with @certtool --get-dh-params --bits=4096@ in version 3.0.22), and these should be safe to use (key lengths > 1024 are not supported by some older clients; if you need to support those you either have to disable DH key exchange or specify 1024-bit parameters).
 
 			You can use either GnuTLS or openssl to generate your own parameters:
 			* @certtool --generate-dh-params --bits=2048@
@@ -185,11 +185,13 @@
 			* @openssl dhparam -2 2048@
 			* @openssl dhparam -5 2048@
 
-			The GnuTLS @certtool@ only generates "dsaparam" style parameters (any prime with a large generator), while @openssl@ can generate parameters with a generator of 2 or 5 combined with a Sophie Germain prime @p@ (i.e. (p-1)/2 is a prime too); such strong parameters take a lot more time to generate.
-			("dsaparam" style parameters should not be reused, i.e. one should generate a new private key for each connection.)
+			The GnuTLS @certtool@ only generates "DSA" parameters (any prime with a large generator), while @openssl@ can generate "DH" parameters with a generator of 2 or 5 combined with a Sophie Germain prime @(p-1)/2@ (i.e. both @p@ and @(p-1)/2@ are primes) or "DSA" parameters using the @-dsaparam@ option.
+
+			"DH" parameters take a lot more time to generate, but you can reuse keys for those. Keys for "DSA" parameters should not be reused, i.e. one should generate a new private key for each connection, which is the case in mod_gnutls. The default parameters provided by lighttpd are "DH" parameters.
 
 			See also:
 			* "Diffie-Hellman(-Merkle) key exchange":http://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange
+			* "OpenSSL: Documents, dhparam(1)":https://www.openssl.org/docs/apps/dhparam.html
 		</textile>
 	</section>
 </module>
