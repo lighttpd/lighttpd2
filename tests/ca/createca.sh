@@ -1,44 +1,67 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
+# (requires gnutls >= 3.2.7 (or >= 3.1.17 and < 3.2.0))
+
+KEY_TYPE="${KEY_TYPE:-rsa}"
+HASH_ALG="${HASH_ALG:-SHA512}"
+
+function gen_rsa_key() {
+	local name="$1"
+	local security="${2:-high}"
+	local secparam=(--sec-param "${security}")
+
+	echo "Generate RSA key into ${name}.key and ${name}.pub"
+	certtool -p --rsa --outfile "${name}.key" "${secparam[@]}"
+	certtool --load-privkey "${name}.key" --pubkey-info --outfile "${name}.pub"
+}
+
+function gen_ecc_key() {
+	local name="$1"
+	local security="${2:-ultra}"
+	local secparam=(--sec-param "${security}")
+
+	echo "Generate ECC key into ${name}.key and ${name}.pub"
+	certtool -p --ecc --outfile "${name}.key" "${secparam[@]}"
+	certtool --load-privkey "${name}.key" --pubkey-info --outfile "${name}.pub"
+}
+
+function gen_key() {
+	case "${KEY_TYPE}" in
+	rsa) gen_rsa_key "$@" ;;
+	ecc) gen_ecc_key "$@" ;;
+	*) echo >&2 "Unknown key type: ${KEY_TYPE}"; exit 1 ;;
+	esac
+}
+
+function ca_sign_self() {
+	local ca_name="$1"
+
+	echo "Self signing ${ca_name}"
+	certtool -s "--hash=${HASH_ALG}" --load-privkey "${ca_name}.key" --outfile "${ca_name}.crt" --template "${ca_name}.template"
+}
+
+function ca_sign() {
+	local ca_name="$1"
+	local subject_name="$2"
+	local key_name="${3:-${subject_name}}"
+
+	echo "Signing ${subject_name} (key ${key_name}) with ${ca_name}"
+	certtool -c "--hash=${HASH_ALG}" --load-ca-certificate "${ca_name}.crt" --load-ca-privkey "${ca_name}.key" --load-pubkey "${key_name}.pub" --outfile "${subject_name}.crt" --template "${subject_name}.template"
+}
+
 # gen keys
-echo Generate ca.key
-openssl genrsa -out ca.key 4096
-echo Generate intermediate.key
-openssl genrsa -out intermediate.key 2048
-echo Generate server.key
-openssl genrsa -out server.key 2048
+gen_key "ca"
+gen_key "intermediate"
+gen_key "server"
 
-echo Generate self-signed ca.crt
-openssl req -new -x509 -out ca.crt -key ca.key -config ca.conf -days 36500 -set_serial 01
-
-echo Generate intermediate.csr
-openssl req -new -out intermediate.csr -key intermediate.key -config intermediate.conf -days 36500
-echo Generate intermediate.crt
-openssl x509 -req \
-	-in intermediate.csr \
-	-out intermediate.crt \
-	-extfile intermediate.conf -extensions v3_ca \
-	-CA ca.crt -CAkey ca.key -CAserial ca.srl \
-	-days 36500 
-rm intermediate.csr
-
-echo "0000000000000001" > ca.srl
-echo "0000000000000001" > intermediate.srl
+ca_sign_self "ca"
+ca_sign "ca" "intermediate"
 
 for name in test1.ssl test2.ssl; do
-	echo Generate server_${name}.csr
-	openssl req -new -out server_${name}.csr -key server.key -config server_${name}.conf -days 36500
-	echo Generate server_${name}.crt
-	openssl x509 -req \
-		-in server_${name}.csr \
-		-out server_${name}.crt \
-		-extfile server_${name}.conf -extensions v3 \
-		-CA intermediate.crt -CAkey intermediate.key -CAserial intermediate.srl \
-		-days 36500
-	rm server_${name}.csr
+	ca_sign "intermediate" "server_${name}" "server"
 
-	echo Generate server_${name}.pem
-	cat server.key server_${name}.crt intermediate.crt > server_${name}.pem
+	echo "Generate server_${name}.pem"
+	cat "server.key" "server_${name}.crt" "intermediate.crt" > "server_${name}.pem"
 done

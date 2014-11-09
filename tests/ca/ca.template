@@ -1,0 +1,11 @@
+
+dn = "OU=lighttpd2 test suite CA,CN=lighttpd2 test suite Authority"
+
+serial = 01
+
+expiration_days = 3650
+
+ca
+cert_signing_key
+crl_signing_key
+

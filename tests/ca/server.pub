@@ -1,0 +1,49 @@
+Public Key Information:
+	Public Key Algorithm: RSA
+	Algorithm Security Level: High (3072 bits)
+		Modulus (bits 3072):
+			00:de:cf:c6:61:ec:56:57:c3:57:37:45:22:e6:51:c9
+			ff:71:8c:9c:de:de:30:79:b8:38:d5:92:be:10:85:47
+			b3:a1:c3:1a:e8:37:71:1c:93:c9:5d:aa:cb:25:02:56
+			77:83:c3:ae:05:df:4b:d0:b8:5e:60:1c:93:40:d3:f3
+			c6:8b:78:6a:25:0f:5f:ed:2e:81:7e:27:63:81:1f:bd
+			0c:ca:e8:4f:5a:97:2e:5f:69:a5:ff:69:f3:41:a7:c7
+			57:d3:a1:f8:e9:c9:9a:76:01:37:58:d2:91:db:10:77
+			c6:21:dd:eb:bf:e9:e2:96:f9:02:3b:a0:50:5c:26:38
+			65:13:f6:24:48:79:9c:50:a0:70:ea:b6:e1:17:95:5f
+			b0:df:02:67:fb:a3:d9:20:fe:67:4e:5c:48:28:8e:2e
+			73:da:8d:74:eb:a2:66:8c:f2:17:94:d3:fa:4a:c7:ee
+			4e:26:fd:a4:6b:4d:e9:4f:c9:f9:46:93:ba:6e:14:55
+			67:54:6f:22:e3:c3:4b:0c:b6:43:fb:85:bb:58:14:34
+			c4:a2:af:5d:86:d2:22:74:7d:9a:54:62:30:ec:a5:fd
+			1a:6c:80:cd:23:49:2b:2b:69:f0:c3:0c:ce:40:37:ea
+			1c:f4:a2:aa:ab:ac:20:fd:82:70:e5:a6:07:c7:61:ad
+			50:10:e7:0e:dc:25:3a:b1:ec:55:f5:7a:e8:52:19:02
+			17:04:02:62:1a:2f:60:cf:82:9d:ea:b8:ce:07:3c:90
+			bd:1e:c4:ce:2e:de:07:1a:cd:2b:16:2a:48:fd:09:8b
+			2f:fc:68:46:2b:15:28:71:f3:b3:d7:d6:40:e1:b0:dc
+			ee:ab:ae:fd:b8:92:ab:b3:5d:2b:c7:bf:8e:c7:44:74
+			37:83:b0:20:c6:b2:98:42:08:6f:97:4a:5f:98:4f:6f
+			6d:70:15:b5:0f:91:c9:90:78:de:97:0d:a3:00:da:0d
+			2f:d9:1d:cb:ed:9c:92:82:cc:ea:55:20:b5:70:61:e1
+			87
+		Exponent (bits 24):
+			01:00:01
+
+Public Key Usage:
+
+Public Key ID: 3bf711897c9bf34cfb2bd0bc27f8be444aeb8c06
+
+
+-----BEGIN PUBLIC KEY-----
+MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA3s/GYexWV8NXN0Ui5lHJ
+/3GMnN7eMHm4ONWSvhCFR7OhwxroN3Eck8ldqsslAlZ3g8OuBd9L0LheYByTQNPz
+xot4aiUPX+0ugX4nY4EfvQzK6E9aly5faaX/afNBp8dX06H46cmadgE3WNKR2xB3
+xiHd67/p4pb5AjugUFwmOGUT9iRIeZxQoHDqtuEXlV+w3wJn+6PZIP5nTlxIKI4u
+c9qNdOuiZozyF5TT+krH7k4m/aRrTelPyflGk7puFFVnVG8i48NLDLZD+4W7WBQ0
+xKKvXYbSInR9mlRiMOyl/RpsgM0jSSsrafDDDM5AN+oc9KKqq6wg/YJw5aYHx2Gt
+UBDnDtwlOrHsVfV66FIZAhcEAmIaL2DPgp3quM4HPJC9HsTOLt4HGs0rFipI/QmL
+L/xoRisVKHHzs9fWQOGw3O6rrv24kquzXSvHv47HRHQ3g7AgxrKYQghvl0pfmE9v
+bXAVtQ+RyZB43pcNowDaDS/ZHcvtnJKCzOpVILVwYeGHAgMBAAE=
+-----END PUBLIC KEY-----
+

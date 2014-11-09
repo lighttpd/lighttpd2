@@ -1,0 +1,8 @@
+
+dn = "OU=lighttpd2 test suite CA,CN=lighttpd2 test suite Intermediate 1"
+
+expiration_days = 3650
+
+ca
+cert_signing_key
+crl_signing_key

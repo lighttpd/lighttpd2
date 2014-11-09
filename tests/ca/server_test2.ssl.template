@@ -1,0 +1,9 @@
+
+dn = "OU=lighttpd2 test suite CA,CN=test2.ssl"
+dns_name = "test2.ssl"
+
+expiration_days = 3650
+
+tls_www_server
+signing_key
+encryption_key
