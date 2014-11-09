@@ -16,8 +16,8 @@
  * Logs are sent once per event loop iteration to the logging thread in order to reduce syscalls and lock contention.
  */
 
-/* at least one of srv and wrk must not be NULL. log_map may be NULL. */
-#define _SEGFAULT(srv, wrk, log_map, fmt, ...) \
+/* at least one of srv and wrk must not be NULL. ctx may be NULL. */
+#define _SEGFAULT(srv, wrk, ctx, fmt, ...) \
 	do { \
 		li_log_write(srv, NULL, NULL, LI_LOG_LEVEL_ABORT, LI_LOG_FLAG_TIMESTAMP, "(crashing) %s:%d: %s " fmt, LI_REMOVE_PATH(__FILE__), __LINE__, G_STRFUNC, __VA_ARGS__); \
 		li_print_backtrace_stderr(); \

@@ -209,7 +209,7 @@ static void do_handle_error(liGnuTLSFilter *f, const char *gnutlsfunc, int r, gb
 	switch (r) {
 	case GNUTLS_E_AGAIN:
 		if (writing) f->write_wants_read = TRUE;
-		break;
+		return;
 	case GNUTLS_E_REHANDSHAKE:
 #ifdef HAVE_SAVE_RENEGOTIATION
 		if (f->initial_handshaked_finished && !gnutls_safe_renegotiation_status(f->session)) {
@@ -224,34 +224,46 @@ static void do_handle_error(liGnuTLSFilter *f, const char *gnutlsfunc, int r, gb
 			f_close_with_alert(f, r);
 		}
 #endif
-		break;
+		return;
 	case GNUTLS_E_UNEXPECTED_PACKET_LENGTH:
 		f_close_with_alert(f, r);
-		break;
+		return;
 	case GNUTLS_E_UNKNOWN_CIPHER_SUITE:
 	case GNUTLS_E_UNSUPPORTED_VERSION_PACKET:
 		_DEBUG(f->srv, f->wrk, f->log_context, "%s (%s): %s", gnutlsfunc,
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		f_close_with_alert(f, r);
+		return;
+	case GNUTLS_E_FATAL_ALERT_RECEIVED:
+	case GNUTLS_E_WARNING_ALERT_RECEIVED:
+		{
+			gnutls_alert_description_t alert_desc = gnutls_alert_get(f->session);
+			const char* alert_desc_name = gnutls_alert_get_name(alert_desc);
+			_INFO(f->srv, f->wrk, f->log_context, "%s (%s): %s %s (%u)", gnutlsfunc,
+				gnutls_strerror_name(r), gnutls_strerror(r),
+				(NULL != alert_desc_name) ? alert_desc_name : "unknown alert",
+				(unsigned int) alert_desc);
+		}
+		/* error not handled yet: break instead of return */
 		break;
 	default:
 		if (gnutls_error_is_fatal(r)) {
-			if (GNUTLS_E_FATAL_ALERT_RECEIVED == r || GNUTLS_E_WARNING_ALERT_RECEIVED == r) {
-				_ERROR(f->srv, f->wrk, f->log_context, "%s (%s): %s", gnutlsfunc,
-					gnutls_strerror_name(r),
-					gnutls_alert_get_name(gnutls_alert_get(f->session)));
-			} else {
-				_ERROR(f->srv, f->wrk, f->log_context, "%s (%s): %s", gnutlsfunc,
-					gnutls_strerror_name(r), gnutls_strerror(r));
-			}
-			if (f->initial_handshaked_finished) {
-				f_close_with_alert(f, r);
-			} else {
-				f_abort_gnutls(f);
-			}
-		} else {
-			_ERROR(f->srv, f->wrk, f->log_context, "%s non fatal (%s): %s", gnutlsfunc,
+			_ERROR(f->srv, f->wrk, f->log_context, "%s (%s): %s", gnutlsfunc,
 				gnutls_strerror_name(r), gnutls_strerror(r));
+		} else {
+			_WARNING(f->srv, f->wrk, f->log_context, "%s non fatal (%s): %s", gnutlsfunc,
+				gnutls_strerror_name(r), gnutls_strerror(r));
+		}
+		/* error not handled yet: break instead of return */
+		break;
+	}
+
+	/* generic error handling */
+	if (gnutls_error_is_fatal(r)) {
+		if (f->initial_handshaked_finished) {
+			f_close_with_alert(f, r);
+		} else {
+			f_abort_gnutls(f);
 		}
 	}
 }
