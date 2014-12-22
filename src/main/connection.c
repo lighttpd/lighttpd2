@@ -165,6 +165,11 @@ static void con_iostream_close(liConnection *con) { /* force close */
 	LI_FORCE_ASSERT(NULL == con->con_sock.data);
 }
 static void con_iostream_shutdown(liConnection *con) { /* (try) regular shutdown */
+	if (NULL != con->con_sock.raw_out) {
+		con->con_sock.raw_out->out->is_closed = TRUE;
+		li_stream_notify(con->con_sock.raw_out);
+	}
+
 	if (con->con_sock.callbacks) {
 		con->con_sock.callbacks->finish(con, FALSE);
 	}
