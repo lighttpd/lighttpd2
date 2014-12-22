@@ -25,7 +25,7 @@
 					<short>OpenSSL ecdh-curve name</short>
 				</entry>
 				<entry name="options">
-					<short>list of OpenSSL options (default: NO_SSLv2, CIPHER_SERVER_PREFERENCE, NO_COMPRESSION)</short>
+					<short>list of OpenSSL options (default: NO_SSLv2, NO_SSLv3, CIPHER_SERVER_PREFERENCE, NO_COMPRESSION, SINGLE_DH_USE, SINGLE_ECDH_USE)</short>
 				</entry>
 				<entry name="verify">
 					<short>enable client certificate verification (default: false)</short>
@@ -61,7 +61,7 @@
 						"listen" => "0.0.0.0:443",
 						"listen" => "[::]:443",
 						"pemfile" => "/etc/certs/lighttpd.pem",
-						"options" => ["NO_SSLv3"],
+						"options" => ["ALL", "NO_TICKET"],
 					];
 				}
 			</config>

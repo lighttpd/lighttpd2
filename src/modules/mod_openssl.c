@@ -795,11 +795,12 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		goto error_free_socket;
 	}
 
+	if (SSL_CTX_set_session_id_context(ctx->ssl_ctx, CONST_USTR_LEN("lighttpd")) != 1) {
+		ERROR(srv, "SSL_CTX_set_session_id_context(): %s", ERR_error_string(ERR_get_error(), NULL));
+		goto error_free_socket;
+	}
+
 	if (verify_mode) {
-		if (SSL_CTX_set_session_id_context(ctx->ssl_ctx, (void*) &srv, sizeof(srv)) != 1) {
-			ERROR(srv, "SSL_CTX_set_session_id_context(): %s", ERR_error_string(ERR_get_error(), NULL));
-			goto error_free_socket;
-		}
 		SSL_CTX_set_verify(ctx->ssl_ctx, verify_mode, verify_any ? openssl_verify_any_cb : NULL);
 		SSL_CTX_set_verify_depth(ctx->ssl_ctx, verify_depth);
 	}
@@ -915,6 +916,7 @@ gboolean mod_openssl_init(liModules *mods, liModule *mod) {
 
 	SSL_load_error_strings();
 	SSL_library_init();
+	OpenSSL_add_all_algorithms();
 
 	if (0 == RAND_status()) {
 		ERROR(mods->main, "SSL: %s", "not enough entropy in the pool");

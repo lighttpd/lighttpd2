@@ -245,6 +245,7 @@ static void do_handle_error(liOpenSSLFilter *f, const char *sslfunc, int r, gboo
 	default:
 		was_fatal = FALSE;
 
+		/* get all errors from the error-queue */
 		while((err = ERR_get_error())) {
 			switch (ERR_GET_REASON(err)) {
 			case SSL_R_SSL_HANDSHAKE_FAILURE:
@@ -253,17 +254,17 @@ static void do_handle_error(liOpenSSLFilter *f, const char *sslfunc, int r, gboo
 			case SSL_R_SSLV3_ALERT_BAD_CERTIFICATE:
 			case SSL_R_NO_SHARED_CIPHER:
 			case SSL_R_UNKNOWN_PROTOCOL:
-				/* TODO: if (!con->conf.log_ssl_noise) */ continue;
-				break;
+				_DEBUG(f->srv, f->wrk, f->log_context, "%s: %s", sslfunc,
+					ERR_error_string(err, NULL));
+				continue;
 			default:
 				was_fatal = TRUE;
+				_ERROR(f->srv, f->wrk, f->log_context, "%s: %s", sslfunc,
+					ERR_error_string(err, NULL));
 				break;
 			}
-			/* get all errors from the error-queue */
-			_ERROR(f->srv, f->wrk, f->log_context, "%s: %s", sslfunc,
-				ERR_error_string(err, NULL));
 		}
-		if (!was_fatal) f_abort_ssl(f);
+		if (was_fatal) f_abort_ssl(f);
 	}
 
 }
