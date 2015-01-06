@@ -1,4 +1,4 @@
-EXTRA_DIST=angel.conf lighttpd.conf mimetypes.conf service \
+EXTRA_DIST=angel.conf lighttpd.conf mimetypes.conf service systemd \
 	default.html
 
 # see src/modules/Makefile.am

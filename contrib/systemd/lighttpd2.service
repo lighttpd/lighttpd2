@@ -1,0 +1,12 @@
+[Unit]
+Description=Lighttpd2
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/lighttpd2 -c /etc/lighttpd2/angel.conf
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
