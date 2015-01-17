@@ -39,6 +39,7 @@ struct liEventBase {
 	liEventType type;
 	unsigned int keep_loop_alive:1, active: 1;
 	GList link_watchers; /* data points to loop */
+	const char *event_name; /* track what the event is used for */
 	liEventCallback callback;
 };
 
@@ -151,7 +152,7 @@ INLINE void li_event_set_callback_(liEventBase *base, liEventCallback callback);
 #define li_event_set_callback(watcher, callback) (li_event_set_callback_(&(watcher)->base, callback))
 
 /* defaults to keep_loop_alive = TRUE */
-LI_API void li_event_io_init(liEventLoop *loop, liEventIO *io, liEventCallback callback, int fd, int events);
+LI_API void li_event_io_init(liEventLoop *loop, const char *event_name, liEventIO *io, liEventCallback callback, int fd, int events);
 LI_API void li_event_io_set_fd(liEventIO *io, int fd);
 INLINE int li_event_io_fd(liEventIO *io);
 LI_API void li_event_io_set_events(liEventIO *io, int events);
@@ -161,32 +162,32 @@ INLINE liEventIO* li_event_io_from(liEventBase *base);
 
 /* defaults to keep_loop_alive = TRUE */
 /* timer will always stop when it triggers */
-LI_API void li_event_timer_init(liEventLoop *loop, liEventTimer *timer, liEventCallback callback);
+LI_API void li_event_timer_init(liEventLoop *loop, const char *event_name, liEventTimer *timer, liEventCallback callback);
 INLINE void li_event_timer_once(liEventTimer *timer, li_tstamp timeout); /* also starts the watcher */
 INLINE liEventTimer* li_event_timer_from(liEventBase *base);
 
 /* defaults to keep_loop_alive = FALSE, starts immediately */
-LI_API void li_event_async_init(liEventLoop *loop, liEventAsync *async, liEventCallback callback);
+LI_API void li_event_async_init(liEventLoop *loop, const char *event_name, liEventAsync *async, liEventCallback callback);
 INLINE void li_event_async_send(liEventAsync *async);
 INLINE liEventAsync* li_event_async_from(liEventBase *base);
 
 /* defaults to keep_loop_alive = TRUE, starts immediately */
-LI_API void li_event_child_init(liEventLoop *loop, liEventChild *child, liEventCallback callback, int pid);
+LI_API void li_event_child_init(liEventLoop *loop, const char *event_name, liEventChild *child, liEventCallback callback, int pid);
 INLINE int li_event_child_pid(liEventChild *child);
 INLINE int li_event_child_status(liEventChild *child);
 INLINE liEventChild* li_event_child_from(liEventBase *base);
 
 /* defaults to keep_loop_alive = FALSE, starts immediately */
-LI_API void li_event_signal_init(liEventLoop *loop, liEventSignal *signal, liEventCallback callback, int signum);
+LI_API void li_event_signal_init(liEventLoop *loop, const char *event_name, liEventSignal *signal, liEventCallback callback, int signum);
 INLINE int li_event_signal_signum(liEventSignal *signal);
 INLINE liEventSignal* li_event_signal_from(liEventBase *base);
 
 /* defaults to keep_loop_alive = FALSE, starts immediately */
-LI_API void li_event_prepare_init(liEventLoop *loop, liEventPrepare *prepare, liEventCallback callback);
+LI_API void li_event_prepare_init(liEventLoop *loop, const char *event_name, liEventPrepare *prepare, liEventCallback callback);
 INLINE liEventPrepare* li_event_prepare_from(liEventBase *base);
 
 /* defaults to keep_loop_alive = FALSE, starts immediately */
-LI_API void li_event_check_init(liEventLoop *loop, liEventCheck *check, liEventCallback callback);
+LI_API void li_event_check_init(liEventLoop *loop, const char *event_name, liEventCheck *check, liEventCallback callback);
 INLINE liEventCheck* li_event_check_from(liEventBase *base);
 
 

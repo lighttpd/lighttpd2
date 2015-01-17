@@ -18,9 +18,9 @@ liServer* li_server_new(const gchar *module_dir, gboolean module_resident) {
 
 	li_event_loop_init(&srv->loop, ev_default_loop(0));
 
-	li_event_signal_init(&srv->loop, &srv->sig_w_INT, sigint_cb, SIGINT);
-	li_event_signal_init(&srv->loop, &srv->sig_w_TERM, sigint_cb, SIGTERM);
-	li_event_signal_init(&srv->loop, &srv->sig_w_PIPE, sigpipe_cb, SIGPIPE);
+	li_event_signal_init(&srv->loop, "angel SIGINT", &srv->sig_w_INT, sigint_cb, SIGINT);
+	li_event_signal_init(&srv->loop, "angel SIGTERM", &srv->sig_w_TERM, sigint_cb, SIGTERM);
+	li_event_signal_init(&srv->loop, "angel SIGPIPE", &srv->sig_w_PIPE, sigpipe_cb, SIGPIPE);
 
 	li_log_init(srv);
 	li_plugins_init(srv, module_dir, module_resident);
@@ -178,7 +178,7 @@ static void instance_spawn(liInstance *i) {
 
 	close(confd[1]);
 	li_event_clear(&i->child_watcher);
-	li_event_child_init(&i->srv->loop, &i->child_watcher, instance_child_cb, i->proc->child_pid);
+	li_event_child_init(&i->srv->loop, "lighttpd2-worker", &i->child_watcher, instance_child_cb, i->proc->child_pid);
 	i->s_cur = LI_INSTANCE_DOWN;
 	li_instance_acquire(i);
 	DEBUG(i->srv, "Instance (%i) spawned: %s", i->proc->child_pid, i->ic->cmd[0]);

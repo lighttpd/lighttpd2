@@ -240,7 +240,7 @@ static void S_backend_pool_worker_insert_connected(liBackendWorkerPool *wpool, i
 	liBackendConnection_p *con = backend_connection_new(wpool);
 	liBackendPool_p *pool = wpool->pool;
 
-	li_event_io_init(&wpool->wrk->loop, &con->public.watcher, NULL, fd, 0);
+	li_event_io_init(&wpool->wrk->loop, "backend connection", &con->public.watcher, NULL, fd, 0);
 	li_event_set_keep_loop_alive(&con->public.watcher, FALSE);
 
 	BACKEND_THREAD_CB(new, pool, wpool->wrk, con);
@@ -386,7 +386,7 @@ static void backend_con_watch_connect_cb(liEventBase *watcher, int events) {
 static void S_backend_pool_worker_insert_pending(liBackendWorkerPool *wpool, int fd) {
 	liBackendConnection_p *con = backend_connection_new(wpool);
 
-	li_event_io_init(&wpool->wrk->loop, &con->public.watcher, backend_con_watch_connect_cb, fd, LI_EV_READ | LI_EV_WRITE);
+	li_event_io_init(&wpool->wrk->loop, "backend connection", &con->public.watcher, backend_con_watch_connect_cb, fd, LI_EV_READ | LI_EV_WRITE);
 	li_event_set_keep_loop_alive(&con->public.watcher, FALSE);
 	li_event_start(&con->public.watcher);
 
@@ -775,12 +775,12 @@ static gpointer backend_pool_worker_init(liWorker *wrk, gpointer fdata) {
 
 	if (wpool->initialized) return NULL;
 
-	li_event_async_init(&wrk->loop, &wpool->wakeup, backend_pool_worker_run);
+	li_event_async_init(&wrk->loop, "backend pool", &wpool->wakeup, backend_pool_worker_run);
 	if (idle_timeout < 1) idle_timeout = 5;
 	li_waitqueue_init(&wpool->idle_queue, &wrk->loop, backend_pool_worker_idle_timeout, idle_timeout, wpool);
 	li_waitqueue_init(&wpool->connect_queue, &wrk->loop, backend_pool_worker_connect_timeout, pool->public.config->connect_timeout, wpool);
 
-	li_event_timer_init(&wrk->loop, &wpool->wait_queue_timer, backend_pool_wait_queue_timeout);
+	li_event_timer_init(&wrk->loop, "backend pool", &wpool->wait_queue_timer, backend_pool_wait_queue_timeout);
 	li_event_set_keep_loop_alive(&wpool->wait_queue_timer, FALSE);
 
 	wpool->initialized = TRUE;

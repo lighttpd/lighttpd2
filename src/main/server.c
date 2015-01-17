@@ -22,7 +22,7 @@ static liServerSocket* server_socket_new(liServer *srv, int fd) {
 	sock->local_addr = li_sockaddr_local_from_socket(fd);
 	sock->refcount = 1;
 	li_fd_no_block(fd);
-	li_event_io_init(&srv->main_worker->loop, &sock->watcher, li_server_listen_cb, fd, LI_EV_READ);
+	li_event_io_init(&srv->main_worker->loop, "server socket", &sock->watcher, li_server_listen_cb, fd, LI_EV_READ);
 	return sock;
 }
 
@@ -287,15 +287,15 @@ void li_server_loop_init(liServer *srv) {
 
 	loop = &srv->main_worker->loop;
 
-	li_event_async_init(loop, &srv->state_ready_watcher, state_ready_cb);
+	li_event_async_init(loop, "server state ready", &srv->state_ready_watcher, state_ready_cb);
 
-	li_event_timer_init(loop, &srv->srv_1sec_timer, li_server_1sec_timer);
+	li_event_timer_init(loop, "server 1sec", &srv->srv_1sec_timer, li_server_1sec_timer);
 	li_event_set_keep_loop_alive(&srv->srv_1sec_timer, FALSE);
 	li_event_timer_once(&srv->srv_1sec_timer, 1);
 
-	li_event_signal_init(loop, &srv->sig_w_INT, sigint_cb, SIGINT);
-	li_event_signal_init(loop, &srv->sig_w_TERM, sigint_cb, SIGTERM);
-	li_event_signal_init(loop, &srv->sig_w_PIPE, sigpipe_cb, SIGPIPE);
+	li_event_signal_init(loop, "server SIGINT", &srv->sig_w_INT, sigint_cb, SIGINT);
+	li_event_signal_init(loop, "server SIGTERM", &srv->sig_w_TERM, sigint_cb, SIGTERM);
+	li_event_signal_init(loop, "server SIGPIPE", &srv->sig_w_PIPE, sigpipe_cb, SIGPIPE);
 
 	li_log_init(srv);
 }

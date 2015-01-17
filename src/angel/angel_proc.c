@@ -88,7 +88,7 @@ liErrorPipe* li_error_pipe_new(liServer *srv, liErrorPipeCB cb, gpointer ctx) {
 	epipe->srv = srv;
 	epipe->cb = cb;
 	epipe->ctx = ctx;
-	li_event_io_init(&srv->loop, &epipe->fd_watcher, error_pipe_cb, fds[0], LI_EV_READ);
+	li_event_io_init(&srv->loop, "angel error-pipe", &epipe->fd_watcher, error_pipe_cb, fds[0], LI_EV_READ);
 	epipe->fds[0] = fds[0];
 	epipe->fds[1] = fds[1];
 

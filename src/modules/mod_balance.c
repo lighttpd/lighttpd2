@@ -84,10 +84,10 @@ static balancer* balancer_new(liWorker *wrk, liPlugin *p, balancer_method method
 
 	b->backlog_limit = -1;
 
-	li_event_timer_init(&wrk->loop, &b->backlog_timer, balancer_timer_cb);
+	li_event_timer_init(&wrk->loop, "balancer", &b->backlog_timer, balancer_timer_cb);
 	li_event_set_keep_loop_alive(&b->backlog_timer, FALSE);
 
-	li_event_async_init(&wrk->loop, &b->async, balancer_async_cb);
+	li_event_async_init(&wrk->loop, "balancer", &b->async, balancer_async_cb);
 
 	return b;
 }

@@ -9,7 +9,7 @@ static void wq_cb(liEventBase *watcher, int events) {
 }
 
 void li_waitqueue_init(liWaitQueue *queue, liEventLoop *loop, liWaitQueueCB callback, gdouble delay, gpointer data) {
-	li_event_timer_init(loop, &queue->timer, wq_cb);
+	li_event_timer_init(loop, "waitqueue", &queue->timer, wq_cb);
 
 	queue->head = queue->tail = NULL;
 	queue->delay = delay;

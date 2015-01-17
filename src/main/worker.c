@@ -285,7 +285,7 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	li_lua_init(&wrk->LL, srv, wrk);
 
 	g_queue_init(&wrk->keep_alive_queue);
-	li_event_timer_init(&wrk->loop, &wrk->keep_alive_timer, worker_keepalive_cb);
+	li_event_timer_init(&wrk->loop, "worker connection keep-alive", &wrk->keep_alive_timer, worker_keepalive_cb);
 
 	wrk->connections_active = 0;
 	wrk->connections = g_array_new(FALSE, TRUE, sizeof(liConnection*));
@@ -307,20 +307,20 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 			g_array_index(wrk->timestamps_local, liWorkerTS, i).str = g_string_sized_new(255);
 	}
 
-	li_event_prepare_init(&wrk->loop, &wrk->loop_prepare, li_worker_prepare_cb);
-	li_event_async_init(&wrk->loop, &wrk->worker_stop_watcher, li_worker_stop_cb);
-	li_event_async_init(&wrk->loop, &wrk->worker_stopping_watcher, li_worker_stopping_cb);
-	li_event_async_init(&wrk->loop, &wrk->worker_exit_watcher, li_worker_exit_cb);
-	li_event_async_init(&wrk->loop, &wrk->worker_suspend_watcher, li_worker_suspend_cb);
+	li_event_prepare_init(&wrk->loop, "worker flush logs", &wrk->loop_prepare, li_worker_prepare_cb);
+	li_event_async_init(&wrk->loop, "worker stop", &wrk->worker_stop_watcher, li_worker_stop_cb);
+	li_event_async_init(&wrk->loop, "worker stopping", &wrk->worker_stopping_watcher, li_worker_stopping_cb);
+	li_event_async_init(&wrk->loop, "worker exit", &wrk->worker_exit_watcher, li_worker_exit_cb);
+	li_event_async_init(&wrk->loop, "worker suspend", &wrk->worker_suspend_watcher, li_worker_suspend_cb);
 
-	li_event_async_init(&wrk->loop, &wrk->new_con_watcher, li_worker_new_con_cb);
+	li_event_async_init(&wrk->loop, "worker new connection", &wrk->new_con_watcher, li_worker_new_con_cb);
 	wrk->new_con_queue = g_async_queue_new();
 
-	li_event_timer_init(&wrk->loop, &wrk->stats_watcher, worker_stats_watcher_cb);
+	li_event_timer_init(&wrk->loop, "worker stats update", &wrk->stats_watcher, worker_stats_watcher_cb);
 	li_event_set_keep_loop_alive(&wrk->stats_watcher, FALSE);
 	li_event_timer_once(&wrk->stats_watcher, 1);
 
-	li_event_async_init(&wrk->loop, &wrk->collect_watcher, li_collect_watcher_cb);
+	li_event_async_init(&wrk->loop, "worker collect", &wrk->collect_watcher, li_collect_watcher_cb);
 	wrk->collect_queue = g_async_queue_new();
 
 	/* io timeout timer */

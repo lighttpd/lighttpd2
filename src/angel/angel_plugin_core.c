@@ -978,7 +978,7 @@ static gboolean core_init(liServer *srv, liPlugin *p) {
 	li_angel_plugin_add_angel_cb(p, "reached-state", core_reached_state);
 	li_angel_plugin_add_angel_cb(p, "log-open-file", core_log_open_file);
 
-	li_event_signal_init(&srv->loop, &config->sig_hup, core_handle_sig_hup, SIGHUP);
+	li_event_signal_init(&srv->loop, "angel SIGHUP", &config->sig_hup, core_handle_sig_hup, SIGHUP);
 
 	return TRUE;
 }

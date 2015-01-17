@@ -706,7 +706,7 @@ liConnection* li_connection_new(liWorker *wrk) {
 	con->keep_alive_data.link = NULL;
 	con->keep_alive_data.timeout = 0;
 	con->keep_alive_data.max_idle = 0;
-	li_event_timer_init(&wrk->loop, &con->keep_alive_data.watcher, connection_keepalive_cb);
+	li_event_timer_init(&wrk->loop, "connection keep-alive timeout", &con->keep_alive_data.watcher, connection_keepalive_cb);
 
 	con->io_timeout_elem.data = con;
 

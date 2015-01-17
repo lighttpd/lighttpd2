@@ -801,7 +801,7 @@ liMemcachedCon* li_memcached_con_new(liEventLoop *loop, liSocketAddress addr) {
 	con->tmpstr = g_string_sized_new(511);
 
 	con->fd = -1;
-	li_event_io_init(loop, &con->con_watcher, memcached_io_cb, -1, 0);
+	li_event_io_init(loop, "memcached", &con->con_watcher, memcached_io_cb, -1, 0);
 	li_event_set_keep_loop_alive(&con->con_watcher, FALSE);
 
 	memcached_connect(con);

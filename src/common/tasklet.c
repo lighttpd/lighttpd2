@@ -57,7 +57,7 @@ static void run_tasklet(gpointer data, gpointer userdata) {
 liTaskletPool* li_tasklet_pool_new(liEventLoop *loop, gint threads) {
 	liTaskletPool *pool = g_slice_new0(liTaskletPool);
 
-	li_event_async_init(loop, &pool->finished_watcher, finished_watcher_cb);
+	li_event_async_init(loop, "tasklet pool", &pool->finished_watcher, finished_watcher_cb);
 
 	pool->finished = g_async_queue_new();
 

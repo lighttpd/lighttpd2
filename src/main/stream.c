@@ -487,7 +487,7 @@ liIOStream* li_iostream_new(liWorker *wrk, int fd, liIOStreamCB cb, gpointer dat
 
 	iostream->write_timeout_queue = NULL;
 
-	li_event_io_init(&wrk->loop, &iostream->io_watcher, iostream_io_cb, fd, LI_EV_READ);
+	li_event_io_init(&wrk->loop, "iostream", &iostream->io_watcher, iostream_io_cb, fd, LI_EV_READ);
 
 	iostream->in_closed = iostream->out_closed = iostream->can_read = FALSE;
 	iostream->can_write = TRUE;

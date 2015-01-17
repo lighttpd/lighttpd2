@@ -61,9 +61,9 @@ static void job_async_queue_cb(liEventBase *watcher, int events) {
 
 
 void li_job_queue_init(liJobQueue* jq, liEventLoop *loop) {
-	li_event_prepare_init(loop, &jq->prepare_watcher, job_queue_prepare_cb);
-	li_event_async_init(loop, &jq->async_queue_watcher, job_async_queue_cb);
-	li_event_timer_init(loop, &jq->queue_watcher, job_queue_watcher_cb);
+	li_event_prepare_init(loop, "jobqueue", &jq->prepare_watcher, job_queue_prepare_cb);
+	li_event_async_init(loop, "jobqueue", &jq->async_queue_watcher, job_async_queue_cb);
+	li_event_timer_init(loop, "jobqueue", &jq->queue_watcher, job_queue_watcher_cb);
 
 	/* job queue */
 	g_queue_init(&jq->queue);

@@ -395,11 +395,11 @@ liAngelConnection* li_angel_connection_new(liEventLoop *loop, int fd, gpointer d
 	acon->call_id_list = li_idlist_new(65535);
 	acon->call_table = g_ptr_array_new();
 
-	li_event_io_init(loop, &acon->fd_watcher, angel_connection_io_cb, fd, LI_EV_READ);
+	li_event_io_init(loop, "angel connection", &acon->fd_watcher, angel_connection_io_cb, fd, LI_EV_READ);
 	li_event_set_keep_loop_alive(&acon->fd_watcher, FALSE);
 	li_event_start(&acon->fd_watcher);
 
-	li_event_async_init(loop, &acon->out_notify_watcher, angel_connection_out_notify_cb);
+	li_event_async_init(loop, "angel out-notify", &acon->out_notify_watcher, angel_connection_out_notify_cb);
 
 	acon->out = g_queue_new();
 	acon->in.data = g_string_sized_new(1024);
@@ -504,9 +504,9 @@ liAngelCall *li_angel_call_new(liEventLoop *loop, liAngelCallCB callback, li_tst
 
 	g_assert(NULL != callback);
 	call->callback = callback;
-	li_event_timer_init(loop, &call->timeout_watcher, angel_call_timeout_cb);
+	li_event_timer_init(loop, "angel call timeout", &call->timeout_watcher, angel_call_timeout_cb);
 	li_event_timer_once(&call->timeout_watcher, timeout);
-	li_event_async_init(loop, &call->result_watcher, angel_call_result_cb);
+	li_event_async_init(loop, "angel call result", &call->result_watcher, angel_call_result_cb);
 	call->id = -1;
 
 	return call;
