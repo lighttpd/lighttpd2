@@ -63,6 +63,21 @@ struct mod_debug_job_t {
 };
 typedef struct mod_debug_job_t mod_debug_job_t;
 
+struct plugin_debug_worker_data {
+	liWorker *wrk;
+	struct plugin_debug_data *pd;
+	liEventAsync stop_listen;
+	liEventTimer stop_listen_timeout;
+};
+typedef struct plugin_debug_worker_data plugin_debug_worker_data;
+
+struct plugin_debug_data {
+	int stop_listen_timeout_seconds;
+	plugin_debug_worker_data *worker_data;
+};
+typedef struct plugin_debug_data plugin_debug_data;
+
+
 /* the CollectFunc */
 static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 	GArray *cons;
@@ -353,6 +368,178 @@ static liAction* debug_profiler_dump_create(liServer *srv, liWorker *wrk, liPlug
 }
 #endif
 
+/* if show_all is FALSE only active events that keep the loop alive are shown */
+static void log_events(liWorker *wrk, liLogContext *context, gboolean show_all) {
+	GList *lnk;
+
+	for (lnk = wrk->loop.watchers.head; NULL != lnk; lnk = lnk->next) {
+		liEventBase *base = LI_CONTAINER_OF(lnk, liEventBase, link_watchers);
+		gboolean active = li_event_active_(base);
+
+		if (show_all || (active && base->keep_loop_alive)) {
+			_ERROR(wrk->srv, wrk, context,
+				"Event listener for worker %i: '%s' (%s %s)%s",
+				wrk->ndx,
+				base->event_name,
+				active ? "active" : "inactive",
+				li_event_type_string(base->type),
+				base->keep_loop_alive
+					? (active
+						? ""
+						: " [doesn't keep loop alive]")
+					: " [does never keep loop alive]");
+		}
+	}
+}
+
+/* if show_all is FALSE only active events that keep the loop alive are shown */
+static void format_events(GString *out, liWorker *wrk, gboolean show_all) {
+	GList *lnk;
+	g_string_truncate(out, 0);
+
+	for (lnk = wrk->loop.watchers.head; NULL != lnk; lnk = lnk->next) {
+		liEventBase *base = LI_CONTAINER_OF(lnk, liEventBase, link_watchers);
+		gboolean active = li_event_active_(base);
+
+		if (show_all || (active && base->keep_loop_alive)) {
+			g_string_append_printf(out,
+				"Event listener for worker %i: '%s' (%s %s)%s\n",
+				wrk->ndx,
+				base->event_name,
+				active ? "active" : "inactive",
+				li_event_type_string(base->type),
+				base->keep_loop_alive
+					? (active
+						? ""
+						: " [doesn't keep loop alive]")
+					: " [does never keep loop alive]");
+		}
+	}
+}
+
+struct collect_events_job {
+	liVRequest *vr;
+	gpointer *context;
+	gboolean show_all;
+};
+typedef struct collect_events_job collect_events_job;
+
+/* the CollectFunc */
+static gpointer debug_show_events_func(liWorker *wrk, gpointer fdata) {
+	collect_events_job *job = fdata;
+	GString *out = g_string_sized_new(0);
+
+	format_events(out, wrk, job->show_all);
+
+	return out;
+}
+
+/* the CollectCallback */
+static void debug_show_events_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
+	collect_events_job *job = fdata;
+	liVRequest *vr;
+	UNUSED(cbdata);
+
+	if (complete) {
+		vr = job->vr;
+		/* clear context so it doesn't get cleaned up anymore */
+		*(job->context) = NULL;
+
+		if (li_vrequest_handle_direct(vr)) {
+			guint i;
+
+			li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/plain; charset=utf-8"));
+			vr->response.http_status = 200;
+
+			for (i = 0; i < result->len; i++) {
+				GString *str = g_ptr_array_index(result, i);
+				g_ptr_array_index(result, i) = NULL;
+				li_chunkqueue_append_string(vr->direct_out, str);
+			}
+
+			li_vrequest_joblist_append(vr);
+		}
+	}
+
+	{
+		guint i;
+
+		for (i = 0; i < result->len; i++) {
+			GString *str = g_ptr_array_index(result, i);
+			if (NULL != str) g_string_free(str, TRUE);
+		}
+
+		g_slice_free(collect_events_job, job);
+	}
+}
+
+static liHandlerResult debug_show_events_cleanup(liVRequest *vr, gpointer param, gpointer context) {
+	liCollectInfo *ci = (liCollectInfo*) context;
+
+	UNUSED(vr);
+	UNUSED(param);
+
+	li_collect_break(ci);
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liHandlerResult debug_show_events(liVRequest *vr, gpointer param, gpointer *context) {
+	UNUSED(param);
+
+	switch (vr->request.http_method) {
+	case LI_HTTP_METHOD_GET:
+	case LI_HTTP_METHOD_HEAD:
+		break;
+	default:
+		return LI_HANDLER_GO_ON;
+	}
+
+	if (NULL != *context)
+		return LI_HANDLER_WAIT_FOR_EVENT;
+
+	if (!li_vrequest_is_handled(vr)) {
+		liCollectInfo *ci;
+		collect_events_job *job = g_slice_new0(collect_events_job);
+		job->vr = vr;
+		job->context = context;
+		job->show_all = TRUE;
+
+		VR_DEBUG(vr, "%s", "collecting events info...");
+
+		ci = li_collect_start(vr->wrk, debug_show_events_func, job, debug_show_events_cb, NULL);
+		*context = ci; /* may be NULL */
+	}
+
+	return (*context) ? LI_HANDLER_WAIT_FOR_EVENT : LI_HANDLER_GO_ON;
+}
+
+static liAction* debug_show_events_create(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(userdata); UNUSED(p);
+
+	if (!li_value_is_nothing(val)) {
+		ERROR(srv, "%s", "debug.show_events doesn't expect any parameters");
+		return NULL;
+	}
+
+	return li_action_new_function(debug_show_events, debug_show_events_cleanup, NULL, NULL);
+}
+
+static gboolean debug_show_events_after_shutdown(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	plugin_debug_data *pd = p->data;
+	UNUSED(userdata);
+
+	val = li_value_get_single_argument(val);
+
+	if (LI_VALUE_NUMBER != li_value_type(val)) {
+		ERROR(srv, "debug.show_events_after_shutdown expected number, got %s", li_value_type_string(val));
+		return FALSE;
+	}
+
+	pd->stop_listen_timeout_seconds = val->data.number;
+
+	return TRUE;
+}
 
 static const liPluginOption options[] = {
 	{ NULL, 0, 0, NULL }
@@ -363,21 +550,104 @@ static const liPluginAction actions[] = {
 #ifdef WITH_PROFILER
 	{ "debug.profiler_dump", debug_profiler_dump_create, NULL },
 #endif
+	{ "debug.show_events", debug_show_events_create, NULL },
 
 	{ NULL, NULL, NULL }
 };
 
 static const liPluginSetup setups[] = {
+	{ "debug.show_events_after_shutdown", debug_show_events_after_shutdown, NULL },
+
 	{ NULL, NULL, NULL }
 };
 
+static void plugin_debug_stop_listen_timeout(liEventBase *watcher, int events) {
+	plugin_debug_worker_data *pwd = LI_CONTAINER_OF(li_event_timer_from(watcher), plugin_debug_worker_data, stop_listen_timeout);
+	UNUSED(events);
+
+	ERROR(pwd->wrk->srv, "Couldn't suspend yet, checking events for worker %i:", pwd->wrk->ndx);
+	log_events(pwd->wrk, NULL, FALSE);
+}
+
+static void plugin_debug_worker_stop_listen(liEventBase *watcher, int events) {
+	plugin_debug_worker_data *pwd = LI_CONTAINER_OF(li_event_async_from(watcher), plugin_debug_worker_data, stop_listen);
+	plugin_debug_data *pd = pwd->pd;
+	UNUSED(events);
+
+	if (!li_event_attached(&pwd->stop_listen_timeout)) {
+		li_event_attach(&pwd->wrk->loop, &pwd->stop_listen_timeout);
+		li_event_timer_once(&pwd->stop_listen_timeout, pd->stop_listen_timeout_seconds);
+	}
+}
+
+static void plugin_debug_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) {
+	plugin_debug_data *pd = p->data;
+	plugin_debug_worker_data *pwd;
+	UNUSED(srv);
+
+	if (pd->stop_listen_timeout_seconds < 0) return;
+
+	pwd = &pd->worker_data[wrk->ndx];
+	pwd->pd = pd;
+	pwd->wrk = wrk;
+
+	li_event_async_init(&wrk->loop, "mod_debug stop_listen", &pwd->stop_listen, plugin_debug_worker_stop_listen);
+	li_event_timer_init(NULL, "mod_debug stop_listen_timeout", &pwd->stop_listen_timeout, plugin_debug_stop_listen_timeout);
+	li_event_set_keep_loop_alive(&pwd->stop_listen_timeout, FALSE);
+}
+
+static void plugin_debug_prepare(liServer *srv, liPlugin *p) {
+	plugin_debug_data *pd = p->data;
+
+	if (pd->stop_listen_timeout_seconds >= 0) {
+		pd->worker_data = g_new0(plugin_debug_worker_data, srv->worker_count);
+	}
+}
+
+static void plugin_debug_stop_listen(liServer *srv, liPlugin *p) {
+	plugin_debug_data *pd = p->data;
+
+	if (NULL != pd->worker_data) {
+		unsigned int i;
+		for (i = 0; i < srv->worker_count; ++i) {
+			plugin_debug_worker_data *pwd = &pd->worker_data[i];
+			if (NULL == pwd->wrk) continue;
+			li_event_async_send(&pwd->stop_listen);
+		}
+	}
+}
+
+static void plugin_debug_free(liServer *srv, liPlugin *p) {
+	plugin_debug_data *pd = p->data;
+
+	if (NULL != pd->worker_data) {
+		unsigned int i;
+		for (i = 0; i < srv->worker_count; ++i) {
+			plugin_debug_worker_data *pwd = &pd->worker_data[i];
+			li_event_clear(&pwd->stop_listen);
+			li_event_clear(&pwd->stop_listen_timeout);
+		}
+		g_free(pd->worker_data);
+	}
+	g_free(pd);
+}
 
 static void plugin_debug_init(liServer *srv, liPlugin *p, gpointer userdata) {
+	plugin_debug_data *pd = g_malloc0(sizeof(plugin_debug_data));
 	UNUSED(srv); UNUSED(userdata);
 
 	p->options = options;
 	p->actions = actions;
 	p->setups = setups;
+
+	p->data = pd;
+
+	pd->stop_listen_timeout_seconds = -1; /* disabled by default */
+
+	p->free = plugin_debug_free;
+	p->handle_stop_listen = plugin_debug_stop_listen;
+	p->handle_prepare = plugin_debug_prepare;
+	p->handle_prepare_worker = plugin_debug_prepare_worker;
 }
 
 

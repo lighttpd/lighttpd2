@@ -190,6 +190,7 @@ INLINE liEventPrepare* li_event_prepare_from(liEventBase *base);
 LI_API void li_event_check_init(liEventLoop *loop, const char *event_name, liEventCheck *check, liEventCallback callback);
 INLINE liEventCheck* li_event_check_from(liEventBase *base);
 
+LI_API const char* li_event_type_string(liEventType type);
 
 /* inline implementations */
 

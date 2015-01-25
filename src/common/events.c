@@ -391,3 +391,25 @@ void li_event_check_init(liEventLoop *loop, const char *event_name, liEventCheck
 	if (NULL != loop) li_event_attach(loop, check);
 	li_event_start(check);
 }
+
+const char* li_event_type_string(liEventType type) {
+	switch (type) {
+	case LI_EVT_NONE:
+		return "none";
+	case LI_EVT_IO:
+		return "io";
+	case LI_EVT_TIMER:
+		return "timer";
+	case LI_EVT_ASYNC:
+		return "async";
+	case LI_EVT_CHILD:
+		return "child";
+	case LI_EVT_SIGNAL:
+		return "signal";
+	case LI_EVT_PREPARE:
+		return "prepare";
+	case LI_EVT_CHECK:
+		return "check";
+	}
+	return "INVALID";
+}

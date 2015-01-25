@@ -25,4 +25,33 @@
 			</textile>
 		</description>
 	</action>
+
+	<action name="debug.show_events">
+		<short>shows a plain text list of all events</short>
+		<description>
+			this is a very low level debug tool for developers.
+		</description>
+		<example>
+			<config>
+				if req.path == "/debug/events" { debug.show_events; }
+			</config>
+		</example>
+	</action>
+
+	<setup name="debug.show_events_after_shutdown">
+		<short>time in seconds after start of shutdown to log remaining active events</short>
+		<parameter name="timeout">
+			<short>timeout after which to display events (default: disabled)</short>
+		</parameter>
+
+		<description>
+			this is a very low level debug tool for developers; it shows which event listeners keep lighttpd2 alive when it should stop.
+		</description>
+
+		<example>
+			<config>
+				setup { debug.show_events_after_shutdown 5; }
+			</config>
+		</example>
+	</setup>
 </module>
