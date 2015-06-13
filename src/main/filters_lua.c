@@ -202,7 +202,7 @@ static filter_lua_state* filter_lua_state_new(liVRequest *vr, filter_lua_config 
 }
 
 static void filter_lua_state_free(liVRequest *vr, filter_lua_state *state) {
-	liServer *srv = vr->wrk->srv;
+	liServer *srv = NULL != vr ? vr->wrk->srv : NULL;
 	lua_State *L = state->LL->L;
 
 	li_lua_lock(state->LL);
@@ -225,6 +225,7 @@ static void filter_lua_free(liVRequest *vr, liFilter *f) {
 }
 
 static liHandlerResult filter_lua_handle(liVRequest *vr, liFilter *f) {
+	liServer *srv = NULL != vr ? vr->wrk->srv : NULL;
 	filter_lua_state *state = (filter_lua_state*) f->param;
 	lua_State *L = state->LL->L;
 	liHandlerResult res;
@@ -235,7 +236,7 @@ static liHandlerResult filter_lua_handle(liVRequest *vr, liFilter *f) {
 	li_lua_push_vrequest(L, vr); /* +1 */
 	li_lua_push_chunkqueue(L, f->out); /* +1 */
 	li_lua_push_chunkqueue(L, f->in); /* +1 */
-	if (li_lua_call_object(NULL, vr, L, "handle", 4, 1, FALSE)) { /* -4, +1 on success */
+	if (li_lua_call_object(srv, vr, L, "handle", 4, 1, FALSE)) { /* -4, +1 on success */
 		res = LI_HANDLER_GO_ON;
 		if (!lua_isnil(L, -1)) {
 			int rc = lua_tointeger(L, -1);

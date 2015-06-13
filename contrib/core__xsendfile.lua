@@ -17,8 +17,11 @@ end
 
 -- normal method to handle content
 function XFilterDrop:handle(vr, outq, inq)
-	-- drop further input (we closed it already)
-	inq:skip_all()
+	-- drop input, close it
+	if nil ~= inq then
+		inq.is_closed = true
+		inq:skip_all()
+	end
 	return lighty.HANDLER_GO_ON
 end
 
@@ -26,8 +29,11 @@ end
 -- returns the filter object so you can insert your own content in f.out (it is already closed)
 local function add_drop_filter(vr)
 	local f = vr:add_filter_out(XFilterDrop:new())
-	f['in'].is_closed = true
-	f['in']:skip_all()
+	local inq = f['in']
+	if nil ~= inq then
+		inq.is_closed = true
+		inq:skip_all()
+	end
 	f.out.is_closed = true
 	return f
 end

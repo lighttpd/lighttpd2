@@ -139,12 +139,9 @@ liFilter* li_filter_new(liVRequest* vr, liFilterHandlerCB handle_data, liFilterF
 static void li_filter_stop(liFilter *filter) {
 	liVRequest *vr = filter->vr;
 
-	if (NULL == vr) return;
-
-	filter->vr = NULL;
-
 	/* remove from vr filters list */
 	LI_FORCE_ASSERT(vr->filters->len > 0);
+	LI_FORCE_ASSERT(g_ptr_array_index(vr->filters, filter->filter_ndx) == filter);
 	if (vr->filters->len - 1 != filter->filter_ndx) {
 		/* not the last filter, swap: */
 		liFilter *last = g_ptr_array_index(vr->filters, vr->filters->len - 1);
@@ -153,8 +150,7 @@ static void li_filter_stop(liFilter *filter) {
 	}
 	g_ptr_array_set_size(vr->filters, vr->filters->len - 1);
 
-	li_stream_again(&filter->stream);
-
+	filter->vr = NULL;
 	li_stream_release(&filter->stream);
 }
 
