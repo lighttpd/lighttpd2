@@ -368,28 +368,88 @@ static liAction* debug_profiler_dump_create(liServer *srv, liWorker *wrk, liPlug
 }
 #endif
 
+static void format_event(GString *out, liWorker *wrk, liEventBase *base) {
+	gboolean active = li_event_active_(base);
+
+	g_string_append_printf(out,
+		"Event listener for worker %i: '%s' (%s %s)%s",
+		wrk->ndx,
+		base->event_name,
+		active ? "active" : "inactive",
+		li_event_type_string(base->type),
+		base->keep_loop_alive
+			? (active
+				? ""
+				: " [doesn't keep loop alive]")
+			: " [does never keep loop alive]");
+	switch (base->type) {
+	case LI_EVT_IO:
+		{
+			liEventIO *io = li_event_io_from(base);
+			liSocketAddress local_addr = li_sockaddr_local_from_socket(li_event_io_fd(io));
+			liSocketAddress remote_addr = li_sockaddr_remote_from_socket(li_event_io_fd(io));
+
+			g_string_append_printf(out,
+				": fd=%i, events=%i [%s%s]",
+				li_event_io_fd(io),
+				io->events,
+				0 != (io->events & LI_EV_READ) ? "read," : "",
+				0 != (io->events & LI_EV_WRITE) ? "write," : "");
+
+			li_sockaddr_to_string(local_addr, wrk->tmp_str, TRUE);
+			g_string_append_printf(out, ", local=%s", wrk->tmp_str->str);
+
+			li_sockaddr_to_string(remote_addr, wrk->tmp_str, TRUE);
+			g_string_append_printf(out, ", remote=%s", wrk->tmp_str->str);
+		}
+		break;
+	case LI_EVT_TIMER:
+		{
+			liEventTimer *timer = li_event_timer_from(base);
+			g_string_append_printf(out,
+				": timeout=%i",
+				(int)timer->libevmess.timer.repeat);
+		}
+		break;
+	case LI_EVT_CHILD:
+		{
+			liEventChild *child = li_event_child_from(base);
+			g_string_append_printf(out,
+				": pid=%i",
+				li_event_child_pid(child));
+		}
+		break;
+	case LI_EVT_SIGNAL:
+		{
+			liEventSignal *signal = li_event_signal_from(base);
+			g_string_append_printf(out,
+				": signum=%i",
+				li_event_signal_signum(signal));
+		}
+		break;
+	default:
+		break;
+	}
+	g_string_append_printf(out, "\n");
+}
+
 /* if show_all is FALSE only active events that keep the loop alive are shown */
 static void log_events(liWorker *wrk, liLogContext *context, gboolean show_all) {
 	GList *lnk;
+	GString *out = g_string_sized_new(0);
 
 	for (lnk = wrk->loop.watchers.head; NULL != lnk; lnk = lnk->next) {
 		liEventBase *base = LI_CONTAINER_OF(lnk, liEventBase, link_watchers);
 		gboolean active = li_event_active_(base);
 
 		if (show_all || (active && base->keep_loop_alive)) {
-			_ERROR(wrk->srv, wrk, context,
-				"Event listener for worker %i: '%s' (%s %s)%s",
-				wrk->ndx,
-				base->event_name,
-				active ? "active" : "inactive",
-				li_event_type_string(base->type),
-				base->keep_loop_alive
-					? (active
-						? ""
-						: " [doesn't keep loop alive]")
-					: " [does never keep loop alive]");
+			format_event(out, wrk, base);
+			_ERROR(wrk->srv, wrk, context, "%s", out->str);
+			g_string_truncate(out, 0);
 		}
 	}
+
+	g_string_free(out, TRUE);
 }
 
 /* if show_all is FALSE only active events that keep the loop alive are shown */
@@ -402,17 +462,7 @@ static void format_events(GString *out, liWorker *wrk, gboolean show_all) {
 		gboolean active = li_event_active_(base);
 
 		if (show_all || (active && base->keep_loop_alive)) {
-			g_string_append_printf(out,
-				"Event listener for worker %i: '%s' (%s %s)%s\n",
-				wrk->ndx,
-				base->event_name,
-				active ? "active" : "inactive",
-				li_event_type_string(base->type),
-				base->keep_loop_alive
-					? (active
-						? ""
-						: " [doesn't keep loop alive]")
-					: " [does never keep loop alive]");
+			format_event(out, wrk, base);
 		}
 	}
 }
