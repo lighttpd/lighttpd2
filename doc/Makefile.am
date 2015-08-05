@@ -7,7 +7,10 @@ EXTRA_DIST=\
 	style.css \
 	doc_schema.xsd \
 	core_config.xml \
+	core_config_angel.xml \
 	core_fetch.xml \
+	core_introduction.xml \
+	core_lua.xml \
 	core_pattern.xml \
 	core_regex.xml \
 	mod_accesslog.xml \

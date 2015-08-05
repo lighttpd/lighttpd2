@@ -1,5 +1,5 @@
 EXTRA_DIST=angel.conf lighttpd.conf mimetypes.conf service systemd \
-	default.html
+	default.html create-mimetypes.conf.pl
 
 # see src/modules/Makefile.am
 luadir = $(datarootdir)/lighttpd2/lua
