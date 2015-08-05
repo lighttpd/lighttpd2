@@ -629,7 +629,12 @@ GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean sho
 		else
 			g_string_truncate(dest, 0);
 		g_string_append_len(dest, CONST_STR_LEN("unix:"));
-		g_string_append(dest, saddr->un.sun_path);
+		{
+			const char* path_start = saddr->un.sun_path;
+			const char* path_end = ((const char*)saddr) + addr.len;
+			size_t path_len = path_end - path_start;
+			g_string_append_len(dest, path_start, strnlen(path_start, path_len));
+		}
 		break;
 #endif
 	default:
