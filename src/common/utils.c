@@ -616,10 +616,13 @@ GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean sho
 	case AF_INET6:
 		/* ipv6 - not yet implemented with own function */
 		if (!dest)
-			dest = g_string_sized_new(INET6_ADDRSTRLEN+6);
+			dest = g_string_sized_new(INET6_ADDRSTRLEN+8);
 
 		li_ipv6_tostring(dest, saddr->ipv6.sin6_addr.s6_addr);
-		if (showport) g_string_append_printf(dest, ":%u", (unsigned int) ntohs(saddr->ipv6.sin6_port));
+		if (showport) {
+			g_string_prepend_c(dest, '[');
+			g_string_append_printf(dest, "]:%u", (unsigned int) ntohs(saddr->ipv6.sin6_port));
+		}
 		break;
 #endif
 #ifdef HAVE_SYS_UN_H
