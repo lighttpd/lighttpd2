@@ -31,15 +31,19 @@
 		li_g_string_clear(ctx->h_value);
 	}
 	action header_value {
+		guint i;
+		/* strip whitespace */
 		getStringTo(fpc, ctx->h_value);
-		/* Remove CRLF */
-		if (ctx->h_value->len > 2) {
-			ctx->h_value->len -= 2;
-			ctx->h_value->str[ctx->h_value->len] = '\0';
-			/* g_string_truncate(ctx->h_value, ctx->h_value->len - 2); */
-		} else {
-			li_g_string_clear(ctx->h_value);
+		for (i = ctx->h_value->len; i-- > 0; ) {
+			switch (ctx->h_value->str[i]) {
+			case '\r':
+			case '\n':
+			case ' ':
+				continue;
+			}
+			break;
 		}
+		g_string_truncate(ctx->h_value, i+1);
 	}
 	action header {
 		li_http_header_insert(ctx->request->headers, GSTR_LEN(ctx->h_key), GSTR_LEN(ctx->h_value));

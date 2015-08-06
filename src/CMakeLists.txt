@@ -467,6 +467,7 @@ IF(BUILD_UNIT_TESTS)
 	ENDMACRO(ADD_TEST_BINARY)
 
 	ADD_TEST_BINARY(Chunk-UnitTest test-chunk unittests/test-chunk.c)
+	ADD_TEST_BINARY(HttpRequestParser-UnitTest test-http-request-parser unittests/test-http-request-parser.c)
 	ADD_TEST_BINARY(IpParser-UnitTest test-ip-parser unittests/test-ip-parser.c)
 	ADD_TEST_BINARY(Radix-UnitTest test-radix unittests/test-radix.c)
 	ADD_TEST_BINARY(RangeParser-UnitTest test-range-parser unittests/test-range-parser.c)
