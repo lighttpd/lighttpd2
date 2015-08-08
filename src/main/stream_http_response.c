@@ -80,7 +80,13 @@ static void check_response_header(liStreamHttpResponse* shr) {
 		}
 		shr->response_headers_finished = TRUE;
 		shr->vr->backend_drain->out->is_closed = FALSE;
-		li_vrequest_connection_upgrade(shr->vr, shr->vr->backend_drain, &shr->stream);
+		{
+			/* li_vrequest_connection_upgrade releases vr->backend_drain; keep our own reference */
+			liStream *backend_drain = shr->vr->backend_drain;
+			shr->vr->backend_drain = NULL;
+			li_vrequest_connection_upgrade(shr->vr, backend_drain, &shr->stream);
+			li_stream_release(backend_drain);
+		}
 		return;
 	}
 

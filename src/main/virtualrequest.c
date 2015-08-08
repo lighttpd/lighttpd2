@@ -53,9 +53,9 @@ liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
 void li_vrequest_free(liVRequest* vr) {
 	liServer *srv = vr->wrk->srv;
 
-	li_stream_safe_reset_and_release(&vr->backend_drain);
 	vr->direct_out = NULL;
 	li_stream_safe_reset_and_release(&vr->backend_source);
+	li_stream_safe_reset_and_release(&vr->backend_drain);
 
 	li_filter_buffer_on_disk_stop(vr->in_buffer_on_disk_stream);
 	li_stream_safe_reset_and_release(&vr->in_buffer_on_disk_stream);
@@ -102,21 +102,9 @@ void li_vrequest_free(liVRequest* vr) {
 void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 	liServer *srv = vr->wrk->srv;
 
-	if (NULL != vr->backend_drain) {
-		li_stream_disconnect(vr->backend_drain);
-		li_stream_release(vr->backend_drain);
-		vr->backend_drain = NULL;
-	}
-	if (NULL != vr->backend_source) {
-		if (NULL == vr->backend_source->dest) {
-			/* wasn't connected: disconnect source */
-			li_stream_disconnect(vr->backend_source);
-		}
-		li_stream_disconnect_dest(vr->backend_source);
-		li_stream_release(vr->backend_source);
-		vr->backend_source = NULL;
-		vr->direct_out = NULL;
-	}
+	vr->direct_out = NULL;
+	li_stream_safe_reset_and_release(&vr->backend_source);
+	li_stream_safe_reset_and_release(&vr->backend_drain);
 
 	li_filter_buffer_on_disk_stop(vr->in_buffer_on_disk_stream);
 	li_stream_safe_reset_and_release(&vr->in_buffer_on_disk_stream);
