@@ -34,7 +34,7 @@ struct liWaitQueue {
  */
 
 /* initializes a waitqueue by creating the timer and initializing the queue. precision is sub-seconds */
-LI_API void li_waitqueue_init(liWaitQueue *queue, liEventLoop *loop, liWaitQueueCB callback, gdouble delay, gpointer data);
+LI_API void li_waitqueue_init(liWaitQueue *queue, liEventLoop *loop, const char *waitqueue_name, liWaitQueueCB callback, gdouble delay, gpointer data);
 
 /* stops the waitqueue. to restart it, simply call li_waitqueue_update */
 LI_API void li_waitqueue_stop(liWaitQueue *queue);

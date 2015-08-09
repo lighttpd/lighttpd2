@@ -775,12 +775,12 @@ static gpointer backend_pool_worker_init(liWorker *wrk, gpointer fdata) {
 
 	if (wpool->initialized) return NULL;
 
-	li_event_async_init(&wrk->loop, "backend pool", &wpool->wakeup, backend_pool_worker_run);
+	li_event_async_init(&wrk->loop, "backend manager", &wpool->wakeup, backend_pool_worker_run);
 	if (idle_timeout < 1) idle_timeout = 5;
-	li_waitqueue_init(&wpool->idle_queue, &wrk->loop, backend_pool_worker_idle_timeout, idle_timeout, wpool);
-	li_waitqueue_init(&wpool->connect_queue, &wrk->loop, backend_pool_worker_connect_timeout, pool->public.config->connect_timeout, wpool);
+	li_waitqueue_init(&wpool->idle_queue, &wrk->loop, "backend idle queue", backend_pool_worker_idle_timeout, idle_timeout, wpool);
+	li_waitqueue_init(&wpool->connect_queue, &wrk->loop, "backend connect queue", backend_pool_worker_connect_timeout, pool->public.config->connect_timeout, wpool);
 
-	li_event_timer_init(&wrk->loop, "backend pool", &wpool->wait_queue_timer, backend_pool_wait_queue_timeout);
+	li_event_timer_init(&wrk->loop, "backend wait timeout", &wpool->wait_queue_timer, backend_pool_wait_queue_timeout);
 	li_event_set_keep_loop_alive(&wpool->wait_queue_timer, FALSE);
 
 	wpool->initialized = TRUE;

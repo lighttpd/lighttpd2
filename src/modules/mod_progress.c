@@ -454,7 +454,7 @@ static void progress_prepare(liServer *srv, liPlugin *p) {
 		pd->worker_data[i].pd = pd;
 		pd->worker_data[i].wrk_ndx = i;
 		pd->worker_data[i].hash_table = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, progress_hashtable_free_callback);
-		li_waitqueue_init(&(pd->worker_data[i].timeout_queue), &wrk->loop, progress_timeout_callback, pd->ttl, &pd->worker_data[i]);
+		li_waitqueue_init(&(pd->worker_data[i].timeout_queue), &wrk->loop, "mod_progress cleanup queue", progress_timeout_callback, pd->ttl, &pd->worker_data[i]);
 	}
 }
 

@@ -110,7 +110,7 @@ void li_log_init(liServer *srv) {
 	li_event_loop_init(&srv->logs.loop, ev_loop_new(EVFLAG_AUTO));
 	li_event_async_init(&srv->logs.loop, "log", &srv->logs.watcher, log_watcher_cb);
 	srv->logs.targets = li_radixtree_new();
-	li_waitqueue_init(&srv->logs.close_queue, &srv->logs.loop, log_close_cb, LOG_DEFAULT_TTL, srv);
+	li_waitqueue_init(&srv->logs.close_queue, &srv->logs.loop, "log close queue", log_close_cb, LOG_DEFAULT_TTL, srv);
 	srv->logs.timestamp.format = g_string_new_len(CONST_STR_LEN(LOG_DEFAULT_TS_FORMAT));
 	srv->logs.timestamp.cached = g_string_sized_new(255);
 	srv->logs.timestamp.last_ts = 0;

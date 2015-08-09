@@ -324,10 +324,10 @@ liWorker* li_worker_new(liServer *srv, struct ev_loop *loop) {
 	wrk->collect_queue = g_async_queue_new();
 
 	/* io timeout timer */
-	li_waitqueue_init(&wrk->io_timeout_queue, &wrk->loop, worker_io_timeout_cb, srv->io_timeout, wrk);
+	li_waitqueue_init(&wrk->io_timeout_queue, &wrk->loop, "io timeout queue", worker_io_timeout_cb, srv->io_timeout, wrk);
 
 	/* throttling */
-	li_waitqueue_init(&wrk->throttle_queue, &wrk->loop, li_throttle_waitqueue_cb, ((gdouble)LI_THROTTLE_GRANULARITY) / 1000, wrk);
+	li_waitqueue_init(&wrk->throttle_queue, &wrk->loop, "throttle queue", li_throttle_waitqueue_cb, ((gdouble)LI_THROTTLE_GRANULARITY) / 1000, wrk);
 
 	wrk->tasklets = li_tasklet_pool_new(&wrk->loop, srv->tasklet_pool_threads);
 

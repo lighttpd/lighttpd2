@@ -25,7 +25,7 @@ liStatCache* li_stat_cache_new(liWorker *wrk, gdouble ttl) {
 	sc->entries = g_hash_table_new_full((GHashFunc)g_string_hash, (GEqualFunc)g_string_equal, NULL, NULL);
 	sc->dirlists = g_hash_table_new_full((GHashFunc)g_string_hash, (GEqualFunc)g_string_equal, NULL, NULL);
 
-	li_waitqueue_init(&sc->delete_queue, &wrk->loop, stat_cache_delete_cb, ttl, sc);
+	li_waitqueue_init(&sc->delete_queue, &wrk->loop, "stat cache delete queue", stat_cache_delete_cb, ttl, sc);
 
 	return sc;
 }

@@ -417,7 +417,7 @@ static void mod_limit_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) 
 		mld = p->data;
 	}
 
-	li_waitqueue_init(&(mld->timeout_queues[wrk->ndx]), &wrk->loop, mod_limit_timeout_callback, 1.0, NULL);
+	li_waitqueue_init(&(mld->timeout_queues[wrk->ndx]), &wrk->loop, "mod_limit timeout queue", mod_limit_timeout_callback, 1.0, NULL);
 }
 
 static void plugin_limit_free(liServer *srv, liPlugin *p) {
