@@ -14,3 +14,4 @@ include/lighttpd/config.h.in~
 install-sh
 ltmain.sh
 missing
+CMakeLists.txt.user
