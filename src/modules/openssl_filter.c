@@ -401,7 +401,6 @@ static void do_ssl_write(liOpenSSLFilter *f) {
 	 * don't care if we write a little bit more than the limit allowed */
 	write_max = li_chunkqueue_limit_available(f->crypt_source.out);
 	LI_FORCE_ASSERT(write_max >= 0); /* we set a limit! */
-	if (0 == write_max) goto out;
 	/* if we start writing, try to write at least blocksize bytes */
 	if (write_max < blocksize) write_max = blocksize;
 
