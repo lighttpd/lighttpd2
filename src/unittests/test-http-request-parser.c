@@ -19,8 +19,8 @@ static void test_crlf_newlines(void) {
 	res = li_http_request_parse(NULL, &http_req_ctx);
 	if (LI_HANDLER_GO_ON != res) g_error("li_http_request_parse didn't finish parsing or failed: %i", res);
 
-	g_assert_true(6 == cq->length);
-	g_assert_true(li_http_header_is(req.headers, CONST_STR_LEN("host"), CONST_STR_LEN("www.example.com")));
+	g_assert(6 == cq->length);
+	g_assert(li_http_header_is(req.headers, CONST_STR_LEN("host"), CONST_STR_LEN("www.example.com")));
 
 	li_chunkqueue_free(cq);
 	li_http_request_parser_clear(&http_req_ctx);
@@ -44,8 +44,8 @@ static void test_lf_newlines(void) {
 	res = li_http_request_parse(NULL, &http_req_ctx);
 	if (LI_HANDLER_GO_ON != res) g_error("li_http_request_parse didn't finish parsing or failed: %i", res);
 
-	g_assert_true(6 == cq->length);
-	g_assert_true(li_http_header_is(req.headers, CONST_STR_LEN("host"), CONST_STR_LEN("www.example.com")));
+	g_assert(6 == cq->length);
+	g_assert(li_http_header_is(req.headers, CONST_STR_LEN("host"), CONST_STR_LEN("www.example.com")));
 
 	li_chunkqueue_free(cq);
 	li_http_request_parser_clear(&http_req_ctx);
