@@ -1244,7 +1244,10 @@ static gboolean p_value_list(gint *key_value_nesting, liValue **result, gboolean
 		if (NULL == pre_value) {
 			NEXT(token);
 			if (end == token) break;
-			if (TK_COMMA == token) continue;
+			if (TK_COMMA == token) {
+				parse_error(ctx, error, "unexpected ',', expected value or list end");
+				goto error;
+			}
 			REMEMBER(token);
 
 			if (!p_value(&sub_kv_nesting, &value, TK_ERROR, ctx, error)) goto error;
@@ -1258,7 +1261,7 @@ static gboolean p_value_list(gint *key_value_nesting, liValue **result, gboolean
 		if (!key_value_list && TK_ASSOCICATE == token) {
 			key_value_list = TRUE;
 			if (li_value_list_len(list) > 0) {
-				parse_error(ctx, error, "unexpected '=>'");
+				parse_error(ctx, error, "unexpected '=>', not a key-value list");
 				goto error;
 			}
 		}
@@ -1278,10 +1281,16 @@ static gboolean p_value_list(gint *key_value_nesting, liValue **result, gboolean
 			li_value_list_append(pair, value);
 			li_value_list_append(list, pair);
 			value = key = NULL;
+			NEXT(token);
 		} else {
-			REMEMBER(token);
 			li_value_list_append(list, value);
 			value = NULL;
+		}
+
+		if (end == token) break;
+		if (TK_COMMA != token) {
+			parse_error(ctx, error, "expected ',' or list end");
+			goto error;
 		}
 	}
 
