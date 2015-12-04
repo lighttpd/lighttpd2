@@ -915,11 +915,17 @@ static void core_respond_free(liServer *srv, gpointer param) {
 
 static liHandlerResult core_handle_respond(liVRequest *vr, gpointer param, gpointer *context) {
 	respond_param *rp = param;
+	GMatchInfo *match_info = NULL;
 
 	UNUSED(context);
 
 	if (!li_vrequest_handle_direct(vr))
 		return LI_HANDLER_GO_ON;
+
+	if (vr->action_stack.regex_stack->len) {
+		GArray *rs = vr->action_stack.regex_stack;
+		match_info = g_array_index(rs, liActionRegexStackElement, rs->len - 1).match_info;
+	}
 
 	vr->response.http_status = rp->status_code;
 
@@ -928,7 +934,7 @@ static liHandlerResult core_handle_respond(liVRequest *vr, gpointer param, gpoin
 
 	if (rp->pattern) {
 		g_string_truncate(vr->wrk->tmp_str, 0);
-		li_pattern_eval(vr, vr->wrk->tmp_str, rp->pattern, NULL, NULL, NULL, NULL);
+		li_pattern_eval(vr, vr->wrk->tmp_str, rp->pattern, NULL, NULL, li_pattern_regex_cb, match_info);
 		li_chunkqueue_append_mem(vr->direct_out, GSTR_LEN(vr->wrk->tmp_str));
 	}
 
@@ -1770,11 +1776,17 @@ static void core_map_free(liServer *srv, gpointer param) {
 static liHandlerResult core_handle_map(liVRequest *vr, gpointer param, gpointer *context) {
 	liValue *v;
 	core_map_data *md = param;
+	GMatchInfo *match_info = NULL;
 	UNUSED(context);
 
 	g_string_truncate(vr->wrk->tmp_str, 0);
-	li_pattern_eval(vr, vr->wrk->tmp_str, md->pattern, NULL, NULL, NULL, NULL);
 
+	if (vr->action_stack.regex_stack->len) {
+		GArray *rs = vr->action_stack.regex_stack;
+		match_info = g_array_index(rs, liActionRegexStackElement, rs->len - 1).match_info;
+	}
+
+	li_pattern_eval(vr, vr->wrk->tmp_str, md->pattern, NULL, NULL, li_pattern_regex_cb, match_info);
 	v = g_hash_table_lookup(md->hash, vr->wrk->tmp_str);
 	if (NULL != v) {
 		li_action_enter(vr, v->data.val_action.action);
