@@ -193,10 +193,10 @@
 
 			Lighttpd does NOT automatically reload OCSP responses; you have to restart to load new OCSP responses (a cron job is probably the right way to do it).
 
-			If you have your certificate and the issuer-certificate (the one that signed yours) in separate files you can request an OCSP response like that (using the GnuTLS "certtool"):
+			If you have your certificate and the issuer-certificate (the one that signed yours) in separate files you can request an OCSP response like that (using the GnuTLS "ocsptool"):
 
 			<pre>
-				certtool --ask --load-issuer issuer.pem --load-cert cert.pem --outfile ocsp.der
+				ocsptool --ask --load-issuer issuer.pem --load-cert cert.pem --outfile ocsp.der
 			</pre>
 
 			Converting into PEM format can be done like this:
