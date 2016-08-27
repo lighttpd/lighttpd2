@@ -80,7 +80,7 @@
 	parse_URI_path := URI_path;
 	parse_Hostname := (host >mark_host %save_host) ( ":" port )?;
 
-	write data;
+	write data noerror;
 }%%
 
 gboolean li_parse_raw_url(liRequestUri *uri) {
@@ -91,6 +91,7 @@ gboolean li_parse_raw_url(liRequestUri *uri) {
 	p = uri->raw->str;
 	eof = pe = uri->raw->str + uri->raw->len;
 
+	(void) url_parser_start;
 	%% write init nocs;
 	cs = url_parser_en_parse_URI;
 
@@ -111,6 +112,7 @@ gboolean li_parse_raw_path(liRequestUri *uri, GString *input) {
 	g_string_truncate(uri->raw_path, 0);
 	g_string_truncate(uri->query, 0);
 
+	(void) url_parser_start;
 	%% write init nocs;
 	cs = url_parser_en_parse_URI_path;
 
@@ -133,6 +135,7 @@ gboolean li_parse_hostname(liRequestUri *uri) {
 	p = uri->authority->str;
 	eof = pe = uri->authority->str + uri->authority->len;
 
+	(void) url_parser_start;
 	%% write init nocs;
 	cs = url_parser_en_parse_Hostname;
 

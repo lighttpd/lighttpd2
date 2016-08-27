@@ -400,7 +400,7 @@ GQuark li_config_error_quark(void) {
 		( endoffile | keyword | name | cast | single_operator | operator | integer | string );
 }%%
 
-%% write data;
+%% write data noerror nofinal;
 
 static void set_config_error(liConfigTokenizerContext *ctx, GError **error, const char *fmt, va_list ap) {
 	GString *msg = g_string_sized_new(127);
@@ -481,6 +481,7 @@ static liConfigToken tokenizer_next(liConfigTokenizerContext *ctx, GError **erro
 	ctx->token_line = ctx->line;
 	ctx->token_line_start = ctx->line_start;
 
+	(void) config_tokenizer_en_token;
 	%% write init;
 
 	%% write exec;

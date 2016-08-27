@@ -52,7 +52,7 @@
 
 	main := ws* "bytes" ws* "=" (ws | ",")* range ( ws* "," >range_complete (ws | ",")* range)** (ws | ",")*;
 
-	write data;
+	write data nofinal;
 }%%
 
 liParseHttpRangeResult li_parse_http_range_next(liParseHttpRangeState* s) {
@@ -108,6 +108,7 @@ void li_parse_http_range_init(liParseHttpRangeState* s, const GString *range_str
 	s->last_range = FALSE;
 	s->found_valid_range = FALSE;
 
+	(void) http_range_parser_en_main;
 	%% write init;
 }
 

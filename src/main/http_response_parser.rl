@@ -14,7 +14,6 @@
 
 
 %%{
-
 	machine li_http_response_parser;
 	variable cs ctx->chunk_ctx.cs;
 
@@ -131,6 +130,7 @@ void li_http_response_parser_init(liHttpResponseCtx* ctx, liResponse *req, liChu
 	ctx->h_key = g_string_sized_new(0);
 	ctx->h_value = g_string_sized_new(0);
 
+	(void) li_http_response_parser_en_main;
 	%% write init;
 }
 
