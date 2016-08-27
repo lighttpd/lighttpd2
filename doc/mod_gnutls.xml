@@ -10,8 +10,8 @@
 					<short>(mandatory) the socket address to listen on (same as "listen":plugin_core.html#plugin_core__setup_listen), can be specified more than once to setup multiple sockets with the same options</short>
 				</entry>
 				<entry name="pemfile">
-					<short>(mandatory) file containing the private key, certificate and intermediate certificates (the root certificate is usually not
-					included); alternatively it can be a key-value list with a "key" and a "cert" entry.</short>
+					<short>(mandatory) file containing the private key, certificate, intermediate certificates (the root certificate is usually not
+					included) and an OCSP response; alternatively it can be a key-value list with a "key" and a "cert" entry, and optionally a "ocsp" entry.</short>
 				</entry>
 				<entry name="pin">
 					<short>the PIN (or password) to use when using PKCS #11 modules or encrypted keys. The pin is kept in memory.</short>
@@ -123,6 +123,24 @@
 				}
 			</config>
 		</example>
+
+		<example title="Simple TLS on IPv4 and IPv6 with OCSP stapling">
+			<config>
+				setup {
+					module_load "mod_gnutls";
+					gnutls (
+						"priority" => "PFS:-3DES-CBC:-ARCFOUR-128:-VERS-SSL3.0:-SHA1:+SHA1:+RSA:%SERVER_PRECEDENCE",
+						"listen" => "0.0.0.0:443",
+						"listen" => "[::]:443",
+						"pemfile" => (
+							"key" => "/etc/certs/lighttpd.pem",
+							"cert" => "/etc/certs/lighttpd.pem",
+							"ocsp" => "/etc/certs/lighttpd-ocsp.der",
+						)
+					);
+				}
+			</config>
+		</example>
 	</setup>
 
 	<section title="Server Name Indication (SNI)">
@@ -162,6 +180,31 @@
 			* "Priority strings":http://gnutls.org/manual/html_node/Priority-Strings.html#Priority-Strings (GnuTLS manual)
 			* "GnuTLS Priority Strings":http://blog.lighttpd.net/gnutls-priority-strings.html
 			* @gnutls-cli -l --priority "SECURE:-VERS-SSL3.0:-SHA1:+SHA1:-RSA:+RSA:%SERVER_PRECEDENCE"@
+		</textile>
+	</section>
+
+	<section title="OCSP stapling">
+		<textile>
+			"OCSP stapling":https://en.wikipedia.org/wiki/OCSP_stapling is used to assure a client the certificate is still valid (i.e. not revoked); you can put an OCSP response into the certificate file in an "OCSP RESPNSE"-PEM block (there is probably no standard for this, juse base64-encode the DER-response you have), or specify the (DER or PEM formatted) OCSP response as separate file using "ocsp" in a "pemfile" block.
+
+			Server Name Indication (SNI) should work fine, as an OCSP response is only used if it matches the certificate in use for the connection.
+
+			The fetch backends do NOT support OCSP stapling yet (in the future they should support the "OCSP RESPNSE"-PEM block).
+
+			Lighttpd does NOT automatically reload OCSP responses; you have to restart to load new OCSP responses (a cron job is probably the right way to do it).
+
+			If you have your certificate and the issuer-certificate (the one that signed yours) in separate files you can request an OCSP response like that (using the GnuTLS "certtool"):
+
+			<pre>
+				certtool --ask --load-issuer issuer.pem --load-cert cert.pem --outfile ocsp.der
+			</pre>
+
+			Converting into PEM format can be done like this:
+
+			<pre>
+				echo "-----BEGIN OCSP RESPONSE-----"; base64 --wrap=64 ocsp.der; echo "-----END OCSP RESPONSE-----"
+			</pre>
+
 		</textile>
 	</section>
 

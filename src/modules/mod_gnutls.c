@@ -16,6 +16,7 @@
 #include <lighttpd/throttle.h>
 
 #include "gnutls_filter.h"
+#include "gnutls_ocsp.h"
 #include "ssl_client_hello_parser.h"
 #include "ssl-session-db.h"
 
@@ -69,6 +70,8 @@ struct mod_context {
 #ifdef HAVE_SESSION_TICKET
 	gnutls_datum_t ticket_key;
 #endif
+
+	liGnuTLSOCSP* ocsp;
 
 #ifdef USE_SNI
 	liFetchDatabase *sni_db, *sni_backend_db;
@@ -237,6 +240,8 @@ static void mod_gnutls_context_release(mod_context *ctx) {
 			ctx->pin = NULL;
 		}
 
+		li_gnutls_ocsp_free(ctx->ocsp);
+
 		g_slice_free(mod_context, ctx);
 	}
 }
@@ -282,6 +287,8 @@ static mod_context *mod_gnutls_context_new(liServer *srv) {
 		goto error3;
 	}
 #endif
+
+	ctx->ocsp = li_gnutls_ocsp_new();
 
 	ctx->refcount = 1;
 	ctx->protect_against_beast = 1;
@@ -625,15 +632,16 @@ static void gnutls_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 	srv_sock->release_cb = mod_gnutls_sock_release;
 }
 
-static gboolean creds_add_pemfile(liServer *srv, gnutls_certificate_credentials_t creds, liValue *pemfile) {
+static gboolean creds_add_pemfile(liServer *srv, mod_context *ctx, gnutls_certificate_credentials_t creds, liValue *pemfile) {
 	const char *keyfile = NULL;
 	const char *certfile = NULL;
+	const char *ocspfile = NULL;
 	int r;
 
 	if (LI_VALUE_STRING == li_value_type(pemfile)) {
 		keyfile = pemfile->data.string->str;
 		certfile = pemfile->data.string->str;
-	} else if (li_value_list_has_len(pemfile, 2)) {
+	} else if (li_value_list_len(pemfile) >= 2) {
 		if (NULL == (pemfile = li_value_to_key_value_list(pemfile))) {
 			ERROR(srv, "%s", "gnutls expects a hash/key-value list or a string as pemfile parameter");
 			return FALSE;
@@ -670,13 +678,23 @@ static gboolean creds_add_pemfile(liServer *srv, gnutls_certificate_credentials_
 					return FALSE;
 				}
 				certfile = entryValue->data.string->str;
+			} else if (g_str_equal(entryKeyStr->str, "ocsp")) {
+				if (LI_VALUE_STRING != li_value_type(entryValue)) {
+					ERROR(srv, "%s", "gnutls pemfile.ocsp expects a string as parameter");
+					return FALSE;
+				}
+				if (NULL != ocspfile) {
+					ERROR(srv, "gnutls unexpected duplicate parameter pemfile %s", entryKeyStr->str);
+					return FALSE;
+				}
+				ocspfile = entryValue->data.string->str;
 			} else {
 				ERROR(srv, "invalid parameter for gnutls: pemfile %s", entryKeyStr->str);
 				return FALSE;
 			}
 		LI_VALUE_END_FOREACH()
 	} else {
-		ERROR(srv, "%s", "gnutls expects a hash/key-value list or a string as pemfile parameter");
+		ERROR(srv, "%s", "gnutls expects a hash/key-value list (with at least \"key\" and \"cert\" entries) or a string as pemfile parameter");
 		return FALSE;
 	}
 
@@ -690,6 +708,12 @@ static gboolean creds_add_pemfile(liServer *srv, gnutls_certificate_credentials_
 			certfile, keyfile,
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		return FALSE;
+	}
+
+	if (NULL != ocspfile) {
+		if (!li_gnutls_ocsp_add(srv, ctx->ocsp, ocspfile)) return FALSE;
+	} else {
+		if (!li_gnutls_ocsp_search(srv, ctx->ocsp, certfile)) return FALSE;
 	}
 
 	return TRUE;
@@ -852,6 +876,8 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	gnutls_certificate_set_pin_function(ctx->server_cert, pin_callback, ctx->pin);
 #endif
 
+	li_gnutls_ocsp_use(ctx->ocsp, ctx->server_cert);
+
 #ifdef USE_SNI
 	if (NULL != sni_backend) {
 		liFetchDatabase *backend = li_server_get_fetch_database(srv, sni_backend);
@@ -875,7 +901,9 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		gnutls_certificate_set_pin_function(ctx->sni_fallback_cert, pin_callback, ctx->pin);
 #endif
 
-		if (!creds_add_pemfile(srv, ctx->sni_fallback_cert, sni_fallback_pemfile)) {
+		li_gnutls_ocsp_use(ctx->ocsp, ctx->sni_fallback_cert);
+
+		if (!creds_add_pemfile(srv, ctx, ctx->sni_fallback_cert, sni_fallback_pemfile)) {
 			goto error_free_ctx;
 		}
 	}
@@ -891,7 +919,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 
 		if (g_str_equal(entryKeyStr->str, "pemfile")) {
 
-			if (!creds_add_pemfile(srv, ctx->server_cert, entryValue)) {
+			if (!creds_add_pemfile(srv, ctx, ctx->server_cert, entryValue)) {
 				goto error_free_ctx;
 			}
 		}

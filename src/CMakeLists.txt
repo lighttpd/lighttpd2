@@ -384,7 +384,7 @@ IF(WITH_LUA)
 ENDIF(WITH_LUA)
 
 IF(WITH_GNUTLS)
-  ADD_AND_INSTALL_LIBRARY(mod_gnutls "modules/mod_gnutls.c;modules/gnutls_filter.c")
+  ADD_AND_INSTALL_LIBRARY(mod_gnutls "modules/mod_gnutls.c;modules/gnutls_filter.c;modules/gnutls_ocsp.c")
   TARGET_LINK_LIBRARIES(mod_gnutls ${GNUTLS_LDFLAGS} ${IDN_LDFLAGS})
   ADD_TARGET_PROPERTIES(mod_gnutls COMPILE_FLAGS ${GNUTLS_CFLAGS} ${IDN_CFLAGS})
 ENDIF(WITH_GNUTLS)
