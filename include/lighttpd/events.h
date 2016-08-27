@@ -194,6 +194,10 @@ LI_API const char* li_event_type_string(liEventType type);
 
 /* inline implementations */
 
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
+#pragma clang diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
+
 INLINE li_tstamp li_event_now(liEventLoop *loop) {
 	return ev_now(loop->loop);
 }
@@ -532,5 +536,6 @@ INLINE liEventCheck* li_event_check_from(liEventBase *base) {
 	return LI_CONTAINER_OF(base, liEventCheck, base);
 }
 
+#pragma clang diagnostic pop
 
 #endif
