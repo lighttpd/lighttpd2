@@ -226,10 +226,10 @@ gboolean li_gnutls_ocsp_add(liServer *srv, liGnuTLSOCSP *ocsp, const char* filen
 
 	/* decode pem "-----BEGIN OCSP RESPONSE-----", otherwise expect DER */
 	if (file.size > 20 && 0 == memcmp(file.data, CONST_STR_LEN("-----BEGIN "))) {
-		r = gnutls_pem_base64_decode2("OCSP RESPONSE", &file, &decoded);
+		r = gnutls_pem_base64_decode_alloc("OCSP RESPONSE", &file, &decoded);
 
 		if (GNUTLS_E_SUCCESS != r) {
-			ERROR(srv, "gnutls_pem_base64_decode2 failed to decode OCSP RESPONSE from '%s' (%s): %s",
+			ERROR(srv, "gnutls_pem_base64_decode_alloc failed to decode OCSP RESPONSE from '%s' (%s): %s",
 				filename,
 				gnutls_strerror_name(r), gnutls_strerror(r));
 			goto error;
@@ -263,7 +263,7 @@ gboolean li_gnutls_ocsp_search(liServer *srv, liGnuTLSOCSP *ocsp, const char* fi
 		goto error;
 	}
 
-	r = gnutls_pem_base64_decode2("OCSP RESPONSE", &file, &decoded);
+	r = gnutls_pem_base64_decode_alloc("OCSP RESPONSE", &file, &decoded);
 
 	if (GNUTLS_E_SUCCESS == r) {
 		result = add_response(srv, ocsp, &decoded);
@@ -274,7 +274,7 @@ gboolean li_gnutls_ocsp_search(liServer *srv, liGnuTLSOCSP *ocsp, const char* fi
 	} else if (GNUTLS_E_BASE64_UNEXPECTED_HEADER_ERROR == r) {
 		/* ignore GNUTLS_E_BASE64_UNEXPECTED_HEADER_ERROR */
 	} else {
-		ERROR(srv, "gnutls_pem_base64_decode2 failed to decode OCSP RESPONSE from '%s' (%s): %s",
+		ERROR(srv, "gnutls_pem_base64_decode_alloc failed to decode OCSP RESPONSE from '%s' (%s): %s",
 			filename,
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		/* continue anyway */
