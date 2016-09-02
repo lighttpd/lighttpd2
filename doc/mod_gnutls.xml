@@ -202,9 +202,22 @@
 			Converting into PEM format can be done like this:
 
 			<pre>
-				echo "-----BEGIN OCSP RESPONSE-----"; base64 --wrap=64 ocsp.der; echo "-----END OCSP RESPONSE-----"
+				(echo "-----BEGIN OCSP RESPONSE-----"; base64 --wrap=64 ocsp.der; echo "-----END OCSP RESPONSE-----") > ocsp.pem
 			</pre>
 
+			If you have trouble identifying which certificates you need, here the more detailed explanation:
+
+			You usually have a list of certificates in the PEM file you pass to lighttpd. The first certificate usually has a "Subject" pointing to your server name (CN), like: "Subject: CN=lighttpd.net". It also has a "Issuer" attribute (like "C=US, O=Let's Encrypt, CN=Let's Encrypt Authority X3"). The issuer certificate needs a "Subject" matching that "Issuer", and should be the second certificate in the PEM file (unless it already is the root CA, in which case it is usually omitted).
+
+			@ocsptool@ will always use the first certificate in a file and ignore the others, so you can use the normal PEM file you pass to lighttpd as argument after @--load-cert@, but you need to extract the issuer certificate if you don't have it in a separate file. The following @awk@ script extracts the second PEM block from a file:
+
+			<pre>
+				awk '
+					BEGIN { block = 0 }
+					/^-----BEGIN / { ++block; }
+					{ if (block > 1) print; }
+				' "certs.pem" > "issuer.pem"
+			</pre>
 		</textile>
 	</section>
 
