@@ -6,6 +6,8 @@ require 'nokogiri'
 require 'bluecloth'
 require 'redcloth'
 
+require 'cgi'
+
 # find all options, actions, setups in the c modules - can be used to check list for completeness (although it doesn't scan the lua modules):
 # awk '/static const liPluginOption/, /;/ {print; }' src/*/*.c | grep '"' | cut -d'"' -f2 | perl -e 'print sort <>;'
 # awk '/static const liPluginAction/, /;/ {print; }' src/*/*.c | grep '"' | cut -d'"' -f2 | perl -e 'print sort <>;'
@@ -73,7 +75,7 @@ class Documentation
 
 	def title=(value)
 		@title = value
-		@html_doc.xpath('/html/head/title')[0].inner_html = value ? 'lighttpd2 - ' + value : 'lighttpd2'
+		@html_doc.xpath('/html/head/title')[0].content = value ? 'lighttpd2 - ' + value : 'lighttpd2'
 	end
 
 	def to_html_fragment
@@ -193,7 +195,20 @@ class Documentation
 		end
 		return line[p..-1]
 	end
-	def _format_code(code)
+	def _get_cdata(xml)
+		if xml.cdata?
+			return xml.content
+		else
+			c = xml.children
+			if 1 == c.length and c[0].cdata?
+				return c[0].content
+			else
+				return CGI::unescapeHTML(xml.inner_html)
+			end
+		end
+	end
+	def _format_code(xml)
+		code = _get_cdata(xml)
 		lines = code.rstrip.lines
 		real_lines = lines.grep(/\S/)
 		return '' if real_lines.length == 0
@@ -204,18 +219,17 @@ class Documentation
 		code.gsub(/\A\n+/, "").gsub(/\n\n+/, "\n\n").gsub(/\n+\Z/, "\n")
 	end
 
-
 	def _parse_code(xml)
-		@html.pre { @html.code { @html << _format_code(xml.inner_html) } }
+		@html.pre { @html.code { @html << _format_code(xml) } }
 	end
 
 	def _parse_markdown(xml)
-		md = _format_code(xml.inner_html)
+		md = _format_code(xml)
 		@html << BlueCloth.new(md).to_html
 	end
 
 	def _parse_textile(xml)
-		tx = _format_code(xml.inner_html)
+		tx = _format_code(xml)
 		@html << RedCloth.new(tx).to_html
 	end
 
