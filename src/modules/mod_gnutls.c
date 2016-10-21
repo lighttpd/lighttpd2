@@ -123,7 +123,7 @@ static gnutls_certificate_credentials_t creds_from_gstring(mod_context *ctx, GSt
 
 	if (NULL == str) return NULL;
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_allocate_credentials(&creds))) return NULL;
+	if (GNUTLS_E_SUCCESS > (r = gnutls_certificate_allocate_credentials(&creds))) return NULL;
 
 	pemfile.data = (unsigned char*) str->str;
 	pemfile.size = str->len;
@@ -132,7 +132,7 @@ static gnutls_certificate_credentials_t creds_from_gstring(mod_context *ctx, GSt
 	gnutls_certificate_set_pin_function(creds, pin_callback, ctx->pin);
 #endif
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_mem(creds, &pemfile, &pemfile, GNUTLS_X509_FMT_PEM))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_certificate_set_x509_key_mem(creds, &pemfile, &pemfile, GNUTLS_X509_FMT_PEM))) {
 		goto error_free_creds;
 	}
 
@@ -256,21 +256,21 @@ static mod_context *mod_gnutls_context_new(liServer *srv) {
 	mod_context *ctx = g_slice_new0(mod_context);
 	int r;
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_allocate_credentials(&ctx->server_cert))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_certificate_allocate_credentials(&ctx->server_cert))) {
 		ERROR(srv, "gnutls_certificate_allocate_credentials failed(%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error0;
 	}
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_priority_init(&ctx->server_priority, "NORMAL", NULL))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_priority_init(&ctx->server_priority, "NORMAL", NULL))) {
 		ERROR(srv, "gnutls_priority_init('NORMAL') failed(%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error1;
 	}
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_priority_init(&ctx->server_priority_beast, "NORMAL:-CIPHER-ALL:+ARCFOUR-128", NULL))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_priority_init(&ctx->server_priority_beast, "NORMAL:-CIPHER-ALL:+ARCFOUR-128", NULL))) {
 		int r1;
-		if (GNUTLS_E_SUCCESS != (r1 = gnutls_priority_init(&ctx->server_priority_beast, "NORMAL", NULL))) {
+		if (GNUTLS_E_SUCCESS > (r1 = gnutls_priority_init(&ctx->server_priority_beast, "NORMAL", NULL))) {
 			ERROR(srv, "gnutls_priority_init('NORMAL') failed(%s): %s",
 				gnutls_strerror_name(r1), gnutls_strerror(r1));
 			goto error2;
@@ -281,7 +281,7 @@ static mod_context *mod_gnutls_context_new(liServer *srv) {
 	}
 
 #ifdef HAVE_SESSION_TICKET
-	if (GNUTLS_E_SUCCESS != (r = gnutls_session_ticket_key_generate(&ctx->ticket_key))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_session_ticket_key_generate(&ctx->ticket_key))) {
 		ERROR(srv, "gnutls_session_ticket_key_generate failed(%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error3;
@@ -531,7 +531,7 @@ static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 	gnutls_session_t session;
 	int r;
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_init(&session, GNUTLS_SERVER))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_init(&session, GNUTLS_SERVER))) {
 		ERROR(srv, "gnutls_init (%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		return FALSE;
@@ -539,12 +539,12 @@ static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 
 	mod_gnutls_context_acquire(ctx);
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_priority_set(session, ctx->server_priority))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_priority_set(session, ctx->server_priority))) {
 		ERROR(srv, "gnutls_priority_set (%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto fail;
 	}
-	if (GNUTLS_E_SUCCESS != (r = gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, ctx->server_cert))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, ctx->server_cert))) {
 		ERROR(srv, "gnutls_credentials_set (%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto fail;
@@ -558,7 +558,7 @@ static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 	}
 
 #ifdef HAVE_SESSION_TICKET
-	if (GNUTLS_E_SUCCESS != (r = gnutls_session_ticket_enable_server(session, &ctx->ticket_key))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_session_ticket_enable_server(session, &ctx->ticket_key))) {
 		ERROR(srv, "gnutls_session_ticket_enable_server (%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto fail;
@@ -703,7 +703,7 @@ static gboolean creds_add_pemfile(liServer *srv, mod_context *ctx, gnutls_certif
 		return FALSE;
 	}
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_set_x509_key_file(creds, certfile, keyfile, GNUTLS_X509_FMT_PEM))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_certificate_set_x509_key_file(creds, certfile, keyfile, GNUTLS_X509_FMT_PEM))) {
 		ERROR(srv, "gnutls_certificate_set_x509_key_file failed(certfile '%s', keyfile '%s', PEM) (%s): %s",
 			certfile, keyfile,
 			gnutls_strerror_name(r), gnutls_strerror(r));
@@ -891,7 +891,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 	}
 
 	if (NULL != sni_fallback_pemfile) {
-		if (GNUTLS_E_SUCCESS != (r = gnutls_certificate_allocate_credentials(&ctx->sni_fallback_cert))) {
+		if (GNUTLS_E_SUCCESS > (r = gnutls_certificate_allocate_credentials(&ctx->sni_fallback_cert))) {
 			ERROR(srv, "gnutls_certificate_allocate_credentials failed(%s): %s",
 				gnutls_strerror_name(r), gnutls_strerror(r));
 			goto error_free_ctx;
@@ -933,7 +933,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		GError *error = NULL;
 		gnutls_datum_t pkcs3_params;
 
-		if (GNUTLS_E_SUCCESS != (r = gnutls_dh_params_init(&ctx->dh_params))) {
+		if (GNUTLS_E_SUCCESS > (r = gnutls_dh_params_init(&ctx->dh_params))) {
 			ERROR(srv, "gnutls_dh_params_init failed (%s): %s",
 				gnutls_strerror_name(r), gnutls_strerror(r));
 			goto error_free_ctx;
@@ -951,14 +951,14 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		r = gnutls_dh_params_import_pkcs3(ctx->dh_params, &pkcs3_params, GNUTLS_X509_FMT_PEM);
 		g_free(contents);
 
-		if (GNUTLS_E_SUCCESS != r) {
+		if (GNUTLS_E_SUCCESS > r) {
 			ERROR(srv, "couldn't load dh parameters from file '%s' (%s): %s",
 				dh_params_file,
 				gnutls_strerror_name(r), gnutls_strerror(r));
 			goto error_free_ctx;
 		}
 	} else {
-		if (GNUTLS_E_SUCCESS != (r = load_dh_params_4096(&ctx->dh_params))) {
+		if (GNUTLS_E_SUCCESS > (r = load_dh_params_4096(&ctx->dh_params))) {
 			ERROR(srv, "couldn't load dh parameters(%s): %s",
 				gnutls_strerror_name(r), gnutls_strerror(r));
 			goto error_free_ctx;
@@ -977,7 +977,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		gnutls_priority_t prio;
 		GString *s = srv->main_worker->tmp_str;
 
-		if (GNUTLS_E_SUCCESS != (r = gnutls_priority_init(&prio, priority, &errpos))) {
+		if (GNUTLS_E_SUCCESS > (r = gnutls_priority_init(&prio, priority, &errpos))) {
 			ERROR(srv, "gnutls_priority_init failed(priority '%s', error at '%s') (%s): %s",
 				priority, errpos,
 				gnutls_strerror_name(r), gnutls_strerror(r));
@@ -990,7 +990,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 		if (protect_against_beast) {
 			g_string_assign(s, priority);
 			g_string_append_len(s, CONST_STR_LEN(":-CIPHER-ALL:+ARCFOUR-128"));
-			if (GNUTLS_E_SUCCESS != (r = gnutls_priority_init(&prio, s->str, &errpos))) {
+			if (GNUTLS_E_SUCCESS > (r = gnutls_priority_init(&prio, s->str, &errpos))) {
 				ERROR(srv, "gnutls_priority_init failed(priority '%s', error at '%s') (%s): %s",
 					s->str, errpos,
 					gnutls_strerror_name(r), gnutls_strerror(r));
@@ -1145,8 +1145,8 @@ static int load_dh_params_4096(gnutls_dh_params_t *dh_params) {
 	int r;
 	gnutls_dh_params_t params;
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_dh_params_init(&params))) return r;
-	if (GNUTLS_E_SUCCESS != (r = gnutls_dh_params_import_raw(params, &prime, &generator))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_dh_params_init(&params))) return r;
+	if (GNUTLS_E_SUCCESS > (r = gnutls_dh_params_import_raw(params, &prime, &generator))) {
 		gnutls_dh_params_deinit(params);
 		return r;
 	}

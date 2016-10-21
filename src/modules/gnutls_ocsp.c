@@ -39,7 +39,7 @@ static int get_entry(liServer *srv, ocsp_response_cert_entry* entry, gnutls_ocsp
 
 	if (GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE == r) return r;
 
-	if (GNUTLS_E_SUCCESS != r) {
+	if (GNUTLS_E_SUCCESS > r) {
 		ERROR(srv, "Couldn't retrieve OCSP response information for entry %u (%s): %s",
 				ndx,
 				gnutls_strerror_name(r), gnutls_strerror(r));
@@ -79,13 +79,13 @@ static gboolean add_response(liServer *srv, liGnuTLSOCSP *ocsp, gnutls_datum_t* 
 	response.resp_data = *der_data;
 	der_data->data = NULL; der_data->size = 0;
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_ocsp_resp_init(&response.resp))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_ocsp_resp_init(&response.resp))) {
 		ERROR(srv, "gnutls_ocsp_resp_init (%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error;
 	}
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_ocsp_resp_import(response.resp, &response.resp_data))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_ocsp_resp_import(response.resp, &response.resp_data))) {
 		ERROR(srv, "gnutls_ocsp_resp_import (%s): %s",
 			gnutls_strerror_name(r), gnutls_strerror(r));
 		goto error;
@@ -97,7 +97,7 @@ static gboolean add_response(liServer *srv, liGnuTLSOCSP *ocsp, gnutls_datum_t* 
 
 		r = get_entry(srv, &entry, response.resp, i);
 		if (GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE == r) break; /* got them all */
-		if (GNUTLS_E_SUCCESS != r) goto error;
+		if (GNUTLS_E_SUCCESS > r) goto error;
 
 		g_array_append_vals(response.certificates, &entry, 1);
 
@@ -133,20 +133,20 @@ static int ctx_ocsp_response(gnutls_session_t session, void* ptr, gnutls_datum_t
 		size_t serial_size = ocsp->max_serial_length;
 
 		crt_datum = gnutls_certificate_get_ours(session); /* memory is NOT owned */
-		if (GNUTLS_E_SUCCESS != (r = gnutls_x509_crt_init(&crt))) goto cleanup;
-		if (GNUTLS_E_SUCCESS != (r = gnutls_x509_crt_import(crt, crt_datum, GNUTLS_X509_FMT_DER))) {
+		if (GNUTLS_E_SUCCESS > (r = gnutls_x509_crt_init(&crt))) goto cleanup;
+		if (GNUTLS_E_SUCCESS > (r = gnutls_x509_crt_import(crt, crt_datum, GNUTLS_X509_FMT_DER))) {
 			gnutls_x509_crt_deinit(crt);
 			goto cleanup;
 		}
 
 		;
-		if (GNUTLS_E_SUCCESS != (r = gnutls_x509_crt_get_serial(crt, serial.data, &serial_size))) {
+		if (GNUTLS_E_SUCCESS > (r = gnutls_x509_crt_get_serial(crt, serial.data, &serial_size))) {
 			gnutls_x509_crt_deinit(crt);
 			goto cleanup;
 		}
 		serial.size = serial_size;
 
-		if (GNUTLS_E_SUCCESS != (r = gnutls_x509_crt_get_raw_issuer_dn(crt, &issuer_name))) {
+		if (GNUTLS_E_SUCCESS > (r = gnutls_x509_crt_get_raw_issuer_dn(crt, &issuer_name))) {
 			gnutls_x509_crt_deinit(crt);
 			goto cleanup;
 		}
@@ -164,7 +164,7 @@ static int ctx_ocsp_response(gnutls_session_t session, void* ptr, gnutls_datum_t
 			if (serial.size != entry->serial.size
 					|| 0 != memcmp(serial.data, entry->serial.data, serial.size)) continue;
 
-			if (GNUTLS_E_SUCCESS != (r = gnutls_hash_fast(entry->digest, issuer_name.data, issuer_name.size, issuer_name_hash))) goto cleanup;
+			if (GNUTLS_E_SUCCESS > (r = gnutls_hash_fast(entry->digest, issuer_name.data, issuer_name.size, issuer_name_hash))) goto cleanup;
 
 			if (0 != memcmp(issuer_name_hash, entry->issuer_name_hash.data, entry->issuer_name_hash.size)) continue;
 
@@ -217,7 +217,7 @@ gboolean li_gnutls_ocsp_add(liServer *srv, liGnuTLSOCSP *ocsp, const char* filen
 	gnutls_datum_t* der_data;
 	gboolean result = FALSE;
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_load_file(filename, &file))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_load_file(filename, &file))) {
 		ERROR(srv, "Failed to load OCSP file '%s' (%s): %s",
 				filename,
 				gnutls_strerror_name(r), gnutls_strerror(r));
@@ -228,7 +228,7 @@ gboolean li_gnutls_ocsp_add(liServer *srv, liGnuTLSOCSP *ocsp, const char* filen
 	if (file.size > 20 && 0 == memcmp(file.data, CONST_STR_LEN("-----BEGIN "))) {
 		r = gnutls_pem_base64_decode_alloc("OCSP RESPONSE", &file, &decoded);
 
-		if (GNUTLS_E_SUCCESS != r) {
+		if (GNUTLS_E_SUCCESS > r) {
 			ERROR(srv, "gnutls_pem_base64_decode_alloc failed to decode OCSP RESPONSE from '%s' (%s): %s",
 				filename,
 				gnutls_strerror_name(r), gnutls_strerror(r));
@@ -256,7 +256,7 @@ gboolean li_gnutls_ocsp_search(liServer *srv, liGnuTLSOCSP *ocsp, const char* fi
 	gnutls_datum_t decoded = { NULL, 0 };
 	gboolean result = FALSE;
 
-	if (GNUTLS_E_SUCCESS != (r = gnutls_load_file(filename, &file))) {
+	if (GNUTLS_E_SUCCESS > (r = gnutls_load_file(filename, &file))) {
 		ERROR(srv, "Failed to load OCSP file '%s' (%s): %s",
 				filename,
 				gnutls_strerror_name(r), gnutls_strerror(r));
@@ -265,7 +265,7 @@ gboolean li_gnutls_ocsp_search(liServer *srv, liGnuTLSOCSP *ocsp, const char* fi
 
 	r = gnutls_pem_base64_decode_alloc("OCSP RESPONSE", &file, &decoded);
 
-	if (GNUTLS_E_SUCCESS == r) {
+	if (GNUTLS_E_SUCCESS <= r) {
 		result = add_response(srv, ocsp, &decoded);
 		if (!result) {
 			ERROR(srv, "Failed loading OCSP response from '%s'", filename);

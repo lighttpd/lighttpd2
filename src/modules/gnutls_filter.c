@@ -193,7 +193,7 @@ static void f_abort_gnutls(liGnuTLSFilter *f) {
 static void f_close_with_alert(liGnuTLSFilter *f, int r) {
 	if (f->closing || f->aborted) return;
 
-	if (GNUTLS_E_SUCCESS != gnutls_alert_send_appropriate(f->session, r)) {
+	if (GNUTLS_E_SUCCESS > gnutls_alert_send_appropriate(f->session, r)) {
 		f_abort_gnutls(f);
 		return;
 	}
@@ -276,7 +276,7 @@ static gboolean do_gnutls_handshake(liGnuTLSFilter *f, gboolean writing) {
 	LI_FORCE_ASSERT(!f->initial_handshaked_finished);
 
 	r = gnutls_handshake(f->session);
-	if (GNUTLS_E_SUCCESS == r) {
+	if (GNUTLS_E_SUCCESS <= r) {
 		f->initial_handshaked_finished = 1;
 		li_stream_acquire(&f->plain_source);
 		li_stream_acquire(&f->plain_drain);
