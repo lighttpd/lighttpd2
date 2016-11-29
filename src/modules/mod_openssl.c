@@ -445,6 +445,15 @@ static gboolean openssl_options_set_string(long *options, GString *s) {
 #ifdef SSL_OP_NO_TLSv1
 		{S("TLSv1"), SSL_OP_NO_TLSv1, 0},
 #endif
+#ifdef SSL_OP_NO_TLSv1_1
+		{S("TLSv1_1"), SSL_OP_NO_TLSv1_1, 0},
+#endif
+#ifdef SSL_OP_NO_TLSv1_2
+		{S("TLSv1_2"), SSL_OP_NO_TLSv1_2, 0},
+#endif
+#ifdef SSL_OP_NO_TLSv1_3
+		{S("TLSv1_3"), SSL_OP_NO_TLSv1_3, 0},
+#endif
 #ifdef SSL_OP_PKCS1_CHECK_1
 		{S("PKCS1_CHECK_1"), SSL_OP_PKCS1_CHECK_1, 1},
 #endif
