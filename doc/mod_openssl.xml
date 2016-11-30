@@ -47,9 +47,9 @@
 
 		<description>
 			<textile>
-				For @ciphers@ see OpenSSL "ciphers":http://www.openssl.org/docs/apps/ciphers.html string
+				For @ciphers@ see OpenSSL "ciphers":https://www.openssl.org/docs/manmaster/man1/ciphers.html string
 
-				For @options@ see "options":https://www.openssl.org/docs/ssl/SSL_CTX_set_options.html. Explicitly specify the reverse flag by toggling the "NO_" prefix to override defaults.
+				For @options@ see "options":https://www.openssl.org/docs/manmaster/man3/SSL_CTX_set_options.html. Explicitly specify the reverse flag by toggling the "NO_" prefix to override defaults.
 			</textile>
 		</description>
 
