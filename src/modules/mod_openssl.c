@@ -240,6 +240,7 @@ static void openssl_setenv_X509_add_entries(liVRequest *vr, X509 *x509, const gc
 
 	X509_NAME *xn = X509_get_subject_name(x509);
 	X509_NAME_ENTRY *xe;
+	ASN1_STRING *xes;
 	const char * xobjsn;
 
 	g_string_truncate(k, 0);
@@ -251,7 +252,9 @@ static void openssl_setenv_X509_add_entries(liVRequest *vr, X509 *x509, const gc
 			continue;
 		g_string_truncate(k, prefix_len);
 		g_string_append(k, xobjsn);
-		li_environment_set(&vr->env, GSTR_LEN(k), (const gchar *)xe->value->data, xe->value->length);
+
+		xes = X509_NAME_ENTRY_get_data(xe);
+		li_environment_set(&vr->env, GSTR_LEN(k), (const gchar *)xes->data, xes->length);
 	}
 }
 
@@ -878,6 +881,7 @@ static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->setups = setups;
 }
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
 static GMutex** ssl_locks;
 
 static void ssl_lock_cb(int mode, int n, const char *file, int line) {
@@ -917,6 +921,15 @@ static void sslthread_free(void) {
 
 	g_slice_free1(sizeof(GMutex*) * n, ssl_locks);
 }
+
+#else
+
+static void sslthread_init(void) {
+}
+static void sslthread_free(void) {
+}
+
+#endif
 
 gboolean mod_openssl_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
@@ -999,16 +1012,28 @@ static DH* load_dh_params_4096(void) {
 		0x05,
 		};
 
-	DH *dh = DH_new();
+	BIGNUM *dh_p, *dh_g;
+	DH *dh;
+
+	dh = DH_new();
 	if (NULL == dh) return NULL;
 
-	dh->p = BN_bin2bn(dh4096_p, sizeof(dh4096_p), NULL);
-	dh->g = BN_bin2bn(dh4096_g, sizeof(dh4096_g), NULL);
+	dh_p = BN_bin2bn(dh4096_p, sizeof(dh4096_p), NULL);
+	dh_g = BN_bin2bn(dh4096_g, sizeof(dh4096_g), NULL);
 
-	if (NULL == dh->p || NULL == dh->g) {
+	if (NULL == dh_p || NULL == dh_g) {
+		BN_free(dh_p);
+		BN_free(dh_g);
 		DH_free(dh);
 		return NULL;
 	}
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+	dh->p = dh_p;
+	dh->g = dh_g;
+#else
+	DH_set0_pqg(dh, dh_p, NULL, dh_g);
+#endif
 
 	return dh;
 }
