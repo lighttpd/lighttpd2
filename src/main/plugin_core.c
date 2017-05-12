@@ -276,13 +276,21 @@ static liAction* core_docroot(liServer *srv, liWorker *wrk, liPlugin* p, liValue
 }
 
 typedef struct {
-	GString *prefix, *path;
+	GString *prefix;
+	liPattern *path;
 } core_alias_config;
 
 static liHandlerResult core_handle_alias(liVRequest *vr, gpointer _param, gpointer *context) {
 	GArray *param = _param;
 	guint i;
+	docroot_split dsplit = { vr->request.uri.host, NULL, 0 };
+	GMatchInfo *match_info = NULL;
 	UNUSED(context);
+
+	if (vr->action_stack.regex_stack->len) {
+		GArray *rs = vr->action_stack.regex_stack;
+		match_info = g_array_index(rs, liActionRegexStackElement, rs->len - 1).match_info;
+	}
 
 	for (i = 0; i < param->len; i++) {
 		core_alias_config ac = g_array_index(param, core_alias_config, i);
@@ -298,17 +306,17 @@ static liHandlerResult core_handle_alias(liVRequest *vr, gpointer _param, gpoint
 			/* check if url has the form "prefix" or "prefix/.*" */
 			if (isdir && vr->request.uri.path->str[preflen] != '\0' && vr->request.uri.path->str[preflen] != '/') continue;
 
+			g_string_truncate(vr->physical.doc_root, 0);
+			li_pattern_eval(vr, vr->physical.doc_root, ac.path, core_docroot_nth_cb, &dsplit, li_pattern_regex_cb, match_info);
+
 			/* prefix matched */
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-				VR_DEBUG(vr, "alias path: %s", ac.path->str);
+				VR_DEBUG(vr, "alias path: %s", vr->physical.doc_root->str);
 			}
-
-			g_string_truncate(vr->physical.doc_root, 0);
-			g_string_append_len(vr->physical.doc_root, GSTR_LEN(ac.path));
 
 			/* build physical path: docroot + uri.path */
 			g_string_truncate(vr->physical.path, 0);
-			g_string_append_len(vr->physical.path, GSTR_LEN(ac.path));
+			g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
 			g_string_append_len(vr->physical.path, vr->request.uri.path->str + preflen, vr->request.uri.path->len - preflen);
 
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
@@ -332,7 +340,7 @@ static void core_alias_free(liServer *srv, gpointer _param) {
 	for (i = 0; i < param->len; i++) {
 		core_alias_config ac = g_array_index(param, core_alias_config, i);
 		g_string_free(ac.prefix, TRUE);
-		g_string_free(ac.path, TRUE);
+		li_pattern_free(ac.path);
 	}
 	g_array_free(param, TRUE);
 }
@@ -354,9 +362,12 @@ static liAction* core_alias(liServer *srv, liWorker *wrk, liPlugin* p, liValue *
 
 		if (LI_VALUE_STRING == li_value_type(vPrefix) && LI_VALUE_STRING == li_value_type(vPath)) {
 			core_alias_config ac;
-			a = g_array_sized_new(FALSE, TRUE, sizeof(core_alias_config), 1);
+
+			ac.path = li_pattern_new(srv, vPath->data.string->str);
+			if (NULL == ac.path) goto fail;
 			ac.prefix = li_value_extract_string(vPrefix);
-			ac.path = li_value_extract_string(vPath);
+
+			a = g_array_sized_new(FALSE, TRUE, sizeof(core_alias_config), 1);
 			g_array_append_val(a, ac);
 		}
 	}
@@ -370,10 +381,13 @@ static liAction* core_alias(liServer *srv, liWorker *wrk, liPlugin* p, liValue *
 			if (!li_value_list_has_len(entry, 2)) goto fail;
 			vPrefix = li_value_list_at(entry, 0);
 			vPath = li_value_list_at(entry, 1);
+
 			if (LI_VALUE_STRING != li_value_type(vPrefix) || LI_VALUE_STRING != li_value_type(vPath)) goto fail;
 
+			ac.path = li_pattern_new(srv, vPath->data.string->str);
+			if (NULL == ac.path) goto fail;
 			ac.prefix = li_value_extract_string(vPrefix);
-			ac.path = li_value_extract_string(vPath);
+
 			g_array_append_val(a, ac);
 		LI_VALUE_END_FOREACH()
 	}
