@@ -3,7 +3,6 @@
 require 'rubygems'
 require 'nokogiri'
 
-require 'bluecloth'
 require 'redcloth'
 
 require 'cgi'
@@ -223,11 +222,6 @@ class Documentation
 		@html.pre { @html.code { @html << _format_code(xml) } }
 	end
 
-	def _parse_markdown(xml)
-		md = _format_code(xml)
-		@html << BlueCloth.new(md).to_html
-	end
-
 	def _parse_textile(xml)
 		tx = _format_code(xml)
 		@html << RedCloth.new(tx).to_html
@@ -245,7 +239,7 @@ class Documentation
 		xml.children.each do |child|
 			if child.text?
 				@html.p child.content.strip
-			elsif ['html','textile','markdown'].include? child.name
+			elsif ['html','textile'].include? child.name
 				self.send('_parse_' + child.name, child)
 			else
 				raise 'invalid description element ' + child.name
@@ -432,7 +426,7 @@ class ModuleDocumentation < GenericModuleDocumentation
 				if child.text?
 					text = child.content.strip
 					@html.p text if text.length > 0
-				elsif ['action','setup','option','html','textile','markdown','example','section'].include? child.name
+				elsif ['action','setup','option','html','textile','example','section'].include? child.name
 					self.send('_parse_' + child.name, child)
 				else
 					raise 'invalid section element ' + child.name
@@ -486,7 +480,7 @@ class AngelModuleDocumentation < GenericModuleDocumentation
 				if child.text?
 					text = child.content.strip
 					@html.p text if text.length > 0
-				elsif ['item','html','textile','markdown','example','section'].include? child.name
+				elsif ['item','html','textile','example','section'].include? child.name
 					self.send('_parse_' + child.name, child)
 				else
 					raise 'invalid section element ' + child.name
@@ -550,7 +544,7 @@ class ChapterDocumentation < Documentation
 				if child.text?
 					text = child.content.strip
 					@html.p text if text.length > 0
-				elsif ['html','textile','markdown','example','section'].include? child.name
+				elsif ['html','textile','example','section'].include? child.name
 					self.send('_parse_' + child.name, child)
 				else
 					raise 'invalid section element ' + child.name

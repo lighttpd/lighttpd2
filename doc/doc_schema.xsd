@@ -96,7 +96,6 @@
 			<choice minOccurs="0" maxOccurs="unbounded">
 				<element name="html" type="anyType" />
 				<element name="textile" type="anyType" />
-				<element name="markdown" type="anyType" />
 			</choice>
 		</sequence>
 	</complexType>
@@ -121,7 +120,6 @@
 
 				<element name="html" type="anyType" />
 				<element name="textile" type="anyType" />
-				<element name="markdown" type="anyType" />
 				<element name="example" type="d:ExampleType" />
 				<element name="section" type="d:ModuleSectionType" />
 			</choice>
@@ -157,7 +155,6 @@
 			<choice minOccurs="0" maxOccurs="unbounded">
 				<element name="html" type="anyType" />
 				<element name="textile" type="anyType" />
-				<element name="markdown" type="anyType" />
 				<element name="example" type="d:ExampleType" />
 				<element name="section" type="d:ChapterSectionType" />
 			</choice>
@@ -208,7 +205,6 @@
 
 				<element name="html" type="anyType" />
 				<element name="textile" type="anyType" />
-				<element name="markdown" type="anyType" />
 				<element name="example" type="d:ExampleType" />
 				<element name="section" type="d:AngelModuleSectionType" />
 			</choice>
