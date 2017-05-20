@@ -329,14 +329,16 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 		switch (e) {
 		case ENOENT:
 		case ENOTDIR:
+		case ENAMETOOLONG:
 			return LI_HANDLER_GO_ON;
 		case EACCES:
-			if (!li_vrequest_handle_direct(vr)) return LI_HANDLER_ERROR;
 			vr->response.http_status = 403;
 			return LI_HANDLER_GO_ON;
 		default:
 			VR_ERROR(vr, "stat('%s') failed: %s", sce->data.path->str, g_strerror(sce->data.err));
-			return LI_HANDLER_ERROR;
+			if (!li_vrequest_handle_direct(vr)) return LI_HANDLER_ERROR;
+			vr->response.http_status = 500;
+			return LI_HANDLER_GO_ON;
 		}
 	} else if (!S_ISDIR(sce->data.st.st_mode)) {
 		li_stat_cache_entry_release(vr, sce);

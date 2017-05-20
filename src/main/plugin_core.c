@@ -625,9 +625,13 @@ static liHandlerResult core_handle_static(liVRequest *vr, gpointer param, gpoint
 		case EACCES:
 			vr->response.http_status = 403;
 			return LI_HANDLER_GO_ON;
+		case ENAMETOOLONG:
+			vr->response.http_status = 414;
+			return LI_HANDLER_GO_ON;
 		default:
 			VR_ERROR(vr, "stat() or open() for '%s' failed: %s", vr->physical.path->str, g_strerror(err));
-			return LI_HANDLER_ERROR;
+			vr->response.http_status = 500;
+			return LI_HANDLER_GO_ON;
 		}
 	} else if (S_ISDIR(st.st_mode)) {
 		if (fd != -1)
@@ -815,13 +819,15 @@ next_round:
 			VR_DEBUG(vr, "physical path: %s", vr->physical.path->str);
 		}
 		goto next_round;
+	case ENAMETOOLONG:
 	case ENOENT:
-		return LI_HANDLER_GO_ON;
 	case EACCES:
 		return LI_HANDLER_GO_ON;
 	default:
 		VR_ERROR(vr, "stat() or open() for '%s' failed: %s", vr->physical.path->str, g_strerror(err));
-		return LI_HANDLER_ERROR;
+		if (!li_vrequest_handle_direct(vr)) return LI_HANDLER_ERROR;
+		vr->response.http_status = 500;
+		return LI_HANDLER_GO_ON;
 	}
 
 	return LI_HANDLER_GO_ON;

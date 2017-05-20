@@ -320,6 +320,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 				break;
 			case LI_HANDLER_ERROR:
 				li_action_stack_reset(vr, as);
+				return res;
 			case LI_HANDLER_COMEBACK:
 			case LI_HANDLER_WAIT_FOR_EVENT:
 				return res;
@@ -395,6 +396,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 				break;
 			case LI_HANDLER_ERROR:
 				li_action_stack_reset(vr, as);
+				return res;
 			case LI_HANDLER_COMEBACK:
 			case LI_HANDLER_WAIT_FOR_EVENT:
 				return res;
@@ -422,6 +424,7 @@ liHandlerResult li_action_execute(liVRequest *vr) {
 				break;
 			case LI_HANDLER_ERROR:
 				li_action_stack_reset(vr, as);
+				return res;
 			case LI_HANDLER_COMEBACK:
 			case LI_HANDLER_WAIT_FOR_EVENT:
 				return res;

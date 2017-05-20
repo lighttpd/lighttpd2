@@ -54,9 +54,13 @@ static liHandlerResult flv(liVRequest *vr, gpointer param, gpointer *context) {
 		case EACCES:
 			vr->response.http_status = 403;
 			return LI_HANDLER_GO_ON;
+		case ENAMETOOLONG:
+			vr->response.http_status = 414;
+			return LI_HANDLER_GO_ON;
 		default:
 			VR_ERROR(vr, "stat() or open() for '%s' failed: %s", vr->physical.path->str, g_strerror(err));
-			return LI_HANDLER_ERROR;
+			vr->response.http_status = 500;
+			return LI_HANDLER_GO_ON;
 		}
 	} else if (S_ISDIR(st.st_mode)) {
 		if (fd != -1)
