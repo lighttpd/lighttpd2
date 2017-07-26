@@ -61,6 +61,8 @@ struct mod_connection_ctx {
 struct mod_context {
 	gint refcount;
 
+	liServer *srv;
+
 	liSSLSessionDB *session_db;
 
 	gnutls_certificate_credentials_t server_cert;
@@ -89,6 +91,12 @@ struct fetch_cert_backend_lookup {
 	liFetchEntry *entry;
 	mod_context *ctx;
 };
+
+typedef struct sni_cert_data sni_cert_data;
+struct sni_cert_data {
+	gnutls_certificate_credentials_t creds;
+	liGnuTLSOCSP* ocsp;
+};
 #endif
 
 static void mod_gnutls_context_release(mod_context *ctx);
@@ -116,8 +124,10 @@ static int pin_callback(void *user, int attempt, const char *token_url, const ch
 #endif /* defined(HAVE_PIN) */
 
 #ifdef USE_SNI
-static gnutls_certificate_credentials_t creds_from_gstring(mod_context *ctx, GString *str) {
+static sni_cert_data* creds_from_gstring(mod_context *ctx, GString *str) {
+	sni_cert_data* data = NULL;
 	gnutls_certificate_credentials_t creds = NULL;
+	liGnuTLSOCSP* ocsp = NULL;
 	gnutls_datum_t pemfile;
 	int r;
 
@@ -133,15 +143,26 @@ static gnutls_certificate_credentials_t creds_from_gstring(mod_context *ctx, GSt
 #endif
 
 	if (GNUTLS_E_SUCCESS > (r = gnutls_certificate_set_x509_key_mem(creds, &pemfile, &pemfile, GNUTLS_X509_FMT_PEM))) {
-		goto error_free_creds;
+		goto error;
 	}
 
 	gnutls_certificate_set_dh_params(creds, ctx->dh_params);
 
-	return creds;
+	ocsp = li_gnutls_ocsp_new();
+	if (!li_gnutls_ocsp_search_datum(ctx->srv, ocsp, &pemfile)) {
+		goto error;
+	}
+	li_gnutls_ocsp_use(ocsp, creds);
 
-error_free_creds:
-	gnutls_certificate_free_credentials(creds);
+	data = g_slice_new0(sni_cert_data);
+	data->creds = creds;
+	data->ocsp = ocsp;
+
+	return data;
+
+error:
+	if (NULL != creds) gnutls_certificate_free_credentials(creds);
+	if (NULL != ocsp) li_gnutls_ocsp_free(ocsp);
 	return NULL;
 }
 
@@ -179,10 +200,14 @@ static void fetch_cert_refresh(liFetchDatabase* db, gpointer data, liFetchEntry 
 	li_fetch_entry_refresh_skip(new_entry);
 }
 static void fetch_cert_free_entry(gpointer data, liFetchEntry *entry) {
-	gnutls_certificate_credentials_t creds = entry->data;
+	sni_cert_data* sni_data = entry->data;
 	UNUSED(data);
 
-	if (NULL != creds) gnutls_certificate_free_credentials(creds);
+	if (NULL != sni_data) {
+		if (NULL != sni_data->creds) gnutls_certificate_free_credentials(sni_data->creds);
+		if (NULL != sni_data->ocsp) li_gnutls_ocsp_free(sni_data->ocsp);
+		g_slice_free(sni_cert_data, sni_data);
+	}
 	li_fetch_entry_release((liFetchEntry*) entry->backend_data);
 }
 static void fetch_cert_free_db(gpointer data) {
@@ -287,6 +312,8 @@ static mod_context *mod_gnutls_context_new(liServer *srv) {
 		goto error3;
 	}
 #endif
+
+	ctx->srv = srv;
 
 	ctx->ocsp = li_gnutls_ocsp_new();
 
@@ -490,9 +517,9 @@ static void sni_job_cb(liJob *job) {
 
 	conctx->sni_entry = li_fetch_get(conctx->ctx->sni_db, conctx->sni_server_name, conctx->sni_jobref, &conctx->sni_db_wait);
 	if (conctx->sni_entry != NULL) {
-		gnutls_certificate_credentials_t creds = conctx->sni_entry->data;
-		if (NULL != creds) {
-			gnutls_credentials_set(conctx->session, GNUTLS_CRD_CERTIFICATE, creds);
+		sni_cert_data* data = conctx->sni_entry->data;
+		if (NULL != data) {
+			gnutls_credentials_set(conctx->session, GNUTLS_CRD_CERTIFICATE, data->creds);
 		} else if (NULL != conctx->ctx->sni_fallback_cert) {
 			gnutls_credentials_set(conctx->session, GNUTLS_CRD_CERTIFICATE, conctx->ctx->sni_fallback_cert);
 		}

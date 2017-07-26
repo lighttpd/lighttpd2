@@ -22,4 +22,9 @@ LI_API gboolean li_gnutls_ocsp_add(liServer *srv, liGnuTLSOCSP *ocsp, const char
  */
 LI_API gboolean li_gnutls_ocsp_search(liServer *srv, liGnuTLSOCSP *ocsp, const char* filename);
 
+/* search in PEM datum for a OCSP RESPONSE block and add it if there is one;
+ * returns only FALSE if a block was found which COULDN'T be loaded
+ */
+LI_API gboolean li_gnutls_ocsp_search_datum(liServer *srv, liGnuTLSOCSP *ocsp, gnutls_datum_t const* file);
+
 #endif

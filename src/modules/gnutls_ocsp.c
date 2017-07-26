@@ -286,3 +286,30 @@ error:
 	gnutls_free(decoded.data);
 	return result;
 }
+
+gboolean li_gnutls_ocsp_search_datum(liServer *srv, liGnuTLSOCSP *ocsp, gnutls_datum_t const* file) {
+	int r;
+	gnutls_datum_t decoded = { NULL, 0 };
+	gboolean result = FALSE;
+
+	r = gnutls_pem_base64_decode_alloc("OCSP RESPONSE", file, &decoded);
+
+	if (GNUTLS_E_SUCCESS <= r) {
+		result = add_response(srv, ocsp, &decoded);
+		if (!result) {
+			ERROR(srv, "%s", "Failed loading OCSP response from PEM block");
+			goto error;
+		}
+	} else if (GNUTLS_E_BASE64_UNEXPECTED_HEADER_ERROR == r) {
+		/* ignore GNUTLS_E_BASE64_UNEXPECTED_HEADER_ERROR */
+	} else {
+		ERROR(srv, "gnutls_pem_base64_decode_alloc failed to decode OCSP RESPONSE from PEM block (%s): %s",
+			gnutls_strerror_name(r), gnutls_strerror(r));
+		/* continue anyway */
+	}
+	result = TRUE;
+
+error:
+	gnutls_free(decoded.data);
+	return result;
+}
