@@ -2026,7 +2026,7 @@ static gboolean core_register_fetch_files_static(liServer *srv, liPlugin* p, liV
 
 out:
 	if (NULL != basedir) g_string_free(basedir, TRUE);
-	if (NULL != subfile) g_string_free(basedir, TRUE);
+	if (NULL != subfile) g_string_free(subfile, TRUE);
 	if (NULL != prefix) g_string_free(prefix, TRUE);
 	if (NULL != suffix) g_string_free(suffix, TRUE);
 	if (NULL != filename) g_string_free(filename, TRUE);
