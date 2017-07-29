@@ -132,6 +132,7 @@ static BIO_METHOD chunkqueue_bio_method = {
 static BIO* new_cq_bio(liOpenSSLFilter *f) {
 	BIO *bio = BIO_new(&chunkqueue_bio_method);
 	bio->ptr = f;
+	return bio;
 }
 
 #else
