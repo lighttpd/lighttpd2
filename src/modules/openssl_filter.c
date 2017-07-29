@@ -237,9 +237,12 @@ static BIO_METHOD* get_cq_bio_method(void) {
 }
 
 static BIO* new_cq_bio(liOpenSSLFilter *f) {
+	BIO *bio;
 	BIO_METHOD *m = get_cq_bio_method();
+
 	if (NULL == m) return NULL;
-	BIO *bio = BIO_new(m);
+
+	bio = BIO_new(m);
 	BIO_set_data(bio, f);
 	BIO_set_init(bio, 1);
 	return bio;
