@@ -851,36 +851,6 @@ void li_string_append_int(GString *dest, gint64 v) {
 	dest->len = len;
 }
 
-/* http://womble.decadentplace.org.uk/readdir_r-advisory.html */
-gsize li_dirent_buf_size(DIR * dirp) {
-	glong name_max;
- 	gsize name_end;
-
-#	if !defined(HAVE_DIRFD)
-		UNUSED(dirp);
-#	endif
-
-#	if defined(HAVE_FPATHCONF) && defined(HAVE_DIRFD) && defined(_PC_NAME_MAX)
-		name_max = fpathconf(dirfd(dirp), _PC_NAME_MAX);
-		if (name_max == -1)
-#			if defined(NAME_MAX)
-				name_max = (NAME_MAX > 255) ? NAME_MAX : 255;
-#			else
-				return (gsize)(-1);
-#			endif
-#	else
-#		if defined(NAME_MAX)
-			name_max = (NAME_MAX > 255) ? NAME_MAX : 255;
-#		else
-#			error "buffer size for readdir_r cannot be determined"
-#		endif
-#	endif
-
-    name_end = (gsize)offsetof(struct dirent, d_name) + name_max + 1;
-
-    return (name_end > sizeof(struct dirent) ? name_end : sizeof(struct dirent));
-}
-
 const char *li_remove_path(const char *path) {
 	char *p = strrchr(path, G_DIR_SEPARATOR);
 	if (NULL != p && *(p) != '\0') {

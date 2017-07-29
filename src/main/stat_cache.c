@@ -108,10 +108,7 @@ static void stat_cache_run(gpointer data) {
 	if (!sce->data.failed && sce->type == STAT_CACHE_ENTRY_DIR) {
 		/* dirlisting */
 		DIR *dirp;
-		gsize size;
-		struct dirent *entry;
 		struct dirent *result;
-		gint error;
 		liStatCacheEntryData sced;
 		GString *str;
 
@@ -120,16 +117,19 @@ static void stat_cache_run(gpointer data) {
 			sce->data.failed = TRUE;
 			sce->data.err = errno;
 		} else {
-			size = li_dirent_buf_size(dirp);
-			LI_FORCE_ASSERT(size != (gsize)-1);
-			entry = g_slice_alloc(size);
-
 			sce->dirlist = g_array_sized_new(FALSE, FALSE, sizeof(liStatCacheEntryData), 32);
 
 			str = g_string_sized_new(sce->data.path->len + 64);
 			g_string_append_len(str, GSTR_LEN(sce->data.path));
 
-			while ((error = readdir_r(dirp, entry, &result)) == 0 && result != NULL) {
+			/* glibc claims modern readdir are thread-safe, and
+			 * readdir_r has issues. no way to check readdir is actually
+			 * safe, hope for the best.
+			 */
+			for (;;) {
+				errno = 0; /* readdir may not reset errno */
+				if (NULL == (result = readdir(dirp))) break;
+
 				/* hide "." and ".." */
 				if (result->d_name[0] == '.' && (result->d_name[1] == '\0' ||
 					(result->d_name[1] == '.' && result->d_name[2] == '\0'))) {
@@ -155,13 +155,12 @@ static void stat_cache_run(gpointer data) {
 				g_array_append_val(sce->dirlist, sced);
 			}
 
-			if (error) {
+			if (errno) {
 				sce->data.failed = TRUE;
-				sce->data.err = error;
+				sce->data.err = errno;
 			}
 
 			g_string_free(str, TRUE);
-			g_slice_free1(size, entry);
 			closedir(dirp);
 		}
 	}

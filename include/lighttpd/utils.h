@@ -81,8 +81,6 @@ LI_API gboolean li_string_suffix(const GString *str, const gchar *s, gsize len);
 
 LI_API void li_string_append_int(GString *dest, gint64 val);
 
-LI_API gsize li_dirent_buf_size(DIR * dirp);
-
 LI_API void li_apr_sha1_base64(GString *dest, const GString *passwd);
 LI_API void li_apr_md5_crypt(GString *dest, const GString *password, const GString *salt);
 
