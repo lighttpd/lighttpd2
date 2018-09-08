@@ -1,5 +1,6 @@
 
 #include <lighttpd/base.h>
+#include <lighttpd/plugin_core.h>
 #include <lighttpd/url_parser.h>
 
 void li_request_init(liRequest *req) {
@@ -292,10 +293,14 @@ gboolean li_request_validate_header(liConnection *con) {
 		/* content-length or chunked encoding is required for them */
 		if (con->mainvr->request.content_length == -1 && !transfer_encoding_chunked) {
 			/* content-length is missing */
-			VR_ERROR(con->mainvr, "%s", "POST-request, but content-length missing -> 411");
+			if (_CORE_OPTION(con->mainvr, LI_CORE_OPTION_STRICT_POST_CONTENT_LENGTH).boolean) {
+				VR_ERROR(con->mainvr, "%s", "POST-request, but content-length missing -> 411");
 
-			bad_request(con, 411); /* Length Required */
-			return FALSE;
+				bad_request(con, 411); /* Length Required */
+				return FALSE;
+			} else {
+				con->mainvr->request.content_length = 0;
+			}
 		}
 		break;
 	default:

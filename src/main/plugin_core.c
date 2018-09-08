@@ -2079,6 +2079,8 @@ static const liPluginOption options[] = {
 
 	{ "buffer_request_body", LI_VALUE_BOOLEAN, TRUE, NULL },
 
+	{ "strict.post_content_length", LI_VALUE_BOOLEAN, TRUE, NULL },
+
 	{ NULL, 0, 0, NULL }
 };
 

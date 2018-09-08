@@ -100,6 +100,15 @@
 				</textile>
 			</description>
 		</option>
+		<option name="strict.post_content_length">
+			<short>require Content-Length for POST requests</short>
+			<default><value>true</value></default>
+			<description>
+				<textile>
+					Some clients don't send Content-Length for POST requests with empty body; they should send @Content-Length: 0@.  When this check is enabled they'll get a @411 Length required@ error.
+				</textile>
+			</description>
+		</option>
 
 		<option name="static.exclude_extensions">
 			<short>don't deliver static files with one of the listed extensions</short>
