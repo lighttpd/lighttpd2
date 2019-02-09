@@ -53,6 +53,10 @@ int inet_aton(const char *cp, struct in_addr *inp);
         (sizeof(*(su)) - sizeof((su)->sun_path) + strlen((su)->sun_path))
 #endif /* SUN_LEN */
 
+#ifdef __FreeBSD__
+#define SOL_TCP IPPROTO_TCP
+#endif
+
 #define sockread( fd, buf, bytes ) read( fd, buf, bytes )
 #define closesocket(x) close(x)
 
