@@ -28,7 +28,7 @@
 					module_load "mod_fastcgi";
 				}
 
-				if phys.path =$ ".php" {
+				if phys.path =$ ".php" and phys.is_file {
 					fastcgi "unix:/var/run/lighttpd2/php.sock";
 				}
 			</config>
