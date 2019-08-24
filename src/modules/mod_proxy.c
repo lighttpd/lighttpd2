@@ -52,8 +52,9 @@ static void proxy_send_headers(liVRequest *vr, liChunkQueue *out) {
 
 	switch (vr->request.http_version) {
 	case LI_HTTP_VERSION_1_1:
-		/* g_string_append_len(head, CONST_STR_LEN(" HTTP/1.1\r\n")); */
-		g_string_append_len(head, CONST_STR_LEN(" HTTP/1.0\r\n"));
+		g_string_append_len(head, CONST_STR_LEN(" HTTP/1.1\r\n"));
+		/* although we understand keep-alive signalling we don't reuse connection, so tell backend */
+		g_string_append_len(head, CONST_STR_LEN("Connection: close\r\n"));
 		break;
 	case LI_HTTP_VERSION_1_0:
 	default:
@@ -213,7 +214,7 @@ static void proxy_connection_new(liVRequest *vr, liBackendConnection *bcon, prox
 	proxy_send_headers(vr, outplug->out);
 	li_stream_notify_later(outplug);
 
-	http_out = li_stream_http_response_handle(&iostream->stream_in, vr, TRUE, FALSE);
+	http_out = li_stream_http_response_handle(&iostream->stream_in, vr, TRUE, FALSE, TRUE);
 
 	li_vrequest_handle_indirect(vr, NULL);
 	li_vrequest_indirect_connect(vr, outplug, http_out);

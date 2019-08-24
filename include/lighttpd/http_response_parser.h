@@ -12,6 +12,8 @@ struct liHttpResponseCtx {
 	gboolean accept_cgi, accept_nph;
 	gboolean drop_header; /* for 1xx responses */
 
+	liHttpVersion http_version;
+
 	liChunkParserMark mark;
 	GString *h_key, *h_value;
 };

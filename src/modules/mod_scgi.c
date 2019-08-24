@@ -307,7 +307,7 @@ static void scgi_connection_new(liVRequest *vr, liBackendConnection *bcon, scgi_
 	scgi_send_env(vr, outplug->out);
 	li_stream_notify_later(outplug);
 
-	http_out = li_stream_http_response_handle(&iostream->stream_in, vr, TRUE, FALSE);
+	http_out = li_stream_http_response_handle(&iostream->stream_in, vr, TRUE, FALSE, FALSE);
 
 	li_vrequest_handle_indirect(vr, NULL);
 	li_vrequest_indirect_connect(vr, outplug, http_out);

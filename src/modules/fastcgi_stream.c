@@ -859,7 +859,7 @@ liBackendResult li_fastcgi_backend_get(liVRequest *vr, liFastCGIBackendPool *bpo
 		fastcgi_send_env(vr, ctx->fcgi_out.out, 1);
 		li_stream_notify_later(&ctx->fcgi_out);
 
-		http_out = li_stream_http_response_handle(&ctx->fcgi_in, vr, TRUE, TRUE);
+		http_out = li_stream_http_response_handle(&ctx->fcgi_in, vr, TRUE, TRUE, FALSE);
 
 		li_vrequest_handle_indirect(vr, NULL);
 		li_vrequest_indirect_connect(vr, &ctx->fcgi_out, http_out);

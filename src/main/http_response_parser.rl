@@ -95,13 +95,13 @@
 	Quoted_String   = DQUOTE ( QDText | Quoted_Pair )* DQUOTE;
 
 	HTTP_Version = (
-		  "HTTP/1.0"  %{ ctx->response->http_version = LI_HTTP_VERSION_1_0; }
-		| "HTTP/1.1"  %{ ctx->response->http_version = LI_HTTP_VERSION_1_1; }
-		| "HTTP" "/" DIGIT+ "." DIGIT+ ) >{ ctx->response->http_version = LI_HTTP_VERSION_UNSET; };
+		  "HTTP/1.0"  %{ ctx->http_version = LI_HTTP_VERSION_1_0; }
+		| "HTTP/1.1"  %{ ctx->http_version = LI_HTTP_VERSION_1_1; }
+		| "HTTP" "/" DIGIT+ "." DIGIT+ ) >{ ctx->http_version = LI_HTTP_VERSION_UNSET; };
 	#HTTP_URL = "http:" "//" Host ( ":" Port )? ( abs_path ( "?" query )? )?;
 
 	Status = (digit digit digit) >mark %status;
-	Response_Line = "HTTP/" digit+ "." digit+ SP Status SP (any - CTL - CR - LF)* CRLF;
+	Response_Line = HTTP_Version SP Status SP (any - CTL - CR - LF)* CRLF;
 
 	# Field_Content = ( TEXT+ | ( Token | Separators | Quoted_String )+ );
 	Field_Content = ( (OCTET - CTL - DQUOTE) | SP | HT | Quoted_String )+;
@@ -127,6 +127,7 @@ void li_http_response_parser_init(liHttpResponseCtx* ctx, liResponse *req, liChu
 	ctx->accept_cgi = accept_cgi;
 	ctx->accept_nph = accept_nph;
 	ctx->drop_header = FALSE;
+	ctx->http_version = LI_HTTP_VERSION_UNSET;
 	ctx->h_key = g_string_sized_new(0);
 	ctx->h_value = g_string_sized_new(0);
 

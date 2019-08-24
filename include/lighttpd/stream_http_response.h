@@ -3,6 +3,6 @@
 
 #include <lighttpd/base.h>
 
-LI_API liStream* li_stream_http_response_handle(liStream *http_in, liVRequest *vr, gboolean accept_cgi, gboolean accept_nph);
+LI_API liStream* li_stream_http_response_handle(liStream *http_in, liVRequest *vr, gboolean accept_cgi, gboolean accept_nph, gboolean keepalive);
 
 #endif

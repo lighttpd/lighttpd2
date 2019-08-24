@@ -7,7 +7,8 @@ struct liStreamHttpResponse {
 
 	liStream stream;
 	liVRequest *vr;
-	gboolean response_headers_finished, transfer_encoding_chunked;
+	gboolean keepalive, response_headers_finished, transfer_encoding_chunked, wait_for_close;
+	goffset content_length;
 	liFilterChunkedDecodeState chunked_decode_state;
 };
 
@@ -16,6 +17,9 @@ static void check_response_header(liStreamHttpResponse* shr) {
 	GList *l;
 
 	shr->transfer_encoding_chunked = FALSE;
+	/* if protocol doesn't support keep-alive just wait for stream end */
+	shr->wait_for_close = !shr->keepalive;
+	shr->content_length = -1;
 
 	/* Transfer-Encoding: chunked */
 	l = li_http_header_find_first(resp->headers, CONST_STR_LEN("transfer-encoding"));
@@ -90,6 +94,73 @@ static void check_response_header(liStreamHttpResponse* shr) {
 		return;
 	}
 
+	if (!shr->transfer_encoding_chunked && shr->keepalive) {
+		/**
+		 * if protocol has HTTP "keepalive" concept and encoding isn't chunked,
+		 * we need to check for content-length or "connection: close" indications.
+		 * otherwise we won't know when the response is done
+		 */
+		liHttpHeader *hh;
+
+		switch (shr->parse_response_ctx.http_version) {
+		case LI_HTTP_VERSION_1_0:
+			if (!li_http_header_is(shr->vr->response.headers, CONST_STR_LEN("connection"), CONST_STR_LEN("keep-alive")))
+				shr->wait_for_close = TRUE;
+			break;
+		case LI_HTTP_VERSION_1_1:
+			if (li_http_header_is(shr->vr->response.headers, CONST_STR_LEN("connection"), CONST_STR_LEN("close")))
+				shr->wait_for_close = TRUE;
+			break;
+		case LI_HTTP_VERSION_UNSET:
+			break;
+		}
+
+		/* content-length */
+		hh = li_http_header_lookup(shr->vr->response.headers, CONST_STR_LEN("content-length"));
+		if (hh) {
+			const gchar *val = LI_HEADER_VALUE(hh);
+			gint64 r;
+			char *err;
+
+			r = g_ascii_strtoll(val, &err, 10);
+			if (*err != '\0') {
+				VR_ERROR(shr->vr, "Backend response: content-length is not a number: %s", err);
+				li_vrequest_error(shr->vr);
+				return;
+			}
+
+			/**
+			 * negative content-length is not supported
+			 * and is a bad request
+			 */
+			if (r < 0) {
+				VR_ERROR(shr->vr, "%s", "Backend response: content-length is negative");
+				li_vrequest_error(shr->vr);
+				return;
+			}
+
+			/**
+			 * check if we had a over- or underrun in the string conversion
+			 */
+			if (r == G_MININT64 || r == G_MAXINT64) {
+				if (errno == ERANGE) {
+					VR_ERROR(shr->vr, "%s", "Backend response: content-length overflow");
+					li_vrequest_error(shr->vr);
+					return;
+				}
+			}
+
+			shr->content_length = r;
+			shr->wait_for_close = FALSE;
+		}
+
+		if (!shr->wait_for_close && shr->content_length < 0) {
+			VR_ERROR(shr->vr, "%s", "Backend: need chunked transfer-encoding or content-length for keepalive connections");
+			li_vrequest_error(shr->vr);
+			return;
+		}
+	}
+
 	shr->response_headers_finished = TRUE;
 	li_vrequest_indirect_headers_ready(shr->vr);
 
@@ -132,9 +203,20 @@ static void stream_http_response_data(liStreamHttpResponse* shr) {
 		if (shr->stream.source->out->is_closed) {
 			li_stream_disconnect(&shr->stream);
 		}
-	} else {
+	} else if (shr->wait_for_close) {
 		li_chunkqueue_steal_all(shr->stream.out, shr->stream.source->out);
 		if (shr->stream.source->out->is_closed) {
+			shr->stream.out->is_closed = TRUE;
+			li_stream_disconnect(&shr->stream);
+		}
+	} else {
+		g_assert(shr->content_length >= 0);
+		if (shr->content_length > 0) {
+			goffset moved;
+			moved = li_chunkqueue_steal_len(shr->stream.out, shr->stream.source->out, shr->content_length);
+			shr->content_length -= moved;
+		}
+		if (shr->content_length == 0) {
 			shr->stream.out->is_closed = TRUE;
 			li_stream_disconnect(&shr->stream);
 		}
@@ -170,8 +252,9 @@ static void stream_http_response_cb(liStream *stream, liStreamEvent event) {
 	}
 }
 
-LI_API liStream* li_stream_http_response_handle(liStream *http_in, liVRequest *vr, gboolean accept_cgi, gboolean accept_nph) {
+LI_API liStream* li_stream_http_response_handle(liStream *http_in, liVRequest *vr, gboolean accept_cgi, gboolean accept_nph, gboolean keepalive) {
 	liStreamHttpResponse *shr = g_slice_new0(liStreamHttpResponse);
+	shr->keepalive = keepalive;
 	shr->response_headers_finished = FALSE;
 	shr->vr = vr;
 	li_stream_init(&shr->stream, &vr->wrk->loop, stream_http_response_cb);

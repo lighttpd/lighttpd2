@@ -19,6 +19,10 @@ class HttpBackendHandler(socketserver.StreamRequestHandler):
 			if reqline[2].upper() != "HTTP/1.1":
 				keepalive = False
 				keepalive_default = False
+			if reqline[1].startswith("/keepalive"):
+				# simulate broken backend (HTTP/1.0 incompatible)
+				keepalive = True
+				keepalive_default = True
 			# read headers; and GET has no body
 			while True:
 				hdr = self.rfile.readline().decode('utf-8').rstrip()
@@ -85,11 +89,22 @@ rewrite "/foo(.*)" => "/dest$1";
 backend_proxy;
 """
 
+# backend gets decoded %2F
+class TestBackendForcedKeepalive(CurlRequest):
+	URL = "/keepalive"
+	EXPECT_RESPONSE_BODY = "/keepalive"
+	EXPECT_RESPONSE_CODE = 200
+	no_docroot = True
+	config = """
+backend_proxy;
+"""
+
 class Test(GroupTest):
 	group = [
 		TestSimple,
 		TestProxiedRewrittenEncodedURL,
 		TestProxiedRewrittenDecodedURL,
+		TestBackendForcedKeepalive,
 	]
 
 	def Prepare(self):
