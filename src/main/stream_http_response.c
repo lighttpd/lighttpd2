@@ -65,8 +65,8 @@ static void check_response_header(liStreamHttpResponse* shr) {
 		token = g_string_sized_new(15);
 		li_http_header_tokenizer_start(&header_tokenizer, resp->headers, CONST_STR_LEN("Connection"));
 		while (li_http_header_tokenizer_next(&header_tokenizer, token)) {
-			VR_ERROR(shr->vr, "Parsing header '%s'", ((liHttpHeader*)header_tokenizer.cur->data)->data->str);
-			VR_ERROR(shr->vr, "Connection token '%s'", token->str);
+			VR_DEBUG(shr->vr, "Parsing header '%s'", ((liHttpHeader*)header_tokenizer.cur->data)->data->str);
+			VR_DEBUG(shr->vr, "Connection token '%s'", token->str);
 			if (0 == g_ascii_strcasecmp(token->str, "Upgrade")) {
 				have_connection_upgrade = TRUE;
 				break;
