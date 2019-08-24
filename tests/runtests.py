@@ -5,7 +5,7 @@ import os
 import sys
 from logfile import LogFile, RemoveEscapeSeq
 
-from base import Env, Tests
+from base import Env, Tests, eprint
 
 from optparse import OptionParser
 
@@ -120,7 +120,7 @@ try:
 		tests.Prepare()
 	except:
 		import traceback
-		print >> sys.stderr, traceback.format_exc()
+		eprint(traceback.format_exc())
 	else:
 		if tests.Run():
 			failed = False
@@ -130,7 +130,7 @@ try:
 			os.remove(os.path.join(Env.dir, "tests.log"))
 except:
 	import traceback
-	print >> sys.stderr, traceback.format_exc()
+	eprint(traceback.format_exc())
 	failed = True
 finally:
 	try:
@@ -140,9 +140,7 @@ finally:
 		elif not Env.no_cleanup and not failed:
 			os.rmdir(Env.dir)
 	except OSError:
-		print >> sys.stderr, "Couldn't delete temporary directory '%s', probably not empty (perhaps due to some errors)" % Env.dir
-
-Env.log.close()
+		eprint("Couldn't delete temporary directory '%s', probably not empty (perhaps due to some errors)" % Env.dir)
 
 if failed:
 	sys.exit(1)

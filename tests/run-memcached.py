@@ -57,7 +57,7 @@ class MemcacheDB:
 		return cas
 
 	def get(self, key):
-		if not self.d.has_key(key): return None
+		if not key in self.d: return None
 		entry = self.d[key]
 		if entry.expired():
 			self.d.pop(key)

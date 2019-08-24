@@ -13,9 +13,9 @@ respond;
 	URL = "/path?simple_query"
 
 	def CheckResponse(self):
-		h = map(lambda x: x[1], filter(lambda x: x[0] == "Test-Header", self.resp_header_list))
+		h = [ value for key, value in self.resp_header_list if key == "Test-Header" ]
 		if len(h) != 2 or h[0] != "simple_query" or h[1] != "/path":
-			print >>Env.log, repr(h)
+			eprint(repr(h))
 			raise BaseException("Unexpected headers 'Test-Header'")
 		return True
 
@@ -29,9 +29,9 @@ respond;
 	URL = "/path?simple_query"
 
 	def CheckResponse(self):
-		h = map(lambda x: x[1], filter(lambda x: x[0] == "Test-Header", self.resp_header_list))
+		h = [ value for key, value in self.resp_header_list if key == "Test-Header" ]
 		if len(h) != 1 or h[0] != "simple_query, /path":
-			print >>Env.log, repr(h)
+			log(repr(h))
 			raise BaseException("Unexpected headers 'Test-Header'")
 		return True
 
@@ -45,9 +45,9 @@ respond;
 	URL = "/path?simple_query"
 
 	def CheckResponse(self):
-		h = map(lambda x: x[1], filter(lambda x: x[0] == "Test-Header", self.resp_header_list))
+		h = [ value for key, value in self.resp_header_list if key == "Test-Header" ]
 		if len(h) != 1 or h[0] != "/path":
-			print >>Env.log, repr(h)
+			log(repr(h))
 			raise BaseException("Unexpected headers 'Test-Header'")
 		return True
 
@@ -61,9 +61,9 @@ respond;
 	URL = "/path?simple_query"
 
 	def CheckResponse(self):
-		h = map(lambda x: x[1], filter(lambda x: x[0] == "Test-Header", self.resp_header_list))
+		h = [ value for key, value in self.resp_header_list if key == "Test-Header" ]
 		if len(h) != 0:
-			print >>Env.log, repr(h)
+			log(repr(h))
 			raise BaseException("Unexpected headers 'Test-Header'")
 		return True
 

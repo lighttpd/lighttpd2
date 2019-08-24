@@ -3,16 +3,17 @@
 from base import *
 from requests import *
 from service import FastCGI
+from io import BytesIO
 import time
 import hashlib
 
 def generate_body(seed, size):
 	i = 0
-	body = ''
-	while len(body) < size:
-		body += hashlib.sha1(seed + str(i)).digest()
+	body = BytesIO()
+	while body.tell() < size:
+		body.write(hashlib.sha1((seed + str(i)).encode('utf-8')).digest())
 		i += 1
-	return body[:size]
+	return body.getvalue()[:size]
 
 class CGI(FastCGI):
 	name = "fcgi_cgi"
@@ -199,8 +200,8 @@ cgi = {{
 		return True
 
 	def Prepare(self):
-		self.PrepareVHostFile("envcheck.cgi", SCRIPT_ENVCHECK, mode = 0755)
-		self.PrepareVHostFile("uploadcheck.cgi", SCRIPT_UPLOADCHECK, mode = 0755)
-		self.PrepareVHostFile("chunkedencodingcheck.cgi", SCRIPT_CHUNKEDENCODINGCHECK, mode = 0755)
-		self.PrepareVHostFile("stderr.cgi", SCRIPT_STDERRCHECK, mode = 0755)
-		self.PrepareVHostFile("exiterror.cgi", SCRIPT_EXITERRORCHECK, mode = 0755)
+		self.PrepareVHostFile("envcheck.cgi", SCRIPT_ENVCHECK, mode = 0o755)
+		self.PrepareVHostFile("uploadcheck.cgi", SCRIPT_UPLOADCHECK, mode = 0o755)
+		self.PrepareVHostFile("chunkedencodingcheck.cgi", SCRIPT_CHUNKEDENCODINGCHECK, mode = 0o755)
+		self.PrepareVHostFile("stderr.cgi", SCRIPT_STDERRCHECK, mode = 0o755)
+		self.PrepareVHostFile("exiterror.cgi", SCRIPT_EXITERRORCHECK, mode = 0o755)

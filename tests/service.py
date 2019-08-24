@@ -52,7 +52,7 @@ class Service(object):
 		return devnull()
 
 	def fork(self, *args, **kwargs):
-		if kwargs.has_key('inp'):
+		if 'inp' in kwargs:
 			inp = kwargs['inp']
 		else:
 			inp = devnull()
@@ -71,7 +71,7 @@ class Service(object):
 			tlog = self.tests.PrepareFile("log/truss-%s.log" % self.name, "")
 			args = trussargs + [ tlog ] + list(args)
 
-		print >> base.Env.log, "Spawning '%s': %s" % (self.name, ' '.join(args))
+		base.log("Spawning '%s': %s" % (self.name, ' '.join(args)))
 		proc = subprocess.Popen(args, stdin = inp, stdout = logfile, stderr = logfile, close_fds = True, preexec_fn = preexec)
 		if None != inp: inp.close()
 		if None != logfile: logfile.close()
@@ -85,7 +85,7 @@ class Service(object):
 		if None == proc: return
 		self.proc = None
 		if None == proc.poll():
-			print >> base.Env.log, "Terminating service (%s) '%s'" % (ss, self.name)
+			base.log("Terminating service (%s) '%s'" % (ss, self.name))
 			try:
 				os.killpg(proc.pid, s)
 				s = signal.SIGTERM
@@ -93,11 +93,11 @@ class Service(object):
 				proc.terminate()
 			except:
 				pass
-			print >> base.Env.log, "Waiting for service '%s'" % (self.name)
+			base.log("Waiting for service '%s'" % (self.name))
 			if base.Env.wait: proc.wait()
 			while not procwait(proc):
 				try:
-					print >> base.Env.log, "Terminating service (%s) '%s'" % (ss, self.name)
+					base.log("Terminating service (%s) '%s'" % (ss, self.name))
 					os.killpg(proc.pid, s)
 					s = signal.SIGKILL
 					ss = "SIGKILL"
@@ -172,7 +172,7 @@ class Lighttpd(Service):
 		args = [base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf, '-t']
 		if base.Env.valgrind:
 			args = [base.Env.valgrind] + args
-		print >> base.Env.log, "Testing lighttpd config: %s" % (' '.join(args))
+		base.log("Testing lighttpd config: %s" % (' '.join(args)))
 		proc = subprocess.Popen(args, stdin = inp, stdout = logfile, stderr = logfile, close_fds = True)
 		if None != inp: inp.close()
 		logfile.close()
@@ -212,6 +212,6 @@ class FastCGI(Service):
 		if None != self.sockfile:
 			try:
 				os.remove(self.sockfile)
-			except BaseException, e:
-				print >>sys.stderr, "Couldn't delete socket '%s': %s" % (self.sockfile, e)
+			except BaseException as e:
+				base.eprint("Couldn't delete socket '%s': %s" % (self.sockfile, e))
 		self.tests.CleanupDir(os.path.join("tmp", "sockets"))

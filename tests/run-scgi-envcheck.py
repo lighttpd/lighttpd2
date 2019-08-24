@@ -27,9 +27,9 @@ def parsereq(data):
 		key, value = header[0:2]
 		header = header[2:]
 		if '' == key: raise Exception("invalid request: empty key")
-		if env.has_key(key): raise Exception("invalid request: duplicate key")
+		if key in env: raise Exception("invalid request: duplicate key")
 		env[key] = value
-	if not env.has_key('SCGI') or env['SCGI'] != '1':
+	if not 'SCGI' in env or env['SCGI'] != '1':
 		raise Exception("invalid request: missing/broken SCGI=1 header")
 	return {'env': env, 'body': body}
 

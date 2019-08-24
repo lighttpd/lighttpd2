@@ -3,14 +3,14 @@
 from base import *
 from requests import *
 import time
-from md5 import md5
+from hashlib import md5
 
 def securl(prefix, path, secret, tstamp = None):
 	if tstamp == None: tstamp = time.time()
 	tstamp = '%x' % int(tstamp)
 	md5content = secret + path + tstamp
 	if prefix[-1] != '/': prefix += '/'
-	return prefix + md5(md5content).hexdigest() + '/' + tstamp + path
+	return prefix + md5(md5content.encode('utf-8')).hexdigest() + '/' + tstamp + path
 
 class SecdownloadFail(CurlRequest):
 	URL = "/test.txt"

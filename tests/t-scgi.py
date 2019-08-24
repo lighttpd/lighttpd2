@@ -27,8 +27,8 @@ class SCGI(Service):
 		if None != self.sockfile:
 			try:
 				os.remove(self.sockfile)
-			except BaseException, e:
-				print >>sys.stderr, "Couldn't delete socket '%s': %s" % (self.sockfile, e)
+			except BaseException as e:
+				base.eprint("Couldn't delete socket '%s': %s" % (self.sockfile, e))
 		self.tests.CleanupDir(os.path.join("tmp", "sockets"))
 
 

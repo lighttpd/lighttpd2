@@ -27,7 +27,7 @@ A test intance has the following attributes:
    if the subtest doesn't provide a config
  * runnable: whether to call Run
  * todo: whether the test is expected to fail
- * subdomains: whether a config should be used for (^|\.)vhost (i.e. vhost and all subdomains)
+ * subdomains: whether a config should be used for (^|\\.)vhost (i.e. vhost and all subdomains)
 
 You can create files and directories in Prepare with TestBase.{PrepareVHostFile,PrepareFile,PrepareDir};
 they will get removed on cleanup automatically (if the test was successful).
@@ -43,6 +43,7 @@ and the class will do everything for you. have a look at the class if you
 need more details :)
 """
 
+from __future__ import print_function
 
 import os
 import imp
@@ -54,7 +55,16 @@ import inspect
 
 from service import *
 
-__all__ = [ "Env", "Tests", "TestBase", "GroupTest" ]
+__all__ = [ "Env", "Tests", "TestBase", "GroupTest", "eprint", "log" ]
+
+
+def log(*args, **kwargs):
+	print(*args, file=Env.log, **kwargs)
+
+
+def eprint(*args, **kwargs):
+	print(*args, file=sys.stderr, **kwargs)
+
 
 class Dict(object):
 	pass
@@ -158,24 +168,25 @@ var.vhosts = var.vhosts + [ "%s" => {
 
 	def _run(self):
 		failed = False
-		print >> Env.log, "[Start] Running test %s" % (self.name)
+		log("[Start] Running test %s" % (self.name))
 		try:
 			if not self.Run():
 				failed = True
 				if self.todo:
-					print >> Env.log, "Test %s failed" % (self.name)
+					log("Test %s failed" % (self.name))
 				else:
-					print >> sys.stderr, "Test %s failed" % (self.name)
-		except BaseException, e:
+					eprint("Test %s failed" % (self.name))
+		except BaseException as e:
 			failed = True
 			if self.todo:
-				print >> Env.log, "Test %s failed:" % (self.name)
-				print >> Env.log, traceback.format_exc(10)
+				log("Test %s failed:" % (self.name))
+				log(traceback.format_exc(10))
 			else:
-				print >> sys.stderr, "Test %s failed: %s" % (self.name, e)
-				print >> Env.log, "Test %s failed:" % (self.name)
-				print >> Env.log, traceback.format_exc(10)
-		print >> Env.log, "[Done] Running test %s [result=%s]" % (self.name, failed and "Failed" or "Succeeded")
+				eprint("Test %s failed: %s" % (self.name, e))
+				eprint(traceback.format_exc(10))
+				log("Test %s failed:" % (self.name))
+				log(traceback.format_exc(10))
+		log("[Done] Running test %s [result=%s]" % (self.name, failed and "Failed" or "Succeeded"))
 		self._test_failed = failed and not self.todo
 		return not failed
 
@@ -197,12 +208,12 @@ var.vhosts = var.vhosts + [ "%s" => {
 		self.tests.CleanupDir(dirname)
 
 	# public
-	def PrepareVHostFile(self, fname, content, mode = 0644):
+	def PrepareVHostFile(self, fname, content, mode = 0o644):
 		"""remembers which files have been prepared and while remove them on cleanup; returns absolute pathname"""
 		fname = os.path.join('www', 'vhosts', self.vhost, fname)
 		return self.PrepareFile(fname, content, mode = mode)
 
-	def PrepareFile(self, fname, content, mode = 0644):
+	def PrepareFile(self, fname, content, mode = 0o644):
 		"""remembers which files have been prepared and while remove them on cleanup; returns absolute pathname"""
 		self._test_cleanup_files.append(fname)
 		return self.tests.PrepareFile(fname, content, mode = mode)
@@ -213,7 +224,7 @@ var.vhosts = var.vhosts + [ "%s" => {
 		return self.tests.PrepareDir(dirname)
 
 	def MissingFeature(self, feature):
-		print >> sys.stderr, Env.COLOR_RED + ("Skipping test '%s' due to missing '%s'" % (self.name, feature)) + Env.COLOR_RESET
+		eprint(Env.COLOR_RED + ("Skipping test '%s' due to missing '%s'" % (self.name, feature)) + Env.COLOR_RESET)
 		return False
 
 	# implement these yourself
@@ -242,7 +253,7 @@ class GroupTest(TestBase):
 		module_classes = inspect.getmembers(sys.modules[test_module], lambda member: inspect.isclass(member) and member.__module__ == test_module)
 		for name, obj in module_classes:
 			if name.startswith("Test") and not obj in self.group and obj != self.__class__:
-				print >> sys.stderr, "Test class", name, "not listed in group test list in", test_module, ".", self.__class__.__name__
+				eprint("Test class", name, "not listed in group test list in", test_module, ".", self.__class__.__name__)
 		self.subtests = []
 		for c in self.group:
 			t = c(self)
@@ -296,7 +307,7 @@ class Tests(object):
 
 	def add_test(self, test):
 		name = test.name
-		if self.tests_dict.has_key(name):
+		if name in self.tests_dict:
 			raise BaseException("Test '%s' already defined" % name)
 		self.tests_dict[name] = test
 		if test.runnable:
@@ -325,7 +336,7 @@ class Tests(object):
 		files = os.listdir(os.path.join(Env.sourcedir, "tests"))
 		files = filter(lambda x: x[-3:] == '.py', files)
 		files = filter(lambda x: x[:2] == 't-', files)
-		files.sort()
+		files = sorted(files)
 
 		mods = []
 		for f in files:
@@ -340,7 +351,7 @@ class Tests(object):
 			t._register(self)
 
 	def Prepare(self):
-		print >> Env.log, "[Start] Preparing tests"
+		log("[Start] Preparing tests")
 		cache_disk_etag_dir = self.PrepareDir(os.path.join("tmp", "cache_etag"))
 		errorlog = self.PrepareFile("log/error.log", "")
 		errorconfig = Env.debug and " " or """log [ default => "file:%s" ];""" % (errorlog)
@@ -419,7 +430,7 @@ var.reg_vhosts = [];
 		self.vhosts_config = ""
 
 		for t in self.tests:
-			print >> Env.log, "[Start] Preparing test '%s'" % (t.name)
+			log("[Start] Preparing test '%s'" % (t.name))
 			t._prepare()
 
 		self.config += self.vhosts_config
@@ -469,16 +480,16 @@ allow_listen "127.0.0.2:{Env.port}";
 allow_listen ["127.0.0.2:{gnutlsport}", "127.0.0.2:{opensslport}"];
 """.format(Env = Env, gnutlsport = Env.port+1, opensslport = Env.port + 2, valgrindconfig = valgrindconfig))
 
-		print >> Env.log, "[Done] Preparing tests"
+		log("[Done] Preparing tests")
 
-		print >> Env.log, "[Start] Preparing services"
+		log("[Start] Preparing services")
 		for s in self.services:
 			try:
 				s._prepare()
 			except:
 				self.failed = True
 				raise
-		print >> Env.log, "[Done] Preparing services"
+		log("[Done] Preparing services")
 
 	def _progress(self, i, n):
 		s = str(n)
@@ -491,7 +502,7 @@ allow_listen ["127.0.0.2:{gnutlsport}", "127.0.0.2:{opensslport}"];
 		DONE = Env.COLOR_YELLOW + "[DONE]" + Env.COLOR_RESET
 
 		testcount = len(self.run)
-		print >> Env.log, "[Start] Running tests"
+		log("[Start] Running tests")
 		Env.log.flush()
 		sys.stdout.flush()
 		sys.stderr.flush()
@@ -502,13 +513,13 @@ allow_listen ["127.0.0.2:{gnutlsport}", "127.0.0.2:{opensslport}"];
 		for t in self.run:
 			result = t._run()
 			if t.todo:
-				print >> sys.stdout, Env.COLOR_CYAN + self._progress(i, testcount) + fmt.format(t.name) + (result and DONE or TODO)
+				print(Env.COLOR_CYAN + self._progress(i, testcount) + fmt.format(t.name) + (result and DONE or TODO))
 				if result:
 					self.stat_done += 1
 				else:
 					self.stat_todo += 1
 			else:
-				print >> sys.stdout, Env.COLOR_CYAN + self._progress(i, testcount) + fmt.format(t.name) + (result and PASS or FAIL)
+				print(Env.COLOR_CYAN + self._progress(i, testcount) + fmt.format(t.name) + (result and PASS or FAIL))
 				if result:
 					self.stat_pass += 1
 				else:
@@ -519,9 +530,9 @@ allow_listen ["127.0.0.2:{gnutlsport}", "127.0.0.2:{opensslport}"];
 			sys.stdout.flush()
 			sys.stderr.flush()
 		self.failed = failed
-		print >> sys.stdout, ("%i out of %i tests passed (%.2f%%), %i tests failed, %i todo items, %i todo items are ready" %
-			(self.stat_pass, testcount, (100.0 * self.stat_pass)/testcount, self.stat_fail, self.stat_todo, self.stat_done))
-		print >> Env.log, "[Done] Running tests [result=%s]" % (failed and "Failed" or "Succeeded")
+		print(("%i out of %i tests passed (%.2f%%), %i tests failed, %i todo items, %i todo items are ready" %
+			(self.stat_pass, testcount, (100.0 * self.stat_pass)/testcount, self.stat_fail, self.stat_todo, self.stat_done)))
+		log("[Done] Running tests [result=%s]" % (failed and "Failed" or "Succeeded"))
 
 		Env.log.flush()
 		sys.stdout.flush()
@@ -530,20 +541,20 @@ allow_listen ["127.0.0.2:{gnutlsport}", "127.0.0.2:{opensslport}"];
 		return not failed
 
 	def Cleanup(self):
-#		print >> sys.stderr, "cleanup_files: %s, cleanup_dirs: %s" % (self.prepared_files, self.prepared_dirs)
+#		eprint("cleanup_files: %s, cleanup_dirs: %s" % (self.prepared_files, self.prepared_dirs))
 
 		if not Env.no_cleanup and not self.failed:
-			print >> Env.log, "[Start] Cleanup services"
+			log("[Start] Cleanup services")
 			for s in self.services:
 				s._cleanup()
-			print >> Env.log, "[Done] Cleanup services"
+			log("[Done] Cleanup services")
 		else:
-			print >> Env.log, "[Start] Stopping services"
+			log("[Start] Stopping services")
 			for s in self.services:
 				s._stop()
-			print >> Env.log, "[Done] Stopping services"
+			log("[Done] Stopping services")
 
-		print >> Env.log, "[Start] Cleanup tests"
+		log("[Start] Cleanup tests")
 		for t in self.tests:
 			t._cleanup()
 		if not Env.no_cleanup and not self.failed:
@@ -556,14 +567,14 @@ allow_listen ["127.0.0.2:{gnutlsport}", "127.0.0.2:{opensslport}"];
 				import shutil
 				shutil.rmtree(cache_disk_etag_dir)
 				os.mkdir(cache_disk_etag_dir)
-			except BaseException, e:
-				print >>sys.stderr, "Couldn't clear directory '%s': %s" % (fname, e)
+			except BaseException as e:
+				eprint("Couldn't clear directory '%s': %s" % (fname, e))
 			self.CleanupDir(os.path.join("tmp", "cache_etag"))
-		print >> Env.log, "[Done] Cleanup tests"
+		log("[Done] Cleanup tests")
 
 ## helpers for prepare/cleanup
-	def _preparefile(self, fname, content, mode = 0644):
-		if self.prepared_files.has_key(fname):
+	def _preparefile(self, fname, content, mode = 0o644):
+		if fname in self.prepared_files:
 			raise BaseException("File '%s' already exists!" % fname)
 		else:
 			path = os.path.join(Env.dir, fname)
@@ -574,18 +585,18 @@ allow_listen ["127.0.0.2:{gnutlsport}", "127.0.0.2:{opensslport}"];
 			self.prepared_files[fname] = 1
 
 	def _cleanupfile(self, fname):
-		if self.prepared_files.has_key(fname):
+		if fname in self.prepared_files:
 			try:
 				os.remove(os.path.join(Env.dir, fname))
-			except BaseException, e:
-				print >>sys.stderr, "Couldn't delete file '%s': %s" % (fname, e)
+			except BaseException as e:
+				eprint("Couldn't delete file '%s': %s" % (fname, e))
 				return False
 			return True
 		else:
 			return False
 
 	def _preparedir(self, dirname):
-		if self.prepared_dirs.has_key(dirname):
+		if dirname in self.prepared_dirs:
 			self.prepared_dirs[dirname] += 1
 		else:
 			os.mkdir(os.path.join(Env.dir, dirname))
@@ -596,29 +607,29 @@ allow_listen ["127.0.0.2:{gnutlsport}", "127.0.0.2:{opensslport}"];
 		if 0 == self.prepared_dirs[dirname]:
 			try:
 				os.rmdir(os.path.join(Env.dir, dirname))
-			except BaseException, e:
-				print >>sys.stderr, "Couldn't delete directory '%s': %s" % (dirname, e)
+			except BaseException as e:
+				eprint("Couldn't delete directory '%s': %s" % (dirname, e))
 
-	def PrepareFile(self, fname, content, mode = 0644):
-		path = filter(lambda x: x != '', fname.split('/'))
+	def PrepareFile(self, fname, content, mode = 0o644):
+		path = list(filter(lambda x: x != '', fname.split('/')))
 		for i in range(1, len(path)):
 			self._preparedir(os.path.join(*path[0:i]))
 		self._preparefile(os.path.join(*path), content, mode = mode)
 		return os.path.join(Env.dir, *path)
 
 	def PrepareDir(self, dirname):
-		path = filter(lambda x: x != '', dirname.split('/'))
+		path = list(filter(lambda x: x != '', dirname.split('/')))
 		for i in range(1, len(path)+1):
 			self._preparedir(os.path.join(*path[0:i]))
 		return os.path.join(Env.dir, *path)
 
 	def CleanupDir(self, dirname):
-		path = filter(lambda x: x != '', dirname.split('/'))
+		path = list(filter(lambda x: x != '', dirname.split('/')))
 		for i in reversed(range(1, len(path)+1)):
 			self._cleanupdir(os.path.join(*path[0:i]))
 
 	def CleanupFile(self, fname):
-		path = filter(lambda x: x != '', fname.split('/'))
+		path = list(filter(lambda x: x != '', fname.split('/')))
 		if not self._cleanupfile(os.path.join(*path)):
 			return False
 		for i in reversed(range(1, len(path))):

@@ -13,7 +13,7 @@ class TestGetEtag1(CurlRequest):
 
 	def CheckResponse(self):
 		global retrieved_etag1
-		if not self.resp_headers.has_key('etag'): # lowercase keys!
+		if not 'etag' in self.resp_headers: # lowercase keys!
 			raise CurlRequestException("Response missing etag header" % (k, v1, v))
 		retrieved_etag1 = self.resp_headers['etag'] # lowercase keys!
 		return super(TestGetEtag1, self).CheckResponse()
@@ -33,7 +33,7 @@ class TestTryEtag1(CurlRequest):
 
 	def CheckResponse(self):
 		global retrieved_etag1
-		if not self.resp_headers.has_key('etag'): # lowercase keys!
+		if not 'etag' in self.resp_headers: # lowercase keys!
 			raise CurlRequestException("Response missing etag header" % (k, v1, v))
 		etag = self.resp_headers['etag'] # lowercase keys!
 		if retrieved_etag1 != etag:
@@ -50,7 +50,7 @@ class TestGetEtag2(CurlRequest):
 
 	def CheckResponse(self):
 		global retrieved_etag2
-		if not self.resp_headers.has_key('etag'): # lowercase keys!
+		if not 'etag' in self.resp_headers: # lowercase keys!
 			raise CurlRequestException("Response missing etag header" % (k, v1, v))
 		retrieved_etag2 = self.resp_headers['etag'] # lowercase keys!
 		return super(TestGetEtag2, self).CheckResponse()
@@ -70,7 +70,7 @@ class TestTryEtag2(CurlRequest):
 	def CheckResponse(self):
 		global retrieved_etag1
 		global retrieved_etag2
-		if not self.resp_headers.has_key('etag'): # lowercase keys!
+		if not 'etag' in self.resp_headers: # lowercase keys!
 			raise CurlRequestException("Response missing etag header" % (k, v1, v))
 		etag = self.resp_headers['etag'] # lowercase keys!
 		if retrieved_etag1 == etag:
