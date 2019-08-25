@@ -200,8 +200,7 @@ static void stream_http_response_data(liStreamHttpResponse* shr) {
 			} else {
 				li_stream_reset(&shr->stream);
 			}
-		}
-		if (shr->stream.source->out->is_closed) {
+		} else if (shr->stream.source->out->is_closed) {
 			li_stream_disconnect(&shr->stream);
 		}
 	} else if (shr->wait_for_close) {
