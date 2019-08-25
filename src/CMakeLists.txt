@@ -337,7 +337,7 @@ TARGET_LINK_LIBRARIES(lighttpd2 lighttpd-${PACKAGE_VERSION}-common lighttpd-${PA
 SET(L_INSTALL_TARGETS ${L_INSTALL_TARGETS} lighttpd2-worker lighttpd2 lighttpd-${PACKAGE_VERSION}-common lighttpd-${PACKAGE_VERSION}-shared lighttpd-${PACKAGE_VERSION}-sharedangel)
 
 IF(BUILD_EXTRA_WARNINGS)
-	SET(WARN_CFLAGS " -g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wcast-align -Wsign-compare -Wnested-externs -Wpointer-arith -Wmissing-prototypes -Wshadow")
+	SET(WARN_CFLAGS " -g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wcast-align -Wsign-compare -Wnested-externs -Wpointer-arith -Wmissing-prototypes -Wshadow -Wno-pointer-sign -Wformat-security")
 	SET(WARN_LDFLAGS " -g -O2 -g2 -Wall -Wl,--as-needed -Wl,--no-undefined")
 	# -Werror
 ELSE(BUILD_EXTRA_WARNINGS)

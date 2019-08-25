@@ -466,8 +466,9 @@ AC_ARG_ENABLE([extra-warnings],
   esac],[extrawarnings=false])
 
 if test x$extrawarnings = xtrue; then
-    CFLAGS="${CFLAGS} -g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wno-pointer-sign -Wcast-align -Wsign-compare -Wnested-externs -Wpointer-arith -Wl,--as-needed -Wl,--no-undefined -Wformat-security"
+    CFLAGS="${CFLAGS} -g -O2 -g2 -Wall -Wmissing-declarations -Wdeclaration-after-statement -Wcast-align -Wsign-compare -Wnested-externs -Wpointer-arith -Wmissing-prototypes -Wshadow -Wno-pointer-sign -Wformat-security -Wl,--as-needed -Wl,--no-undefined"
 fi
+
 
 AC_CONFIG_FILES([Makefile \
   contrib/Makefile \
