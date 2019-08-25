@@ -109,6 +109,7 @@ class TestBase(object):
 		self._test_cleanup_dirs = []
 		self._test_failed = False # "not run" is "successful"
 		self._parent = parent
+		self._errorlog = None # file to print to log when test fails
 
 	# internal methods, do not override
 	def _register(self, tests):
@@ -133,6 +134,7 @@ class TestBase(object):
 			self.tests.append_config(("\n# %s \n" % (self.name)) + self.plain_config)
 		if None != self.config:
 			errorlog = self.PrepareFile("log/error.log-%s" % self.vhost, "")
+			self._errorlog = errorlog
 			errorconfig = Env.debug and " " or """log [ default => "file:%s" ];""" % (errorlog)
 			accesslog = self.PrepareFile("log/access.log-%s" % self.vhost, "")
 			if None != self.vhostdir:
@@ -191,6 +193,10 @@ var.vhosts = var.vhosts + [ "%s" => {
 		return not failed
 
 	def _cleanup(self):
+		if self._test_failed and not self._errorlog is None: # and os.path.exists(self._errorlog):
+			with open(self._errorlog) as errors:
+				eprint("Error log for test %s" % (self.name))
+				eprint(errors.read())
 		if Env.no_cleanup or (not Env.force_cleanup and self._test_failed):
 			return
 		self.Cleanup()
