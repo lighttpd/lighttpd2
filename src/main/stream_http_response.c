@@ -82,6 +82,7 @@ static void check_response_header(liStreamHttpResponse* shr) {
 			li_vrequest_error(shr->vr);
 			return;
 		}
+		shr->wait_for_close = TRUE; /* forward all data until stream closes */
 		shr->response_headers_finished = TRUE;
 		shr->vr->backend_drain->out->is_closed = FALSE;
 		{

@@ -30,6 +30,9 @@ class HttpBackendHandler(socketserver.StreamRequestHandler):
 				hdr = hdr.split(':', 2)
 				if hdr[0].lower() == "connection":
 					keepalive = (hdr[1].strip().lower() == "keep-alive")
+			if reqline[1].startswith("/upgrade/custom"):
+				self.wfile.write(b"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: custom\r\n\r\nHello World!")
+				return
 			# send response
 			resp_body = reqline[1].encode('utf-8')
 			clen = "Content-Length: {}\r\n".format(len(resp_body)).encode('utf-8')
@@ -89,11 +92,21 @@ rewrite "/foo(.*)" => "/dest$1";
 backend_proxy;
 """
 
-# backend gets decoded %2F
+# fake a backend forcing keep-alive mode
 class TestBackendForcedKeepalive(CurlRequest):
 	URL = "/keepalive"
 	EXPECT_RESPONSE_BODY = "/keepalive"
 	EXPECT_RESPONSE_CODE = 200
+	no_docroot = True
+	config = """
+backend_proxy;
+"""
+
+# have backend "Upgrade"
+class TestBackendUpgrade(CurlRequest):
+	URL = "/upgrade/custom"
+	EXPECT_RESPONSE_BODY = "Hello World!"
+	EXPECT_RESPONSE_CODE = 101
 	no_docroot = True
 	config = """
 backend_proxy;
@@ -105,6 +118,7 @@ class Test(GroupTest):
 		TestProxiedRewrittenEncodedURL,
 		TestProxiedRewrittenDecodedURL,
 		TestBackendForcedKeepalive,
+		TestBackendUpgrade,
 	]
 
 	def Prepare(self):
