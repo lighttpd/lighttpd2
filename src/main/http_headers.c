@@ -266,7 +266,8 @@ gboolean li_http_header_tokenizer_next(liHttpHeaderTokenizer *tokenizer, GString
 		case '\\':
 			++pos;
 			if (pos >= len) return FALSE; /* no character after backslash */
-			/* fall through, append whatever comes */
+			/* append whatever comes */
+			/* fallthrough */
 		default:
 			g_string_append_c(token, str[pos]);
 			break;
@@ -283,7 +284,8 @@ quoted:
 		case '\\':
 			++pos;
 			if (pos >= len) return FALSE; /* no character after backslash */
-			/* fall through, append whatever comes */
+			/* append whatever comes */
+			/* fallthrough */
 		default:
 			g_string_append_c(token, str[pos]);
 			break;
