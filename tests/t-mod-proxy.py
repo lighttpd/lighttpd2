@@ -33,6 +33,15 @@ class HttpBackendHandler(socketserver.StreamRequestHandler):
 			if reqline[1].startswith("/upgrade/custom"):
 				self.wfile.write(b"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: custom\r\n\r\nHello World!")
 				return
+			if reqline[1].startswith("/chunked/delay"):
+				import time
+				self.wfile.write(b"HTTP/1.1 200 Ok\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nHi")
+				time.sleep(0.1)
+				self.wfile.write(b"!\n")
+				time.sleep(0.1)
+				self.wfile.write(b"\r\n0\r\n\r\n")
+				continue
+
 			# send response
 			resp_body = reqline[1].encode('utf-8')
 			clen = "Content-Length: {}\r\n".format(len(resp_body)).encode('utf-8')
@@ -112,6 +121,15 @@ class TestBackendUpgrade(CurlRequest):
 backend_proxy;
 """
 
+class TestBackendDelayedChunk(CurlRequest):
+	URL = "/chunked/delay"
+	EXPECT_RESPONSE_BODY = "Hi!\n"
+	EXPECT_RESPONSE_CODE = 200
+	no_docroot = True
+	config = """
+backend_proxy;
+"""
+
 class Test(GroupTest):
 	group = [
 		TestSimple,
@@ -119,6 +137,7 @@ class Test(GroupTest):
 		TestProxiedRewrittenDecodedURL,
 		TestBackendForcedKeepalive,
 		TestBackendUpgrade,
+		TestBackendDelayedChunk,
 	]
 
 	def Prepare(self):

@@ -69,7 +69,6 @@ gboolean li_filter_chunked_decode(liVRequest *vr, liChunkQueue *out, liChunkQueu
 	li_chunk_parser_init(&ctx, in);
 	li_chunk_parser_prepare(&ctx);
 
-
 	for (;;) {
 		 /* 0: start new chunklen, 1: reading chunklen, 2: found \r, 3: copying content, 4: found \r,
 		  * 10: wait for \r\n\r\n, 11: wait for \n\r\n, 12: wait for \r\n, 13: wait for \n, 14: eof,
@@ -78,7 +77,6 @@ gboolean li_filter_chunked_decode(liVRequest *vr, liChunkQueue *out, liChunkQueu
 		switch (state->parse_state) {
 		case 0:
 			state->cur_chunklen = -1;
-			li_chunk_parser_prepare(&ctx);
 			state->parse_state = 1;
 			break;
 		case 1:
@@ -117,10 +115,10 @@ gboolean li_filter_chunked_decode(liVRequest *vr, liChunkQueue *out, liChunkQueu
 			li_chunk_parser_done(&ctx, 1);
 			if (c == '\n') {
 				li_chunkqueue_skip(in, ctx.bytes_in);
-				li_chunk_parser_reset(&ctx); p = NULL;
 				if (state->cur_chunklen > 0) {
 					state->parse_state = 3;
 				} else {
+					li_chunk_parser_reset(&ctx); p = NULL;
 					li_chunk_parser_prepare(&ctx);
 					state->parse_state = 12;
 				}
@@ -133,6 +131,7 @@ gboolean li_filter_chunked_decode(liVRequest *vr, liChunkQueue *out, liChunkQueu
 				state->cur_chunklen -= li_chunkqueue_steal_len(out, in, state->cur_chunklen);
 			}
 			if (state->cur_chunklen == 0) {
+				li_chunk_parser_reset(&ctx); p = NULL;
 				li_chunk_parser_prepare(&ctx);
 				read_char(c);
 				li_chunk_parser_done(&ctx, 1);
@@ -152,6 +151,7 @@ gboolean li_filter_chunked_decode(liVRequest *vr, liChunkQueue *out, liChunkQueu
 			if (c == '\n') {
 				li_chunkqueue_skip(in, ctx.bytes_in);
 				li_chunk_parser_reset(&ctx); p = NULL;
+				li_chunk_parser_prepare(&ctx);
 				state->parse_state = 0;
 			} else {
 				state->parse_state = 20;
