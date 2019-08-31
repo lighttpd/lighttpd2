@@ -487,6 +487,9 @@ static void fastcgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteAr
 
 	if (coninfo->is_ssl) {
 		fastcgi_env_add(buf, envdup, CONST_STR_LEN("HTTPS"), CONST_STR_LEN("on"));
+		fastcgi_env_add(buf, envdup, CONST_STR_LEN("REQUEST_SCHEME"), CONST_STR_LEN("https"));
+	} else {
+		fastcgi_env_add(buf, envdup, CONST_STR_LEN("REQUEST_SCHEME"), CONST_STR_LEN("http"));
 	}
 }
 

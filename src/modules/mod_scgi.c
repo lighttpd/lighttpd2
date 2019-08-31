@@ -134,6 +134,9 @@ static void scgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteArray
 
 	if (coninfo->is_ssl) {
 		scgi_env_add(buf, envdup, CONST_STR_LEN("HTTPS"), CONST_STR_LEN("on"));
+		scgi_env_add(buf, envdup, CONST_STR_LEN("REQUEST_SCHEME"), CONST_STR_LEN("https"));
+	} else {
+		scgi_env_add(buf, envdup, CONST_STR_LEN("REQUEST_SCHEME"), CONST_STR_LEN("http"));
 	}
 }
 
