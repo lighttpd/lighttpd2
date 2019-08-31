@@ -44,150 +44,28 @@ static gboolean append_key_value_pair(GByteArray *a, const gchar *key, size_t ke
 	return TRUE;
 }
 
-static void scgi_env_add(GByteArray *buf, liEnvironmentDup *envdup, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
-	GString *sval;
-
-	if (NULL != (sval = li_environment_dup_pop(envdup, key, keylen))) {
-		append_key_value_pair(buf, key, keylen, GSTR_LEN(sval));
-	} else {
-		append_key_value_pair(buf, key, keylen, val, valuelen);
-	}
-}
-
-static void scgi_env_create(liVRequest *vr, liEnvironmentDup *envdup, GByteArray* buf) {
-	liConInfo *coninfo = vr->coninfo;
-	GString *tmp = vr->wrk->tmp_str;
-
-	g_assert(vr->request.content_length >= 0);
-
-	if (vr->request.content_length >= 0) {
-		g_string_printf(tmp, "%" LI_GOFFSET_MODIFIER "i", vr->request.content_length);
-		scgi_env_add(buf, envdup, CONST_STR_LEN("CONTENT_LENGTH"), GSTR_LEN(tmp));
-	}
-
-	scgi_env_add(buf, envdup, CONST_STR_LEN("SCGI"), CONST_STR_LEN("1"));
-
-
-	scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_SOFTWARE"), GSTR_LEN(CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_TAG).string));
-	scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_NAME"), GSTR_LEN(vr->request.uri.host));
-	scgi_env_add(buf, envdup, CONST_STR_LEN("GATEWAY_INTERFACE"), CONST_STR_LEN("CGI/1.1"));
-	{
-		guint port = 0;
-		switch (coninfo->local_addr.addr->plain.sa_family) {
-		case AF_INET: port = coninfo->local_addr.addr->ipv4.sin_port; break;
-#ifdef HAVE_IPV6
-		case AF_INET6: port = coninfo->local_addr.addr->ipv6.sin6_port; break;
-#endif
-		}
-		if (port) {
-			g_string_printf(tmp, "%u", htons(port));
-			scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_PORT"), GSTR_LEN(tmp));
-		}
-	}
-	scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_ADDR"), GSTR_LEN(coninfo->local_addr_str));
-
-	{
-		guint port = 0;
-		switch (coninfo->remote_addr.addr->plain.sa_family) {
-		case AF_INET: port = coninfo->remote_addr.addr->ipv4.sin_port; break;
-#ifdef HAVE_IPV6
-		case AF_INET6: port = coninfo->remote_addr.addr->ipv6.sin6_port; break;
-#endif
-		}
-		if (port) {
-			g_string_printf(tmp, "%u", htons(port));
-			scgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_PORT"), GSTR_LEN(tmp));
-		}
-	}
-	scgi_env_add(buf, envdup, CONST_STR_LEN("REMOTE_ADDR"), GSTR_LEN(coninfo->remote_addr_str));
-
-	scgi_env_add(buf, envdup, CONST_STR_LEN("SCRIPT_NAME"), GSTR_LEN(vr->request.uri.path));
-
-	scgi_env_add(buf, envdup, CONST_STR_LEN("PATH_INFO"), GSTR_LEN(vr->physical.pathinfo));
-	if (vr->physical.pathinfo->len) {
-		g_string_truncate(tmp, 0);
-		g_string_append_len(tmp, GSTR_LEN(vr->physical.doc_root));
-		g_string_append_len(tmp, GSTR_LEN(vr->physical.pathinfo));
-		scgi_env_add(buf, envdup, CONST_STR_LEN("PATH_TRANSLATED"), GSTR_LEN(tmp));
-	}
-
-	scgi_env_add(buf, envdup, CONST_STR_LEN("SCRIPT_FILENAME"), GSTR_LEN(vr->physical.path));
-	scgi_env_add(buf, envdup, CONST_STR_LEN("DOCUMENT_ROOT"), GSTR_LEN(vr->physical.doc_root));
-
-	scgi_env_add(buf, envdup, CONST_STR_LEN("REQUEST_URI"), GSTR_LEN(vr->request.uri.raw_orig_path));
-	if (!g_string_equal(vr->request.uri.raw_orig_path, vr->request.uri.raw_path)) {
-		scgi_env_add(buf, envdup, CONST_STR_LEN("REDIRECT_URI"), GSTR_LEN(vr->request.uri.raw_path));
-	}
-	scgi_env_add(buf, envdup, CONST_STR_LEN("QUERY_STRING"), GSTR_LEN(vr->request.uri.query));
-
-	scgi_env_add(buf, envdup, CONST_STR_LEN("REQUEST_METHOD"), GSTR_LEN(vr->request.http_method_str));
-	scgi_env_add(buf, envdup, CONST_STR_LEN("REDIRECT_STATUS"), CONST_STR_LEN("200")); /* if php is compiled with --force-redirect */
-	switch (vr->request.http_version) {
-	case LI_HTTP_VERSION_1_1:
-		scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_PROTOCOL"), CONST_STR_LEN("HTTP/1.1"));
-		break;
-	case LI_HTTP_VERSION_1_0:
-	default:
-		scgi_env_add(buf, envdup, CONST_STR_LEN("SERVER_PROTOCOL"), CONST_STR_LEN("HTTP/1.0"));
-		break;
-	}
-
-	if (coninfo->is_ssl) {
-		scgi_env_add(buf, envdup, CONST_STR_LEN("HTTPS"), CONST_STR_LEN("on"));
-		scgi_env_add(buf, envdup, CONST_STR_LEN("REQUEST_SCHEME"), CONST_STR_LEN("https"));
-	} else {
-		scgi_env_add(buf, envdup, CONST_STR_LEN("REQUEST_SCHEME"), CONST_STR_LEN("http"));
-	}
-}
-
-static void fix_header_name(GString *str) {
-	guint i, len = str->len;
-	gchar *s = str->str;
-	for (i = 0; i < len; i++) {
-		if (g_ascii_isalpha(s[i])) {
-			s[i] = g_ascii_toupper(s[i]);
-		} else if (!g_ascii_isdigit(s[i])) {
-			s[i] = '_';
-		}
-	}
+static void cgi_add_cb(gpointer param, const gchar *key, size_t keylen, const gchar *val, size_t valuelen) {
+	GByteArray *a = (GByteArray*) param;
+	append_key_value_pair(a, key, keylen, val, valuelen);
 }
 
 static void scgi_send_env(liVRequest *vr, liChunkQueue *out) {
 	GByteArray *buf = g_byte_array_sized_new(0);
 	liEnvironmentDup *envdup;
 	GString *tmp = vr->wrk->tmp_str;
+	GString *env_scgi_value;
+
+	g_assert(vr->request.content_length >= 0);
 
 	envdup = li_environment_make_dup(&vr->env);
-	scgi_env_create(vr, envdup, buf);
+	env_scgi_value = li_environment_dup_pop(envdup, CONST_STR_LEN("SCGI"));
+	li_environment_dup2cgi(vr, envdup, cgi_add_cb, buf);
 
-	{
-		GList *i;
-
-		for (i = vr->request.headers->entries.head; NULL != i; i = i->next) {
-			liHttpHeader *h = (liHttpHeader*) i->data;
-			const GString hkey = li_const_gstring(h->data->str, h->keylen);
-			g_string_truncate(tmp, 0);
-			if (!li_strncase_equal(&hkey, CONST_STR_LEN("CONTENT-TYPE"))) {
-				g_string_append_len(tmp, CONST_STR_LEN("HTTP_"));
-			}
-			g_string_append_len(tmp, h->data->str, h->keylen);
-			fix_header_name(tmp);
-
-			scgi_env_add(buf, envdup, GSTR_LEN(tmp), h->data->str + h->keylen+2, h->data->len - (h->keylen+2));
-		}
+	if (NULL != env_scgi_value) {
+		append_key_value_pair(buf, CONST_STR_LEN("SCGI"), GSTR_LEN(env_scgi_value));
+	} else {
+		append_key_value_pair(buf, CONST_STR_LEN("SCGI"), CONST_STR_LEN("1"));
 	}
-
-	{
-		GHashTableIter i;
-		gpointer key, val;
-
-		g_hash_table_iter_init(&i, envdup->table);
-		while (g_hash_table_iter_next(&i, &key, &val)) {
-			append_key_value_pair(buf, GSTR_LEN((GString*) key), GSTR_LEN((GString*) val));
-		}
-	}
-
-	li_environment_dup_free(envdup);
 
 	g_string_printf(tmp, "%u:", buf->len);
 	li_chunkqueue_append_mem(out, GSTR_LEN(tmp));

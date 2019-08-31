@@ -1,7 +1,9 @@
 #ifndef _LIGHTTPD_ENVIRONMENT_H_
 #define _LIGHTTPD_ENVIRONMENT_H_
 
-#include <lighttpd/settings.h>
+#ifndef _LIGHTTPD_BASE_H_
+#error Please include <lighttpd/base.h> instead of this file
+#endif
 
 typedef struct liEnvironment liEnvironment;
 
@@ -37,5 +39,10 @@ LI_API void li_environment_dup_free(liEnvironmentDup *envdup);
    you must not modify the returned GString */
 LI_API GString* li_environment_dup_pop(liEnvironmentDup *envdup, const gchar *key, size_t keylen);
 
+typedef void (*liAddEnvironmentCB)(gpointer param, const gchar *key, size_t keylen, const gchar *val, size_t valuelen);
+/* calls callback for various CGI environment variables to add; if the variable is also present
+   in envdup, the value from envdup is used instead for the callback and it is popped from envdup.
+   Also adds all remaining values from envdup via callback, and then frees envdup. */
+LI_API void li_environment_dup2cgi(liVRequest *vr, liEnvironmentDup *envdup, liAddEnvironmentCB callback, gpointer param);
 
 #endif
