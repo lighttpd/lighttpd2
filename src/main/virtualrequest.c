@@ -563,7 +563,7 @@ gboolean li_vrequest_redirect_directory(liVRequest *vr) {
 	} else {
 		g_string_append_len(uri, GSTR_LEN(vr->coninfo->local_addr_str));
 	}
-	g_string_append_len(uri, GSTR_LEN(vr->request.uri.raw_orig_path));
+	g_string_append_len(uri, GSTR_LEN(vr->request.uri.path));
 	g_string_append_c(uri, '/');
 	if (vr->request.uri.query->len) {
 		g_string_append_c(uri, '?');
