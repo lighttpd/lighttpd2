@@ -226,7 +226,7 @@ var.vhosts = var.vhosts + [ "%s" => {
 
 	def PrepareDir(self, dirname):
 		"""remembers which directories have been prepared and while remove them on cleanup; returns absolute pathname"""
-		self._test_cleanup_dirs.append(fname)
+		self._test_cleanup_dirs.append(dirname)
 		return self.tests.PrepareDir(dirname)
 
 	def MissingFeature(self, feature):
