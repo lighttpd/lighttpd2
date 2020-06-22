@@ -1,5 +1,6 @@
 
 #include <lighttpd/base.h>
+#include <lighttpd/encoding.h>
 #include <lighttpd/plugin_core.h>
 #include <lighttpd/filter_buffer_on_disk.h>
 
@@ -563,7 +564,7 @@ gboolean li_vrequest_redirect_directory(liVRequest *vr) {
 	} else {
 		g_string_append_len(uri, GSTR_LEN(vr->coninfo->local_addr_str));
 	}
-	g_string_append_len(uri, GSTR_LEN(vr->request.uri.path));
+	li_string_encode_append(vr->request.uri.path->str, uri, LI_ENCODING_URI);
 	g_string_append_c(uri, '/');
 	if (vr->request.uri.query->len) {
 		g_string_append_c(uri, '?');
