@@ -42,8 +42,31 @@ my %text_utf8 = map { $_ => 1 } qw(
 
 # map extension to hash which maps types to the type they should be replaced with
 my %manual_conflicts_resolve = (
+	'.asn' => {
+		'chemical/x-ncbi-asn1-spec' => 'application/octet-stream',
+		'chemical/x-ncbi-asn1' => 'application/octet-stream',
+	},
+	'.otf' => {
+		'application/font-sfnt' => 'font/otf',
+		'font/sfnt' => 'font/otf',
+		'font/ttf' => 'font/otf',
+	},
+	'.pcx' => {
+		'image/vnd.zbrush.pcx' => 'image/pcx',
+	},
+	'.png' => {
+		'image/vnd.mozilla.apng' => 'image/png',
+	},
 	'.ra' => {
 		'audio/x-pn-realaudio' => 'audio/x-realaudio',
+	},
+	'.ttf' => {
+		'application/font-sfnt' => 'font/ttf',
+		'font/sfnt' => 'font/ttf',
+		'font/otf' => 'font/ttf',
+	},
+	'.woff' => {
+		'application/font-woff' => 'font/woff',
 	},
 );
 
