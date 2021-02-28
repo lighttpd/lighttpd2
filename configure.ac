@@ -9,6 +9,9 @@ AC_CONFIG_MACRO_DIR([m4])
 
 AM_INIT_AUTOMAKE([-Wall -Wno-portability -Wno-override -Werror foreign dist-bzip2 tar-ustar] serial-tests)
 
+m4_include([build-helpers/glibtests.m4])
+GLIB_TESTS
+
 dnl check environment
 AC_USE_SYSTEM_EXTENSIONS
 
