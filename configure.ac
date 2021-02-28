@@ -114,8 +114,8 @@ if test x$lfs = xtrue; then
 fi
 
 dnl Check for gnutls
-AC_ARG_WITH([gnutls], [AS_HELP_STRING([--with-gnutls],[gnutls library for ssl/tls])],
-[WITH_GNUTLS=$withval],[WITH_GNUTLS=no])
+AC_ARG_WITH([gnutls], [AS_HELP_STRING([--with-gnutls],[gnutls library for ssl/tls (default)])],
+[WITH_GNUTLS=$withval],[WITH_GNUTLS=yes])
 
 if test "$WITH_GNUTLS" != "no"; then
  PKG_CHECK_MODULES([GNUTLS], [gnutls],[],[
@@ -131,8 +131,8 @@ AM_CONDITIONAL([USE_GNUTLS], [test "$USE_GNUTLS" = "true"])
 
 
 dnl Check for libidn, needed to decode SNI names
-AC_ARG_WITH([sni], [AS_HELP_STRING([--with-sni],[SNI support for gnutls/openssl, needs libidn])],
-[WITH_SNI=$withval],[WITH_SNI=no])
+AC_ARG_WITH([sni], [AS_HELP_STRING([--with-sni],[SNI support for gnutls/openssl, needs libidn (default)])],
+[WITH_SNI=$withval],[WITH_SNI=yes])
 
 if test "$WITH_SNI" != "no"; then
  PKG_CHECK_MODULES([IDN], [libidn],[],[
@@ -150,8 +150,8 @@ AM_CONDITIONAL([USE_SNI], [test "$USE_SNI" = "true"])
 
 dnl Check for lua
 AC_MSG_CHECKING([for lua])
-AC_ARG_WITH([lua], [AS_HELP_STRING([--with-lua],[lua engine (recommended)])],
-[WITH_LUA=$withval],[WITH_LUA=no])
+AC_ARG_WITH([lua], [AS_HELP_STRING([--with-lua],[lua engine (default)])],
+[WITH_LUA=$withval],[WITH_LUA=yes])
 
 AC_MSG_RESULT([$WITH_LUA])
 if test "$WITH_LUA" != "no"; then
@@ -187,7 +187,6 @@ if test "$WITH_LUA" != "no"; then
 fi
 
 AM_CONDITIONAL([USE_LUA], [test "$USE_LUA" = "true"])
-
 
 
 # Checks for typedefs, structures, and compiler characteristics.
@@ -242,6 +241,8 @@ if test x$ipv6 = xtrue; then
 
   if test "$ac_cv_ipv6_support" = yes; then
     AC_DEFINE([HAVE_IPV6],[1],[Whether to enable IPv6 support])
+  else
+    AC_MSG_ERROR([IPv6 not supported. Use --disable-ipv6 if this is acceptable.])
   fi
 fi
 
@@ -258,8 +259,8 @@ fi
 dnl Checking for libunwind
 AC_MSG_CHECKING(for libunwind)
 AC_ARG_WITH(libunwind,
-    AS_HELP_STRING([--with-libunwind],[Include libunwind support for backtraces on assert failures]),
-    [WITH_LIBUNWIND=$withval],[WITH_LIBUNWIND=no])
+    AS_HELP_STRING([--with-libunwind],[Include libunwind support for backtraces on assert failures (default)]),
+    [WITH_LIBUNWIND=$withval],[WITH_LIBUNWIND=yes])
 
 if test "$WITH_LIBUNWIND" != "no"; then
   have_libunwind=no
@@ -300,8 +301,8 @@ fi
 dnl Check for openssl
 AC_MSG_CHECKING([for OpenSSL])
 AC_ARG_WITH([openssl],
-    AS_HELP_STRING([--with-openssl@<:@=DIR@:>@],[Include openssl support (default no)]),
-    [WITH_OPENSSL=$withval],[WITH_OPENSSL=no])
+    AS_HELP_STRING([--with-openssl@<:@=DIR@:>@],[Include openssl support (default)]),
+    [WITH_OPENSSL=$withval],[WITH_OPENSSL=yes])
 
 OPENSSL_CFLAGS=""
 OPENSSL_LIBS=""
@@ -318,22 +319,22 @@ fi
 AC_MSG_RESULT([$use_openssl])
 
 AC_ARG_WITH([openssl-includes],
-  [AS_HELP_STRING([--with-openssl-includes=DIR],[OpenSSL includes])],
+  [AS_HELP_STRING([--with-openssl-includes=DIR],[Custom OpenSSL include path])],
   [ use_openssl=yes OPENSSL_CFLAGS="-I$withval" ]
 )
 
 AC_ARG_WITH([openssl-libs],
-  [AS_HELP_STRING([--with-openssl-libs=DIR],[OpenSSL libraries])],
+  [AS_HELP_STRING([--with-openssl-libs=DIR],[Custom OpenSSL library path])],
   [ use_openssl=yes OPENSSL_LIBS="-L$withval" ]
 )
 
 AC_ARG_WITH([kerberos5],
   [AS_HELP_STRING([--with-kerberos5],[use Kerberos5 support with OpenSSL])],
-  [ use_kerberos=yes ], [use_kerberos=no]
+  [ use_kerberos=$withval ], [use_kerberos=no]
 )
 
-if test "x$use_openssl" = "xyes"; then
-  if test "x$use_kerberos" != "xyes"; then
+if test "$use_openssl" = "yes"; then
+  if test "$use_kerberos" = "no"; then
     OPENSSL_CFLAGS="$OPENSSL_CFLAGS -DOPENSSL_NO_KRB5"
   fi
 
@@ -372,7 +373,7 @@ use_mod_deflate=no
 
 # check for zlib
 AC_MSG_CHECKING([for zlib support])
-AC_ARG_WITH([zlib], [AS_HELP_STRING([--with-zlib],[Enable zlib support for mod_deflate])],
+AC_ARG_WITH([zlib], [AS_HELP_STRING([--with-zlib],[Enable zlib support for mod_deflate (default)])],
     [WITH_ZLIB=$withval],[WITH_ZLIB=yes])
 AC_MSG_RESULT([$WITH_ZLIB])
 
@@ -390,7 +391,7 @@ AC_SUBST([Z_LIB])
 
 # check for bzip2
 AC_MSG_CHECKING([for bzip2 support])
-AC_ARG_WITH([bzip2], [AS_HELP_STRING([--with-bzip2],[Enable bzip2 support for mod_deflate])],
+AC_ARG_WITH([bzip2], [AS_HELP_STRING([--with-bzip2],[Enable bzip2 support for mod_deflate (default)])],
     [WITH_BZIP2=$withval],[WITH_BZIP2=yes])
 AC_MSG_RESULT([$WITH_BZIP2])
 
