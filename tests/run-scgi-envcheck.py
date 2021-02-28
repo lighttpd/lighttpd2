@@ -1,65 +1,76 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import asyncio
+import dataclasses
 import socket
 import traceback
+import typing
 
-servsocket = socket.fromfd(0, socket.AF_UNIX, socket.SOCK_STREAM)
 
-def parsereq(data):
-	a = data.split(':', 1)
-	if len(a) != 2: return False
-	hlen, rem = a
-	hlen = int(hlen)
-	if hlen < 16: raise Exception("invalid request")
-	if len(rem) < hlen + 1: return False
-	if rem[hlen] != ',' or rem[hlen-1] != '\0': raise Exception("invalid request")
-	header = rem[:hlen-1]
-	body = rem[hlen+1:]
-	header = header.split('\0')
-	if len(header) < 4: raise Exception("invalid request: not enough header entries")
-	if header[0] != "CONTENT_LENGTH": raise Exception("invalid request: missing CONTENT_LENGTH")
-	clen = int(header[1])
-	if len(body) < clen: return False
-	env = dict()
-	while len(header) > 0:
-		if len(header) == 1: raise Exception("invalid request: missing value for key")
-		key, value = header[0:2]
-		header = header[2:]
-		if '' == key: raise Exception("invalid request: empty key")
-		if key in env: raise Exception("invalid request: duplicate key")
-		env[key] = value
-	if not 'SCGI' in env or env['SCGI'] != '1':
-		raise Exception("invalid request: missing/broken SCGI=1 header")
-	return {'env': env, 'body': body}
+@dataclasses.dataclass
+class ScgiRequest:
+	headers: typing.Dict[bytes, bytes]
+	body: bytes
+
+
+async def parse_scgi_request(reader: asyncio.StreamReader) -> ScgiRequest:
+	hlen = int((await reader.readuntil(b':'))[:-1])
+	header_raw = await reader.readexactly(hlen + 1)
+	assert len(header_raw) >= 16, "invalid request: too short (< 16)"
+	assert header_raw[-2:] == b'\0,', f"Invalid request: missing header/netstring terminator '\\x00,', got {header_raw[-2:]!r}"
+	header_list = header_raw[:-2].split(b'\0')
+	assert len(header_list) % 2 == 0, f"Invalid request: odd numbers of header entries (must be pairs), got {len(header_list)}"
+	assert header_list[0] == b'CONTENT_LENGTH', f"Invalid request: first header entry must be 'CONTENT_LENGTH', got {header_list[0]!r}"
+	clen = int(header_list[1])
+	headers = {}
+	i = 0
+	while i < len(header_list):
+		key = header_list[i]
+		value = header_list[i+1]
+		i += 2
+		assert not key in headers, f"Invalid request: duplicate header key {key!r}"
+		headers[key] = value
+	assert headers.get(b'SCGI') == b'1', "Invalid request: missing SCGI=1 header"
+	body = await reader.readexactly(clen)
+	return ScgiRequest(headers=headers, body=body)
+
+
+async def handle_scgi(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+	print(f"scgi-envcheck: Incoming connection", flush=True)
+	try:
+		req = await parse_scgi_request(reader)
+		envvar = req.headers[b'QUERY_STRING']
+		result = req.headers[envvar]
+	except KeyboardInterrupt:
+		raise
+	except Exception as e:
+		print(traceback.format_exc())
+		writer.write(b"Status: 500\r\nContent-Type: text/plain\r\n\r\n" + str(e).encode('utf-8'))
+	else:
+		writer.write(b"Status: 200\r\nContent-Type: text/plain\r\n\r\n" + result)
+	await writer.drain()
+	writer.close()
+	await writer.wait_closed()
+
+
+async def main():
+	sock = socket.socket(fileno=0)
+	if sock.type == socket.AF_UNIX:
+		start_server = asyncio.start_unix_server
+	else:
+		start_server = asyncio.start_server
+
+	server = await start_server(handle_scgi, sock=sock, start_serving=False)
+
+	addr = server.sockets[0].getsockname()
+	print(f'Serving on {addr}', flush=True)
+
+	async with server:
+		await server.serve_forever()
+
 
 try:
-	while 1:
-		conn, addr = servsocket.accept()
-		result_status = 200
-		result = ''
-		try:
-			print 'Accepted connection'
-			data = ''
-			header = False
-			while not header:
-				newdata = conn.recv(1024)
-				if len(newdata) == 0: raise Exception("invalid request: unexpected EOF")
-				data += newdata
-				header = parsereq(data)
-			envvar = header['env']['QUERY_STRING']
-			result = header['env'][envvar]
-		except KeyboardInterrupt:
-			raise
-		except Exception as e:
-			print traceback.format_exc()
-			result_status = 500
-			result = str(e)
-		try:
-			conn.sendall("Status: " + str(result_status) + "\r\nContent-Type: text/plain\r\n\r\n")
-			conn.sendall(result)
-			conn.close()
-		except:
-			print traceback.format_exc()
+	asyncio.run(main())
 except KeyboardInterrupt:
 	pass
