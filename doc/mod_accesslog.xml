@@ -54,7 +54,7 @@
 		<parameter name="target" />
 		<default><text>logging disabled</text></default>
 		<description>
-			<html>Enable logging by setting a log target. Supports the same log targets as <a href="plugin_clore.html#plugin_core__action_log">log</a>.</html>
+			<html>Enable logging by setting a log target. Supports the same log targets as <a href="plugin_core.html#plugin_core__action_log">log</a>.</html>
 		</description>
 		<example>
 			<config>
