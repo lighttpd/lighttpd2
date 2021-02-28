@@ -23,8 +23,6 @@
 #cmakedefine HAVE_SYS_UIO_H
 #cmakedefine HAVE_SYS_UN_H
 #cmakedefine HAVE_SYS_WAIT_H
-#cmakedefine HAVE_SYS_TIME_H
-#cmakedefine HAVE_TIME_H
 #cmakedefine HAVE_UNISTD_H
 #cmakedefine HAVE_PTHREAD_H
 #cmakedefine HAVE_INET_ATON

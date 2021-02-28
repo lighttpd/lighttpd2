@@ -1,23 +1,13 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.61])
-AC_INIT([lighttpd],[2.0.0],[contact@lighttpd.net])
+AC_PREREQ([2.69])
+AC_INIT([lighttpd],[2.0.0],[],[],[https://redmine.lighttpd.net/projects/lighttpd2/wiki])
 AC_CONFIG_SRCDIR([src/main/lighttpd_worker.c])
-AC_CONFIG_HEADER([include/lighttpd/config.h])
+AC_CONFIG_HEADERS([include/lighttpd/config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
-dnl HOW FUCKING BROKEN IS AUTOMAKE...
-dnl serial-tests is not recognized before 1.12, and required for serial tests with 1.13
-dnl if you don't use the default (symlinked) automake on your box, set AUTOMAKE to the path you're using
-m4_define([serial_tests], [
-    m4_esyscmd([case `${AUTOMAKE:-automake} --version | head -n 1` in
-      *1.11.*|*1.10.*|*1.9.*);;
-      *) echo serial-tests;;
-      esac])
-])
-
-AM_INIT_AUTOMAKE([-Wall -Wno-portability -Wno-override -Werror foreign dist-bzip2 tar-ustar] serial_tests)
+AM_INIT_AUTOMAKE([-Wall -Wno-portability -Wno-override -Werror foreign dist-bzip2 tar-ustar] serial-tests)
 
 dnl check environment
 AC_USE_SYSTEM_EXTENSIONS
@@ -35,18 +25,13 @@ if test "x$RAGEL" = "x"; then
 fi
 AC_SUBST([RAGEL])
 
-dnl libtool
-AC_DISABLE_STATIC
-AC_ENABLE_SHARED
-
 m4_ifndef([PKG_PROG_PKG_CONFIG], [m4_fatal([pkg-config not installed])])
 
-m4_ifndef([AC_PROG_LIBTOOL], [m4_fatal([libtool not installed])])
+m4_ifndef([LT_INIT], [m4_fatal([libtool not installed])])
 
-AC_PROG_LIBTOOL
+LT_INIT([shared disable-static])
 
 # Checks for header files.
-AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS([ \
   unistd.h \
@@ -207,7 +192,6 @@ AC_C_CONST
 AC_TYPE_UID_T
 AC_TYPE_PID_T
 AC_TYPE_SIZE_T
-AC_HEADER_TIME
 
 ## solaris needs -lsocket -lnsl
 AC_SEARCH_LIBS([socket],[socket])
@@ -271,7 +255,7 @@ fi
 dnl Checking for libunwind
 AC_MSG_CHECKING(for libunwind)
 AC_ARG_WITH(libunwind,
-    AC_HELP_STRING([--with-libunwind],[Include libunwind support for backtraces on assert failures]),
+    AS_HELP_STRING([--with-libunwind],[Include libunwind support for backtraces on assert failures]),
     [WITH_LIBUNWIND=$withval],[WITH_LIBUNWIND=no])
 
 if test "$WITH_LIBUNWIND" != "no"; then
