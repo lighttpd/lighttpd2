@@ -193,6 +193,11 @@ void li_log_context_set(liLogContext *context, liLogMap *log_map) {
 gboolean li_log_write_direct(liServer *srv, liWorker *wrk, GString *path, GString *msg) {
 	liLogEntry *log_entry;
 
+	if (!path || path->len == 0) {
+		/* ignore empty log targets */
+		return TRUE;
+	}
+
 	log_entry = g_slice_new(liLogEntry);
 	log_entry->path = g_string_new_len(GSTR_LEN(path));
 	log_entry->level = 0;
@@ -231,19 +236,19 @@ gboolean li_log_write(liServer *srv, liWorker *wrk, liLogContext *context, liLog
 	if (log_map != NULL && log_level < LI_LOG_LEVEL_COUNT) {
 		path = log_map->targets[log_level];
 	} else {
+		/* no log map or invalid log level */
 		return FALSE;
+	}
+
+	if (!path || path->len == 0) {
+		/* log-level is ignored */
+		return TRUE;
 	}
 
 	log_line = g_string_sized_new(63);
 	va_start(ap, fmt);
 	g_string_vprintf(log_line, fmt, ap);
 	va_end(ap);
-
-	if (!path) {
-		li_log_write_stderr(srv, log_line->str, TRUE);
-		g_string_free(log_line, TRUE);
-		return TRUE;
-	}
 
 	switch (g_atomic_int_get(&srv->state)) {
 	case LI_SERVER_INIT:
@@ -350,7 +355,10 @@ static void log_watcher_cb(liEventBase *watcher, int events) {
 
 		log = log_open(srv, log_entry->path);
 
-		if (NULL == log || -1 == log->fd) {
+		if (NULL == log) {
+			/* explicit empty target, ignore */
+		} else if (-1 == log->fd) {
+			/* failed opening log file */
 			li_log_write_stderr(srv, msg->str, TRUE);
 			goto next;
 		}
