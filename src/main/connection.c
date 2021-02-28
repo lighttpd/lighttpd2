@@ -845,6 +845,9 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 	li_stream_disconnect(&con->out);
 	li_stream_disconnect_dest(&con->in);
 	con->out.out->is_closed = FALSE;
+	/* reset con->out (== vr->coninfo->resp) counters. con->in is reset on keep-alive "reopen" */
+	con->out.out->bytes_out = 0;
+	con->out.out->bytes_in = con->out.out->length;
 
 	memset(&con->in_chunked_decode_state, 0, sizeof(con->in_chunked_decode_state));
 
