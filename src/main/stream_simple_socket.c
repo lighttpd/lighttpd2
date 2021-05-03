@@ -19,7 +19,6 @@ void li_stream_simple_socket_close(liIOStream *stream, gboolean aborted) {
 	}
 
 	if (aborted || stream->in_closed) {
-		li_iostream_acquire(stream);
 		fd = li_iostream_reset(stream);
 		if (-1 != fd) {
 			shutdown(fd, SHUT_RDWR);

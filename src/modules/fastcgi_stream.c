@@ -200,6 +200,7 @@ static void backend_close(liBackendPool *bpool, liWorker *wrk, liBackendConnecti
 		li_stream_simple_socket_close(ctx->iostream, FALSE);
 		fd = li_iostream_reset(ctx->iostream);
 		LI_FORCE_ASSERT(-1 == fd);
+		li_iostream_release(ctx->iostream);
 		ctx->iostream = NULL;
 	}
 	li_stream_reset(&ctx->fcgi_in);
@@ -281,6 +282,7 @@ static void fastcgi_reset(liFastCGIBackendContext *ctx) {
 		li_stream_simple_socket_close(iostream, TRUE);
 		fd = li_iostream_reset(iostream);
 		LI_FORCE_ASSERT(-1 == fd);
+		li_iostream_release(iostream);
 
 		li_stream_disconnect(&ctx->fcgi_out);
 		li_stream_disconnect_dest(&ctx->fcgi_in);

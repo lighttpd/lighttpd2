@@ -506,6 +506,7 @@ void li_iostream_acquire(liIOStream* iostream) {
 }
 
 void li_iostream_release(liIOStream* iostream) {
+	if (iostream == NULL) return;
 	li_stream_release(&iostream->stream_in);
 	li_stream_release(&iostream->stream_out);
 }
@@ -525,8 +526,6 @@ int li_iostream_reset(liIOStream *iostream) {
 
 	li_stream_disconnect(&iostream->stream_out);
 	li_stream_disconnect_dest(&iostream->stream_in);
-
-	li_iostream_release(iostream);
 
 	return fd;
 }
