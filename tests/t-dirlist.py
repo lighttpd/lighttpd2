@@ -28,6 +28,7 @@ class Test(GroupTest):
 		TestDirlist,
 		TestRedirectDir,
 		TestRedirectDirWithQuery,
+		TestRedirectDirWithQueryAndSpecialChars,
 	]
 
 	config = """
