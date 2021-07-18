@@ -156,9 +156,15 @@ static void check_response_header(liStreamHttpResponse* shr) {
 		}
 
 		if (!shr->wait_for_close && shr->content_length < 0) {
-			VR_ERROR(shr->vr, "%s", "Backend: need chunked transfer-encoding or content-length for keepalive connections");
-			li_vrequest_error(shr->vr);
-			return;
+			if (LI_HTTP_VERSION_1_1 == shr->parse_response_ctx.http_version) {
+				/* Fallback to waiting for connection close */
+				VR_DEBUG(shr->vr, "%s", "HTTP/1.1 response: no clean message length indicator, fall back to waiting for connection close");
+				shr->wait_for_close = TRUE;
+			} else {
+				VR_ERROR(shr->vr, "%s", "Backend: need chunked transfer-encoding or content-length for keepalive connections");
+				li_vrequest_error(shr->vr);
+				return;
+			}
 		}
 	}
 

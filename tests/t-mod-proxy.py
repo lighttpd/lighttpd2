@@ -41,6 +41,10 @@ class HttpBackendHandler(socketserver.StreamRequestHandler):
 				time.sleep(0.1)
 				self.wfile.write(b"\r\n0\r\n\r\n")
 				continue
+			if reqline[1].startswith("/nolength"):
+				self.wfile.write(b"HTTP/1.1 200 OK\r\n\r\nHello world")
+				self.finish()
+				return
 
 			# send response
 			resp_body = reqline[1].encode('utf-8')
@@ -130,6 +134,15 @@ class TestBackendDelayedChunk(CurlRequest):
 backend_proxy;
 """
 
+class TestBackendNoLength(CurlRequest):
+	URL = "/nolength"
+	EXPECT_RESPONSE_BODY = "Hello world"
+	EXPECT_RESPONSE_CODE = 200
+	no_docroot = True
+	config = """
+backend_proxy;
+"""
+
 class Test(GroupTest):
 	group = [
 		TestSimple,
@@ -138,6 +151,7 @@ class Test(GroupTest):
 		TestBackendForcedKeepalive,
 		TestBackendUpgrade,
 		TestBackendDelayedChunk,
+		TestBackendNoLength,
 	]
 
 	def Prepare(self):
