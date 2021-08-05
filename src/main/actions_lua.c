@@ -35,6 +35,11 @@ static void lua_push_action_metatable(liServer *srv, lua_State *L) {
 	}
 }
 
+void li_lua_init_action_mt(liServer *srv, lua_State *L) {
+	lua_push_action_metatable(srv, L);
+	lua_pop(L, 1);
+}
+
 liAction* li_lua_get_action(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;

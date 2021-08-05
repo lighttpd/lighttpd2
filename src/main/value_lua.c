@@ -68,6 +68,10 @@ static void lua_push_kvlist_metatable(lua_State *L) {
 	}
 }
 
+void li_lua_init_value_mt(lua_State *L) {
+	lua_push_kvlist_metatable(L);
+	lua_pop(L, 1);
+}
 
 static liValue* li_value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 	liValue *val, *entry;

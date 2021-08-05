@@ -1,5 +1,8 @@
 
 #include <lighttpd/core_lua.h>
+#include <lighttpd/actions_lua.h>
+#include <lighttpd/condition_lua.h>
+#include <lighttpd/value_lua.h>
 
 #include <lualib.h>
 #include <lauxlib.h>
@@ -330,15 +333,22 @@ void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
 	lua_State *L = LL->L;
 
 	li_lua_init_chunk_mt(L);
-	li_lua_init_coninfo_mt(L);
 	li_lua_init_environment_mt(L);
 	li_lua_init_filter_mt(L);
+	li_lua_init_http_headers_mt(L);
 	li_lua_init_physical_mt(L);
 	li_lua_init_request_mt(L);
 	li_lua_init_response_mt(L);
-	li_lua_init_vrequest_mt(L);
-
 	li_lua_init_stat_mt(L);
+	li_lua_init_subrequest_mt(L);
+	li_lua_init_virtualrequest_mt(L);
+
+	if (NULL == wrk) {
+		/* these should only be used in the "main" lua context */
+		li_lua_init_action_mt(srv, L);
+		li_lua_init_condition_mt(srv, L);
+		li_lua_init_value_mt(L);
+	}
 
 	/* prefer closure, but just in case */
 	lua_pushlightuserdata(L, srv);

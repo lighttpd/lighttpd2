@@ -4,6 +4,8 @@
 #include <lighttpd/base.h>
 #include <lua.h>
 
+LI_API void li_lua_init_value_mt(lua_State *L);
+
 /* converts the top of the stack into an value
  * and pops the value
  * returns NULL if it couldn't convert the value (still pops it)

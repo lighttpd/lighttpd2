@@ -350,11 +350,6 @@ static void lua_push_vrequest_metatable(lua_State *L) {
 	}
 }
 
-void li_lua_init_vrequest_mt(lua_State *L) {
-	lua_push_vrequest_metatable(L);
-	lua_pop(L, 1);
-}
-
 liVRequest* li_lua_get_vrequest(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
@@ -503,7 +498,10 @@ static void lua_push_coninfo_metatable(lua_State *L) {
 	}
 }
 
-void li_lua_init_coninfo_mt(lua_State *L) {
+void li_lua_init_virtualrequest_mt(lua_State *L) {
+	lua_push_vrequest_metatable(L);
+	lua_pop(L, 1);
+
 	lua_push_coninfo_metatable(L);
 	lua_pop(L, 1);
 }

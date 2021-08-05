@@ -14,20 +14,21 @@ LI_API liLuaState *li_lua_state_get(lua_State *L);
 INLINE void li_lua_lock(liLuaState *LL);
 INLINE void li_lua_unlock(liLuaState *LL);
 
+/* chunk_lua.c */
 LI_API void li_lua_init_chunk_mt(lua_State *L);
+
 LI_API liChunk* li_lua_get_chunk(lua_State *L, int ndx);
 LI_API int li_lua_push_chunk(lua_State *L, liChunk *c);
 LI_API liChunkQueue* li_lua_get_chunkqueue(lua_State *L, int ndx);
 LI_API int li_lua_push_chunkqueue(lua_State *L, liChunkQueue *cq);
 
-LI_API void li_lua_init_connection_mt(lua_State *L);
-LI_API liConnection* li_lua_get_connection(lua_State *L, int ndx);
-LI_API int li_lua_push_connection(lua_State *L, liConnection *con);
-
+/* environment_lua.c */
 LI_API void li_lua_init_environment_mt(lua_State *L);
+
 LI_API liEnvironment* li_lua_get_environment(lua_State *L, int ndx);
 LI_API int li_lua_push_environment(lua_State *L, liEnvironment *env);
 
+/* filters_lua.c */
 LI_API void li_lua_init_filter_mt(lua_State *L);
 LI_API liFilter* li_lua_get_filter(lua_State *L, int ndx);
 LI_API int li_lua_push_filter(lua_State *L, liFilter *f);
@@ -35,44 +36,57 @@ LI_API void li_lua_init_filters(lua_State *L, liServer* srv);
 LI_API liFilter* li_lua_vrequest_add_filter_in(lua_State *L, liVRequest *vr, int state_ndx);
 LI_API liFilter* li_lua_vrequest_add_filter_out(lua_State *L, liVRequest *vr, int state_ndx);
 
+/* http_headers_lua.c */
 LI_API void li_lua_init_http_headers_mt(lua_State *L);
+
 LI_API liHttpHeaders* li_lua_get_http_headers(lua_State *L, int ndx);
 LI_API int li_lua_push_http_headers(lua_State *L, liHttpHeaders *headers);
 
+/* physical_lua.c */
 LI_API void li_lua_init_physical_mt(lua_State *L);
+
 LI_API liPhysical* li_lua_get_physical(lua_State *L, int ndx);
 LI_API int li_lua_push_physical(lua_State *L, liPhysical *phys);
 
+/* request_lua.c */
 LI_API void li_lua_init_request_mt(lua_State *L);
+
 LI_API liRequest* li_lua_get_request(lua_State *L, int ndx);
 LI_API int li_lua_push_request(lua_State *L, liRequest *req);
 
 LI_API liRequestUri* li_lua_get_requesturi(lua_State *L, int ndx);
 LI_API int li_lua_push_requesturi(lua_State *L, liRequestUri *uri);
 
+/* response_lua.c */
 LI_API void li_lua_init_response_mt(lua_State *L);
+
 LI_API liResponse* li_lua_get_response(lua_State *L, int ndx);
 LI_API int li_lua_push_response(lua_State *L, liResponse *resp);
 
+/* stat_lua.c */
 LI_API void li_lua_init_stat_mt(lua_State *L);
+
 LI_API struct stat* li_lua_get_stat(lua_State *L, int ndx);
 LI_API int li_lua_push_stat(lua_State *L, struct stat *st);
 
+/* subrequest_lua.c */
 LI_API void li_lua_init_subrequest_mt(lua_State *L);
 
-LI_API void li_lua_init_vrequest_mt(lua_State *L);
+/* virtualrequest_lua.c */
+LI_API void li_lua_init_virtualrequest_mt(lua_State *L);
+
 LI_API liVRequest* li_lua_get_vrequest(lua_State *L, int ndx);
 LI_API int li_lua_push_vrequest(lua_State *L, liVRequest *vr);
 
-LI_API void li_lua_init_coninfo_mt(lua_State *L);
 LI_API liConInfo* li_lua_get_coninfo(lua_State *L, int ndx);
 LI_API int li_lua_push_coninfo(lua_State *L, liConInfo *vr);
 
+/* everything else: core_lua.c */
 
 LI_API int li_lua_fixindex(lua_State *L, int ndx);
 
 /* return 1 if value is found in mt (on top of the stack), 0 if it is not found (stack balance = 0)
- * table, key on stack at pos 0 and 1 (i.e. __index metho)
+ * table, key on stack at pos 0 and 1 (i.e. __index method)
  */
 LI_API int li_lua_metatable_index(lua_State *L);
 

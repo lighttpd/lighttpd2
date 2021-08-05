@@ -269,6 +269,17 @@ static void lua_push_cond_lvalue_t_metatable(liServer *srv, lua_State *L) {
 	}
 }
 
+void li_lua_init_condition_mt(liServer *srv, lua_State *L) {
+	lua_push_condition_metatable(srv, L);
+	lua_pop(L, 1);
+
+	lua_push_cond_lvalue_metatable(srv, L);
+	lua_pop(L, 1);
+
+	lua_push_cond_lvalue_t_metatable(srv, L);
+	lua_pop(L, 1);
+}
+
 /* cond_lvalue_t */
 
 static int lua_push_cond_lvalue_t(liServer *srv, lua_State *L, liCondLValue t) {
