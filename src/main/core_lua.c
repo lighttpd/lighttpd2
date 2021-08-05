@@ -318,7 +318,7 @@ static int li_lua_kvl_to_table(lua_State *L) {
 }
 #endif
 
-static void lua_push_constants(lua_State *L, int ndx) {
+static void li_lua_push_lighty_constants(lua_State *L, int ndx) {
 	lua_pushinteger(L, LI_HANDLER_GO_ON);
 	lua_setfield(L, ndx, "HANDLER_GO_ON");
 	lua_pushinteger(L, LI_HANDLER_COMEBACK);
@@ -358,9 +358,16 @@ void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
 		lua_setfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_WORKER);
 	}
 
-	lua_newtable(L); /* lighty. */
+	/* create read-only lighty "table" (zero-sized userdata object) */
+	lua_newuserdata(L, 0); /* lighty. */
+	lua_newtable(L); /* metatable(lighty) */
+	/* prevent tampering with the metatable */
+	li_lua_protect_metatable(L);
+	lua_newtable(L); /* metatable(lighty).__index */
+	/* create lighty.filter_in and lighty.filter_out: */
 	li_lua_init_filters(L, srv);
 
+	/* lighty.print (and lighty.error and global print) */
 	lua_pushlightuserdata(L, srv);
 	lua_pushlightuserdata(L, wrk);
 	lua_pushcclosure(L, li_lua_error, 2);
@@ -370,21 +377,25 @@ void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
 		lua_setfield(L, -3, "error");
 	lua_setfield(L, -2, "print");
 
+	/* lighty.warning */
 	lua_pushlightuserdata(L, srv);
 	lua_pushlightuserdata(L, wrk);
 	lua_pushcclosure(L, li_lua_warning, 2);
 	lua_setfield(L, -2, "warning");
 
+	/* lighty.info */
 	lua_pushlightuserdata(L, srv);
 	lua_pushlightuserdata(L, wrk);
 	lua_pushcclosure(L, li_lua_info, 2);
 	lua_setfield(L, -2, "info");
 
+	/* lighty.debug */
 	lua_pushlightuserdata(L, srv);
 	lua_pushlightuserdata(L, wrk);
 	lua_pushcclosure(L, li_lua_debug, 2);
 	lua_setfield(L, -2, "debug");
 
+	/* lighty.{md5,sha1,sha256} */
 	lua_pushcclosure(L, li_lua_md5, 0);
 	lua_setfield(L, -2, "md5");
 	lua_pushcclosure(L, li_lua_sha1, 0);
@@ -392,11 +403,17 @@ void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
 	lua_pushcclosure(L, li_lua_sha256, 0);
 	lua_setfield(L, -2, "sha256");
 
+	/* lighty.path_simplify */
 	lua_pushcclosure(L, li_lua_path_simplify, 0);
 	lua_setfield(L, -2, "path_simplify");
 
-	lua_push_constants(L, -2);
+	li_lua_push_lighty_constants(L, -2);
 
+	/* set __index for metatable(lighty) */
+	lua_setfield(L, -2, "__index");
+	/* associate metatable(lighty) */
+	lua_setmetatable(L, -2);
+	/* store "lighty" object in globals */
 	lua_setfield(L, LUA_GLOBALSINDEX, "lighty");
 
 	li_lua_store_globals(L);

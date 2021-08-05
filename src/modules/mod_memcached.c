@@ -1127,8 +1127,10 @@ static void mod_memcached_lua_init(liLuaState *LL, liServer *srv, liWorker *wrk,
 
 	if (wrk) {
 		li_lua_lock(LL);
+		/* memcached global table */
 		lua_newtable(L);                   /* { } */
 
+		/* memcached.new */
 		lua_pushlightuserdata(L, wrk);
 		lua_pushcclosure(L, mc_lua_new, 1);
 		lua_setfield(L, -2, "new");

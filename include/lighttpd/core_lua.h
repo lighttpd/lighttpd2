@@ -14,6 +14,9 @@ LI_API liLuaState *li_lua_state_get(lua_State *L);
 INLINE void li_lua_lock(liLuaState *LL);
 INLINE void li_lua_unlock(liLuaState *LL);
 
+/* expect (meta)table at top of the stack */
+INLINE void li_lua_protect_metatable(lua_State *L);
+
 /* chunk_lua.c */
 LI_API void li_lua_init_chunk_mt(lua_State *L);
 
@@ -30,9 +33,11 @@ LI_API int li_lua_push_environment(lua_State *L, liEnvironment *env);
 
 /* filters_lua.c */
 LI_API void li_lua_init_filter_mt(lua_State *L);
+/* create entries in `lighty.` table, which must be on top of the stack */
+LI_API void li_lua_init_filters(lua_State *L, liServer* srv);
+
 LI_API liFilter* li_lua_get_filter(lua_State *L, int ndx);
 LI_API int li_lua_push_filter(lua_State *L, liFilter *f);
-LI_API void li_lua_init_filters(lua_State *L, liServer* srv);
 LI_API liFilter* li_lua_vrequest_add_filter_in(lua_State *L, liVRequest *vr, int state_ndx);
 LI_API liFilter* li_lua_vrequest_add_filter_out(lua_State *L, liVRequest *vr, int state_ndx);
 
@@ -133,6 +138,12 @@ INLINE void li_lua_lock(liLuaState *LL) {
 
 INLINE void li_lua_unlock(liLuaState *LL) {
 	g_static_rec_mutex_unlock(&LL->lualock);
+}
+
+INLINE void li_lua_protect_metatable(lua_State *L) {
+	/* __metatable key prevents accessing metatable of objects/tables in normal lua code */
+	lua_pushboolean(L, FALSE);
+	lua_setfield(L, -2, "__metatable");
 }
 
 #endif
