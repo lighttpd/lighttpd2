@@ -113,9 +113,13 @@ static int lua_cond_lvalue_gc(lua_State *L) {
 
 /* new metatables and push */
 
+static HEDLEY_NEVER_INLINE void init_condition_mt(liServer *srv, lua_State *L) {
+	lua_mt_register_srv(srv, L, "__gc", lua_condition_gc);
+}
+
 static void lua_push_condition_metatable(liServer *srv, lua_State *L) {
 	if (luaL_newmetatable(L, LUA_CONDITION)) {
-		lua_mt_register_srv(srv, L, "__gc", lua_condition_gc);
+		init_condition_mt(srv, L);
 	}
 }
 
@@ -131,7 +135,6 @@ int li_lua_push_condition(liServer *srv, lua_State *L, liCondition *c) {
 	*pc = c;
 
 	lua_push_condition_metatable(srv, L);
-
 	lua_setmetatable(L, -2);
 	return 1;
 }
@@ -193,31 +196,35 @@ static int lua_cond_lvalue_cmp(lua_State *L) {
 	return 0;
 }
 
+static HEDLEY_NEVER_INLINE void init_cond_lvalue_mt(liServer *srv, lua_State *L) {
+	lua_mt_register(L, "__gc", lua_cond_lvalue_gc);
+	lua_mt_register(L, "__tostring", lua_cond_lvalue_tostring);
+
+	lua_mt_register_cmp(srv, L, "eq", lua_cond_lvalue_cmp, LI_CONFIG_COND_EQ);
+	lua_mt_register_cmp(srv, L, "ne", lua_cond_lvalue_cmp, LI_CONFIG_COND_NE);
+	lua_mt_register_cmp(srv, L, "prefix", lua_cond_lvalue_cmp, LI_CONFIG_COND_PREFIX);
+	lua_mt_register_cmp(srv, L, "notprefix", lua_cond_lvalue_cmp, LI_CONFIG_COND_NOPREFIX);
+	lua_mt_register_cmp(srv, L, "suffix", lua_cond_lvalue_cmp, LI_CONFIG_COND_SUFFIX);
+	lua_mt_register_cmp(srv, L, "notsuffix", lua_cond_lvalue_cmp, LI_CONFIG_COND_NOSUFFIX);
+	lua_mt_register_cmp(srv, L, "match", lua_cond_lvalue_cmp, LI_CONFIG_COND_MATCH);
+	lua_mt_register_cmp(srv, L, "nomatch", lua_cond_lvalue_cmp, LI_CONFIG_COND_NOMATCH);
+	lua_mt_register_cmp(srv, L, "ip", lua_cond_lvalue_cmp, LI_CONFIG_COND_IP);
+	lua_mt_register_cmp(srv, L, "notip", lua_cond_lvalue_cmp, LI_CONFIG_COND_NOTIP);
+	lua_mt_register_cmp(srv, L, "gt", lua_cond_lvalue_cmp, LI_CONFIG_COND_GT);
+	lua_mt_register_cmp(srv, L, "ge", lua_cond_lvalue_cmp, LI_CONFIG_COND_GE);
+	lua_mt_register_cmp(srv, L, "lt", lua_cond_lvalue_cmp, LI_CONFIG_COND_LT);
+	lua_mt_register_cmp(srv, L, "le", lua_cond_lvalue_cmp, LI_CONFIG_COND_LE);
+
+	lua_mt_register_cmp(srv, L, "is", lua_cond_lvalue_bool, LI_CONFIG_COND_EQ);
+	lua_mt_register_cmp(srv, L, "isnot", lua_cond_lvalue_bool, LI_CONFIG_COND_NE);
+
+	lua_pushvalue(L, -1);
+	lua_setfield(L, -2, "__index");
+}
+
 static void lua_push_cond_lvalue_metatable(liServer *srv, lua_State *L) {
 	if (luaL_newmetatable(L, LUA_COND_LVALUE)) {
-		lua_mt_register(L, "__gc", lua_cond_lvalue_gc);
-		lua_mt_register(L, "__tostring", lua_cond_lvalue_tostring);
-
-		lua_mt_register_cmp(srv, L, "eq", lua_cond_lvalue_cmp, LI_CONFIG_COND_EQ);
-		lua_mt_register_cmp(srv, L, "ne", lua_cond_lvalue_cmp, LI_CONFIG_COND_NE);
-		lua_mt_register_cmp(srv, L, "prefix", lua_cond_lvalue_cmp, LI_CONFIG_COND_PREFIX);
-		lua_mt_register_cmp(srv, L, "notprefix", lua_cond_lvalue_cmp, LI_CONFIG_COND_NOPREFIX);
-		lua_mt_register_cmp(srv, L, "suffix", lua_cond_lvalue_cmp, LI_CONFIG_COND_SUFFIX);
-		lua_mt_register_cmp(srv, L, "notsuffix", lua_cond_lvalue_cmp, LI_CONFIG_COND_NOSUFFIX);
-		lua_mt_register_cmp(srv, L, "match", lua_cond_lvalue_cmp, LI_CONFIG_COND_MATCH);
-		lua_mt_register_cmp(srv, L, "nomatch", lua_cond_lvalue_cmp, LI_CONFIG_COND_NOMATCH);
-		lua_mt_register_cmp(srv, L, "ip", lua_cond_lvalue_cmp, LI_CONFIG_COND_IP);
-		lua_mt_register_cmp(srv, L, "notip", lua_cond_lvalue_cmp, LI_CONFIG_COND_NOTIP);
-		lua_mt_register_cmp(srv, L, "gt", lua_cond_lvalue_cmp, LI_CONFIG_COND_GT);
-		lua_mt_register_cmp(srv, L, "ge", lua_cond_lvalue_cmp, LI_CONFIG_COND_GE);
-		lua_mt_register_cmp(srv, L, "lt", lua_cond_lvalue_cmp, LI_CONFIG_COND_LT);
-		lua_mt_register_cmp(srv, L, "le", lua_cond_lvalue_cmp, LI_CONFIG_COND_LE);
-
-		lua_mt_register_cmp(srv, L, "is", lua_cond_lvalue_bool, LI_CONFIG_COND_EQ);
-		lua_mt_register_cmp(srv, L, "isnot", lua_cond_lvalue_bool, LI_CONFIG_COND_NE);
-
-		lua_pushvalue(L, -1);
-		lua_setfield(L, -2, "__index");
+		init_cond_lvalue_mt(srv, L);
 	}
 }
 
@@ -228,7 +235,6 @@ static int lua_push_cond_lvalue(liServer *srv, lua_State *L, liConditionLValue *
 	*pv = lvalue;
 
 	lua_push_cond_lvalue_metatable(srv, L);
-
 	lua_setmetatable(L, -2);
 	return 1;
 }
@@ -252,10 +258,14 @@ static int lua_cond_lvalue_t_index(lua_State *L) {
 	return 1;
 }
 
+static HEDLEY_NEVER_INLINE void init_cond_lvalue_t_mt(liServer *srv, lua_State *L) {
+	lua_mt_register(L, "__tostring", lua_cond_lvalue_t_tostring);
+	lua_mt_register_srv(srv, L, "__index", lua_cond_lvalue_t_index);
+}
+
 static void lua_push_cond_lvalue_t_metatable(liServer *srv, lua_State *L) {
 	if (luaL_newmetatable(L, LUA_COND_LVALUE_T)) {
-		lua_mt_register(L, "__tostring", lua_cond_lvalue_t_tostring);
-		lua_mt_register_srv(srv, L, "__index", lua_cond_lvalue_t_index);
+		init_cond_lvalue_t_mt(srv, L);
 	}
 }
 
@@ -268,7 +278,6 @@ static int lua_push_cond_lvalue_t(liServer *srv, lua_State *L, liCondLValue t) {
 	*pt = t;
 
 	lua_push_cond_lvalue_t_metatable(srv, L);
-
 	lua_setmetatable(L, -2);
 	return 1;
 }

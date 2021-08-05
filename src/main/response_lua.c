@@ -122,14 +122,18 @@ static const luaL_Reg response_mt[] = {
 	{ NULL, NULL }
 };
 
-static void init_response_mt(lua_State *L) {
+static HEDLEY_NEVER_INLINE void init_response_mt(lua_State *L) {
 	luaL_register(L, NULL, response_mt);
 }
 
-void li_lua_init_response_mt(lua_State *L) {
+static void lua_push_response_metatable(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_RESPONSE)) {
 		init_response_mt(L);
 	}
+}
+
+void li_lua_init_response_mt(lua_State *L) {
+	lua_push_response_metatable(L);
 	lua_pop(L, 1);
 }
 
@@ -156,10 +160,7 @@ int li_lua_push_response(lua_State *L, liResponse *resp) {
 	presp = (liResponse**) lua_newuserdata(L, sizeof(liResponse*));
 	*presp = resp;
 
-	if (luaL_newmetatable(L, LUA_RESPONSE)) {
-		init_response_mt(L);
-	}
-
+	lua_push_response_metatable(L);
 	lua_setmetatable(L, -2);
 	return 1;
 }

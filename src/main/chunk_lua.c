@@ -9,8 +9,15 @@
 #define LUA_CHUNK "liChunk*"
 #define LUA_CHUNKQUEUE "liChunkQueue*"
 
-static void init_chunk_mt(lua_State *L) {
+static HEDLEY_NEVER_INLINE void init_chunk_mt(lua_State *L) {
 	/* TODO */
+	UNUSED(L);
+}
+
+static void lua_push_chunk_metatable(lua_State *L) {
+	if (luaL_newmetatable(L, LUA_CHUNK)) {
+		init_chunk_mt(L);
+	}
 }
 
 typedef int (*lua_ChunkQueue_Attrib)(liChunkQueue *cq, lua_State *L);
@@ -259,19 +266,21 @@ static const luaL_Reg chunkqueue_mt[] = {
 	{ NULL, NULL }
 };
 
-static void init_chunkqueue_mt(lua_State *L) {
+static HEDLEY_NEVER_INLINE void init_chunkqueue_mt(lua_State *L) {
 	luaL_register(L, NULL, chunkqueue_mt);
 }
 
-void li_lua_init_chunk_mt(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_CHUNK)) {
-		init_chunk_mt(L);
-	}
-	lua_pop(L, 1);
-
+static void lua_push_chunkqueue_metatable(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_CHUNKQUEUE)) {
 		init_chunkqueue_mt(L);
 	}
+}
+
+void li_lua_init_chunk_mt(lua_State *L) {
+	lua_push_chunk_metatable(L);
+	lua_pop(L, 1);
+
+	lua_push_chunkqueue_metatable(L);
 	lua_pop(L, 1);
 }
 
@@ -298,10 +307,7 @@ int li_lua_push_chunk(lua_State *L, liChunk *c) {
 	pc = (liChunk**) lua_newuserdata(L, sizeof(liChunk*));
 	*pc = c;
 
-	if (luaL_newmetatable(L, LUA_CHUNK)) {
-		init_chunk_mt(L);
-	}
-
+	lua_push_chunk_metatable(L);
 	lua_setmetatable(L, -2);
 	return 1;
 }
@@ -329,10 +335,7 @@ int li_lua_push_chunkqueue(lua_State *L, liChunkQueue *cq) {
 	pcq = (liChunkQueue**) lua_newuserdata(L, sizeof(liChunkQueue*));
 	*pcq = cq;
 
-	if (luaL_newmetatable(L, LUA_CHUNKQUEUE)) {
-		init_chunkqueue_mt(L);
-	}
-
+	lua_push_chunkqueue_metatable(L);
 	lua_setmetatable(L, -2);
 	return 1;
 }

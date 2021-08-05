@@ -111,14 +111,18 @@ static const luaL_Reg filter_mt[] = {
 	{ NULL, NULL }
 };
 
-static void init_filter_mt(lua_State *L) {
+static HEDLEY_NEVER_INLINE void init_filter_mt(lua_State *L) {
 	luaL_register(L, NULL, filter_mt);
 }
 
-void li_lua_init_filter_mt(lua_State *L) {
+static void lua_push_filter_metatable(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_FILTER)) {
 		init_filter_mt(L);
 	}
+}
+
+void li_lua_init_filter_mt(lua_State *L) {
+	lua_push_filter_metatable(L);
 	lua_pop(L, 1);
 }
 
@@ -145,10 +149,7 @@ int li_lua_push_filter(lua_State *L, liFilter *f) {
 	pf = (liFilter**) lua_newuserdata(L, sizeof(liFilter*));
 	*pf = f;
 
-	if (luaL_newmetatable(L, LUA_FILTER)) {
-		init_filter_mt(L);
-	}
-
+	lua_push_filter_metatable(L);
 	lua_setmetatable(L, -2);
 	return 1;
 }

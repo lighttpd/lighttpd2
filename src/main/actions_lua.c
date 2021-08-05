@@ -8,18 +8,6 @@
 
 #define LUA_ACTION "liAction*"
 
-liAction* li_lua_get_action(lua_State *L, int ndx) {
-	if (!lua_isuserdata(L, ndx)) return NULL;
-	if (!lua_getmetatable(L, ndx)) return NULL;
-	luaL_getmetatable(L, LUA_ACTION);
-	if (lua_isnil(L, -1) || lua_isnil(L, -2) || !lua_equal(L, -1, -2)) {
-		lua_pop(L, 2);
-		return NULL;
-	}
-	lua_pop(L, 2);
-	return *(liAction**) lua_touserdata(L, ndx);
-}
-
 static int lua_action_gc(lua_State *L) {
 	liServer *srv;
 	liLuaState *LL = li_lua_state_get(L);
@@ -35,6 +23,30 @@ static int lua_action_gc(lua_State *L) {
 	return 0;
 }
 
+static HEDLEY_NEVER_INLINE void init_action_mt(liServer *srv, lua_State *L) {
+	lua_pushlightuserdata(L, srv);
+	lua_pushcclosure(L, lua_action_gc, 1);
+	lua_setfield(L, -2, "__gc");
+}
+
+static void lua_push_action_metatable(liServer *srv, lua_State *L) {
+	if (luaL_newmetatable(L, LUA_ACTION)) {
+		init_action_mt(srv, L);
+	}
+}
+
+liAction* li_lua_get_action(lua_State *L, int ndx) {
+	if (!lua_isuserdata(L, ndx)) return NULL;
+	if (!lua_getmetatable(L, ndx)) return NULL;
+	luaL_getmetatable(L, LUA_ACTION);
+	if (lua_isnil(L, -1) || lua_isnil(L, -2) || !lua_equal(L, -1, -2)) {
+		lua_pop(L, 2);
+		return NULL;
+	}
+	lua_pop(L, 2);
+	return *(liAction**) lua_touserdata(L, ndx);
+}
+
 int li_lua_push_action(liServer *srv, lua_State *L, liAction *a) {
 	liAction **pa;
 
@@ -46,12 +58,7 @@ int li_lua_push_action(liServer *srv, lua_State *L, liAction *a) {
 	pa = (liAction**) lua_newuserdata(L, sizeof(liAction*));
 	*pa = a;
 
-	if (luaL_newmetatable(L, LUA_ACTION)) {
-		lua_pushlightuserdata(L, srv);
-		lua_pushcclosure(L, lua_action_gc, 1);
-		lua_setfield(L, -2, "__gc");
-	}
-
+	lua_push_action_metatable(srv, L);
 	lua_setmetatable(L, -2);
 	return 1;
 }

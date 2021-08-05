@@ -113,14 +113,18 @@ static const luaL_Reg environment_mt[] = {
 	{ NULL, NULL }
 };
 
-static void init_env_mt(lua_State *L) {
+static HEDLEY_NEVER_INLINE void init_env_mt(lua_State *L) {
 	luaL_register(L, NULL, environment_mt);
 }
 
-void li_lua_init_environment_mt(lua_State *L) {
+static void lua_push_environment_metatable(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_ENVIRONMENT)) {
 		init_env_mt(L);
 	}
+}
+
+void li_lua_init_environment_mt(lua_State *L) {
+	lua_push_environment_metatable(L);
 	lua_pop(L, 1);
 }
 
@@ -147,10 +151,7 @@ int li_lua_push_environment(lua_State *L, liEnvironment *env) {
 	penv = (liEnvironment**) lua_newuserdata(L, sizeof(liEnvironment*));
 	*penv = env;
 
-	if (luaL_newmetatable(L, LUA_ENVIRONMENT)) {
-		init_env_mt(L);
-	}
-
+	lua_push_environment_metatable(L);
 	lua_setmetatable(L, -2);
 	return 1;
 }

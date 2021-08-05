@@ -156,14 +156,18 @@ static const luaL_Reg subrequest_mt[] = {
 };
 
 
-static void init_subrequest_mt(lua_State *L) {
+static HEDLEY_NEVER_INLINE void init_subrequest_mt(lua_State *L) {
 	luaL_register(L, NULL, subrequest_mt);
 }
 
-void li_lua_init_subrequest_mt(lua_State *L) {
+static void lua_push_subrequest_metatable(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_SUBREQUEST)) {
 		init_subrequest_mt(L);
 	}
+}
+
+void li_lua_init_subrequest_mt(lua_State *L) {
+	lua_push_subrequest_metatable(L);
 	lua_pop(L, 1);
 }
 
@@ -190,10 +194,7 @@ static int li_lua_push_subrequest(lua_State *L, liSubrequest *sr) {
 	psr = (liSubrequest**) lua_newuserdata(L, sizeof(liSubrequest*));
 	*psr = sr;
 
-	if (luaL_newmetatable(L, LUA_SUBREQUEST)) {
-		init_subrequest_mt(L);
-	}
-
+	lua_push_subrequest_metatable(L);
 	lua_setmetatable(L, -2);
 	return 1;
 }

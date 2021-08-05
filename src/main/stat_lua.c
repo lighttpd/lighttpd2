@@ -206,14 +206,18 @@ static const luaL_Reg stat_mt[] = {
 	{ NULL, NULL }
 };
 
-static void init_stat_mt(lua_State *L) {
+static HEDLEY_NEVER_INLINE void init_stat_mt(lua_State *L) {
 	luaL_register(L, NULL, stat_mt);
 }
 
-void li_lua_init_stat_mt(lua_State *L) {
+static void lua_push_stat_metatable(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_STAT)) {
 		init_stat_mt(L);
 	}
+}
+
+void li_lua_init_stat_mt(lua_State *L) {
+	lua_push_stat_metatable(L);
 	lua_pop(L, 1);
 }
 
@@ -228,10 +232,7 @@ int li_lua_push_stat(lua_State *L, struct stat *st) {
 	pst = (struct stat*) lua_newuserdata(L, sizeof(struct stat));
 	*pst = *st;
 
-	if (luaL_newmetatable(L, LUA_STAT)) {
-		init_stat_mt(L);
-	}
-
+	lua_push_stat_metatable(L);
 	lua_setmetatable(L, -2);
 	return 1;
 }

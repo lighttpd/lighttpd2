@@ -913,6 +913,18 @@ static const luaL_Reg mc_con_mt[] = {
 	{ NULL, NULL }
 };
 
+static HEDLEY_NEVER_INLINE void init_mc_con_mt(lua_State *L) {
+	luaL_register(L, NULL, mc_con_mt);
+	lua_pushvalue(L, -1);
+	lua_setfield(L, -2, "__index");
+}
+
+static void lua_push_mc_con_metatable(lua_State *L) {
+	if (luaL_newmetatable(L, LUA_MEMCACHEDCON)) {
+		init_mc_con_mt(L);
+	}
+}
+
 typedef int (*lua_mc_req_Attrib)(mc_lua_request *req, lua_State *L);
 
 static int lua_mc_req_attr_read_response(mc_lua_request *req, lua_State *L) {
@@ -980,14 +992,14 @@ static const luaL_Reg mc_req_mt[] = {
 	{ NULL, NULL }
 };
 
-static void init_mc_con_mt(lua_State *L) {
-	luaL_register(L, NULL, mc_con_mt);
-	lua_pushvalue(L, -1);
-	lua_setfield(L, -2, "__index");
+static HEDLEY_NEVER_INLINE void init_mc_req_mt(lua_State *L) {
+	luaL_register(L, NULL, mc_req_mt);
 }
 
-static void init_mc_req_mt(lua_State *L) {
-	luaL_register(L, NULL, mc_req_mt);
+static void lua_push_mc_req_metatable(lua_State *L) {
+	if (luaL_newmetatable(L, LUA_MEMCACHEDREQUEST)) {
+		init_mc_req_mt(L);
+	}
 }
 
 static liMemcachedCon* li_lua_get_memcached_con(lua_State *L, int ndx) {
@@ -1021,10 +1033,7 @@ static int li_lua_push_memcached_con(lua_State *L, liMemcachedCon *con) {
 	pcon = (liMemcachedCon**) lua_newuserdata(L, sizeof(liMemcachedCon*));
 	*pcon = con;
 
-	if (luaL_newmetatable(L, LUA_MEMCACHEDCON)) {
-		init_mc_con_mt(L);
-	}
-
+	lua_push_mc_con_metatable(L);
 	lua_setmetatable(L, -2);
 	return 1;
 }
@@ -1072,10 +1081,7 @@ static int li_lua_push_memcached_req(lua_State *L, mc_lua_request *req) {
 	preq = (mc_lua_request**) lua_newuserdata(L, sizeof(mc_lua_request*));
 	*preq = req;
 
-	if (luaL_newmetatable(L, LUA_MEMCACHEDREQUEST)) {
-		init_mc_req_mt(L);
-	}
-
+	lua_push_mc_req_metatable(L);
 	lua_setmetatable(L, -2);
 	return 1;
 }

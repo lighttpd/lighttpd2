@@ -127,14 +127,18 @@ static const luaL_Reg physical_mt[] = {
 	{ NULL, NULL }
 };
 
-static void init_physical_mt(lua_State *L) {
+static HEDLEY_NEVER_INLINE void init_physical_mt(lua_State *L) {
 	luaL_register(L, NULL, physical_mt);
 }
 
-void li_lua_init_physical_mt(lua_State *L) {
+static void lua_push_physical_metatable(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_PHYSICAL)) {
 		init_physical_mt(L);
 	}
+}
+
+void li_lua_init_physical_mt(lua_State *L) {
+	lua_push_physical_metatable(L);
 	lua_pop(L, 1);
 }
 
@@ -161,10 +165,7 @@ int li_lua_push_physical(lua_State *L, liPhysical *phys) {
 	pphys = (liPhysical**) lua_newuserdata(L, sizeof(liPhysical*));
 	*pphys = phys;
 
-	if (luaL_newmetatable(L, LUA_PHYSICAL)) {
-		init_physical_mt(L);
-	}
-
+	lua_push_physical_metatable(L);
 	lua_setmetatable(L, -2);
 	return 1;
 }

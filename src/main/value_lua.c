@@ -57,10 +57,14 @@ fail:
 	return 1;
 }
 
+static HEDLEY_NEVER_INLINE void init_kvlist_mt(lua_State *L) {
+	lua_pushcclosure(L, lua_kvlist_index, 0);
+	lua_setfield(L, -2, "__index");
+}
+
 static void lua_push_kvlist_metatable(lua_State *L) {
 	if (luaL_newmetatable(L, LUA_KVLIST_VALUE)) {
-		lua_pushcclosure(L, lua_kvlist_index, 0);
-		lua_setfield(L, -2, "__index");
+		init_kvlist_mt(L);
 	}
 }
 
@@ -107,7 +111,7 @@ static liValue* li_value_from_lua_table(liServer *srv, lua_State *L, int ndx) {
 			break;
 
 		default:
-			ERROR(srv, "Unexpted key type in table: %s (%i) - skipping entry", lua_typename(L, lua_type(L, -1)), lua_type(L, -1));
+			ERROR(srv, "Unexpected key type in table: %s (%i) - skipping entry", lua_typename(L, lua_type(L, -1)), lua_type(L, -1));
 			lua_pop(L, 1);
 			break;
 		}
