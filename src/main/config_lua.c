@@ -46,26 +46,30 @@ static int _lua_dynamic_hash_index_call(lua_State *L) {
 static int _lua_dynamic_hash_index(lua_State *L) {
 	int key_ndx;
 
-	lua_pushvalue(L, lua_upvalueindex(4));
+	/* upvalues: 1: srv, 2: wrk, 3: "wrapper", 4: key prefix */
+
+	/* concat key prefix and new sub key */
+	lua_pushvalue(L, lua_upvalueindex(4)); /* key prefix */
 	lua_pushvalue(L, 2);
 	lua_concat(L, 2);
 	key_ndx = lua_gettop(L);
 
-	lua_newtable(L); /* result */
+	lua_newuserdata(L, 0); /* result: zero-sized userdata object */
 	lua_newtable(L); /* meta table */
+	li_lua_protect_metatable(L);
 
 	/* call method */
-	lua_pushvalue(L, lua_upvalueindex(1));
-	lua_pushvalue(L, lua_upvalueindex(2));
-	lua_pushvalue(L, lua_upvalueindex(3));
+	lua_pushvalue(L, lua_upvalueindex(1)); /* srv */
+	lua_pushvalue(L, lua_upvalueindex(2)); /* wrk */
+	lua_pushvalue(L, lua_upvalueindex(3)); /* wrapper */
 	lua_pushvalue(L, key_ndx);
 	lua_pushcclosure(L, _lua_dynamic_hash_index_call, 4);
 	lua_setfield(L, -2, "__call");
 
 	/* index for "nested" keys */
-	lua_pushvalue(L, lua_upvalueindex(1));
-	lua_pushvalue(L, lua_upvalueindex(2));
-	lua_pushvalue(L, lua_upvalueindex(3));
+	lua_pushvalue(L, lua_upvalueindex(1)); /* srv */
+	lua_pushvalue(L, lua_upvalueindex(2)); /* wrk */
+	lua_pushvalue(L, lua_upvalueindex(3)); /* wrapper */
 	lua_pushvalue(L, key_ndx); /* append a "." to the current key for nesting */
 	lua_pushstring(L, ".");
 	lua_concat(L, 2);
@@ -78,14 +82,17 @@ static int _lua_dynamic_hash_index(lua_State *L) {
 }
 
 static void lua_push_dynamic_hash(liServer *srv, liWorker *wrk, lua_State *L, LuaWrapper wrapper) {
-	lua_newtable(L);
+	lua_newuserdata(L, 0); /* result: zero-sized userdata object */
 	lua_newtable(L); /* meta table */
+	li_lua_protect_metatable(L);
+
 	lua_pushlightuserdata(L, srv);
 	lua_pushlightuserdata(L, wrk);
 	lua_pushlightuserdata(L, (void*)(intptr_t) wrapper);
 	lua_pushstring(L, ""); /* nesting starts at "root" with empty string */
 	lua_pushcclosure(L, _lua_dynamic_hash_index, 4);
 	lua_setfield(L, -2, "__index");
+
 	lua_setmetatable(L, -2);
 }
 

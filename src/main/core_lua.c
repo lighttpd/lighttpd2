@@ -428,6 +428,7 @@ void li_lua_new_globals(lua_State *L) {
 
 	/* metatable for new global env, link old globals as readonly */
 	lua_newtable(L); /* +1 */
+	/* TODO: protect metatable? */
 	lua_pushvalue(L, LUA_GLOBALSINDEX); /* +1 */
 	lua_setfield(L, -2, "__index"); /* -1 */
 	lua_setmetatable(L, -2); /* -1 */

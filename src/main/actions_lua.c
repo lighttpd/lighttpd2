@@ -185,6 +185,7 @@ liAction* li_lua_make_action(lua_State *L, int ndx) {
 	lua_newtable(L); /* +1 */
 		/* new mt */
 		lua_newtable(L); /* +1 */
+		/* TODO: protect metatable? */
 		lua_getfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_GLOBALS); /* +1 */
 		lua_setfield(L, -2, "__index"); /* -1 */
 		lua_setmetatable(L, -2); /* -1 */
