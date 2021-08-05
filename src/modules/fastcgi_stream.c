@@ -26,7 +26,7 @@ enum FCGI_Type {
 
 enum FCGI_Flags {
 	FCGI_KEEP_CONN  = 1
-};
+} HEDLEY_FLAGS;
 
 enum FCGI_Role {
 	FCGI_RESPONDER  = 1,

@@ -156,11 +156,11 @@ LI_API void li_log_context_set(liLogContext *context, liLogMap *log_map);
 
 LI_API gboolean li_log_write_direct(liServer *srv, liWorker *wrk, GString *path, GString *msg);
 /* li_log_write is used to write to the errorlog */
-LI_API gboolean li_log_write(liServer *srv, liWorker *wrk, liLogContext* context, liLogLevel log_level, guint flags, const gchar *fmt, ...) G_GNUC_PRINTF(6, 7);
+LI_API gboolean li_log_write(liServer *srv, liWorker *wrk, liLogContext* context, liLogLevel log_level, guint flags, const gchar *fmt, ...) HEDLEY_PRINTF_FORMAT(6, 7);
 
 /* replaces '\r' and '\n' with '\0' */
 LI_API void li_log_split_lines(liServer *srv, liWorker *wrk, liLogContext* context, liLogLevel log_level, guint flags, gchar *txt, const gchar *prefix);
-LI_API void li_log_split_lines_(liServer *srv, liWorker *wrk, liLogContext* context, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) G_GNUC_PRINTF(7, 8);
+LI_API void li_log_split_lines_(liServer *srv, liWorker *wrk, liLogContext* context, liLogLevel log_level, guint flags, gchar *txt, const gchar *fmt, ...) HEDLEY_PRINTF_FORMAT(7, 8);
 
 
 #endif

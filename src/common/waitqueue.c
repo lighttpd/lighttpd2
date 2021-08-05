@@ -34,7 +34,7 @@ void li_waitqueue_update(liWaitQueue *queue) {
 	li_tstamp repeat;
 	li_tstamp now = li_event_now(li_event_get_loop(&queue->timer));
 
-	if (G_LIKELY(queue->head)) {
+	if (HEDLEY_LIKELY(queue->head)) {
 		repeat = queue->head->ts + queue->delay - now;
 
 		if (repeat < 0.05) repeat = 0.05;
@@ -85,7 +85,7 @@ void li_waitqueue_push(liWaitQueue *queue, liWaitQueueElem *elem) {
 		queue->tail = elem;
 	}
 
-	if (G_UNLIKELY(!li_event_active(&queue->timer)))
+	if (HEDLEY_UNLIKELY(!li_event_active(&queue->timer)))
 		li_event_timer_once(&queue->timer, queue->delay);
 }
 
@@ -150,7 +150,7 @@ void li_waitqueue_remove(liWaitQueue *queue, liWaitQueueElem *elem) {
 	elem->queued = FALSE;
 	queue->length--;
 
-	if (G_UNLIKELY(!queue->head))
+	if (HEDLEY_UNLIKELY(!queue->head))
 		li_event_stop(&queue->timer);
 }
 

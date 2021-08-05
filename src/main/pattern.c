@@ -240,7 +240,7 @@ void li_pattern_free(liPattern *pattern) {
 		part = &g_array_index(arr, liPatternPart, i);
 		switch (part->type) {
 		case PATTERN_STRING: g_string_free(part->data.str, TRUE); break;
-		case PATTERN_VAR_ENCODED: /* fall through */
+		case PATTERN_VAR_ENCODED: HEDLEY_FALL_THROUGH;
 		case PATTERN_VAR: li_condition_lvalue_release(part->data.lvalue); break;
 		default: break;
 		}
@@ -277,7 +277,7 @@ void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatter
 			break;
 		case PATTERN_VAR_ENCODED:
 			encoded = TRUE;
-			/* fall through */
+			HEDLEY_FALL_THROUGH;
 		case PATTERN_VAR:
 			if (vr == NULL) continue;
 
@@ -305,7 +305,7 @@ void li_pattern_array_cb(GString *pattern_result, guint from, guint to, gpointer
 
 	if (NULL == a || 0 == a->len) return;
 
-	if (G_LIKELY(from <= to)) {
+	if (HEDLEY_LIKELY(from <= to)) {
 		to = MIN(to, a->len - 1);
 		for (i = from; i <= to; i++) {
 			GString *str = g_array_index(a, GString*, i);
@@ -331,7 +331,7 @@ void li_pattern_regex_cb(GString *pattern_result, guint from, guint to, gpointer
 
 	if (NULL == match_info) return;
 
-	if (G_LIKELY(from <= to)) {
+	if (HEDLEY_LIKELY(from <= to)) {
 		to = MIN(to, G_MAXINT);
 		for (i = from; i <= to; i++) {
 			if (g_match_info_fetch_pos(match_info, (gint) i, &start_pos, &end_pos)) {

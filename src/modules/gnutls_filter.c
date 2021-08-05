@@ -314,7 +314,7 @@ static void do_gnutls_read(liGnuTLSFilter *f) {
 
 		if (buf != NULL) {
 			/* use last buffer as raw_in_buffer; they should be the same anyway */
-			if (G_UNLIKELY(buf != f->raw_in_buffer)) {
+			if (HEDLEY_UNLIKELY(buf != f->raw_in_buffer)) {
 				li_buffer_acquire(buf);
 				li_buffer_release(f->raw_in_buffer);
 				f->raw_in_buffer = buf;
@@ -427,7 +427,7 @@ static void do_gnutls_write(liGnuTLSFilter *f) {
 				_ERROR(f->srv, f->wrk, f->log_context, "Couldn't read data from chunkqueue: %s", err->message);
 				g_error_free(err);
 			}
-			/* fall through */
+			HEDLEY_FALL_THROUGH;
 		default:
 			f_abort_gnutls(f);
 			goto out;

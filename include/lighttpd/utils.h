@@ -10,11 +10,11 @@ typedef enum {
 } liCounterType;
 
 /* log message, print backtrace, and abort() (use LI_FATAL(msg) to call it) */
-LI_API void li_fatal(const char *filename, unsigned int line, const char *function, const char *msg) G_GNUC_NORETURN;
+LI_API void li_fatal(const char *filename, unsigned int line, const char *function, const char *msg) HEDLEY_NO_RETURN;
 /* if libunwind is available this prints a backtrace to STDERR */
 LI_API void li_print_backtrace_stderr(void);
 /* LI_FORCE_ASSERT is *always* active - in debug and release builds */
-#define LI_FORCE_ASSERT(x) do { if (G_UNLIKELY(!(x))) li_fatal(__FILE__, __LINE__, G_STRFUNC, "Assertion `" #x "' failed."); } while(0)
+#define LI_FORCE_ASSERT(x) do { if (HEDLEY_UNLIKELY(!(x))) li_fatal(__FILE__, __LINE__, G_STRFUNC, "Assertion `" #x "' failed."); } while(0)
 #define LI_FATAL(msg) li_fatal(__FILE__, __LINE__, G_STRFUNC, msg)
 
 /* set O_NONBLOCK and FD_CLOEXEC */

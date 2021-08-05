@@ -55,7 +55,7 @@ enum {
 	SE_CLIENT_CERT = 0x2,
 	SE_SERVER      = 0x4,
 	SE_SERVER_CERT = 0x8
-};
+} HEDLEY_FLAGS;
 
 static openssl_context* mod_openssl_context_new(void) {
 	openssl_context *ctx = g_slice_new0(openssl_context);

@@ -34,7 +34,7 @@
 
 #define sockread( fd, buf, bytes ) recv( fd, buf, bytes, 0 )
 
-LI_EXPORT const char * inet_ntop(int af, const void *src, char *dst, socklen_t cnt);
+LI_API const char * inet_ntop(int af, const void *src, char *dst, socklen_t cnt);
 int inet_aton(const char *cp, struct in_addr *inp);
 #define HAVE_INET_ADDR
 #undef HAVE_INET_ATON

@@ -267,7 +267,7 @@ gboolean li_http_header_tokenizer_next(liHttpHeaderTokenizer *tokenizer, GString
 			++pos;
 			if (pos >= len) return FALSE; /* no character after backslash */
 			/* append whatever comes */
-			/* fallthrough */
+			HEDLEY_FALL_THROUGH;
 		default:
 			g_string_append_c(token, str[pos]);
 			break;
@@ -285,7 +285,7 @@ quoted:
 			++pos;
 			if (pos >= len) return FALSE; /* no character after backslash */
 			/* append whatever comes */
-			/* fallthrough */
+			HEDLEY_FALL_THROUGH;
 		default:
 			g_string_append_c(token, str[pos]);
 			break;

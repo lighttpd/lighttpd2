@@ -103,19 +103,19 @@ static void throttle_pool_rearm(liWorker *wrk, liThrottlePool *pool, guint now) 
 	guint last = g_atomic_int_get((gint*) &pool->last_rearm);
 	guint time_diff = now - last;
 
-	if (G_UNLIKELY(time_diff >= LI_THROTTLE_GRANULARITY)) {
+	if (HEDLEY_UNLIKELY(time_diff >= LI_THROTTLE_GRANULARITY)) {
 		g_mutex_lock(pool->rearm_mutex);
 			/* check again */
 			last = g_atomic_int_get((gint*) &pool->last_rearm);
 			time_diff = now - last;
-			if (G_LIKELY(time_diff >= LI_THROTTLE_GRANULARITY)) {
+			if (HEDLEY_LIKELY(time_diff >= LI_THROTTLE_GRANULARITY)) {
 				S_throttle_pool_rearm_workers(pool, wrk->srv->worker_count, time_diff);
 				g_atomic_int_set((gint*) &pool->last_rearm, now);
 			}
 		g_mutex_unlock(pool->rearm_mutex);
 	}
 
-	if (G_UNLIKELY(wpool->last_rearm < last)) {
+	if (HEDLEY_UNLIKELY(wpool->last_rearm < last)) {
 		/* distribute wpool->magazine */
 		GList *lnk;
 		guint connections = wpool->connections;

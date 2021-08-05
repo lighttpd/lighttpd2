@@ -207,7 +207,7 @@ gboolean li_log_write_direct(liServer *srv, liWorker *wrk, GString *path, GStrin
 	log_entry->queue_link.next = NULL;
 	log_entry->queue_link.prev = NULL;
 
-	if (G_LIKELY(wrk)) {
+	if (HEDLEY_LIKELY(wrk)) {
 		/* push onto local worker log queue */
 		g_queue_push_tail_link(&wrk->logs.log_queue, &log_entry->queue_link);
 	} else {
@@ -273,7 +273,7 @@ gboolean li_log_write(liServer *srv, liWorker *wrk, liLogContext *context, liLog
 	log_entry->queue_link.next = NULL;
 	log_entry->queue_link.prev = NULL;
 
-	if (G_LIKELY(wrk)) {
+	if (HEDLEY_LIKELY(wrk)) {
 		/* push onto local worker log queue */
 		g_queue_push_tail_link(&wrk->logs.log_queue, &log_entry->queue_link);
 	} else {

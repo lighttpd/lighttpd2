@@ -120,7 +120,7 @@ struct liConditionTree {
 	liConditionTree *left, *right;
 };
 
-static liConfigToken tokenizer_error(liConfigTokenizerContext *ctx, GError **error, const char *fmt, ...) G_GNUC_PRINTF(3, 4);
+static liConfigToken tokenizer_error(liConfigTokenizerContext *ctx, GError **error, const char *fmt, ...) HEDLEY_PRINTF_FORMAT(3, 4);
 
 GQuark li_config_error_quark(void) {
 	return g_quark_from_string("li-config-error-quark");

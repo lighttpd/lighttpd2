@@ -158,7 +158,7 @@ static inline gsize mp_align_size(gsize size) {
 }
 
 gsize li_mempool_align_page_size(gsize size) {
-	if (G_UNLIKELY(!mp_initialized)) {
+	if (HEDLEY_UNLIKELY(!mp_initialized)) {
 		mempool_init();
 	}
 	return mp_align_size(size);
@@ -167,17 +167,17 @@ gsize li_mempool_align_page_size(gsize size) {
 static inline void* mp_alloc_page(gsize size) {
 	void *ptr;
 # ifdef MAP_ANON
-	if (G_UNLIKELY(MAP_FAILED == (ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0)))) {
+	if (HEDLEY_UNLIKELY(MAP_FAILED == (ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0)))) {
 		g_error ("%s: failed to allocate %"G_GSIZE_FORMAT" bytes with mmap", G_STRLOC, size);
 	}
 # else
-	if (G_UNLIKELY(NULL == (ptr = g_malloc(size)))) {
+	if (HEDLEY_UNLIKELY(NULL == (ptr = g_malloc(size)))) {
 		g_error ("%s: failed to allocate %"G_GSIZE_FORMAT" bytes", G_STRLOC, size);
 	}
 # endif
 
 #ifdef WITH_PROFILER
-	if (G_UNLIKELY(li_profiler_enabled)) {
+	if (HEDLEY_UNLIKELY(li_profiler_enabled)) {
 		li_profiler_hashtable_insert((gpointer)ptr, size);
 	}
 #endif
@@ -195,7 +195,7 @@ static inline void mp_free_page(const void *ptr, gsize size) {
 # endif
 
 #ifdef WITH_PROFILER
-	if (G_UNLIKELY(li_profiler_enabled)) {
+	if (HEDLEY_UNLIKELY(li_profiler_enabled)) {
 		li_profiler_hashtable_remove((gpointer)ptr);
 	}
 #endif
@@ -299,7 +299,7 @@ static inline void mp_mag_free(mp_magazine *mag, void *ptr) {
 	if (id == mag->next - 1) mag->next--; /* if chunk was just allocated, "undo" it */
 # endif
 
-	if (G_UNLIKELY(0 == mag->used)) {
+	if (HEDLEY_UNLIKELY(0 == mag->used)) {
 		mp_free_page(mag->data, mag->count * mag->chunksize);
 		mag->data = NULL;
 # ifndef MP_SEARCH_BITVECTOR
@@ -363,16 +363,16 @@ static inline mp_pool* mp_pools_get(gsize size) {
 	mp_pool *pool;
 
 	pools = g_private_get(thread_pools);
-	if (G_UNLIKELY(!pools)) {
+	if (HEDLEY_UNLIKELY(!pools)) {
 		pools = g_slice_new0(mp_pools);
 		g_private_set(thread_pools, pools);
 	}
 
 	for (iter = pools->queue.head; iter; iter = iter->next) {
 		pool = iter->data;
-		if (G_LIKELY(pool->chunksize == size)) {
+		if (HEDLEY_LIKELY(pool->chunksize == size)) {
 			goto done;
-		} else if (G_UNLIKELY(pool->chunksize > size)) {
+		} else if (HEDLEY_UNLIKELY(pool->chunksize > size)) {
 			pool = mp_pool_new(size);
 			_queue_insert_before(&pools->queue, iter, &pool->pools_list);
 			goto done;
@@ -392,15 +392,15 @@ liMempoolPtr li_mempool_alloc(gsize size) {
 	mp_magazine *mag;
 	guint i;
 
-	if (G_UNLIKELY(!mp_initialized)) {
+	if (HEDLEY_UNLIKELY(!mp_initialized)) {
 		mempool_init();
 	}
 
 	size = mp_align_size(size);
 
 	/* mp_alloc_page fallback */
-	if (G_UNLIKELY(size > MP_MAX_ALLOC_SIZE/MP_MIN_ALLOC_COUNT)) {
-		if (G_UNLIKELY(NULL == (ptr.data = mp_alloc_page(size)))) {
+	if (HEDLEY_UNLIKELY(size > MP_MAX_ALLOC_SIZE/MP_MIN_ALLOC_COUNT)) {
+		if (HEDLEY_UNLIKELY(NULL == (ptr.data = mp_alloc_page(size)))) {
 			g_error ("%s: failed to allocate %"G_GSIZE_FORMAT" bytes", G_STRLOC, size);
 		}
 		return ptr;
@@ -411,12 +411,12 @@ liMempoolPtr li_mempool_alloc(gsize size) {
 	/* Try to lock a unlocked magazine if possible; creating new magazines is allowed
 	 * (new ones can't be locked as only the current thread knows this magazine)
 	 * Spinlock the first magazine if first strategy failed */
-	if (G_LIKELY(pool->magazines[0])) {
+	if (HEDLEY_LIKELY(pool->magazines[0])) {
 		/* at least one magazine available */
 		for (i = 0; i < MP_MAX_MAGAZINES; i++) {
 			mag = pool->magazines[i];
 			if (!mag) break;
-			if (G_LIKELY(MP_TRYLOCK(mag->mutex))) {
+			if (HEDLEY_LIKELY(MP_TRYLOCK(mag->mutex))) {
 				goto found_mag;
 			}
 		}
@@ -436,9 +436,9 @@ found_mag:
 	mp_mag_acquire(mag); /* keep track of chunk count */
 
 # ifndef MP_SEARCH_BITVECTOR
-	if (G_UNLIKELY(mag->next == mag->count)) {
+	if (HEDLEY_UNLIKELY(mag->next == mag->count)) {
 # else
-	if (G_UNLIKELY(mag->used == mag->count)) {
+	if (HEDLEY_UNLIKELY(mag->used == mag->count)) {
 # endif
 		/* full magazine; remove from pool */
 		guint j;
@@ -468,7 +468,7 @@ void li_mempool_free(liMempoolPtr ptr, gsize size) {
 	size = mp_align_size(size);
 
 	/* mp_alloc_page fallback */
-	if (G_UNLIKELY(size > MP_MAX_ALLOC_SIZE/MP_MIN_ALLOC_COUNT)) {
+	if (HEDLEY_UNLIKELY(size > MP_MAX_ALLOC_SIZE/MP_MIN_ALLOC_COUNT)) {
 		mp_free_page(ptr.data, size);
 		return;
 	}
@@ -486,7 +486,7 @@ void li_mempool_cleanup(void) {
 	/* "Force" thread-private cleanup */
 	mp_pools *pools;
 
-	if (G_UNLIKELY(!mp_initialized)) {
+	if (HEDLEY_UNLIKELY(!mp_initialized)) {
 		mempool_init();
 	}
 

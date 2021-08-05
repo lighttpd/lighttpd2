@@ -1,6 +1,8 @@
 #ifndef _LIGHTTPD_SETTINGS_H_
 #define _LIGHTTPD_SETTINGS_H_
 
+#include <lighttpd/hedley.h>
+
 /* check which OS we are compiling for */
 #if defined(__BEOS__)
 # define LIGHTY_OS_BEOS
@@ -163,57 +165,15 @@
 # define USE_WRITE
 #endif
 
-/* Shared library support */
-#ifdef _WIN32
-  #define LI_IMPORT __declspec(dllimport)
-  #define LI_EXPORT __declspec(dllexport)
-  #define LI_DLLLOCAL
-  #define LI_DLLPUBLIC
-#else
-  #define LI_IMPORT
-  #ifdef GCC_HASCLASSVISIBILITY
-    #define LI_EXPORT __attribute__ ((visibility("default")))
-    #define LI_DLLLOCAL __attribute__ ((visibility("hidden")))
-    #define LI_DLLPUBLIC __attribute__ ((visibility("default")))
-  #else
-    #define LI_EXPORT
-    #define LI_DLLLOCAL
-    #define LI_DLLPUBLIC
-  #endif
-#endif
-
 #ifdef LI_DECLARE_EXPORTS
-#define LI_API LI_EXPORT
+# define LI_API HEDLEY_PUBLIC
 #else
-#define LI_API LI_IMPORT
-#endif
-
-/* Throwable classes must always be visible on GCC in all binaries */
-#ifdef _WIN32
-  #define LI_EXCEPTIONAPI(api) api
-#elif defined(GCC_HASCLASSVISIBILITY)
-  #define LI_EXCEPTIONAPI(api) LI_EXPORT
-#else
-  #define LI_EXCEPTIONAPI(api)
-#endif
-
-#ifdef UNUSED_PARAM
-#elif defined(__GNUC__)
-# define UNUSED_PARAM(x) UNUSED_ ## x __attribute__((unused))
-#elif defined(__LCLINT__)
-# define UNUSED_PARAM(x) /*@unused@*/ x
-#else
-# define UNUSED_PARAM(x) x
+# define LI_API HEDLEY_IMPORT
 #endif
 
 #define UNUSED(x) ( (void)(x) )
 
-#if __GNUC__
-#define INLINE static inline
-/* # define INLINE extern inline */
-#else
-# define INLINE static
-#endif
+#define INLINE static HEDLEY_INLINE
 
 #ifdef PACKAGE_NO_BUILD_DATE
 # undef PACKAGE_BUILD_DATE

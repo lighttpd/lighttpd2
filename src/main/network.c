@@ -98,7 +98,7 @@ liNetworkStatus li_network_read(int fd, liChunkQueue *cq, goffset read_max, liBu
 		if (NULL != buffer) {
 			if (buf != NULL) {
 				/* use last buffer as *buffer; they should be the same anyway */
-				if (G_UNLIKELY(buf != *buffer)) {
+				if (HEDLEY_UNLIKELY(buf != *buffer)) {
 					li_buffer_acquire(buf);
 					li_buffer_release(*buffer);
 					*buffer = buf;

@@ -8,7 +8,7 @@ enum {
 	LI_EV_READ    = 0x01,
 	LI_EV_WRITE   = 0x02,
 	LI_EV_WAKEUP  = 0x04
-};
+} HEDLEY_FLAGS;
 
 typedef enum {
 	LI_EVT_NONE = 0,

@@ -186,9 +186,9 @@ static liAction* lua_handler_create(liServer *srv, liWorker *wrk, liPlugin* p, l
 		v_filename = val;
 	} else if (LI_VALUE_LIST == li_value_type(val)) {
 		switch (li_value_list_len(val)) {
-		case 3: v_args     = li_value_list_at(val, 2); /* fall through */
-		case 2: v_options  = li_value_list_at(val, 1); /* fall through */
-		case 1: v_filename = li_value_list_at(val, 0); /* fall through */
+		case 3: v_args     = li_value_list_at(val, 2); HEDLEY_FALL_THROUGH;
+		case 2: v_options  = li_value_list_at(val, 1); HEDLEY_FALL_THROUGH;
+		case 1: v_filename = li_value_list_at(val, 0); HEDLEY_FALL_THROUGH;
 		case 0: break;
 		default:
 			ERROR(srv, "%s", "lua.handler expects at most 3 arguments");
@@ -525,9 +525,9 @@ static gboolean lua_plugin(liServer *srv, liPlugin *p, liValue *val, gpointer us
 		v_filename = val;
 	} else if (LI_VALUE_LIST == li_value_type(val)) {
 		switch (li_value_list_len(val)) {
-		case 3: v_args     = li_value_list_at(val, 2); /* fall through */
-		case 2: v_options  = li_value_list_at(val, 1); /* fall through */
-		case 1: v_filename = li_value_list_at(val, 0); /* fall through */
+		case 3: v_args     = li_value_list_at(val, 2); HEDLEY_FALL_THROUGH;
+		case 2: v_options  = li_value_list_at(val, 1); HEDLEY_FALL_THROUGH;
+		case 1: v_filename = li_value_list_at(val, 0); HEDLEY_FALL_THROUGH;
 		case 0: break;
 		default:
 			ERROR(srv, "%s", "lua.plugin expects at most 3 arguments");
