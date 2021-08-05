@@ -1,9 +1,6 @@
 
 #include <lighttpd/core_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
 #define LUA_RESPONSE "liResponse*"
 
 typedef int (*lua_Response_Attrib)(liResponse *resp, lua_State *L);
@@ -127,7 +124,7 @@ static HEDLEY_NEVER_INLINE void init_response_mt(lua_State *L) {
 }
 
 static void lua_push_response_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_RESPONSE)) {
+	if (li_lua_new_protected_metatable(L, LUA_RESPONSE)) {
 		init_response_mt(L);
 	}
 }

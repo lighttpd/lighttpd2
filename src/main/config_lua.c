@@ -6,9 +6,6 @@
 
 #include <lighttpd/core_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
 typedef int (*LuaWrapper)(liServer *srv, liWorker *wrk, lua_State *L, const char *key);
 
 static liValue* lua_params_to_value(liServer *srv, lua_State *L) {

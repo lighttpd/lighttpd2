@@ -3,9 +3,6 @@
 #include <lighttpd/config_lua.h>
 #include <lighttpd/core_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
 #define LUA_ACTION "liAction*"
 
 static int lua_action_gc(lua_State *L) {
@@ -30,7 +27,7 @@ static HEDLEY_NEVER_INLINE void init_action_mt(liServer *srv, lua_State *L) {
 }
 
 static void lua_push_action_metatable(liServer *srv, lua_State *L) {
-	if (luaL_newmetatable(L, LUA_ACTION)) {
+	if (li_lua_new_protected_metatable(L, LUA_ACTION)) {
 		init_action_mt(srv, L);
 	}
 }

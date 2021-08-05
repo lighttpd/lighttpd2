@@ -4,9 +4,6 @@
 #include <lighttpd/condition_lua.h>
 #include <lighttpd/value_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
 liLuaState *li_lua_state_get(lua_State *L) {
 	liLuaState *LL;
 

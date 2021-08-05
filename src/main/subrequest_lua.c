@@ -2,9 +2,6 @@
 #include <lighttpd/core_lua.h>
 #include <lighttpd/actions_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
 typedef struct liSubrequest liSubrequest;
 struct liSubrequest {
 	liWorker *wrk;
@@ -161,7 +158,7 @@ static HEDLEY_NEVER_INLINE void init_subrequest_mt(lua_State *L) {
 }
 
 static void lua_push_subrequest_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_SUBREQUEST)) {
+	if (li_lua_new_protected_metatable(L, LUA_SUBREQUEST)) {
 		init_subrequest_mt(L);
 	}
 }

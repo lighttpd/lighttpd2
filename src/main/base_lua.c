@@ -4,7 +4,6 @@
 #ifdef HAVE_LUA_H
 # include <lighttpd/core_lua.h>
 # include <lualib.h>
-# include <lauxlib.h>
 #endif
 
 #ifdef HAVE_LUA_H

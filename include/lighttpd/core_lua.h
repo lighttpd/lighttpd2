@@ -3,6 +3,7 @@
 
 #include <lighttpd/base.h>
 #include <lua.h>
+#include <lauxlib.h>
 
 #define LI_LUA_REGISTRY_STATE   "lighttpd.state"
 #define LI_LUA_REGISTRY_SERVER  "lighttpd.server"
@@ -16,6 +17,7 @@ INLINE void li_lua_unlock(liLuaState *LL);
 
 /* expect (meta)table at top of the stack */
 INLINE void li_lua_protect_metatable(lua_State *L);
+INLINE int li_lua_new_protected_metatable(lua_State *L, const char *tname);
 
 /* chunk_lua.c */
 LI_API void li_lua_init_chunk_mt(lua_State *L);
@@ -144,6 +146,14 @@ INLINE void li_lua_protect_metatable(lua_State *L) {
 	/* __metatable key prevents accessing metatable of objects/tables in normal lua code */
 	lua_pushboolean(L, FALSE);
 	lua_setfield(L, -2, "__metatable");
+}
+
+INLINE int li_lua_new_protected_metatable(lua_State *L, const char *tname) {
+	int r = luaL_newmetatable(L, tname);
+	if (r) {
+		li_lua_protect_metatable(L);
+	}
+	return r;
 }
 
 #endif

@@ -3,9 +3,6 @@
 #include <lighttpd/core_lua.h>
 #include <lighttpd/actions_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
 #define LUA_FILTER "liFilter*"
 
 typedef int (*lua_Filter_Attrib)(liFilter *f, lua_State *L);
@@ -116,7 +113,7 @@ static HEDLEY_NEVER_INLINE void init_filter_mt(lua_State *L) {
 }
 
 static void lua_push_filter_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_FILTER)) {
+	if (li_lua_new_protected_metatable(L, LUA_FILTER)) {
 		init_filter_mt(L);
 	}
 }

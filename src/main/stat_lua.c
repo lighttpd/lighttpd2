@@ -1,10 +1,6 @@
 
 #include <lighttpd/core_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
-
 /* struct stat */
 #define LUA_STAT "struct stat"
 
@@ -211,7 +207,7 @@ static HEDLEY_NEVER_INLINE void init_stat_mt(lua_State *L) {
 }
 
 static void lua_push_stat_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_STAT)) {
+	if (li_lua_new_protected_metatable(L, LUA_STAT)) {
 		init_stat_mt(L);
 	}
 }

@@ -16,8 +16,6 @@
 
 #ifdef HAVE_LUA_H
 # include <lighttpd/core_lua.h>
-# include <lualib.h>
-# include <lauxlib.h>
 #endif
 
 LI_API gboolean mod_memcached_init(liModules *mods, liModule *mod);
@@ -920,7 +918,7 @@ static HEDLEY_NEVER_INLINE void init_mc_con_mt(lua_State *L) {
 }
 
 static void lua_push_mc_con_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_MEMCACHEDCON)) {
+	if (li_lua_new_protected_metatable(L, LUA_MEMCACHEDCON)) {
 		init_mc_con_mt(L);
 	}
 }
@@ -997,7 +995,7 @@ static HEDLEY_NEVER_INLINE void init_mc_req_mt(lua_State *L) {
 }
 
 static void lua_push_mc_req_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_MEMCACHEDREQUEST)) {
+	if (li_lua_new_protected_metatable(L, LUA_MEMCACHEDREQUEST)) {
 		init_mc_req_mt(L);
 	}
 }

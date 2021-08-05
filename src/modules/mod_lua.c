@@ -18,9 +18,6 @@
 #include <lighttpd/value_lua.h>
 #include <lighttpd/actions_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
 #ifndef DEFAULT_LUADIR
 #define DEFAULT_LUADIR "/usr/local/share/lighttpd2/lua"
 #endif

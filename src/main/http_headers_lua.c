@@ -1,9 +1,6 @@
 
 #include <lighttpd/core_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
 #define LUA_HTTPHEADERS "liHttpHeaders*"
 
 static int lua_http_headers_get(lua_State *L) {
@@ -206,7 +203,7 @@ static HEDLEY_NEVER_INLINE void init_http_headers_mt(lua_State *L) {
 }
 
 static void lua_push_http_headers_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_HTTPHEADERS)) {
+	if (li_lua_new_protected_metatable(L, LUA_HTTPHEADERS)) {
 		init_http_headers_mt(L);
 	}
 }

@@ -2,9 +2,6 @@
 #include <lighttpd/core_lua.h>
 #include <lighttpd/actions_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
 #define LUA_VREQUEST "liVRequest*"
 
 typedef int (*lua_VRequest_Attrib)(liVRequest *vr, lua_State *L);
@@ -345,7 +342,7 @@ static HEDLEY_NEVER_INLINE void init_vrequest_mt(lua_State *L) {
 }
 
 static void lua_push_vrequest_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_VREQUEST)) {
+	if (li_lua_new_protected_metatable(L, LUA_VREQUEST)) {
 		init_vrequest_mt(L);
 	}
 }
@@ -493,7 +490,7 @@ static HEDLEY_NEVER_INLINE void init_coninfo_mt(lua_State *L) {
 }
 
 static void lua_push_coninfo_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_CONINFO)) {
+	if (li_lua_new_protected_metatable(L, LUA_CONINFO)) {
 		init_coninfo_mt(L);
 	}
 }

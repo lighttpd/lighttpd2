@@ -1,9 +1,6 @@
 
 #include <lighttpd/core_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
 #define LUA_REQUEST "liRequest*"
 #define LUA_REQUESTURI "liRequestUri*"
 
@@ -148,7 +145,7 @@ static HEDLEY_NEVER_INLINE void init_request_mt(lua_State *L) {
 }
 
 static void lua_push_request_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_REQUEST)) {
+	if (li_lua_new_protected_metatable(L, LUA_REQUEST)) {
 		init_request_mt(L);
 	}
 }
@@ -289,7 +286,7 @@ static HEDLEY_NEVER_INLINE void init_requesturi_mt(lua_State *L) {
 }
 
 static void lua_push_requesturi_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_REQUESTURI)) {
+	if (li_lua_new_protected_metatable(L, LUA_REQUESTURI)) {
 		init_requesturi_mt(L);
 	}
 }

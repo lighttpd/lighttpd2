@@ -1,9 +1,7 @@
 
+#include <lighttpd/core_lua.h>
 #include <lighttpd/condition_lua.h>
 #include <lighttpd/value_lua.h>
-
-#include <lualib.h>
-#include <lauxlib.h>
 
 #define LUA_CONDITION "liCondition*"
 #define LUA_COND_LVALUE "liConditionLValue*"
@@ -118,7 +116,7 @@ static HEDLEY_NEVER_INLINE void init_condition_mt(liServer *srv, lua_State *L) {
 }
 
 static void lua_push_condition_metatable(liServer *srv, lua_State *L) {
-	if (luaL_newmetatable(L, LUA_CONDITION)) {
+	if (li_lua_new_protected_metatable(L, LUA_CONDITION)) {
 		init_condition_mt(srv, L);
 	}
 }
@@ -223,7 +221,7 @@ static HEDLEY_NEVER_INLINE void init_cond_lvalue_mt(liServer *srv, lua_State *L)
 }
 
 static void lua_push_cond_lvalue_metatable(liServer *srv, lua_State *L) {
-	if (luaL_newmetatable(L, LUA_COND_LVALUE)) {
+	if (li_lua_new_protected_metatable(L, LUA_COND_LVALUE)) {
 		init_cond_lvalue_mt(srv, L);
 	}
 }
@@ -264,7 +262,7 @@ static HEDLEY_NEVER_INLINE void init_cond_lvalue_t_mt(liServer *srv, lua_State *
 }
 
 static void lua_push_cond_lvalue_t_metatable(liServer *srv, lua_State *L) {
-	if (luaL_newmetatable(L, LUA_COND_LVALUE_T)) {
+	if (li_lua_new_protected_metatable(L, LUA_COND_LVALUE_T)) {
 		init_cond_lvalue_t_mt(srv, L);
 	}
 }

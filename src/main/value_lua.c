@@ -4,8 +4,6 @@
 #include <lighttpd/actions_lua.h>
 #include <lighttpd/core_lua.h>
 
-#include <lauxlib.h>
-
 #define LUA_KVLIST_VALUE "li KeyValue list (string, liValue*)"
 
 static int lua_kvlist_index(lua_State *L) {
@@ -63,7 +61,7 @@ static HEDLEY_NEVER_INLINE void init_kvlist_mt(lua_State *L) {
 }
 
 static void lua_push_kvlist_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_KVLIST_VALUE)) {
+	if (li_lua_new_protected_metatable(L, LUA_KVLIST_VALUE)) {
 		init_kvlist_mt(L);
 	}
 }

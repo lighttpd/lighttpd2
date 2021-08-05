@@ -1,9 +1,6 @@
 
 #include <lighttpd/core_lua.h>
 
-#include <lualib.h>
-#include <lauxlib.h>
-
 #include <sys/stat.h>
 
 #define LUA_CHUNK "liChunk*"
@@ -15,7 +12,7 @@ static HEDLEY_NEVER_INLINE void init_chunk_mt(lua_State *L) {
 }
 
 static void lua_push_chunk_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_CHUNK)) {
+	if (li_lua_new_protected_metatable(L, LUA_CHUNK)) {
 		init_chunk_mt(L);
 	}
 }
@@ -271,7 +268,7 @@ static HEDLEY_NEVER_INLINE void init_chunkqueue_mt(lua_State *L) {
 }
 
 static void lua_push_chunkqueue_metatable(lua_State *L) {
-	if (luaL_newmetatable(L, LUA_CHUNKQUEUE)) {
+	if (li_lua_new_protected_metatable(L, LUA_CHUNKQUEUE)) {
 		init_chunkqueue_mt(L);
 	}
 }
