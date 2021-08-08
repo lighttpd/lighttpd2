@@ -76,7 +76,7 @@ int li_angel_fake_listen(liServer *srv, GString *str) {
 		}
 #ifdef TCP_FASTOPEN
 		v = 1000;
-		setsockopt(s, SOL_TCP, TCP_FASTOPEN, &v, sizeof(v));
+		setsockopt(s, IPPROTO_TCP, TCP_FASTOPEN, &v, sizeof(v));
 #endif
 		if (-1 == listen(s, 1000)) {
 			ERROR(srv, "Couldn't listen on '%s': %s", tmpstr->str, g_strerror(errno));

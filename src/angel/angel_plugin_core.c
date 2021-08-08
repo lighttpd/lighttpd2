@@ -628,7 +628,7 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 		}
 #ifdef TCP_FASTOPEN
 		v = 1000;
-		setsockopt(s, SOL_TCP, TCP_FASTOPEN, &v, sizeof(v));
+		setsockopt(s, IPPROTO_TCP, TCP_FASTOPEN, &v, sizeof(v));
 #endif
 		if (-1 == listen(s, 1000)) {
 			close(s);
@@ -668,7 +668,7 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 		}
 #ifdef TCP_FASTOPEN
 		v = 1000;
-		setsockopt(s, SOL_TCP, TCP_FASTOPEN, &v, sizeof(v));
+		setsockopt(s, IPPROTO_TCP, TCP_FASTOPEN, &v, sizeof(v));
 #endif
 		if (-1 == listen(s, 1000)) {
 			close(s);
