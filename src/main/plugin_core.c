@@ -1205,7 +1205,7 @@ static gboolean core_workers(liServer *srv, liPlugin* p, liValue *val, gpointer 
 }
 
 static gboolean core_workers_cpu_affinity(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
-#if defined(LIGHTY_OS_LINUX)
+#if defined(LIGHTY_OS_LINUX) || defined(LIGHTY_OS_FREEBSD)
 	UNUSED(p); UNUSED(userdata);
 
 	if (LI_VALUE_LIST != li_value_type(val)) {
@@ -1232,7 +1232,7 @@ static gboolean core_workers_cpu_affinity(liServer *srv, liPlugin* p, liValue *v
 	return TRUE;
 #else
 	UNUSED(p); UNUSED(val); UNUSED(userdata);
-	ERROR(srv, "%s", "workers.cpu_affinity is only available on Linux systems");
+	ERROR(srv, "%s", "workers.cpu_affinity is only available on Linux and FreeBSD systems");
 	return FALSE;
 #endif
 }
@@ -2160,10 +2160,16 @@ static const liPluginAngel angelcbs[] = {
 };
 #include <sys/types.h>
 
-#if defined(LIGHTY_OS_LINUX)
-/* settings CPU affinity is only supported on linux */
+#if defined(LIGHTY_OS_LINUX) || defined(LIGHTY_OS_FREEBSD)
+/* settings CPU affinity is only supported on linux and FreeBSD */
 
-static gboolean pin_cpu(liServer *srv, liWorker *wrk, cpu_set_t *cpu_set, gint64 ndx) {
+#if defined(LIGHTY_OS_LINUX)
+typedef cpu_set_t li_cpu_set_t;
+#elif defined(LIGHTY_OS_FREEBSD)
+typedef cpuset_t li_cpu_set_t;
+#endif
+
+static gboolean pin_cpu(liServer *srv, liWorker *wrk, li_cpu_set_t *cpu_set, gint64 ndx) {
 	size_t cpu_ndx;
 
 	if (ndx < 0 || ((guint64)ndx) > CPU_SETSIZE) {
@@ -2177,7 +2183,7 @@ static gboolean pin_cpu(liServer *srv, liWorker *wrk, cpu_set_t *cpu_set, gint64
 }
 
 static void plugin_core_prepare_worker_cpu_affinity(liServer *srv, liWorker *wrk) {
-	cpu_set_t mask;
+	li_cpu_set_t mask;
 	liValue *v = srv->workers_cpu_affinity;
 
 	if (NULL == v) return;
@@ -2208,9 +2214,15 @@ static void plugin_core_prepare_worker_cpu_affinity(liServer *srv, liWorker *wrk
 		DEBUG(srv, "binding worker #%u to cpus %s", wrk->ndx+1, wrk->tmp_str->str);
 	}
 
+#if defined(LIGHTY_OS_LINUX)
 	if (0 != sched_setaffinity(0, sizeof(mask), &mask)) {
 		ERROR(srv, "couldn't set cpu affinity mask for worker #%u: %s", wrk->ndx+1, g_strerror(errno));
 	}
+#elif defined(LIGHTY_OS_FREEBSD)
+	if (0 != cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_TID, -1, sizeof(mask), &mask)) {
+		ERROR(srv, "couldn't set cpu affinity mask for worker #%u: %s", wrk->ndx+1, g_strerror(errno));
+	}
+#endif
 }
 #else
 static void plugin_core_prepare_worker_cpu_affinity(liServer *srv, liWorker *wrk) {

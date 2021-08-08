@@ -63,7 +63,7 @@ struct liServer {
 	liWorker *main_worker;
 	guint worker_count;
 	GArray *workers;
-#if defined(LIGHTY_OS_LINUX)
+#if defined(LIGHTY_OS_LINUX) || defined(LIGHTY_OS_FREEBSD)
 	liValue *workers_cpu_affinity;
 #endif
 	GArray *ts_formats;      /** array of (GString*), add with li_server_ts_format_add() */
