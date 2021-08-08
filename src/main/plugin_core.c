@@ -2160,47 +2160,69 @@ static const liPluginAngel angelcbs[] = {
 };
 #include <sys/types.h>
 
+#if defined(LIGHTY_OS_LINUX)
+/* settings CPU affinity is only supported on linux */
+
+static gboolean pin_cpu(liServer *srv, liWorker *wrk, cpu_set_t *cpu_set, gint64 ndx) {
+	size_t cpu_ndx;
+
+	if (ndx < 0 || ((guint64)ndx) > CPU_SETSIZE) {
+		ERROR(srv, "invalid cpu affinity index for worker #%u: %"G_GINT64_FORMAT, wrk->ndx+1, ndx);
+		return FALSE;
+	}
+
+	cpu_ndx = (size_t) ndx;
+	CPU_SET(cpu_ndx, cpu_set);
+	return TRUE;
+}
+
+static void plugin_core_prepare_worker_cpu_affinity(liServer *srv, liWorker *wrk) {
+	cpu_set_t mask;
+	liValue *v = srv->workers_cpu_affinity;
+
+	if (NULL == v) return;
+
+	if (wrk->ndx >= li_value_list_len(v)) {
+		WARNING(srv, "worker #%u has no entry in workers.cpu_affinity", wrk->ndx+1);
+		return;
+	}
+
+	CPU_ZERO(&mask);
+
+	v = li_value_list_at(v, wrk->ndx);
+	if (LI_VALUE_NUMBER == li_value_type(v)) {
+		if (!pin_cpu(srv, wrk, &mask, v->data.number)) {
+			return; /* pin_cpu already printed error */
+		}
+		DEBUG(srv, "binding worker #%u to cpu %u", wrk->ndx+1, (guint)v->data.number);
+	} else {
+		g_string_truncate(wrk->tmp_str, 0);
+
+		LI_VALUE_FOREACH(entry, v)
+			if (!pin_cpu(srv, wrk, &mask, entry->data.number)) {
+				return; /* pin_cpu already printed error */
+			}
+			g_string_append_printf(wrk->tmp_str, _entry_i ? ",%u":"%u", (guint)entry->data.number);
+		LI_VALUE_END_FOREACH()
+
+		DEBUG(srv, "binding worker #%u to cpus %s", wrk->ndx+1, wrk->tmp_str->str);
+	}
+
+	if (0 != sched_setaffinity(0, sizeof(mask), &mask)) {
+		ERROR(srv, "couldn't set cpu affinity mask for worker #%u: %s", wrk->ndx+1, g_strerror(errno));
+	}
+}
+#else
+static void plugin_core_prepare_worker_cpu_affinity(liServer *srv, liWorker *wrk) {
+	UNUSED(srv);
+	UNUSED(wrk);
+}
+#endif
+
 static void plugin_core_prepare_worker(liServer *srv, liPlugin *p, liWorker *wrk) {
 	UNUSED(p);
 
-#if defined(LIGHTY_OS_LINUX)
-	/* sched_setaffinity is only available on linux */
-	{
-		cpu_set_t mask;
-		liValue *v = srv->workers_cpu_affinity;
-
-		if (NULL == v) return;
-
-		if (wrk->ndx >= li_value_list_len(v)) {
-			WARNING(srv, "worker #%u has no entry in workers.cpu_affinity", wrk->ndx+1);
-			return;
-		}
-
-		CPU_ZERO(&mask);
-
-		v = li_value_list_at(v, wrk->ndx);
-		if (LI_VALUE_NUMBER == li_value_type(v)) {
-			CPU_SET(v->data.number, &mask);
-			DEBUG(srv, "binding worker #%u to cpu %u", wrk->ndx+1, (guint)v->data.number);
-		} else {
-			g_string_truncate(wrk->tmp_str, 0);
-
-			LI_VALUE_FOREACH(entry, v)
-				CPU_SET(entry->data.number, &mask);
-				g_string_append_printf(wrk->tmp_str, _entry_i ? ",%u":"%u", (guint)entry->data.number);
-			LI_VALUE_END_FOREACH()
-
-			DEBUG(srv, "binding worker #%u to cpus %s", wrk->ndx+1, wrk->tmp_str->str);
-		}
-
-		if (0 != sched_setaffinity(0, sizeof(mask), &mask)) {
-			ERROR(srv, "couldn't set cpu affinity mask for worker #%u: %s", wrk->ndx, g_strerror(errno));
-		}
-	}
-#else
-	UNUSED(srv);
-	UNUSED(wrk);
-#endif
+	plugin_core_prepare_worker_cpu_affinity(srv, wrk);
 }
 
 void li_plugin_core_init(liServer *srv, liPlugin *p, gpointer userdata) {
