@@ -10,7 +10,7 @@ typedef enum {
 } liCounterType;
 
 /* log message, print backtrace, and abort() (use LI_FATAL(msg) to call it) */
-LI_API void li_fatal(const char *filename, unsigned int line, const char *function, const char *msg) HEDLEY_NO_RETURN;
+LI_API HEDLEY_NO_RETURN void li_fatal(const char *filename, unsigned int line, const char *function, const char *msg);
 /* if libunwind is available this prints a backtrace to STDERR */
 LI_API void li_print_backtrace_stderr(void);
 /* LI_FORCE_ASSERT is *always* active - in debug and release builds */
