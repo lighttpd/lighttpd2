@@ -178,6 +178,7 @@
 				* @lighty.md5(str)@: calculates the md5 checksum of the string @str@ (returns the digest as string in hexadecimal)
 				* @lighty.sha1(str)@: calculates the sha1 checksum of the string @str@ (returns the digest as string in hexadecimal)
 				* @lighty.sha256(str)@: calculates the sha256 checksum of the string @str@ (returns the digest as string in hexadecimal)
+				* @lighty.path_simplify(str)@: return simplified path
 			]]></textile>
 
 			<example>
@@ -346,7 +347,7 @@
 
 		<section title="Stat struct">
 			<textile><![CDATA[
-				Represents "struct stat". Most fields should be self explaining (@man stat@ if you don't know them).
+				Represents "struct stat". Most fields should be self explaining (@man 2 stat@ ("debian manpage":https://manpages.debian.org/stat.2.en.html) if you don't know them).
 
 				Fields:
 				* @is_file@(ro): S_ISREG(mode)
@@ -364,7 +365,7 @@
 				* @gid@(ro)
 				* @size@(ro)
 				* @ino@(ro)
-				* @ino@(ro)
+				* @dev@(ro)
 			]]></textile>
 		</section>
 	</section>
