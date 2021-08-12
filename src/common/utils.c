@@ -358,9 +358,6 @@ void li_url_decode(GString *path) {
  * /blah/../foo     gets  /foo
  * /abc/./xyz       gets  /abc/xyz
  * /abc//xyz        gets  /abc/xyz
- *
- * NOTE: src and dest can point to the same buffer, in which case
- *       the operation is performed in-place.
  */
 
 void li_path_simplify(GString *path) {
@@ -372,7 +369,7 @@ void li_path_simplify(GString *path) {
 	if (path == NULL)
 		return;
 
-	walk  = start = out = slash = path->str;
+	walk = start = out = slash = path->str;
 	while (*walk == ' ') {
 		walk++;
 	}
