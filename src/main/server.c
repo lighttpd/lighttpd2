@@ -291,6 +291,7 @@ void li_server_loop_init(liServer *srv) {
 
 	li_event_timer_init(loop, "server 1sec", &srv->srv_1sec_timer, li_server_1sec_timer);
 	li_event_set_keep_loop_alive(&srv->srv_1sec_timer, FALSE);
+	/* don't actually need to fire it, but set repeat interval */
 	li_event_timer_once(&srv->srv_1sec_timer, 1);
 
 	li_event_signal_init(loop, "server SIGINT", &srv->sig_w_INT, sigint_cb, SIGINT);
@@ -315,6 +316,8 @@ static void li_server_1sec_timer(liEventBase *watcher, int events) {
 				li_event_start(&sock->watcher);
 			}
 			srv->connection_limit_hit = FALSE;
+		} else {
+			li_event_start(&srv->srv_1sec_timer); /* keep trying */
 		}
 	}
 }
@@ -375,6 +378,7 @@ static void server_connection_limit_hit(liServer *srv) {
 	}
 
 	srv->connection_limit_hit = TRUE;
+	li_event_start(&srv->srv_1sec_timer); /* check to re-enable again later */
 }
 
 static void li_server_listen_cb(liEventBase *watcher, int events) {
