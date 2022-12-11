@@ -7,7 +7,7 @@
 
 /*
  * Logging uses a dedicated thread in order to prevent blocking write io from blocking normal operations in worker threads.
- * Code handling vrequests should use the VR_ERROR(), VR_DEBUG() etc makros. Otherwise the ERROR(), DEBUG() etc makros should be used.
+ * Code handling vrequests should use the VR_ERROR(), VR_DEBUG() etc macros. Otherwise the ERROR(), DEBUG() etc macros should be used.
  * Basic examples: VR_WARNING(vr, "%s", "something unexpected happened")   ERROR(srv, "%d is not bigger than %d", 23, 42)
  *
  * Log targets specify where the log messages are written to. They are kept open for a certain amount of time (default 30s).
