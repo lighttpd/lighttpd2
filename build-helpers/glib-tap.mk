@@ -69,7 +69,7 @@ check_DATA =
 #   dist_uninstalled_test_scripts, dist_uninstalled_test_data, dist_uninstalled_test_extra_scripts
 #
 # Note that no file is automatically distributed unless it appears in one of the dist_ variables.  This follows the
-# standard automake convention of not disting programs scripts or data by default.
+# standard automake convention of not distributing programs scripts or data by default.
 #
 # test_programs, test_scripts, uninstalled_test_programs and uninstalled_test_scripts (as well as their distributed
 # variants) will be run as part of the in-tree 'make check'.  These are all assumed to be runnable under
@@ -79,7 +79,7 @@ TESTS += $(test_programs) $(test_scripts) $(uninstalled_test_programs) $(uninsta
          $(dist_test_scripts) $(dist_uninstalled_test_scripts)
 
 # Note: build even the installed-only targets during 'make check' to ensure that they still work.
-# We need to do a bit of trickery here and manage disting via EXTRA_DIST instead of using dist_ prefixes to
+# We need to do a bit of trickery here and manage distributing via EXTRA_DIST instead of using dist_ prefixes to
 # prevent automake from mistreating gmake functions like $(wildcard ...) and $(addprefix ...) as if they were
 # filenames, including removing duplicate instances of the opening part before the space, eg. '$(addprefix'.
 all_test_programs     = $(test_programs) $(uninstalled_test_programs) $(installed_test_programs) \
