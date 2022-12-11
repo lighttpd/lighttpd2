@@ -134,7 +134,7 @@
 			</parameter>
 			<description>
 				<textile>
-					This item appends all given strings to the comannd prefix list (which starts as empty list). Before spawning the worker the binary path to the worker and its arguments (config, module path) are appended.
+					This item appends all given strings to the command prefix list (which starts as empty list). Before spawning the worker the binary path to the worker and its arguments (config, module path) are appended.
 					Wrappers can be used to run the worker with valgrind, strace and similar.
 				</textile>
 			</description>
