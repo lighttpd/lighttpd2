@@ -14,7 +14,7 @@
 			<short>A key value list mapping "access" and/or "deny" keys to a list of CIDR addresses or "all".</short>
 		</parameter>
 		<description>
-				Checks the client IP address agains the rules. Default is to deny all addresses. The most precise matching rule defines the result ("192.168.100.0/24" takes precedence over "192.168.0.0/16"; similar to routing tables); if the same CIDR is in both lists the second action is taken. "all" is a synonym for "0.0.0.0/0" and "::/0", matching all IPv4 and IPv6 addresses.
+				Checks the client IP address against the rules. Default is to deny all addresses. The most precise matching rule defines the result ("192.168.100.0/24" takes precedence over "192.168.0.0/16"; similar to routing tables); if the same CIDR is in both lists the second action is taken. "all" is a synonym for "0.0.0.0/0" and "::/0", matching all IPv4 and IPv6 addresses.
 		</description>
 		<example title="Example: restrict access to local network" anchor="#">
 			<description>
