@@ -51,7 +51,7 @@ struct liBackendConfig {
 
 	liSocketAddress sock_addr;
 
-	/* >0: real limit for current connections + pendings connects
+	/* >0: real limit for current connections + pending connects
 	 * <0: unlimited connections, absolute value limits the number of pending connects per worker
 	 * =0: no limit
 	 *
