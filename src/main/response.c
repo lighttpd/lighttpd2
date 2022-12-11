@@ -165,7 +165,7 @@ static gchar *li_response_error_description(guint status_code, guint *len) {
 		"<p>This server could not verify that you are authorized to access the resource requested.<br>"
 		"Either you supplied the wrong credentials (e.g. bad password), or your browser doesn't understand how to supply the credentials required.</p>"
 	);
-	case 402: SET_LEN_AND_RETURN_STR("<p>Insert coint.</p>");
+	case 402: SET_LEN_AND_RETURN_STR("<p>Insert coin.</p>");
 	case 403: SET_LEN_AND_RETURN_STR("<p>You don't have permission to access the requested resource.</p>");
 	case 404: SET_LEN_AND_RETURN_STR("<p>The requested resource was not found.<br>Make sure you entered the correct URL in your browser.</p>");
 	case 405: SET_LEN_AND_RETURN_STR("<p>The requested method is not allowed for this resource.</p>");
