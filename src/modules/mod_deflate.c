@@ -103,7 +103,7 @@ static deflate_context_zlib* deflate_context_zlib_create(liVRequest *vr, deflate
 	deflate_context_zlib *ctx = g_slice_new0(deflate_context_zlib);
 	z_stream *z = &ctx->z;
 	guint compression_level = conf->compression_level;
-	guint window_size = -MAX_WBITS; /* supress zlib-header */
+	guint window_size = -MAX_WBITS; /* suppress zlib-header */
 	guint mem_level = 8;
 
 	ctx->conf = *conf;
