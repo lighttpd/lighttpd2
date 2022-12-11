@@ -711,7 +711,7 @@ req_get_header_done: ;
 			}
 		} else {
 			g_clear_error(&con->err);
-			g_set_error(&con->err, LI_MEMCACHED_ERROR, LI_MEMCACHED_CONNECTION, "Protocol error: unepxected SET response: '%s'", con->line->addr);
+			g_set_error(&con->err, LI_MEMCACHED_ERROR, LI_MEMCACHED_CONNECTION, "Protocol error: unexpected SET response: '%s'", con->line->addr);
 			close_con(con);
 			return;
 		}
