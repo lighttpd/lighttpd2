@@ -1017,7 +1017,7 @@ static gboolean p_include_shell(liAction *list, liConfigTokenizerContext *ctx, G
 		}
 
 		if (0 != status) {
-			parse_error(ctx, error, "include_shell '%s' retured non-zero status: %i", command->str, status);
+			parse_error(ctx, error, "include_shell '%s' returned non-zero status: %i", command->str, status);
 			goto error;
 		}
 	}
