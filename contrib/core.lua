@@ -15,7 +15,7 @@ local basepath = filename:gsub("(.*/)(.*)", "%1")
 
 -- core.wsgi:
 --   WSGI applications expect the url to be split into SCRIPT_NAME and
---   PATH_INFO; SCRIPT_NAME is their "application root", and PATH_INFO the requsted
+--   PATH_INFO; SCRIPT_NAME is their "application root", and PATH_INFO the requested
 --   resource in the application.
 --   By default, lighttpd uses an empty PATH_INFO (unless you used the "pathinfo;" action,
 --   but this doesn't help here as we're not dealing with static files here)

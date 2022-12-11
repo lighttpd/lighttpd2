@@ -27,7 +27,7 @@
 			<textile>
 				See "Howto WSGI":https://redmine.lighttpd.net/projects/lighttpd2/wiki/Howto_WSGI for an example.
 
-				WSGI applications expect the url to be split into @SCRIPT_NAME@ and @PATH_INFO@ (CGI environment variables); @SCRIPT_NAME@ is their "application root", and @PATH_INFO@ the requsted resource in the application.
+				WSGI applications expect the url to be split into @SCRIPT_NAME@ and @PATH_INFO@ (CGI environment variables); @SCRIPT_NAME@ is their "application root", and @PATH_INFO@ the requested resource in the application.
 				By default, lighttpd uses an empty @PATH_INFO@ (unless you used the "pathinfo;" action, but this doesn't help as we're not dealing with static files here).
 
 				*Important*: WSGI is an "extension" of CGI; it doesn't specify a transport protocol, you can use it with plain CGI, FastCGI or SCGI (or anything else that supports the basic CGI protocol)
