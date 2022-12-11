@@ -201,7 +201,7 @@ static gchar *li_response_error_description(guint status_code, guint *len) {
 	case 504: SET_LEN_AND_RETURN_STR("<p>The proxy server did not receive a timely response from the upstream server.</p>");
 	case 505: SET_LEN_AND_RETURN_STR("<p>The requested http version is not supported by this server.</p>");
 	case 506: SET_LEN_AND_RETURN_STR("<p>A variant for the requested resource is itself a negotiable resource.</p>");
-	case 507: SET_LEN_AND_RETURN_STR("<p>The request could not be fullfilled because of insufficient storage available on the server.</p>");
+	case 507: SET_LEN_AND_RETURN_STR("<p>The request could not be fulfilled because of insufficient storage available on the server.</p>");
 	case 509: SET_LEN_AND_RETURN_STR("<p>The available bandwidth limit for this resource has been reached.</p>");
 	case 510: SET_LEN_AND_RETURN_STR("<p>A mandatory extension policy in the request is not accepted by the server for this resource.</p>");
 
