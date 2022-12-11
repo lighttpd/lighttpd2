@@ -64,7 +64,7 @@ struct liStatCacheEntry {
 
 	liStatCache *sc;
 	GPtrArray *vrequests;             /* vrequests waiting for this info */
-	guint refcount;                   /* vrequests, delete_queue and tasklet hold references; dirlist/entrie cache entries are always in delete_queue too */
+	guint refcount;                   /* vrequests, delete_queue and tasklet hold references; dirlist/entries cache entries are always in delete_queue too */
 	liWaitQueueElem queue_elem;       /* queue element for the delete_queue */
 	gboolean cached;
 };
