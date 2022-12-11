@@ -27,7 +27,7 @@ local basepath = filename:gsub("(.*/)(.*)", "%1")
 --     core.wsgi ( <url-prefix>, { <backend-actions>; } );
 --
 --   Example: Trac in "/trac", listening via FastCGI on unix:/tmp/trac.socket
---     You oviously have to load mod_fastcgi for this.
+--     You obviously have to load mod_fastcgi for this.
 --
 --     core.wsgi ( "/trac", { fastcgi "unix:/tmp/trac.socket"; } );
 
