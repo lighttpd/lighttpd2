@@ -115,7 +115,7 @@ LI_API gboolean li_angel_send_result(
 	GString *error, GString *data, GArray *fds,
 	GError **err);
 
-/* free temporary needed memroy; call this once in while after some activity */
+/* free temporary needed memory; call this once in while after some activity */
 LI_API void li_angel_cleanup_tables(liAngelConnection *acon);
 
 /* Usage */
