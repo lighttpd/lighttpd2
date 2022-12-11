@@ -215,7 +215,7 @@ static void progress_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *resu
 
 		output = g_string_sized_new(128);
 
-		/* send mime-type. there seems to be no standard for javascript... using the most commong */
+		/* send mime-type. there seems to be no standard for javascript... using the most common */
 		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("application/x-javascript"));
 
 		if (format == PROGRESS_FORMAT_LEGACY) {
