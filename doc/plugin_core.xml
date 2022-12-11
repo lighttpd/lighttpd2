@@ -678,7 +678,7 @@
 		</example>
 	</action>
 	<action name="io.buffer_in">
-		<short>set memory limit for intcoming chunkqueues (default is 256KiB)</short>
+		<short>set memory limit for incoming chunkqueues (default is 256KiB)</short>
 		<parameter name="limit">
 			<short>limit in bytes (0 means unlimited)</short>
 		</parameter>
