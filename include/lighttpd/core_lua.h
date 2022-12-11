@@ -116,7 +116,7 @@ LI_API void li_lua_new_globals(lua_State *L);
 LI_API GString* li_lua_print_get_string(lua_State *L, int from, int to);
 
 /* pairs() for a GHashTable GString -> GString:
- *   Don't modify the hastable while iterating:
+ *   Don't modify the hashtable while iterating:
  *   - no new keys
  *   - no delete
  *  Modifying values is fine; g_hash_table_insert() as long as the key already exists too.
