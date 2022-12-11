@@ -37,7 +37,7 @@ static liAction* fortune_header(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	UNUSED(srv); UNUSED(wrk); UNUSED(val); UNUSED(userdata);
 
 	if (!li_value_is_nothing(val)) {
-		ERROR(srv, "%s", "fortnue.header doesn't take any arguments");
+		ERROR(srv, "%s", "fortune.header doesn't take any arguments");
 		return NULL;
 	}
 
@@ -75,7 +75,7 @@ static liAction* fortune_page(liServer *srv, liWorker *wrk, liPlugin* p, liValue
 	UNUSED(srv); UNUSED(wrk); UNUSED(val); UNUSED(userdata);
 
 	if (!li_value_is_nothing(val)) {
-		ERROR(srv, "%s", "fortnue.header doesn't take any arguments");
+		ERROR(srv, "%s", "fortune.header doesn't take any arguments");
 		return NULL;
 	}
 
