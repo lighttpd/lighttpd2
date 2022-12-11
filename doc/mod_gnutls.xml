@@ -185,7 +185,7 @@
 
 	<section title="OCSP stapling">
 		<textile>
-			"OCSP stapling":https://en.wikipedia.org/wiki/OCSP_stapling is used to assure a client the certificate is still valid (i.e. not revoked); you can put an OCSP response into the certificate file in an "OCSP RESPONSE"-PEM block (there is probably no standard for this, juse base64-encode the DER-response you have), or specify the (DER or PEM formatted) OCSP response as separate file using "ocsp" in a "pemfile" block.
+			"OCSP stapling":https://en.wikipedia.org/wiki/OCSP_stapling is used to assure a client the certificate is still valid (i.e. not revoked); you can put an OCSP response into the certificate file in an "OCSP RESPONSE"-PEM block (there is probably no standard for this, just base64-encode the DER-response you have), or specify the (DER or PEM formatted) OCSP response as separate file using "ocsp" in a "pemfile" block.
 
 			Server Name Indication (SNI) should work fine, as an OCSP response is only used if it matches the certificate in use for the connection.
 
