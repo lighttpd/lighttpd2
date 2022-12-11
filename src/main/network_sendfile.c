@@ -203,8 +203,8 @@ static liNetworkStatus network_backend_sendfile(int fd, liChunkQueue *cq, goffse
 			}
 
 			if (file_offset > st.st_size) {
-				/* file shrinked, close the connection */
-				g_set_error(err, LI_NETWORK_ERROR, 0, "network_backend_sendfile: File shrinked, aborting");
+				/* file shrunk, close the connection */
+				g_set_error(err, LI_NETWORK_ERROR, 0, "network_backend_sendfile: File shrunk, aborting");
 				return LI_NETWORK_STATUS_FATAL_ERROR;
 			}
 			return LI_NETWORK_STATUS_WAIT_FOR_EVENT;
