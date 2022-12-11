@@ -239,7 +239,7 @@ static gboolean plugins_activate_module(liServer *srv, server_module *sm) {
 			if (NULL != (si = g_hash_table_lookup(ps->load_items, pi->name))) {
 				ERROR(srv, "Plugin item name conflict: cannot load '%s' for plugin '%s' (already provided by plugin '%s')",
 					pi->name, p->name, si->p->name);
-				goto item_collission;
+				goto item_collision;
 			} else {
 				si = server_item_new(p, pi);
 				g_hash_table_insert(ps->load_items, (gpointer) pi->name, si);
@@ -249,7 +249,7 @@ static gboolean plugins_activate_module(liServer *srv, server_module *sm) {
 
 	return TRUE;
 
-item_collission:
+item_collision:
 	/* removed added items and plugins */
 	for ( ; pi-- != p->items; ) {
 		g_hash_table_remove(ps->load_items, pi->name);
