@@ -18,7 +18,7 @@ There are some basic test classes you can derive from:
 
 Each test class can provide Prepare, Run and Cleanup handlers (CurlRequest already provides a Run handler).
 
-A test intance has the following attributes:
+A test instance has the following attributes:
  * config: vhost config (error/access log/docroot and vhost handling gets added)
  * plain_config: gets added before all vhost configs (define global actions here)
  * name: unique test name, has a sane default
