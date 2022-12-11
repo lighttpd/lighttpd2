@@ -274,7 +274,7 @@ GQuark li_angel_config_parser_error_quark(void) {
 		| '0' ([0-9]+)$oct_digit
 		| '0x' (xdigit+)$hex_digit
 		)>int_start;
-	# noise_char only matches after integer_suffix, as noise matches all noice chars greedy
+	# noise_char only matches after integer_suffix, as noise matches all noise chars greedy
 	integer = (integer_base noise integer_suffix?)%integer (noise_char | operator_char);
 
 	string =
