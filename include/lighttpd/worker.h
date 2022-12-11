@@ -16,7 +16,7 @@ struct liStatistics {
 	guint64 bytes_in;         /** bytes transfered, incoming */
 
 	guint64 requests;         /** processed requests */
-	guint64 active_cons_cum;  /** cummulative value of active connections, updated once a second */
+	guint64 active_cons_cum;  /** cumulative value of active connections, updated once a second */
 
 	guint64 actions_executed; /** actions executed */
 
