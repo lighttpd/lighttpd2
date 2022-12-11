@@ -399,7 +399,7 @@ void li_vrequest_connection_upgrade(liVRequest *vr, liStream *backend_drain, liS
 	li_action_stack_reset(vr, &vr->action_stack);
 
 	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-		VR_DEBUG(vr, "%s", "connection uprade");
+		VR_DEBUG(vr, "%s", "connection upgrade");
 	}
 
 	/* we don't want these to be disconnected by a li_vrequest_reset */
