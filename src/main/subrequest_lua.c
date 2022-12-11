@@ -260,7 +260,7 @@ static void subvr_check(liVRequest *vr) {
 	sr->notified_out_closed = sr->coninfo.resp->out->is_closed;
 	sr->notified_response_headers = sr->have_response_headers;
 
-	if (sr->notified_out_closed) { /* reques done */
+	if (sr->notified_out_closed) { /* request done */
 		li_job_async(sr->parentvr_ref);
 	}
 }
