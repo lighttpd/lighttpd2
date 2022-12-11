@@ -64,7 +64,7 @@ static void worker_keepalive_cb(liEventBase *watcher, int events) {
 	}
 }
 
-/* check for timeouted connections */
+/* check for timed out connections */
 static void worker_io_timeout_cb(liWaitQueue *wq, gpointer data) {
 	liWorker *wrk = data;
 	liConnection *con;
