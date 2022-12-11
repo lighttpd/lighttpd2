@@ -4,7 +4,7 @@
 
 	<description>
 		<textile>
-			Please note: This will not skip the backend, as it will need at least the reponse headers.
+			Please note: This will not skip the backend, as it will need at least the response headers.
 
 			*Hint:*
 			Use a cron-job like the following to remove old cached data, e.g. in crontab daily:

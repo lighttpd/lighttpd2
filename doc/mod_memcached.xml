@@ -41,7 +41,7 @@
 	</action>
 
 	<action name="memcached.store">
-		<short>stores the generated respone in a memcached database</short>
+		<short>stores the generated response in a memcached database</short>
 		<parameter name="options">
 			<table>
 				<entry name="server">

@@ -670,7 +670,7 @@ static void handle_read(liMemcachedCon *con) {
 
 req_get_header_error:
 			g_clear_error(&con->err);
-			g_set_error(&con->err, LI_MEMCACHED_ERROR, LI_MEMCACHED_CONNECTION, "Protocol error: Couldn't parse VALUE respone: '%s'", con->line->addr);
+			g_set_error(&con->err, LI_MEMCACHED_ERROR, LI_MEMCACHED_CONNECTION, "Protocol error: Couldn't parse VALUE response: '%s'", con->line->addr);
 			close_con(con);
 			return;
 

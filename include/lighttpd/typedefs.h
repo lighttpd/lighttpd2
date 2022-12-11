@@ -207,7 +207,7 @@ typedef struct liRequestUri liRequestUri;
 
 typedef struct liPhysical liPhysical;
 
-/* respone.h */
+/* response.h */
 
 typedef struct liResponse liResponse;
 
