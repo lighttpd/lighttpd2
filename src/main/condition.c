@@ -460,7 +460,7 @@ const char* li_comp_op_to_string(liCompOperator op) {
 	case LI_CONFIG_COND_LE: return "<=";
 	}
 
-	return "<unkown>";
+	return "<unknown>";
 }
 
 const char* li_cond_lvalue_to_string(liCondLValue t) {
@@ -491,7 +491,7 @@ const char* li_cond_lvalue_to_string(liCondLValue t) {
 	case LI_COMP_UNKNOWN: return "<unknown>";
 	}
 
-	return "<unkown>";
+	return "<unknown>";
 }
 
 liCondLValue li_cond_lvalue_from_string(const gchar *str, guint len) {
