@@ -102,7 +102,7 @@ LI_API void li_lua_init2(liLuaState* LL, liServer* srv, liWorker* wrk);
 LI_API int li_lua_push_traceback(lua_State *L, int nargs);
 
 /* nargs: number of arguments *with* object; object must be the first of the arguments
- * returns: FALSE: an error occured. stack balance -nargs (i.e. popped args)
+ * returns: FALSE: an error occurred. stack balance -nargs (i.e. popped args)
  *          TRUE: stack balance nresp-narg; popped args, pushed results
  * srv/vr are only needed for error logging
  * if optional is TRUE don't log an error if the method doesn't exist

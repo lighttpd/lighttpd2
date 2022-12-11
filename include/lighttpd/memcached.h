@@ -13,7 +13,7 @@ typedef enum {
 	LI_MEMCACHED_NOT_STORED,
 	LI_MEMCACHED_EXISTS,
 	LI_MEMCACHED_NOT_FOUND,
-	LI_MEMCACHED_RESULT_ERROR /* some error occured */
+	LI_MEMCACHED_RESULT_ERROR /* some error occurred */
 } liMemcachedResult;
 
 typedef void (*liMemcachedCB)(liMemcachedRequest *request, liMemcachedResult result, liMemcachedItem *item, GError **err);
