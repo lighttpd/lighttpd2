@@ -18,7 +18,7 @@ typedef void (*liServerPrepareCallbackCB)(liServer *srv, gpointer data, gboolean
 
 typedef enum {
 	LI_SERVER_INIT,             /** start state */
-	LI_SERVER_LOADING,          /** config loaded, prepare listeing sockets/open log files */
+	LI_SERVER_LOADING,          /** config loaded, prepare listening sockets/open log files */
 	LI_SERVER_SUSPENDED,        /** ready to go, no logs */
 	LI_SERVER_WARMUP,           /** listen() active, no logs yet, handling remaining connections */
 	LI_SERVER_RUNNING,          /** listen() and logs active */
