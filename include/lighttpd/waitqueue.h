@@ -42,7 +42,7 @@ LI_API void li_waitqueue_stop(liWaitQueue *queue);
 /* updates the delay of the timer. if timer is active, it is stopped and restarted */
 LI_API void li_waitqueue_set_delay(liWaitQueue *queue, gdouble delay);
 
-/* updates the timeout of the waitqueue, you should allways call this at the end of your callback */
+/* updates the timeout of the waitqueue, you should always call this at the end of your callback */
 LI_API void li_waitqueue_update(liWaitQueue *queue);
 
 /* moves the element to the end of the queue if already queued, appends it to the end otherwise */
