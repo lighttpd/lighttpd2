@@ -201,7 +201,7 @@ static inline void mp_free_page(const void *ptr, gsize size) {
 #endif
 }
 
-/* how many chunks in an arey for a chunk size? */
+/* how many chunks in an area for a chunk size? */
 static gsize mp_chunks_for_size(gsize size) {
 	gsize chunks = MP_MAX_ALLOC_SIZE/size;
 	if (chunks > MP_MAX_ALLOC_COUNT) chunks = MP_MAX_ALLOC_COUNT;
