@@ -213,14 +213,14 @@ static void do_handle_error(liGnuTLSFilter *f, const char *gnutlsfunc, int r, gb
 	case GNUTLS_E_REHANDSHAKE:
 #ifdef HAVE_SAVE_RENEGOTIATION
 		if (f->initial_handshaked_finished && !gnutls_safe_renegotiation_status(f->session)) {
-			_ERROR(f->srv, f->wrk, f->log_context, "%s: client initiated unsafe renegotitation, closing connection", gnutlsfunc);
+			_ERROR(f->srv, f->wrk, f->log_context, "%s: client initiated unsafe renegotiation, closing connection", gnutlsfunc);
 			f_close_with_alert(f, r);
 		} else {
-			_DEBUG(f->srv, f->wrk, f->log_context, "%s: client initiated renegotitation", gnutlsfunc);
+			_DEBUG(f->srv, f->wrk, f->log_context, "%s: client initiated renegotiation", gnutlsfunc);
 		}
 #else
 		if (f->initial_handshaked_finished) {
-			_ERROR(f->srv, f->wrk, f->log_context, "%s: client initiated renegotitation, closing connection", gnutlsfunc);
+			_ERROR(f->srv, f->wrk, f->log_context, "%s: client initiated renegotiation, closing connection", gnutlsfunc);
 			f_close_with_alert(f, r);
 		}
 #endif
