@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
-	<short>loads quotes (aka fortune coookies) from a file and provides actions to add a random quote as response header (X-fortune) or display it as a page.</short>
+	<short>loads quotes (aka fortune cookies) from a file and provides actions to add a random quote as response header (X-fortune) or display it as a page.</short>
 
 	<setup name="fortune.load">
 		<short>loads cookies from a file, can be called multiple times to load data from multiple files</short>
