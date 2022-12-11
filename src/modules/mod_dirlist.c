@@ -387,7 +387,7 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 			sced = &g_array_index(sce->dirlist, liStatCacheEntryData, i);
 			hide = FALSE;
 
-			/* ingore entries where the stat() failed */
+			/* ignore entries where the stat() failed */
 			if (sced->failed)
 				continue;
 
