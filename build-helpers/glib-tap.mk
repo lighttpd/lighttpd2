@@ -68,10 +68,10 @@ check_DATA =
 #   dist_installed_test_scripts, dist_installed_test_data, dist_installed_test_extra_scripts
 #   dist_uninstalled_test_scripts, dist_uninstalled_test_data, dist_uninstalled_test_extra_scripts
 #
-# Note that no file is automatically disted unless it appears in one of the dist_ variables.  This follows the
+# Note that no file is automatically distributed unless it appears in one of the dist_ variables.  This follows the
 # standard automake convention of not disting programs scripts or data by default.
 #
-# test_programs, test_scripts, uninstalled_test_programs and uninstalled_test_scripts (as well as their disted
+# test_programs, test_scripts, uninstalled_test_programs and uninstalled_test_scripts (as well as their distributed
 # variants) will be run as part of the in-tree 'make check'.  These are all assumed to be runnable under
 # gtester.  That's a bit strange for scripts, but it's possible.
 
