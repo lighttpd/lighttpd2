@@ -32,7 +32,7 @@ INLINE void li_stream_safe_reset_and_release(liStream** pstream);
 
 LI_API void li_stream_connect(liStream *source, liStream *dest);
 LI_API void li_stream_disconnect(liStream *stream); /* disconnects stream->source and stream */
-LI_API void li_stream_disconnect_dest(liStream *stream); /* disconnects stream->dest and stream. only for errors/conection resets */
+LI_API void li_stream_disconnect_dest(liStream *stream); /* disconnects stream->dest and stream. only for errors/connection resets */
 LI_API void li_stream_reset(liStream *stream); /* disconnect both sides */
 
 LI_API void li_stream_notify(liStream *stream); /* new data in stream->cq, notify stream->dest */
