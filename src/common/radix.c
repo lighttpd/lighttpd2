@@ -168,7 +168,7 @@ static void node_compact(liRadixNode **nodeptr, liRadixNode *node) {
 	}
 	/* else: at least one child */
 
-	/* childs in the same layer? */
+	/* children in the same layer? */
 	if (node->width != RDXBITS) {
 		/* exactly one child? (we have at least one!) */
 		if (NULL == node->left) {
@@ -176,7 +176,7 @@ static void node_compact(liRadixNode **nodeptr, liRadixNode *node) {
 		} else if (NULL == node->right) {
 			child = node->left;
 		} else {
-			return; /* two childs */
+			return; /* two children */
 		}
 
 		/* replace our own node with child */

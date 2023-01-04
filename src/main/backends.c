@@ -587,7 +587,7 @@ static void S_backend_wait_queue_unshift(GQueue *queue, GList *lnk) {
 		} while (bwait->ts_started < link_wait->ts_started);
 
 		/* insert lnk before cursor; lnk will neither be the first nor the last element,
-		 * so we don't have to udpate queue->head/tail
+		 * so we don't have to update queue->head/tail
 		 */
 		lnk->next = cursor;
 		lnk->prev = cursor->prev;

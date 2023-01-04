@@ -44,7 +44,7 @@ static void collect_info_free(liCollectInfo *ci) {
 /* returns true if callback was called directly */
 static gboolean collect_insert_callback(liWorker *ctx, liCollectInfo *ci) {
 	if (ctx == ci->wrk) {
-		/* we are in the destiation context */
+		/* we are in the destination context */
 		ci->cb(ci->cbdata, ci->fdata, ci->results, !ci->stopped);
 		collect_info_free(ci);
 		return TRUE;
@@ -80,7 +80,7 @@ static gboolean collect_insert_func(liServer *srv, liWorker *ctx, liCollectInfo 
 		liWorker *wrk;
 		wrk = g_array_index(srv->workers, liWorker*, i);
 		if (wrk == ctx) {
-			/* we are in the destiation context */
+			/* we are in the destination context */
 			g_ptr_array_index(ci->results, wrk->ndx) = ci->func(wrk, ci->fdata);
 			if (collect_send_result(wrk, ci)) return TRUE;
 		} else {

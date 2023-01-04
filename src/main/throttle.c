@@ -145,7 +145,7 @@ static void throttle_register(liThrottlePoolWorkerState *pwstate, liThrottlePool
 		g_atomic_int_inc((gint*) &pwstate->connections);
 	}
 }
-static void throttle_unregister(liThrottlePoolWorkerState *pwstate, liThrottlePoolState *pstate) {
+static void throttle_deregister(liThrottlePoolWorkerState *pwstate, liThrottlePoolState *pstate) {
 	if (NULL != pstate->pool_link.data) {
 		g_queue_unlink(&pwstate->waiting, &pstate->pool_link);
 		pstate->pool_link.data = NULL;
@@ -284,7 +284,7 @@ void li_throttle_remove_pool(liWorker *wrk, liThrottleState *state, liThrottlePo
 	for (i = 0, len = state->pools->len; i < len; ++i) {
 		liThrottlePoolState *pstate = g_ptr_array_index(state->pools, i);
 		if (pstate->pool == pool) {
-			throttle_unregister(&pool->workers[wrk->ndx], pstate);
+			throttle_deregister(&pool->workers[wrk->ndx], pstate);
 			g_ptr_array_remove_index_fast(state->pools, i);
 			li_throttle_pool_release(pool, wrk->srv);
 			g_slice_free(liThrottlePoolState, pstate);
@@ -315,7 +315,7 @@ void li_throttle_free(liWorker *wrk, liThrottleState *state) {
 
 	for (i = 0, len = state->pools->len; i < len; ++i) {
 		liThrottlePoolState *pstate = g_ptr_array_index(state->pools, i);
-		throttle_unregister(&pstate->pool->workers[wrk->ndx], pstate);
+		throttle_deregister(&pstate->pool->workers[wrk->ndx], pstate);
 		li_throttle_pool_release(pstate->pool, wrk->srv);
 		g_slice_free(liThrottlePoolState, pstate);
 	}

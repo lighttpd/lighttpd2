@@ -256,7 +256,7 @@ static liAction* core_throttle_ip(liServer *srv, liWorker *wrk, liPlugin* p, liV
 	val = li_value_get_single_argument(val);
 
 	if (LI_VALUE_NUMBER != li_value_type(val)) {
-		ERROR(srv, "'io.throttle_ip' action expects a positiv integer as parameter, %s given", li_value_type_string(val));
+		ERROR(srv, "'io.throttle_ip' action expects a positive integer as parameter, %s given", li_value_type_string(val));
 		return NULL;
 	}
 
@@ -310,7 +310,7 @@ static liAction* core_throttle_connection(liServer *srv, liWorker *wrk, liPlugin
 		liValue *v2 = li_value_list_at(val, 1);
 
 		if (LI_VALUE_NUMBER != li_value_type(v1) || LI_VALUE_NUMBER != li_value_type(v2)) {
-			ERROR(srv, "%s", "'io.throttle' action expects a positiv integer or a pair of those as parameter");
+			ERROR(srv, "%s", "'io.throttle' action expects a positive integer or a pair of those as parameter");
 			return NULL;
 		}
 
@@ -320,7 +320,7 @@ static liAction* core_throttle_connection(liServer *srv, liWorker *wrk, liPlugin
 		rate = val->data.number;
 		burst  = 2 * rate;
 	} else {
-		ERROR(srv, "'io.throttle' action expects a positiv integer or a pair of those as parameter, %s given", li_value_type_string(val));
+		ERROR(srv, "'io.throttle' action expects a positive integer or a pair of those as parameter, %s given", li_value_type_string(val));
 		return NULL;
 	}
 

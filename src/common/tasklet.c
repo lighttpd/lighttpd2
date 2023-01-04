@@ -94,7 +94,7 @@ void li_tasklet_pool_set_threads(liTaskletPool *pool, gint threads) {
 
 	if (NULL != pool->threadpool) {
 		if (pool->threads > 0 && threads > 0) {
-			/* pool was exclusive, stays exlusive. just change number of threads */
+			/* pool was exclusive, stays exclusive. just change number of threads */
 			g_thread_pool_set_max_threads(pool->threadpool, threads, NULL);
 			pool->threads = g_thread_pool_get_num_threads(pool->threadpool);
 			/* as we already had exclusive threads running, pool->threads should be > 0 */
@@ -110,7 +110,7 @@ void li_tasklet_pool_set_threads(liTaskletPool *pool, gint threads) {
 		pool->threadpool = g_thread_pool_new(run_tasklet, pool, threads, (threads > 0), NULL);
 		if (threads > 0) { /* exclusive pool, see how many threads we got */
 			threads = g_thread_pool_get_num_threads(pool->threadpool);
-			if (threads == 0) { /* couldn't get exlusive threads, share threads instead */
+			if (threads == 0) { /* couldn't get exclusive threads, share threads instead */
 				g_thread_pool_free(pool->threadpool, FALSE, TRUE);
 				pool->threadpool = g_thread_pool_new(run_tasklet, pool, -1, FALSE, NULL);
 				threads = -1;

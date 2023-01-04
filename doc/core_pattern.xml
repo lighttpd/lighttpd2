@@ -25,7 +25,7 @@
 
 			There are now two different ways ranges are used:
 			* ranges of regular expression captures: the captures are just inserted for all values in the range; if the range is reversed, it starts with the highest index in the range.
-			* ranges of labels in a hostname: similar to the first range, but the inserted labels are separated by a "."; the index 0 stands for "complete hostname", and ranges including 0 are reduced to the complete hostname; the labels are numbered from top-level, and the range is intepreted reversed (just have a look at the examples, and it will be clear).
+			* ranges of labels in a hostname: similar to the first range, but the inserted labels are separated by a "."; the index 0 stands for "complete hostname", and ranges including 0 are reduced to the complete hostname; the labels are numbered from top-level, and the range is interpreted reversed (just have a look at the examples, and it will be clear).
 		]]></textile>
 	</section>
 

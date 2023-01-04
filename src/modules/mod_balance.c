@@ -457,7 +457,7 @@ static liHandlerResult balancer_act_fallback(liVRequest *vr, gboolean backlog_pr
 	_balancer_context_select_backend(b, context, -1);
 
 	if (error == LI_BACKEND_OVERLOAD || be->load > 0) {
-		/* long timeout for overload - we will enable the backend anyway if another request finishs */
+		/* long timeout for overload - we will enable the backend anyway if another request finishes */
 		if (be->state == BE_ALIVE) be->wake = li_cur_ts(vr->wrk) + 5.0;
 
 		if (be->state != BE_DOWN) be->state = BE_OVERLOADED;

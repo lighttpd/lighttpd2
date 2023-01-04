@@ -12,7 +12,7 @@
  */
 
 /* angel obviously doesn't work across platforms, so we don't need
- * to care about endianess
+ * to care about endianness
  */
 
 /* The buffer may be bigger of course, but a single string should not

@@ -388,7 +388,7 @@ static liHandlerResult mc_handle_lookup(liVRequest *vr, gpointer param, gpointer
 				}
 				g_clear_error(&err);
 			} else {
-				VR_ERROR(vr, "memcached.lookup: get failed: %s", "Unkown error");
+				VR_ERROR(vr, "memcached.lookup: get failed: %s", "Unknown error");
 			}
 			g_slice_free(memcache_request, req);
 
@@ -521,7 +521,7 @@ static liHandlerResult memcache_store_filter(liVRequest *vr, liFilter *f) {
 				}
 				g_clear_error(&err);
 			} else if (NULL != vr) {
-				VR_ERROR(vr, "memcached.store: set failed: %s", "Unkown error");
+				VR_ERROR(vr, "memcached.store: set failed: %s", "Unknown error");
 			}
 		}
 	}

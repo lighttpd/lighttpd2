@@ -451,7 +451,7 @@ static void do_ssl_read(liOpenSSLFilter *f) {
 
 		r = SSL_read(f->ssl, buf->addr + buf->used, buf->alloc_size - buf->used);
 		if (f->client_initiated_renegotiation) {
-			_ERROR(f->srv, f->wrk, f->log_context, "%s", "SSL: client initiated renegotitation, closing connection");
+			_ERROR(f->srv, f->wrk, f->log_context, "%s", "SSL: client initiated renegotiation, closing connection");
 			f_abort_ssl(f);
 			goto out;
 		}
@@ -563,7 +563,7 @@ static void do_ssl_write(liOpenSSLFilter *f) {
 		ERR_clear_error();
 		r = SSL_write(f->ssl, block_data, block_len);
 		if (f->client_initiated_renegotiation) {
-			_ERROR(f->srv, f->wrk, f->log_context, "%s", "SSL: client initiated renegotitation, closing connection");
+			_ERROR(f->srv, f->wrk, f->log_context, "%s", "SSL: client initiated renegotiation, closing connection");
 			f_abort_ssl(f);
 			goto out;
 		}

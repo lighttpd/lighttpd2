@@ -631,7 +631,7 @@ static const gchar* li_server_state_string(liServerState state) {
 	case LI_SERVER_DOWN: return "down";
 	}
 
-	return "<unkown>";
+	return "<unknown>";
 }
 
 /* next state in the machine we want to reach to reach */

@@ -102,7 +102,7 @@ LI_API void li_lua_init2(liLuaState* LL, liServer* srv, liWorker* wrk);
 LI_API int li_lua_push_traceback(lua_State *L, int nargs);
 
 /* nargs: number of arguments *with* object; object must be the first of the arguments
- * returns: FALSE: an error occured. stack balance -nargs (i.e. popped args)
+ * returns: FALSE: an error occurred. stack balance -nargs (i.e. popped args)
  *          TRUE: stack balance nresp-narg; popped args, pushed results
  * srv/vr are only needed for error logging
  * if optional is TRUE don't log an error if the method doesn't exist
@@ -116,7 +116,7 @@ LI_API void li_lua_new_globals(lua_State *L);
 LI_API GString* li_lua_print_get_string(lua_State *L, int from, int to);
 
 /* pairs() for a GHashTable GString -> GString:
- *   Don't modify the hastable while iterating:
+ *   Don't modify the hashtable while iterating:
  *   - no new keys
  *   - no delete
  *  Modifying values is fine; g_hash_table_insert() as long as the key already exists too.

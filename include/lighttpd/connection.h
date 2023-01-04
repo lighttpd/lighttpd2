@@ -118,9 +118,9 @@ LI_API void li_connection_request_done(liConnection *con);
  */
 LI_API void li_connection_update_io_timeout(liConnection *con);
 
-/* handles IOStream events for a connection; updates transfered bytes and io timeouts;
+/* handles IOStream events for a connection; updates transferred bytes and io timeouts;
  * *pcon is needed to handle cases then the connections gets reset while handling io stuff
- * NULL == *pcon is ok - it won't update transfered bytes and io timeouts then.
+ * NULL == *pcon is ok - it won't update transferred bytes and io timeouts then.
  * closes outgoing stream on reading EOF
  */
 LI_API void li_connection_simple_tcp(liConnection **pcon, liIOStream *stream, gpointer *context, liIOStreamEvent event);

@@ -30,7 +30,7 @@ static void mark_bit(GArray *a, gint id) {
 	gulong bmask = 1ul << bndx;
 	g_assert(id >= 0 && ndx < a->len);
 
-	g_assert(0 == (g_array_index(a, gulong, ndx) & (bmask))); /* bit musn't be set */
+	g_assert(0 == (g_array_index(a, gulong, ndx) & (bmask))); /* bit mustn't be set */
 	g_array_index(a, gulong, ndx) |= (bmask);
 }
 

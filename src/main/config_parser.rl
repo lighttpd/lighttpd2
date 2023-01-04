@@ -14,7 +14,7 @@ typedef enum {
 	TK_EOF,
 	TK_AND,
 	TK_ASSIGN,
-	TK_ASSOCICATE,
+	TK_ASSOCIATE,
 	TK_CAST_STRING,
 	TK_CAST_INT,
 	TK_COMMA,
@@ -322,7 +322,7 @@ GQuark li_config_error_quark(void) {
 		| '0' ([0-9]+)$oct_digit
 		| '0x' (xdigit+)$hex_digit
 		)>int_start;
-	# noise_char only matches after integer_suffix, as noise matches all noice chars greedy
+	# noise_char only matches after integer_suffix, as noise matches all noise chars greedy
 	integer = (integer_base noise integer_suffix?)%integer (noise_char | operator_char);
 
 	string =
@@ -390,7 +390,7 @@ GQuark li_config_error_quark(void) {
 		| '=/'   %{ return TK_SUBNET; }
 		| '!/'   %{ return TK_NOT_SUBNET; }
 		| '='    %{ return TK_ASSIGN; }
-		| '=>'   %{ return TK_ASSOCICATE; }
+		| '=>'   %{ return TK_ASSOCIATE; }
 		) (noise_char | operator_separator_char | alnum | '_' | '"' | "'")?;
 
 	endoffile = '' %{ fpc = NULL; return TK_EOF; };
@@ -1017,7 +1017,7 @@ static gboolean p_include_shell(liAction *list, liConfigTokenizerContext *ctx, G
 		}
 
 		if (0 != status) {
-			parse_error(ctx, error, "include_shell '%s' retured non-zero status: %i", command->str, status);
+			parse_error(ctx, error, "include_shell '%s' returned non-zero status: %i", command->str, status);
 			goto error;
 		}
 	}
@@ -1259,7 +1259,7 @@ static gboolean p_value_list(gint *key_value_nesting, liValue **result, gboolean
 		}
 
 		NEXT(token);
-		if (!key_value_list && TK_ASSOCICATE == token) {
+		if (!key_value_list && TK_ASSOCIATE == token) {
 			key_value_list = TRUE;
 			if (li_value_list_len(list) > 0) {
 				parse_error(ctx, error, "unexpected '=>', not a key-value list");
@@ -1269,7 +1269,7 @@ static gboolean p_value_list(gint *key_value_nesting, liValue **result, gboolean
 		if (key_value_list) {
 			liValue *pair;
 
-			if (TK_ASSOCICATE != token) {
+			if (TK_ASSOCIATE != token) {
 				parse_error(ctx, error, "expected '=>'");
 				goto error;
 			}
@@ -1322,7 +1322,7 @@ static gboolean p_value_group(gint *key_value_nesting, liValue **value, liConfig
 		/* a list */
 		REMEMBER(token);
 		return p_value_list(key_value_nesting, value, FALSE, v, TK_PARA_CLOSE, ctx, error);
-	case TK_ASSOCICATE:
+	case TK_ASSOCIATE:
 		/* a key-value list */
 		REMEMBER(token);
 		return p_value_list(key_value_nesting, value, TRUE, v, TK_PARA_CLOSE, ctx, error);
@@ -1514,7 +1514,7 @@ static gboolean p_parameter_values(liValue **result, liConfigTokenizerContext *c
 		REMEMBER(token);
 		if (!p_value_list(&key_value_nesting, &value, FALSE, value, TK_SEMICOLON, ctx, error)) return FALSE;
 		break;
-	case TK_ASSOCICATE:
+	case TK_ASSOCIATE:
 		/* a key-value list */
 		REMEMBER(token);
 		if (!p_value_list(&key_value_nesting, &value, TRUE, value, TK_SEMICOLON, ctx, error)) return FALSE;

@@ -6,7 +6,7 @@
 		<textile>
 			It supports matching "regular expressions":core_regex.html#core_regex and "substitution":core_pattern.html#core_pattern with captured substrings as well as other placeholders.
 
-			If your rewrite target does not contain any questionmark (@?@), then the querystring will not be altered.
+			If your rewrite target does not contain any question mark (@?@), then the querystring will not be altered.
 			If it does contain @?@ the querystring will be overwritten with the part after the @?@. To append the original querystring, use @%{request.query}@.
 
 			*IMPORTANT*: rewrite only changes the url, not the physical filename that it got mapped to by docroot or alias actions. So you need your docroot and alias actions after the rewrite.

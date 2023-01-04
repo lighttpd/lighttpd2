@@ -103,7 +103,7 @@ static deflate_context_zlib* deflate_context_zlib_create(liVRequest *vr, deflate
 	deflate_context_zlib *ctx = g_slice_new0(deflate_context_zlib);
 	z_stream *z = &ctx->z;
 	guint compression_level = conf->compression_level;
-	guint window_size = -MAX_WBITS; /* supress zlib-header */
+	guint window_size = -MAX_WBITS; /* suppress zlib-header */
 	guint mem_level = 8;
 
 	ctx->conf = *conf;
@@ -502,7 +502,7 @@ static gboolean cached_handle_etag(liVRequest *vr, gboolean debug, liHttpHeader 
 	return FALSE;
 }
 
-static guint header_to_endocing_mask(const gchar *s) {
+static guint header_to_encoding_mask(const gchar *s) {
 	guint encoding_mask = 0, i;
 
 	for (i = 1; encoding_names[i]; i++) {
@@ -563,7 +563,7 @@ static liHandlerResult deflate_handle(liVRequest *vr, gpointer param, gpointer *
 	hh_encoding_entry = li_http_header_find_first(vr->request.headers, CONST_STR_LEN("accept-encoding"));
 	while (hh_encoding_entry) {
 		hh_encoding = (liHttpHeader*) hh_encoding_entry->data;
-		encoding_mask |= header_to_endocing_mask(LI_HEADER_VALUE(hh_encoding));
+		encoding_mask |= header_to_encoding_mask(LI_HEADER_VALUE(hh_encoding));
 		hh_encoding_entry = li_http_header_find_next(hh_encoding_entry, CONST_STR_LEN("accept-encoding"));
 	}
 
@@ -712,7 +712,7 @@ static liAction* deflate_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 				goto option_failed;
 			}
 			have_encodings_parameter = TRUE;
-			conf->allowed_encodings = header_to_endocing_mask(entryValue->data.string->str);
+			conf->allowed_encodings = header_to_encoding_mask(entryValue->data.string->str);
 		} else if (g_string_equal(entryKeyStr, &don_blocksize)) {
 			if (LI_VALUE_NUMBER != li_value_type(entryValue) || entryValue->data.number <= 0) {
 				ERROR(srv, "deflate option '%s' expects positive integer as parameter", entryKeyStr->str);

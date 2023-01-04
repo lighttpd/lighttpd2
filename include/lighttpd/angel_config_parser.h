@@ -1,5 +1,5 @@
-#ifndef _LIGHTTPD_ANGEL_CONIG_PARSER_H_
-#define _LIGHTTPD_ANGEL_CONIG_PARSER_H_
+#ifndef _LIGHTTPD_ANGEL_CONFIG_PARSER_H_
+#define _LIGHTTPD_ANGEL_CONFIG_PARSER_H_
 
 /* error handling */
 #define LI_ANGEL_CONFIG_PARSER_ERROR li_angel_config_parser_error_quark()

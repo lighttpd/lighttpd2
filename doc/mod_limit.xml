@@ -101,7 +101,7 @@
 
 	<example title="Limiting requests per second" anchor="#">
 		<description>
-			This config snippet will write a message to the log containing the clien IP address if the /login page is hit more than once in a second.
+			This config snippet will write a message to the log containing the client IP address if the /login page is hit more than once in a second.
 			It will however also not do anything else. The client will be able to use the /login page as often as he wants.
 		</description>
 		<config>

@@ -38,7 +38,7 @@
 			</table>
 		</parameter>
 		<description>
-			requires authentication using a plaintext file containing user:password pairs seperated by newlines (\n).
+			requires authentication using a plaintext file containing user:password pairs separated by newlines (\n).
 		</description>
 	</action>
 
@@ -62,7 +62,7 @@
 		</parameter>
 		<description>
 			<textile>
-				* requires authentication using a htpasswd file containing user:encrypted_password pairs seperated by newlines (\n)
+				* requires authentication using a htpasswd file containing user:encrypted_password pairs separated by newlines (\n)
 				* passwords are encrypted using crypt(3), use the htpasswd binary from apache to manage the file
 				** hashes starting with "$apr1$" ARE supported (htpasswd -m)
 				** hashes starting with "{SHA}" ARE supported (followed by sha1_base64(password), htpasswd -s)
@@ -90,7 +90,7 @@
 		</parameter>
 		<description>
 			<textile>
-				* requires authentication using a htdigest file containing user:realm:hashed_password tuples seperated by newlines (\n)
+				* requires authentication using a htdigest file containing user:realm:hashed_password tuples separated by newlines (\n)
 				* the hashes are bound to the realm, so you can't change the realm without resetting the passwords
 				* passwords are saved as (modified) md5 hashes:
 				  @md5hex(username + ":" + realm + ":" + password)@

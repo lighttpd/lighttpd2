@@ -7,7 +7,7 @@
  *     - include-* parameters
  *     - javascript for sorting
  *     - sort parameter
- *     - parameter to chose if dirs should be seperated from other files (listed first)
+ *     - parameter to chose if dirs should be separated from other files (listed first)
  *     - etag/last-modified handling when including HEADER.txt/README.txt
  *
  * Author:
@@ -380,14 +380,14 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 		/* temporary string for encoded names */
 		encoded = g_string_sized_new(64-1);
 
-		/* seperate directories from other files */
+		/* separate directories from other files */
 		directories = g_array_sized_new(FALSE, FALSE, sizeof(guint), 16);
 		files = g_array_sized_new(FALSE, FALSE, sizeof(guint), sce->dirlist->len);
 		for (i = 0; i < sce->dirlist->len; i++) {
 			sced = &g_array_index(sce->dirlist, liStatCacheEntryData, i);
 			hide = FALSE;
 
-			/* ingore entries where the stat() failed */
+			/* ignore entries where the stat() failed */
 			if (sced->failed)
 				continue;
 

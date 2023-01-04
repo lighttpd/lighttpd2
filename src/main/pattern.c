@@ -192,7 +192,7 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 				}
 			} else {
 				/* parse error */
-				ERROR(srv, "could not parse pattern (unepexcted character after '%%'): \"%s\"", str);
+				ERROR(srv, "could not parse pattern (unexpected character after '%%'): \"%s\"", str);
 				li_pattern_free((liPattern*)pattern);
 				return NULL;
 			}

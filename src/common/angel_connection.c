@@ -731,7 +731,7 @@ error:
 	return FALSE;
 }
 
-/* free temporary needed memroy; call this once in while after some activity */
+/* free temporary needed memory; call this once in while after some activity */
 void li_angel_cleanup_tables(liAngelConnection *acon) {
 	UNUSED(acon);
 	/* TODO

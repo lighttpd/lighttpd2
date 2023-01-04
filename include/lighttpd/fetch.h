@@ -35,7 +35,7 @@ struct liFetchCallbacks {
 
 	/* called on every lookup, should do a very simple check to verify the entry is still valid.
 	 * DON'T MODIFY entry->data! return FALSE to trigger a new lookup, return TRUE if entry is still valid.
-	 * you can trigger a refresh before returing TRUE with li_fetch_entry_refresh(entry)
+	 * you can trigger a refresh before returning TRUE with li_fetch_entry_refresh(entry)
 	 */
 	gboolean (*revalidate)(liFetchDatabase* db, gpointer data, liFetchEntry *entry);
 

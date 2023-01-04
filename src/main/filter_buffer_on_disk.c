@@ -51,7 +51,7 @@ static void bod_error(bod_state *state) {
 	state->vr = NULL;
 }
 
-/* stop buffering, forward everyting */
+/* stop buffering, forward everything */
 static void bod_stop(bod_state *state) {
 	bod_close(state);
 	if (NULL != state->stream.source && !state->stream.out->is_closed) {

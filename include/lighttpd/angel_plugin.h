@@ -67,7 +67,7 @@ LI_API gboolean li_plugins_config_load(liServer *srv, const gchar *filename);
 
 LI_API gboolean li_plugins_handle_item(liServer *srv, GString *itemname, liValue *parameters, GError **err);
 
-/* "core" is a reserved module name for interal use */
+/* "core" is a reserved module name for internal use */
 LI_API gboolean li_plugins_load_module(liServer *srv, const gchar *name);
 /* Needed by modules to register their plugin(s) */
 LI_API liPlugin *li_angel_plugin_register(liServer *srv, liModule *mod, const gchar *name, liPluginInitCB init);
