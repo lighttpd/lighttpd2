@@ -64,14 +64,22 @@ struct liStatCacheEntry {
 
 	liStatCache *sc;
 	GPtrArray *vrequests;             /* vrequests waiting for this info */
-	guint refcount;                   /* vrequests, delete_queue and tasklet hold references; dirlist/entrie cache entries are always in delete_queue too */
+	/*
+	 * vrequests, liStatCache.delete_queue and tasklet hold references.
+	 * Entries in liStatCache.dirlists and .entries are always in delete_queue too
+	 * and don't hold references on their owb.
+	 */
+	guint refcount;
 	liWaitQueueElem queue_elem;       /* queue element for the delete_queue */
 	gboolean cached;
 };
 
 struct liStatCache {
+	/* map GString* path (sce->data.path) to liStatCacheEntry* (sce), doesn't hold a reference */
 	GHashTable *dirlists;
+	/* map GString* path (sce->data.path) to liStatCacheEntry* (sce), doesn't hold a reference */
 	GHashTable *entries;
+	/* queue of liStatCacheEntry* through sce->queue_elem */
 	liWaitQueue delete_queue;
 	gdouble ttl;
 
