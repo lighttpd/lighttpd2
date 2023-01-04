@@ -239,10 +239,15 @@ void li_pattern_free(liPattern *pattern) {
 	for (i = 0; i < arr->len; i++) {
 		part = &g_array_index(arr, liPatternPart, i);
 		switch (part->type) {
-		case PATTERN_STRING: g_string_free(part->data.str, TRUE); break;
-		case PATTERN_VAR_ENCODED: HEDLEY_FALL_THROUGH;
-		case PATTERN_VAR: li_condition_lvalue_release(part->data.lvalue); break;
-		default: break;
+		case PATTERN_STRING:
+			g_string_free(part->data.str, TRUE);
+			break;
+		case PATTERN_VAR_ENCODED:
+		case PATTERN_VAR:
+			li_condition_lvalue_release(part->data.lvalue);
+			break;
+		default:
+			break;
 		}
 	}
 
