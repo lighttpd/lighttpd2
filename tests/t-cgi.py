@@ -131,10 +131,9 @@ class TestUploadLargeChunked1(CurlRequest):
 	EXPECT_RESPONSE_CODE = 200
 	REQUEST_HEADERS = ["Transfer-Encoding: chunked"]
 
-	def PrepareRequest(self, reqheaders):
-		c = self.curl
-		c.setopt(c.UPLOAD, 1)
-		c.setopt(pycurl.READFUNCTION, ChunkedBodyReader(BODY).read)
+	def PrepareRequest(self, curl, reqheaders):
+		curl.setopt(curl.UPLOAD, 1)
+		curl.setopt(pycurl.READFUNCTION, ChunkedBodyReader(BODY).read)
 
 class TestChunkedEncoding1(CurlRequest):
 	URL = "/chunkedencodingcheck.cgi"
@@ -157,10 +156,9 @@ class TestExitErrorUpload1(CurlRequest):
 	EXPECT_RESPONSE_CODE = 404
 	REQUEST_HEADERS = ["Transfer-Encoding: chunked"]
 
-	def PrepareRequest(self, reqheaders):
-		c = self.curl
-		c.setopt(c.UPLOAD, 1)
-		c.setopt(pycurl.READFUNCTION, DelayedChunkedBodyReader("test").read)
+	def PrepareRequest(self, curl, reqheaders):
+		curl.setopt(curl.UPLOAD, 1)
+		curl.setopt(pycurl.READFUNCTION, DelayedChunkedBodyReader("test").read)
 
 class Test(GroupTest):
 	group = [

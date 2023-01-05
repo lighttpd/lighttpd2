@@ -24,12 +24,11 @@ class TestTryEtag1(CurlRequest):
 	EXPECT_RESPONSE_CODE = 304
 	ACCEPT_ENCODING = None
 
-	def PrepareRequest(self, reqheaders):
+	def PrepareRequest(self, curl, reqheaders):
 		global retrieved_etag1
 		if retrieved_etag1 == None:
 			raise CurlRequestException("Don't have a etag value to request")
-		c = self.curl
-		c.setopt(c.HTTPHEADER, reqheaders + ["If-None-Match: " + retrieved_etag1])
+		curl.setopt(curl.HTTPHEADER, reqheaders + ["If-None-Match: " + retrieved_etag1])
 
 	def CheckResponse(self):
 		global retrieved_etag1
@@ -60,12 +59,11 @@ class TestTryEtag2(CurlRequest):
 	EXPECT_RESPONSE_BODY = ""
 	EXPECT_RESPONSE_CODE = 304
 
-	def PrepareRequest(self, reqheaders):
+	def PrepareRequest(self, curl, reqheaders):
 		global retrieved_etag2
 		if retrieved_etag2 == None:
 			raise CurlRequestException("Don't have a etag value to request")
-		c = self.curl
-		c.setopt(c.HTTPHEADER, reqheaders + ["If-None-Match: " + retrieved_etag2])
+		curl.setopt(curl.HTTPHEADER, reqheaders + ["If-None-Match: " + retrieved_etag2])
 
 	def CheckResponse(self):
 		global retrieved_etag1

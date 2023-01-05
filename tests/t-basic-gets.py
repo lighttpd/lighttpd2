@@ -84,7 +84,7 @@ env.set "INFO" => "%{req.query}";
 show_env_info;
 """
 
-class TestBadRequest1(CurlRequest):
+class TestBadRequest1(RawRequest):
 	# unencoded query
 	URL = "/?complicated?query= $"
 	EXPECT_RESPONSE_CODE = 400
