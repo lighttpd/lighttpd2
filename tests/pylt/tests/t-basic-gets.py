@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import GroupTest, TestBase
+from pylt.requests import CurlRequest, RawRequest, TEST_TXT
+
 
 LUA_SHOW_ENV_INFO="""
 
@@ -23,6 +24,7 @@ class TestSimpleRequest(CurlRequest):
 	EXPECT_RESPONSE_CODE = 200
 	EXPECT_RESPONSE_HEADERS = [("Content-Type", "text/plain; charset=utf-8")]
 
+
 class TestSimpleRequestStatus(CurlRequest):
 	URL = "/test.txt"
 	EXPECT_RESPONSE_BODY = TEST_TXT
@@ -33,11 +35,13 @@ static_no_fail;
 set_status 403;
 """
 
+
 class TestSimpleRespond(CurlRequest):
 	URL = "/test.txt"
 	EXPECT_RESPONSE_BODY = "hello"
 	EXPECT_RESPONSE_CODE = 200
 	config = 'respond "hello";'
+
 
 class TestIndex1(CurlRequest):
 	URL = "/"
@@ -48,6 +52,7 @@ defaultaction;
 index "test.txt";
 """
 
+
 class TestIndex2(CurlRequest):
 	URL = "/"
 	EXPECT_RESPONSE_BODY = TEST_TXT
@@ -57,6 +62,7 @@ defaultaction;
 index "index.html", "test.txt";
 """
 
+
 class TestIndexNotExisting1(CurlRequest):
 	URL = "/not-existing"
 	EXPECT_RESPONSE_CODE = 404
@@ -64,6 +70,7 @@ class TestIndexNotExisting1(CurlRequest):
 defaultaction;
 index "index.html", "test.txt";
 """
+
 
 class TestIndex3(CurlRequest):
 	URL = "/not-existing"
@@ -73,6 +80,7 @@ class TestIndex3(CurlRequest):
 defaultaction;
 index "/index.html", "/test.txt";
 """
+
 
 class TestSimpleInfo(CurlRequest):
 	URL = "/?a_simple_query"
@@ -89,6 +97,7 @@ class TestBadRequest1(RawRequest):
 	URL = "/?complicated?query= $"
 	EXPECT_RESPONSE_CODE = 400
 
+
 class TestStaticExcludeExtensions1(CurlRequest):
 	URL = "/test.php"
 	EXPECT_RESPONSE_CODE = 403
@@ -97,6 +106,7 @@ defaultaction;
 static.exclude_extensions ".php";
 """
 
+
 class TestStaticExcludeExtensions2(CurlRequest):
 	URL = "/test.php"
 	EXPECT_RESPONSE_CODE = 403
@@ -104,6 +114,7 @@ class TestStaticExcludeExtensions2(CurlRequest):
 defaultaction;
 static.exclude_extensions (".php", ".py");
 """
+
 
 class TestServerTag(CurlRequest):
 	URL = "/test.txt"
@@ -114,6 +125,7 @@ class TestServerTag(CurlRequest):
 defaultaction;
 server.tag "apache - no really!";
 """
+
 
 class TestConditionalHeader1(CurlRequest):
 	URL = "/"
@@ -127,6 +139,7 @@ if req.header["X-Select"] == "a" {
 }
 """
 
+
 class TestConditionalHeader2(CurlRequest):
 	URL = "/"
 	EXPECT_RESPONSE_BODY = "b"
@@ -138,6 +151,7 @@ if req.header["X-Select"] == "a" {
 }
 """
 
+
 class TestSimplePattern1(CurlRequest):
 	URL = "/"
 	EXPECT_RESPONSE_CODE = 403
@@ -147,6 +161,7 @@ class TestSimplePattern1(CurlRequest):
 respond 403 => "%{req.header[X-Select]}";
 """
 
+
 class ProvideStatus(TestBase):
 	runnable = False
 	vhost = "status"
@@ -154,6 +169,7 @@ class ProvideStatus(TestBase):
 setup { module_load "mod_status"; }
 status.info;
 """
+
 
 class Test(GroupTest):
 	group = [

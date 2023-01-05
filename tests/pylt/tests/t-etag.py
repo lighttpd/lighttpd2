@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import GroupTest
+from pylt.requests import CurlRequest, CurlRequestException, TEST_TXT
+
 
 retrieved_etag1 = None
+
 
 class TestGetEtag1(CurlRequest):
 	URL = "/test.txt"
@@ -14,9 +16,10 @@ class TestGetEtag1(CurlRequest):
 	def CheckResponse(self):
 		global retrieved_etag1
 		if not 'etag' in self.resp_headers: # lowercase keys!
-			raise CurlRequestException("Response missing etag header" % (k, v1, v))
+			raise CurlRequestException("Response missing etag header")
 		retrieved_etag1 = self.resp_headers['etag'] # lowercase keys!
 		return super(TestGetEtag1, self).CheckResponse()
+
 
 class TestTryEtag1(CurlRequest):
 	URL = "/test.txt"
@@ -33,7 +36,7 @@ class TestTryEtag1(CurlRequest):
 	def CheckResponse(self):
 		global retrieved_etag1
 		if not 'etag' in self.resp_headers: # lowercase keys!
-			raise CurlRequestException("Response missing etag header" % (k, v1, v))
+			raise CurlRequestException("Response missing etag header")
 		etag = self.resp_headers['etag'] # lowercase keys!
 		if retrieved_etag1 != etag:
 			raise CurlRequestException("Response unexpected etag header response header '%s' (wanted '%s')" % (etag, retrieved_etag1))
@@ -41,6 +44,7 @@ class TestTryEtag1(CurlRequest):
 
 
 retrieved_etag2 = None
+
 
 class TestGetEtag2(CurlRequest):
 	URL = "/test.txt"
@@ -50,9 +54,10 @@ class TestGetEtag2(CurlRequest):
 	def CheckResponse(self):
 		global retrieved_etag2
 		if not 'etag' in self.resp_headers: # lowercase keys!
-			raise CurlRequestException("Response missing etag header" % (k, v1, v))
+			raise CurlRequestException("Response missing etag header")
 		retrieved_etag2 = self.resp_headers['etag'] # lowercase keys!
 		return super(TestGetEtag2, self).CheckResponse()
+
 
 class TestTryEtag2(CurlRequest):
 	URL = "/test.txt"
@@ -69,13 +74,14 @@ class TestTryEtag2(CurlRequest):
 		global retrieved_etag1
 		global retrieved_etag2
 		if not 'etag' in self.resp_headers: # lowercase keys!
-			raise CurlRequestException("Response missing etag header" % (k, v1, v))
+			raise CurlRequestException("Response missing etag header")
 		etag = self.resp_headers['etag'] # lowercase keys!
 		if retrieved_etag1 == etag:
 			raise CurlRequestException("Response has same etag header as uncompressed response '%s' (wanted '%s')" % (etag, retrieved_etag2))
 		if retrieved_etag2 != etag:
 			raise CurlRequestException("Response unexpected etag header response header '%s' (wanted '%s')" % (etag, retrieved_etag2))
 		return super(TestTryEtag2, self).CheckResponse()
+
 
 class Test(GroupTest):
 	group = [TestGetEtag1, TestTryEtag1, TestGetEtag2, TestTryEtag2]

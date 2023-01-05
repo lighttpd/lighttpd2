@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
-from service import FastCGI
 from io import BytesIO
 import time
 import hashlib
+import pycurl
+
+from pylt.base import Env, GroupTest
+from pylt.requests import CurlRequest
+from pylt.service import FastCGI
+
 
 def generate_body(seed, size):
 	i = 0
@@ -14,6 +17,7 @@ def generate_body(seed, size):
 		body.write(hashlib.sha1((seed + str(i)).encode('utf-8')).digest())
 		i += 1
 	return body.getvalue()[:size]
+
 
 class CGI(FastCGI):
 	name = "fcgi_cgi"
@@ -83,19 +87,23 @@ class TestPathInfo1(CurlRequest):
 	EXPECT_RESPONSE_BODY = "/abc/xyz"
 	EXPECT_RESPONSE_CODE = 200
 
+
 class TestRequestUri1(CurlRequest):
 	URL = "/envcheck.cgi/abc/xyz?REQUEST_URI"
 	EXPECT_RESPONSE_BODY = "/envcheck.cgi/abc/xyz?REQUEST_URI"
 	EXPECT_RESPONSE_CODE = 200
 
+
 BODY = generate_body('hello world', 2*1024*1024)
 BODY_SHA1 = hashlib.sha1(BODY).hexdigest()
+
 
 class TestUploadLarge1(CurlRequest):
 	URL = "/uploadcheck.cgi"
 	POST = BODY
 	EXPECT_RESPONSE_BODY = BODY_SHA1
 	EXPECT_RESPONSE_CODE = 200
+
 
 class ChunkedBodyReader:
 	def __init__(self, body, chunksize = 32*1024):
@@ -109,6 +117,7 @@ class ChunkedBodyReader:
 		size = min(rem, self.chunksize, size)
 		self.pos += size
 		return self.body[current:current+size]
+
 
 class DelayedChunkedBodyReader:
 	def __init__(self, body, chunksize = 32*1024):
@@ -135,20 +144,24 @@ class TestUploadLargeChunked1(CurlRequest):
 		curl.setopt(curl.UPLOAD, 1)
 		curl.setopt(pycurl.READFUNCTION, ChunkedBodyReader(BODY).read)
 
+
 class TestChunkedEncoding1(CurlRequest):
 	URL = "/chunkedencodingcheck.cgi"
 	EXPECT_RESPONSE_BODY = "Hello World!\n"
 	EXPECT_RESPONSE_CODE = 200
+
 
 class TestStderr1(CurlRequest):
 	URL = "/stderr.cgi"
 	EXPECT_RESPONSE_BODY = "Not a real error"
 	EXPECT_RESPONSE_CODE = 404
 
+
 class TestExitError1(CurlRequest):
 	URL = "/exiterror.cgi"
 	EXPECT_RESPONSE_BODY = "Not a real error"
 	EXPECT_RESPONSE_CODE = 404
+
 
 class TestExitErrorUpload1(CurlRequest):
 	URL = "/exiterror.cgi"
@@ -159,6 +172,7 @@ class TestExitErrorUpload1(CurlRequest):
 	def PrepareRequest(self, curl, reqheaders):
 		curl.setopt(curl.UPLOAD, 1)
 		curl.setopt(pycurl.READFUNCTION, DelayedChunkedBodyReader("test").read)
+
 
 class Test(GroupTest):
 	group = [

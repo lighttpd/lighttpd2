@@ -5,8 +5,8 @@ Howto write a test case:
 
 Create a file "t-*.py" for your testcase and add a "Test" class to it, like:
 
-from base import *
-from requests import *
+from base import GroupTest
+from requests import CurlRequest
 
 class Test(CurlRequest):
 	...
@@ -44,16 +44,16 @@ need more details :)
 """
 
 from __future__ import print_function
+import importlib
 
 import os
 import imp
 import sys
 import traceback
 import re
-import subprocess
 import inspect
 
-from service import *
+from pylt.service import Lighttpd
 
 __all__ = [ "Env", "Tests", "TestBase", "GroupTest", "eprint", "log" ]
 
@@ -78,6 +78,7 @@ def fix_test_name(name):
 	if (name[-1:] != '/'): name = name + '/'
 	return name
 
+
 def load_test_file(name):
 	path = os.path.join(Env.sourcedir, 'tests', name)
 	file = open(path)
@@ -86,11 +87,14 @@ def load_test_file(name):
 	file.close()
 	return module
 
+
 def vhostname(testname):
 	return '.'.join(reversed(testname[1:-1].split('/'))).lower()
 
+
 def regex_subvhosts(vhost):
 	return '(^|\\.)' + re.escape(vhost)
+
 
 # basic interface
 class TestBase(object):
@@ -246,9 +250,11 @@ var.vhosts = var.vhosts + [ "%s" => {
 	def FeatureCheck(self):
 		return True
 
+
 def class2testname(name):
 	if name.startswith("Test"): name = name[4:]
 	return name
+
 
 class GroupTest(TestBase):
 	runnable = False
@@ -339,20 +345,21 @@ class Tests(object):
 		self.vhosts_config += config
 
 	def LoadTests(self):
-		files = os.listdir(os.path.join(Env.sourcedir, "tests"))
-		files = filter(lambda x: x[-3:] == '.py', files)
-		files = filter(lambda x: x[:2] == 't-', files)
-		files = sorted(files)
+		module_names = sorted(
+			entry.removesuffix('.py')
+			for entry in os.listdir(os.path.join(os.path.dirname(__file__), 'tests'))
+			if entry.startswith('t-') and entry.endswith('.py')
+		)
 
 		mods = []
-		for f in files:
-			mods.append(load_test_file(f))
+		for mod_name in module_names:
+			mods.append(importlib.import_module(f'pylt.tests.{mod_name}'))
 
-		for m in mods:
-			t = m.Test()
+		for mod in mods:
+			t = mod.Test()
 			t.name = fix_test_name(t.name)
 			if '/' == t.name:
-				(n, _) = os.path.splitext(os.path.basename(m.__file__))
+				(n, _) = os.path.splitext(os.path.basename(mod.__file__))
 				t.name = fix_test_name(n[2:])
 			t._register(self)
 
@@ -547,7 +554,7 @@ allow_listen ["127.0.0.2:{gnutlsport}", "127.0.0.2:{opensslport}"];
 		return not failed
 
 	def Cleanup(self):
-#		eprint("cleanup_files: %s, cleanup_dirs: %s" % (self.prepared_files, self.prepared_dirs))
+		# eprint("cleanup_files: %s, cleanup_dirs: %s" % (self.prepared_files, self.prepared_dirs))
 
 		if not Env.no_cleanup and not self.failed:
 			log("[Start] Cleanup services")
@@ -574,11 +581,12 @@ allow_listen ["127.0.0.2:{gnutlsport}", "127.0.0.2:{opensslport}"];
 				shutil.rmtree(cache_disk_etag_dir)
 				os.mkdir(cache_disk_etag_dir)
 			except BaseException as e:
-				eprint("Couldn't clear directory '%s': %s" % (fname, e))
+				eprint("Couldn't clear directory '%s': %s" % (cache_disk_etag_dir, e))
 			self.CleanupDir(os.path.join("tmp", "cache_etag"))
 		log("[Done] Cleanup tests")
 
-## helpers for prepare/cleanup
+	## helpers for prepare/cleanup
+
 	def _preparefile(self, fname, content, mode = 0o644):
 		if fname in self.prepared_files:
 			raise BaseException("File '%s' already exists!" % fname)

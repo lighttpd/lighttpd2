@@ -8,7 +8,7 @@ import select
 import signal
 import time
 
-import base
+from pylt import base
 
 __all__ = [ "Service", "ServiceException", "devnull", "Lighttpd", "FastCGI" ]
 

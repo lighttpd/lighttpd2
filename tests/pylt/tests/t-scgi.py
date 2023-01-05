@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from base import GroupTest
-from requests import CurlRequest
-from service import Service
 import socket
 import os
-import base
+
+from pylt import base
+from pylt.requests import CurlRequest
+from pylt.service import Service
+
 
 class SCGI(Service):
 	name = "scgi"
@@ -37,12 +38,14 @@ class TestPathInfo1(CurlRequest):
 	EXPECT_RESPONSE_BODY = "/abc/xyz"
 	EXPECT_RESPONSE_CODE = 200
 
+
 class TestRequestUri1(CurlRequest):
 	URL = "/scgi/abc/xyz?REQUEST_URI"
 	EXPECT_RESPONSE_BODY = "/scgi/abc/xyz?REQUEST_URI"
 	EXPECT_RESPONSE_CODE = 200
 
-class Test(GroupTest):
+
+class Test(base.GroupTest):
 	group = [
 		TestPathInfo1,
 		TestRequestUri1,

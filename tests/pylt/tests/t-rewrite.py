@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import GroupTest
+from pylt.requests import CurlRequest, TEST_TXT
+
 
 class TestRewrite1(CurlRequest):
 	URL = "/somefile"
@@ -13,6 +14,7 @@ rewrite "^/somefile$" => "/test.txt";
 defaultaction;
 """
 
+
 class TestRewrite2(CurlRequest):
 	URL = "/somefile"
 	EXPECT_RESPONSE_BODY = TEST_TXT
@@ -22,6 +24,7 @@ class TestRewrite2(CurlRequest):
 rewrite "/somethingelse" => "/nothing", "^/somefile$" => "/test.txt";
 defaultaction;
 """
+
 
 # match decoded and simplified paths by default
 class TestRewrite3(CurlRequest):
@@ -33,6 +36,7 @@ rewrite "/http:/some(/.*)" => "/dest$1";
 respond 200 => "%{req.path}";
 """
 
+
 # match raw paths and simplify path
 class TestRewrite4(CurlRequest):
 	URL = "/http://some%2Ffile"
@@ -42,6 +46,7 @@ class TestRewrite4(CurlRequest):
 rewrite_raw "(/http://some%2F.*)" => "/dest$1";
 respond 200 => "%{req.path}";
 """
+
 
 # match and write raw paths
 class TestRewrite5(CurlRequest):
@@ -53,6 +58,7 @@ rewrite_raw "(/http://some%2F.*)" => "/dest$1";
 respond 200 => "%{req.raw_path}";
 """
 
+
 # raw match and write query string
 class TestRewrite6(CurlRequest):
 	URL = "/http://some%2Ffile"
@@ -62,6 +68,7 @@ class TestRewrite6(CurlRequest):
 rewrite_raw "(/http://some%2F.*)" => "/dest?$1";
 respond 200 => "%{req.query}";
 """
+
 
 class Test(GroupTest):
 	plain_config = """

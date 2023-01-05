@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import GroupTest
+from pylt.requests import CurlRequest, TEST_TXT
+
 
 class DeflateRequest(CurlRequest):
 	URL = "/test.txt"
@@ -16,21 +17,27 @@ class DeflateRequest(CurlRequest):
 class TestGzip(DeflateRequest):
 	ACCEPT_ENCODING = 'gzip'
 
+
 class TestXGzip(DeflateRequest):
 	ACCEPT_ENCODING = 'x-gzip'
 
+
 class TestDeflate(DeflateRequest):
 	ACCEPT_ENCODING = 'deflate'
+
 
 # not supported
 #class TestCompress(DeflateRequest):
 #	ACCEPT_ENCODING = 'compress'
 
+
 class TestBzip2(DeflateRequest):
 	ACCEPT_ENCODING = 'bzip2'
 
+
 class TestXBzip2(DeflateRequest):
 	ACCEPT_ENCODING = 'x-bzip2'
+
 
 class TestDisableDeflate(CurlRequest):
 	URL = "/test.txt?nodeflate"

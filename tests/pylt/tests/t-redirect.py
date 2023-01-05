@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import GroupTest
+from pylt.requests import CurlRequest, TEST_TXT
+
 
 class TestRewrite1(CurlRequest):
 	URL = "/somefile"
@@ -13,6 +14,7 @@ rewrite "^/somefile$" => "/test.txt";
 defaultaction;
 """
 
+
 class TestRewrite2(CurlRequest):
 	URL = "/somefile"
 	EXPECT_RESPONSE_BODY = TEST_TXT
@@ -22,6 +24,8 @@ class TestRewrite2(CurlRequest):
 rewrite "/somethingelse" => "/nothing", "^/somefile$" => "/test.txt";
 defaultaction;
 """
+
+
 class Test(GroupTest):
 	plain_config = """
 setup { module_load "mod_rewrite"; }

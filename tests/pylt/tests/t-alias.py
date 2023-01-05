@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import GroupTest
+from pylt.requests import CurlRequest, TEST_TXT
+
 
 class TestAlias1(CurlRequest):
 	URL = "/alias1"
@@ -12,6 +13,7 @@ class TestAlias1(CurlRequest):
 alias "/alias1" => var.default_docroot + "/test.txt";
 """
 
+
 class TestAlias2(CurlRequest):
 	URL = "/alias2"
 	EXPECT_RESPONSE_BODY = TEST_TXT
@@ -21,6 +23,7 @@ class TestAlias2(CurlRequest):
 alias "/alias1" => "/nothing", "/alias2" => var.default_docroot + "/test.txt";
 """
 
+
 class TestAlias3(CurlRequest):
 	URL = "/alias3/test.txt"
 	EXPECT_RESPONSE_BODY = TEST_TXT
@@ -29,6 +32,7 @@ class TestAlias3(CurlRequest):
 	config = """
 alias "/alias3" => var.default_docroot + "/";
 """
+
 
 class Test(GroupTest):
 	group = [

@@ -2,9 +2,11 @@
 
 import time
 
+
 __all__ = [ 'LogFile', 'RemoveEscapeSeq' ]
 
 ATTRS = [ 'closed', 'encoding', 'errors', 'mode', 'name', 'newlines', 'softspace' ]
+
 
 class LogFile(object):
 	def __init__(self, file, **clones):
@@ -21,12 +23,12 @@ class LogFile(object):
 		if name in ATTRS:
 			return delattr(self.file, name)
 		else:
-			return super(LogFile, self).__delattr__(name, value)
+			return super(LogFile, self).__delattr__(name)
 	def __getattr__(self, name):
 		if name in ATTRS:
 			return getattr(self.file, name)
 		else:
-			return super(LogFile, self).__getattr__(name, value)
+			return super(LogFile, self).__getattr__(name)
 	def __getattribute__(self, name):
 		if name in ATTRS:
 			return self.file.__getattribute__(name)
@@ -85,6 +87,7 @@ class LogFile(object):
 		return self.write(''.join(args))
 	def xreadlines(self, *args, **kwargs): return self.file.xreadlines(*args, **kwargs)
 
+
 class RemoveEscapeSeq(object):
 	def __init__(self, file):
 		self.file = file
@@ -99,12 +102,12 @@ class RemoveEscapeSeq(object):
 		if name in ATTRS:
 			return delattr(self.file, name)
 		else:
-			return super(RemoveEscapeSeq, self).__delattr__(name, value)
+			return super(RemoveEscapeSeq, self).__delattr__(name)
 	def __getattr__(self, name):
 		if name in ATTRS:
 			return getattr(self.file, name)
 		else:
-			return super(RemoveEscapeSeq, self).__getattr__(name, value)
+			return super(RemoveEscapeSeq, self).__getattr__(name)
 	def __getattribute__(self, name):
 		if name in ATTRS:
 			return self.file.__getattribute__(name)

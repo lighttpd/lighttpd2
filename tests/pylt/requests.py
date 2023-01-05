@@ -4,13 +4,14 @@ import socket
 import pycurl
 
 from io import BytesIO
-
-import sys
 import zlib
 import bz2
 import os
 
-from base import *
+import pycurl
+
+from pylt.base import eprint, log, Env, TestBase
+
 
 TEST_TXT="""Hi!
 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
@@ -18,6 +19,7 @@ TEST_TXT="""Hi!
 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 """
+
 
 class CurlRequestException(Exception):
 	def __init__(self, value): self.value = value
@@ -132,7 +134,7 @@ class CurlRequest(_BaseRequest):
 
 	def Run(self):
 		if None == self.URL:
-			raise BasicException("You have to set URL in your CurlRequest instance")
+			raise BaseException("You have to set URL in your CurlRequest instance")
 		reqheaders = ["Host: " + self.vhost] + self.REQUEST_HEADERS
 		if None != self.ACCEPT_ENCODING:
 			reqheaders += ["Accept-Encoding: " + self.ACCEPT_ENCODING]

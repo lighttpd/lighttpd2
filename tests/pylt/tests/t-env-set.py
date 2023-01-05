@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import GroupTest
+from pylt.requests import CurlRequest
+
 
 class TestPatternCapture(CurlRequest):
 	# use capture from previous regex conditional
@@ -15,6 +16,7 @@ if req.path =~ "(.*)" {
 	EXPECT_RESPONSE_BODY = "/path/"
 	EXPECT_RESPONSE_CODE = 200
 
+
 class TestPatternCaptureRange(CurlRequest):
 	# use capture from previous regex conditional
 	config = """
@@ -26,6 +28,7 @@ if req.path =~ "/([^/]*)/(.*)" {
 	URL = "/path/xyz"
 	EXPECT_RESPONSE_BODY = "pathxyz"
 	EXPECT_RESPONSE_CODE = 200
+
 
 class TestPatternCaptureRevRange(CurlRequest):
 	# use capture from previous regex conditional
@@ -39,6 +42,7 @@ if req.path =~ "/([^/]*)/(.*)" {
 	EXPECT_RESPONSE_BODY = "xyzpath"
 	EXPECT_RESPONSE_CODE = 200
 
+
 class TestPatternEncodingPath(CurlRequest):
 	# encoding path
 	config = """
@@ -48,6 +52,7 @@ show_env_info;
 	URL = "/complicated%3fpath%3d%20%24"
 	EXPECT_RESPONSE_BODY = "/complicated%3fpath%3d%20%24"
 	EXPECT_RESPONSE_CODE = 200
+
 
 class TestPatternCombine(CurlRequest):
 	# combine several pieces
@@ -60,6 +65,7 @@ show_env_info;
 
 	def Prepare(self):
 		self.EXPECT_RESPONSE_BODY = "Abc:/complicated%3fpath%3d%20%24:a_simple_query:" + self.vhost
+
 
 class TestPatternEscape(CurlRequest):
 	config = """

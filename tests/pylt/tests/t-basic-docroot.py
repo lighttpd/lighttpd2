@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import GroupTest
+from pylt.requests import CurlRequest
+
 
 class TestSimple(CurlRequest):
 	vhost = "xyz.abc.basic-docroot"
@@ -9,11 +10,13 @@ class TestSimple(CurlRequest):
 	EXPECT_RESPONSE_BODY = "/var/www/xyz.abc.basic-docroot/htdocs"
 	EXPECT_RESPONSE_CODE = 200
 
+
 class TestSubdir(CurlRequest):
 	vhost = "xyz.abc.basic-docroot"
 	URL = "/?subdir"
 	EXPECT_RESPONSE_BODY = "/var/www/basic-docroot/xyz.abc.basic-docroot/htdocs"
 	EXPECT_RESPONSE_CODE = 200
+
 
 class TestSubdirOpenRange(CurlRequest):
 	vhost = "test.xyz.abc.basic-docroot"
@@ -21,21 +24,25 @@ class TestSubdirOpenRange(CurlRequest):
 	EXPECT_RESPONSE_BODY = "/var/www/basic-docroot/test.xyz.abc/htdocs"
 	EXPECT_RESPONSE_CODE = 200
 
+
 class TestSubdirFixedRange(CurlRequest):
 	vhost = "test.xyz.abc.basic-docroot"
 	URL = "/?subdir-fixed-range"
 	EXPECT_RESPONSE_BODY = "/var/www/basic-docroot/xyz.abc/htdocs"
 	EXPECT_RESPONSE_CODE = 200
 
+
 class TestCascade(CurlRequest):
 	URL = "/?cascade"
 	EXPECT_RESPONSE_BODY = "/"
 	EXPECT_RESPONSE_CODE = 200
 
+
 class TestCascadeFallback(CurlRequest):
 	URL = "/?cascade-fallback"
 	EXPECT_RESPONSE_BODY = "/var/www/fallback/htdocs"
 	EXPECT_RESPONSE_CODE = 200
+
 
 class Test(GroupTest):
 	group = [

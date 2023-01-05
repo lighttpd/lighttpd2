@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
 import socketserver
 import threading
+
+from pylt.base import Env, GroupTest
+from pylt.requests import CurlRequest, TEST_TXT
+
 
 class HttpBackendHandler(socketserver.StreamRequestHandler):
 	def handle(self):
@@ -72,6 +74,7 @@ class HttpBackend(socketserver.ThreadingMixIn, socketserver.TCPServer):
 		self.listen_thread.daemon = True
 		self.listen_thread.start()
 
+
 class TestSimple(CurlRequest):
 	URL = "/test.txt"
 	EXPECT_RESPONSE_CODE = 200
@@ -82,6 +85,7 @@ req_header.overwrite "Host" => "basic-gets";
 self_proxy;
 """
 	no_docroot = True
+
 
 # backend gets encoded %2F
 class TestProxiedRewrittenEncodedURL(CurlRequest):
@@ -94,6 +98,7 @@ rewrite_raw "/foo(.*)" => "/dest$1";
 backend_proxy;
 """
 
+
 # backend gets decoded %2F
 class TestProxiedRewrittenDecodedURL(CurlRequest):
 	URL = "/foo%2Ffile?abc"
@@ -105,6 +110,7 @@ rewrite "/foo(.*)" => "/dest$1";
 backend_proxy;
 """
 
+
 # fake a backend forcing keep-alive mode
 class TestBackendForcedKeepalive(CurlRequest):
 	URL = "/keepalive"
@@ -114,6 +120,7 @@ class TestBackendForcedKeepalive(CurlRequest):
 	config = """
 backend_proxy;
 """
+
 
 # have backend "Upgrade"
 class TestBackendUpgrade(CurlRequest):
@@ -125,6 +132,7 @@ class TestBackendUpgrade(CurlRequest):
 backend_proxy;
 """
 
+
 class TestBackendDelayedChunk(CurlRequest):
 	URL = "/chunked/delay"
 	EXPECT_RESPONSE_BODY = "Hi!\n"
@@ -134,6 +142,7 @@ class TestBackendDelayedChunk(CurlRequest):
 backend_proxy;
 """
 
+
 class TestBackendNoLength(CurlRequest):
 	URL = "/nolength"
 	EXPECT_RESPONSE_BODY = "Hello world"
@@ -142,6 +151,7 @@ class TestBackendNoLength(CurlRequest):
 	config = """
 backend_proxy;
 """
+
 
 class Test(GroupTest):
 	group = [

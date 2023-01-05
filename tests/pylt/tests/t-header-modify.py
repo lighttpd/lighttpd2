@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import eprint, log, GroupTest
+from pylt.requests import CurlRequest
+
 
 class TestHeaderAdd(CurlRequest):
 	# use capture from previous regex conditional
@@ -19,6 +20,7 @@ respond;
 			raise BaseException("Unexpected headers 'Test-Header'")
 		return True
 
+
 class TestHeaderAppend(CurlRequest):
 	# use capture from previous regex conditional
 	config = """
@@ -34,6 +36,7 @@ respond;
 			log(repr(h))
 			raise BaseException("Unexpected headers 'Test-Header'")
 		return True
+
 
 class TestHeaderOverwrite(CurlRequest):
 	# use capture from previous regex conditional
@@ -51,6 +54,7 @@ respond;
 			raise BaseException("Unexpected headers 'Test-Header'")
 		return True
 
+
 class TestHeaderRemove(CurlRequest):
 	# use capture from previous regex conditional
 	config = """
@@ -66,6 +70,7 @@ respond;
 			log(repr(h))
 			raise BaseException("Unexpected headers 'Test-Header'")
 		return True
+
 
 class Test(GroupTest):
 	group = [

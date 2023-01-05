@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import GroupTest
+from pylt.requests import CurlRequest
 
 
 class TestMimeType1(CurlRequest):
@@ -10,17 +10,20 @@ class TestMimeType1(CurlRequest):
 	EXPECT_RESPONSE_CODE = 200
 	EXPECT_RESPONSE_HEADERS = [ ("Content-Type", "text/plain; charset=utf-8") ]
 
+
 class TestMimeType2(CurlRequest):
 	URL = "/test.xt"
 	EXPECT_RESPONSE_BODY = ""
 	EXPECT_RESPONSE_CODE = 200
 	EXPECT_RESPONSE_HEADERS = [ ("Content-Type", "text/plain") ]
 
+
 class TestMimeType3(CurlRequest):
 	URL = "/test.rxt"
 	EXPECT_RESPONSE_BODY = ""
 	EXPECT_RESPONSE_CODE = 200
 	EXPECT_RESPONSE_HEADERS = [ ("Content-Type", "text/strange") ]
+
 
 class Test(GroupTest):
 	group = [TestMimeType1,TestMimeType2,TestMimeType3]

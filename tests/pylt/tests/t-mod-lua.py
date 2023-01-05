@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import GroupTest
+from pylt.requests import CurlRequest
+
 
 LUA_TEST_OPTIONS="""
 
@@ -17,13 +18,16 @@ actions = {
 
 """
 
+
 class TestSetupOption(CurlRequest):
 	URL = "/"
 	EXPECT_RESPONSE_HEADERS = [("Server", "lighttpd 2.0 with lua")]
 
+
 class TestChangeOption(CurlRequest):
 	URL = "/?change"
 	EXPECT_RESPONSE_HEADERS = [("Server", "lighttpd 2.0 with modified lua")]
+
 
 class Test(GroupTest):
 	group = [

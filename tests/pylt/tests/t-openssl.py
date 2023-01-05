@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
+from pylt.base import GroupTest
+from pylt.requests import CurlRequest, TEST_TXT
+
 
 class TestSimpleRequest(CurlRequest):
 	PORT = 2
@@ -11,6 +12,7 @@ class TestSimpleRequest(CurlRequest):
 	EXPECT_RESPONSE_CODE = 200
 	EXPECT_RESPONSE_HEADERS = [("Content-Type", "text/plain; charset=utf-8")]
 	vhost = "test1.ssl"
+
 
 class Test(GroupTest):
 	group = [

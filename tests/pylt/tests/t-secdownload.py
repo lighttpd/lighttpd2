@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from base import *
-from requests import *
 import time
 from hashlib import md5
+
+from pylt.base import GroupTest
+from pylt.requests import CurlRequest, TEST_TXT
+
 
 def securl(prefix, path, secret, tstamp = None):
 	if tstamp == None: tstamp = time.time()
@@ -12,9 +14,11 @@ def securl(prefix, path, secret, tstamp = None):
 	if prefix[-1] != '/': prefix += '/'
 	return prefix + md5(md5content.encode('utf-8')).hexdigest() + '/' + tstamp + path
 
+
 class SecdownloadFail(CurlRequest):
 	URL = "/test.txt"
 	EXPECT_RESPONSE_CODE = 403
+
 
 class SecdownloadSuccess(CurlRequest):
 	EXPECT_RESPONSE_BODY = TEST_TXT
@@ -23,6 +27,7 @@ class SecdownloadSuccess(CurlRequest):
 	def Run(self):
 		self.URL = securl('/', '/test.txt', 'abc')
 		return super(SecdownloadSuccess, self).Run()
+
 
 class SecdownloadGone(CurlRequest):
 	EXPECT_RESPONSE_CODE = 410

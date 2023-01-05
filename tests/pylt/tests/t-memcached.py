@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from base import GroupTest
-from requests import CurlRequest
-from service import Service
 import socket
 import os
-import base
 import time
+
+from pylt import base
+from pylt.requests import CurlRequest
+from pylt.service import Service
 
 
 class Memcached(Service):
@@ -34,11 +34,13 @@ class Memcached(Service):
 				base.eprint("Couldn't delete socket '%s': %s" % (self.sockfile, e))
 		self.tests.CleanupDir(os.path.join("tmp", "sockets"))
 
+
 class TestStore1(CurlRequest):
 	URL = "/"
 	EXPECT_RESPONSE_BODY = "Hello World!"
 	EXPECT_RESPONSE_CODE = 200
 	EXPECT_RESPONSE_HEADERS = [("X-Memcached-Hit", "false")]
+
 
 class TestLookup1(CurlRequest):
 	URL = "/"
@@ -52,7 +54,8 @@ class TestLookup1(CurlRequest):
 		time.sleep(0.2)
 		return super(TestLookup1, self).Run()
 
-class Test(GroupTest):
+
+class Test(base.GroupTest):
 	group = [
 		TestStore1,
 		TestLookup1,
