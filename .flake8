@@ -1,0 +1,8 @@
+[flake8]
+# E266 too many leading '#' for block comment [ I like marking disabled code blocks with '### ' ]
+# E402 module level import not at top of file [ usually on purpose. might use individual overrides instead? ]
+# E713 test for membership should be ‘not in’ [ disagree: want `not a in x` ]
+# E714 test for object identity should be 'is not' [ disagree: want `not a is x` ]
+# W503 line break before binary operator [ gotta pick one way ]
+extend-ignore = E266,E402,E713,E714,W503
+max-line-length = 120

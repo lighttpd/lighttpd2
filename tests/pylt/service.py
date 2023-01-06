@@ -2,216 +2,258 @@
 
 import os
 import atexit
+import shlex
 import subprocess
 import socket
 import select
 import signal
 import time
+import typing
 
 from pylt import base
 
-__all__ = [ "Service", "ServiceException", "devnull", "Lighttpd", "FastCGI" ]
+__all__ = ["Service", "ServiceException", "devnull", "Lighttpd", "FastCGI"]
+
 
 class ServiceException(Exception):
-	def __init__(self, value): self.value = value
-	def __str__(self): return repr(self.value)
-
-def devnull():
-	try:
-		f = open("/dev/null", "r")
-		return f
-	except:
-		return None
-	
-
-straceargs = [ 'strace', '-tt', '-f', '-s', '4096', '-o' ]
-trussargs = [ 'truss', '-d', '-f', '-s', '4096', '-o' ]
-
-def preexec():
-	os.setsid()
-
-def procwait(proc, timeout = 2):
-	ts = time.time()
-	while True:
-		if proc.poll() is not None: return True
-		seconds_passed = time.time() - ts
-		if seconds_passed > timeout:
-			return False
-		time.sleep(0.1)
+    pass
 
 
-class Service(object):
-	name = None
+def devnull() -> typing.Optional[typing.BinaryIO]:
+    try:
+        f = open("/dev/null", "rb")
+        return f
+    except Exception:
+        return None
 
-	def __init__(self):
-		self.proc = None
-		self.tests = None
-		self.failed = False
 
-	def devnull(self):
-		return devnull()
+straceargs = ['strace', '-tt', '-f', '-s', '4096', '-o']
+trussargs = ['truss', '-d', '-f', '-s', '4096', '-o']
 
-	def fork(self, *args, **kwargs):
-		if 'inp' in kwargs:
-			inp = kwargs['inp']
-		else:
-			inp = devnull()
 
-		if None == self.name:
-			raise ServiceException("Service needs a name!")
-		if base.Env.debug:
-			logfile = None
-		else:
-			logfile = open(self.log, "w")
+def preexec() -> None:
+    os.setsid()
 
-		if base.Env.strace:
-			slog = self.tests.PrepareFile("log/strace-%s.log" % self.name, "")
-			args = straceargs + [ slog ] + list(args)
-		elif base.Env.truss:
-			tlog = self.tests.PrepareFile("log/truss-%s.log" % self.name, "")
-			args = trussargs + [ tlog ] + list(args)
 
-		base.log("Spawning '%s': %s" % (self.name, ' '.join(args)))
-		proc = subprocess.Popen(args, stdin = inp, stdout = logfile, stderr = logfile, close_fds = True, preexec_fn = preexec)
-		if None != inp: inp.close()
-		if None != logfile: logfile.close()
-		self.proc = proc
-		atexit.register(self.kill)
+def procwait(proc: subprocess.Popen, timeout: int = 2) -> bool:
+    ts = time.time()
+    while True:
+        if not proc.poll() is None:
+            return True
+        seconds_passed = time.time() - ts
+        if seconds_passed > timeout:
+            return False
+        time.sleep(0.1)
 
-	def kill(self):
-		s = signal.SIGINT
-		ss = "SIGINT"
-		proc = self.proc
-		if None == proc: return
-		self.proc = None
-		if None == proc.poll():
-			base.log("Terminating service (%s) '%s'" % (ss, self.name))
-			try:
-				os.killpg(proc.pid, s)
-				s = signal.SIGTERM
-				ss = "SIGTERM"
-				proc.terminate()
-			except:
-				pass
-			base.log("Waiting for service '%s'" % (self.name))
-			if base.Env.wait: proc.wait()
-			while not procwait(proc):
-				try:
-					base.log("Terminating service (%s) '%s'" % (ss, self.name))
-					os.killpg(proc.pid, s)
-					s = signal.SIGKILL
-					ss = "SIGKILL"
-					proc.terminate()
-				except:
-					pass
 
-	def portfree(self, port):
-		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		try:
-			s.connect(("127.0.0.2", port))
-		except:
-			pass
-		else:
-			raise ServiceException("Cannot start service '%s', port 127.0.0.2:%i already in use" % (self.name, port))
-		finally:
-			s.close()
+class FileWithFd(typing.Protocol):
+    def fileno(self) -> int:
+        ...
 
-	def waitconnect(self, port):
-		timeout = 5*10
-		while True:
-			if None != self.proc.poll():
-				raise ServiceException("Service %s died before we could establish a connection" % (self.name))
-			s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			try:
-				s.connect(("127.0.0.2", port))
-			except:
-				pass
-			else:
-				return True
-			finally:
-				s.close()
-			select.select([], [], [], 0.1)
-			timeout -= 1
-			if 0 > timeout:
-				raise ServiceException("Timeout: cannot establish a connection to service %s on port %i" % (self.name, port))
+    def close(self) -> None:
+        ...
 
-	def _prepare(self):
-		self.log = self.tests.PrepareFile("log/service-%s.log" % self.name, "")
-		self.failed = True
-		self.Prepare()
-		self.failed = False
 
-	def _cleanup(self):
-		self.kill()
-		if not base.Env.force_cleanup and self.failed:
-			return
-		self.tests.CleanupFile("log/service-%s.log" % self.name)
-		self.tests.CleanupFile("log/strace-%s.log" % self.name)
-		self.tests.CleanupFile("log/truss-%s.log" % self.name)
-		self.Cleanup()
+class Service:
+    name: typing.ClassVar[str]
 
-	def _stop(self):
-		self.kill()
-		self.Stop()
+    def __init__(self, *, tests: base.Tests) -> None:
+        self.tests = tests
+        self.proc: typing.Optional[subprocess.Popen] = None
+        self.failed = False
 
-	def Prepare(self):
-		raise BaseException("Not implemented yet")
+    def fork(self, *args: str, inp: typing.Union[tuple[()], FileWithFd, None] = ()) -> None:
+        arguments = list(args)  # convert tuple to list
+        stdin: typing.Optional[FileWithFd]
+        if inp == ():
+            stdin = devnull()
+        else:
+            # mypy doesn't get it, but this should be checkable
+            stdin = typing.cast(typing.Optional[FileWithFd], inp)
+        stdin_fileno: typing.Optional[int]
+        if stdin is None:
+            stdin_fileno = None
+        else:
+            stdin_fileno = stdin.fileno()
 
-	def Cleanup(self):
-		pass
+        if not self.name:
+            raise ServiceException("Service needs a name!")
+        logfile: typing.Optional[typing.IO]
+        if self.tests.env.debug:
+            logfile = None
+        else:
+            logfile = open(self.log, "wb")
 
-	def Stop(self):
-		pass
+        if self.tests.env.strace:
+            slog = self.tests.install_file(f"log/strace-{self.name}.log", "")
+            arguments = straceargs + [slog] + arguments
+        elif self.tests.env.truss:
+            tlog = self.tests.install_file(f"log/truss-{self.name}.log", "")
+            arguments = trussargs + [tlog] + arguments
+
+        base.log(f"Spawning {self.name!r}: {shlex.join(arguments)}")
+        proc = subprocess.Popen(
+            arguments,
+            stdin=stdin_fileno,
+            stdout=logfile,
+            stderr=logfile,
+            close_fds=True,
+            preexec_fn=preexec,
+        )
+        if not stdin is None:
+            stdin.close()
+        if not logfile is None:
+            logfile.close()
+        self.proc = proc
+        atexit.register(self.kill)
+
+    def kill(self) -> None:
+        s = signal.SIGINT
+        ss = "SIGINT"
+        proc = self.proc
+        if proc is None:
+            return
+        self.proc = None
+        if proc.poll() is None:
+            base.log(f"Terminating service ({ss}) {self.name!r}")
+            try:
+                os.killpg(proc.pid, s)
+                s = signal.SIGTERM
+                ss = "SIGTERM"
+                proc.terminate()
+            except Exception:
+                pass
+            base.log(f"Waiting for service {self.name!r}")
+            if self.tests.env.wait:
+                proc.wait()
+            while not procwait(proc):
+                try:
+                    base.log(f"Terminating service ({ss}) {self.name!r}")
+                    os.killpg(proc.pid, s)
+                    s = signal.SIGKILL
+                    ss = "SIGKILL"
+                    proc.terminate()
+                except Exception:
+                    pass
+
+    def portfree(self, port: int) -> None:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.connect(("127.0.0.2", port))
+        except Exception:
+            pass
+        else:
+            raise ServiceException(f"Cannot start service {self.name!r}, port 127.0.0.2:{port} already in use")
+        finally:
+            s.close()
+
+    def waitconnect(self, port: int) -> bool:
+        timeout = 5*10
+        while True:
+            assert self.proc
+            if not self.proc.poll() is None:
+                raise ServiceException(f"Service {self.name!r} died before we could establish a connection")
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                s.connect(("127.0.0.2", port))
+            except Exception:
+                pass
+            else:
+                return True
+            finally:
+                s.close()
+            select.select([], [], [], 0.1)
+            timeout -= 1
+            if 0 > timeout:
+                raise ServiceException(
+                    f"Timeout: cannot establish a connection to service {self.name!r} on port {port}"
+                )
+
+    def _prepare(self) -> None:
+        assert self.tests
+        self.log = self.tests.install_file(f"log/service-{self.name}.log", "")
+        self.failed = True
+        self.prepare_service()
+        self.failed = False
+
+    def _cleanup(self) -> None:
+        self.kill()
+        if not self.tests.env.force_cleanup and self.failed:
+            return
+        assert self.tests
+        self.tests.remove_file(f"log/service-{self.name}.log")
+        self.tests.remove_file(f"log/strace-{self.name}.log")
+        self.tests.remove_file(f"log/truss-{self.name}.log")
+        self.cleanup_service()
+
+    def _stop(self) -> None:
+        self.kill()
+        self.stop_service()
+
+    def prepare_service(self) -> None:
+        raise NotImplementedError()
+
+    def cleanup_service(self) -> None:
+        pass
+
+    def stop_service(self) -> None:
+        pass
+
 
 class Lighttpd(Service):
-	name = "lighttpd"
+    name = "lighttpd"
 
-	def TestConfig(self):
-		logfile = open(self.log, "w")
-		inp = self.devnull()
-		args = [base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf, '-t']
-		if base.Env.valgrind:
-			args = [base.Env.valgrind] + args
-		base.log("Testing lighttpd config: %s" % (' '.join(args)))
-		proc = subprocess.Popen(args, stdin = inp, stdout = logfile, stderr = logfile, close_fds = True)
-		if None != inp: inp.close()
-		logfile.close()
-		status = proc.wait()
-		if 0 != status:
-			os.system("cat '%s'" % self.log)
-			raise BaseException("testing lighttpd config failed with returncode %i" % (status))
+    def test_config(self) -> None:
+        env = self.tests.env
+        logfile = open(self.log, "w")
+        inp = devnull()
+        args = [env.worker, '-m', env.plugindir, '-c', env.lighttpdconf, '-t']
+        if env.valgrind:
+            args = [env.valgrind] + args
+        base.log(f"Testing lighttpd config: {shlex.join(args)}")
+        proc = subprocess.Popen(args, stdin=inp, stdout=logfile, stderr=logfile, close_fds=True)
+        if not inp is None:
+            inp.close()
+        logfile.close()
+        status = proc.wait()
+        if 0 != status:
+            subprocess.run(['cat', self.log])
+            raise Exception(f"testing lighttpd config failed with returncode {status}")
 
-	def Prepare(self):
-		self.TestConfig()
+    def prepare_service(self) -> None:
+        env = self.tests.env
+        self.test_config()
 
-		self.portfree(base.Env.port)
-		if base.Env.no_angel:
-			if base.Env.valgrind:
-				self.fork(base.Env.valgrind, base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf)
-			else:
-				self.fork(base.Env.worker, '-m', base.Env.plugindir, '-c', base.Env.lighttpdconf)
-		else:
-			self.fork(base.Env.angel, '-o', '-m', base.Env.plugindir, '-c', base.Env.angelconf)
-		self.waitconnect(base.Env.port)
+        self.portfree(env.port)
+        if env.no_angel:
+            if env.valgrind:
+                self.fork(env.valgrind, env.worker, '-m', env.plugindir, '-c', env.lighttpdconf)
+            else:
+                self.fork(env.worker, '-m', env.plugindir, '-c', env.lighttpdconf)
+        else:
+            self.fork(env.angel, '-o', '-m', env.plugindir, '-c', env.angelconf)
+        self.waitconnect(env.port)
+
 
 class FastCGI(Service):
-	binary = [None]
+    binary: list[str] = []
 
-	def __init__(self):
-		self.sockfile = os.path.join(base.Env.dir, "tmp", "sockets", self.name + ".sock")
-		super(FastCGI, self).__init__()
+    def __init__(self, *, tests: base.Tests) -> None:
+        super().__init__(tests=tests)
+        self.sockfile = os.path.join(self.tests.env.dir, "tmp", "sockets", self.name + ".sock")
 
-	def Prepare(self):
-		sockdir = self.tests.PrepareDir(os.path.join("tmp", "sockets"))
-		sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-		sock.bind(os.path.relpath(self.sockfile))
-		sock.listen(8)
-		self.fork(*self.binary, inp = sock)
+    def prepare_service(self) -> None:
+        assert self.tests
+        self.tests.install_dir(os.path.join("tmp", "sockets"))
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.bind(os.path.relpath(self.sockfile))
+        sock.listen(8)
+        self.fork(*self.binary, inp=sock)
 
-	def Cleanup(self):
-		if None != self.sockfile:
-			try:
-				os.remove(self.sockfile)
-			except BaseException as e:
-				base.eprint("Couldn't delete socket '%s': %s" % (self.sockfile, e))
-		self.tests.CleanupDir(os.path.join("tmp", "sockets"))
+    def cleanup_service(self) -> None:
+        assert self.tests
+        try:
+            os.remove(self.sockfile)
+        except Exception as e:
+            base.eprint(f"Couldn't delete socket {self.sockfile!r}: {e}")
+        self.tests.remove_dir(os.path.join("tmp", "sockets"))

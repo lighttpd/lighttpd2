@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 
-import socket
-import pycurl
-
-from io import BytesIO
-import zlib
 import bz2
+import dataclasses
+import io
 import os
+import socket
+import typing
+import zlib
 
 import pycurl
 
-from pylt.base import eprint, log, Env, TestBase
+from pylt.base import log, TestBase, Tests
 
 
-TEST_TXT="""Hi!
+TEST_TXT = """Hi!
 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
@@ -22,247 +22,312 @@ TEST_TXT="""Hi!
 
 
 class CurlRequestException(Exception):
-	def __init__(self, value): self.value = value
-	def __str__(self): return repr(self.value)
+    pass
+
+
+@dataclasses.dataclass
+class Response:
+    _debug_requests: bool = dataclasses.field(repr=False, default=False)
+    first_line: str = ''
+    code: int = 0
+    header_list: list[tuple[str, str]] = dataclasses.field(default_factory=list)
+    headers: dict[str, str] = dataclasses.field(default_factory=dict)  # lowercased keys
+    headers_done: bool = False
+    body_raw: io.BytesIO = dataclasses.field(default_factory=io.BytesIO)
+    body_decoded: typing.Optional[str] = None
+    body_complete: bool = False
+
+    def recv_header_line(self, /, line_raw: bytes) -> None:
+        if self.headers_done:
+            raise Exception('Unexpected header line - headers already finished')
+        line = line_raw.decode().rstrip()
+        if not self.first_line:
+            if not line:
+                raise Exception('First line must not be empty')
+            self.first_line = line
+            parts = line.split(maxsplit=2)
+            if len(parts) != 3:
+                raise Exception(f'Invalid first line {line!r}')
+            _version, code, _reason = parts
+            self.code = int(code)
+        elif not line:
+            if self.code == 100:
+                if self._debug_requests:
+                    log(f"Handling 100 Continue: {self.first_line!r}")
+                # wait for "new" first line
+                self.first_line = ''
+            else:
+                self.headers_done = True
+        else:
+            parts = line.split(":", maxsplit=1)
+            if len(parts) != 2:
+                raise Exception(f'Invalid header line {line!r}')
+            (key, value) = (parts[0].strip(), parts[1].strip())
+            self.header_list.append((key, value))
+            key = key.lower()
+            if key in self.headers:
+                self.headers[key] += f", {value}"
+            else:
+                self.headers[key] = value
+
+    def get_all_headers(self, key: str) -> list[str]:
+        key = key.lower()
+        return [
+            v
+            for k, v in self.header_list
+            if k.lower() == key
+        ]
+
+    @property
+    def body(self) -> str:
+        if not self.body_decoded is None:
+            return self.body_decoded
+        if not self.body_complete:
+            raise Exception('Response not complete')
+        data = self.body_raw.getvalue()
+        cenc = self.headers.get("content-encoding", None)
+        if not cenc is None:
+            data = self._decode(cenc, data)
+        self.body_decoded = data.decode()
+        return self.body_decoded
+
+    @staticmethod
+    def _decode(method: str, data: bytes) -> bytes:
+        if 'x-gzip' == method or 'gzip' == method:
+            header = data[:10]
+            if b"\x1f\x8b\x08\x00\x00\x00\x00\x00" != header[:8]:
+                raise CurlRequestException("Unsupported content-encoding gzip header")
+            return zlib.decompress(data[10:], -15)
+        elif 'deflate' == method:
+            return zlib.decompress(data, -15)
+        elif 'compress' == method:
+            raise CurlRequestException(f"Unsupported content-encoding {method}")
+        elif 'x-bzip2' == method or 'bzip2' == method:
+            return bz2.decompress(data)
+        else:
+            raise CurlRequestException(f"Unsupported content-encoding {method}")
+
+    def dump(self) -> None:
+        log(f"Response code: {self.code}")
+        log("Response headers:")
+        for (k, v) in self.header_list:
+            log(f"  {k}: {v}")
+        if self.body_complete:
+            try:
+                body = self.body
+            except Exception:
+                log("Failed decoding response body, raw:")
+                log(repr(self.body_raw.getbuffer()))
+            else:
+                log("Response body:")
+                log(body)
+        else:
+            log("Response body incomplete, raw:")
+            log(repr(self.body_raw.getbuffer()))
 
 
 class _BaseRequest(TestBase):
-	URL = None
-	SCHEME = "http"
-	PORT = 0 # offset to Env.port
-	AUTH = None
-	POST = None
-	REQUEST_HEADERS = []
-	ACCEPT_ENCODING = "deflate, gzip"
+    _NO_REGISTER = True  # only for metaclass
 
-	EXPECT_RESPONSE_BODY = None
-	EXPECT_RESPONSE_CODE = None
-	EXPECT_RESPONSE_HEADERS = []
+    URL: str
+    SCHEME: str = "http"
+    PORT_OFFSET: int = 0  # offset to Env.port
+    AUTH: typing.Optional[str] = None
+    POST: typing.Optional[bytes] = None
+    REQUEST_HEADERS: typing.Sequence[str] = ()
+    ACCEPT_ENCODING: typing.Optional[str] = "deflate, gzip"
 
-	def __init__(self, parent):
-		super().__init__(parent)
-		self.resp_header_list = []
-		self.resp_headers = { }
-		self.resp_first_line = None
-		self.resp_body = None
-		self.resp_code = 0
+    EXPECT_RESPONSE_BODY: typing.Optional[str] = None
+    EXPECT_RESPONSE_CODE: typing.Optional[int] = None
+    # list of expected headers
+    # (hdr, None) means header must not be present
+    EXPECT_RESPONSE_HEADERS: typing.Sequence[tuple[str, typing.Optional[str]]] = ()
 
-	def _recv_header(self, header):
-		header = header.decode("utf-8").rstrip()
-		if None == self.resp_first_line:
-			self.resp_first_line = header
-			return
-		if header == "":
-			if None != self.resp_first_line and self.resp_first_line.split(" ", 2)[1] == '100':
-				if Env.debugRequests:
-					log("Handling 100 Continue: '%s'" % self.resp_first_line)
-				self.resp_first_line = None
-			return
-		try:
-			(key, value) = header.split(":", 1)
-		except:
-			eprint("Couldn't parse header '%s'" % header)
-			raise
-		key = key.strip()
-		value = value.strip()
-		self.resp_header_list.append((key, value))
-		key = key.lower()
-		if key in self.resp_headers:
-			self.resp_headers[key] += ", " + value
-		else:
-			self.resp_headers[key] = value
+    def __init__(self, *, tests: Tests, parent: TestBase) -> None:
+        super().__init__(tests=tests, parent=parent)
+        self.port = self.tests.env.port + self.PORT_OFFSET
+        self.response = Response(_debug_requests=self.tests.env.debugRequests)
 
-	def _decode(self, method, data):
-		if 'x-gzip' == method or 'gzip' == method:
-			header = data[:10]
-			if b"\x1f\x8b\x08\x00\x00\x00\x00\x00" != header[:8]:
-				raise CurlRequestException("Unsupported content-encoding gzip header")
-			return zlib.decompress(data[10:], -15)
-		elif 'deflate' == method:
-			return zlib.decompress(data, -15)
-		elif 'compress' == method:
-			raise CurlRequestException("Unsupported content-encoding %s" % method)
-		elif 'x-bzip2' == method or 'bzip2' == method:
-			return bz2.decompress(data)
-		else:
-			raise CurlRequestException("Unsupported content-encoding %s" % method)
+    def build_headers(self) -> list[str]:
+        headers = [f"Host: {self.vhost}"]
+        headers.extend(self.REQUEST_HEADERS)
+        if self.ACCEPT_ENCODING:
+            headers.append(f"Accept-Encoding: {self.ACCEPT_ENCODING}")
+        return headers
 
-	def ResponseBody(self):
-		if None == self.resp_body:
-			body = self.buffer.getvalue()
-			if "content-encoding" in self.resp_headers:
-				cenc = self.resp_headers["content-encoding"]
-				body = self._decode(cenc, body)
-			self.resp_body = body.decode('utf-8')
-		return self.resp_body
+    def _checkResponse(self) -> bool:
+        if self.tests.env.debugRequests:
+            self.dump()
 
-	def _checkResponse(self):
-		if Env.debugRequests:
-			self.dump()
+        if not self.CheckResponse():
+            return False
 
-		if not self.CheckResponse():
-			return False
+        if not self.EXPECT_RESPONSE_CODE is None:
+            if self.response.code != self.EXPECT_RESPONSE_CODE:
+                raise CurlRequestException(
+                    f"Unexpected response code {self.response.code} (wanted {self.EXPECT_RESPONSE_CODE})"
+                )
 
-		if None != self.EXPECT_RESPONSE_CODE:
-			if self.resp_code != self.EXPECT_RESPONSE_CODE:
-				raise CurlRequestException("Unexpected response code %i (wanted %i)" % (self.resp_code, self.EXPECT_RESPONSE_CODE))
+        if not self.EXPECT_RESPONSE_BODY is None:
+            if self.response.body != self.EXPECT_RESPONSE_BODY:
+                raise CurlRequestException("Unexpected response body")
 
-		if None != self.EXPECT_RESPONSE_BODY:
-			if self.ResponseBody() != self.EXPECT_RESPONSE_BODY:
-				raise CurlRequestException("Unexpected response body")
+        for (k, v) in self.EXPECT_RESPONSE_HEADERS:
+            resp_hdr_v = self.response.headers.get(k.lower(), None)
+            if v is None:
+                if not resp_hdr_v is None:
+                    raise CurlRequestException(
+                        f"Got unwanted response header {k!r} = {resp_hdr_v!r}"
+                    )
+            else:
+                if resp_hdr_v is None:
+                    raise CurlRequestException(f"Didn't get wanted response header {k!r}")
+                if resp_hdr_v != v:
+                    raise CurlRequestException(
+                        f"Unexpected response header {k!r} = {resp_hdr_v!r} (wanted {v!r})"
+                    )
 
-		for (k, v) in self.EXPECT_RESPONSE_HEADERS:
-			if v == None:
-				if k.lower() in self.resp_headers:
-					raise CurlRequestException("Got unwanted response header '%s' = '%s'" % (k, self.resp_headers[k.lower()]))
-			else:
-				if not k.lower() in self.resp_headers:
-					raise CurlRequestException("Didn't get wanted response header '%s'" % (k))
-				v1 = self.resp_headers[k.lower()]
-				if v1 != v:
-					raise CurlRequestException("Unexpected response header '%s' = '%s' (wanted '%s')" % (k, v1, v))
+        return True
 
-		return True
+    def CheckResponse(self) -> bool:
+        return True
 
-	def CheckResponse(self):
-		return True
+    def dump(self) -> None:
+        raise NotImplementedError()
 
 
 class CurlRequest(_BaseRequest):
-	def PrepareRequest(self, curl, reqheaders):
-		pass
+    _NO_REGISTER = True  # only for metaclass
 
-	def Run(self):
-		if None == self.URL:
-			raise BaseException("You have to set URL in your CurlRequest instance")
-		reqheaders = ["Host: " + self.vhost] + self.REQUEST_HEADERS
-		if None != self.ACCEPT_ENCODING:
-			reqheaders += ["Accept-Encoding: " + self.ACCEPT_ENCODING]
-		c = pycurl.Curl()
-		c.setopt(pycurl.CAINFO, os.path.join(Env.sourcedir, "tests", "ca", "ca.crt"))
-		if hasattr(pycurl, 'RESOLVE'):
-			c.setopt(pycurl.URL, self.SCHEME + ("://%s:%i" % (self.vhost or '127.0.0.2', Env.port + self.PORT)) + self.URL)
-			c.setopt(pycurl.RESOLVE, ['%s:%i:127.0.0.2' % (self.vhost, Env.port + self.PORT)])
-		else:
-			c.setopt(pycurl.URL, self.SCHEME + ("://127.0.0.2:%i" % (Env.port + self.PORT)) + self.URL)
-			c.setopt(pycurl.SSL_VERIFYHOST, 0)
-		c.setopt(pycurl.HTTPHEADER, reqheaders)
-		c.setopt(pycurl.NOSIGNAL, 1)
-		# ssl connections sometimes have timeout issues. could be entropy related..
-		# use 10 second timeout instead of 2 for ssl - only 3 requests, shouldn't hurt
-		c.setopt(pycurl.TIMEOUT, ("http" == self.SCHEME and 2) or 10)
-		b = BytesIO()
-		c.setopt(pycurl.WRITEFUNCTION, b.write)
-		c.setopt(pycurl.HEADERFUNCTION, self._recv_header)
-		if None != self.POST: c.setopt(pycurl.POSTFIELDS, self.POST)
+    curl_url: str
 
-		if None != self.AUTH:
-			c.setopt(pycurl.USERPWD, self.AUTH)
-			c.setopt(pycurl.FOLLOWLOCATION, 1)
-			c.setopt(pycurl.MAXREDIRS, 5)
+    def prepare_curl_request(self, curl: pycurl.Curl) -> None:
+        pass
 
-		self.buffer = b
+    def run_test(self) -> bool:
+        reqheaders = self.build_headers()
+        c = pycurl.Curl()
+        c.setopt(pycurl.CAINFO, os.path.join(self.tests.env.sourcedir, "tests", "ca", "ca.crt"))
+        if hasattr(pycurl, 'RESOLVE') and self.vhost:
+            url_host = self.vhost
+            c.setopt(pycurl.RESOLVE, [f'{self.vhost}:{self.port}:127.0.0.2'])
+        else:
+            url_host = '127.0.0.2'
+            c.setopt(pycurl.SSL_VERIFYHOST, 0)
+        self.curl_url = f"{self.SCHEME}://{url_host}:{self.port}{self.URL}"
+        c.setopt(pycurl.URL, self.curl_url)
+        c.setopt(pycurl.HTTPHEADER, reqheaders)
+        c.setopt(pycurl.NOSIGNAL, 1)
+        # ssl connections sometimes have timeout issues. could be entropy related..
+        # use 10 second timeout instead of 2 for ssl - only 3 requests, shouldn't hurt
+        c.setopt(pycurl.TIMEOUT, ("http" == self.SCHEME and 2) or 10)
+        c.setopt(pycurl.WRITEFUNCTION, self.response.body_raw.write)
+        c.setopt(pycurl.HEADERFUNCTION, self.response.recv_header_line)
+        if not self.POST is None:
+            c.setopt(pycurl.POSTFIELDS, self.POST)
 
-		self.PrepareRequest(c, reqheaders)
+        if not self.AUTH is None:
+            c.setopt(pycurl.USERPWD, self.AUTH)
+            c.setopt(pycurl.FOLLOWLOCATION, 1)
+            c.setopt(pycurl.MAXREDIRS, 5)
 
-		c.perform()
+        self.prepare_curl_request(c)
 
-		self.resp_code = c.getinfo(pycurl.RESPONSE_CODE)
+        c.perform()
 
-		try:
-			if not self._checkResponse():
-				raise CurlRequestException("Response check failed")
-		except:
-			if not Env.debugRequests:
-				self.dump()
-			raise
-		finally:
-			c.close()
+        self.response.body_complete = True
 
-		return True
+        try:
+            curl_resp_code = c.getinfo(pycurl.RESPONSE_CODE)
+            if curl_resp_code != self.response.code:
+                raise CurlRequestException(
+                    f"curl returned respose code {curl_resp_code}, but headers show {self.response.code}"
+                )
 
-	def dump(self):
-		Env.log.flush()
-		log("Dumping request for test '%s'" % self.name)
-		log("Curl request: URL = %s://%s:%i%s" % (self.SCHEME, self.vhost, Env.port + self.PORT, self.URL))
-		log("Curl response code: %i " % (self.resp_code))
-		log("Curl response headers:")
-		for (k, v) in self.resp_header_list:
-			log("  %s: %s" % (k, v))
-		log("Curl response body:")
-		log(self.ResponseBody())
-		Env.log.flush()
+            if not self._checkResponse():
+                raise CurlRequestException("Response check failed")
+        except Exception:
+            if not self.tests.env.debugRequests:
+                self.dump()
+            raise
+        finally:
+            c.close()
+
+        return True
+
+    def dump(self) -> None:
+        self.tests.env.log.flush()
+        log(f"Dumping request for test {self.name!r}")
+        log(f"Curl request: URL = {self.curl_url}")
+        self.response.dump()
+        self.tests.env.log.flush()
 
 
 class RawRequest(_BaseRequest):
-	def __init__(self, parent):
-		super().__init__(parent)
-		self.request = b''
+    _NO_REGISTER = True  # only for metaclass
 
-	def Run(self):
-		if None == self.URL:
-			raise Exception("You have to set URL in your CurlRequest instance")
-		reqheaders = ["Host: " + self.vhost] + self.REQUEST_HEADERS
-		if None != self.ACCEPT_ENCODING:
-			reqheaders += ["Accept-Encoding: " + self.ACCEPT_ENCODING]
-		if self.SCHEME != 'http':
-			raise Exception(f"Unsupported scheme {self.scheme!r}")
-		if None != self.POST:
-			raise Exception(f"POST not supported")
-		if None != self.AUTH:
-			raise Exception(f"AUTH not supported")
+    def __init__(self, *, tests: Tests, parent: TestBase):
+        super().__init__(tests=tests, parent=parent)
+        self.request = b''
 
-		with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_con:
-			tcp_con.settimeout(2)
-			tcp_con.connect(('127.0.0.2', Env.port + self.PORT))
+    def run_test(self) -> bool:
+        if not self.URL:
+            raise Exception("You have to set URL in your CurlRequest instance")
+        reqheaders = self.build_headers()
+        if self.SCHEME != 'http':
+            raise Exception(f"Unsupported scheme {self.SCHEME!r}")
+        if not self.POST is None:
+            raise Exception("POST not supported")
+        if not self.AUTH is None:
+            raise Exception("AUTH not supported")
 
-			req = f'GET {self.URL} HTTP/1.1\r\n'.encode()
-			for hdr in reqheaders:
-				req += hdr.encode() + b'\r\n'
-			# not implementing content-length handling / keep-alive / ...
-			req += b'Connection: close\r\n'
-			req += b'\r\n'
-			self.request = req
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_con:
+            tcp_con.settimeout(2)
+            tcp_con.connect(('127.0.0.2', self.port))
 
-			tcp_con.sendall(req)
-			response = b''
-			while True:
-				chunk = tcp_con.recv(4069)
-				if not chunk:
-					break
-				response += chunk
+            req = f'GET {self.URL} HTTP/1.1\r\n'.encode()
+            for hdr in reqheaders:
+                req += hdr.encode() + b'\r\n'
+            # not implementing content-length handling / keep-alive / ...
+            req += b'Connection: close\r\n'
+            req += b'\r\n'
+            self.request = req
 
-		while True:
-			if not b'\n' in response:
-				raise Exception("Response missing header end")
-			line, response = response.split(b'\n', maxsplit=1)
-			if not line or line == b'\r':
-				break
-			self._recv_header(line)
+            tcp_con.sendall(req)
+            response = b''
+            while True:
+                chunk = tcp_con.recv(4069)
+                if not chunk:
+                    break
+                response += chunk
 
-		self.buffer = BytesIO(response)
-		self.resp_code = int(self.resp_first_line.split()[1])
+        while True:
+            if not b'\n' in response:
+                raise Exception("Response missing header end")
+            line, response = response.split(b'\n', maxsplit=1)
+            if not line or line == b'\r':
+                break
+            self.response.recv_header_line(line)
 
-		try:
-			if not self._checkResponse():
-				raise CurlRequestException("Response check failed")
-		except:
-			if not Env.debugRequests:
-				self.dump()
-			raise
+        self.response.body_raw.write(response)
+        self.response.body_raw.seek(0, io.SEEK_SET)
+        self.response.body_complete = True
 
-		return True
+        try:
+            if not self._checkResponse():
+                raise CurlRequestException("Response check failed")
+        except Exception:
+            if not self.tests.env.debugRequests:
+                self.dump()
+            raise
 
-	def dump(self):
-		Env.log.flush()
-		log("Dumping request for test '%s'" % self.name)
-		log("Request:")
-		for line in self.request.splitlines():
-			log(f"  {line.decode()}")
-		log("Response code: %i " % (self.resp_code))
-		log("Response headers:")
-		for (k, v) in self.resp_header_list:
-			log("  %s: %s" % (k, v))
-		log("Response body:")
-		log(self.ResponseBody())
-		Env.log.flush()
+        return True
+
+    def dump(self):
+        self.tests.env.log.flush()
+        log(f"Dumping request for test {self.name!r}")
+        log("Request:")
+        for line in self.request.splitlines():
+            log(f"  {line.decode()}")
+        self.response.dump()
+        self.tests.env.log.flush()

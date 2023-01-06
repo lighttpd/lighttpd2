@@ -1,157 +1,107 @@
 # -*- coding: utf-8 -*-
 
+import datetime
+import io
 import time
+import typing
 
 
-__all__ = [ 'LogFile', 'RemoveEscapeSeq' ]
-
-ATTRS = [ 'closed', 'encoding', 'errors', 'mode', 'name', 'newlines', 'softspace' ]
+__all__ = ['LogFile', 'RemoveEscapeSeq']
 
 
-class LogFile(object):
-	def __init__(self, file, **clones):
-		self.file = file
-		self.clones = clones
-		self.newline = True
+class LogFile(io.TextIOBase):
+    __slots__ = ('_file', '_clones', '_newline')
 
-	def __enter__(self, *args, **kwargs): return self.file.__enter__(*args, **kwargs)
-	def __exit__(self, *args, **kwargs): return self.file.__exit__(*args, **kwargs)
-	def __iter__(self, *args, **kwargs): return self.file.__iter__(*args, **kwargs)
-	def __repr__(self, *args, **kwargs): return self.file.__repr__(*args, **kwargs)
+    def __init__(
+        self,
+        file: typing.Union[io.TextIOBase, typing.IO[str]],
+        **clones: typing.Union[io.TextIOBase, typing.IO[str]],
+    ):
+        super().__init__()
+        if file.closed:
+            # probably not a very useful state
+            super().close()
+        self._file = file
+        self._clones = clones
+        # whether next write should start a new line, i.e. prepend timestamp
+        self._newline = True
 
-	def __delattr__(self, name):
-		if name in ATTRS:
-			return delattr(self.file, name)
-		else:
-			return super(LogFile, self).__delattr__(name)
-	def __getattr__(self, name):
-		if name in ATTRS:
-			return getattr(self.file, name)
-		else:
-			return super(LogFile, self).__getattr__(name)
-	def __getattribute__(self, name):
-		if name in ATTRS:
-			return self.file.__getattribute__(name)
-		else:
-			return object.__getattribute__(self, name)
-	def __setattr__(self, name, value):
-		if name in ATTRS:
-			return setattr(self.file, name, value)
-		else:
-			return super(LogFile, self).__setattr__(name, value)
+    def close(self) -> None:
+        if not self.closed:
+            super().close()
+            self._file.close()
+            for f in self._clones.values():
+                f.flush()
 
-	def close(self, *args, **kwargs): return self.file.close(*args, **kwargs)
-	def fileno(self, *args, **kwargs):
-		pass
-	def flush(self, *args, **kwargs):
-		for (p, f) in self.clones.items():
-			f.flush(*args, **kwargs)
-		return self.file.flush(*args, **kwargs)
-	def isatty(self, *args, **kwargs): return False
-	def next(self, *args, **kwargs): return self.file.next(*args, **kwargs)
+    def writable(self) -> bool:
+        return True
 
-	def read(self, *args, **kwargs): return self.file.read(*args, **kwargs)
-	def readinto(self, *args, **kwargs): return self.file.readinto(*args, **kwargs)
-	def readline(self, *args, **kwargs): return self.file.readline(*args, **kwargs)
-	def readlines(self, *args, **kwargs): return self.file.readlines(*args, **kwargs)
+    def _write_line_part(self, /, line_part: str) -> None:
+        # line_part musn't contain a newline, it only is allowed to end
+        # with a newline
+        if not line_part:
+            return
+        if self._newline:
+            now = datetime.datetime.now(tz=datetime.timezone(datetime.timedelta(seconds=time.timezone)))
+            ts = now.strftime("%Y/%m/%d %H:%M:%S.%f %z: ")
+            self._file.write(f"{ts}: {line_part}")
+            for (prefix, f) in self._clones.items():
+                f.write(f"{ts} {prefix}: {line_part}")
+        else:
+            self._file.write(line_part)
+            for f in self._clones.values():
+                f.write(line_part)
+        self._newline = line_part.endswith('\n')
 
-	def seek(self, *args, **kwargs):
-		pass
-	def tell(self, *args, **kwargs): return self.file.tell(*args, **kwargs)
-	def truncate(self, *args, **kwargs):
-		pass
-	def __write(self, str):
-		self.file.write(str)
-		for (p, f) in self.clones.items():
-			f.write(p + str)
-	def _write(self, str):
-		if "" == str: return
-		if self.newline:
-			# "%f" needs python 2.6
-			# ts = time.strftime("%Y/%m/%d %H:%M:%S.%f %Z: ")
-			ts = time.strftime("%Y/%m/%d %H:%M:%S %Z")
-			self.file.write(ts + ": " + str)
-			for (p, f) in self.clones.items():
-				f.write(ts + " " + p + ": " + str)
-		else:
-			self.file.write(str)
-			for (p, f) in self.clones.items():
-				f.write(str)
-		self.newline = ('\n' == str[-1])
-	def write(self, str):
-		lines = str.split('\n')
-		for l in lines[:-1]:
-			self._write(l + '\n')
-		self._write(lines[-1])
-	def writelines(self, *args):
-		return self.write(''.join(args))
-	def xreadlines(self, *args, **kwargs): return self.file.xreadlines(*args, **kwargs)
+    def write(self, /, data: str) -> int:
+        lines = data.split('\n')
+        for line in lines[:-1]:
+            # all but the final line had a terminating '\n' in the input
+            self._write_line_part(line + '\n')
+        if lines[-1]:
+            self._write_line_part(lines[-1])
+        return len(data)
+
+    def flush(self) -> None:
+        self._file.flush()
+        for f in self._clones.values():
+            f.flush()
 
 
-class RemoveEscapeSeq(object):
-	def __init__(self, file):
-		self.file = file
-		self.escape_open = False
+class RemoveEscapeSeq(io.TextIOBase):
+    __slots__ = ('_file', '_escape_open')
 
-	def __enter__(self, *args, **kwargs): return self.file.__enter__(*args, **kwargs)
-	def __exit__(self, *args, **kwargs): return self.file.__exit__(*args, **kwargs)
-	def __iter__(self, *args, **kwargs): return self.file.__iter__(*args, **kwargs)
-	def __repr__(self, *args, **kwargs): return self.file.__repr__(*args, **kwargs)
+    def __init__(self, file: typing.Union[io.TextIOBase, typing.IO[str]]):
+        super().__init__()
+        if file.closed:
+            super().close()
+        self._file = file
+        self._escape_open = False
 
-	def __delattr__(self, name):
-		if name in ATTRS:
-			return delattr(self.file, name)
-		else:
-			return super(RemoveEscapeSeq, self).__delattr__(name)
-	def __getattr__(self, name):
-		if name in ATTRS:
-			return getattr(self.file, name)
-		else:
-			return super(RemoveEscapeSeq, self).__getattr__(name)
-	def __getattribute__(self, name):
-		if name in ATTRS:
-			return self.file.__getattribute__(name)
-		else:
-			return object.__getattribute__(self, name)
-	def __setattr__(self, name, value):
-		if name in ATTRS:
-			return setattr(self.file, name, value)
-		else:
-			return super(RemoveEscapeSeq, self).__setattr__(name, value)
+    def close(self) -> None:
+        if not self.closed:
+            super().close()
+            self._file.close()
 
-	def close(self, *args, **kwargs): return self.file.close(*args, **kwargs)
-	def fileno(self, *args, **kwargs):
-		pass
-	def flush(self, *args, **kwargs): return self.file.flush(*args, **kwargs)
-	def isatty(self, *args, **kwargs): return False
-	def next(self, *args, **kwargs): return self.file.next(*args, **kwargs)
-	def read(self, *args, **kwargs): return self.file.read(*args, **kwargs)
-	def readinto(self, *args, **kwargs): return self.file.readinto(*args, **kwargs)
-	def readline(self, *args, **kwargs): return self.file.readline(*args, **kwargs)
-	def readlines(self, *args, **kwargs): return self.file.readlines(*args, **kwargs)
+    def flush(self) -> None:
+        self._file.flush()
 
-	def seek(self, *args, **kwargs):
-		pass
-	def tell(self, *args, **kwargs): return self.file.tell(*args, **kwargs)
-	def truncate(self, *args, **kwargs):
-		pass
-	def write(self, str):
-		while str != "":
-			if self.escape_open:
-				l = str.split('m', 1)
-				if len(l) == 2:
-					self.escape_open = False
-					str = l[1]
-				else:
-					return
-			else:
-				l = str.split('\033', 1)
-				self.file.write(l[0])
-				if len(l) == 2:
-					self.escape_open = True
-					str = l[1]
-				else:
-					return
-	def writelines(self, *args):
-		return self.write(''.join(args))
-	def xreadlines(self, *args, **kwargs): return self.file.xreadlines(*args, **kwargs)
+    def write(self, /, data: str) -> int:
+        rem = data
+        while rem:
+            if self._escape_open:
+                parts = str.split('m', maxsplit=1)
+                if len(parts) == 2:
+                    self._escape_open = False
+                    rem = parts[1]
+                else:
+                    break
+            else:
+                parts = rem.split('\033', maxsplit=1)
+                self._file.write(parts[0])
+                if len(parts) == 2:
+                    self._escape_open = True
+                    rem = parts[1]
+                else:
+                    break
+        return len(data)

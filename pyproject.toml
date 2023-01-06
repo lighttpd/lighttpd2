@@ -1,0 +1,13 @@
+[tool.pyright]
+include = ["tests"]
+
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+
+[tool.mypy]
+warn_unused_configs = true
+mypy_path = "tests"
+files = "tests"
+implicit_reexport = false
+show_error_codes = true
+follow_imports = "silent"
