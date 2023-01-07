@@ -43,6 +43,9 @@
 		<parameter name="timeout">
 			<short>timeout after which to display events (default: disabled)</short>
 		</parameter>
+		<parameter name="repeat">
+			<short>timeout after which to repeat displaying events (default: disabled)</short>
+		</parameter>
 
 		<description>
 			this is a very low level debug tool for developers; it shows which event listeners keep lighttpd2 alive when it should stop.
@@ -51,6 +54,7 @@
 		<example>
 			<config>
 				setup { debug.show_events_after_shutdown 5; }
+				setup { debug.show_events_after_shutdown 5, 15; }
 			</config>
 		</example>
 	</setup>

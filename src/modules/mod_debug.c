@@ -73,6 +73,7 @@ typedef struct plugin_debug_worker_data plugin_debug_worker_data;
 
 struct plugin_debug_data {
 	int stop_listen_timeout_seconds;
+	int stop_listen_timeout_seconds_repeat;
 	plugin_debug_worker_data *worker_data;
 };
 typedef struct plugin_debug_data plugin_debug_data;
@@ -581,14 +582,21 @@ static gboolean debug_show_events_after_shutdown(liServer *srv, liPlugin* p, liV
 
 	val = li_value_get_single_argument(val);
 
-	if (LI_VALUE_NUMBER != li_value_type(val)) {
-		ERROR(srv, "debug.show_events_after_shutdown expected number, got %s", li_value_type_string(val));
-		return FALSE;
+	if (LI_VALUE_NUMBER == li_value_type(val)) {
+		pd->stop_listen_timeout_seconds = val->data.number;
+		return TRUE;
+	} else if (
+		li_value_list_has_len(val, 2)
+		&& LI_VALUE_NUMBER == li_value_list_type_at(val, 0)
+		&& LI_VALUE_NUMBER == li_value_list_type_at(val, 0)
+	) {
+		pd->stop_listen_timeout_seconds = li_value_list_at(val, 0)->data.number;
+		pd->stop_listen_timeout_seconds_repeat = li_value_list_at(val, 1)->data.number;
+		return TRUE;
 	}
 
-	pd->stop_listen_timeout_seconds = val->data.number;
-
-	return TRUE;
+	ERROR(srv, "debug.show_events_after_shutdown expects one or two numbers, got %s", li_value_type_string(val));
+	return FALSE;
 }
 
 static const liPluginOption options[] = {
@@ -613,10 +621,15 @@ static const liPluginSetup setups[] = {
 
 static void plugin_debug_stop_listen_timeout(liEventBase *watcher, int events) {
 	plugin_debug_worker_data *pwd = LI_CONTAINER_OF(li_event_timer_from(watcher), plugin_debug_worker_data, stop_listen_timeout);
+	plugin_debug_data *pd = pwd->pd;
 	UNUSED(events);
 
 	ERROR(pwd->wrk->srv, "Couldn't suspend yet, checking events for worker %i:", pwd->wrk->ndx);
 	log_events(pwd->wrk, NULL, FALSE);
+
+	if (pd->stop_listen_timeout_seconds_repeat >= 0) {
+		li_event_timer_once(&pwd->stop_listen_timeout, pd->stop_listen_timeout_seconds_repeat);
+	}
 }
 
 static void plugin_debug_worker_stop_listen(liEventBase *watcher, int events) {
@@ -693,6 +706,7 @@ static void plugin_debug_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->data = pd;
 
 	pd->stop_listen_timeout_seconds = -1; /* disabled by default */
+	pd->stop_listen_timeout_seconds_repeat = -1; /* disabled by default */
 
 	p->free = plugin_debug_free;
 	p->handle_stop_listen = plugin_debug_stop_listen;
