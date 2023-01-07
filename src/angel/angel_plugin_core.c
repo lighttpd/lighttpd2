@@ -502,19 +502,20 @@ static void listen_ref_release(liServer *srv, liInstance *i, liPlugin *p, liInst
 	if (g_atomic_int_dec_and_test(&sock->refcount)) {
 		liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
 
+		/* theoretically the hash table entry might not point to `sock`,
+		 * but a) that shouldn't happen (can't bind two sockets to same
+		 * address) and b) it doesn't matter - it just means the next
+		 * `core_listen` will try to bind a new one (and fail...).
+		 */
 		g_hash_table_remove(config->listen_sockets, &sock->addr);
+
+		li_sockaddr_clear(&sock->addr);
+		close(sock->fd);
+
+		g_slice_free(listen_socket, sock);
 	}
 
 	g_slice_free(listen_ref_resource, ref);
-}
-
-static void _listen_socket_free(gpointer ptr) {
-	listen_socket *sock = ptr;
-
-	li_sockaddr_clear(&sock->addr);
-	close(sock->fd);
-
-	g_slice_free(listen_socket, sock);
 }
 
 static void listen_socket_add(liInstance *i, liPlugin *p, listen_socket *sock) {
@@ -971,7 +972,7 @@ static gboolean core_init(liServer *srv, liPlugin *p) {
 	p->handle_instance_replaced = core_instance_replaced;
 
 	core_parse_init(srv, p);
-	config->listen_sockets = g_hash_table_new_full(li_hash_sockaddr, li_equal_sockaddr, NULL, _listen_socket_free);
+	config->listen_sockets = g_hash_table_new_full(li_hash_sockaddr, li_equal_sockaddr, NULL, NULL);
 	config->listen_masks = g_ptr_array_new();
 
 	li_angel_plugin_add_angel_cb(p, "listen", core_listen);
