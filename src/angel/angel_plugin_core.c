@@ -530,9 +530,9 @@ static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSo
 	guint i;
 	liPluginCoreListenMask *mask;
 
-	switch (addr->addr->plain.sa_family) {
+	switch (addr->addr_up.plain->sa_family) {
 	case AF_INET: {
-		struct sockaddr_in *ipv4 = &addr->addr->ipv4;
+		struct sockaddr_in *ipv4 = addr->addr_up.ipv4;
 		guint port = ntohs(ipv4->sin_port);
 
 		if (config->listen_masks->len) {
@@ -555,7 +555,7 @@ static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSo
 	} break;
 #ifdef HAVE_IPV6
 	case AF_INET6: {
-		struct sockaddr_in6 *ipv6 = &addr->addr->ipv6;
+		struct sockaddr_in6 *ipv6 = addr->addr_up.ipv6;
 		guint port = ntohs(ipv6->sin6_port);
 
 		if (config->listen_masks->len) {
@@ -580,7 +580,7 @@ static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSo
 #ifdef HAVE_SYS_UN_H
 	case AF_UNIX: {
 		if (config->listen_masks->len) {
-			const gchar *fname = addr->addr->un.sun_path;
+			const gchar *fname = addr->addr_up.un->sun_path;
 
 			for (i = 0; i < config->listen_masks->len; i++) {
 				mask = g_ptr_array_index(config->listen_masks, i);
@@ -599,7 +599,7 @@ static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSo
 	} break;
 #endif
 	default:
-		ERROR(srv, "Address family %i not supported", addr->addr->plain.sa_family);
+		ERROR(srv, "Address family %i not supported", addr->addr_up.plain->sa_family);
 		break;
 	}
 	return FALSE;
@@ -609,7 +609,7 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 	int s, v;
 	GString *ipv6_str;
 
-	switch (addr->addr->plain.sa_family) {
+	switch (addr->addr_up.plain->sa_family) {
 	case AF_INET:
 		if (-1 == (s = socket(AF_INET, SOCK_STREAM, 0))) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
@@ -621,7 +621,7 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 			ERROR(srv, "Couldn't setsockopt(SO_REUSEADDR): %s", g_strerror(errno));
 			return -1;
 		}
-		if (-1 == bind(s, &addr->addr->plain, addr->len)) {
+		if (-1 == bind(s, addr->addr_up.plain, addr->len)) {
 			close(s);
 			ERROR(srv, "Couldn't bind socket to '%s': %s", str->str, g_strerror(errno));
 			return -1;
@@ -635,12 +635,12 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 			ERROR(srv, "Couldn't listen on '%s': %s", str->str, g_strerror(errno));
 			return -1;
 		}
-		DEBUG(srv, "listen to ipv4: '%s' (port: %d)", str->str, ntohs(addr->addr->ipv4.sin_port));
+		DEBUG(srv, "listen to ipv4: '%s' (port: %d)", str->str, ntohs(addr->addr_up.ipv4->sin_port));
 		return s;
 #ifdef HAVE_IPV6
 	case AF_INET6:
 		ipv6_str = g_string_sized_new(0);
-		li_ipv6_tostring(ipv6_str, addr->addr->ipv6.sin6_addr.s6_addr);
+		li_ipv6_tostring(ipv6_str, addr->addr_up.ipv6->sin6_addr.s6_addr);
 
 		if (-1 == (s = socket(AF_INET6, SOCK_STREAM, 0))) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
@@ -660,7 +660,7 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 			g_string_free(ipv6_str, TRUE);
 			return -1;
 		}
-		if (-1 == bind(s, &addr->addr->plain, addr->len)) {
+		if (-1 == bind(s, addr->addr_up.plain, addr->len)) {
 			close(s);
 			ERROR(srv, "Couldn't bind socket to '%s': %s", ipv6_str->str, g_strerror(errno));
 			g_string_free(ipv6_str, TRUE);
@@ -676,13 +676,13 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 			g_string_free(ipv6_str, TRUE);
 			return -1;
 		}
-		DEBUG(srv, "listen to ipv6: '%s' (port: %d)", ipv6_str->str, ntohs(addr->addr->ipv6.sin6_port));
+		DEBUG(srv, "listen to ipv6: '%s' (port: %d)", ipv6_str->str, ntohs(addr->addr_up.ipv6->sin6_port));
 		g_string_free(ipv6_str, TRUE);
 		return s;
 #endif
 #ifdef HAVE_SYS_UN_H
 	case AF_UNIX:
-		if (-1 == unlink(addr->addr->un.sun_path)) {
+		if (-1 == unlink(addr->addr_up.un->sun_path)) {
 			switch (errno) {
 			case ENOENT:
 				break;
@@ -695,7 +695,7 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
 			return -1;
 		}
-		if (-1 == bind(s, &addr->addr->plain, addr->len)) {
+		if (-1 == bind(s, addr->addr_up.plain, addr->len)) {
 			close(s);
 			ERROR(srv, "Couldn't bind socket to '%s': %s", str->str, g_strerror(errno));
 			return -1;
@@ -709,7 +709,7 @@ static int do_listen(liServer *srv, liSocketAddress *addr, GString *str) {
 		return s;
 #endif
 	default:
-		ERROR(srv, "Address family %i not supported", addr->addr->plain.sa_family);
+		ERROR(srv, "Address family %i not supported", addr->addr_up.plain->sa_family);
 		break;
 	}
 	return -1;
@@ -728,7 +728,7 @@ static void core_listen(liServer *srv, liPlugin *p, liInstance *i, gint32 id, GS
 	if (-1 == id) return; /* ignore simple calls */
 
 	addr = li_sockaddr_from_string(data, 80);
-	if (!addr.addr) {
+	if (!addr.addr_up.raw) {
 		GString *error = g_string_sized_new(0);
 		g_string_printf(error, "Invalid socket address: '%s'", data->str);
 		if (!li_angel_send_result(i->acon, id, error, NULL, NULL, &err)) {

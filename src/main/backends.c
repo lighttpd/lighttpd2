@@ -402,7 +402,7 @@ static gboolean S_backend_connection_connect(liBackendWorkerPool *wpool) {
 	int fd;
 
 	do {
-		fd = socket(config->sock_addr.addr->plain.sa_family, SOCK_STREAM, 0);
+		fd = socket(config->sock_addr.addr_up.plain->sa_family, SOCK_STREAM, 0);
 	} while (-1 == fd && errno == EINTR);
 	if (-1 == fd) {
 		if (errno == EMFILE) {
@@ -413,7 +413,7 @@ static gboolean S_backend_connection_connect(liBackendWorkerPool *wpool) {
 	}
 	li_fd_no_block(fd);
 
-	if (-1 == connect(fd, &config->sock_addr.addr->plain, config->sock_addr.len)) {
+	if (-1 == connect(fd, config->sock_addr.addr_up.plain, config->sock_addr.len)) {
 		switch (errno) {
 		case EINPROGRESS:
 		case EALREADY:

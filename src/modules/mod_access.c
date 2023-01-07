@@ -34,15 +34,15 @@ enum {
 
 static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *context) {
 	access_check_data *acd = param;
-	liSockAddr *addr = vr->coninfo->remote_addr.addr;
+	liSockAddrPtr addr_up = vr->coninfo->remote_addr.addr_up;
 	gboolean log_blocked = _OPTION(vr, acd->p, OPTION_LOG_BLOCKED).boolean;
 	GString *redirect_url = _OPTIONPTR(vr, acd->p, OPTION_REDIRECT_URL).string;
 
 	UNUSED(context);
 	UNUSED(redirect_url);
 
-	if (addr->plain.sa_family == AF_INET) {
-		if (GINT_TO_POINTER(ACCESS_DENY) == li_radixtree_lookup(acd->ipv4, &addr->ipv4.sin_addr.s_addr, 32)) {
+	if (addr_up.plain->sa_family == AF_INET) {
+		if (GINT_TO_POINTER(ACCESS_DENY) == li_radixtree_lookup(acd->ipv4, &addr_up.ipv4->sin_addr.s_addr, 32)) {
 			if (!li_vrequest_handle_direct(vr))
 				return LI_HANDLER_GO_ON;
 
@@ -52,8 +52,8 @@ static liHandlerResult access_check(liVRequest *vr, gpointer param, gpointer *co
 				VR_INFO(vr, "access.check: blocked %s", vr->coninfo->remote_addr_str->str);
 		}
 #ifdef HAVE_IPV6
-	} else if (addr->plain.sa_family == AF_INET6) {
-		if (GINT_TO_POINTER(ACCESS_DENY) == li_radixtree_lookup(acd->ipv6, &addr->ipv6.sin6_addr.s6_addr, 128)) {
+	} else if (addr_up.plain->sa_family == AF_INET6) {
+		if (GINT_TO_POINTER(ACCESS_DENY) == li_radixtree_lookup(acd->ipv6, &addr_up.ipv6->sin6_addr.s6_addr, 128)) {
 			if (!li_vrequest_handle_direct(vr))
 				return LI_HANDLER_GO_ON;
 

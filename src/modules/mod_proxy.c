@@ -125,7 +125,7 @@ static proxy_context* proxy_context_new(liServer *srv, GString *dest_socket) {
 	liBackendConfig *config;
 
 	saddr = li_sockaddr_from_string(dest_socket, 0);
-	if (NULL == saddr.addr) {
+	if (NULL == saddr.addr_up.raw) {
 		ERROR(srv, "Invalid socket address '%s'", dest_socket->str);
 		return NULL;
 	}

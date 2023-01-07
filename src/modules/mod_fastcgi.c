@@ -149,7 +149,7 @@ static liAction* fastcgi_create(liServer *srv, liWorker *wrk, liPlugin* p, liVal
 	}
 
 	config.sock_addr = li_sockaddr_from_string(val->data.string, 0);
-	if (NULL == config.sock_addr.addr) {
+	if (NULL == config.sock_addr.addr_up.raw) {
 		ERROR(srv, "Invalid socket address '%s'", val->data.string->str);
 		return NULL;
 	}

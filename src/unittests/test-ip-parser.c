@@ -35,9 +35,10 @@ static void test_ipv4_net1(void) {
 	g_assert_cmpuint(range.ipv4.port, ==, 80);
 
 	addr = li_sockaddr_from_string(&str1, 80);
-	g_assert(addr.addr);
+	g_assert(addr.addr_up.raw);
 
-	ipv4 = &addr.addr->ipv4;
+	g_assert_cmpuint(AF_INET, ==, addr.addr_up.plain->sa_family);
+	ipv4 = addr.addr_up.ipv4;
 
 	g_assert_cmpuint(ipv4->sin_addr.s_addr, ==, htonl(0x7f000001u));
 
@@ -61,9 +62,10 @@ static void test_ipv6_net1(void) {
 	g_assert_cmpuint(range.ipv6.port, ==, 80);
 
 	addr = li_sockaddr_from_string(&str1, 80);
-	g_assert(addr.addr);
+	g_assert(addr.addr_up.raw);
 
-	ipv6 = &addr.addr->ipv6;
+	g_assert_cmpuint(AF_INET6, ==, addr.addr_up.plain->sa_family);
+	ipv6 = addr.addr_up.ipv6;
 
 	g_assert(li_ipv6_in_ipv6_net(ipv6->sin6_addr.s6_addr, range.ipv6.addr, range.ipv6.network));
 	g_assert_cmpuint(ipv6->sin6_port, ==, htons(range.ipv6.port));

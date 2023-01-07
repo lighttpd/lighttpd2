@@ -110,10 +110,10 @@ void li_environment_dup2cgi(liVRequest *vr, liEnvironmentDup *envdup, liAddEnvir
 	add_env_var(envdup, callback, param, CONST_STR_LEN("GATEWAY_INTERFACE"), CONST_STR_LEN("CGI/1.1"));
 	{
 		guint port = 0;
-		switch (coninfo->local_addr.addr->plain.sa_family) {
-		case AF_INET: port = coninfo->local_addr.addr->ipv4.sin_port; break;
+		switch (coninfo->local_addr.addr_up.plain->sa_family) {
+		case AF_INET: port = coninfo->local_addr.addr_up.ipv4->sin_port; break;
 #ifdef HAVE_IPV6
-		case AF_INET6: port = coninfo->local_addr.addr->ipv6.sin6_port; break;
+		case AF_INET6: port = coninfo->local_addr.addr_up.ipv6->sin6_port; break;
 #endif
 		}
 		if (port) {
@@ -125,10 +125,10 @@ void li_environment_dup2cgi(liVRequest *vr, liEnvironmentDup *envdup, liAddEnvir
 
 	{
 		guint port = 0;
-		switch (coninfo->remote_addr.addr->plain.sa_family) {
-		case AF_INET: port = coninfo->remote_addr.addr->ipv4.sin_port; break;
+		switch (coninfo->remote_addr.addr_up.plain->sa_family) {
+		case AF_INET: port = coninfo->remote_addr.addr_up.ipv4->sin_port; break;
 #ifdef HAVE_IPV6
-		case AF_INET6: port = coninfo->remote_addr.addr->ipv6.sin6_port; break;
+		case AF_INET6: port = coninfo->remote_addr.addr_up.ipv6->sin6_port; break;
 #endif
 		}
 		if (port) {

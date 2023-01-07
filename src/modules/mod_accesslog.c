@@ -273,10 +273,10 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_LOCAL_PORT:
-				switch (vr->coninfo->local_addr.addr->plain.sa_family) {
-				case AF_INET: li_string_append_int(str, ntohs(vr->coninfo->local_addr.addr->ipv4.sin_port)); break;
+				switch (vr->coninfo->local_addr.addr_up.plain->sa_family) {
+				case AF_INET: li_string_append_int(str, ntohs(vr->coninfo->local_addr.addr_up.ipv4->sin_port)); break;
 				#ifdef HAVE_IPV6
-				case AF_INET6: li_string_append_int(str, ntohs(vr->coninfo->local_addr.addr->ipv6.sin6_port)); break;
+				case AF_INET6: li_string_append_int(str, ntohs(vr->coninfo->local_addr.addr_up.ipv6->sin6_port)); break;
 				#endif
 				default: g_string_append_c(str, '-'); break;
 				}

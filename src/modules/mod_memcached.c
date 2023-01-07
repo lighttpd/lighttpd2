@@ -157,7 +157,7 @@ static memcached_ctx* mc_ctx_parse(liServer *srv, liPlugin *p, liValue *config, 
 			have_server_parameter = TRUE;
 			li_sockaddr_clear(&ctx->addr);
 			ctx->addr = li_sockaddr_from_string(entryValue->data.string, 11211);
-			if (NULL == ctx->addr.addr) {
+			if (NULL == ctx->addr.addr_up.raw) {
 				ERROR(srv, "invalid socket address: '%s'", entryValue->data.string->str);
 				goto option_failed;
 			}
@@ -1107,7 +1107,7 @@ static int mc_lua_new(lua_State *L) {
 	fakestr = li_const_gstring(buf, len);
 	addr = li_sockaddr_from_string(&fakestr, 0);
 
-	if (NULL == addr.addr) {
+	if (NULL == addr.addr_up.raw) {
 		lua_pushliteral(L, "[mod_memcached] mc_lua_new: couldn't parse parameter as address: ");
 		lua_pushvalue(L, -2);
 		lua_concat(L, 2);

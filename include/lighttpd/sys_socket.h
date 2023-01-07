@@ -66,8 +66,26 @@ int inet_aton(const char *cp, struct in_addr *inp);
 #endif /* HAVE_IPV6 */
 #endif /* HAVE_INET_NTOP */
 
-typedef union liSockAddr liSockAddr;
-union liSockAddr {
+typedef union liSockAddrPtr liSockAddrPtr;
+union liSockAddrPtr {
+	char *raw;
+
+#ifdef HAVE_IPV6
+	struct sockaddr_in6 *ipv6;
+#endif
+	struct sockaddr_in *ipv4;
+#ifdef HAVE_SYS_UN_H
+	struct sockaddr_un *un;
+#endif
+	struct sockaddr *plain;
+
+#ifdef HAVE_SOCKADDR_STORAGE
+	struct sockaddr_storage *storage;
+#endif
+};
+
+typedef union liSockAddrStorage liSockAddrStorage;
+union liSockAddrStorage {
 #ifdef HAVE_IPV6
 	struct sockaddr_in6 ipv6;
 #endif
@@ -85,7 +103,18 @@ union liSockAddr {
 typedef struct liSocketAddress liSocketAddress;
 struct liSocketAddress {
 	socklen_t len;
-	liSockAddr *addr;
+	/*
+	 * address union pointer
+	 *
+	 * as we only allocate storage for the target address family,
+	 * the compiler complains when we use a pointer to a "storage"
+	 * (big size) address type and dereference it - as the allocation
+	 * is too small (even if we then only access allocated parts
+	 * within the storage type).
+	 * So use type punning through union of pointers (C11 allows this;
+	 * it doesn't have the concept of "active" members as C++ does).
+	 */
+	liSockAddrPtr addr_up;
 };
 
 #endif

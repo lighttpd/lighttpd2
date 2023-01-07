@@ -386,7 +386,7 @@ static void li_server_listen_cb(liEventBase *watcher, int events) {
 	liServer *srv = sock->srv;
 	int s;
 	liSocketAddress remote_addr;
-	liSockAddr sa;
+	liSockAddrStorage sa;
 	socklen_t l;
 	int fd = li_event_io_fd(li_event_io_from(watcher));
 	UNUSED(events);
@@ -421,9 +421,9 @@ static void li_server_listen_cb(liEventBase *watcher, int events) {
 		min_load = g_atomic_int_get(&wrk->connection_load);
 
 		if (l <= sizeof(sa)) {
-			remote_addr.addr = g_slice_alloc(l);
+			remote_addr.addr_up.raw = g_slice_alloc(l);
 			remote_addr.len = l;
-			memcpy(remote_addr.addr, &sa, l);
+			memcpy(remote_addr.addr_up.raw, &sa, l);
 		} else {
 			remote_addr = li_sockaddr_remote_from_socket(s);
 		}

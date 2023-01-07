@@ -8,21 +8,21 @@
 /* listen to a socket */
 int li_angel_fake_listen(liServer *srv, GString *str) {
 	liSocketAddress addr = li_sockaddr_from_string(str, 80);
-	liSockAddr *saddr = addr.addr;
+	liSockAddrPtr saddr_up = addr.addr_up;
 	GString *tmpstr;
 	int s, v;
 
-	if (NULL == saddr) {
+	if (NULL == saddr_up.raw) {
 		ERROR(srv, "Invalid socket address: '%s'", str->str);
 		return -1;
 	}
 
 	tmpstr = li_sockaddr_to_string(addr, NULL, TRUE);
 
-	switch (saddr->plain.sa_family) {
+	switch (saddr_up.plain->sa_family) {
 #ifdef HAVE_SYS_UN_H
 	case AF_UNIX:
-		if (-1 == unlink(saddr->un.sun_path)) {
+		if (-1 == unlink(saddr_up.un->sun_path)) {
 			switch (errno) {
 			case ENOENT:
 				break;
@@ -31,11 +31,11 @@ int li_angel_fake_listen(liServer *srv, GString *str) {
 				goto error;
 			}
 		}
-		if (-1 == (s = socket(saddr->plain.sa_family, SOCK_STREAM, 0))) {
+		if (-1 == (s = socket(saddr_up.plain->sa_family, SOCK_STREAM, 0))) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
 			goto error;
 		}
-		if (-1 == bind(s, &saddr->plain, addr.len)) {
+		if (-1 == bind(s, saddr_up.plain, addr.len)) {
 			ERROR(srv, "Couldn't bind socket to '%s': %s", tmpstr->str, g_strerror(errno));
 			close(s);
 			goto error;
@@ -52,7 +52,7 @@ int li_angel_fake_listen(liServer *srv, GString *str) {
 #ifdef HAVE_IPV6
 	case AF_INET6:
 #endif
-		if (-1 == (s = socket(saddr->plain.sa_family, SOCK_STREAM, 0))) {
+		if (-1 == (s = socket(saddr_up.plain->sa_family, SOCK_STREAM, 0))) {
 			ERROR(srv, "Couldn't open socket: %s", g_strerror(errno));
 			goto error;
 		}
@@ -63,13 +63,13 @@ int li_angel_fake_listen(liServer *srv, GString *str) {
 			goto error;
 		}
 #ifdef HAVE_IPV6
-		if (AF_INET6 == saddr->plain.sa_family && -1 == setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, &v, sizeof(v))) {
+		if (AF_INET6 == saddr_up.plain->sa_family && -1 == setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, &v, sizeof(v))) {
 			ERROR(srv, "Couldn't setsockopt(IPV6_V6ONLY): %s", g_strerror(errno));
 			close(s);
 			goto error;
 		}
 #endif
-		if (-1 == bind(s, &saddr->plain, addr.len)) {
+		if (-1 == bind(s, saddr_up.plain, addr.len)) {
 			ERROR(srv, "Couldn't bind socket to '%s': %s", tmpstr->str, g_strerror(errno));
 			close(s);
 			goto error;
@@ -84,7 +84,7 @@ int li_angel_fake_listen(liServer *srv, GString *str) {
 			goto error;
 		}
 #ifdef HAVE_IPV6
-		if (AF_INET6 == saddr->plain.sa_family) {
+		if (AF_INET6 == saddr_up.plain->sa_family) {
 			DEBUG(srv, "listen to ipv6: '%s'", tmpstr->str);
 		} else
 #endif

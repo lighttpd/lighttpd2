@@ -119,11 +119,11 @@ static void mod_limit_timeout_callback(liWaitQueue *wq, gpointer data) {
 		rid = wqe->data;
 
 		/* IPv4 or IPv6? */
-		if (rid->ip.addr->plain.sa_family == AF_INET) {
-			addr = &rid->ip.addr->ipv4.sin_addr.s_addr;
+		if (rid->ip.addr_up.plain->sa_family == AF_INET) {
+			addr = &rid->ip.addr_up.ipv4->sin_addr.s_addr;
 			bits = 32;
 		} else {
-			addr = &rid->ip.addr->ipv6.sin6_addr.s6_addr;
+			addr = &rid->ip.addr_up.ipv6->sin6_addr.s6_addr;
 			bits = 128;
 		}
 
@@ -158,11 +158,11 @@ static void mod_limit_vrclose(liVRequest *vr, liPlugin *p) {
 			break;
 		case ML_TYPE_CON_IP:
 			/* IPv4 or IPv6? */
-			if (remote_addr->addr->plain.sa_family == AF_INET) {
-				addr = &remote_addr->addr->ipv4.sin_addr.s_addr;
+			if (remote_addr->addr_up.plain->sa_family == AF_INET) {
+				addr = &remote_addr->addr_up.ipv4->sin_addr.s_addr;
 				bits = 32;
 			} else {
-				addr = &remote_addr->addr->ipv6.sin6_addr.s6_addr;
+				addr = &remote_addr->addr_up.ipv6->sin6_addr.s6_addr;
 				bits = 128;
 			}
 
@@ -206,13 +206,13 @@ static liHandlerResult mod_limit_action_handle(liVRequest *vr, gpointer param, g
 	}
 
 	/* IPv4 or IPv6? */
-	switch (remote_addr->addr->plain.sa_family) {
+	switch (remote_addr->addr_up.plain->sa_family) {
 	case AF_INET:
-		addr = &remote_addr->addr->ipv4.sin_addr.s_addr;
+		addr = &remote_addr->addr_up.ipv4->sin_addr.s_addr;
 		bits = 32;
 		break;
 	case AF_INET6:
-		addr = &remote_addr->addr->ipv6.sin6_addr.s6_addr;
+		addr = &remote_addr->addr_up.ipv6->sin6_addr.s6_addr;
 		bits = 128;
 		break;
 	default:

@@ -92,7 +92,7 @@ static void ip_pools_free(throttle_ip_pools *pools) {
 static refcounted_pool_entry* create_ip_pool(liServer *srv, throttle_ip_pools *pools, liSocketAddress *remote_addr) {
 	refcounted_pool_entry *result;
 
-	switch (remote_addr->addr->plain.sa_family) {
+	switch (remote_addr->addr_up.plain->sa_family) {
 	case AF_INET:
 	case AF_INET6:
 		break;
@@ -104,20 +104,20 @@ static refcounted_pool_entry* create_ip_pool(liServer *srv, throttle_ip_pools *p
 	g_atomic_int_inc(&pools->refcount);
 
 	g_mutex_lock(pools->lock);
-		if (remote_addr->addr->plain.sa_family == AF_INET) {
-			result = li_radixtree_lookup_exact(pools->ipv4_pools, &remote_addr->addr->ipv4.sin_addr.s_addr, pools->masklen_ipv4);
+		if (remote_addr->addr_up.plain->sa_family == AF_INET) {
+			result = li_radixtree_lookup_exact(pools->ipv4_pools, &remote_addr->addr_up.ipv4->sin_addr.s_addr, pools->masklen_ipv4);
 		} else {
-			result = li_radixtree_lookup_exact(pools->ipv6_pools, &remote_addr->addr->ipv6.sin6_addr.s6_addr, pools->masklen_ipv6);
+			result = li_radixtree_lookup_exact(pools->ipv6_pools, &remote_addr->addr_up.ipv6->sin6_addr.s6_addr, pools->masklen_ipv6);
 		}
 		if (NULL == result) {
 			result = g_slice_new0(refcounted_pool_entry);
 			result->refcount = 1;
 			result->pool = li_throttle_pool_new(srv, pools->rate, pools->burst);
 
-			if (remote_addr->addr->plain.sa_family == AF_INET) {
-				li_radixtree_insert(pools->ipv4_pools, &remote_addr->addr->ipv4.sin_addr.s_addr, pools->masklen_ipv4, result);
+			if (remote_addr->addr_up.plain->sa_family == AF_INET) {
+				li_radixtree_insert(pools->ipv4_pools, &remote_addr->addr_up.ipv4->sin_addr.s_addr, pools->masklen_ipv4, result);
 			} else {
-				li_radixtree_insert(pools->ipv6_pools, &remote_addr->addr->ipv6.sin6_addr.s6_addr, pools->masklen_ipv6, result);
+				li_radixtree_insert(pools->ipv6_pools, &remote_addr->addr_up.ipv6->sin6_addr.s6_addr, pools->masklen_ipv6, result);
 			}
 		} else {
 			LI_FORCE_ASSERT(g_atomic_int_get(&result->refcount) > 0);
@@ -131,7 +131,7 @@ static refcounted_pool_entry* create_ip_pool(liServer *srv, throttle_ip_pools *p
 static void free_ip_pool(liServer *srv, throttle_ip_pools *pools, liSocketAddress *remote_addr) {
 	refcounted_pool_entry *entry;
 
-	switch (remote_addr->addr->plain.sa_family) {
+	switch (remote_addr->addr_up.plain->sa_family) {
 	case AF_INET:
 	case AF_INET6:
 		break;
@@ -140,18 +140,18 @@ static void free_ip_pool(liServer *srv, throttle_ip_pools *pools, liSocketAddres
 	}
 
 	g_mutex_lock(pools->lock);
-		if (remote_addr->addr->plain.sa_family == AF_INET) {
-			entry = li_radixtree_lookup_exact(pools->ipv4_pools, &remote_addr->addr->ipv4.sin_addr.s_addr, pools->masklen_ipv4);
+		if (remote_addr->addr_up.plain->sa_family == AF_INET) {
+			entry = li_radixtree_lookup_exact(pools->ipv4_pools, &remote_addr->addr_up.ipv4->sin_addr.s_addr, pools->masklen_ipv4);
 		} else {
-			entry = li_radixtree_lookup_exact(pools->ipv6_pools, &remote_addr->addr->ipv6.sin6_addr.s6_addr, pools->masklen_ipv6);
+			entry = li_radixtree_lookup_exact(pools->ipv6_pools, &remote_addr->addr_up.ipv6->sin6_addr.s6_addr, pools->masklen_ipv6);
 		}
 		LI_FORCE_ASSERT(NULL != entry);
 		LI_FORCE_ASSERT(g_atomic_int_get(&entry->refcount) > 0);
 		if (g_atomic_int_dec_and_test(&entry->refcount)) {
-			if (remote_addr->addr->plain.sa_family == AF_INET) {
-				li_radixtree_remove(pools->ipv4_pools, &remote_addr->addr->ipv4.sin_addr.s_addr, pools->masklen_ipv4);
+			if (remote_addr->addr_up.plain->sa_family == AF_INET) {
+				li_radixtree_remove(pools->ipv4_pools, &remote_addr->addr_up.ipv4->sin_addr.s_addr, pools->masklen_ipv4);
 			} else {
-				li_radixtree_remove(pools->ipv6_pools, &remote_addr->addr->ipv6.sin6_addr.s6_addr, pools->masklen_ipv6);
+				li_radixtree_remove(pools->ipv6_pools, &remote_addr->addr_up.ipv6->sin6_addr.s6_addr, pools->masklen_ipv6);
 			}
 			li_throttle_pool_release(entry->pool, srv);
 			g_slice_free(refcounted_pool_entry, entry);

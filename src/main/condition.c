@@ -53,13 +53,13 @@ liHandlerResult li_condition_get_value(GString *tmpstr, liVRequest *vr, liCondit
 		break;
 	case LI_COMP_REQUEST_LOCALPORT:
 		res->match_type = LI_COND_VALUE_HINT_NUMBER;
-		switch (coninfo->local_addr.addr->plain.sa_family) {
+		switch (coninfo->local_addr.addr_up.plain->sa_family) {
 		case AF_INET:
-			res->data.number = ntohs(coninfo->local_addr.addr->ipv4.sin_port);
+			res->data.number = ntohs(coninfo->local_addr.addr_up.ipv4->sin_port);
 			break;
 		#ifdef HAVE_IPV6
 		case AF_INET6:
-			res->data.number = ntohs(coninfo->local_addr.addr->ipv6.sin6_port);
+			res->data.number = ntohs(coninfo->local_addr.addr_up.ipv6->sin6_port);
 			break;
 		#endif
 		default:
@@ -78,13 +78,13 @@ liHandlerResult li_condition_get_value(GString *tmpstr, liVRequest *vr, liCondit
 		break;
 	case LI_COMP_REQUEST_REMOTEPORT:
 		res->match_type = LI_COND_VALUE_HINT_NUMBER;
-		switch (coninfo->remote_addr.addr->plain.sa_family) {
+		switch (coninfo->remote_addr.addr_up.plain->sa_family) {
 		case AF_INET:
-			res->data.number = ntohs(coninfo->remote_addr.addr->ipv4.sin_port);
+			res->data.number = ntohs(coninfo->remote_addr.addr_up.ipv4->sin_port);
 			break;
 		#ifdef HAVE_IPV6
 		case AF_INET6:
-			res->data.number = ntohs(coninfo->remote_addr.addr->ipv6.sin6_port);
+			res->data.number = ntohs(coninfo->remote_addr.addr_up.ipv6->sin6_port);
 			break;
 		#endif
 		default:
@@ -246,17 +246,17 @@ static gboolean condition_parse_ip_net(liConditionRValue *val, const char *txt) 
 	return FALSE;
 }
 
-static gboolean condition_ip_from_socket(liConditionRValue *val, liSockAddr *addr) {
-	switch (addr->plain.sa_family) {
+static gboolean condition_ip_from_socket(liConditionRValue *val, liSockAddrPtr addr_up) {
+	switch (addr_up.plain->sa_family) {
 	case AF_INET:
 		val->type = LI_COND_VALUE_SOCKET_IPV4;
-		val->ipv4.addr = addr->ipv4.sin_addr.s_addr;
+		val->ipv4.addr = addr_up.ipv4->sin_addr.s_addr;
 		val->ipv4.networkmask = 0xFFFFFFFF;
 		return TRUE;
 #ifdef HAVE_IPV6
 	case AF_INET6:
 		val->type = LI_COND_VALUE_SOCKET_IPV6;
-		memcpy(val->ipv6.addr, addr->ipv6.sin6_addr.s6_addr, 16);
+		memcpy(val->ipv6.addr, addr_up.ipv6->sin6_addr.s6_addr, 16);
 		val->ipv6.network = 128;
 		return TRUE;
 #endif
@@ -775,7 +775,7 @@ static liHandlerResult li_condition_check_eval_ip(liVRequest *vr, liCondition *c
 			return LI_HANDLER_GO_ON;
 		break;
 	case LI_COND_VALUE_HINT_SOCKADDR:
-		if (!condition_ip_from_socket(&ipval, match_val.data.addr.addr))
+		if (!condition_ip_from_socket(&ipval, match_val.data.addr.addr_up))
 			return LI_HANDLER_GO_ON;
 		break;
 	default:

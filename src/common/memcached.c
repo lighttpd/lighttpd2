@@ -280,7 +280,7 @@ static void memcached_connect(liMemcachedCon *con) {
 		con->last_con_start = now;
 
 		do {
-			s = socket(con->addr.addr->plain.sa_family, SOCK_STREAM, 0);
+			s = socket(con->addr.addr_up.plain->sa_family, SOCK_STREAM, 0);
 		} while (-1 == s && errno == EINTR);
 		if (-1 == s) {
 			g_clear_error(&con->err);
@@ -290,7 +290,7 @@ static void memcached_connect(liMemcachedCon *con) {
 		li_fd_init(s);
 		li_event_io_set_fd(&con->con_watcher, s);
 
-		if (-1 == connect(s, &con->addr.addr->plain, con->addr.len)) {
+		if (-1 == connect(s, con->addr.addr_up.plain, con->addr.len)) {
 			switch (errno) {
 			case EINPROGRESS:
 			case EALREADY:
