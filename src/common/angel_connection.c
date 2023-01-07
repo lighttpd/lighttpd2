@@ -191,7 +191,7 @@ static gboolean angel_dispatch(liAngelConnection *acon, GError **err) {
 			if (!li_idlist_is_used(acon->call_id_list, id)) {
 				g_mutex_unlock(acon->mutex);
 				g_set_error(err, LI_ANGEL_CONNECTION_ERROR, LI_ANGEL_CONNECTION_INVALID_DATA,
-					"Invalid id: %i", (gint) id);
+					"Invalid id: %i (not waiting for the result of a call with this id)", (gint) id);
 				close_fd_array(acon->parse.fds);
 				return FALSE;
 			}
@@ -566,6 +566,7 @@ static gboolean prepare_call_header(GString **pbuf,
 		if (!li_angel_data_write_int32(buf, mod_len, err)) return FALSE;
 		if (!li_angel_data_write_int32(buf, action_len, err)) return FALSE;
 	} else {
+		LI_FORCE_ASSERT(id >= 0);
 		if (!li_angel_data_write_int32(buf, 0, err)) return FALSE;
 		if (!li_angel_data_write_int32(buf, 0, err)) return FALSE;
 	}

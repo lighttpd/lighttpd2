@@ -61,34 +61,41 @@ static void instance_angel_call_cb(liAngelConnection *acon,
 	liPlugins *ps = &srv->plugins;
 	liPlugin *p;
 	liPluginHandleCallCB cb;
+	GString *errstr = NULL;
 	UNUSED(mod_len);
 	UNUSED(action_len);
 
 	p = g_hash_table_lookup(ps->ht_plugins, mod);
 	if (!p) {
-		GString *errstr = g_string_sized_new(0);
-		GError *err = NULL;
-		g_string_printf(errstr, "Plugin '%s' not available in lighttpd-angel", mod);
-		if (!li_angel_send_result(acon, id, errstr, NULL, NULL, &err)) {
-			ERROR(srv, "Couldn't send result: %s", err->message);
-			g_error_free(err);
-		}
-		return;
+		errstr = g_string_sized_new(0);
+		g_string_printf(errstr, "Plugin '%s' not available in lighttpd-angel (action '%s')", mod, action);
+		goto failed;
 	}
 
 	cb = (liPluginHandleCallCB)(intptr_t) g_hash_table_lookup(p->angel_callbacks, action);
 	if (!cb) {
-		GString *errstr = g_string_sized_new(0);
-		GError *err = NULL;
+		errstr = g_string_sized_new(0);
 		g_string_printf(errstr, "Action '%s' not available in plugin '%s' of lighttpd-angel", action, mod);
-		if (!li_angel_send_result(acon, id, errstr, NULL, NULL, &err)) {
-			ERROR(srv, "Couldn't send result: %s", err->message);
-			g_error_free(err);
-		}
-		return;
+		goto failed;
 	}
 
 	cb(srv, p, i, id, data);
+	return;
+
+failed:
+	{
+		GError *err = NULL;
+		if (-1 == id) {
+			/* if there are no plugins the server was probably stopped - no need to log then */
+			if (0 != g_hash_table_size(ps->ht_plugins)) {
+				ERROR(srv, "Can't handle notification from worker: %s", errstr->str);
+			}
+			g_string_free(errstr, TRUE);
+		} else if (!li_angel_send_result(acon, id, errstr, NULL, NULL, &err)) {
+			ERROR(srv, "Couldn't send result: %s", err->message);
+			g_error_free(err);
+		}
+	}
 }
 
 static void instance_angel_close_cb(liAngelConnection *acon, GError *err) {
