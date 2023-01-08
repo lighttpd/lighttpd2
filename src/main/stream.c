@@ -257,6 +257,7 @@ static void stream_plug_cb(liStream *stream, liStreamEvent event) {
 		}
 		break;
 	case LI_STREAM_DISCONNECTED_DEST:
+	case LI_STREAM_DISCONNECTED_SOURCE:
 		li_stream_disconnect(stream);
 		break;
 	case LI_STREAM_DESTROY:
