@@ -257,8 +257,16 @@ static void stream_plug_cb(liStream *stream, liStreamEvent event) {
 		}
 		break;
 	case LI_STREAM_DISCONNECTED_DEST:
-	case LI_STREAM_DISCONNECTED_SOURCE:
 		li_stream_disconnect(stream);
+		break;
+	case LI_STREAM_DISCONNECTED_SOURCE:
+		if (!stream->out->is_closed) {
+			/* source aborted, abort too. (if stream got closed dest
+			 * already knows about the closed state, and should handle
+			 * it as needed.)
+			 */
+			li_stream_disconnect_dest(stream);
+		}
 		break;
 	case LI_STREAM_DESTROY:
 		g_slice_free(liStream, stream);
