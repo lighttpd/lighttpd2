@@ -51,7 +51,9 @@ class Test(base.ModuleTest):
 run_scgi;
 """
 
-    def feature_check(self) -> bool:
+    def __init__(self, *, tests: base.Tests) -> None:
+        super().__init__(tests=tests)
+
         scgi = SCGI(tests=self.tests)
         self.plain_config = f"""
 setup {{ module_load "mod_scgi"; }}
@@ -60,6 +62,4 @@ run_scgi = {{
     core.wsgi ( "/scgi", {{ scgi "unix:{scgi.sockfile}"; }} );
 }};
 """
-
         self.tests.add_service(scgi)
-        return True

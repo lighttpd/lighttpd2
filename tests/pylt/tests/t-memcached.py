@@ -60,7 +60,9 @@ class Test(base.ModuleTest):
 memcache;
 """
 
-    def feature_check(self) -> bool:
+    def __init__(self, *, tests: base.Tests) -> None:
+        super().__init__(tests=tests)
+
         memcached = Memcached(tests=self.tests)
         self.plain_config = f"""
 setup {{ module_load "mod_memcached"; }}
@@ -75,6 +77,4 @@ memcache = {{
         }});
 }};
 """
-
         self.tests.add_service(memcached)
-        return True

@@ -182,8 +182,6 @@ class TestBase(metaclass=_TestBaseMeta):
     no_docroot = False
     vhostdir: str = ''
 
-    _active: bool  # false if feature_check failed (or failed on parent)
-
     @staticmethod
     def _vhostname(testname: str) -> str:
         return '.'.join(reversed(testname[1:-1].split('/'))).lower()
@@ -215,11 +213,7 @@ class TestBase(metaclass=_TestBaseMeta):
                 self.vhostdir = self._parent.vhostdir
             else:
                 self.vhostdir = os.path.join(self.tests.env.dir, 'www', 'vhosts', self.vhost)
-        if self.feature_check() and (not parent or parent._active):
-            self._active = True
-            tests._add_test(self)
-        else:
-            self._active = False
+        tests._add_test(self)
 
     # internal methods, do not override
     def _prepare(self) -> None:
@@ -340,12 +334,6 @@ class TestBase(metaclass=_TestBaseMeta):
 
     def cleanup_test(self) -> None:
         pass
-
-    # return False is some dependency is missing
-    # TODO: should we even allow for that? better to fail,
-    # at least by default.
-    def feature_check(self) -> bool:
-        return True
 
 
 def class2testname(name) -> str:
