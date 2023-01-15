@@ -173,8 +173,6 @@ def setup_env() -> Env:
     env.COLOR_RED = env.color and "\033[1;31m" or ""
     env.COLOR_CYAN = env.color and "\033[1;36m" or ""
 
-    env.fcgi_cgi = which('fcgi-cgi') or ''
-
     env.dir = mkdtemp(suffix='-l2-tests')
     env.defaultwww = os.path.join(env.dir, "www", "default")
 

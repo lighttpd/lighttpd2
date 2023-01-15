@@ -93,7 +93,6 @@ class Env:
     COLOR_YELLOW: str = ''
     COLOR_RED: str = ''
     COLOR_CYAN: str = ''
-    fcgi_cgi: str = ''
     dir: str = ''
     defaultwww: str = ''
     log: io.TextIOBase = dataclasses.field(default_factory=io.StringIO)

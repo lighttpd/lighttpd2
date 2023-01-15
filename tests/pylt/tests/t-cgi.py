@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 
 from io import BytesIO
-import time
 import hashlib
+import os
+import time
+
 import pycurl
 
-from pylt.base import ModuleTest
+from pylt.base import ModuleTest, Tests
 from pylt.requests import CurlRequest
 from pylt.service import FastCGI
 
@@ -22,9 +24,9 @@ def generate_body(seed: str, size: int) -> bytes:
 class CGI(FastCGI):
     name = "fcgi_cgi"
 
-    def prepare_service(self) -> None:
-        self.binary = [self.tests.env.fcgi_cgi]
-        super().prepare_service()
+    def __init__(self, *, tests: Tests) -> None:
+        super().__init__(tests=tests)
+        self.binary = [os.path.join(self.tests.env.sourcedir, "tests", "run-fcgi-cgi.py")]
 
 
 SCRIPT_ENVCHECK = r"""#!/bin/sh
@@ -188,9 +190,8 @@ if phys.exists and phys.path =$ ".cgi" {
 
 """
 
-    def feature_check(self) -> bool:
-        if self.tests.env.fcgi_cgi is None:
-            return self.MissingFeature('fcgi-cgi')
+    def __init__(self, *, tests: Tests) -> None:
+        super().__init__(tests=tests)
         cgi = CGI(tests=self.tests)
         self.plain_config = f"""
 setup {{ module_load "mod_fastcgi"; }}
@@ -199,9 +200,7 @@ cgi = {{
     fastcgi "unix:{cgi.sockfile}";
 }};
 """
-
         self.tests.add_service(cgi)
-        return True
 
     def prepare_test(self) -> None:
         self.prepare_vhost_file("envcheck.cgi", SCRIPT_ENVCHECK, mode=0o755)
