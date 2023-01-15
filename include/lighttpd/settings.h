@@ -45,9 +45,7 @@
 # endif
 #endif
 
-#ifdef HAVE_CONFIG_H
-# include <lighttpd/config.h>
-#endif
+#include <lighttpd/config.h>
 
 #define GLIB_DISABLE_DEPRECATION_WARNINGS
 

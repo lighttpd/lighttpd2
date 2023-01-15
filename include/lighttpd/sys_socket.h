@@ -1,9 +1,7 @@
 #ifndef SYS_SOCKET_H
 #define SYS_SOCKET_H
 
-#ifdef HAVE_CONFIG_H
 #include <lighttpd/config.h>
-#endif
 
 #ifdef _WIN32
 #ifndef FD_SETSIZE
