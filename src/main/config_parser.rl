@@ -141,7 +141,7 @@ GQuark li_config_error_quark(void) {
 	}
 
 	action name {
-		g_string_append_len(ctx->token_string, ctx->mark, fpc - ctx->mark);
+		li_g_string_append_len(ctx->token_string, ctx->mark, fpc - ctx->mark);
 		return TK_NAME;
 	}
 
@@ -824,7 +824,7 @@ static gboolean op_execute(liValue **vresult, liConfigToken op, liValue *v1, liV
 		case LI_VALUE_STRING:
 			switch (op) {
 			case TK_PLUS:
-				g_string_append_len(v1->data.string, GSTR_LEN(v2->data.string));
+				li_g_string_append_len(v1->data.string, GSTR_LEN(v2->data.string));
 				*vresult = v1;
 				v1 = NULL;
 				break;

@@ -12,24 +12,24 @@
 
 	action save_host {
 		g_string_truncate(uri->host, 0);
-		g_string_append_len(uri->host, host_mark, fpc - host_mark);
+		li_g_string_append_len(uri->host, host_mark, fpc - host_mark);
 		g_string_ascii_down(uri->host);
 	}
 	action save_authority {
 		g_string_truncate(uri->authority, 0);
-		g_string_append_len(uri->authority, mark, fpc - mark);
+		li_g_string_append_len(uri->authority, mark, fpc - mark);
 		g_string_ascii_down(uri->authority);
 	}
 	action save_path {
-		g_string_append_len(uri->path, mark, fpc - mark);
-		g_string_append_len(uri->raw_path, mark, fpc - mark);
+		li_g_string_append_len(uri->path, mark, fpc - mark);
+		li_g_string_append_len(uri->raw_path, mark, fpc - mark);
 	}
 	action save_query {
-		g_string_append_len(uri->query, mark, fpc - mark);
-		g_string_append_len(uri->raw_path, mark-1, fpc - mark+1); /* include '?' in append */
+		li_g_string_append_len(uri->query, mark, fpc - mark);
+		li_g_string_append_len(uri->raw_path, mark-1, fpc - mark+1); /* include '?' in append */
 	}
 	action save_scheme {
-		g_string_append_len(uri->scheme, mark, fpc - mark);
+		li_g_string_append_len(uri->scheme, mark, fpc - mark);
 	}
 
 	pct_encoded = "%" xdigit xdigit;

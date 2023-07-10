@@ -45,27 +45,27 @@ static void proxy_send_headers(liVRequest *vr, liChunkQueue *out) {
 	liHttpHeaderTokenizer header_tokenizer;
 	GString *tmp_str = vr->wrk->tmp_str;
 
-	g_string_append_len(head, GSTR_LEN(vr->request.http_method_str));
-	g_string_append_len(head, CONST_STR_LEN(" "));
+	li_g_string_append_len(head, GSTR_LEN(vr->request.http_method_str));
+	li_g_string_append_len(head, CONST_STR_LEN(" "));
 
-	g_string_append_len(head, GSTR_LEN(vr->request.uri.raw_path));
+	li_g_string_append_len(head, GSTR_LEN(vr->request.uri.raw_path));
 
 	switch (vr->request.http_version) {
 	case LI_HTTP_VERSION_1_1:
-		g_string_append_len(head, CONST_STR_LEN(" HTTP/1.1\r\n"));
+		li_g_string_append_len(head, CONST_STR_LEN(" HTTP/1.1\r\n"));
 		/* although we understand keep-alive signalling we don't reuse connection, so tell backend */
-		g_string_append_len(head, CONST_STR_LEN("Connection: close\r\n"));
+		li_g_string_append_len(head, CONST_STR_LEN("Connection: close\r\n"));
 		break;
 	case LI_HTTP_VERSION_1_0:
 	default:
-		g_string_append_len(head, CONST_STR_LEN(" HTTP/1.0\r\n"));
+		li_g_string_append_len(head, CONST_STR_LEN(" HTTP/1.0\r\n"));
 		break;
 	}
 
 	li_http_header_tokenizer_start(&header_tokenizer, vr->request.headers, CONST_STR_LEN("Connection"));
 	while (li_http_header_tokenizer_next(&header_tokenizer, tmp_str)) {
 		if (0 == g_ascii_strcasecmp(tmp_str->str, "Upgrade")) {
-			g_string_append_len(head, CONST_STR_LEN("Connection: Upgrade\r\n"));
+			li_g_string_append_len(head, CONST_STR_LEN("Connection: Upgrade\r\n"));
 		}
 	}
 
@@ -82,22 +82,22 @@ static void proxy_send_headers(liVRequest *vr, liChunkQueue *out) {
 		if (li_http_header_key_is(header, CONST_STR_LEN("Proxy-Connection"))) continue;
 		if (li_http_header_key_is(header, CONST_STR_LEN("X-Forwarded-Proto"))) continue;
 		if (li_http_header_key_is(header, CONST_STR_LEN("X-Forwarded-For"))) continue;
-		g_string_append_len(head, GSTR_LEN(header->data));
-		g_string_append_len(head, CONST_STR_LEN("\r\n"));
+		li_g_string_append_len(head, GSTR_LEN(header->data));
+		li_g_string_append_len(head, CONST_STR_LEN("\r\n"));
 	}
 
-	g_string_append_len(head, CONST_STR_LEN("X-Forwarded-For: "));
-	g_string_append_len(head, GSTR_LEN(vr->coninfo->remote_addr_str));
-	g_string_append_len(head, CONST_STR_LEN("\r\n"));
+	li_g_string_append_len(head, CONST_STR_LEN("X-Forwarded-For: "));
+	li_g_string_append_len(head, GSTR_LEN(vr->coninfo->remote_addr_str));
+	li_g_string_append_len(head, CONST_STR_LEN("\r\n"));
 
 	if (vr->coninfo->is_ssl) {
-		g_string_append_len(head, CONST_STR_LEN("X-Forwarded-Proto: https\r\n"));
+		li_g_string_append_len(head, CONST_STR_LEN("X-Forwarded-Proto: https\r\n"));
 	} else {
-		g_string_append_len(head, CONST_STR_LEN("X-Forwarded-Proto: http\r\n"));
+		li_g_string_append_len(head, CONST_STR_LEN("X-Forwarded-Proto: http\r\n"));
 	}
 
 	/* terminate http header */
-	g_string_append_len(head, CONST_STR_LEN("\r\n"));
+	li_g_string_append_len(head, CONST_STR_LEN("\r\n"));
 
 	li_chunkqueue_append_string(out, head);
 }

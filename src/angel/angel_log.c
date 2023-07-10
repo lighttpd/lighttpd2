@@ -52,14 +52,14 @@ void li_log_write(liServer *srv, liLogLevel log_level, guint flags, const gchar 
 			srv->log.last_ts = li_cur_ts;
 		}
 
-		g_string_append_len(log_line, GSTR_LEN(log_ts));
+		li_g_string_append_len(log_line, GSTR_LEN(log_ts));
 	}
 
 	va_start(ap, fmt);
 	g_string_append_vprintf(log_line, fmt, ap);
 	va_end(ap);
 
-	g_string_append_len(log_line, CONST_STR_LEN("\n"));
+	li_g_string_append_len(log_line, CONST_STR_LEN("\n"));
 
 	fprintf(stderr, "%s", log_line->str);
 }

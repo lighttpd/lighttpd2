@@ -575,8 +575,8 @@ static gboolean prepare_call_header(GString **pbuf,
 	if (!li_angel_data_write_int32(buf, fd_count, err)) return FALSE;
 
 	if (type != ANGEL_CALL_SEND_RESULT) {
-		g_string_append_len(buf, mod, mod_len);
-		g_string_append_len(buf, action, action_len);
+		li_g_string_append_len(buf, mod, mod_len);
+		li_g_string_append_len(buf, action, action_len);
 	}
 
 	return TRUE;

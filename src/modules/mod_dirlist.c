@@ -206,7 +206,7 @@ typedef struct dirlist_plugin_data dirlist_plugin_data;
 static void try_append_file(liVRequest *vr, GString **curbuf, const gchar *filename, gboolean encode_html) {
 	GString *f = vr->wrk->tmp_str;
 	g_string_truncate(f, 0);
-	g_string_append_len(f, GSTR_LEN(vr->physical.path));
+	li_g_string_append_len(f, GSTR_LEN(vr->physical.path));
 	li_path_append_slash(f);
 	g_string_append(f, filename);
 
@@ -246,9 +246,9 @@ static void try_append_file(liVRequest *vr, GString **curbuf, const gchar *filen
 			return; /* file too big, ignore */
 		}
 
-		g_string_append_len(*curbuf, CONST_STR_LEN("<pre>"));
+		li_g_string_append_len(*curbuf, CONST_STR_LEN("<pre>"));
 		li_string_encode_append(contents, *curbuf, LI_ENCODING_HTML);
-		g_string_append_len(*curbuf, CONST_STR_LEN("</pre>"));
+		li_g_string_append_len(*curbuf, CONST_STR_LEN("</pre>"));
 		g_free(contents);
 	}
 }
@@ -435,14 +435,14 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 		if (dd->css) {
 			/* custom css */
-			g_string_append_len(listing, CONST_STR_LEN("		<link rel=\"stylesheet\" type=\"text/css\" href=\""));
-			g_string_append_len(listing, GSTR_LEN(dd->css));
-			g_string_append_len(listing, CONST_STR_LEN("\" />\n"));
+			li_g_string_append_len(listing, CONST_STR_LEN("		<link rel=\"stylesheet\" type=\"text/css\" href=\""));
+			li_g_string_append_len(listing, GSTR_LEN(dd->css));
+			li_g_string_append_len(listing, CONST_STR_LEN("\" />\n"));
 		} else {
 			/* default css */
-			g_string_append_len(listing, CONST_STR_LEN(html_css));
+			li_g_string_append_len(listing, CONST_STR_LEN(html_css));
 		}
-		g_string_append_len(listing, CONST_STR_LEN(html_header_end));
+		li_g_string_append_len(listing, CONST_STR_LEN(html_header_end));
 
 		try_append_file(vr, &listing, "HEADER.txt", dd->encode_header);
 
@@ -462,23 +462,23 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 				datebuflen = strftime(datebuf, sizeof(datebuf), "%Y-%b-%d %H:%M:%S", &tm);
 				datebuf[datebuflen] = '\0';
 
-				g_string_append_len(listing, CONST_STR_LEN("				<tr group=\"1\"><td><a href=\""));
+				li_g_string_append_len(listing, CONST_STR_LEN("				<tr group=\"1\"><td><a href=\""));
 				li_string_encode(sced->path->str, encoded, LI_ENCODING_URI);
-				g_string_append_len(listing, GSTR_LEN(encoded));
-				g_string_append_len(listing, CONST_STR_LEN("/\">"));
+				li_g_string_append_len(listing, GSTR_LEN(encoded));
+				li_g_string_append_len(listing, CONST_STR_LEN("/\">"));
 				li_string_encode(sced->path->str, encoded, LI_ENCODING_HTML);
-				g_string_append_len(listing, GSTR_LEN(encoded));
-				g_string_append_len(listing, CONST_STR_LEN("</a></td><td class=\"modified\" val=\""));
+				li_g_string_append_len(listing, GSTR_LEN(encoded));
+				li_g_string_append_len(listing, CONST_STR_LEN("</a></td><td class=\"modified\" val=\""));
 				li_string_append_int(listing, sced->st.st_mtime);
-				g_string_append_len(listing, CONST_STR_LEN("\">"));
-				g_string_append_len(listing, datebuf, datebuflen);
-				g_string_append_len(listing, CONST_STR_LEN("</td>"
+				li_g_string_append_len(listing, CONST_STR_LEN("\">"));
+				li_g_string_append_len(listing, datebuf, datebuflen);
+				li_g_string_append_len(listing, CONST_STR_LEN("</td>"
 					"<td class=\"size\" val=\"0\">-</td>"
 					"<td class=\"type\">Directory</td></tr>\n"));
 			}
 		}
 
-		/*g_string_append_len(listing, CONST_STR_LEN("<tr><td colspan=\"4\">&nbsp;</td></tr>\n"));*/
+		/*li_g_string_append_len(listing, CONST_STR_LEN("<tr><td colspan=\"4\">&nbsp;</td></tr>\n"));*/
 
 		/* list files */
 		for (i = 0; i < files->len; i++) {
@@ -491,29 +491,29 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 
 			dirlist_format_size(sizebuf, sced->st.st_size);
 
-			g_string_append_len(listing, CONST_STR_LEN("				<tr group=\"2\"><td><a href=\""));
+			li_g_string_append_len(listing, CONST_STR_LEN("				<tr group=\"2\"><td><a href=\""));
 			li_string_encode(sced->path->str, encoded, LI_ENCODING_URI);
-			g_string_append_len(listing, GSTR_LEN(encoded));
-			g_string_append_len(listing, CONST_STR_LEN("\">"));
+			li_g_string_append_len(listing, GSTR_LEN(encoded));
+			li_g_string_append_len(listing, CONST_STR_LEN("\">"));
 			li_string_encode(sced->path->str, encoded, LI_ENCODING_HTML);
-			g_string_append_len(listing, GSTR_LEN(encoded));
-			g_string_append_len(listing, CONST_STR_LEN(
+			li_g_string_append_len(listing, GSTR_LEN(encoded));
+			li_g_string_append_len(listing, CONST_STR_LEN(
 				"</a></td>"
 				"<td class=\"modified\" val=\""));
 			li_string_append_int(listing, sced->st.st_mtime);
-			g_string_append_len(listing, CONST_STR_LEN("\">"));
-			g_string_append_len(listing, datebuf, datebuflen);
-			g_string_append_len(listing, CONST_STR_LEN("</td><td class=\"size\" val=\""));
+			li_g_string_append_len(listing, CONST_STR_LEN("\">"));
+			li_g_string_append_len(listing, datebuf, datebuflen);
+			li_g_string_append_len(listing, CONST_STR_LEN("</td><td class=\"size\" val=\""));
 			li_string_append_int(listing, sced->st.st_size);
-			g_string_append_len(listing, CONST_STR_LEN("\">"));
+			li_g_string_append_len(listing, CONST_STR_LEN("\">"));
 			g_string_append(listing, sizebuf);
-			g_string_append_len(listing, CONST_STR_LEN("</td><td class=\"type\">"));
+			li_g_string_append_len(listing, CONST_STR_LEN("</td><td class=\"type\">"));
 			if (mime_str) {
-				g_string_append_len(listing, GSTR_LEN(mime_str));
+				li_g_string_append_len(listing, GSTR_LEN(mime_str));
 			} else {
-				g_string_append_len(listing, CONST_STR_LEN("application/octet-stream"));
+				li_g_string_append_len(listing, CONST_STR_LEN("application/octet-stream"));
 			}
-			g_string_append_len(listing, CONST_STR_LEN("</td></tr>\n"));
+			li_g_string_append_len(listing, CONST_STR_LEN("</td></tr>\n"));
 
 			/*
 			g_string_append_printf(listing, html_table_row,
@@ -524,12 +524,12 @@ static liHandlerResult dirlist(liVRequest *vr, gpointer param, gpointer *context
 			*/
 		}
 
-		g_string_append_len(listing, CONST_STR_LEN(html_table_end));
+		li_g_string_append_len(listing, CONST_STR_LEN(html_table_end));
 
 		try_append_file(vr, &listing, "README.txt", dd->encode_readme);
 
 		if (dd->include_sort) {
-			g_string_append_len(listing, CONST_STR_LEN(javascript_sort));
+			li_g_string_append_len(listing, CONST_STR_LEN(javascript_sort));
 		}
 
 		g_string_append_printf(listing, html_footer, CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_TAG).string->str);

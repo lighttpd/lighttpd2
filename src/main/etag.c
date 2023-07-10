@@ -123,9 +123,9 @@ void li_etag_mutate(GString *mut, GString *etag) {
 	for (h=0, i=0; i < etag->len; ++i) h = (h<<5)^(h>>27)^(etag->str[i]);
 
 	g_string_truncate(mut, 0);
-	g_string_append_len(mut, CONST_STR_LEN("\""));
+	li_g_string_append_len(mut, CONST_STR_LEN("\""));
 	li_string_append_int(mut, (guint64) h);
-	g_string_append_len(mut, CONST_STR_LEN("\""));
+	li_g_string_append_len(mut, CONST_STR_LEN("\""));
 }
 
 void li_etag_set_header(liVRequest *vr, struct stat *st, gboolean *cachable) {
@@ -144,12 +144,12 @@ void li_etag_set_header(liVRequest *vr, struct stat *st, gboolean *cachable) {
 		}
 		
 		if (flags & LI_ETAG_USE_SIZE) {
-			if (tmp_str->len != 0) g_string_append_len(tmp_str, CONST_STR_LEN("-"));
+			if (tmp_str->len != 0) li_g_string_append_len(tmp_str, CONST_STR_LEN("-"));
 			li_string_append_int(tmp_str, st->st_size);
 		}
 		
 		if (flags & LI_ETAG_USE_MTIME) {
-			if (tmp_str->len != 0) g_string_append_len(tmp_str, CONST_STR_LEN("-"));
+			if (tmp_str->len != 0) li_g_string_append_len(tmp_str, CONST_STR_LEN("-"));
 			li_string_append_int(tmp_str, st->st_mtime);
 		}
 	

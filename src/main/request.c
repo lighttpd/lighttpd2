@@ -110,7 +110,7 @@ static gboolean request_parse_url(liVRequest *vr) {
 	li_path_simplify(req->uri.path);
 
 	if (0 == req->uri.raw_orig_path->len) {
-		g_string_append_len(req->uri.raw_orig_path, GSTR_LEN(req->uri.raw_path)); /* save orig raw uri */
+		li_g_string_append_len(req->uri.raw_orig_path, GSTR_LEN(req->uri.raw_path)); /* save orig raw uri */
 	}
 
 	return TRUE;
@@ -123,9 +123,9 @@ gboolean li_request_validate_header(liConnection *con) {
 	gboolean transfer_encoding_chunked = FALSE;
 
 	if (con->info.is_ssl) {
-		g_string_append_len(req->uri.scheme, CONST_STR_LEN("https"));
+		li_g_string_append_len(req->uri.scheme, CONST_STR_LEN("https"));
 	} else {
-		g_string_append_len(req->uri.scheme, CONST_STR_LEN("http"));
+		li_g_string_append_len(req->uri.scheme, CONST_STR_LEN("http"));
 	}
 
 	switch (req->http_version) {
@@ -157,7 +157,7 @@ gboolean li_request_validate_header(liConnection *con) {
 		}
 
 		hh = (liHttpHeader*) l->data;
-		g_string_append_len(req->uri.authority, LI_HEADER_VALUE_LEN(hh));
+		li_g_string_append_len(req->uri.authority, LI_HEADER_VALUE_LEN(hh));
 		/* check header after we parsed the url, as it may override uri.authority */
 	}
 

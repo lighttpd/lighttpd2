@@ -245,7 +245,7 @@ static void openssl_setenv_X509_add_entries(liVRequest *vr, X509 *x509, const gc
 	const char * xobjsn;
 
 	g_string_truncate(k, 0);
-	g_string_append_len(k, prefix, prefix_len);
+	li_g_string_append_len(k, prefix, prefix_len);
 
 	for (i = 0, j = X509_NAME_entry_count(xn); i < j; ++i) {
 		if (!(xe = X509_NAME_get_entry(xn, i))

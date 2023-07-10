@@ -161,7 +161,7 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 					cd->path->str,
 					cd->query->str
 				);
-				g_string_append_len(cd->detailed, CONST_STR_LEN("}</pre>"));
+				li_g_string_append_len(cd->detailed, CONST_STR_LEN("}</pre>"));
 			}
 		}
 	}
@@ -211,7 +211,7 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 
 	html = g_string_sized_new(2047);
 
-	g_string_append_len(html, CONST_STR_LEN("<html>\n<head>\n<title>Lighttpd mod_debug</title>\n"
+	li_g_string_append_len(html, CONST_STR_LEN("<html>\n<head>\n<title>Lighttpd mod_debug</title>\n"
 		"<style>a { color: blue; }</style>\n"
 		"</head>\n<body>\n"));
 
@@ -225,7 +225,7 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 			vr->wrk->io_timeout_queue.timer.libevmess.timer.repeat
 		);
 
-		g_string_append_len(html, CONST_STR_LEN("<table><tr><th>Client</th><th>Duration</th><th></th></tr>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("<table><tr><th>Client</th><th>Duration</th><th></th></tr>\n"));
 
 		for (i = 0; i < result->len; i++) {
 			GArray *cons = g_ptr_array_index(result, i);
@@ -255,11 +255,11 @@ static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result,
 			g_array_free(cons, TRUE);
 		}
 
-		g_string_append_len(html, CONST_STR_LEN("</table>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("</table>\n"));
 		g_string_free(duration, TRUE);
 	}
 
-	g_string_append_len(html, CONST_STR_LEN("</body>\n</html>\n"));
+	li_g_string_append_len(html, CONST_STR_LEN("</body>\n</html>\n"));
 
 	if (li_vrequest_handle_direct(vr)) {
 		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/html; charset=utf-8"));

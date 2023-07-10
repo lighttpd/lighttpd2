@@ -125,9 +125,9 @@ GString* li_lua_print_get_string(lua_State *L, int from, int to) {
 		if (0 == len) continue;
 		if (buf->len > 0) {
 			g_string_append_c(buf, ' ');
-			g_string_append_len(buf, s, len);
+			li_g_string_append_len(buf, s, len);
 		} else {
-			g_string_append_len(buf, s, len);
+			li_g_string_append_len(buf, s, len);
 		}
 	}
 	lua_pop(L, 1);

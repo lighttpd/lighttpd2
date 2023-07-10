@@ -547,30 +547,30 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 	count_mem = g_string_sized_new(10);
 	tmpstr = vr->wrk->tmp_str;
 
-	g_string_append_len(html, CONST_STR_LEN(html_header));
-	g_string_append_len(html, CONST_STR_LEN(html_js));
+	li_g_string_append_len(html, CONST_STR_LEN(html_header));
+	li_g_string_append_len(html, CONST_STR_LEN(html_js));
 
 	/* auto refresh */
 	if (li_querystring_find(vr->request.uri.query, CONST_STR_LEN("refresh"), &val, &len)) {
-		g_string_append_len(html, CONST_STR_LEN("<meta http-equiv=\"refresh\" content=\""));
+		li_g_string_append_len(html, CONST_STR_LEN("<meta http-equiv=\"refresh\" content=\""));
 		/* temp char swap */
 		c = val[len]; val[len] = '\0';
 		li_string_encode_append(val, html, LI_ENCODING_HTML);
 		val[len] = c;
-		g_string_append_len(html, CONST_STR_LEN("\">\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("\">\n"));
 	}
 
 	/* css */
 	css = _OPTIONPTR(vr, p, 0).string;
 
 	if (!css || !css->len) /* default css */
-		g_string_append_len(html, CONST_STR_LEN(css_default));
+		li_g_string_append_len(html, CONST_STR_LEN(css_default));
 	else if (g_str_equal(css->str, "blue")) /* blue css */
-		g_string_append_len(html, CONST_STR_LEN(css_blue));
+		li_g_string_append_len(html, CONST_STR_LEN(css_blue));
 	else /* external css */
 		g_string_append_printf(html, "		<link rel=\"stylesheet\" rev=\"stylesheet\" href=\"%s\" media=\"screen\" />\n", css->str);
 
-	g_string_append_len(html, CONST_STR_LEN(
+	li_g_string_append_len(html, CONST_STR_LEN(
 		"	</head>\n"
 		"	<body>\n"
 	));
@@ -587,8 +587,8 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 
 
 	/* worker information, absolute values */
-	g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Absolute stats</strong></div>\n"));
-	g_string_append_len(html, CONST_STR_LEN(html_worker_th));
+	li_g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Absolute stats</strong></div>\n"));
+	li_g_string_append_len(html, CONST_STR_LEN(html_worker_th));
 
 	#define PERCENTAGE(x, y) (y ? (x * 100 / y) : 0)
 	for (i = 0; i < result->len; i++) {
@@ -613,12 +613,12 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 		count_bin->str, G_GUINT64_CONSTANT(100),
 		count_bout->str, G_GUINT64_CONSTANT(100),
 		total_connections, 100);
-	g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+	li_g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 
 	/* worker information, avg values */
-	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (since start)</div>\n"));
+	li_g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (since start)</div>\n"));
 
-	g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
+	li_g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
 
 	#define PERCENTAGE(x) (sd->stat ## x ? (sd->stat ## x * 100 / total ## x) : 0)
 	for (i = 0; i < result->len; i++) {
@@ -646,12 +646,12 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 		count_bout->str,
 		(guint)(totals->active_cons_cum / uptime)
 	);
-	g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+	li_g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 
 
 	/* worker information, 5 seconds avg values */
-	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (5 seconds)</div>\n"));
-	g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
+	li_g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Average stats</strong> (5 seconds)</div>\n"));
+	li_g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
 
 	#define PERCENTAGE(x) (sd->stat ## x ? (sd->stat ## x * 100 / total ## x) : 0)
 	for (i = 0; i < result->len; i++) {
@@ -679,12 +679,12 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 		count_bout->str,
 		totals->active_cons_5s
 	);
-	g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+	li_g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 
 
 	/* worker information, peak values */
-	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Peak stats</strong></div>\n"));
-	g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
+	li_g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Peak stats</strong></div>\n"));
+	li_g_string_append_len(html, CONST_STR_LEN(html_worker_th_avg));
 
 	for (i = 0; i < result->len; i++) {
 		mod_status_wrk_data *sd = g_ptr_array_index(result, i);
@@ -710,11 +710,11 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 		count_bout->str,
 		totals->peak.active_cons
 	);
-	g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+	li_g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 
 
 	/* connection counts */
-	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Connections</strong> (states, sum)</div>\n"));
+	li_g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Connections</strong> (states, sum)</div>\n"));
 	g_string_append_printf(html, html_connections_sum,
 		connection_count[LI_CON_STATE_DEAD] + connection_count[LI_CON_STATE_CLOSE],
 		connection_count[LI_CON_STATE_REQUEST_START], connection_count[LI_CON_STATE_READ_REQUEST_HEADER],
@@ -723,7 +723,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 	);
 
 	/* response status codes */
-	g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>HTTP Status codes</strong> (sum)</div>\n"));
+	li_g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>HTTP Status codes</strong> (sum)</div>\n"));
 	g_string_append_printf(html, html_status_codes, mod_status_response_codes[0], mod_status_response_codes[1],
 		mod_status_response_codes[2], mod_status_response_codes[3], mod_status_response_codes[4]
 	);
@@ -743,8 +743,8 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 		req_len = g_string_sized_new(10);
 		resp_len = g_string_sized_new(10);
 
-		g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong></div>\n"));
-		g_string_append_len(html, CONST_STR_LEN(html_connections_th));
+		li_g_string_append_len(html, CONST_STR_LEN("<div class=\"title\"><strong>Active connections</strong></div>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN(html_connections_th));
 		for (i = 0; i < result->len; i++) {
 			mod_status_wrk_data *sd = g_ptr_array_index(result, i);
 
@@ -780,7 +780,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 			}
 		}
 
-		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 
 		g_string_free(ts_started, TRUE);
 		g_string_free(ts_timeout, TRUE);
@@ -792,7 +792,7 @@ static GString *status_info_full(liVRequest *vr, liPlugin *p, gboolean short_inf
 		g_string_free(resp_len, TRUE);
 	}
 
-	g_string_append_len(html, CONST_STR_LEN(
+	li_g_string_append_len(html, CONST_STR_LEN(
 		" </body>\n"
 		"</html>\n"
 	));
@@ -813,59 +813,59 @@ static GString *status_info_plain(liVRequest *vr, guint uptime, liStatistics *to
 	html = g_string_sized_new(1024 - 1);
 
 	/* absolute values */
-	g_string_append_len(html, CONST_STR_LEN("# Absolute Values\nuptime: "));
+	li_g_string_append_len(html, CONST_STR_LEN("# Absolute Values\nuptime: "));
 	li_string_append_int(html, (gint64)uptime);
-	g_string_append_len(html, CONST_STR_LEN("\nmemory_usage: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nmemory_usage: "));
 	li_string_append_int(html, li_memory_usage());
-	g_string_append_len(html, CONST_STR_LEN("\nrequests_abs: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nrequests_abs: "));
 	li_string_append_int(html, totals->requests);
-	g_string_append_len(html, CONST_STR_LEN("\ntraffic_out_abs: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\ntraffic_out_abs: "));
 	li_string_append_int(html, totals->bytes_out);
-	g_string_append_len(html, CONST_STR_LEN("\ntraffic_in_abs: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\ntraffic_in_abs: "));
 	li_string_append_int(html, totals->bytes_in);
-	g_string_append_len(html, CONST_STR_LEN("\nconnections_abs: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nconnections_abs: "));
 	li_string_append_int(html, total_connections);
 	/* average since start */
-	g_string_append_len(html, CONST_STR_LEN("\n\n# Average Values (since start)\nrequests_avg: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\n\n# Average Values (since start)\nrequests_avg: "));
 	li_string_append_int(html, totals->requests / uptime);
-	g_string_append_len(html, CONST_STR_LEN("\ntraffic_out_avg: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\ntraffic_out_avg: "));
 	li_string_append_int(html, totals->bytes_out / uptime);
-	g_string_append_len(html, CONST_STR_LEN("\ntraffic_in_avg: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\ntraffic_in_avg: "));
 	li_string_append_int(html, totals->bytes_in / uptime);
-	g_string_append_len(html, CONST_STR_LEN("\nconnections_avg: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nconnections_avg: "));
 	li_string_append_int(html, totals->active_cons_cum / uptime);
 	/* average last 5 seconds */
-	g_string_append_len(html, CONST_STR_LEN("\n\n# Average Values (5 seconds)\nrequests_avg_5sec: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\n\n# Average Values (5 seconds)\nrequests_avg_5sec: "));
 	li_string_append_int(html, totals->requests_5s_diff / 5);
-	g_string_append_len(html, CONST_STR_LEN("\ntraffic_out_avg_5sec: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\ntraffic_out_avg_5sec: "));
 	li_string_append_int(html, totals->bytes_out_5s_diff / 5);
-	g_string_append_len(html, CONST_STR_LEN("\ntraffic_in_avg_5sec: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\ntraffic_in_avg_5sec: "));
 	li_string_append_int(html, totals->bytes_in_5s_diff / 5);
-	g_string_append_len(html, CONST_STR_LEN("\nconnections_avg_5sec: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nconnections_avg_5sec: "));
 	li_string_append_int(html, totals->active_cons_5s / 5);
 	/* connection states */
-	g_string_append_len(html, CONST_STR_LEN("\n\n# Connection States\nconnection_state_start: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\n\n# Connection States\nconnection_state_start: "));
 	li_string_append_int(html, connection_count[LI_CON_STATE_REQUEST_START]);
-	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_read_header: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nconnection_state_read_header: "));
 	li_string_append_int(html, connection_count[LI_CON_STATE_READ_REQUEST_HEADER]);
-	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_handle_request: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nconnection_state_handle_request: "));
 	li_string_append_int(html, connection_count[LI_CON_STATE_HANDLE_MAINVR]);
-	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_write_response: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nconnection_state_write_response: "));
 	li_string_append_int(html, connection_count[LI_CON_STATE_WRITE]);
-	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_keep_alive: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nconnection_state_keep_alive: "));
 	li_string_append_int(html, connection_count[LI_CON_STATE_KEEP_ALIVE]);
-	g_string_append_len(html, CONST_STR_LEN("\nconnection_state_upgraded: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nconnection_state_upgraded: "));
 	li_string_append_int(html, connection_count[LI_CON_STATE_UPGRADED]);
 	/* status cpdes */
-	g_string_append_len(html, CONST_STR_LEN("\n\n# Status Codes (since start)\nstatus_1xx: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\n\n# Status Codes (since start)\nstatus_1xx: "));
 	li_string_append_int(html, mod_status_response_codes[0]);
-	g_string_append_len(html, CONST_STR_LEN("\nstatus_2xx: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nstatus_2xx: "));
 	li_string_append_int(html, mod_status_response_codes[1]);
-	g_string_append_len(html, CONST_STR_LEN("\nstatus_3xx: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nstatus_3xx: "));
 	li_string_append_int(html, mod_status_response_codes[2]);
-	g_string_append_len(html, CONST_STR_LEN("\nstatus_4xx: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nstatus_4xx: "));
 	li_string_append_int(html, mod_status_response_codes[3]);
-	g_string_append_len(html, CONST_STR_LEN("\nstatus_5xx: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nstatus_5xx: "));
 	li_string_append_int(html, mod_status_response_codes[4]);
 
 	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/plain"));
@@ -880,31 +880,31 @@ static GString *status_info_auto(liVRequest *vr, guint uptime, liStatistics *tot
 	html = g_string_sized_new(1024 - 1);
 
 	/* absolute values */
-	g_string_append_len(html, CONST_STR_LEN("Total Accesses: "));
+	li_g_string_append_len(html, CONST_STR_LEN("Total Accesses: "));
 	li_string_append_int(html, totals->requests);
-	g_string_append_len(html, CONST_STR_LEN("\nTotal kBytes: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nTotal kBytes: "));
 	li_string_append_int(html, totals->bytes_out / 1024);
-	g_string_append_len(html, CONST_STR_LEN("\nUptime: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nUptime: "));
 	li_string_append_int(html, (gint64)uptime);
 	/* connection states */
-	g_string_append_len(html, CONST_STR_LEN("\nBusyServers: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nBusyServers: "));
 	li_string_append_int(html, connection_count[3]+connection_count[4]+connection_count[5]+connection_count[6]+connection_count[7]);
-	g_string_append_len(html, CONST_STR_LEN("\nIdleServers: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nIdleServers: "));
 	li_string_append_int(html, connection_count[0]+connection_count[1]+connection_count[2]);
 	/* average since start */
-	g_string_append_len(html, CONST_STR_LEN("\nTraffic: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nTraffic: "));
 	li_string_append_int(html, totals->bytes_out / uptime);
 	/* average last 5 seconds */
-	g_string_append_len(html, CONST_STR_LEN("\nTraffic5s: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nTraffic5s: "));
 	li_string_append_int(html, totals->bytes_out_5s_diff / 5);
 	/* output scoreboard */
-	g_string_append_len(html, CONST_STR_LEN("\nScoreboard: "));
+	li_g_string_append_len(html, CONST_STR_LEN("\nScoreboard: "));
 	for (i = 0; i <= LI_CON_STATE_LAST; i++) {
 		for (j = 0; j < connection_count[i]; j++) {
 			g_string_append_c(html, liConnectionState_short[i]);
 		}
 	}
-	g_string_append_len(html, CONST_STR_LEN("\n"));
+	li_g_string_append_len(html, CONST_STR_LEN("\n"));
 
 	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("text/plain"));
 
@@ -1017,7 +1017,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 	html = g_string_sized_new(8*1024-1);
 	tmp_str = g_string_sized_new(10);
 
-	g_string_append_len(html, CONST_STR_LEN(html_header));
+	li_g_string_append_len(html, CONST_STR_LEN(html_header));
 
 	/* auto refresh */
 	{
@@ -1026,12 +1026,12 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 		gchar c;
 
 		if (li_querystring_find(vr->request.uri.query, CONST_STR_LEN("refresh"), &val, &len)) {
-			g_string_append_len(html, CONST_STR_LEN("<meta http-equiv=\"refresh\" content=\""));
+			li_g_string_append_len(html, CONST_STR_LEN("<meta http-equiv=\"refresh\" content=\""));
 			/* temp char swap */
 			c = val[len]; val[len] = '\0';
 			li_string_encode_append(val, html, LI_ENCODING_HTML);
 			val[len] = c;
-			g_string_append_len(html, CONST_STR_LEN("\">\n"));
+			li_g_string_append_len(html, CONST_STR_LEN("\">\n"));
 		}
 	}
 
@@ -1040,14 +1040,14 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 		GString* css = _OPTIONPTR(vr, p, 0).string;
 
 		if (!css || !css->len) /* default css */
-			g_string_append_len(html, CONST_STR_LEN(css_default));
+			li_g_string_append_len(html, CONST_STR_LEN(css_default));
 		else if (g_str_equal(css->str, "blue")) /* blue css */
-			g_string_append_len(html, CONST_STR_LEN(css_blue));
+			li_g_string_append_len(html, CONST_STR_LEN(css_blue));
 		else /* external css */
 			g_string_append_printf(html, "		<link rel=\"stylesheet\" rev=\"stylesheet\" href=\"%s\" media=\"screen\" />\n", css->str);
 	}
 
-	g_string_append_len(html, CONST_STR_LEN(
+	li_g_string_append_len(html, CONST_STR_LEN(
 		"	</head>\n"
 		"	<body>\n"
 	));
@@ -1093,7 +1093,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 		slim_fd = slim_core = "unknown";
 #endif
 
-		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Server info</strong></div>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Server info</strong></div>\n"));
 		g_string_append_printf(html, html_server_info,
 			g_get_host_name(), g_get_user_name(), getuid(), li_event_loop_backend_string(&vr->wrk->loop),
 			slim_fd, g_atomic_int_get(&vr->wrk->srv->max_connections), slim_core, (guint64) vr->wrk->srv->io_timeout
@@ -1106,8 +1106,8 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 
 	/* library info */
 	{
-		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Libraries</strong></div>\n"));
-		g_string_append_len(html, CONST_STR_LEN(html_libinfo_th));
+		li_g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Libraries</strong></div>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN(html_libinfo_th));
 
 		g_string_truncate(tmp_str, 0);
 		g_string_append_printf(tmp_str, "%u.%u.%u", glib_major_version, glib_minor_version, glib_micro_version);
@@ -1129,15 +1129,15 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 			vr->wrk->tmp_str->str
 		);
 
-		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 	}
 
 	/* libev info */
 	{
 		guint i;
 
-		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>libev backends</strong></div>\n"));
-		g_string_append_len(html, CONST_STR_LEN(html_libev_th));
+		li_g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>libev backends</strong></div>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN(html_libev_th));
 
 		/* supported backend, aka compiled in */
 		i = ev_supported_backends();
@@ -1161,7 +1161,7 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 			i & EVBACKEND_PORT ? "yes" : "no"
 		);
 
-		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 	}
 
 	/* list modules */
@@ -1171,8 +1171,8 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 		GHashTableIter iter;
 		GArray *list = g_array_sized_new(FALSE, FALSE, sizeof(gchar*), g_hash_table_size(vr->wrk->srv->plugins));
 
-		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Loaded modules</strong></div>\n"));
-		g_string_append_len(html, CONST_STR_LEN("		<table cellspacing=\"0\">\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Loaded modules</strong></div>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("		<table cellspacing=\"0\">\n"));
 
 		g_hash_table_iter_init(&iter, vr->wrk->srv->plugins);
 
@@ -1185,11 +1185,11 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 
 		for (i = 1; i < list->len; i++) {
 			if (col == 0) {
-				g_string_append_len(html, CONST_STR_LEN("			<tr>\n"));
+				li_g_string_append_len(html, CONST_STR_LEN("			<tr>\n"));
 				col++;
 			}
 			else if (col == 5) {
-				g_string_append_len(html, CONST_STR_LEN("			</tr>\n"));
+				li_g_string_append_len(html, CONST_STR_LEN("			</tr>\n"));
 				col = 0;
 				continue;
 			} else {
@@ -1201,12 +1201,12 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 
 		if (col) {
 			for (i = 5 - col; i; i--)
-				g_string_append_len(html, CONST_STR_LEN("				<td></td>\n"));
+				li_g_string_append_len(html, CONST_STR_LEN("				<td></td>\n"));
 
-			g_string_append_len(html, CONST_STR_LEN("			</tr>\n"));
+			li_g_string_append_len(html, CONST_STR_LEN("			</tr>\n"));
 		}
 
-		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 
 		g_array_free(list, TRUE);
 	}
@@ -1216,19 +1216,19 @@ static liHandlerResult status_info_runtime(liVRequest *vr, liPlugin *p) {
 		gchar **e;
 		gchar **env = g_listenv();
 
-		g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Process environment</strong></div>\n"));
-		g_string_append_len(html, CONST_STR_LEN("		<table cellspacing=\"0\">\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("		<div class=\"title\"><strong>Process environment</strong></div>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("		<table cellspacing=\"0\">\n"));
 
 		for (e = env; *e; e++) {
 			g_string_append_printf(html, "			<tr><td class=\"left\">%s</td><td class=\"left\">%s</td></tr>\n", *e, getenv(*e));
 		}
 
-		g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
+		li_g_string_append_len(html, CONST_STR_LEN("		</table>\n"));
 
 		g_strfreev(env);
 	}
 
-	g_string_append_len(html, CONST_STR_LEN(
+	li_g_string_append_len(html, CONST_STR_LEN(
 		" </body>\n"
 		"</html>\n"
 	));

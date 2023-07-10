@@ -48,7 +48,7 @@ GString *li_common_value_to_string_(liValue *val) {
 		break;
 	case LI_VALUE_STRING:
 		str = g_string_new_len(CONST_STR_LEN("\""));
-		g_string_append_len(str, GSTR_LEN(val->data.string));
+		li_g_string_append_len(str, GSTR_LEN(val->data.string));
 		g_string_append_c(str, '"');
 		break;
 	case LI_VALUE_LIST:
@@ -59,7 +59,7 @@ GString *li_common_value_to_string_(liValue *val) {
 			g_string_free(tmp, TRUE);
 			for (guint i = 1; i < val->data.list->len; i++) {
 				tmp = li_value_to_string(g_ptr_array_index(val->data.list, i));
-				g_string_append_len(str, CONST_STR_LEN(", "));
+				li_g_string_append_len(str, CONST_STR_LEN(", "));
 				g_string_append(str, tmp->str);
 				g_string_free(tmp, TRUE);
 			}

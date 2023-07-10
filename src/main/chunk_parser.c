@@ -74,7 +74,7 @@ gboolean li_chunk_extract_to(liChunkParserMark from, liChunkParserMark to, GStri
 				dest->len += we_have;
 				dest->str[dest->len] = '\0';
 			} else {
-				g_string_append_len(dest, buf, we_have);
+				li_g_string_append_len(dest, buf, we_have);
 			}
 			i.pos += we_have;
 		}
@@ -90,7 +90,7 @@ gboolean li_chunk_extract_to(liChunkParserMark from, liChunkParserMark to, GStri
 			dest->len += we_have;
 			dest->str[dest->len] = '\0';
 		} else {
-			g_string_append_len(dest, buf, we_have);
+			li_g_string_append_len(dest, buf, we_have);
 		}
 		i.pos += we_have;
 	}

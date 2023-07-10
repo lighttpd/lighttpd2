@@ -80,7 +80,7 @@ static liHandlerResult expire(liVRequest *vr, gpointer param, gpointer *context)
 	/* finally set the headers */
 	li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Expires"), GSTR_LEN(date_str));
 	g_string_truncate(date_str, 0);
-	g_string_append_len(date_str, CONST_STR_LEN("max-age="));
+	li_g_string_append_len(date_str, CONST_STR_LEN("max-age="));
 	li_string_append_int(date_str, max_age);
 	li_http_header_append(vr->response.headers, CONST_STR_LEN("Cache-Control"), GSTR_LEN(date_str));
 

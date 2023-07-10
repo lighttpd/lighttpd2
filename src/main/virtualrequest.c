@@ -557,18 +557,18 @@ gboolean li_vrequest_redirect_directory(liVRequest *vr) {
 	if (li_vrequest_is_handled(vr)) return FALSE;
 
 	g_string_truncate(uri, 0);
-	g_string_append_len(uri, GSTR_LEN(vr->request.uri.scheme));
-	g_string_append_len(uri, CONST_STR_LEN("://"));
+	li_g_string_append_len(uri, GSTR_LEN(vr->request.uri.scheme));
+	li_g_string_append_len(uri, CONST_STR_LEN("://"));
 	if (vr->request.uri.authority->len > 0) {
-		g_string_append_len(uri, GSTR_LEN(vr->request.uri.authority));
+		li_g_string_append_len(uri, GSTR_LEN(vr->request.uri.authority));
 	} else {
-		g_string_append_len(uri, GSTR_LEN(vr->coninfo->local_addr_str));
+		li_g_string_append_len(uri, GSTR_LEN(vr->coninfo->local_addr_str));
 	}
 	li_string_encode_append(vr->request.uri.path->str, uri, LI_ENCODING_URI);
 	g_string_append_c(uri, '/');
 	if (vr->request.uri.query->len) {
 		g_string_append_c(uri, '?');
-		g_string_append_len(uri, GSTR_LEN(vr->request.uri.query));
+		li_g_string_append_len(uri, GSTR_LEN(vr->request.uri.query));
 	}
 
 	return li_vrequest_redirect(vr, uri);

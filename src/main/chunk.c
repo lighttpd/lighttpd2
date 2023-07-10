@@ -823,7 +823,7 @@ gboolean li_chunkqueue_extract_to(liChunkQueue *cq, goffset len, GString *dest, 
 			gchar *buf;
 			off_t we_have;
 			if (LI_HANDLER_GO_ON != li_chunkiter_read(ci, coff, len, &buf, &we_have, err)) goto error;
-			g_string_append_len(dest, buf, we_have);
+			li_g_string_append_len(dest, buf, we_have);
 			coff += we_have;
 			len -= we_have;
 			if (len <= 0) return TRUE;

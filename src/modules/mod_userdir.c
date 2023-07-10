@@ -103,10 +103,10 @@ static liHandlerResult userdir(liVRequest *vr, gpointer param, gpointer *context
 		part = &g_array_index(parts, userdir_part, i);
 		switch (part->type) {
 		case USERDIR_PART_STRING:
-			g_string_append_len(vr->physical.doc_root, GSTR_LEN(part->data.str));
+			li_g_string_append_len(vr->physical.doc_root, GSTR_LEN(part->data.str));
 			break;
 		case USERDIR_PART_USERNAME:
-			g_string_append_len(vr->physical.doc_root, username, username_len);
+			li_g_string_append_len(vr->physical.doc_root, username, username_len);
 			has_username = TRUE;
 			break;
 		case USERDIR_PART_LETTER:
@@ -120,7 +120,7 @@ static liHandlerResult userdir(liVRequest *vr, gpointer param, gpointer *context
 		/* pattern without username, append it. /usr/web/ => /usr/web/user/ */
 		if (vr->physical.doc_root->str[vr->physical.doc_root->len-1] != G_DIR_SEPARATOR)
 			g_string_append_c(vr->physical.doc_root, G_DIR_SEPARATOR);
-		g_string_append_len(vr->physical.doc_root, username, username_len);
+		li_g_string_append_len(vr->physical.doc_root, username, username_len);
 	}
 
 	/* ensure that docroot is ending with a slash */
@@ -129,15 +129,15 @@ static liHandlerResult userdir(liVRequest *vr, gpointer param, gpointer *context
 
 	/* build physical path: docroot + uri.path */
 	g_string_truncate(vr->physical.path, 0);
-	g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
-	g_string_append_len(vr->physical.path, username + username_len, vr->request.uri.path->str - username - username_len);
+	li_g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
+	li_g_string_append_len(vr->physical.path, username + username_len, vr->request.uri.path->str - username - username_len);
 
 	/* rewrite request path to skip username */
 	g_string_truncate(vr->wrk->tmp_str, 0);
-	g_string_append_len(vr->wrk->tmp_str, username + username_len, vr->request.uri.path->str - username - username_len);
+	li_g_string_append_len(vr->wrk->tmp_str, username + username_len, vr->request.uri.path->str - username - username_len);
 	g_string_truncate(vr->request.uri.path, 0);
 	if (vr->wrk->tmp_str->len)
-		g_string_append_len(vr->request.uri.path, GSTR_LEN(vr->wrk->tmp_str));
+		li_g_string_append_len(vr->request.uri.path, GSTR_LEN(vr->wrk->tmp_str));
 	else
 		g_string_append_c(vr->request.uri.path, G_DIR_SEPARATOR);
 

@@ -390,8 +390,8 @@ static liHandlerResult auth_basic(liVRequest *vr, gpointer param, gpointer *cont
 	}
 
 	g_string_truncate(vr->wrk->tmp_str, 0);
-	g_string_append_len(vr->wrk->tmp_str, CONST_STR_LEN("Basic realm=\""));
-	g_string_append_len(vr->wrk->tmp_str, GSTR_LEN(bdata->realm));
+	li_g_string_append_len(vr->wrk->tmp_str, CONST_STR_LEN("Basic realm=\""));
+	li_g_string_append_len(vr->wrk->tmp_str, GSTR_LEN(bdata->realm));
 	g_string_append_c(vr->wrk->tmp_str, '"');
 	/* generate header always */
 

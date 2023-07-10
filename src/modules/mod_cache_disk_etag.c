@@ -65,8 +65,8 @@ static gboolean mkdir_for_file(liVRequest *vr, char *filename) {
 
 static gboolean cache_etag_file_start(liVRequest *vr, cache_etag_file *cfile) {
 	cfile->tmpfilename = g_string_sized_new(cfile->filename->len + 7);
-	g_string_append_len(cfile->tmpfilename, GSTR_LEN(cfile->filename));
-	g_string_append_len(cfile->tmpfilename, CONST_STR_LEN("-XXXXXX"));
+	li_g_string_append_len(cfile->tmpfilename, GSTR_LEN(cfile->filename));
+	li_g_string_append_len(cfile->tmpfilename, CONST_STR_LEN("-XXXXXX"));
 
 	if (!mkdir_for_file(vr, cfile->tmpfilename->str)) {
 		return FALSE;
@@ -207,9 +207,9 @@ forward:
 static GString* createFileName(liVRequest *vr, GString *path, liHttpHeader *etagheader) {
 	GString *file = g_string_sized_new(255);
 	gchar* etag_base64 = g_base64_encode((guchar*) LI_HEADER_VALUE_LEN(etagheader));
-	g_string_append_len(file, GSTR_LEN(path));
-	g_string_append_len(file, GSTR_LEN(vr->request.uri.path));
-	g_string_append_len(file, CONST_STR_LEN("-"));
+	li_g_string_append_len(file, GSTR_LEN(path));
+	li_g_string_append_len(file, GSTR_LEN(vr->request.uri.path));
+	li_g_string_append_len(file, CONST_STR_LEN("-"));
 	g_string_append(file, etag_base64);
 	g_free(etag_base64);
 	return file;

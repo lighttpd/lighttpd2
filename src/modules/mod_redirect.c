@@ -111,15 +111,15 @@ static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *
 		break;
 	case REDIRECT_ABSOLUTE_PATH:
 		/* /foo/bar?baz */
-		g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
-		g_string_append_len(dest, CONST_STR_LEN("://"));
-		g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
+		li_g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
+		li_g_string_append_len(dest, CONST_STR_LEN("://"));
+		li_g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
 		break;
 	case REDIRECT_RELATIVE_PATH:
 		/* foo/bar?baz */
-		g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
-		g_string_append_len(dest, CONST_STR_LEN("://"));
-		g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
+		li_g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
+		li_g_string_append_len(dest, CONST_STR_LEN("://"));
+		li_g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
 		/* search for last slash /foo/bar */
 		{
 			gchar *c;
@@ -127,15 +127,15 @@ static gboolean redirect_internal(liVRequest *vr, GString *dest, redirect_rule *
 				if (*c == '/') break;
 			}
 
-			g_string_append_len(dest, vr->request.uri.path->str, c - vr->request.uri.path->str + 1);
+			li_g_string_append_len(dest, vr->request.uri.path->str, c - vr->request.uri.path->str + 1);
 		}
 		break;
 	case REDIRECT_RELATIVE_QUERY:
 		/* ?bar */
-		g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
-		g_string_append_len(dest, CONST_STR_LEN("://"));
-		g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
-		g_string_append_len(dest, GSTR_LEN(vr->request.uri.path));
+		li_g_string_append_len(dest, GSTR_LEN(vr->request.uri.scheme));
+		li_g_string_append_len(dest, CONST_STR_LEN("://"));
+		li_g_string_append_len(dest, GSTR_LEN(vr->request.uri.authority));
+		li_g_string_append_len(dest, GSTR_LEN(vr->request.uri.path));
 		break;
 	}
 

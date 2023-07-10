@@ -351,7 +351,7 @@ static void log_watcher_cb(liEventBase *watcher, int events) {
 			g_string_prepend_len(msg, GSTR_LEN(ts));
 		}
 
-		g_string_append_len(msg, CONST_STR_LEN("\n"));
+		li_g_string_append_len(msg, CONST_STR_LEN("\n"));
 
 		log = log_open(srv, log_entry->path);
 

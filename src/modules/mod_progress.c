@@ -219,7 +219,7 @@ static void progress_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *resu
 		li_http_header_overwrite(vr->response.headers, CONST_STR_LEN("Content-Type"), CONST_STR_LEN("application/x-javascript"));
 
 		if (format == PROGRESS_FORMAT_LEGACY) {
-			g_string_append_len(output, CONST_STR_LEN("new Object("));
+			li_g_string_append_len(output, CONST_STR_LEN("new Object("));
 		} else if (format == PROGRESS_FORMAT_JSONP) {
 			gchar *val;
 			guint len;
@@ -236,13 +236,13 @@ static void progress_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *resu
 
 				/* was there a bad char? */
 				if (c != val+len) {
-					g_string_append_len(output, CONST_STR_LEN("progress("));
+					li_g_string_append_len(output, CONST_STR_LEN("progress("));
 				} else {
-					g_string_append_len(output,val, len);
+					li_g_string_append_len(output,val, len);
 					g_string_append_c(output, '(');
 				}
 			} else {
-				g_string_append_len(output, CONST_STR_LEN("progress("));
+				li_g_string_append_len(output, CONST_STR_LEN("progress("));
 			}
 		}
 
@@ -251,7 +251,7 @@ static void progress_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *resu
 			if (debug)
 				VR_DEBUG(vr, "progress.show: progress id \"%s\" unknown", job->id);
 			
-			g_string_append_len(output, CONST_STR_LEN("{\"state\": \"unknown\"}"));
+			li_g_string_append_len(output, CONST_STR_LEN("{\"state\": \"unknown\"}"));
 		} else {
 			if (debug)
 				VR_DEBUG(vr, "progress.show: progress id \"%s\" found", job->id);

@@ -163,7 +163,7 @@ static int lua_requesturi_attr_write_##attr(liRequestUri *uri, lua_State *L) { \
 	luaL_checkstring(L, 3);                                                    \
 	s = lua_tolstring(L, 3, &len);                                             \
 	g_string_truncate(uri->attr, 0);                                           \
-	g_string_append_len(uri->attr, s, len);                                    \
+	li_g_string_append_len(uri->attr, s, len);                                    \
 	return 0;                                                                  \
 }
 

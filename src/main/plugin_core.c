@@ -117,7 +117,7 @@ static void core_docroot_nth_cb(GString *pattern_result, guint to, guint from, g
 
 	/* ranges including 0 will only get the complete hostname */
 	if (0 == from || 0 == to) {
-		g_string_append_len(pattern_result, GSTR_LEN(ctx->hostname));
+		li_g_string_append_len(pattern_result, GSTR_LEN(ctx->hostname));
 		return;
 	}
 
@@ -136,7 +136,7 @@ static void core_docroot_nth_cb(GString *pattern_result, guint to, guint from, g
 			if (first) {
 				first = FALSE;
 			} else {
-				g_string_append_len(pattern_result, CONST_STR_LEN("."));
+				li_g_string_append_len(pattern_result, CONST_STR_LEN("."));
 			}
 			g_string_append(pattern_result, ctx->splits[ctx->split_len - i]);
 		}
@@ -145,7 +145,7 @@ static void core_docroot_nth_cb(GString *pattern_result, guint to, guint from, g
 			if (first) {
 				first = FALSE;
 			} else {
-				g_string_append_len(pattern_result, CONST_STR_LEN("."));
+				li_g_string_append_len(pattern_result, CONST_STR_LEN("."));
 			}
 			g_string_append(pattern_result, ctx->splits[ctx->split_len - i]);
 		}
@@ -210,10 +210,10 @@ static liHandlerResult core_handle_docroot(liVRequest *vr, gpointer param, gpoin
 
 	/* build physical path: docroot + uri.path */
 	g_string_truncate(vr->physical.path, 0);
-	g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
+	li_g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
 	if (vr->request.uri.path->len == 0 || vr->request.uri.path->str[0] != '/')
 		li_path_append_slash(vr->physical.path);
-	g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
+	li_g_string_append_len(vr->physical.path, GSTR_LEN(vr->request.uri.path));
 
 	if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 		VR_DEBUG(vr, "docroot: \"%s\"", vr->physical.doc_root->str);
@@ -316,8 +316,8 @@ static liHandlerResult core_handle_alias(liVRequest *vr, gpointer _param, gpoint
 
 			/* build physical path: docroot + uri.path */
 			g_string_truncate(vr->physical.path, 0);
-			g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
-			g_string_append_len(vr->physical.path, vr->request.uri.path->str + preflen, vr->request.uri.path->len - preflen);
+			li_g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
+			li_g_string_append_len(vr->physical.path, vr->request.uri.path->str + preflen, vr->request.uri.path->len - preflen);
 
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "alias physical path: %s", vr->physical.path->str);
@@ -445,7 +445,7 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 	/* we use two temporary strings here, one to append to docroot and one to append to physical path */
 	tmp_docroot = vr->wrk->tmp_str;
 	g_string_truncate(tmp_docroot, 0);
-	g_string_append_len(vr->wrk->tmp_str, GSTR_LEN(vr->physical.doc_root));
+	li_g_string_append_len(vr->wrk->tmp_str, GSTR_LEN(vr->physical.doc_root));
 	tmp_path = g_string_new_len(GSTR_LEN(vr->physical.path));
 
 	/* loop through the list to find a possible index file */
@@ -455,7 +455,7 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 		if (file->str[0] == '/') {
 			/* entries beginning with a slash shall be looked up directly at the docroot */
 			g_string_truncate(tmp_docroot, vr->physical.doc_root->len);
-			g_string_append_len(tmp_docroot, GSTR_LEN(file));
+			li_g_string_append_len(tmp_docroot, GSTR_LEN(file));
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "trying index file: '%s' -> '%s'", file->str, tmp_docroot->str);
 			}
@@ -470,7 +470,7 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 			}
 
 			g_string_truncate(tmp_path, vr->physical.path->len);
-			g_string_append_len(tmp_path, GSTR_LEN(file));
+			li_g_string_append_len(tmp_path, GSTR_LEN(file));
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "trying index file: '%s' -> '%s'", file->str, tmp_path->str);
 			}
@@ -490,8 +490,8 @@ static liHandlerResult core_handle_index(liVRequest *vr, gpointer param, gpointe
 				g_string_truncate(vr->request.uri.path, 0);
 			}
 
-			g_string_append_len(vr->physical.path, GSTR_LEN(file));
-			g_string_append_len(vr->request.uri.path, GSTR_LEN(file));
+			li_g_string_append_len(vr->physical.path, GSTR_LEN(file));
+			li_g_string_append_len(vr->request.uri.path, GSTR_LEN(file));
 
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "using index file: '%s'", file->str);
@@ -1990,13 +1990,13 @@ static gboolean core_register_fetch_files_static(liServer *srv, liPlugin* p, liV
 
 			g_string_truncate(filename, 0);
 			if (NULL != basedir) {
-				g_string_append_len(filename, GSTR_LEN(basedir));
+				li_g_string_append_len(filename, GSTR_LEN(basedir));
 				li_path_append_slash(filename);
 			}
-			g_string_append_len(filename, GSTR_LEN(&entry));
+			li_g_string_append_len(filename, GSTR_LEN(&entry));
 			if (NULL != subfile) {
 				li_path_append_slash(filename);
-				g_string_append_len(filename, GSTR_LEN(subfile));
+				li_g_string_append_len(filename, GSTR_LEN(subfile));
 			}
 
 			if (!g_file_test(filename->str, G_FILE_TEST_IS_REGULAR)) continue;

@@ -110,13 +110,13 @@ static void al_append_escaped(GString *log, GString *str) {
 	/* exceptions: " => \", \ => \\, whitespace chars => \n \t etc. */
 	for (guint i = 0; i < str->len; i++) {
 		switch (str->str[i]) {
-		case '"': g_string_append_len(log, CONST_STR_LEN("\\\"")); break;
-		case '\\': g_string_append_len(log, CONST_STR_LEN("\\\\")); break;
-		case '\b': g_string_append_len(log, CONST_STR_LEN("\\b")); break;
-		case '\n': g_string_append_len(log, CONST_STR_LEN("\\n")); break;
-		case '\r': g_string_append_len(log, CONST_STR_LEN("\\r")); break;
-		case '\t': g_string_append_len(log, CONST_STR_LEN("\\t")); break;
-		case '\v': g_string_append_len(log, CONST_STR_LEN("\\v")); break;
+		case '"': li_g_string_append_len(log, CONST_STR_LEN("\\\"")); break;
+		case '\\': li_g_string_append_len(log, CONST_STR_LEN("\\\\")); break;
+		case '\b': li_g_string_append_len(log, CONST_STR_LEN("\\b")); break;
+		case '\n': li_g_string_append_len(log, CONST_STR_LEN("\\n")); break;
+		case '\r': li_g_string_append_len(log, CONST_STR_LEN("\\r")); break;
+		case '\t': li_g_string_append_len(log, CONST_STR_LEN("\\t")); break;
+		case '\v': li_g_string_append_len(log, CONST_STR_LEN("\\v")); break;
 		default:
 			if (str->str[i] >= ' ' && str->str[i] <= '~') {
 				/* printable chars */
@@ -128,7 +128,7 @@ static void al_append_escaped(GString *log, GString *str) {
 				hh[2] = (h > 9) ? (h - 10 + 'A') : (h + '0');
 				h = str->str[i] % 16;
 				hh[3] = (h > 9) ? (h - 10 + 'A') : (h + '0');
-				g_string_append_len(log, &hh[0], 4);
+				li_g_string_append_len(log, &hh[0], 4);
 			}
 			break;
 		}
@@ -225,10 +225,10 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				g_string_append_c(str, '%');
 				break;
 			case AL_FORMAT_REMOTE_ADDR:
-				g_string_append_len(str, GSTR_LEN(vr->coninfo->remote_addr_str));
+				li_g_string_append_len(str, GSTR_LEN(vr->coninfo->remote_addr_str));
 				break;
 			case AL_FORMAT_LOCAL_ADDR:
-				g_string_append_len(str, GSTR_LEN(vr->coninfo->local_addr_str));
+				li_g_string_append_len(str, GSTR_LEN(vr->coninfo->local_addr_str));
 				break;
 			case AL_FORMAT_BYTES_RESPONSE:
 				li_string_append_int(str, (NULL != vr->coninfo->resp) ? vr->coninfo->resp->out->bytes_out : 0);
@@ -251,7 +251,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 				break;
 			case AL_FORMAT_FILENAME:
 				if (phys->path->len)
-					g_string_append_len(str, GSTR_LEN(phys->path));
+					li_g_string_append_len(str, GSTR_LEN(phys->path));
 				else
 					g_string_append_c(str, '-');
 				break;
@@ -263,7 +263,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_METHOD:
-				g_string_append_len(str, GSTR_LEN(req->http_method_str));
+				li_g_string_append_len(str, GSTR_LEN(req->http_method_str));
 				break;
 			case AL_FORMAT_RESPONSE_HEADER:
 				li_http_header_get_all(vr->wrk->tmp_str, resp->headers, GSTR_LEN(e->key));
@@ -288,12 +288,12 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_FIRST_LINE:
-				g_string_append_len(str, GSTR_LEN(req->http_method_str));
+				li_g_string_append_len(str, GSTR_LEN(req->http_method_str));
 				g_string_append_c(str, ' ');
 				al_append_escaped(str, req->uri.raw_orig_path);
 				g_string_append_c(str, ' ');
 				tmp_str = li_http_version_string(req->http_version, &len);
-				g_string_append_len(str, tmp_str, len);
+				li_g_string_append_len(str, tmp_str, len);
 				break;
 			case AL_FORMAT_STATUS_CODE:
 				li_string_append_int(str, resp->http_status);
@@ -301,7 +301,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 			case AL_FORMAT_TIME:
 				/* todo: implement format string */
 				tmp_gstr2 = li_worker_current_timestamp(vr->wrk, LI_LOCALTIME, ald->ts_ndx);
-				g_string_append_len(str, GSTR_LEN(tmp_gstr2));
+				li_g_string_append_len(str, GSTR_LEN(tmp_gstr2));
 				break;
 			case AL_FORMAT_DURATION_SECONDS:
 				li_string_append_int(str, li_cur_ts(vr->wrk) - vr->ts_started);
@@ -309,22 +309,22 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 			case AL_FORMAT_AUTHED_USER:
 				tmp_gstr2 = li_environment_get(&vr->env, CONST_STR_LEN("REMOTE_USER"));
 				if (tmp_gstr2)
-					g_string_append_len(str, GSTR_LEN(tmp_gstr2));
+					li_g_string_append_len(str, GSTR_LEN(tmp_gstr2));
 				else
 					g_string_append_c(str, '-');
 				break;
 			case AL_FORMAT_PATH:
-				g_string_append_len(str, GSTR_LEN(req->uri.path));
+				li_g_string_append_len(str, GSTR_LEN(req->uri.path));
 				break;
 			case AL_FORMAT_SERVER_NAME:
 				if (CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_NAME).string)
-					g_string_append_len(str, GSTR_LEN(CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_NAME).string));
+					li_g_string_append_len(str, GSTR_LEN(CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_NAME).string));
 				else
-					g_string_append_len(str, GSTR_LEN(req->uri.host));
+					li_g_string_append_len(str, GSTR_LEN(req->uri.host));
 				break;
 			case AL_FORMAT_HOSTNAME:
 				if (req->uri.host->len)
-					g_string_append_len(str, GSTR_LEN(req->uri.host));
+					li_g_string_append_len(str, GSTR_LEN(req->uri.host));
 				else
 					g_string_append_c(str, '-');
 				break;
@@ -353,7 +353,7 @@ static GString *al_format_log(liVRequest *vr, al_data *ald, GArray *format) {
 			}
 		} else {
 			/* append normal string */
-			g_string_append_len(str, GSTR_LEN(e->key));
+			li_g_string_append_len(str, GSTR_LEN(e->key));
 		}
 	}
 

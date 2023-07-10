@@ -366,7 +366,7 @@ INLINE liSSLClientHelloParserResult _li_ssl_client_hello_parse(liSSLClientHelloP
 						case 5:
 							if (0 == context->sni_type && !context->sni_complete) {
 								guint take = MIN(context->sni_hostname_remaining, (guint) (extension_pe - p));
-								g_string_append_len(server_name, (gchar*) p, take);
+								li_g_string_append_len(server_name, (gchar*) p, take);
 								context->sni_hostname_remaining -= take;
 								p += take;
 								if (0 == context->sni_hostname_remaining) {

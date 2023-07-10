@@ -20,19 +20,19 @@ static gboolean error_eof(GError **err, const gchar *info) {
 
 gboolean li_angel_data_write_int32(GString *buf, gint32 i, GError **err) {
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
-	g_string_append_len(buf, (const gchar*) &i, sizeof(i));
+	li_g_string_append_len(buf, (const gchar*) &i, sizeof(i));
 	return TRUE;
 }
 
 gboolean li_angel_data_write_int64(GString *buf, gint64 i, GError **err) {
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
-	g_string_append_len(buf, (const gchar*) &i, sizeof(i));
+	li_g_string_append_len(buf, (const gchar*) &i, sizeof(i));
 	return TRUE;
 }
 
 gboolean li_angel_data_write_char (GString *buf, gchar c, GError **err) {
 	g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
-	g_string_append_len(buf, &c, sizeof(c));
+	li_g_string_append_len(buf, &c, sizeof(c));
 	return TRUE;
 }
 
@@ -46,7 +46,7 @@ gboolean li_angel_data_write_str  (GString *buf, const GString *str, GError **er
 		return FALSE;
 	}
 	if (!li_angel_data_write_int32(buf, str->len, err)) return FALSE;
-	g_string_append_len(buf, GSTR_LEN(str));
+	li_g_string_append_len(buf, GSTR_LEN(str));
 	return TRUE;
 }
 
@@ -106,7 +106,7 @@ gboolean li_angel_data_read_mem  (liAngelBuffer *buf, GString **val, gsize len, 
 	} else {
 		g_string_truncate(s, 0);
 	}
-	g_string_append_len(s, buf->data->str + buf->pos, len);
+	li_g_string_append_len(s, buf->data->str + buf->pos, len);
 	buf->pos += len;
 	return TRUE;
 }

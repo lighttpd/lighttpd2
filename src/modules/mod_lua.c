@@ -63,7 +63,7 @@ static gboolean lua_find_file(GString *filename) {
 
 		/* try DEFAULT_LUADIR */
 		li_string_assign_len(tmp, CONST_STR_LEN(DEFAULT_LUADIR "/"));
-		g_string_append_len(tmp, GSTR_LEN(filename));
+		li_g_string_append_len(tmp, GSTR_LEN(filename));
 		if (-1 != stat(tmp->str, &st) && S_ISREG(st.st_mode)) {
 			li_string_assign_len(filename, GSTR_LEN(tmp));
 		} else {

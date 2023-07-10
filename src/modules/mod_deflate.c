@@ -485,12 +485,12 @@ static gboolean cached_handle_etag(liVRequest *vr, gboolean debug, liHttpHeader 
 	if (!hh_etag) return FALSE;
 
 	g_string_truncate(s, 0);
-	g_string_append_len(s, LI_HEADER_VALUE_LEN(hh_etag));
-	g_string_append_len(s, CONST_STR_LEN("-"));
-	g_string_append_len(s, enc_name, strlen(enc_name));
+	li_g_string_append_len(s, LI_HEADER_VALUE_LEN(hh_etag));
+	li_g_string_append_len(s, CONST_STR_LEN("-"));
+	li_g_string_append_len(s, enc_name, strlen(enc_name));
 	li_etag_mutate(s, s);
 	g_string_truncate(hh_etag->data, hh_etag->keylen + 2);
-	g_string_append_len(hh_etag->data, GSTR_LEN(s));
+	li_g_string_append_len(hh_etag->data, GSTR_LEN(s));
 
 	if (200 == vr->response.http_status && li_http_response_handle_cachable(vr)) {
 		if (debug || CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {

@@ -120,7 +120,7 @@ static void stat_cache_run(gpointer data) {
 			sce->dirlist = g_array_sized_new(FALSE, FALSE, sizeof(liStatCacheEntryData), 32);
 
 			str = g_string_sized_new(sce->data.path->len + 64);
-			g_string_append_len(str, GSTR_LEN(sce->data.path));
+			li_g_string_append_len(str, GSTR_LEN(sce->data.path));
 
 			/* glibc claims modern readdir are thread-safe, and
 			 * readdir_r has issues. no way to check readdir is actually
@@ -143,7 +143,7 @@ static void stat_cache_run(gpointer data) {
 				/* make sure the path ends with / (or whatever) */
 				if (!sce->data.path->len || sce->data.path->str[sce->data.path->len-1] != G_DIR_SEPARATOR)
 					g_string_append_c(str, G_DIR_SEPARATOR);
-				g_string_append_len(str, GSTR_LEN(sced.path));
+				li_g_string_append_len(str, GSTR_LEN(sced.path));
 
 				if (stat(str->str, &sced.st) == -1) {
 					sced.failed = TRUE;

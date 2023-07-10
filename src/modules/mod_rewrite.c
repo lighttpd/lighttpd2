@@ -190,19 +190,19 @@ static liHandlerResult rewrite(liVRequest *vr, gpointer param, gpointer *context
 			/* change request query */
 			if (NULL != rule->querystring) {
 				g_string_truncate(vr->request.uri.query, 0);
-				g_string_append_len(vr->request.uri.query, GSTR_LEN(dest_query));
+				li_g_string_append_len(vr->request.uri.query, GSTR_LEN(dest_query));
 			}
 
 			/* change request path */
 			g_string_truncate(vr->request.uri.path, 0);
-			g_string_append_len(vr->request.uri.path, GSTR_LEN(dest_path));
+			li_g_string_append_len(vr->request.uri.path, GSTR_LEN(dest_path));
 			li_path_simplify(vr->request.uri.path);
 
 			/* rebuild raw_path */
 			li_string_encode(vr->request.uri.path->str, vr->request.uri.raw_path, LI_ENCODING_URI);
 			if (vr->request.uri.query->len > 0) {
-				g_string_append_len(vr->request.uri.raw_path, CONST_STR_LEN("?"));
-				g_string_append_len(vr->request.uri.raw_path, GSTR_LEN(vr->request.uri.query));
+				li_g_string_append_len(vr->request.uri.raw_path, CONST_STR_LEN("?"));
+				li_g_string_append_len(vr->request.uri.raw_path, GSTR_LEN(vr->request.uri.query));
 			}
 
 			/* stop at first matching regex */

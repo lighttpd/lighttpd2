@@ -80,9 +80,9 @@ void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueu
 
 	/* Status line */
 	if (vr->request.http_version == LI_HTTP_VERSION_1_1) {
-		g_string_append_len(head, CONST_STR_LEN("HTTP/1.1 "));
+		li_g_string_append_len(head, CONST_STR_LEN("HTTP/1.1 "));
 	} else {
-		g_string_append_len(head, CONST_STR_LEN("HTTP/1.0 "));
+		li_g_string_append_len(head, CONST_STR_LEN("HTTP/1.0 "));
 	}
 
 	{
@@ -91,20 +91,20 @@ void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueu
 		gchar *str = li_http_status_string(vr->response.http_status, &len);
 		li_http_status_to_str(vr->response.http_status, status_str);
 		status_str[3] = ' ';
-		g_string_append_len(head, status_str, 4);
-		g_string_append_len(head, str, len);
-		g_string_append_len(head, CONST_STR_LEN("\r\n"));
+		li_g_string_append_len(head, status_str, 4);
+		li_g_string_append_len(head, str, len);
+		li_g_string_append_len(head, CONST_STR_LEN("\r\n"));
 	}
 
 	/* connection header, if needed. connection entries in the list are ignored below, send them directly */
 	if (upgraded) {
-		g_string_append_len(head, CONST_STR_LEN("Connection: Upgrade\r\n"));
+		li_g_string_append_len(head, CONST_STR_LEN("Connection: Upgrade\r\n"));
 	} else if (vr->request.http_version == LI_HTTP_VERSION_1_1) {
 		if (!vr->coninfo->keep_alive)
-			g_string_append_len(head, CONST_STR_LEN("Connection: close\r\n"));
+			li_g_string_append_len(head, CONST_STR_LEN("Connection: close\r\n"));
 	} else {
 		if (vr->coninfo->keep_alive)
-			g_string_append_len(head, CONST_STR_LEN("Connection: keep-alive\r\n"));
+			li_g_string_append_len(head, CONST_STR_LEN("Connection: keep-alive\r\n"));
 	}
 
 	/* Append headers */
@@ -117,8 +117,8 @@ void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueu
 			header = (liHttpHeader*) iter->data;
 			/* ignore connection headers from backends. set con->info.keep_alive = FALSE to disable keep-alive */
 			if (li_http_header_key_is(header, CONST_STR_LEN("connection"))) continue;
-			g_string_append_len(head, GSTR_LEN(header->data));
-			g_string_append_len(head, CONST_STR_LEN("\r\n"));
+			li_g_string_append_len(head, GSTR_LEN(header->data));
+			li_g_string_append_len(head, CONST_STR_LEN("\r\n"));
 			if (!have_date && li_http_header_key_is(header, CONST_STR_LEN("date"))) have_date = TRUE;
 			if (!have_server && li_http_header_key_is(header, CONST_STR_LEN("server"))) have_server = TRUE;
 		}
@@ -126,23 +126,23 @@ void li_response_send_headers(liVRequest *vr, liChunkQueue *raw_out, liChunkQueu
 		if (!have_date) {
 			GString *d = li_worker_current_timestamp(vr->wrk, LI_GMTIME, LI_TS_FORMAT_HEADER);
 			/* HTTP/1.1 requires a Date: header */
-			g_string_append_len(head, CONST_STR_LEN("Date: "));
-			g_string_append_len(head, GSTR_LEN(d));
-			g_string_append_len(head, CONST_STR_LEN("\r\n"));
+			li_g_string_append_len(head, CONST_STR_LEN("Date: "));
+			li_g_string_append_len(head, GSTR_LEN(d));
+			li_g_string_append_len(head, CONST_STR_LEN("\r\n"));
 		}
 
 		if (!have_server) {
 			GString *tag = CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_TAG).string;
 
 			if (tag->len) {
-				g_string_append_len(head, CONST_STR_LEN("Server: "));
-				g_string_append_len(head, GSTR_LEN(tag));
-				g_string_append_len(head, CONST_STR_LEN("\r\n"));
+				li_g_string_append_len(head, CONST_STR_LEN("Server: "));
+				li_g_string_append_len(head, GSTR_LEN(tag));
+				li_g_string_append_len(head, CONST_STR_LEN("\r\n"));
 			}
 		}
 	}
 
-	g_string_append_len(head, CONST_STR_LEN("\r\n"));
+	li_g_string_append_len(head, CONST_STR_LEN("\r\n"));
 	li_chunkqueue_append_string(raw_out, head);
 
 	if (NULL != tmp_cq) {
@@ -218,7 +218,7 @@ static void li_response_send_error_page(liVRequest *vr, liChunkQueue *response_b
 
 	html = g_string_sized_new(1023);
 
-	g_string_append_len(html, CONST_STR_LEN(
+	li_g_string_append_len(html, CONST_STR_LEN(
 		"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">\n"
 		"<html>\n"
 		"	<head>\n"
@@ -227,12 +227,12 @@ static void li_response_send_error_page(liVRequest *vr, liChunkQueue *response_b
 
 	li_http_status_to_str(vr->response.http_status, status_code);
 
-	g_string_append_len(html, status_code, 3);
-	g_string_append_len(html, CONST_STR_LEN(" - "));
+	li_g_string_append_len(html, status_code, 3);
+	li_g_string_append_len(html, CONST_STR_LEN(" - "));
 	str = li_http_status_string(vr->response.http_status, &len);
-	g_string_append_len(html, str, len);
+	li_g_string_append_len(html, str, len);
 
-	g_string_append_len(html, CONST_STR_LEN(
+	li_g_string_append_len(html, CONST_STR_LEN(
 		"</title>\n"
 		"		<style type=\"text/css\">\n"
 		"			body { font-size: 62.5%; }\n"
@@ -256,17 +256,17 @@ static void li_response_send_error_page(liVRequest *vr, liChunkQueue *response_b
 		"			<h1>Error "
 	));
 
-	g_string_append_len(html, status_code, 3);
-	g_string_append_len(html, CONST_STR_LEN(" - "));
-	g_string_append_len(html, str, len);
-	g_string_append_len(html, CONST_STR_LEN("</h1>\n"));
+	li_g_string_append_len(html, status_code, 3);
+	li_g_string_append_len(html, CONST_STR_LEN(" - "));
+	li_g_string_append_len(html, str, len);
+	li_g_string_append_len(html, CONST_STR_LEN("</h1>\n"));
 
 	str = li_response_error_description(vr->response.http_status, &len);
-	g_string_append_len(html, str, len);
+	li_g_string_append_len(html, str, len);
 	
-	g_string_append_len(html, CONST_STR_LEN("			<p id=\"footer\">"));
-	g_string_append_len(html, GSTR_LEN(CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_TAG).string));
-	g_string_append_len(html, CONST_STR_LEN(
+	li_g_string_append_len(html, CONST_STR_LEN("			<p id=\"footer\">"));
+	li_g_string_append_len(html, GSTR_LEN(CORE_OPTIONPTR(LI_CORE_OPTION_SERVER_TAG).string));
+	li_g_string_append_len(html, CONST_STR_LEN(
 		"</p>\n"
 		"		</div>\n"
 		"	</body>\n"

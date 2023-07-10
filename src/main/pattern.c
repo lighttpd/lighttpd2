@@ -206,7 +206,7 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 			/* copy every chunk between escapes into dest buffer */
 			for (first = c ; *c && '$' != *c && '%' != *c; c++) {
 				if (*c == '\\') {
-					if (first != c) g_string_append_len(part.data.str, first, c - first);
+					if (first != c) li_g_string_append_len(part.data.str, first, c - first);
 					c++;
 					first = c;
 					if (*c != '\\' && *c != '?' && *c != '$' && *c != '%') {
@@ -218,7 +218,7 @@ liPattern *li_pattern_new(liServer *srv, const gchar* str) {
 					}
 				}
 			}
-			if (first != c) g_string_append_len(part.data.str, first, c - first);
+			if (first != c) li_g_string_append_len(part.data.str, first, c - first);
 
 			g_array_append_val(pattern, part);
 		}
@@ -268,7 +268,7 @@ void li_pattern_eval(liVRequest *vr, GString *dest, liPattern *pattern, liPatter
 
 		switch (part->type) {
 		case PATTERN_STRING:
-			g_string_append_len(dest, GSTR_LEN(part->data.str));
+			li_g_string_append_len(dest, GSTR_LEN(part->data.str));
 			break;
 		case PATTERN_NTH:
 			if (NULL != nth_callback) {
@@ -315,7 +315,7 @@ void li_pattern_array_cb(GString *pattern_result, guint from, guint to, gpointer
 		for (i = from; i <= to; i++) {
 			GString *str = g_array_index(a, GString*, i);
 			if (NULL != str) {
-				g_string_append_len(pattern_result, GSTR_LEN(str));
+				li_g_string_append_len(pattern_result, GSTR_LEN(str));
 			}
 		}
 	} else {
@@ -323,7 +323,7 @@ void li_pattern_array_cb(GString *pattern_result, guint from, guint to, gpointer
 		for (i = from + 1; i-- >= to; ) {
 			GString *str = g_array_index(a, GString*, i);
 			if (NULL != str) {
-				g_string_append_len(pattern_result, GSTR_LEN(str));
+				li_g_string_append_len(pattern_result, GSTR_LEN(str));
 			}
 		}
 	}
@@ -340,14 +340,14 @@ void li_pattern_regex_cb(GString *pattern_result, guint from, guint to, gpointer
 		to = MIN(to, G_MAXINT);
 		for (i = from; i <= to; i++) {
 			if (g_match_info_fetch_pos(match_info, (gint) i, &start_pos, &end_pos)) {
-				g_string_append_len(pattern_result, g_match_info_get_string(match_info) + start_pos, end_pos - start_pos);
+				li_g_string_append_len(pattern_result, g_match_info_get_string(match_info) + start_pos, end_pos - start_pos);
 			}
 		}
 	} else {
 		from = MIN(from, G_MAXINT); /* => from+1 is defined */
 		for (i = from + 1; --i >= to; ) {
 			if (g_match_info_fetch_pos(match_info, (gint) i, &start_pos, &end_pos)) {
-				g_string_append_len(pattern_result, g_match_info_get_string(match_info) + start_pos, end_pos - start_pos);
+				li_g_string_append_len(pattern_result, g_match_info_get_string(match_info) + start_pos, end_pos - start_pos);
 			}
 		}
 	}

@@ -209,8 +209,8 @@ void li_http_header_get_all(GString *dest, liHttpHeaders *headers, const gchar *
 
 	for (l = li_http_header_find_first(headers, key, keylen); l; l = li_http_header_find_next(l, key, keylen)) {
 		liHttpHeader *h = (liHttpHeader*) l->data;
-		if (dest->len) g_string_append_len(dest, CONST_STR_LEN(", "));
-		g_string_append_len(dest, &h->data->str[h->keylen+2], h->data->len - (h->keylen + 2));
+		if (dest->len) li_g_string_append_len(dest, CONST_STR_LEN(", "));
+		li_g_string_append_len(dest, &h->data->str[h->keylen+2], h->data->len - (h->keylen + 2));
 	}
 }
 

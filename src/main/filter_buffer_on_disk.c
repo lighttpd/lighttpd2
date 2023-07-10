@@ -72,9 +72,9 @@ static gboolean bod_open(bod_state *state) {
 		const char tmpl[] = "lighttpd-buffer-XXXXXX", basedir[] = "/var/tmp";
 
 		tmpfilename = g_string_sized_new((sizeof(basedir) - 1) + 1 + (sizeof(tmpl) - 1));
-		g_string_append_len(tmpfilename, CONST_STR_LEN(basedir)); /* TODO: add config option */
+		li_g_string_append_len(tmpfilename, CONST_STR_LEN(basedir)); /* TODO: add config option */
 		li_path_append_slash(tmpfilename);
-		g_string_append_len(tmpfilename, CONST_STR_LEN(tmpl));
+		li_g_string_append_len(tmpfilename, CONST_STR_LEN(tmpl));
 
 		fd = g_mkstemp(tmpfilename->str);
 		if (-1 == fd) {

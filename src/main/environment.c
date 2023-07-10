@@ -143,8 +143,8 @@ void li_environment_dup2cgi(liVRequest *vr, liEnvironmentDup *envdup, liAddEnvir
 	add_env_var(envdup, callback, param, CONST_STR_LEN("PATH_INFO"), GSTR_LEN(vr->physical.pathinfo));
 	if (vr->physical.pathinfo->len) {
 		g_string_truncate(tmp, 0);
-		g_string_append_len(tmp, GSTR_LEN(vr->physical.doc_root)); /* TODO: perhaps an option for alternative doc-root? */
-		g_string_append_len(tmp, GSTR_LEN(vr->physical.pathinfo));
+		li_g_string_append_len(tmp, GSTR_LEN(vr->physical.doc_root)); /* TODO: perhaps an option for alternative doc-root? */
+		li_g_string_append_len(tmp, GSTR_LEN(vr->physical.pathinfo));
 		add_env_var(envdup, callback, param, CONST_STR_LEN("PATH_TRANSLATED"), GSTR_LEN(tmp));
 	}
 
@@ -184,9 +184,9 @@ void li_environment_dup2cgi(liVRequest *vr, liEnvironmentDup *envdup, liAddEnvir
 			const GString hkey = li_const_gstring(h->data->str, h->keylen);
 			g_string_truncate(tmp, 0);
 			if (!li_strncase_equal(&hkey, CONST_STR_LEN("CONTENT-TYPE"))) {
-				g_string_append_len(tmp, CONST_STR_LEN("HTTP_"));
+				li_g_string_append_len(tmp, CONST_STR_LEN("HTTP_"));
 			}
-			g_string_append_len(tmp, h->data->str, h->keylen);
+			li_g_string_append_len(tmp, h->data->str, h->keylen);
 			cgi_fix_header_name(tmp);
 
 			add_env_var(envdup, callback, param, GSTR_LEN(tmp), h->data->str + h->keylen+2, h->data->len - (h->keylen+2));

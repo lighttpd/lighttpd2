@@ -1,5 +1,6 @@
 
 #include <lighttpd/module.h>
+#include <lighttpd/utils.h>
 
 liModules *li_modules_new(gpointer main, const gchar *module_dir, gboolean module_resident) {
 	liModules *m = g_slice_new(liModules);
@@ -77,9 +78,9 @@ liModule* li_module_load(liModules *mods, const gchar* name) {
 
 	/* temporary strings for mod_xyz_init and mod_xyz_free */
 	m_init_str = g_string_new(name);
-	g_string_append_len(m_init_str, CONST_STR_LEN("_init"));
+	li_g_string_append_len(m_init_str, CONST_STR_LEN("_init"));
 	m_free_str = g_string_new(name);
-	g_string_append_len(m_free_str, CONST_STR_LEN("_free"));
+	li_g_string_append_len(m_free_str, CONST_STR_LEN("_free"));
 
 	if (!g_module_symbol(mod->module, m_init_str->str, (gpointer *)&m_init)
 		|| !g_module_symbol(mod->module, m_free_str->str, (gpointer *)&mod->free)

@@ -1016,7 +1016,7 @@ static gboolean gnutls_setup(liServer *srv, liPlugin* p, liValue *val, gpointer 
 
 		if (protect_against_beast) {
 			g_string_assign(s, priority);
-			g_string_append_len(s, CONST_STR_LEN(":-CIPHER-ALL:+ARCFOUR-128"));
+			li_g_string_append_len(s, CONST_STR_LEN(":-CIPHER-ALL:+ARCFOUR-128"));
 			if (GNUTLS_E_SUCCESS > (r = gnutls_priority_init(&prio, s->str, &errpos))) {
 				ERROR(srv, "gnutls_priority_init failed(priority '%s', error at '%s') (%s): %s",
 					s->str, errpos,

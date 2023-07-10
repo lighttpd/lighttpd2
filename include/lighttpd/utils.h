@@ -86,7 +86,8 @@ LI_API void li_apr_md5_crypt(GString *dest, const GString *password, const GStri
 
 LI_API void li_safe_crypt(GString *dest, const GString *password, const GString *salt);
 
-INLINE GString* _li_g_string_append_len(GString *s, const gchar *val, gssize len);
+/* g_string_append_len is a macro, and g_string_append_len(s, GSTR_LEN(x)) doesn't work; build inline wrapper */
+INLINE GString *li_g_string_append_len(GString *s, const gchar *val, gssize len);
 INLINE void li_g_string_clear(GString *s);
 INLINE void li_g_string_free(gpointer data);
 
@@ -130,7 +131,7 @@ LI_API gboolean _li_set_sys_error(GError **error, const gchar *msg, const gchar 
 
 INLINE void li_path_append_slash(GString *path) {
 	if (path->len == 0 || path->str[path->len-1] != '/')
-		g_string_append_len(path, "/", 1);
+		li_g_string_append_len(path, "/", 1);
 }
 
 /** warning: This "GString" does not make sure that there is a terminating '\0', and you shouldn't modify the GString */
@@ -142,12 +143,8 @@ INLINE GString li_const_gstring(const gchar *str, gsize len) {
 	return gs;
 }
 
-#ifndef g_string_append_len
-# define g_string_append_len _li_g_string_append_len
-#endif
-
-INLINE GString* _li_g_string_append_len(GString *s, const gchar *val, gssize len) {
-	return g_string_insert_len(s, -1, val, len);
+INLINE GString* li_g_string_append_len(GString *s, const gchar *val, gssize len) {
+	return g_string_append_len(s, val, len);
 }
 
 INLINE void li_g_string_clear(GString *s) {

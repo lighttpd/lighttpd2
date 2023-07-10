@@ -628,12 +628,12 @@ GString *li_sockaddr_to_string(liSocketAddress addr, GString *dest, gboolean sho
 			dest = g_string_sized_new(0);
 		else
 			g_string_truncate(dest, 0);
-		g_string_append_len(dest, CONST_STR_LEN("unix:"));
+		li_g_string_append_len(dest, CONST_STR_LEN("unix:"));
 		{
 			const char* path_start = saddr_up.un->sun_path;
 			const char* path_end = ((const char*)saddr_up.un) + addr.len;
 			size_t path_len = path_end - path_start;
-			g_string_append_len(dest, path_start, strnlen(path_start, path_len));
+			li_g_string_append_len(dest, path_start, strnlen(path_start, path_len));
 		}
 		break;
 #endif
@@ -807,7 +807,7 @@ gboolean li_string_prefix(const GString *str, const gchar *s, gsize len) {
 
 GString *li_string_assign_len(GString *string, const gchar *val, gssize len) {
 	g_string_truncate(string, 0);
-	g_string_append_len(string, val, len);
+	li_g_string_append_len(string, val, len);
 	return string;
 }
 
@@ -902,7 +902,7 @@ void li_apr_sha1_base64(GString *dest, const GString *passwd) {
 static void md5_crypt_to64(GString *dest, guint number, guint len) {
 	static const gchar code[] = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 	for ( ; len-- > 0; ) {
-		g_string_append_len(dest, code + (number & 63), 1);
+		li_g_string_append_len(dest, code + (number & 63), 1);
 		number /= 64;
 	}
 }
@@ -979,9 +979,9 @@ void li_apr_md5_crypt(GString *dest, const GString *password, const GString *sal
 	}
 
 	li_g_string_clear(dest);
-	g_string_append_len(dest, CONST_STR_LEN(APR1_MAGIC));
-	g_string_append_len(dest, rsalt.str, rsalt.len);
-	g_string_append_len(dest, CONST_STR_LEN("$"));
+	li_g_string_append_len(dest, CONST_STR_LEN(APR1_MAGIC));
+	li_g_string_append_len(dest, rsalt.str, rsalt.len);
+	li_g_string_append_len(dest, CONST_STR_LEN("$"));
 	md5_crypt_to64(dest, (digest[ 0] << 16) | (digest[ 6] << 8) | digest[12], 4);
 	md5_crypt_to64(dest, (digest[ 1] << 16) | (digest[ 7] << 8) | digest[13], 4);
 	md5_crypt_to64(dest, (digest[ 2] << 16) | (digest[ 8] << 8) | digest[14], 4);
