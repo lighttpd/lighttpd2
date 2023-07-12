@@ -196,6 +196,7 @@ def run_tests_in_env(env: Env) -> bool:
         # run tests
         tests = Tests(env=env)
         tests.load_tests()
+        result = False
         try:
             tests.prepare_tests()
             result = tests.run_tests()
