@@ -2,22 +2,18 @@
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
 	<short>requires authentication from clients using a username and password. It supports the basic (digest not yet) authentication method as well as plaintext, htpasswd and htdigest backends.</short>
 
-	<description>
-		<textile>
-			*IMPORTANT NOTE*: You need to put the auth actions before generating content! If a content handler is already active (like php or static or dirlist), auth will be ignored!
+	<description><markdown>
+		**IMPORTANT NOTE**: You need to put the auth actions before generating content! If a content handler is already active (like php or static or dirlist), auth will be ignored!
 
-			* Basic:
-			  The "basic" method transfers the username and the password in cleartext over the network (base64 encoded) and might result in security problems if not used in conjunction with an encrypted communication channel between client and server.
-			  It is recommend to use https in conjunction with basic authentication.
+		* Basic:  
+			The "basic" method transfers the username and the password in cleartext over the network (base64 encoded) and might result in security problems if not used in conjunction with an encrypted communication channel between client and server.  
+			It is recommend to use https in conjunction with basic authentication.
+		* Digest (not supported yet):  
+			The "digest" method only transfers a hashed value over the network which performs a lot of work to harden the authentication process in insecure networks (like the internet).  
+			The "digest" method doesn't work with the htpasswd backend, only with plaintext and htdigest.
 
-			* Digest (not supported yet):
-			  The "digest" method only transfers a hashed value over the network which performs a lot of work to harden the authentication process in insecure networks (like the internet).
-			  The "digest" method doesn't work with the htpasswd backend, only with plaintext and htdigest.
-
-			*NOTE*: The digest method is broken in Internet Explorer &lt; 7. Use basic instead if this is a problem for you. (not supported for now anyway)
-		</textile>
-	</description>
-
+		**NOTE**: The digest method is broken in Internet Explorer &lt; 7. Use basic instead if this is a problem for you. (not supported for now anyway)
+	</markdown></description>
 
 	<action name="auth.plain">
 		<short>requires authentication using a plaintext file</short>
@@ -37,9 +33,9 @@
 				</entry>
 			</table>
 		</parameter>
-		<description>
+		<description><markdown>
 			requires authentication using a plaintext file containing user:password pairs separated by newlines (\n).
-		</description>
+		</markdown></description>
 	</action>
 
 	<action name="auth.htpasswd">
@@ -60,14 +56,12 @@
 				</entry>
 			</table>
 		</parameter>
-		<description>
-			<textile>
-				* requires authentication using a htpasswd file containing user:encrypted_password pairs separated by newlines (\n)
-				* passwords are encrypted using crypt(3), use the htpasswd binary from apache to manage the file
-				** hashes starting with "$apr1$" ARE supported (htpasswd -m)
-				** hashes starting with "{SHA}" ARE supported (followed by sha1_base64(password), htpasswd -s)
-			</textile>
-		</description>
+		<description><markdown>
+			* requires authentication using a htpasswd file containing user:encrypted_password pairs separated by newlines (\n)
+			* passwords are encrypted using crypt(3), use the htpasswd binary from apache to manage the file
+				* hashes starting with "$apr1$" ARE supported (htpasswd -m)
+				* hashes starting with "{SHA}" ARE supported (followed by sha1_base64(password), htpasswd -s)
+		</markdown></description>
 	</action>
 
 	<action name="auth.htdigest">
@@ -88,14 +82,12 @@
 				</entry>
 			</table>
 		</parameter>
-		<description>
-			<textile>
-				* requires authentication using a htdigest file containing user:realm:hashed_password tuples separated by newlines (\n)
-				* the hashes are bound to the realm, so you can't change the realm without resetting the passwords
-				* passwords are saved as (modified) md5 hashes:
-				  @md5hex(username + ":" + realm + ":" + password)@
-			</textile>
-		</description>
+		<description><markdown>
+			* requires authentication using a htdigest file containing user:realm:hashed_password tuples separated by newlines (\n)
+			* the hashes are bound to the realm, so you can't change the realm without resetting the passwords
+			* passwords are saved as (modified) md5 hashes:  
+				`md5hex(username + ":" + realm + ":" + password)`
+		</markdown></description>
 	</action>
 
 	<action name="auth.deny">
@@ -122,11 +114,9 @@
 	</example>
 
 	<example>
-		<description>
-			<textile>
-				You can use @auth.require_user@ from the mod_lua plugin "contrib/core.lua":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua for the REMOTE_USER check too:
-			</textile>
-		</description>
+		<description><markdown>
+			You can use `auth.require_user` from the mod_lua plugin [contrib/core.lua](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua) for the REMOTE_USER check too:
+		</markdown></description>
 
 		<config>
 			setup {

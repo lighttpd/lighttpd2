@@ -7,22 +7,18 @@
 		<parameter name="socket">
 			<short>socket to connect to, either "ip:port" or "unix:/path"</short>
 		</parameter>
-		<description>
-			<textile>
-				Don't confuse FastCGI with CGI! Not all CGI backends can be used as FastCGI backends (but you can use "fcgi-cgi":https://redmine.lighttpd.net/projects/fcgi-cgi/wiki to run CGI backends with lighttpd2).
-			</textile>
-		</description>
+		<description><markdown>
+			Don't confuse FastCGI with CGI! Not all CGI backends can be used as FastCGI backends (but you can use [fcgi-cgi](https://redmine.lighttpd.net/projects/fcgi-cgi/wiki) to run CGI backends with lighttpd2).
+		</markdown></description>
 		<example>
 			<config>
 				fastcgi "127.0.0.1:9090"
 			</config>
 		</example>
 		<example>
-			<description>
-				<textile>
-					Start php for example with spawn-fcgi: @spawn-fcgi -n -s /var/run/lighttpd2/php.sock -- /usr/bin/php5-cgi@
-				</textile>
-			</description>
+			<description><markdown>
+				Start php for example with spawn-fcgi: `spawn-fcgi -n -s /var/run/lighttpd2/php.sock -- /usr/bin/php5-cgi`
+			</markdown></description>
 			<config>
 				setup {
 					module_load "mod_fastcgi";

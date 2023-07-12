@@ -6,9 +6,9 @@
 
 	<action name="debug.show_connections">
 		<short>shows a page similar to the one from mod_status, listing all active connections</short>
-		<description>
+		<description><markdown>
 			By specifying one or more "connection ids" via querystring (parameter "con"), one can request additional debug output for specific connections.
-		</description>
+		</markdown></description>
 		<example>
 			<config>
 				if req.path == "/debug/connections" { debug.show_connections; }
@@ -19,18 +19,16 @@
 	<action name="debug.profiler_dump">
 		<short>dumps all allocated memory to the profiler output file if profiling enabled</short>
 
-		<description>
-			<textile>
-				lighttpd2 needs to be compiled with profiler support, and profiling has to be enabled by setting the environment variable @LIGHTY_PROFILE_MEM@ to the path of a target log file.
-			</textile>
-		</description>
+		<description><markdown>
+			lighttpd2 needs to be compiled with profiler support, and profiling has to be enabled by setting the environment variable `LIGHTY_PROFILE_MEM` to the path of a target log file.
+		</markdown></description>
 	</action>
 
 	<action name="debug.show_events">
 		<short>shows a plain text list of all events</short>
-		<description>
+		<description><markdown>
 			this is a very low level debug tool for developers.
-		</description>
+		</markdown></description>
 		<example>
 			<config>
 				if req.path == "/debug/events" { debug.show_events; }
@@ -47,9 +45,9 @@
 			<short>timeout after which to repeat displaying events (default: disabled)</short>
 		</parameter>
 
-		<description>
+		<description><markdown>
 			this is a very low level debug tool for developers; it shows which event listeners keep lighttpd2 alive when it should stop.
-		</description>
+		</markdown></description>
 
 		<example>
 			<config>

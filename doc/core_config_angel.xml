@@ -1,39 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <angel-module xmlns="urn:lighttpd.net:lighttpd2/doc1" title="Angel Configuration">
-	<description>
-		<textile>
-			lighttpd2 consists of two main binaries: the angel (@lighttpd2@) and the worker (@lighttpd2-worker@). The "main configuration":core_config.html#core_config is used by the worker, and this chapter describes the configuration for the angel.
-			A standard distribution should install a angel config in @/etc/lighttpd2/angel.conf@ with reasonable defaults which should work for most basic setups.
-		</textile>
-	</description>
+	<description><markdown>
+		lighttpd2 consists of two main binaries: the angel (`lighttpd2`) and the worker (`lighttpd2-worker`). The [main configuration](core_config.html#core_config) is used by the worker, and this chapter describes the configuration for the angel.  
+		A standard distribution should install a angel config in `/etc/lighttpd2/angel.conf` with reasonable defaults which should work for most basic setups.
+	</markdown></description>
 
 	<section title="Angel concept">
-		<textile>
+		<markdown>
 			You can start the worker without the angel, but the angel provides some useful features:
-			* The angel itself usually runs as root (needed for example to bind to privileged ports), but will spawn the worker with dropped privileges (usually a user like @www-data@ is used). The worker doesn't do any privilege dropping itself.
+
+			* The angel itself usually runs as root (needed for example to bind to privileged ports), but will spawn the worker with dropped privileges (usually a user like `www-data` is used). The worker doesn't do any privilege dropping itself.
 			* The angel can open/create log files for the worker with root permissions
-			* The angel supports a graceful restart of the worker for config reloading: a new instance is spawned, and if it started successfully (checking config, ...) it will replace the old instance. The old instance will finish the remaining requests.
+			* The angel supports a graceful restart of the worker for config reloading: a new instance is spawned, and if it started successfully (checking config, ...) it will replace the old instance. The old instance will finish the remaining requests.  
 			  As the angel is responsible for creating the listening network sockets, it can keep them open all the time and no request is lost.
 			* The angel also does a simple supervise: if the worker crashes the angel will respawn it.
-		</textile>
+		</markdown>
 	</section>
 
 	<section title="Config items">
-		<textile>
-			The config syntax is very similar to the "main configuration":core_config, although it has no action blocks, setup blocks, conditionals and scopes.
-		</textile>
+		<markdown>
+			The config syntax is very similar to the [main configuration](core_config), although it has no action blocks, setup blocks, conditionals and scopes.
+		</markdown>
 
 		<item name="user">
 			<short>drops privileges for spawning the worker</short>
 			<parameter name="username">
 				<short>username to drop privileges to for spawning the worker</short>
 			</parameter>
-			<description>
-				<textile>
-					This item can only be specified once; if it is not specified it won't drop privileges at all, which is useful if the angel itself doesn't run as root. It should go without saying that you should never run the worker as root.
-					The username is also used to find all groups the user is in.
-				</textile>
-			</description>
+			<description><markdown>
+				This item can only be specified once; if it is not specified it won't drop privileges at all, which is useful if the angel itself doesn't run as root. It should go without saying that you should never run the worker as root.  
+				The username is also used to find all groups the user is in.
+			</markdown></description>
 			<example>
 				<config>
 					user "www-data";
@@ -46,12 +43,10 @@
 			<parameter name="groupname">
 				<short>groupname to drop privileges to for spawning the worker</short>
 			</parameter>
-			<description>
-				<textile>
-					Specify the main group to drop privileges to; a process can have multiple groups, and the others are given by the groups the user specified by @user@ is in.
-					The default is the main group of the user specified by @user@, or not dropping privileges at all.
-				</textile>
-			</description>
+			<description><markdown>
+				Specify the main group to drop privileges to; a process can have multiple groups, and the others are given by the groups the user specified by `user` is in.  
+				The default is the main group of the user specified by `user`, or not dropping privileges at all.  
+			</markdown></description>
 			<example>
 				<config>
 					group "www-data";
@@ -62,13 +57,11 @@
 		<item name="binary">
 			<short>specifies path to worker binary</short>
 			<parameter name="path">
-				<short>path to the @lighttpd2-worker@ binary</short>
+				<short>path to the lighttpd2-worker binary</short>
 			</parameter>
-			<description>
-				<textile>
-					This item should only be needed if you didn't install the binaries at all (for testing).
-				</textile>
-			</description>
+			<description><markdown>
+				This item should only be needed if you didn't install the binaries at all (for testing).
+			</markdown></description>
 			<example>
 				<config>
 					binary "/home/source/lighttpd2/autobuild/src/main/lighttpd2-worker";
@@ -81,11 +74,9 @@
 			<parameter name="path">
 				<short>path to the main config file</short>
 			</parameter>
-			<description>
-				<textile>
-					By default @/etc/lighttpd2/lighttpd.conf@ is used.
-				</textile>
-			</description>
+			<description><markdown>
+				By default `/etc/lighttpd2/lighttpd.conf` is used.
+			</markdown></description>
 			<example>
 				<config>
 					config "/etc/lighttpd2-test/lighttpd.conf";
@@ -98,11 +89,9 @@
 			<parameter name="path">
 				<short>path to the lua config file</short>
 			</parameter>
-			<description>
-				<textile>
-					By default a normal config file is used; you must use either a normal config file or a lua config file.
-				</textile>
-			</description>
+			<description><markdown>
+				By default a normal config file is used; you must use either a normal config file or a lua config file.
+			</markdown></description>
 			<example>
 				<config>
 					luaconfig "/etc/lighttpd2/lighttpd.lua";
@@ -115,11 +104,9 @@
 			<parameter name="path">
 				<short>path to the directory containing modules for the worker</short>
 			</parameter>
-			<description>
-				<textile>
-					This item should only be needed if you didn't install the binaries at all (for testing). For autotool builds the "real" module binaries are in a @.libs@ subdirectory.
-				</textile>
-			</description>
+			<description><markdown>
+				This item should only be needed if you didn't install the binaries at all (for testing). For autotool builds the "real" module binaries are in a `.libs` subdirectory.
+			</markdown></description>
 			<example>
 				<config>
 					modules_path "/home/source/lighttpd2/autobuild/src/modules/.libs";
@@ -132,12 +119,10 @@
 			<parameter name="wrappers">
 				<short>path to a wrapper command and its arguments</short>
 			</parameter>
-			<description>
-				<textile>
-					This item appends all given strings to the command prefix list (which starts as empty list). Before spawning the worker the binary path to the worker and its arguments (config, module path) are appended.
-					Wrappers can be used to run the worker with valgrind, strace and similar.
-				</textile>
-			</description>
+			<description><markdown>
+				This item appends all given strings to the command prefix list (which starts as empty list). Before spawning the worker the binary path to the worker and its arguments (config, module path) are appended.  
+				Wrappers can be used to run the worker with valgrind, strace and similar.
+			</markdown></description>
 			<example>
 				<config>
 					# in multiple lines
@@ -156,11 +141,9 @@
 			<parameter name="vars">
 				<short>list of environment variables to add for the worker to run with</short>
 			</parameter>
-			<description>
-				<textile><![CDATA[
-					Append the given list of environment variables (starts empty), which can be either strings of the form @"var=xyz"@ or key-value pairs @"var" => "xyz"@ (the keys must not contain any @=@).
-				]]></textile>
-			</description>
+			<description><markdown><![CDATA[
+				Append the given list of environment variables (starts empty), which can be either strings of the form `"var=xyz"` or key-value pairs `"var" => "xyz"` (the keys must not contain any `=`).
+			]]></markdown></description>
 			<example>
 				<config>
 					# helps debugging with valgrind:
@@ -174,11 +157,9 @@
 			<parameter name="varnames">
 				<short>list of environment variable names to copy</short>
 			</parameter>
-			<description>
-				<textile>
-					Adds copies of variables from the current environment. By default all variables will be dropped.
-				</textile>
-			</description>
+			<description><markdown>
+				Adds copies of variables from the current environment. By default all variables will be dropped.
+			</markdown></description>
 			<example>
 				<config>
 					env_copy [ "PATH" ];
@@ -191,10 +172,10 @@
 			<parameter name="limit">
 				<short>limit in bytes</short>
 			</parameter>
-			<description>
-				Maximum size of a core file, in bytes, that may be created by the worker. Core files are created when the worker crashes.
+			<description><markdown>
+				Maximum size of a core file, in bytes, that may be created by the worker. Core files are created when the worker crashes.  
 				0 disables core files, and by default the limit is not changed.
-			</description>
+			</markdown></description>
 		</item>
 
 		<item name="max_open_files">
@@ -202,10 +183,10 @@
 			<parameter name="limit">
 				<short>maximum number of open files</short>
 			</parameter>
-			<description>
-				The worker limits the maximum number of connection based on the maximum number of open files (max connections = max open files / 4).
+			<description><markdown>
+				The worker limits the maximum number of connection based on the maximum number of open files (max connections = max open files / 4).  
 				By default the limit is not changed.
-			</description>
+			</markdown></description>
 			<example>
 				<config>
 					# max 4096 connections
@@ -219,20 +200,19 @@
 			<parameter name="list">
 				<short>list of network mask (CIDR) + optional port or unix domain socket addresses</short>
 			</parameter>
-			<description>
-				<textile>
-					The worker uses the angel to bind TCP/unix sockets; the angel checks whether those binds are allowed. If no @allow_listen@ is specified, all TCP binds (IPv4 and IPv6) using port 80 or 443 are allowed.
-					IPv4 and IPv6 use different masks (no IPv4 to IPv6 mapping), the network length for the CIDR mask is optional (defaults to a host address), and the port is optional too (allowing both 80 and 443 if omitted).
-					Formats:
-					* TCP on IPv4: @ipv4@, @ipv4:port@, @ipv4/net@, @ipv4/net:port@
-					* TCP on IPv6: @ipv6@, @ipv6/net@, @[ipv6]@, @[ipv6/net]@, @[ipv6]:port@, @[ipv6/net]:port@
-					* Unix domain: @unix:/wildcard/path/to/*.socket@
-				</textile>
-			</description>
+			<description><markdown>
+				The worker uses the angel to bind TCP/unix sockets; the angel checks whether those binds are allowed. If no `allow_listen` is specified, all TCP binds (IPv4 and IPv6) using port 80 or 443 are allowed.  
+				IPv4 and IPv6 use different masks (no IPv4 to IPv6 mapping), the network length for the CIDR mask is optional (defaults to a host address), and the port is optional too (allowing both 80 and 443 if omitted).  
+				Formats:
+
+				* TCP on IPv4: `ipv4`, `ipv4:port`, `ipv4/net`, `ipv4/net:port`
+				* TCP on IPv6: `ipv6`, `ipv6/net`, `[ipv6]`, `[ipv6/net]`, `[ipv6]:port`, `[ipv6/net]:port`
+				* Unix domain: `unix:/wildcard/path/to/*.socket`
+			</markdown></description>
 			<example>
-				<description>
-					Only allow TCP port 8080 for IPv4 and IPv6 and unix domain socket @/run/lighttpd/internal.sock@.
-				</description>
+				<description><markdown>
+					Only allow TCP port 8080 for IPv4 and IPv6 and unix domain socket `/run/lighttpd/internal.sock`.
+				</markdown></description>
 				<config>
 					allow_listen [ "0.0.0.0/0:8080", "[::/0]:8080" ];
 					allow_listen "unix:/run/lighttpd/internal.sock";

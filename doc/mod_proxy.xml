@@ -7,11 +7,9 @@
 		<parameter name="socket">
 			<short>socket to connect to, either "ip:port" or "unix:/path"</short>
 		</parameter>
-		<description>
-			<textile><![CDATA[
-				proxy uses @request.raw_path@ for the URL (including the query string) to send to the backend.
-			]]></textile>
-		</description>
+		<description><markdown><![CDATA[
+			proxy uses `request.raw_path` for the URL (including the query string) to send to the backend.
+		]]></markdown></description>
 		<example>
 			<config>
 				setup {

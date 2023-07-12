@@ -52,9 +52,9 @@
 		</parameter>
 
 		<example>
-			<description>
+			<description><markdown>
 				shows a directory listing including the content of HEADER.txt above the list and hiding itself from it; also hides all files ending in ".bak"
-			</description>
+			</markdown></description>
 			<config>
 				setup {
 					module_load ("mod_dirlist");

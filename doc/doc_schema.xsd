@@ -91,11 +91,11 @@
 		<attribute name="name" type="Name" use="required" />
 	</complexType>
 
-	<complexType name="DescriptionType" mixed="true">
+	<complexType name="DescriptionType">
 		<sequence>
 			<choice minOccurs="0" maxOccurs="unbounded">
 				<element name="html" type="anyType" />
-				<element name="textile" type="anyType" />
+				<element name="markdown" type="anyType" />
 			</choice>
 		</sequence>
 	</complexType>
@@ -111,7 +111,7 @@
 		<attribute name="anchor" type="token" use="optional" />
 	</complexType>
 
-	<complexType name="ModuleSectionType" mixed="true">
+	<complexType name="ModuleSectionType">
 		<sequence>
 			<choice minOccurs="0" maxOccurs="unbounded">
 				<element name="action" type="d:ActionSetupType" />
@@ -119,7 +119,7 @@
 				<element name="option" type="d:OptionType" />
 
 				<element name="html" type="anyType" />
-				<element name="textile" type="anyType" />
+				<element name="markdown" type="anyType" />
 				<element name="example" type="d:ExampleType" />
 				<element name="section" type="d:ModuleSectionType" />
 			</choice>
@@ -150,11 +150,11 @@
 		<attribute name="order" type="Name" use="optional" />
 	</complexType>
 
-	<complexType name="ChapterSectionType" mixed="true">
+	<complexType name="ChapterSectionType">
 		<sequence>
 			<choice minOccurs="0" maxOccurs="unbounded">
 				<element name="html" type="anyType" />
-				<element name="textile" type="anyType" />
+				<element name="markdown" type="anyType" />
 				<element name="example" type="d:ExampleType" />
 				<element name="section" type="d:ChapterSectionType" />
 			</choice>
@@ -198,13 +198,13 @@
 		<attribute name="name" type="Name" use="required" />
 	</complexType>
 
-	<complexType name="AngelModuleSectionType" mixed="true">
+	<complexType name="AngelModuleSectionType">
 		<sequence>
 			<choice minOccurs="0" maxOccurs="unbounded">
 				<element name="item" type="d:AngelItemType" />
 
 				<element name="html" type="anyType" />
-				<element name="textile" type="anyType" />
+				<element name="markdown" type="anyType" />
 				<element name="example" type="d:ExampleType" />
 				<element name="section" type="d:AngelModuleSectionType" />
 			</choice>

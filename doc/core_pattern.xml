@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <chapter xmlns="urn:lighttpd.net:lighttpd2/doc1" title="Patterns">
-	<description>
-		<textile>
-			The lighttpd config supports "patterns" in various places (docroot, redirect, rewrite, env.set, ...); and they share the following structure.
+	<description><markdown>
+		The lighttpd config supports "patterns" in various places (docroot, redirect, rewrite, env.set, ...); and they share the following structure.
 
-			There are two kinds of "captures" available; one from the action itself (like captures from a regular expression in redirect/rewrite, or the labels from the hostname in docroot), and the captures from the previous matching regular expression conditional in the action stack. If there was no capture of the selected kind the values will be empty strings.
-		</textile>
-	</description>
+		There are two kinds of "captures" available; one from the action itself (like captures from a regular expression in redirect/rewrite, or the labels from the hostname in docroot), and the captures from the previous matching regular expression conditional in the action stack. If there was no capture of the selected kind the values will be empty strings.
+	</markdown></description>
 
 	<section title="Syntax">
-		<textile>
+		<markdown>
 			A pattern is a string consisting of the following parts:
-			* simple text. can contain special characters $ and % only when they are escaped with \ - remember, that the \ has to be escaped too for the config, so you'll probably have to use \\ to escape. You are allowed to escape ? too (used for special "split" in rewrite).
+
+			* simple text. can contain special characters $ and % only when they are escaped with `\` – remember, that the `\` has to be escaped too for the config, so you'll probably have to use `\\` to escape. You are allowed to escape `?` too (used for special "split" in rewrite).
 			* "%" capture references (previous matching regular expression conditional); either followed by a single digit, or a range (see below for range syntax)
 			* "$" capture references (depends on action); either followed by a single digit, or a range (see below for range syntax)
-			* "%" references to "condition variables":core_config.html#core_config__condition_vars, for example: @%{req.path}@; the conditional can be prefixed with "enc:" (@%{enc:req.path}@), in which case the value will be urlencoded.
-		</textile>
+			* "%" references to [condition variables](core_config.html#core_config__condition_vars), for example: `%{req.path}`; the conditional can be prefixed with "enc:" (`%{enc:req.path}`), in which case the value will be urlencoded.
+		</markdown>
 	</section>
 
 	<section title="Ranges">
-		<textile><![CDATA[
-			Ranges can either be a single element @[n]@ (@n@ can have more than one digit), a closed range @[n-m]@ or an open range @[n-]@ or @[-m]@;
-			the open end is always replaced with "G_MAXUINT" (a very big positive integer). ranges can be "reversed", i.e. @n > m@.
+		<markdown><![CDATA[
+			Ranges can either be a single element `[n]` (`n` can have more than one digit), a closed range `[n-m]` or an open range `[n-]` or `[-m]`;  
+			the open end is always replaced with "G_MAXUINT" (a very big positive integer). ranges can be "reversed", i.e. `n > m`.
 
 			There are now two different ways ranges are used:
+
 			* ranges of regular expression captures: the captures are just inserted for all values in the range; if the range is reversed, it starts with the highest index in the range.
 			* ranges of labels in a hostname: similar to the first range, but the inserted labels are separated by a "."; the index 0 stands for "complete hostname", and ranges including 0 are reduced to the complete hostname; the labels are numbered from top-level, and the range is interpreted reversed (just have a look at the examples, and it will be clear).
-		]]></textile>
+		]]></markdown>
 	</section>
 
 	<example title="Example: simple redirect">
@@ -36,12 +36,10 @@
 	</example>
 
 	<example title="Example: docroot">
-		<description>
-			<textile>
-				* a request to "http://example.com/project/trunk" would lead to docroot "/var/www/project/trunk/htdocs"
-				* a request to "http://sub.example.com/" would lead to docroot "/var/www/vhosts/com/sub.example"
-			</textile>
-		</description>
+		<description><markdown>
+			* a request to "http://example.com/project/trunk" would lead to docroot "/var/www/project/trunk/htdocs"
+			* a request to "http://sub.example.com/" would lead to docroot "/var/www/vhosts/com/sub.example"
+		</markdown></description>
 		<config>
 			if req.path =~ "^/project/([^/]*)" {
 				docroot "/var/www/projects/%1/htdocs";

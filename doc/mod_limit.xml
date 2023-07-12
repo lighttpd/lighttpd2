@@ -2,10 +2,9 @@
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
 	<short>limits concurrent connections or requests per second.</short>
 
-	<description>
+	<description><markdown>
 		Both limits can be "in total" or per IP.
-	</description>
-
+	</markdown></description>
 
 	<action name="limit.con">
 		<short>limits the total amount of concurrent connections to the specified limit.</short>
@@ -15,9 +14,9 @@
 		<parameter name="action">
 			<short>(optional) an action to be executed when the limit is reached</short>
 		</parameter>
-		<description>
+		<description><markdown>
 			If no action is defined a 503 error page will be returned. If it is specified there is no other special handling apart from running the specified action when the limit is reached.
-		</description>
+		</markdown></description>
 		<example>
 			<config>
 				limit.con 10;
@@ -33,9 +32,9 @@
 		<parameter name="action">
 			<short>(optional) an action to be executed when the limit is reached</short>
 		</parameter>
-		<description>
+		<description><markdown>
 			If no action is defined a 503 error page will be returned. If it is specified there is no other special handling apart from running the specified action when the limit is reached.
-		</description>
+		</markdown></description>
 		<example>
 			<config>
 				limit.con_ip 2;
@@ -51,9 +50,9 @@
 		<parameter name="action">
 			<short>(optional) an action to be executed when the limit is reached</short>
 		</parameter>
-		<description>
+		<description><markdown>
 			If no action is defined a 503 error page will be returned. If it is specified there is no other special handling apart from running the specified action when the limit is reached.
-		</description>
+		</markdown></description>
 		<example>
 			<config>
 				limit.req 100;
@@ -69,9 +68,9 @@
 		<parameter name="action">
 			<short>(optional) an action to be executed when the limit is reached</short>
 		</parameter>
-		<description>
+		<description><markdown>
 			If no action is defined a 503 error page will be returned. If it is specified there is no other special handling apart from running the specified action when the limit is reached.
-		</description>
+		</markdown></description>
 		<example>
 			<config>
 				limit.req_ip 100;
@@ -80,9 +79,9 @@
 	</action>
 
 	<example title="Limiting concurrent connections" anchor="#">
-		<description>
+		<description><markdown>
 			This config snippet will allow only 10 active downloads overall and 1 per IP. If the limit is exceeded, either because more than 10 people try to access this resource or one person tries a second time while having one download running already, they will be redirected to /connection_limit_reached.html.
-		</description>
+		</markdown></description>
 		<config>
 			setup {
 				module_load ("mod_limit","mod_redirect");
@@ -100,10 +99,10 @@
 	</example>
 
 	<example title="Limiting requests per second" anchor="#">
-		<description>
+		<description><markdown>
 			This config snippet will write a message to the log containing the client IP address if the /login page is hit more than once in a second.
 			It will however also not do anything else. The client will be able to use the /login page as often as he wants.
-		</description>
+		</markdown></description>
 		<config>
 			setup {
 				module_load "mod_limit";

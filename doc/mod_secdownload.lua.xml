@@ -3,13 +3,14 @@
 	<short>protects files with a time limited code</short>
 
 	<section title="Install">
-		<textile><![CDATA[
-			By default distributions (and @make install@) should provide the necessary files; but you can always find them in the "contrib":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib folder:
-			* @secdownload.lua@
-			* @secdownload__secdownload.lua@
+		<markdown><![CDATA[
+			By default distributions (and `make install`) should provide the necessary files; but you can always find them in the [contrib](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib) folder:
+
+			* `secdownload.lua`
+			* `secdownload__secdownload.lua`
 
 			That way you can modify them for your own needs if you have to (although it is recommended to change the names of the files and the actions, so you don't get conflicts).
-		]]></textile>
+		]]></markdown>
 	</section>
 
 	<action name="secdownload">
@@ -30,12 +31,10 @@
 				</entry>
 			</table>
 		</parameter>
-		<description>
-			<textile><![CDATA[
-				The @prefix@ is not used to build the filename; include it manually in the @document-root@ (works like @alias "/prefix" => "/docroot"@, see "@alias@":plugin_core.html#plugin_core__action_alias).
-				secdownload doesn't actually handle the (valid) request, it just provides the mapping to a filename (and rejects invalid requests).
-			]]></textile>
-		</description>
+		<description><markdown><![CDATA[
+			The `prefix` is not used to build the filename; include it manually in the `document-root` (works like `alias "/prefix" => "/docroot"`, see [`alias`](plugin_core.html#plugin_core__action_alias)).  
+			secdownload doesn't actually handle the (valid) request, it just provides the mapping to a filename (and rejects invalid requests).
+		]]></markdown></description>
 		<example>
 			<config><![CDATA[
 				setup {
@@ -48,33 +47,31 @@
 	</action>
 
 	<section title="Generating URLs">
-		<textile><![CDATA[
-			To generate URLs that are valid for @secdownload@ you need the same secret.
-			The url takes the form @prefix + md5hex(secret + filepath + timestamp) + '/' + timestamp + filepath@; timestamp is the "Unix time":http://en.wikipedia.org/wiki/Unix_time formatted as hexadecimal number.
+		<markdown><![CDATA[
+			To generate URLs that are valid for `secdownload` you need the same secret.  
+			The url takes the form `prefix + md5hex(secret + filepath + timestamp) + '/' + timestamp + filepath`; timestamp is the [Unix time](http://en.wikipedia.org/wiki/Unix_time) formatted as hexadecimal number.
 
 			For example with PHP:
 
-			<pre>
-			$secret = "abc";
-			$uri_prefix = "/sec/";
+				$secret = "abc";
+				$uri_prefix = "/sec/";
 
-			# filename; please note file name starts with "/"
-			$f = "/secret-file.txt";
+				# filename; please note file name starts with "/"
+				$f = "/secret-file.txt";
 
-			# current timestamp
-			$t = time();
+				# current timestamp
+				$t = time();
 
-			$t_hex = sprintf("%08x", $t);
-			$m = md5($secret.$f.$t_hex);
+				$t_hex = sprintf("%08x", $t);
+				$m = md5($secret.$f.$t_hex);
 
-			# generate link
-			printf('<a href="%s%s/%s%s">%s</a>', $uri_prefix, $m, $t_hex, $f, $f);
-			</pre>
+				# generate link
+				printf('<a href="%s%s/%s%s">%s</a>', $uri_prefix, $m, $t_hex, $f, $f);
 
-			The config example above would map this url to the file @/secret/path/secret-file.txt@.
+			The config example above would map this url to the file `/secret/path/secret-file.txt`.
 
-			For more examples see "mod_secdownload (lighttpd 1.4.x)":https://redmine.lighttpd.net/projects/lighttpd/wiki/Docs_ModSecDownload#Examples
-		]]></textile>
+			For more examples see [mod_secdownload (lighttpd 1.4.x)](https://redmine.lighttpd.net/projects/lighttpd/wiki/Docs_ModSecDownload#Examples).
+		]]></markdown>
 	</section>
 
 </module>

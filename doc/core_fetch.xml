@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <chapter xmlns="urn:lighttpd.net:lighttpd2/doc1" title="Fetch API" order="core_regex_after_01_fetch">
-	<description>
-		<textile>
-			The Fetch API provides a common interface between lighttpd modules to lookup entries in a database. Both lookup key and data are simple (binary) strings.
+	<description><markdown>
+		The Fetch API provides a common interface between lighttpd modules to lookup entries in a database. Both lookup key and data are simple (binary) strings.
 
-			So far only a "fetch.files_static":plugin_core.html#plugin_core__setup_fetch-files_static is providing a database, and only "gnutls":mod_gnutls.html#mod_gnutls__setup_gnutls is using it to lookup SNI certificates.
-		</textile>
-	</description>
+		So far only a [fetch.files_static](plugin_core.html#plugin_core__setup_fetch-files_static) is providing a database, and only [gnutls](mod_gnutls.html#mod_gnutls__setup_gnutls) is using it to lookup SNI certificates.
+	</markdown></description>
 </chapter>

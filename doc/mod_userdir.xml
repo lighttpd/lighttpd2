@@ -2,41 +2,39 @@
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
 	<short>allows you to have user-specific document roots being accessed through http://domain/~user/</short>
 
-	<description>
-		<textile><![CDATA[
-			The document root can be built by using the home directory of a user which is specified by /~username/ at the beginning of the request path.
-			Alternatively, mod_userdir can build the docroot from a pattern similar to @vhost.pattern@ but using the username instead of the hostname.
-		]]></textile>
-	</description>
+	<description><markdown><![CDATA[
+		The document root can be built by using the home directory of a user which is specified by /~username/ at the beginning of the request path.  
+		Alternatively, mod_userdir can build the docroot from a pattern similar to `vhost.pattern` but using the username instead of the hostname.
+	]]></markdown></description>
 
 	<action name="userdir">
 		<short>builds the document root by replacing certain placeholders in path with (parts of) the username.</short>
 		<parameter name="path">
 			<short>the path to build the document root with</short>
 		</parameter>
-		<description>
-			<textile><![CDATA[
-				If @path@ does not start with a slash (/), then the document root is prepended with the home directory of the given user as specified in /etc/passwd.
-				Otherwise the @path@ specifies the absolute docroot to be used.
+		<description><markdown><![CDATA[
+			If `path` does not start with a slash (/), then the document root is prepended with the home directory of the given user as specified in /etc/passwd.  
+			Otherwise the `path` specifies the absolute docroot to be used.
 
-				Placeholders are:
-				* @*@ is replaced by the complete username
-				* @$1@-@$9@ are replaced by the n-th letter of the username, e.g. @$2@ is the second letter
+			Placeholders are:
 
-				Examples:
+			* `*` is replaced by the complete username
+			* `$1`-`$9` are replaced by the n-th letter of the username, e.g. `$2` is the second letter
 
-				Request for http://host/~lighty/foo.html (assuming "/home/lighty" is the home of the "lighty" user):
+			Examples:
 
-				table(table table-striped).
-				|_. @path@ |_. docroot |_. physicalpath|
-				| "public_html" | /home/lighty/public_html/ | /home/lighty/public_html/foo.html |
-				| "/usr/web/*/" | /usr/web/lighty/ | /usr/web/lighty/foo.html |
-				| "/usr/web" | /usr/web/lighty/ | /usr/web/lighty/foo.html |
-				| "/www/users/$1/$1$2/*/" | /www/users/l/li/lighty/ | /www/users/l/li/lighty/foo.html |
+			Request for http://host/~lighty/foo.html (assuming "/home/lighty" is the home of the "lighty" user):
 
-				*Note*: username "root" is not allowed for security reasons.
-			]]></textile>
-		</description>
+			| `path` | docroot | physicalpath|
+			|-|-|-|
+			| "public_html" | /home/lighty/public_html/ | /home/lighty/public_html/foo.html |
+			| "/usr/web/*/" | /usr/web/lighty/ | /usr/web/lighty/foo.html |
+			| "/usr/web" | /usr/web/lighty/ | /usr/web/lighty/foo.html |
+			| "/www/users/$1/$1$2/*/" | /www/users/l/li/lighty/ | /www/users/l/li/lighty/foo.html |
+			{:.table .table-striped}
+
+			**Note**: username "root" is not allowed for security reasons.
+		]]></markdown></description>
 		<example>
 			<config><![CDATA[
 				setup {

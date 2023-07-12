@@ -6,42 +6,41 @@
 		<short>defines the log format</short>
 		<parameter name="format" />
 		<default><value>"%h %V %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""</value></default>
-		<description>
-			<textile><![CDATA[
-				Some format specifiers take a mandatory key, enclosed in curly braces between percent sign and the actual specifier. CLF means "common log format", if a value is zero, a '-' is used instead.
+		<description><markdown><![CDATA[
+			Some format specifiers take a mandatory key, enclosed in curly braces between percent sign and the actual specifier. CLF means "common log format", if a value is zero, a '-' is used instead.
 
-				table(table table-striped).
-				|_. specifier |_. description |
-				| %% | Percent sign itself |
-				| %a | Remote IP-address |
-				| %A | Local IP-address|
-				| %b | Size of response in bytes, excluding HTTP headers (CLF) |
-				| %B | Size of response in bytes, excluding HTTP headers |
-				| %{foobar}C | (*not implemented yet*) Contents of cookie @foobar@ of the request |
-				| %D | Time taken to serve the request in microseconds |
-				| %{foobar}e | Contents of the request environment variable @foobar@ |
-				| %f | Path to physical file |
-				| %h | Remote IP-address (same as @%a@) |
-				| %{foobar}i | Contents of request header @foobar@ |
-				| %m | Request method (GET, POST, etc) |
-				| %{foobar}o | Contents of response header @foobar@ |
-				| %p | Local port |
-				| %q | Querystring |
-				| %r | First line of request (GET /foo.html?bar HTTP/1.1) |
-				| %s | Response status code |
-				| %t | Time/date the request was received in standard english format |
-				| %T | Time taken to serve the request in seconds |
-				| %u | Authed user (from mod_auth). Same as @%{REMOTE_USER}e@ |
-				| %U | Request path (not including querystring) |
-				| %v | Server name as set through the @server.name@ option or the request hostname of @server.name@ is not set |
-				| %V | Request hostname |
-				| %X | Connection status after response: "X" if aborted before completed, "+" if keepalive, "-" if no keepalive |
-				| %I | Bytes received including HTTP headers and request body |
-				| %O | Bytes sent including HTTP headers and response body |
+			| specifier | description |
+			|--|--|
+			| %% | Percent sign itself |
+			| %a | Remote IP-address |
+			| %A | Local IP-address|
+			| %b | Size of response in bytes, excluding HTTP headers (CLF) |
+			| %B | Size of response in bytes, excluding HTTP headers |
+			| %{foobar}C | (**not implemented yet**) Contents of cookie `foobar` of the request |
+			| %D | Time taken to serve the request in microseconds |
+			| %{foobar}e | Contents of the request environment variable `foobar` |
+			| %f | Path to physical file |
+			| %h | Remote IP-address (same as `%a`) |
+			| %{foobar}i | Contents of request header `foobar` |
+			| %m | Request method (GET, POST, etc) |
+			| %{foobar}o | Contents of response header `foobar` |
+			| %p | Local port |
+			| %q | Querystring |
+			| %r | First line of request (GET /foo.html?bar HTTP/1.1) |
+			| %s | Response status code |
+			| %t | Time/date the request was received in standard english format |
+			| %T | Time taken to serve the request in seconds |
+			| %u | Authed user (from mod_auth). Same as `%{REMOTE_USER}e` |
+			| %U | Request path (not including querystring) |
+			| %v | Server name as set through the `server.name` option or the request hostname of `server.name` is not set |
+			| %V | Request hostname |
+			| %X | Connection status after response: "X" if aborted before completed, "+" if keepalive, "-" if no keepalive |
+			| %I | Bytes received including HTTP headers and request body |
+			| %O | Bytes sent including HTTP headers and response body |
+			{:.table .table-striped}
 
-				Modifiers right after the percent sign like Apache provides them, are not supported. "<" or ">" are ignored, everything else results in a parse error. Specifiers supported by Apache but not lighty: %l, %n, %P
-			]]></textile>
-		</description>
+			Modifiers right after the percent sign like Apache provides them, are not supported. "<" or ">" are ignored, everything else results in a parse error. Specifiers supported by Apache but not lighty: %l, %n, %P
+		]]></markdown></description>
 		<example>
 			<config>
 				accesslog.format "%h %V %u %t \"%r\" %>s %b";
@@ -53,9 +52,9 @@
 		<short>defines the log target</short>
 		<parameter name="target" />
 		<default><text>logging disabled</text></default>
-		<description>
-			<html>Enable logging by setting a log target. Supports the same log targets as <a href="plugin_core.html#plugin_core__action_log">log</a>.</html>
-		</description>
+		<description><markdown>
+			Enable logging by setting a log target. Supports the same log targets as [log](plugin_core.html#plugin_core__action_log).
+		</markdown></description>
 		<example>
 			<config>
 				setup {

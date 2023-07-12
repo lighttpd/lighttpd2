@@ -2,19 +2,17 @@
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
 	<short>track connection progress (state) via a unique identifier</short>
 
-	<description>
-		<textile><![CDATA[
-			mod_progress lets you track connection progress (or rather state) using a lookup table in which connections are registered via a random unique identifier specified with the request.
-			It is most commonly used to implement progress bars for file uploads.
+	<description><markdown><![CDATA[
+		mod_progress lets you track connection progress (or rather state) using a lookup table in which connections are registered via a random unique identifier specified with the request.  
+		It is most commonly used to implement progress bars for file uploads.
 
-			A request to the webserver is registered using the @progress.track@ action and being tracked by a random unique identifier supplied with the @X-Progress-Id@ querystring parameter.
-			From that moment on, other requests can fetch the state of the first request through the @progress.show@ action specifying the @X-Progress-Id@ used earlier.
-			Even after a tracked request finished and the connection to the client is gone, requests can for a limited amount of time get the status of it to see it as "done".
+		A request to the webserver is registered using the `progress.track` action and being tracked by a random unique identifier supplied with the `X-Progress-Id` querystring parameter.  
+		From that moment on, other requests can fetch the state of the first request through the `progress.show` action specifying the `X-Progress-Id` used earlier.  
+		Even after a tracked request finished and the connection to the client is gone, requests can for a limited amount of time get the status of it to see it as "done".
 
-			A live demonstration of a progress bar implementation can be seen at http://demo.lighttpd.net/progress/
-			Check the source code there for further insight.
-		]]></textile>
-	</description>
+		A live demonstration of a progress bar implementation can be seen at <http://demo.lighttpd.net/progress/>.  
+		Check the source code there for further insight.
+	]]></markdown></description>
 
 
 	<setup name="progress.ttl">
@@ -47,26 +45,26 @@
 		<parameter name="format">
 			<short>(optional) output format, one of "legacy", "json" or "jsonp". Defaults to "json".</short>
 		</parameter>
-		<description>
-			<textile><![CDATA[
-				Output formats:
-				* legacy: @new Object({"state": "running"", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0})@
-				* json: @{"state": "running", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0}@
-				* jsonp: @progress({"state": "running", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0})@
-				  The function name (default "progress") can be altered by supplying a X-Progress-Callback querystring parameter.
+		<description><markdown><![CDATA[
+			Output formats:
 
-				The JSON object can contain the following members:
-				* *state*: One of @"unknown"@, @"running"@, @"done"@ or @"error"@.
-				* *received*: Bytes received by lighty or uploaded by the client.
-				* *request_size*: Total size of request or uploaded file as specified via the Content-Length request header.
-				* *sent*: Bytes sent by lighty or downloaded by the client.
-				* *response_size*: Total size of response. Attention: this might grow over time in case of streaming from a backend.
-				* *status*: HTTP status code of response.
+			* legacy: `new Object({"state": "running"", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0})`
+			* json: `{"state": "running", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0}`
+			* jsonp: `progress({"state": "running", "received": 123456, "sent": 0, "request_size": 200000, "response_size": 0})`  
+				The function name (default "progress") can be altered by supplying a X-Progress-Callback querystring parameter.
 
-				@received@, @request_size@, @sent@ and @response_size@ are only available if @state@ is @"running"@ or @"done"@.
-				@status@ is only available if @state@ is @"error"@.
-			]]></textile>
-		</description>
+			The JSON object can contain the following members:
+
+			* **state**: One of `"unknown"`, `"running"`, `"done"` or `"error"`.
+			* **received**: Bytes received by lighty or uploaded by the client.
+			* **request_size**: Total size of request or uploaded file as specified via the Content-Length request header.
+			* **sent**: Bytes sent by lighty or downloaded by the client.
+			* **response_size**: Total size of response. Attention: this might grow over time in case of streaming from a backend.
+			* **status**: HTTP status code of response.
+
+			`received`, `request_size`, `sent` and `response_size` are only available if `state` is `"running"` or `"done"`.
+			`status` is only available if `state` is `"error"`.
+		]]></markdown></description>
 
 		<example>
 			<config><![CDATA[

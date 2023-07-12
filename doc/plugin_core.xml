@@ -3,30 +3,32 @@
 	<short>contains the core features for generic request handling, static files, log files and buffer limits.</short>
 
 	<section title="Socket addresses">
-		The following address formats can be used:
+		<markdown>
+			The following address formats can be used:
+		</markdown>
 
 		<section title="IPv4">
-			<textile>
-				Either with port @192.168.0.1:80@ or without @192.168.0.1@; you can either use real IPs or @0.0.0.0@ to listen on all network interfaces.
-			</textile>
+			<markdown>
+				Either with port `192.168.0.1:80` or without `192.168.0.1`; you can either use real IPs or `0.0.0.0` to listen on all network interfaces.
+			</markdown>
 		</section>
 
 		<section title="IPv6">
-			<textile>
-				Similar to IPv4; just put the IPv6 between "[" and "]" like this: @[::1]:80@ (IPv6 localhost with port 80).
+			<markdown>
+				Similar to IPv4; just put the IPv6 between "[" and "]" like this: `[::1]:80` (IPv6 localhost with port 80).
 
 				Please note that lighttpd always listens to IPv6 only (some platforms listen to IPv4 too on [::] by default).
-			</textile>
+			</markdown>
 		</section>
 
 		<section title="Unix domain sockets">
-			<textile>
-				A unix domain socket needs a filename where the socket is placed; use @unix:/path/to/socket@ as socket address.
+			<markdown>
+				A unix domain socket needs a filename where the socket is placed; use `unix:/path/to/socket` as socket address.
 
-				Please don't put unix domain sockets in @/tmp@. Use @/var/run/lighttpd/@ or something like that, where only root or selected "trusted" users can create files.
+				Please don't put unix domain sockets in `/tmp`. Use `/var/run/lighttpd/` or something like that, where only root or selected "trusted" users can create files.
 
 				This may be not supported in all places where a socket address can be specified.
-			</textile>
+			</markdown>
 		</section>
 	</section>
 
@@ -82,32 +84,26 @@
 		<option name="stat.async">
 			<short>enables async stat() calls</short>
 			<default><value>true</value></default>
-			<description>
-				<textile>
-					If a filename is in lighttpd's stat "cache", lighttpd assumes the kernel still has the entry in memory, and @stat()@ therefore is unlikely to block.
-					Otherwise it will ask a background thread to call @stat()@, so the main worker threads are not waiting on a slow disk (or a network filesystem), but only if @stat.async@ is enabled.
+			<description><markdown>
+				If a filename is in lighttpd's stat "cache", lighttpd assumes the kernel still has the entry in memory, and `stat()` therefore is unlikely to block.  
+				Otherwise it will ask a background thread to call `stat()`, so the main worker threads are not waiting on a slow disk (or a network filesystem), but only if `stat.async` is enabled.
 
-					If you know your disk is fast enough (perhaps a ramdisk?) and want to save the context switch to the background thread you can disable this.
-				</textile>
-			</description>
+				If you know your disk is fast enough (perhaps a ramdisk?) and want to save the context switch to the background thread you can disable this.
+			</markdown></description>
 		</option>
 		<option name="buffer_request_body">
 			<short>enable buffering request body on disk</short>
 			<default><value>true</value></default>
-			<description>
-				<textile>
-					Some backends like to wait for the complete response before forwarding/handling it. For this they require this option to save some memory.
-				</textile>
-			</description>
+			<description><markdown>
+				Some backends like to wait for the complete response before forwarding/handling it. For this they require this option to save some memory.
+			</markdown></description>
 		</option>
 		<option name="strict.post_content_length">
 			<short>require Content-Length for POST requests</short>
 			<default><value>true</value></default>
-			<description>
-				<textile>
-					Some clients don't send Content-Length for POST requests with empty body; they should send @Content-Length: 0@.  When this check is enabled they'll get a @411 Length required@ error.
-				</textile>
-			</description>
+			<description><markdown>
+				Some clients don't send Content-Length for POST requests with empty body; they should send `Content-Length: 0`.  When this check is enabled they'll get a `411 Length required` error.
+			</markdown></description>
 		</option>
 
 		<option name="static.exclude_extensions">
@@ -124,12 +120,10 @@
 			<short>server name; is used in some places instead of the HTTP request hostname if the latter was not specified in the (HTTP/1.0) request</short>
 			<parameter name="hostname" />
 			<default><value>""</value></default>
-			<description>
-				<textile>
-					Even HTTP/1.0 clients usually specify a Host: header; without Host: header you could only run one domain on one IP address.
-					This option is for the rare case that you want to handle clients without Host: header support in a nice way.
-				</textile>
-			</description>
+			<description><markdown>
+				Even HTTP/1.0 clients usually specify a Host: header; without Host: header you could only run one domain on one IP address.  
+				This option is for the rare case that you want to handle clients without Host: header support in a nice way.
+				</markdown></description>
 			<example>
 				<config>
 					server.name "lighttpd.net";
@@ -140,21 +134,19 @@
 			<short>used to display server name + version in different places (HTTP response header, CGI environment, mod_dirlist footer, ...)</short>
 			<parameter name="tag" />
 			<default><value>"lighttpd/2.0.0"</value></default>
-			<description>
+			<description><markdown>
 				The default is "lighttpd/" + the current version.
-			</description>
+			</markdown></description>
 		</option>
 		<option name="mime_types">
 			<short>maps file extensions to MIME types</short>
 			<parameter name="mapping" />
 			<default><value>[]</value></default>
-			<description>
-				<textile>
-					Default MIME type is "application/octet-stream". The sources contain a "mimetypes example config":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/mimetypes.conf with many standard mappings.
+			<description><markdown>
+				Default MIME type is "application/octet-stream". The sources contain a [mimetypes example config](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/mimetypes.conf) with many standard mappings.
 
-					The longest matching suffix is used (@".tar.gz"@ always wins over @".gz"@), and in case of duplicate entries the last one is used.
-				</textile>
-			</description>
+				The longest matching suffix is used (`".tar.gz"` always wins over `".gz"`), and in case of duplicate entries the last one is used.
+			</markdown></description>
 			<example>
 				<config>
 					mime_types [ ".htm" => "text/html", ".txt" => "text/plain; charset=utf-8" ];
@@ -164,7 +156,9 @@
 	</section>
 
 	<section title="Actions needed from lua">
-		These action are not needed (or usable) in non-lua configs.
+		<markdown>
+			These action are not needed (or usable) in non-lua configs.
+		</markdown>
 
 		<action name="list">
 			<short>(lua) combines a list of actions into one action, only needed in lua</short>
@@ -192,13 +186,11 @@
 			<parameter name="patterns">
 				<short>One or more patterns to build docroot from</short>
 			</parameter>
-			<description>
-				<textile>
-					Uses "patterns":core_pattern.html#core_pattern to build document roots (base location of files to server).
-					@docroot@ uses the first pattern that results in an existing directory; otherwise it uses the *last* entry.
-					You'll want the @docroot@ action *before* @alias@ actions!
-				</textile>
-			</description>
+			<description><markdown>
+				Uses [patterns](core_pattern.html#core_pattern) to build document roots (base location of files to server).  
+				`docroot` uses the first pattern that results in an existing directory; otherwise it uses the **last** entry.  
+				You'll want the `docroot` action **before** `alias` actions!
+			</markdown></description>
 			<example>
 				<config>
 					docroot ("/var/www/vhosts/$0/htdocs", "/var/www/default/htdocs");
@@ -211,14 +203,12 @@
 			<parameter name="mapping">
 				<short>maps prefix to base location on disk</short>
 			</parameter>
-			<description>
-				<textile>
-					The prefix is removed from the url path before it is appended to the base location.
-					You'll want the @docroot@ action *before* @alias@ actions!
+			<description><markdown>
+				The prefix is removed from the url path before it is appended to the base location.  
+				You'll want the `docroot` action **before** `alias` actions!
 
-					"Patterns":core_pattern.html#core_pattern are supported for alias targets as in @docroot@. As only one pattern per prefix can be given @alias@ does not check whether the target exists.
-				</textile>
-			</description>
+				[Patterns](core_pattern.html#core_pattern) are supported for alias targets as in `docroot`. As only one pattern per prefix can be given `alias` does not check whether the target exists.
+			</markdown></description>
 			<example>
 				<config>
 					docroot ("/var/www/vhosts/$0/htdocs", "/var/www/default/htdocs");
@@ -236,19 +226,18 @@
 			<parameter name="filenames">
 				<short>filenames to look for</short>
 			</parameter>
-			<description>
-				<textile>
-					If the physical path is a directory search for the specified filenames; prefix a filename with '/' to search in the doc-root.
+			<description><markdown>
+				If the physical path is a directory search for the specified filenames; prefix a filename with '/' to search in the doc-root.
 
-					It works like this:
-					* if current physical path points to a regular file do nothing
-					* walk through the list of filenames to look for:
-					** if filename does not start with '/' and the current physical path doesn't point to a directory, ignore the entry
-					** if filename does not start with '/' and the url didn't end in a '/', redirect request to url with '/' appended
-					** if filename does not start with '/' search for it in current physical path (which is a directory)
-					** if filename does start with '/' search for it in the doc-root
-				</textile>
-			</description>
+				It works like this:
+
+				* if current physical path points to a regular file do nothing
+				* walk through the list of filenames to look for:
+					* if filename does not start with '/' and the current physical path doesn't point to a directory, ignore the entry
+					* if filename does not start with '/' and the url didn't end in a '/', redirect request to url with '/' appended
+					* if filename does not start with '/' search for it in current physical path (which is a directory)
+					* if filename does start with '/' search for it in the doc-root
+			</markdown></description>
 			<example>
 				<config>
 					setup {
@@ -265,15 +254,13 @@
 		</action>
 		<action name="pathinfo">
 			<short>splits physical path into existing file/directory and the remaining PATH_INFO</short>
-			<description>
-				<textile>
-					Searches for the longest prefix of the physical path name that exists, splitting only at the directory separator @/@; also never leaves the document root (technically speaking the filename can't get shorter than the document root).
-				</textile>
-			</description>
+			<description><markdown>
+				Searches for the longest prefix of the physical path name that exists, splitting only at the directory separator `/`; also never leaves the document root (technically speaking the filename can't get shorter than the document root).
+			</markdown></description>
 			<example>
-				<description>
-					The following example maps @http://example.com/index.php/some/site@ to the file @/var/www/index.php@ with @PATH_INFO=/some/site@ (given @/var/www/index.php@ is a normal file).
-				</description>
+				<description><markdown>
+					The following example maps `http://example.com/index.php/some/site` to the file `/var/www/index.php` with `PATH_INFO=/some/site` (given `/var/www/index.php` is a normal file).
+				</markdown></description>
 				<config>
 					docroot "/var/www";
 					pathinfo;
@@ -281,9 +268,9 @@
 				</config>
 			</example>
 			<example>
-				<description>
-					The following example maps @http://example.com/some/site@ to the file @/var/www/index.php@ with @PATH_INFO=/some/site@ (given @/var/www/index.php@ is a normal file, and @/var/www/some@ does not exist).
-				</description>
+				<description><markdown>
+					The following example maps `http://example.com/some/site` to the file `/var/www/index.php` with `PATH_INFO=/some/site` (given `/var/www/index.php` is a normal file, and `/var/www/some` does not exist).
+				</markdown></description>
 				<config>
 					docroot "/var/www";
 					pathinfo;
@@ -297,31 +284,29 @@
 	<section title="Generating responses">
 		<action name="static">
 			<short>handle GET and HEAD requests with a static file from disk</short>
-			<description>
-				<textile>
-					This action is automatically appended to the global config (unless a lua config is specified at the command line).
+			<description><markdown>
+				This action is automatically appended to the global config (unless a lua config is specified at the command line).
 
-					Does nothing if:
-					* the request is already handled
-					* no physical path was set (missing @docroot@, @alias@, ...)
-					* the physical path points to a directory
+				Does nothing if:
 
-					All other problems lead to an error page, for example:
-					* wrong request method (405)
-					* file not found (404)
-					* couldn't open file (403)
-					* filename matches @static.exclude_extensions@ (403)
-					* ...
-				</textile>
-			</description>
+				* the request is already handled
+				* no physical path was set (missing `docroot`, `alias`, ...)
+				* the physical path points to a directory
+
+				All other problems lead to an error page, for example:
+
+				* wrong request method (405)
+				* file not found (404)
+				* couldn't open file (403)
+				* filename matches `static.exclude_extensions` (403)
+				* ...
+			</markdown></description>
 		</action>
 		<action name="static_no_fail">
 			<short>handle GET and HEAD requests with a static file from disk</short>
-			<description>
-				<textile>
-					same as @static@, but doesn't return any error pages; instead request handling continues.
-				</textile>
-			</description>
+			<description><markdown>
+				same as `static`, but doesn't return any error pages; instead request handling continues.
+			</markdown></description>
 		</action>
 		<action name="respond">
 			<short>returns a quick response with optional body</short>
@@ -331,12 +316,10 @@
 			<parameter name="content">
 				<short>(optional) pattern for response body</short>
 			</parameter>
-			<description>
-				<textile>
-					Generates a simple response (our favorite benchmark handler).
-					The body is parsed as "pattern":core_pattern.html#core_pattern.
-				</textile>
-			</description>
+			<description><markdown>
+					Generates a simple response (our favorite benchmark handler).  
+					The body is parsed as [pattern](core_pattern.html#core_pattern).
+			</markdown></description>
 			<example>
 				<config>
 					respond 403 => "Forbidden";
@@ -351,30 +334,28 @@
 	</section>
 
 	<section title="Logging">
-		<section title="Log levels">
-			<textile>
-				For standard logging ("error.log") lighttpd knows the following levels:
-				* @debug@
-				* @info@
-				* @warning@
-				* @error@
-				* @abort@ (right before terminating the process)
-				* @backend@ (for log data from backends, like FastCGI stderr stream)
-			</textile>
-		</section>
+		<section title="Log levels"><markdown>
+			For standard logging ("error.log") lighttpd knows the following levels:
 
-		<section title="Log targets">
-			<textile>
-				The following log targets are known:
-				* not logging: empty string
-				* files: @file:/var/log/error.log@ or just @/var/log/error.log@
-				* stderr: @stderr:@ or @stderr@
-				* syslog: @syslog:@ (not supported yet)
-				* pipes: @pipe:command@ or @| command@ (not supported yet)
+			* `debug`
+			* `info`
+			* `warning`
+			* `error`
+			* `abort` (right before terminating the process)
+			* `backend` (for log data from backends, like FastCGI stderr stream)
+		</markdown></section>
 
-				Unknown strings are mapped to @stderr@.
-			</textile>
-		</section>
+		<section title="Log targets"><markdown>
+			The following log targets are known:
+
+			* not logging: empty string
+			* files: `file:/var/log/error.log` or just `/var/log/error.log`
+			* stderr: `stderr:` or `stderr`
+			* syslog: `syslog:` (not supported yet)
+			* pipes: `pipe:command` or `| command` (not supported yet)
+
+			Unknown strings are mapped to `stderr`.
+		</markdown></section>
 
 		<action name="log">
 			<short>overwrite log targets for all log levels</short>
@@ -397,11 +378,9 @@
 			<parameter name="message">
 				<short>message pattern string</short>
 			</parameter>
-			<description>
-				<textile>
-					Writes the specified message to the log using level @info@; the message is parsed as "pattern":core_pattern.html#core_pattern.
-				</textile>
-			</description>
+			<description><markdown>
+				Writes the specified message to the log using level `info`; the message is parsed as [pattern](core_pattern.html#core_pattern).
+			</markdown></description>
 			<example>
 				<config>
 					log.write "hello world";
@@ -431,21 +410,19 @@
 			<parameter name="format">
 				<short>a strftime format string</short>
 			</parameter>
-			<description>
-				<textile>
-					See "strftime":http://pubs.opengroup.org/onlinepubs/007904875/functions/strftime.html for the format string syntax.
+			<description><markdown>
+				See [strftime](http://pubs.opengroup.org/onlinepubs/007904875/functions/strftime.html) for the format string syntax.
 
-					The default format string is @"%d/%b/%Y %T %Z"@.
-				</textile>
-			</description>
+				The default format string is `"%d/%b/%Y %T %Z"`.
+			</markdown></description>
 		</setup>
 	</section>
 
 	<section title="Connection environment">
-		<textile>
-			The connection environment is a set of variable with names and values (both simple strings). CGI backends will forward the environment in addition to the standard CGI environment variables.
+		<markdown>
+			The connection environment is a set of variable with names and values (both simple strings). CGI backends will forward the environment in addition to the standard CGI environment variables.  
 			The connection environment overwrites the standard CGI values.
-		</textile>
+		</markdown>
 
 		<action name="env.set">
 			<short>sets a connection environment variable</short>
@@ -455,11 +432,9 @@
 			<parameter name="value">
 				<short>the pattern value to set</short>
 			</parameter>
-			<description>
-				<textile>
-					The value is parsed as "pattern":core_pattern.html#core_pattern.
-				</textile>
-			</description>
+			<description><markdown>
+				The value is parsed as [pattern](core_pattern.html#core_pattern).
+			</markdown></description>
 			<example>
 				<config>
 					env.set "INFO" => "%{req.path}";
@@ -474,11 +449,9 @@
 			<parameter name="value">
 				<short>the pattern value to set</short>
 			</parameter>
-			<description>
-				<textile>
-					The value is parsed as "pattern":core_pattern.html#core_pattern. @env.add@ does not overwrite already existing values.
-				</textile>
-			</description>
+			<description><markdown>
+				The value is parsed as [pattern](core_pattern.html#core_pattern). `env.add` does not overwrite already existing values.
+			</markdown></description>
 			<example>
 				<config>
 					env.add "INFO" => "%{req.path}";
@@ -507,7 +480,9 @@
 	</section>
 
 	<section title="Response header">
-		All header values that get set are parsed as "patterns":core_pattern.html#core_pattern.
+		<markdown>
+			All header values that get set are parsed as [patterns](core_pattern.html#core_pattern).
+		</markdown>
 
 		<action name="header.add">
 			<short>adds a new response header line</short>
@@ -517,12 +492,10 @@
 			<parameter name="value">
 				<short>pattern header value</short>
 			</parameter>
-			<description>
-				<textile>
-					The HTTP spec requires that multiple headers with the same name could be merged by joining their values with ",".
-					In real life this doesn't work always, especially not for "Cookie" headers; so this action actually adds a separate header line.
-				</textile>
-			</description>
+			<description><markdown>
+				The HTTP spec requires that multiple headers with the same name could be merged by joining their values with ",".  
+				In real life this doesn't work always, especially not for "Cookie" headers; so this action actually adds a separate header line.
+			</markdown></description>
 			<example>
 				<config>
 					header.add "Cache-Control" => "public";
@@ -537,11 +510,9 @@
 			<parameter name="value">
 				<short>pattern header value</short>
 			</parameter>
-			<description>
-				<textile>
-					If header already exists appends new value separated by ", "; otherwise adds a new header line.
-				</textile>
-			</description>
+			<description><markdown>
+				If header already exists appends new value separated by ", "; otherwise adds a new header line.
+			</markdown></description>
 		</action>
 		<action name="header.overwrite">
 			<short>overwrite response header line or add new one</short>
@@ -551,11 +522,9 @@
 			<parameter name="value">
 				<short>pattern header value</short>
 			</parameter>
-			<description>
-				<textile>
-					If header already exists overwrites the value; otherwise a new line gets added.
-				</textile>
-			</description>
+			<description><markdown>
+				If header already exists overwrites the value; otherwise a new line gets added.
+			</markdown></description>
 		</action>
 		<action name="header.remove">
 			<short>remove existing response header</short>
@@ -575,15 +544,13 @@
 
 		<action name="set_status">
 			<short>modify HTTP status code</short>
-			<description>
-				<textile>
-					Modifies the HTTP status code, but doesn't handle the request in any way.
-					Later actions could overwrite the status, or a backend (FastCGI, proxy, ...) might overwrite it if the response is parsed later.
-					Only works if some action actually handled the request.
+			<description><markdown>
+				Modifies the HTTP status code, but doesn't handle the request in any way.  
+				Later actions could overwrite the status, or a backend (FastCGI, proxy, ...) might overwrite it if the response is parsed later.  
+				Only works if some action actually handled the request.
 
-					Lighttpd will generate error pages (if it knows the code) if the action that handled the request didn't generate a response body and a body is allowed.
-				</textile>
-			</description>
+				Lighttpd will generate error pages (if it knows the code) if the action that handled the request didn't generate a response body and a body is allowed.
+			</markdown></description>
 			<example>
 				<config>
 					# hide all 404s at end of config by setting 403
@@ -595,7 +562,9 @@
 	</section>
 
 	<section title="Request headers">
-		All header values that get set are parsed as "patterns":core_pattern.html#core_pattern.
+		<markdown>
+			All header values that get set are parsed as [patterns](core_pattern.html#core_pattern).
+		</markdown>
 
 		<action name="req_header.add">
 			<short>adds a new request header line</short>
@@ -605,11 +574,9 @@
 			<parameter name="value">
 				<short>pattern header value</short>
 			</parameter>
-			<description>
-				<textile>
-					Same as "header.add":plugin_core.html#plugin_core__action_header-add for request headers.
-				</textile>
-			</description>
+			<description><markdown>
+				Same as [header.add](plugin_core.html#plugin_core__action_header-add) for request headers.
+			</markdown></description>
 		</action>
 		<action name="req_header.append">
 			<short>appends value to request header line</short>
@@ -619,11 +586,9 @@
 			<parameter name="value">
 				<short>pattern header value</short>
 			</parameter>
-			<description>
-				<textile>
-					Same as "header.append":plugin_core.html#plugin_core__action_header-append for request headers.
-				</textile>
-			</description>
+			<description><markdown>
+				Same as [header.append](plugin_core.html#plugin_core__action_header-append) for request headers.
+			</markdown></description>
 		</action>
 		<action name="req_header.overwrite">
 			<short>overwrite request header line or add new one</short>
@@ -633,28 +598,22 @@
 			<parameter name="value">
 				<short>pattern header value</short>
 			</parameter>
-			<description>
-				<textile>
-					Same as "header.overwrite":plugin_core.html#plugin_core__action_header-overwrite for request headers.
-				</textile>
-			</description>
+			<description><markdown>
+				Same as [header.overwrite](plugin_core.html#plugin_core__action_header-overwrite) for request headers.
+			</markdown></description>
 		</action>
 		<action name="req_header.remove">
 			<short>remove existing request header</short>
 			<parameter name="name">
 				<short>header name</short>
 			</parameter>
-			<description>
-				<textile>
-					Same as "header.remove":plugin_core.html#plugin_core__action_header-remove for request headers.
-				</textile>
-			</description>
+			<description><markdown>
+				Same as [header.remove](plugin_core.html#plugin_core__action_header-remove) for request headers.
+			</markdown></description>
 			<example>
-				<description>
-					<textile>
-						Remove @Accept-Encoding@ request header to workaround the "BREACH":http://en.wikipedia.org/wiki/BREACH_(security_exploit) vulnerability in https.
-					</textile>
-				</description>
+				<description><markdown>
+					Remove `Accept-Encoding` request header to workaround the [BREACH](http://en.wikipedia.org/wiki/BREACH_(security_exploit)) vulnerability in https.
+				</markdown></description>
 				<config>
 					if request.scheme == "https" {
 						# create a copy of the header value
@@ -697,11 +656,9 @@
 		<parameter name="mapping">
 			<short>maps strings (or default) to actions</short>
 		</parameter>
-		<description>
-			<textile>
-				The pattern is parsed as "pattern":core_pattern.html#core_pattern. Have a look at "mod_vhost":mod_vhost.html#mod_vhost for special mappings on hostnames.
-			</textile>
-		</description>
+		<description><markdown>
+			The pattern is parsed as [pattern](core_pattern.html#core_pattern). Have a look at [mod_vhost](mod_vhost.html#mod_vhost) for special mappings on hostnames.
+		</markdown></description>
 		<example>
 			<config>
 				map "%{req.path}" => [
@@ -763,9 +720,9 @@
 		<parameter name="names">
 			<short>string or list of strings with the module name(s)</short>
 		</parameter>
-		<description>
+		<description><markdown>
 			modules can be "loaded" more than once without error
-		</description>
+		</markdown></description>
 		<example>
 			<config>
 				setup {
@@ -791,15 +748,13 @@
 		<parameter name="threads">
 			<short>number of threads</short>
 		</parameter>
-		<description>
-			<textile><![CDATA[
-				For example the stat cache uses such background threads.
+		<description><markdown><![CDATA[
+			For example the stat cache uses such background threads.
 
-				if @threads = 0@ the tasks are run in foreground (no background threads).
-				if @threads < 0@ all worker share a GThreadPool.
-				if @threads > 0@ each worker has its own thread pool with @threads@ threads.
-			]]></textile>
-		</description>
+			if `threads = 0` the tasks are run in foreground (no background threads).  
+			if `threads < 0` all worker share a GThreadPool.  
+			if `threads > 0` each worker has its own thread pool with `threads` threads.
+		]]></markdown></description>
 	</setup>
 	<setup name="fetch.files_static">
 		<short>starts a Fetch API provider</short>
@@ -809,9 +764,9 @@
 		<parameter name="filename-pattern">
 			<short>A filename pattern including exactly on *</short>
 		</parameter>
-		<description>
-			Loads all filenames matching the wildcard pattern (which must include exactly on @*@) into the fetch storage.
-		</description>
+		<description><markdown>
+			Loads all filenames matching the wildcard pattern (which must include exactly on `*`) into the fetch storage.
+		</markdown></description>
 		<example>
 			<config>
 				setup {

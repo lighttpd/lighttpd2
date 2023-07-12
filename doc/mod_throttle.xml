@@ -2,9 +2,9 @@
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
 	<short>limits outgoing bandwidth usage</short>
 
-	<description>
+	<description><markdown>
 		All rates are in bytes/sec. The magazines are filled up in fixed intervals (compile time constant; defaults to 200ms).
-	</description>
+	</markdown></description>
 
 	<action name="io.throttle">
 		<short>set the outgoing throttle limits for current connection</short>
@@ -14,11 +14,9 @@
 		<parameter name="burst">
 			<short>optional, defaults to 2*rate</short>
 		</parameter>
-		<description>
-			<textile>
-				@burst@ is the initial and maximum value for the @magazine@; doing IO drains the @magazine@, which fills up again over time with the specified @rate@.
-			</textile>
-		</description>
+		<description><markdown>
+			`burst` is the initial and maximum value for the `magazine`; doing IO drains the `magazine`, which fills up again over time with the specified `rate`.
+		</markdown></description>
 	</action>
 
 	<action name="io.throttle_pool">
@@ -26,15 +24,13 @@
 		<parameter name="rate">
 			<short>bytes/sec limit</short>
 		</parameter>
-		<description>
-			<textile>
-				all connections in the same pool are limited as whole. Each @io.throttle_pool@ action creates its own pool.
-			</textile>
-		</description>
+		<description><markdown>
+			all connections in the same pool are limited as whole. Each `io.throttle_pool` action creates its own pool.
+		</markdown></description>
 		<example>
-			<description>
+			<description><markdown>
 				Using the same pool in more than one place:
-			</description>
+			</markdown></description>
 			<config>
 				setup {
 					module_load "mod_throttle";
@@ -53,15 +49,13 @@
 		<parameter name="rate">
 			<short>bytes/sec limit</short>
 		</parameter>
-		<description>
-			<textile>
-				all connections from the same IP address in the same pool are limited as whole. Each @io.throttle_ip@ action creates its own pool.
-			</textile>
-		</description>
+		<description><markdown>
+			all connections from the same IP address in the same pool are limited as whole. Each `io.throttle_ip` action creates its own pool.
+		</markdown></description>
 		<example>
-			<description>
+			<description><markdown>
 				Using the same pool in more than one place:
-			</description>
+			</markdown></description>
 			<config>
 				setup {
 					module_load "mod_throttle";

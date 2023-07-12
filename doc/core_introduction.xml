@@ -2,21 +2,23 @@
 <chapter xmlns="urn:lighttpd.net:lighttpd2/doc1" title="Introduction" order="a01_introduction">
 
 	<section title="Running lighttpd2">
-		<textile><![CDATA[
+		<markdown><![CDATA[
 			You need two config files for lighttpd, which are usually in the following two locations:
 
-			* "@/etc/lighttpd2/lighttpd.conf@":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/lighttpd.conf: the main config, see "Main Configuration":core_config.html#core_config. It can be split into multiple files, see "Includes":core_config.html#core_config__includes.
-			* "@/etc/lighttpd2/angel.conf@":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/angel.conf: the angel config, see "Angel Configuration":core_config_angel.html#core_config_angel.
+			* [`/etc/lighttpd2/lighttpd.conf`](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/lighttpd.conf): the main config, see [Main Configuration](core_config.html#core_config). It can be split into multiple files, see [Includes](core_config.html#core_config__includes).
+			* [`/etc/lighttpd2/angel.conf`](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/angel.conf): the angel config, see [Angel Configuration](core_config_angel.html#core_config_angel).
 
-			The "@contrib/@":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib directory in the sources includes example config files.
+			The [`contrib/`](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib) directory in the sources includes example config files.
 
 			Then start lighttpd2 with:
 
-			<pre>/usr/sbin/lighttpd2 -c /etc/lighttpd2/angel.conf</pre>
+			```
+			/usr/sbin/lighttpd2 -c /etc/lighttpd2/angel.conf
+			```
 
-			The process will not fork into background, you need to do that yourself if you want that.
-			Our recommended way to run lighttpd2 is "runit":http://smarden.org/runit/useinit.html (have a look at the "@contrib/service@":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/service directory).
-		]]></textile>
+			The process will not fork into background, you need to do that yourself if you want that.  
+			Our recommended way to run lighttpd2 is [runit](http://smarden.org/runit/useinit.html) (have a look at the [`contrib/service`](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/service) directory).
+		]]></markdown>
 	</section>
 
 </chapter>

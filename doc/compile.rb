@@ -3,7 +3,7 @@
 require 'rubygems'
 require 'nokogiri'
 
-require 'redcloth'
+require 'kramdown'
 
 require 'cgi'
 
@@ -214,7 +214,7 @@ class Documentation
 
 		indent = real_lines.map { |l| _count_indent l }.min
 
-		code = lines.map { |line| _remove_indent(indent, line).rstrip }.join("\n") + "\n"
+		code = lines.map { |line| _remove_indent(indent, line) }.join() + "\n"
 		code.gsub(/\A\n+/, "").gsub(/\n\n+/, "\n\n").gsub(/\n+\Z/, "\n")
 	end
 
@@ -222,9 +222,9 @@ class Documentation
 		@html.pre { @html.code { @html << _format_code(xml) } }
 	end
 
-	def _parse_textile(xml)
+	def _parse_markdown(xml)
 		tx = _format_code(xml)
-		@html << RedCloth.new(tx).to_html
+		@html << Kramdown::Document.new(tx, :auto_ids => false).to_html
 	end
 
 	def _parse_html(xml)
@@ -238,8 +238,9 @@ class Documentation
 
 		xml.children.each do |child|
 			if child.text?
-				@html.p child.content.strip
-			elsif ['html','textile'].include? child.name
+				text = child.content.strip
+				raise "invalid non-empty text #{text.inspect}" if text != ""
+			elsif ['html','markdown'].include? child.name
 				self.send('_parse_' + child.name, child)
 			else
 				raise 'invalid description element ' + child.name
@@ -425,8 +426,8 @@ class ModuleDocumentation < GenericModuleDocumentation
 			xml.children.each do |child|
 				if child.text?
 					text = child.content.strip
-					@html.p text if text.length > 0
-				elsif ['action','setup','option','html','textile','example','section'].include? child.name
+					raise "invalid non-empty text #{text.inspect}" if text != ""
+				elsif ['action','setup','option','html','markdown','example','section'].include? child.name
 					self.send('_parse_' + child.name, child)
 				else
 					raise 'invalid section element ' + child.name
@@ -479,8 +480,8 @@ class AngelModuleDocumentation < GenericModuleDocumentation
 			xml.children.each do |child|
 				if child.text?
 					text = child.content.strip
-					@html.p text if text.length > 0
-				elsif ['item','html','textile','example','section'].include? child.name
+					raise "invalid non-empty text #{text.inspect}" if text != ""
+				elsif ['item','html','markdown','example','section'].include? child.name
 					self.send('_parse_' + child.name, child)
 				else
 					raise 'invalid section element ' + child.name
@@ -543,8 +544,8 @@ class ChapterDocumentation < Documentation
 			xml.children.each do |child|
 				if child.text?
 					text = child.content.strip
-					@html.p text if text.length > 0
-				elsif ['html','textile','example','section'].include? child.name
+					raise "invalid non-empty text #{text.inspect}" if text != ""
+				elsif ['html','markdown','example','section'].include? child.name
 					self.send('_parse_' + child.name, child)
 				else
 					raise 'invalid section element ' + child.name
@@ -736,7 +737,8 @@ end
 
 
 if __FILE__ == $0
-	output_directory = ARGV[0] || '.'
+	output_directory = File.absolute_path(ARGV[0] || '.')
+	Dir.chdir(File.dirname(__FILE__))
 
 	if not system("xmllint --noout --schema doc_schema.xsd *.xml 2>&1")
 		STDERR.puts "Couldn't validate XML files"

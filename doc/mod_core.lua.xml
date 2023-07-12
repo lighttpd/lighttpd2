@@ -3,16 +3,17 @@
 	<short>provides some useful helpers written in lua</short>
 
 	<section title="Install">
-		<textile>
-			By default distributions (and @make install@) should provide the necessary files; but you can always find them in the "contrib":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib folder:
-			* @core.lua@
-			* @core__cached_html.lua@
-			* @core__xsendfile.lua@
+		<markdown>
+			By default distributions (and `make install`) should provide the necessary files; but you can always find them in the [contrib](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib) folder:
+
+			* `core.lua`
+			* `core__cached_html.lua`
+			* `core__xsendfile.lua`
 
 			That way you can modify them for your own needs if you have to (although it is recommended to change the names of the files and the actions, so you don't get conflicts).
 
-			lighttpd should search for @core.lua@ in the correct (install) locations, so you don't need the absolute path here.
-		</textile>
+			lighttpd should search for `core.lua` in the correct (install) locations, so you don't need the absolute path here.
+		</markdown>
 	</section>
 
 	<action name="core.wsgi">
@@ -23,23 +24,19 @@
 		<parameter name="action">
 			<short>action block connecting to the wsgi backend</short>
 		</parameter>
-		<description>
-			<textile>
-				See "Howto WSGI":https://redmine.lighttpd.net/projects/lighttpd2/wiki/Howto_WSGI for an example.
+		<description><markdown>
+			See [Howto WSGI](https://redmine.lighttpd.net/projects/lighttpd2/wiki/Howto_WSGI) for an example.
 
-				WSGI applications expect the url to be split into @SCRIPT_NAME@ and @PATH_INFO@ (CGI environment variables); @SCRIPT_NAME@ is their "application root", and @PATH_INFO@ the requested resource in the application.
-				By default, lighttpd uses an empty @PATH_INFO@ (unless you used the "pathinfo;" action, but this doesn't help as we're not dealing with static files here).
+			WSGI applications expect the url to be split into `SCRIPT_NAME` and `PATH_INFO` (CGI environment variables); `SCRIPT_NAME` is their "application root", and `PATH_INFO` the requested resource in the application.  
+			By default, lighttpd uses an empty `PATH_INFO` (unless you used the "pathinfo;" action, but this doesn't help as we're not dealing with static files here).
 
-				*Important*: WSGI is an "extension" of CGI; it doesn't specify a transport protocol, you can use it with plain CGI, FastCGI or SCGI (or anything else that supports the basic CGI protocol)
-			</textile>
-		</description>
+			**Important**: WSGI is an "extension" of CGI; it doesn't specify a transport protocol, you can use it with plain CGI, FastCGI or SCGI (or anything else that supports the basic CGI protocol)
+		</markdown></description>
 
 		<example>
-			<description>
-				<textile>
-					Example: Trac in @/trac@, listening via FastCGI on @unix:/var/run/lighttpd/trac.socket@.
-				</textile>
-			</description>
+			<description><markdown>
+				Example: Trac in `/trac`, listening via FastCGI on `unix:/var/run/lighttpd/trac.socket`.
+			</markdown></description>
 			<config>
 				setup {
 					module_load ("mod_lua", "mod_fastcgi");
@@ -92,20 +89,18 @@
 		<parameter name="userlist">
 			<short>list of usernames to allow</short>
 		</parameter>
-		<description>
-			<textile>
-				This helper constructs a regular expression to match against request.environment["REMOTE_USER"], so the example below is the same as:
+		<description><markdown>
+			This helper constructs a regular expression to match against request.environment["REMOTE_USER"], so the example below is the same as:
 
-				<pre>
-				auth.plain [ "method" => "basic", "realm" => "test", "file" => "/etc/lighttpd2/test.plain" ];
-				if req.env["REMOTE_USER"] !~ "^(foo1|foo2)$" { auth.deny; }
-				</pre>
+			```
+			auth.plain [ "method" => "basic", "realm" => "test", "file" => "/etc/lighttpd2/test.plain" ];
+			if req.env["REMOTE_USER"] !~ "^(foo1|foo2)$" { auth.deny; }
+			```
 
-				This action uses lua only to create the action, no lua is executed to handle requests in this case.
+			This action uses lua only to create the action, no lua is executed to handle requests in this case.
 
-				Be careful: the empty username matches unauthenticated users.
-			</textile>
-		</description>
+			Be careful: the empty username matches unauthenticated users.
+		</markdown></description>
 		<example>
 			<config>
 				setup {

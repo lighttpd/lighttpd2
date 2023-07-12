@@ -45,13 +45,11 @@
 			</table>
 		</parameter>
 
-		<description>
-			<textile>
-				For @ciphers@ see OpenSSL "ciphers":https://www.openssl.org/docs/manmaster/man1/ciphers.html string
+		<description><markdown>
+			For `ciphers` see OpenSSL [ciphers](https://www.openssl.org/docs/manmaster/man1/ciphers.html) string
 
-				For @options@ see "options":https://www.openssl.org/docs/manmaster/man3/SSL_CTX_set_options.html. Explicitly specify the reverse flag by toggling the "NO_" prefix to override defaults.
-			</textile>
-		</description>
+			For `options` see [options](https://www.openssl.org/docs/manmaster/man3/SSL_CTX_set_options.html). Explicitly specify the reverse flag by toggling the "NO_" prefix to override defaults.
+		</markdown></description>
 
 		<example title="Simple TLS on IPv4 and IPv6">
 			<config>
@@ -106,14 +104,13 @@
 		<parameter name="list">
 			<short>list of subsets to export</short>
 		</parameter>
-		<description>
-			<textile>
-				Supported subsets:
-				* "client"      - set @SSL_CLIENT_S_DN_@ short-named entries
-				* "client-cert" - set @SSL_CLIENT_CERT@ to client certificate PEM
-				* "server"      - set @SSL_SERVER_S_DN_@ short-named entries
-				* "server-cert" - set @SSL_SERVER_CERT@ to server certificate PEM
-			</textile>
-		</description>
+		<description><markdown>
+			Supported subsets:
+
+			* "client"      – set `SSL_CLIENT_S_DN_` short-named entries
+			* "client-cert" – set `SSL_CLIENT_CERT` to client certificate PEM
+			* "server"      – set `SSL_SERVER_S_DN_` short-named entries
+			* "server-cert" – set `SSL_SERVER_CERT` to server certificate PEM
+		</markdown></description>
 	</action>
 </module>

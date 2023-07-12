@@ -2,31 +2,27 @@
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
 	<short>modifies request path and querystring</short>
 
-	<description>
-		<textile>
-			It supports matching "regular expressions":core_regex.html#core_regex and "substitution":core_pattern.html#core_pattern with captured substrings as well as other placeholders.
+	<description><markdown>
+		It supports matching [regular expressions](core_regex.html#core_regex) and [substitution](core_pattern.html#core_pattern) with captured substrings as well as other placeholders.
 
-			If your rewrite target does not contain any question mark (@?@), then the querystring will not be altered.
-			If it does contain @?@ the querystring will be overwritten with the part after the @?@. To append the original querystring, use @%{request.query}@.
+		If your rewrite target does not contain any question mark (`?`), then the querystring will not be altered.  
+		If it does contain `?` the querystring will be overwritten with the part after the `?`. To append the original querystring, use `%{request.query}`.
 
-			*IMPORTANT*: rewrite only changes the url, not the physical filename that it got mapped to by docroot or alias actions. So you need your docroot and alias actions after the rewrite.
-			If you have conditional rewrites like @if !phys.is_file { rewrite ... }@ you need docroot/alias both before (so it can check for the physical file) *and* after it (to build the new physical path).
-		</textile>
-	</description>
+		**IMPORTANT**: rewrite only changes the url, not the physical filename that it got mapped to by docroot or alias actions. So you need your docroot and alias actions after the rewrite.  
+		If you have conditional rewrites like `if !phys.is_file { rewrite ... }` you need docroot/alias both before (so it can check for the physical file) **and** after it (to build the new physical path).
+	</markdown></description>
 
 	<action name="rewrite">
 		<short>modify request path and querystring</short>
 		<parameter name="rule">
 			<short>a simple target string or one rule, mapping a regular expression to a target string, or a list of rules.</short>
 		</parameter>
-		<description>
-			<textile>
-				* The target string is a "pattern":core_pattern.html#core_pattern.
-				* The "regular expressions":core_regex.html#core_regex are used to match the request path (always starts with "/" and does *not* include the query string!)
-				* If a list of rules is given, rewrite stops on the first match.
-				* Replaces the query string iff the target string contains an @?@
-			</textile>
-		</description>
+		<description><markdown>
+			* The target string is a [pattern](core_pattern.html#core_pattern).
+			* The [regular expressions](core_regex.html#core_regex) are used to match the request path (always starts with "/" and does **not** include the query string!)
+			* If a list of rules is given, rewrite stops on the first match.
+			* Replaces the query string iff the target string contains an `?`
+		</markdown></description>
 		<example title="Example: rewrite always">
 			<config>
 				setup {
@@ -52,11 +48,9 @@
 			</config>
 		</example>
 		<example title="Example: pretty urls">
-			<description>
-				<textile>
-					Note: you really should move the logic for such rewrites into your application, and just rewrite all pretty urls to your index.php without putting the actions into the querystring.
-				</textile>
-			</description>
+			<description><markdown>
+				Note: you really should move the logic for such rewrites into your application, and just rewrite all pretty urls to your index.php without putting the actions into the querystring.
+			</markdown></description>
 			<config><![CDATA[
 				setup {
 					module_load "mod_rewrite";
@@ -80,15 +74,13 @@
 		<parameter name="rule">
 			<short>a simple target string or one rule, mapping a regular expression to a target string, or a list of rules.</short>
 		</parameter>
-		<description>
-			<textile>
-				Similar to "@rewrite@":mod_rewrite.html#mod_rewrite__action_rewrite, but matches the raw path (i.e. the path before URL decoding and sanitizing) and the result is decoded again.
+		<description><markdown>
+			Similar to [`rewrite`](mod_rewrite.html#mod_rewrite__action_rewrite), but matches the raw path (i.e. the path before URL decoding and sanitizing) and the result is decoded again.
 
-				"@rewrite@":mod_rewrite.html#mod_rewrite__action_rewrite writes the result to @request.path@ and possibly @request.query@ and uses URL encoding to generate @request.raw_path@ from those.
-				"@rewrite_raw@":mod_rewrite.html#mod_rewrite__action_rewrite_raw writes @request.raw_path@ and decodes it into @request.path@ and @request.query@; this means the query string is always overwritten.
-				In both cases @request.path@ gets simplified afterwards.
-			</textile>
-		</description>
+			[`rewrite`](mod_rewrite.html#mod_rewrite__action_rewrite) writes the result to `request.path` and possibly `request.query` and uses URL encoding to generate `request.raw_path` from those.  
+			[`rewrite_raw`](mod_rewrite.html#mod_rewrite__action_rewrite_raw) writes `request.raw_path` and decodes it into `request.path` and `request.query`; this means the query string is always overwritten.  
+			In both cases `request.path` gets simplified afterwards.
+		</markdown></description>
 	</action>
 
 	<option name="rewrite.debug">

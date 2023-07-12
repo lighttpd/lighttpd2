@@ -4,13 +4,11 @@
 
 	<action name="flv">
 		<short>pseudo stream the current file as flash</short>
-		<description>
-			<textile>
-				Lets flash players seek with the "start" query string parameter to an (byte) offset in the file, and prepends a simple flash header before streaming the file from that offset.
+		<description><markdown>
+			Lets flash players seek with the "start" query string parameter to an (byte) offset in the file, and prepends a simple flash header before streaming the file from that offset.
 
-				Uses "video/x-flv" as hard-coded content type.
-			</textile>
-		</description>
+			Uses "video/x-flv" as hard-coded content type.
+		</markdown></description>
 		<example>
 			<config>
 				if phys.path =$ ".flv" {
@@ -19,13 +17,11 @@
 			</config>
 		</example>
 		<example>
-			<description>
-				<textile>
-					Use caching and bandwidth throttling to save traffic. Use a small burst threshold to prevent the player from buffering at the beginning.
+			<description><markdown>
+				Use caching and bandwidth throttling to save traffic. Use a small burst threshold to prevent the player from buffering at the beginning.
 
-					This config will make browsers cache videos for 1 month and limit bandwidth to 150 kilobyte/s after 500 kilobytes.
-				</textile>
-			</description>
+				This config will make browsers cache videos for 1 month and limit bandwidth to 150 kilobyte/s after 500 kilobytes.
+			</markdown></description>
 			<config>
 				if phys.path =$ ".flv" {
 					expire "access 1 month";

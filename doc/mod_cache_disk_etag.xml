@@ -2,31 +2,29 @@
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
 	<short>caches generated content on disk if an etag response header is set; if the backend sends an already cached etag, the backend is closed and the file is sent directly.</short>
 
-	<description>
-		<textile>
-			Please note: This will not skip the backend, as it will need at least the response headers.
+	<description><markdown>
+		Please note: This will not skip the backend, as it will need at least the response headers.
 
-			*Hint:*
-			Use a cron-job like the following to remove old cached data, e.g. in crontab daily:
+		**Hint:**  
+		Use a cron-job like the following to remove old cached data, e.g. in crontab daily:
 
-			<pre>
-			find /var/cache/lighttpd/cache_etag/ -type f -mtime +2 -exec rm -r {} \;
-			</pre>
+		```
+		find /var/cache/lighttpd/cache_etag/ -type f -mtime +2 -exec rm -r {} \;
+		```
 
-			*Hint:*
-			Have a look at "mod_deflate":mod_deflate.html#mod_deflate to see this module in action.
-		</textile>
-	</description>
+		**Hint:**  
+		Have a look at [mod_deflate](mod_deflate.html#mod_deflate) to see this module in action.
+	</markdown></description>
 
 	<action name="cache.disk.etag">
 		<short>cache responses based on the ETag response header</short>
 		<parameter name="path">
 			<short>directory to store the cached results in</short>
 		</parameter>
-		<description>
+		<description><markdown>
 			This blocks action progress until the response headers are done (i.e. there has to be a content generator before it (like fastcgi/dirlist/static file).
 			You could insert it multiple times of course (e.g. before and after deflate).
-		</description>
+		</markdown></description>
 
 		<example>
 			<config>

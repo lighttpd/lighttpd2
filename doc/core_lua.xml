@@ -1,26 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <chapter xmlns="urn:lighttpd.net:lighttpd2/doc1" title="Lua API" order="core_regex_after_02_lua">
-	<description>
-		<textile>
-			Lua can be used to generate configs (like a shortcut to "@include_shell@":core_config.html#core_config__includes) or to write actual response handlers.
+	<description><markdown>
+		Lua can be used to generate configs (like a shortcut to [`include_shell`](core_config.html#core_config__includes)) or to write actual response handlers.
 
-			Using Lua to generate configs doesn't have any performance impact; in this case Lua is only run at startup to generate the config, and there is no Lua involved for processing requests.
+		Using Lua to generate configs doesn't have any performance impact; in this case Lua is only run at startup to generate the config, and there is no Lua involved for processing requests.
 
-			As a @lua_State@ itself is not thread-safe, you have two ways to use Lua configs:
-			* "@include_lua@":core_config.html#core_config__includes and "@lua.plugin@":mod_lua.html#mod_lua__setup_lua-plugin : using a global server lock, but with sharing the same @lua_State@ in all workers
-			* "@lua_handler@":mod_lua.html#mod_lua__action_lua-handler: without locking, and every worker has its own @lua_State@ (and they cannot share their global context).
-		</textile>
-	</description>
+		As a `lua_State` itself is not thread-safe, you have two ways to use Lua configs:
+
+		* [`include_lua`](core_config.html#core_config__includes) and [`lua.plugin`](mod_lua.html#mod_lua__setup_lua-plugin): using a global server lock, but with sharing the same `lua_State` in all workers
+		* [`lua_handler`](mod_lua.html#mod_lua__action_lua-handler): without locking, and every worker has its own `lua_State` (and they cannot share their global context).
+	</markdown></description>
 
 	<section title="Lua Config">
-		<textile>
-			This section describe how to translate concepts from the main config to Lua. You can write the whole config in Lua or only parts and include them (for example with "@include_lua@":core_config.html#core_config__includes).
-		</textile>
+		<markdown>
+			This section describe how to translate concepts from the main config to Lua. You can write the whole config in Lua or only parts and include them (for example with [`include_lua`](core_config.html#core_config__includes)).
+		</markdown>
 
 		<example title="Example - debug.lua">
-			<description><textile><![CDATA[
-				The following Lua snippet saved as "debug.lua" could for example be included with @include_lua "debug.lua"@.
-			]]></textile></description>
+			<description><markdown><![CDATA[
+				The following Lua snippet saved as "debug.lua" could for example be included with `include_lua "debug.lua"`.
+			]]></markdown></description>
 
 			<config><![CDATA[
 				function mydebug(vr)
@@ -55,62 +54,63 @@
 		</example>
 
 		<section title="Values">
-			<textile><![CDATA[
-				* Boolean: Lua supports @true@ and @false@ directly
-				* Integers: Lua has its own number type (usually a "@double@":http://en.wikipedia.org/wiki/Double-precision_floating-point_format), and doesn't know any of the suffixes.
+			<markdown><![CDATA[
+				* Boolean: Lua supports `true` and `false` directly
+				* Integers: Lua has its own number type (usually a [`double`](http://en.wikipedia.org/wiki/Double-precision_floating-point_format)), and doesn't know any of the suffixes.
 				* Strings: Lua supports strings directly. Check the Lua reference for the various quoting styles.
-				* Lists and Key-Value-Lists: Lua has a "table" type; it can contain sequential lists and associative mappings. Use @{1, 2, 3}@ to create simple lists, @{a=1, b=2}@ to create unique mappings (which get converted to Key-Value-Lists) or @{{"a",1},{"a",2}}@ to explicitly create Key-Value-Lists (where a key can be used more than once and the order matters).
-				  Don't mix sequential lists and associative mappings.
-				  If you get a List (possible a Key-Value-List) value from lighttpd it is represented as sequential list but has a special @__index@ meta-table method supporting strings and @nil@ as lookup parameter, i.e. you can treat a Key-Value-List like an associative mapping in Lua (see for example the options handling in "contrib/secdownload.lua":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/secdownload.lua).
+				* Lists and Key-Value-Lists: Lua has a "table" type; it can contain sequential lists and associative mappings. Use `{1, 2, 3}` to create simple lists, `{a=1, b=2}` to create unique mappings (which get converted to Key-Value-Lists) or `{{"a",1},{"a",2}}` to explicitly create Key-Value-Lists (where a key can be used more than once and the order matters).  
+				  Don't mix sequential lists and associative mappings.  
+				  If you get a List (possible a Key-Value-List) value from lighttpd it is represented as sequential list but has a special `__index` meta-table method supporting strings and `nil` as lookup parameter, i.e. you can treat a Key-Value-List like an associative mapping in Lua (see for example the options handling in [contrib/secdownload.lua](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/secdownload.lua)).
 				* Expressions and variables just are the usual Lua things; there is no direct access to the lighttpd config variables (yet).
-				* Action blocks: you can make an action from a list of actions using the "list action":plugin_core.html#plugin_core__action_list (@act = action.list(act1, act2)@)
-			]]></textile>
+				* Action blocks: you can make an action from a list of actions using the [list action](plugin_core.html#plugin_core__action_list) (`act = action.list(act1, act2)`)
+			]]></markdown>
 		</section>
 
 		<section title="Function calls">
-			<textile><![CDATA[
-				Action context is given by prefixing the function name with @action.@, and setup context by prefixing with @setup.@. Don't try to call setups in request handling.
+			<markdown><![CDATA[
+				Action context is given by prefixing the function name with `action.`, and setup context by prefixing with `setup.`. Don't try to call setups in request handling.
 
 				Also each Lua function can act as an action (see the debug.lua example above), taking a virtual request object as parameter.
 
-				Includes are not supported, neither is the debug @__print@ (there are other logging methods available).
-			]]></textile>
+				Includes are not supported, neither is the debug `__print` (there are other logging methods available).
+			]]></markdown>
 		</section>
 
 		<section title="Conditions">
-			<textile><![CDATA[
+			<markdown><![CDATA[
 				Conditions are the ugliest part: there is no way translating native Lua if statements into the lighttpd config, so they need to be constructed manually.
 
 				Only the long names of the condition variables are available in Lua. The condition operators are all given names and appended to the condition variable, and then called with the value to compare with.
 
-				table(table table-striped).
-				|_. op |_. Lua name |_. op |_. Lua name |
-				| <notextile>==</notextile> | @:eq@ | != | @:ne@ |
-				| <= | @:le@ | < | @:lt@ |
-				| >= | @:ge@ | > | @:gt@ |
-				| =~ | @:match@ | !~ | @:nomatch@ |
-				| =^ | @:prefix@ | !^ | @:notprefix@ |
-				| =$ | @:suffix@ | !$ | @:notsuffix@ |
-				| =/ | @:ip@ | !/ | @:notip@ |
+				| op | Lua name  | op | Lua name |
+				|----|-----------|----|----------|
+				| == | `:eq`     | != | `:ne`    |
+				| <= | `:le`     | <  | `:lt`    |
+				| >= | `:ge`     | >  | `:gt`    |
+				| =~ | `:match`  | !~ | `:nomatch` |
+				| =^ | `:prefix` | !^ | `:notprefix` |
+				| =$ | `:suffix` | !$ | `:notsuffix` |
+				| =/ | `:ip`     | !/ | `:notip` |
+				{:.table .table-striped }
 
-				Boolean condition variables are called with @:is()@ or @:isnot()@.
+				Boolean condition variables are called with `:is()` or `:isnot()`.
 
-				The result of such call (a "condition") is then passed as first parameter to "@action.when@":plugin_core#plugin_core__action_when.
-			]]></textile>
+				The result of such call (a "condition") is then passed as first parameter to [`action.when`](plugin_core#plugin_core__action_when).
+			]]></markdown>
 
 			<example title="Example - admin only">
-				<description><textile>
-					Translating @if req.env["REMOTE_USER"] != "admin" { auth.deny; }@ to Lua:
-				</textile></description>
+				<description><markdown>
+					Translating `if req.env["REMOTE_USER"] != "admin" { auth.deny; }` to Lua:
+				</markdown></description>
 				<config><![CDATA[
 					actions = action.when(request.environment["REMOTE_USER"]:ne("admin"), action.auth.deny())
 				]]></config>
 			</example>
 
 			<example title="Example - physical files only">
-				<description><textile>
-					Translating @if !phys.exists { auth.deny; }@ to Lua:
-				</textile></description>
+				<description><markdown>
+					Translating `if !phys.exists { auth.deny; }` to Lua:
+				</markdown></description>
 				<config><![CDATA[
 					actions = action.when(physical.exists:isnot(), action.auth.deny())
 				]]></config>
@@ -119,67 +119,67 @@
 	</section>
 
 	<section title="API">
-		<textile><![CDATA[
+		<markdown><![CDATA[
 			This section documents the object types you need to handle requests; you will probably start from the Virtual Request object you get as parameter in your handler.
 
-			Object fields should be accessed with @.field@ or @["field"]@, for example:
+			Object fields should be accessed with `.field` or `["field"]`, for example:
 
-			<pre>
+			```
 			e = vr.env
 			e["XXX"] = "abc"
-			</pre>
+			```
 
 			Fields tagged with (ro) are read only; that does not mean the fields value can't be modified, you only cannot overwrite the field with another object. Readonly string / number properties are really read only though.
 
-			Call object methods with @:method(...)@:
+			Call object methods with `:method(...)`:
 
-			<pre>
+			```
 			vr:print("Hello World")
-			</pre>
+			```
 
-			*Note*:
-			The @obj:method(par1, par2, ...)@ syntax is just another way to say @obj["method"](obj, par1, par2, ...)@ (but @obj@ is only evaluated once), so field and method names live in the same namespace.
-			This means that our container types cannot provide access to fields which have the same names as the methods (and the methods starting with "__" are not listed here), so you have to use explicit access methods to read generic fields in such containers (write is not a problem as we don't allow writing methods).
-			All container types should provide a @get@ and a @set@ method to provide "clean" access to the container contents.
+			**Note**:
+			The `obj:method(par1, par2, ...)` syntax is just another way to say `obj["method"](obj, par1, par2, ...)` (but `obj` is only evaluated once), so field and method names live in the same namespace.  
+			This means that our container types cannot provide access to fields which have the same names as the methods (and the methods starting with "__" are not listed here), so you have to use explicit access methods to read generic fields in such containers (write is not a problem as we don't allow writing methods).  
+			All container types should provide a `get` and a `set` method to provide "clean" access to the container contents.
 
-			h3. pairs()
+			### pairs()
 
-			Some objects may provide a @:pairs()@ method to loop through the fields (not the methods); this works for simple things like
+			Some objects may provide a `:pairs()` method to loop through the fields (not the methods); this works for simple things like
 
-			<pre>
+			```
 			for k, v in vr.env:pairs() do
 			  vr:print("env['" .. k .. "'] = '" .. v .. "'")
 			end
-			</pre>
+			```
 
-			lua expects that the @:pairs@ method returns a @next, obj, startkey@ tuple and loops through the list with @k = startkey; while k, v = next(obj, k) do ... end@; but the @next()@ method is supposed to use @k@ as previous key and to return the next one.
-			Our @next@ methods will keep the current position in an internal object (associated with the @next@ function as upvalue), and will advance on every call ignoring the @obj@ and @k@ parameter.
-		]]></textile>
+			lua expects that the `:pairs` method returns a `next, obj, startkey` tuple and loops through the list with `k = startkey; while k, v = next(obj, k) do ... end`; but the `next()` method is supposed to use `k` as previous key and to return the next one.  
+			Our `next` methods will keep the current position in an internal object (associated with the `next` function as upvalue), and will advance on every call ignoring the `obj` and `k` parameter.
+		]]></markdown>
 
 		<section title="Global constants">
-			<textile><![CDATA[
-				@liHandlerResult@ enumeration values:
+			<markdown><![CDATA[
+				`liHandlerResult` enumeration values:
 
-				* @lighty.HANDLER_GO_ON@
-				* @lighty.HANDLER_COMEBACK@
-				* @lighty.HANDLER_WAIT_FOR_EVENT@
-				* @lighty.HANDLER_ERROR@
-			]]></textile>
+				* `lighty.HANDLER_GO_ON`
+				* `lighty.HANDLER_COMEBACK`
+				* `lighty.HANDLER_WAIT_FOR_EVENT`
+				* `lighty.HANDLER_ERROR`
+			]]></markdown>
 		</section>
 
 		<section title="Global methods">
-			<textile><![CDATA[
-				* @lighty.print@ (and @lighty.error@ and @print@): print parameters via lua "tostring" method as ERROR in global server context
-				* @lighty.warning@: print parameters via lua "tostring" method as WARNING in global server context
-				* @lighty.info@: print parameters via lua "tostring" method as INFO in global server context
-				* @lighty.debug@: print parameters via lua "tostring" method as DEBUG in global server context
-				* @lighty.filter_in(class)@: creates a new action, which adds a incoming filter from @class:new(vr)@ if called at runtime
-				* @lighty.filter_out(class)@: creates a new action, which adds a outgoing filter from @class:new(vr)@ if called at runtime
-				* @lighty.md5(str)@: calculates the md5 checksum of the string @str@ (returns the digest as string in hexadecimal)
-				* @lighty.sha1(str)@: calculates the sha1 checksum of the string @str@ (returns the digest as string in hexadecimal)
-				* @lighty.sha256(str)@: calculates the sha256 checksum of the string @str@ (returns the digest as string in hexadecimal)
-				* @lighty.path_simplify(str)@: return simplified path
-			]]></textile>
+			<markdown><![CDATA[
+				* `lighty.print` (and `lighty.error` and `print`): print parameters via lua "tostring" method as ERROR in global server context
+				* `lighty.warning`: print parameters via lua "tostring" method as WARNING in global server context
+				* `lighty.info`: print parameters via lua "tostring" method as INFO in global server context
+				* `lighty.debug`: print parameters via lua "tostring" method as DEBUG in global server context
+				* `lighty.filter_in(class)`: creates a new action, which adds a incoming filter from `class:new(vr)` if called at runtime
+				* `lighty.filter_out(class)`: creates a new action, which adds a outgoing filter from `class:new(vr)` if called at runtime
+				* `lighty.md5(str)`: calculates the md5 checksum of the string `str` (returns the digest as string in hexadecimal)
+				* `lighty.sha1(str)`: calculates the sha1 checksum of the string `str` (returns the digest as string in hexadecimal)
+				* `lighty.sha256(str)`: calculates the sha256 checksum of the string `str` (returns the digest as string in hexadecimal)
+				* `lighty.path_simplify(str)`: return simplified path
+			]]></markdown>
 
 			<example>
 				<config><![CDATA[
@@ -206,167 +206,177 @@
 		</section>
 
 		<section title="Virtual Request">
-			<textile><![CDATA[
+			<markdown><![CDATA[
 				Fields:
-				* @con@(ro): Connection
-				* @in@(ro): Chunk Queue, read request post content
-				* @out@(ro): Chunk Queue, write response content
-				* @env@(ro): Environment, (fast)cgi environment
-				* @req@(ro): Request, data from request header
-				* @resp@(ro): Response, response header data
-				* @phys@(ro): Physical, paths and filenames
-				* @is_handled@(ro): whether vrequest is already handled
-				* @has_response@(ro): whether the response headers (and status) is available
+
+				* `con`(ro): Connection
+				* `in`(ro): Chunk Queue, read request post content
+				* `out`(ro): Chunk Queue, write response content
+				* `env`(ro): Environment, (fast)cgi environment
+				* `req`(ro): Request, data from request header
+				* `resp`(ro): Response, response header data
+				* `phys`(ro): Physical, paths and filenames
+				* `is_handled`(ro): whether vrequest is already handled
+				* `has_response`(ro): whether the response headers (and status) is available
 
 				Methods:
-				* @print(...)@: print parameters via lua @tostring@ method as ERROR in Virtual Request context
-				* @warning(...)@: print parameters via lua @tostring@ method as WARNING in Virtual Request context
-				* @info(...)@: print parameters via lua @tostring@ method as INFO in Virtual Request context
-				* @debug(...)@: print parameters via lua @tostring@ method as DEBUG in Virtual Request context
-				* @handle_direct()@: handle vrequest (i.e. provide headers and body); returns true if not already handled.
-				* @enter_action(act)@: push a new action on the action stack (return HANDLER_WAIT_FOR_EVENT to rerun after the pushed actions are done, HANDLER_GO_ON if you are done)
-				* @st, res, errno, msg = stat(filename)@: async stat(filename). Following results are possible
-				** st is the stat result, res == HANDLER_GO_ON, if the file was found. errno and msg are NIL. In all other cases st is NIL and res != HANDLER_GO_ON.
-				** res == HANDLER_WAIT_FOR_EVENT: stat() is in progress, just try again later (and return HANDLER_WAIT_FOR_EVENT in the meantime)
-				** res == HANDLER_ERROR: if stat() failed, errno contains the errno and msg the error message for the errno code.
-				* @add_filter_in(obj)@: adds @obj@ as lua incoming filter (needs to respond to @obj:handle(vr, outq, inq)@ and optionally @obj:finished()@); returns a Filter object
-				* @add_filter_out(obj)@: adds @obj@ as lua outgoing filter (needs to respond to @obj:handle(vr, outq, inq)@ and optionally @obj:finished()@); returns a Filter object
-			]]></textile>
+
+				* `print(...)`: print parameters via lua `tostring` method as ERROR in Virtual Request context
+				* `warning(...)`: print parameters via lua `tostring` method as WARNING in Virtual Request context
+				* `info(...)`: print parameters via lua `tostring` method as INFO in Virtual Request context
+				* `debug(...)`: print parameters via lua `tostring` method as DEBUG in Virtual Request context
+				* `handle_direct()`: handle vrequest (i.e. provide headers and body); returns true if not already handled.
+				* `enter_action(act)`: push a new action on the action stack (return HANDLER_WAIT_FOR_EVENT to rerun after the pushed actions are done, HANDLER_GO_ON if you are done)
+				* `st, res, errno, msg = stat(filename)`: async stat(filename). Following results are possible
+					* st is the stat result, res == HANDLER_GO_ON, if the file was found. errno and msg are NIL. In all other cases st is NIL and res != HANDLER_GO_ON.
+					* res == HANDLER_WAIT_FOR_EVENT: stat() is in progress, just try again later (and return HANDLER_WAIT_FOR_EVENT in the meantime)
+					* res == HANDLER_ERROR: if stat() failed, errno contains the errno and msg the error message for the errno code.
+				* `add_filter_in(obj)`: adds `obj` as lua incoming filter (needs to respond to `obj:handle(vr, outq, inq)` and optionally `obj:finished()`); returns a Filter object
+				* `add_filter_out(obj)`: adds `obj` as lua outgoing filter (needs to respond to `obj:handle(vr, outq, inq)` and optionally `obj:finished()`); returns a Filter object
+			]]></markdown>
 		</section>
 
 		<section title="Connection">
-			<textile><![CDATA[
-				* @local@: address of local socket
-				* @remote@: address of remote host
-			]]></textile>
+			<markdown><![CDATA[
+				* `local`: address of local socket
+				* `remote`: address of remote host
+			]]></markdown>
 		</section>
 
 		<section title="Environment">
-			<textile><![CDATA[
-				Fields are the keys in the environment, so it behaves like a lua table; if you use keys starting with "__" or keys with the name of one of the methods below, you have to use the @get@ method to read them, for example:
+			<markdown><![CDATA[
+				Fields are the keys in the environment, so it behaves like a lua table; if you use keys starting with "__" or keys with the name of one of the methods below, you have to use the `get` method to read them, for example:
 
-				<pre>
-				x = env["set"]      -- doesn't work, returns the set method instead
-				x = env:get("set")  -- use this instead
+					x = env["set"]      -- doesn't work, returns the set method instead
+					x = env:get("set")  -- use this instead
 
-				x = env[y]          -- don't do this, as y may be a special key like "set"
-				x = env:get(y)      -- just do it the safe way if you are not sure
-				</pre>
+					x = env[y]          -- don't do this, as y may be a special key like "set"
+					x = env:get(y)      -- just do it the safe way if you are not sure
 
 				Methods:
-				* @get(k)@: safe way for @env[k]@
-				* @set(k, v)@: safe way for @env[k] = v@
-				* @unset(k)@: safe way for @env[k] = nil@
-				* @weak_set(k, v)@: don't override old value, safe way for @env[k] = env[k] or v@
-				* @pairs()@: use to loop through keys: @for k, v in env:pairs() do ... end@
-				* @clear()@: remove all entries
-			]]></textile>
+
+				* `get(k)`: safe way for `env[k]`
+				* `set(k, v)`: safe way for `env[k] = v`
+				* `unset(k)`: safe way for `env[k] = nil`
+				* `weak_set(k, v)`: don't override old value, safe way for `env[k] = env[k] or v`
+				* `pairs()`: use to loop through keys: `for k, v in env:pairs() do ... end`
+				* `clear()`: remove all entries
+			]]></markdown>
 		</section>
 
 		<section title="Chunk Queue">
-			<textile><![CDATA[
+			<markdown><![CDATA[
 				Fields:
-				* @is_closed@: whether the ChunkQueue is closed
+
+				* `is_closed`: whether the ChunkQueue is closed
 
 				Methods:
-				* @add(s)@: appends a string to the queue
-				* @add({filename="/..."})@: appends a file to the queue (only regular files allowed)
-				* @reset()@: removes all chunks, resets counters
-				* @steal_all(from)@: steal all chunks from another queue (useful in a filter if you decide to pass all data through it)
-				* @skip_all()@: skips all chunks (removes all chunks but does *not* reset counters)
-			]]></textile>
+
+				* `add(s)`: appends a string to the queue
+				* `add({filename="/..."})`: appends a file to the queue (only regular files allowed)
+				* `reset()`: removes all chunks, resets counters
+				* `steal_all(from)`: steal all chunks from another queue (useful in a filter if you decide to pass all data through it)
+				* `skip_all()`: skips all chunks (removes all chunks but does **not** reset counters)
+			]]></markdown>
 		</section>
 
 		<section title="Request">
-			<textile><![CDATA[
+			<markdown><![CDATA[
 				Fields:
-				* @headers@(ro): HTTP Headers
-				* @http_method@(ro): HTTP method string ("GET", "POST", "HEAD", ...)
-				* @http_version@(ro): HTTP version string ("HTTP/1.0", "HTTP/1.1")
-				* @content_length@(ro): Numeric value of Content-Length header (not updated automatically if someone changes the header value), -1 if not specified
-				* @uri@: Request URI
-			]]></textile>
+
+				* `headers`(ro): HTTP Headers
+				* `http_method`(ro): HTTP method string ("GET", "POST", "HEAD", ...)
+				* `http_version`(ro): HTTP version string ("HTTP/1.0", "HTTP/1.1")
+				* `content_length`(ro): Numeric value of Content-Length header (not updated automatically if someone changes the header value), -1 if not specified
+				* `uri`: Request URI
+			]]></markdown>
 		</section>
 
 		<section title="Request URI">
-			<textile><![CDATA[
+			<markdown><![CDATA[
 				Fields:
-				* @raw@: Request uri as it was in the HTTP Request Line (or a rewrite result)
-				* @raw_path@: not decoded path with querystring (will be the same as @raw@ for most requests, unless someone does something like @GET http://example.com/test?abc HTTP/1.1@)
-				* @raw_orig_path@: same as raw_path, but saved before any rewrite happened
-				* @scheme@: "http" or "https"
-				* @authority@: complete host name header (or authority in an absolute url), e.g. "user@www.example.com.:8080"
-				* @path@: decoded and simplified path name, without authority, scheme, query-string; e.g. "/index.php"
-				* @host@: simple hostname, without auth information, without port, without trailing dot; e.g. "www.example.com"
-				* @query@: The querystring, e.g. "a=1&b=2"
-			]]></textile>
+
+				* `raw`: Request uri as it was in the HTTP Request Line (or a rewrite result)
+				* `raw_path`: not decoded path with querystring (will be the same as `raw` for most requests, unless someone does something like `GET http://example.com/test?abc HTTP/1.1`)
+				* `raw_orig_path`: same as raw_path, but saved before any rewrite happened
+				* `scheme`: "http" or "https"
+				* `authority`: complete host name header (or authority in an absolute url), e.g. "user@www.example.com.:8080"
+				* `path`: decoded and simplified path name, without authority, scheme, query-string; e.g. "/index.php"
+				* `host`: simple hostname, without auth information, without port, without trailing dot; e.g. "www.example.com"
+				* `query`: The querystring, e.g. "a=1&b=2"
+			]]></markdown>
 		</section>
 
 		<section title="Response">
-			<textile><![CDATA[
+			<markdown><![CDATA[
 				Fields:
-				* @headers@(ro): HTTP Headers
-				* @status@: HTTP status code
-			]]></textile>
+
+				* `headers`(ro): HTTP Headers
+				* `status`: HTTP status code
+			]]></markdown>
 		</section>
 
 		<section title="Physical">
-			<textile><![CDATA[
+			<markdown><![CDATA[
 				Fields:
-				* @path@: physical path
-				* @doc_root@: document root
-				* @pathinfo@: pathinfo
-			]]></textile>
+
+				* `path`: physical path
+				* `doc_root`: document root
+				* `pathinfo`: pathinfo
+			]]></markdown>
 		</section>
 
 		<section title="HTTP Headers">
-			<textile><![CDATA[
+			<markdown><![CDATA[
 				Same restriction as Environment for fields.
 
 				Methods:
-				* @get(k)@: joins all header values for the key @k@ with ", " (as the rfc allows it)
-				* @set(k, v)@: removes all headers with key @k@ and, if v is not nil, appends new "k: v" header
-				* @append(k, v)@: appends ", v" to last header value with key k if it already exists, @insert(k, v)@ otherwise
-				* @insert(k, v)@: appends new "k: v" header to list
-				* @unset(k)@: removes all headers with key @k@
-				* @pairs()@: loops through all headers. Please note that the keys are not unique!
-				* @list(k)@: loops through all headers with key @k@
-				* @clear()@: remove all headers
-			]]></textile>
+
+				* `get(k)`: joins all header values for the key `k` with ", " (as the rfc allows it)
+				* `set(k, v)`: removes all headers with key `k` and, if v is not nil, appends new "k: v" header
+				* `append(k, v)`: appends ", v" to last header value with key k if it already exists, `insert(k, v)` otherwise
+				* `insert(k, v)`: appends new "k: v" header to list
+				* `unset(k)`: removes all headers with key `k`
+				* `pairs()`: loops through all headers. Please note that the keys are not unique!
+				* `list(k)`: loops through all headers with key `k`
+				* `clear()`: remove all headers
+			]]></markdown>
 		</section>
 
 		<section title="Filter">
-			<textile><![CDATA[
+			<markdown><![CDATA[
 				Represents a "liFilter".
 
 				Fields:
-				* @in@(ro): Chunk Queue, incoming stream
-				* @out@(ro): Chunk Queue, outgoing stream
-			]]></textile>
+
+				* `in`(ro): Chunk Queue, incoming stream
+				* `out`(ro): Chunk Queue, outgoing stream
+			]]></markdown>
 		</section>
 
 		<section title="Stat struct">
-			<textile><![CDATA[
-				Represents "struct stat". Most fields should be self explaining (@man 2 stat@ ("debian manpage":https://manpages.debian.org/stat.2.en.html) if you don't know them).
+			<markdown><![CDATA[
+				Represents "struct stat". Most fields should be self explaining (`man 2 stat` ([debian manpage](https://manpages.debian.org/stat.2.en.html)) if you don't know them).
 
 				Fields:
-				* @is_file@(ro): S_ISREG(mode)
-				* @is_dir@(ro): S_ISDIR(mode)
-				* @is_char@(ro): S_ISCHR(mode)
-				* @is_block@(ro): S_ISBLK(mode)
-				* @is_socket@(ro): S_ISSOCK(mode)
-				* @is_link@(ro): S_ISLNK(mode)
-				* @is_fifo@(ro): S_ISFIFO(mode)
-				* @mode@(ro)
-				* @mtime@(ro)
-				* @ctime@(ro)
-				* @atime@(ro)
-				* @uid@(ro)
-				* @gid@(ro)
-				* @size@(ro)
-				* @ino@(ro)
-				* @dev@(ro)
-			]]></textile>
+
+				* `is_file`(ro): S_ISREG(mode)
+				* `is_dir`(ro): S_ISDIR(mode)
+				* `is_char`(ro): S_ISCHR(mode)
+				* `is_block`(ro): S_ISBLK(mode)
+				* `is_socket`(ro): S_ISSOCK(mode)
+				* `is_link`(ro): S_ISLNK(mode)
+				* `is_fifo`(ro): S_ISFIFO(mode)
+				* `mode`(ro)
+				* `mtime`(ro)
+				* `ctime`(ro)
+				* `atime`(ro)
+				* `uid`(ro)
+				* `gid`(ro)
+				* `size`(ro)
+				* `ino`(ro)
+				* `dev`(ro)
+			]]></markdown>
 		</section>
 	</section>
 

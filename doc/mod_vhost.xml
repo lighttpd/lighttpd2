@@ -2,23 +2,19 @@
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
 	<short>offers various ways to implement virtual webhosts</short>
 
-	<description>
-		<textile>
-			It can map hostnames to actions and offers multiple ways to do so.
-			These ways differ in the flexibility of mapping (what to map and what to map to) as well as performance.
-		</textile>
-	</description>
+	<description><markdown>
+		It can map hostnames to actions and offers multiple ways to do so.  
+		These ways differ in the flexibility of mapping (what to map and what to map to) as well as performance.
+	</markdown></description>
 
 	<action name="vhost.map">
 		<short>maps given hostnames to action blocks</short>
 		<parameter name="mapping">
 			<short>key-value list with hostnames as keys and actions as values</short>
 		</parameter>
-		<description>
-			<textile>
-				@vhost.map@ offers a fast (lookup through hash-table) and flexible mapping, but maps only exact hostnames (no pattern/regex matching). The server port is never considered part of the hostname. Use the key @default@ (keyword, not as string) to specify a default action.
-			</textile>
-		</description>
+		<description><markdown>
+			`vhost.map` offers a fast (lookup through hash-table) and flexible mapping, but maps only exact hostnames (no pattern/regex matching). The server port is never considered part of the hostname. Use the key `default` (keyword, not as string) to specify a default action.
+		</markdown></description>
 		<example>
 			<config>
 				vhost.map ["host1" => actionblock1, "host2" => actionblock2, ..., "hostN" => actionblockN, default => actionblock0];
@@ -31,11 +27,9 @@
 		<parameter name="mapping">
 			<short>key-value list with regular expressions for hostnames as keys and actions as values</short>
 		</parameter>
-		<description>
-			<textile>
-				@vhost.map_regex@ walks through the list in the given order and stops at the first match; if no regular expression matched it will use the @default@ action (if specified).
-			</textile>
-		</description>
+		<description><markdown>
+			`vhost.map_regex` walks through the list in the given order and stops at the first match; if no regular expression matched it will use the `default` action (if specified).
+		</markdown></description>
 		<example>
 			<config>
 				vhost.map_regex ["host1regex" => actionblock1, "host2regex" => actionblock2, ..., "hostNregex" => actionblockN, default => actionblock0];
@@ -49,17 +43,16 @@
 	</option>
 
 	<example>
-		<description>
-			<textile>
-				Combining both actions is also possible.
+		<description><markdown>
+			Combining both actions is also possible.
 
-				What it does (for example):
-				* if @example.com@ or @www.example.com@ is requested, the block named "examplesite" will be executed
-				* if @mydomain.tld@ is requested, the block named "mydomain" will be executed
-				* if @mydomain.com@ or @www.mydomain.net@ is requested, the block named "mydomain" will be executed (through the regex matching)
-				* if @www.mydomain.tld@ or something entirely different is requested, the block named "defaultdom" will be executed
-			</textile>
-		</description>
+			What it does (for example):
+
+			* if `example.com` or `www.example.com` is requested, the block named "examplesite" will be executed
+			* if `mydomain.tld` is requested, the block named "mydomain" will be executed
+			* if `mydomain.com` or `www.mydomain.net` is requested, the block named "mydomain" will be executed (through the regex matching)
+			* if `www.mydomain.tld` or something entirely different is requested, the block named "defaultdom" will be executed
+		</markdown></description>
 		<config>
 			setup {
 				module_load "mod_vhost";

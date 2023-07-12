@@ -67,11 +67,9 @@
 		</example>
 
 		<example title="TLS with SNI from fetch backend">
-			<description>
-				<textile>
-					For a SNI hostname @example.com@ lighttpd2 will try to find the private key and certificate(s) in @/etc/certs/lighttpd_sni_example.com.pem@.
-				</textile>
-			</description>
+			<description><markdown>
+				For a SNI hostname `example.com` lighttpd2 will try to find the private key and certificate(s) in `/etc/certs/lighttpd_sni_example.com.pem`.
+			</markdown></description>
 			<config>
 				setup {
 					fetch.files_static "sni" => "/etc/certs/lighttpd_sni_*.pem";
@@ -144,48 +142,51 @@
 	</setup>
 
 	<section title="Server Name Indication (SNI)">
-		<textile>
-			"TLS SNI":http://en.wikipedia.org/wiki/Server_Name_Indication means that a client can send the hostname of the server it tries to connect to *unencrypted* in the TLS handshake.
+		<markdown>
+			[TLS SNI](http://en.wikipedia.org/wiki/Server_Name_Indication) means that a client can send the hostname of the server it tries to connect to **unencrypted** in the TLS handshake.  
 			If you want to host multiple hostnames on the same IP address (quite common) there are some options how to do it (they can be combined):
-			* Use a wildcard as "CommonName" (CN) in the certificate like @*.example.com@ (although this usually doesn't match @example.com@)
+
+			* Use a wildcard as "CommonName" (CN) in the certificate like `*.example.com` (although this usually doesn't match `example.com`)
 			* Use "Subject Alternative Names" in the certificate
 			* Provide different certificates based on the SNI hostname in the TLS handshake.
 
 			Clients supporting SNI usually support the other options too, but not all clients support SNI.
 
-			GnuTLS has some basic SNI support built in; if you specify multiple @pemfile@ s in the options, it will pick the first with a certificate that matches the SNI hostname.
+			GnuTLS has some basic SNI support built in; if you specify multiple `pemfile` s in the options, it will pick the first with a certificate that matches the SNI hostname.
 
-			lighttpd2 has an optional extended SNI support (which has to be enabled at compile time, and is required for the @sni-*@ options to be available). It is designed to load certificates asynchronously from backends (files, SQL, ...) on demand, using the "fetch API":core_fetch.html#core_fetch.
-			In this case lighttpd2 will fetch the certificate based on the SNI hostname from the given @sni-backend@ before GnuTLS is started for a connection.
-			If a SNI hostname was given by the client, but no certificate was found in the backend, it will use @sni-fallback-pemfile@ (if set) instead of @pemfile@.
+			lighttpd2 has an optional extended SNI support (which has to be enabled at compile time, and is required for the `sni-*` options to be available). It is designed to load certificates asynchronously from backends (files, SQL, ...) on demand, using the [fetch API](core_fetch.html#core_fetch).  
+			In this case lighttpd2 will fetch the certificate based on the SNI hostname from the given `sni-backend` before GnuTLS is started for a connection.  
+			If a SNI hostname was given by the client, but no certificate was found in the backend, it will use `sni-fallback-pemfile` (if set) instead of `pemfile`.
 
-			Combining @sni-backend@, @sni-fallback-pemfile@ and multiple @pemfile@ s won't work - it will only use the first configured @pemfile@ (if no SNI hostname was given by the client, otherwise @sni-*@ certificates are used).
+			Combining `sni-backend`, `sni-fallback-pemfile` and multiple `pemfile` s won't work - it will only use the first configured `pemfile` (if no SNI hostname was given by the client, otherwise `sni-*` certificates are used).
 
 			Also note that lighttpd2 does NOT verify whether the SNI hostname matches the hostname in the HTTP request. SNI is only used by the client to tell the server for which hostname it should send the certificate (i.e. what the client is using to verify it).
-		</textile>
+		</markdown>
 	</section>
 
 	<section title="GnuTLS priority string">
-		<textile>
+		<markdown>
 			The GnuTLS priority string configures which ciphers and protocol versions are available, and also a small set of options (workarounds to activate and so on).
 
-			Example: @"SECURE:-VERS-SSL3.0:-SHA1:+SHA1:-RSA:+RSA:%SERVER_PRECEDENCE"@
-			* @SECURE@: starts with @SECURE@ level: only secure ciphers and secure curves
-			* @-VERS-SSL3.0@: disables SSL3.0 support (all clients should support at least TLS1.0 now)
-			* @-SHA1:SHA1@ puts SHA1 back at the list for MAC algorithms (preferring the other SHA variants)
-			* @-RSA:+RSA@: prefer (RSA) DHE/ECDHE key exchanges over simple RSA
-			* @%SERVER_PRECEDENCE@ a flag telling GnuTLS to use its own order of preference instead of the order provided by the client.
+			Example: `"SECURE:-VERS-SSL3.0:-SHA1:+SHA1:-RSA:+RSA:%SERVER_PRECEDENCE"`
+
+			* `SECURE`: starts with `SECURE` level: only secure ciphers and secure curves
+			* `-VERS-SSL3.0`: disables SSL3.0 support (all clients should support at least TLS1.0 now)
+			* `-SHA1:SHA1` puts SHA1 back at the list for MAC algorithms (preferring the other SHA variants)
+			* `-RSA:+RSA`: prefer (RSA) DHE/ECDHE key exchanges over simple RSA
+			* `%SERVER_PRECEDENCE` a flag telling GnuTLS to use its own order of preference instead of the order provided by the client.
 
 			See also:
-			* "Priority strings":http://gnutls.org/manual/html_node/Priority-Strings.html#Priority-Strings (GnuTLS manual)
-			* "GnuTLS Priority Strings":http://blog.lighttpd.net/gnutls-priority-strings.html
-			* @gnutls-cli -l --priority "SECURE:-VERS-SSL3.0:-SHA1:+SHA1:-RSA:+RSA:%SERVER_PRECEDENCE"@
-		</textile>
+
+			* [Priority strings](http://gnutls.org/manual/html_node/Priority-Strings.html#Priority-Strings) (GnuTLS manual)
+			* [GnuTLS Priority Strings](http://blog.lighttpd.net/gnutls-priority-strings.html)
+			* `gnutls-cli -l --priority "SECURE:-VERS-SSL3.0:-SHA1:+SHA1:-RSA:+RSA:%SERVER_PRECEDENCE"`
+		</markdown>
 	</section>
 
 	<section title="OCSP stapling">
-		<textile>
-			"OCSP stapling":https://en.wikipedia.org/wiki/OCSP_stapling is used to assure a client the certificate is still valid (i.e. not revoked); you can put an OCSP response into the certificate file in an "OCSP RESPONSE"-PEM block (there is probably no standard for this, just base64-encode the DER-response you have), or specify the (DER or PEM formatted) OCSP response as separate file using "ocsp" in a "pemfile" block.
+		<markdown>
+			[OCSP stapling](https://en.wikipedia.org/wiki/OCSP_stapling) is used to assure a client the certificate is still valid (i.e. not revoked); you can put an OCSP response into the certificate file in an "OCSP RESPONSE"-PEM block (there is probably no standard for this, just base64-encode the DER-response you have), or specify the (DER or PEM formatted) OCSP response as separate file using "ocsp" in a "pemfile" block.
 
 			Server Name Indication (SNI) should work fine, as an OCSP response is only used if it matches the certificate in use for the connection.
 
@@ -195,60 +196,56 @@
 
 			If you have your certificate and the issuer-certificate (the one that signed yours) in separate files you can request an OCSP response like that (using the GnuTLS "ocsptool"):
 
-			<pre>
 				ocsptool --ask --load-issuer issuer.pem --load-cert cert.pem --outfile ocsp.der
-			</pre>
 
 			Converting into PEM format can be done like this:
 
-			<pre>
 				(echo "-----BEGIN OCSP RESPONSE-----"; base64 --wrap=64 ocsp.der; echo "-----END OCSP RESPONSE-----") > ocsp.pem
-			</pre>
 
 			If you have trouble identifying which certificates you need, here the more detailed explanation:
 
 			You usually have a list of certificates in the PEM file you pass to lighttpd. The first certificate usually has a "Subject" pointing to your server name (CN), like: "Subject: CN=lighttpd.net". It also has a "Issuer" attribute (like "C=US, O=Let's Encrypt, CN=Let's Encrypt Authority X3"). The issuer certificate needs a "Subject" matching that "Issuer", and should be the second certificate in the PEM file (unless it already is the root CA, in which case it is usually omitted).
 
-			@ocsptool@ will always use the first certificate in a file and ignore the others, so you can use the normal PEM file you pass to lighttpd as argument after @--load-cert@, but you need to extract the issuer certificate if you don't have it in a separate file. The following @awk@ script extracts the second PEM block from a file:
+			`ocsptool` will always use the first certificate in a file and ignore the others, so you can use the normal PEM file you pass to lighttpd as argument after `--load-cert`, but you need to extract the issuer certificate if you don't have it in a separate file. The following `awk` script extracts the second PEM block from a file:
 
-			<pre>
 				awk '
 					BEGIN { block = 0 }
 					/^-----BEGIN / { ++block; }
 					{ if (block > 1) print; }
 				' "certs.pem" > "issuer.pem"
-			</pre>
-		</textile>
+		</markdown>
 	</section>
 
 	<section title="protect-against-beast">
-		<textile>
-			"BEAST":http://en.wikipedia.org/wiki/Transport_Layer_Security#BEAST_attack is considered mitigated on clients by many now, so this workaround is no longer recommended and disabled by default.
+		<markdown>
+			[BEAST](http://en.wikipedia.org/wiki/Transport_Layer_Security#BEAST_attack) is considered mitigated on clients by many now, so this workaround is no longer recommended and disabled by default.
 
 			It enabled it will enforce the usage of RC4 on TLS1.0 and before (TLS1.1 and TLS1.2 are not vulnerable); but RC4 has issues on its own.
-		</textile>
+		</markdown>
 	</section>
 
 	<section title="DH parameters">
-		<textile>
-			The @DHE_RSA@ key exchange requires parameters (similar to the curves used for @ECDHE_RSA@); the parameters specify a prime @p@ and a group generator @g@ of the multiplicative group of integers modulo @p@ (i.e. for all @x@ in @1..p-1@ exists an @e@ with @g^e = x@); sometimes @g@ might only create a sufficiently large subgroup (for example of size @(p-1)/2@).
+		<markdown>
+			The `DHE_RSA` key exchange requires parameters (similar to the curves used for `ECDHE_RSA`); the parameters specify a prime `p` and a group generator `g` of the multiplicative group of integers modulo `p` (i.e. for all `x` in `1..p-1` exists an `e` with `g^e = x`); sometimes `g` might only create a sufficiently large subgroup (for example of size `(p-1)/2`).
 
-			The security of the DH key exchange depends (among other things) on the bit length of @p@; therefore lighttpd includes default 4096-bit parameters (provided by the GnuTLS certtool with @certtool --get-dh-params --bits=4096@ in version 3.0.22), and these should be safe to use (key lengths > 1024 are not supported by some older clients; if you need to support those you either have to disable DH key exchange or specify 1024-bit parameters).
+			The security of the DH key exchange depends (among other things) on the bit length of `p`; therefore lighttpd includes default 4096-bit parameters (provided by the GnuTLS certtool with `certtool --get-dh-params --bits=4096` in version 3.0.22), and these should be safe to use (key lengths > 1024 are not supported by some older clients; if you need to support those you either have to disable DH key exchange or specify 1024-bit parameters).
 
 			You can use either GnuTLS or openssl to generate your own parameters:
-			* @certtool --generate-dh-params --bits=2048@
-			* @openssl dhparam -dsaparam 2048@
-			* @openssl dhparam -2 2048@
-			* @openssl dhparam -5 2048@
 
-			The GnuTLS @certtool@ only generates "DSA" parameters (any prime with a large generator), while @openssl@ can generate "DH" parameters with a generator of 2 or 5 combined with a Sophie Germain prime @(p-1)/2@ (i.e. both @p@ and @(p-1)/2@ are primes) or "DSA" parameters using the @-dsaparam@ option.
+			* `certtool --generate-dh-params --bits=2048`
+			* `openssl dhparam -dsaparam 2048`
+			* `openssl dhparam -2 2048`
+			* `openssl dhparam -5 2048`
 
-			"DH" parameters take a lot more time to generate, but you can reuse keys for those (although it is not recommended, search for @SSL_OP_SINGLE_DH_USE@ in the openssl manual on @SSL_CTX_set_tmp_dh_callback@). Keys for "DSA" parameters should not be reused, i.e. one should generate a new private key for each connection, which is the case in mod_gnutls. The default parameters provided by lighttpd are "DH" parameters.
+			The GnuTLS `certtool` only generates "DSA" parameters (any prime with a large generator), while `openssl` can generate "DH" parameters with a generator of 2 or 5 combined with a Sophie Germain prime `(p-1)/2` (i.e. both `p` and `(p-1)/2` are primes) or "DSA" parameters using the `-dsaparam` option.
+
+			"DH" parameters take a lot more time to generate, but you can reuse keys for those (although it is not recommended, search for `SSL_OP_SINGLE_DH_USE` in the openssl manual on `SSL_CTX_set_tmp_dh_callback`). Keys for "DSA" parameters should not be reused, i.e. one should generate a new private key for each connection, which is the case in mod_gnutls. The default parameters provided by lighttpd are "DH" parameters.
 
 			See also:
-			* "Diffie-Hellman(-Merkle) key exchange":http://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange
-			* "OpenSSL: Documents, dhparam(1)":https://www.openssl.org/docs/apps/dhparam.html
-			* "OpenSSL: Documents, SSL_CTX_set_tmp_dh_callback(3)":https://www.openssl.org/docs/ssl/SSL_CTX_set_tmp_dh_callback.html#NOTES
-		</textile>
+
+			* [Diffie-Hellman(-Merkle) key exchange](http://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange)
+			* [OpenSSL: Documents, dhparam(1)](https://www.openssl.org/docs/apps/dhparam.html)
+			* [OpenSSL: Documents, SSL_CTX_set_tmp_dh_callback(3)](https://www.openssl.org/docs/ssl/SSL_CTX_set_tmp_dh_callback.html#NOTES)
+		</markdown>
 	</section>
 </module>

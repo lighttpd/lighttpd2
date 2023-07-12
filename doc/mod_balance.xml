@@ -2,20 +2,20 @@
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
 	<short>balances between different backends.</short>
 
-	<description>
+	<description><markdown>
 		Using an action from mod_balance also activates a backlog: lighttpd2 will then put requests in a backlog if no backend is available and try again later.
 
 		Be careful: the referenced actions may get executed more than once (until one is successful!), so don't loop rewrites in them or something similar.
-	</description>
+	</markdown></description>
 
 	<action name="balance.rr">
 		<short>balance between actions (list or single action) with Round-Robin</short>
 		<parameter name="actions">
 			<short>the actions to balance between</short>
 		</parameter>
-		<description>
+		<description><markdown>
 			Round-Robin (rr) the requests are distributed equally over all backends.
-		</description>
+		</markdown></description>
 		<example>
 			<config>
 				balance.rr { fastcgi "127.0.0.1:9090"; };
@@ -33,9 +33,9 @@
 		<parameter name="actions">
 			<short>the actions to balance between</short>
 		</parameter>
-		<description>
+		<description><markdown>
 			Shortest-Queue-First (sqf) is similar to Round-Robin and prefers the backend with the shortest wait-queue.
-		</description>
+		</markdown></description>
 		<example>
 			<config>
 				balance.sqf { fastcgi "127.0.0.1:9090"; };

@@ -13,13 +13,13 @@
 		<parameter name="rules">
 			<short>A key value list mapping "access" and/or "deny" keys to a list of CIDR addresses or "all".</short>
 		</parameter>
-		<description>
+		<description><markdown>
 				Checks the client IP address against the rules. Default is to deny all addresses. The most precise matching rule defines the result ("192.168.100.0/24" takes precedence over "192.168.0.0/16"; similar to routing tables); if the same CIDR is in both lists the second action is taken. "all" is a synonym for "0.0.0.0/0" and "::/0", matching all IPv4 and IPv6 addresses.
-		</description>
+		</markdown></description>
 		<example title="Example: restrict access to local network" anchor="#">
-			<description>
+			<description><markdown>
 				Limit access to clients from the local network. The deny rule isn't strictly required, as the default is to deny anyway. The smaller CIDR strings for the local networks override the global deny rule.
-			</description>
+			</markdown></description>
 			<config>
 				setup {
 					module_load "mod_access";
@@ -32,9 +32,9 @@
 			</config>
 		</example>
 		<example title="Example: restrict access to subnet with exception" anchor="#">
-			<description>
+			<description><markdown>
 				Limit access to clients from "192.168.10.0/24", but deny access to "192.168.10.1". As "192.168.10.1" (equivalent to "192.168.10.1/32") is a more precise match it overwrites the allow rule for the subnet "192.168.10.0/24" containing it.
-			</description>
+			</markdown></description>
 			<config>
 				setup {
 					module_load "mod_access";
@@ -52,11 +52,9 @@
 		<short>url to redirect to if access was denied (not implemented yet)</short>
 		<parameter name="url" />
 		<default><text>not set</text></default>
-		<description>
-			<textile>
-				*NOT IMPLEMENTED YET*
-			</textile>
-		</description>
+		<description><markdown>
+			**NOT IMPLEMENTED YET**
+		</markdown></description>
 	</option>
 
 	<option name="access.log_blocked">

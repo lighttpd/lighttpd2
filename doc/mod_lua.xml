@@ -2,11 +2,9 @@
 <module xmlns="urn:lighttpd.net:lighttpd2/doc1">
 	<short>load lua plugins and actions</short>
 
-	<description>
-		<textile><![CDATA[
-			Also see "Lua API":core_lua.html#core_lua.
-		]]></textile>
-	</description>
+	<description><markdown><![CDATA[
+		Also see [Lua API](core_lua.html#core_lua).
+	]]></markdown></description>
 
 	<setup name="lua.plugin">
 		<short>load file as lua plugin</short>
@@ -19,13 +17,11 @@
 		<parameter name="lua-args">
 			<short>arguments forwarded to the lua plugin</short>
 		</parameter>
-		<description>
-			<textile>
-				A lua plugin can register setup and action callbacks (like any C module) by creating a setups / actions table in the global lua namespace.
+		<description><markdown>
+			A lua plugin can register setup and action callbacks (like any C module) by creating a setups / actions table in the global lua namespace.
 
-				The filename and the third argument @lua-args@ are available as parameters in @...@ in the lua script.
-			</textile>
-		</description>
+			The filename and the third argument `lua-args` are available as parameters in `...` in the lua script.
+		</markdown></description>
 		<example>
 			<config>
 				setup {
@@ -37,9 +33,9 @@
 	</setup>
 
 	<example title="Example plugin" anchor="#">
-		<description><textile>
-			(see "contrib/core.lua":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua for a real example)
-		</textile></description>
+		<description><markdown>
+			(see [contrib/core.lua](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua) for a real example)
+		</markdown></description>
 
 		<config>
 			local filename, args = ...
@@ -74,18 +70,17 @@
 		<parameter name="lua-args">
 			<short>arguments forwarded to the lua plugin</short>
 		</parameter>
-		<description>
-			<textile>
-				lua.handler is basically the same as "include_lua":core_config.html#core_config__includes with the following differences:
-				* each worker loads the lua file itself
-				* it isn't loaded before it is used, so you won't see errors in the script at load time
-				* it cannot call setup functions
-				* it supports arguments to the script (@local filename, args = ...@)
-				* doesn't lock the global lua lock, so it performs better when you use multiple workers
+		<description><markdown>
+			lua.handler is basically the same as [include_lua](core_config.html#core_config__includes) with the following differences:
 
-				See "contrib/core.lua":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua for how we load some external actions like "contrib/core__xsendfile.lua":http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core__xsendfile.lua
-			</textile>
-		</description>
+			* each worker loads the lua file itself
+			* it isn't loaded before it is used, so you won't see errors in the script at load time
+			* it cannot call setup functions
+			* it supports arguments to the script (`local filename, args = ...`)
+			* doesn't lock the global lua lock, so it performs better when you use multiple workers
+
+			See [contrib/core.lua](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua) for how we load some external actions like [contrib/core__xsendfile.lua](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core__xsendfile.lua).
+		</markdown></description>
 		<example>
 			<config>
 				setup {

@@ -18,19 +18,18 @@
 		<parameter name="mode">
 			<short>(optional) "short"</short>
 		</parameter>
-		<description>
-			<textile>
-				The "short" mode removes connection and runtime details (recommended for "public" status).
+		<description><markdown>
+			The "short" mode removes connection and runtime details (recommended for "public" status).
 
-				The status page accepts the following query-string parameters:
-				*  @?mode=runtime@: shows the runtime details
-				* "@format=plain@: shows the "short" stats in plain text format
-			</textile>
-		</description>
+			The status page accepts the following query-string parameters:
+
+			* `?mode=runtime`: shows the runtime details
+			* `format=plain`: shows the "short" stats in plain text format
+		</markdown></description>
 		<example>
-			<description>
+			<description><markdown>
 				If /server-status is requested, a page with lighttpd statistics is displayed.
-			</description>
+			</markdown></description>
 			<config>
 				setup {
 					module_load "mod_status";
