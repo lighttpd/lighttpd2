@@ -2,7 +2,7 @@
  * mod_gnutls - TLS listen support
  *
  * TODO:
- *   * support client certificate authentication: http://www.gnutls.org/manual/gnutls.html#Client-certificate-authentication
+ *   * support client certificate authentication: https://www.gnutls.org/manual/gnutls.html#Client-certificate-authentication
  *     gnutls_certificate_set_x509_system_trust (available since 3.0 (docs) or 3.0.19 (weechat ??))
  *     gnutls_certificate_set_x509_trust_file
  *   * TLS session tickets are always activated with gnutls >= 2.10 - option to disable

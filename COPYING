@@ -29,7 +29,7 @@ THE SOFTWARE.
 The doc/ directory contains some assets by 3rd parties:
 From doc/bootstrap* (Apache License 2.0):
   Copyright 2013 Twitter, Inc.
-  Licensed under http://www.apache.org/licenses/LICENSE-2.0
+  Licensed under https://www.apache.org/licenses/LICENSE-2.0
 From doc/jquery-1.10.1.min.js (MIT License):
   (c) 2005, 2013 jQuery Foundation, Inc. | jquery.org/license
 

@@ -4,7 +4,7 @@
 
 	<section title="Install">
 		<markdown><![CDATA[
-			By default distributions (and `make install`) should provide the necessary files; but you can always find them in the [contrib](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib) folder:
+			By default distributions (and `make install`) should provide the necessary files; but you can always find them in the [contrib](https://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib) folder:
 
 			* `secdownload.lua`
 			* `secdownload__secdownload.lua`
@@ -49,7 +49,7 @@
 	<section title="Generating URLs">
 		<markdown><![CDATA[
 			To generate URLs that are valid for `secdownload` you need the same secret.  
-			The url takes the form `prefix + md5hex(secret + filepath + timestamp) + '/' + timestamp + filepath`; timestamp is the [Unix time](http://en.wikipedia.org/wiki/Unix_time) formatted as hexadecimal number.
+			The url takes the form `prefix + md5hex(secret + filepath + timestamp) + '/' + timestamp + filepath`; timestamp is the [Unix time](https://en.wikipedia.org/wiki/Unix_time) formatted as hexadecimal number.
 
 			For example with PHP:
 

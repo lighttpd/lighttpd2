@@ -6,7 +6,7 @@
 SRCTEST=src/main/lighttpd_worker.c
 PACKAGE=lighttpd
 REV=${REV}
-BASEDOWNLOADURL="http://download.lighttpd.net/lighttpd/snapshots-2.0.x"
+BASEDOWNLOADURL="https://download.lighttpd.net/lighttpd/snapshots-2.0.x"
 
 if [ ! -f ${SRCTEST} ]; then
 	echo "Current directory is not the source directory"

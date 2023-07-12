@@ -73,7 +73,7 @@ gsize li_memory_usage(void) {
 #include <mach/mach_init.h>
 
 gsize li_memory_usage(void) {
-	/* info from http://miknight.blogspot.com/2005/11/resident-set-size-in-mac-os-x.html */
+	/* info from https://miknight.blogspot.com/2005/11/resident-set-size-in-mac-os-x.html */
 	struct task_basic_info tbinfo;
 	mach_msg_type_number_t cnt = TASK_BASIC_INFO_COUNT;
 

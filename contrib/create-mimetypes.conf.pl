@@ -143,7 +143,7 @@ while (<MIMETYPES>) {
 }
 
 # missing in /etc/mime.types;
-# from http://www.iana.org/assignments/media-types/media-types.xhtml
+# from https://www.iana.org/assignments/media-types/media-types.xhtml
 add(".dtd", "application/xml-dtd");
 
 
@@ -153,7 +153,7 @@ print <<EOF;
 setup {
 	mime_types [
 		# /etc/mime.types
-		# and from http://www.iana.org/assignments/media-types/media-types.xhtml
+		# and from https://www.iana.org/assignments/media-types/media-types.xhtml
 
 EOF
 

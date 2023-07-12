@@ -10,7 +10,6 @@
 		From that moment on, other requests can fetch the state of the first request through the `progress.show` action specifying the `X-Progress-Id` used earlier.  
 		Even after a tracked request finished and the connection to the client is gone, requests can for a limited amount of time get the status of it to see it as "done".
 
-		A live demonstration of a progress bar implementation can be seen at <http://demo.lighttpd.net/progress/>.  
 		Check the source code there for further insight.
 	]]></markdown></description>
 

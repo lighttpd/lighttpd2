@@ -34,7 +34,7 @@
 
 	<example title="Example plugin" anchor="#">
 		<description><markdown>
-			(see [contrib/core.lua](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua) for a real example)
+			(see [contrib/core.lua](https://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua) for a real example)
 		</markdown></description>
 
 		<config>
@@ -79,7 +79,7 @@
 			* it supports arguments to the script (`local filename, args = ...`)
 			* doesn't lock the global lua lock, so it performs better when you use multiple workers
 
-			See [contrib/core.lua](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua) for how we load some external actions like [contrib/core__xsendfile.lua](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core__xsendfile.lua).
+			See [contrib/core.lua](https://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core.lua) for how we load some external actions like [contrib/core__xsendfile.lua](https://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/core__xsendfile.lua).
 		</markdown></description>
 		<example>
 			<config>

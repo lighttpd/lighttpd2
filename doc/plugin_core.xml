@@ -143,7 +143,7 @@
 			<parameter name="mapping" />
 			<default><value>[]</value></default>
 			<description><markdown>
-				Default MIME type is "application/octet-stream". The sources contain a [mimetypes example config](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/mimetypes.conf) with many standard mappings.
+				Default MIME type is "application/octet-stream". The sources contain a [mimetypes example config](https://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/mimetypes.conf) with many standard mappings.
 
 				The longest matching suffix is used (`".tar.gz"` always wins over `".gz"`), and in case of duplicate entries the last one is used.
 			</markdown></description>
@@ -411,7 +411,7 @@
 				<short>a strftime format string</short>
 			</parameter>
 			<description><markdown>
-				See [strftime](http://pubs.opengroup.org/onlinepubs/007904875/functions/strftime.html) for the format string syntax.
+				See [strftime](https://pubs.opengroup.org/onlinepubs/007904875/functions/strftime.html) for the format string syntax.
 
 				The default format string is `"%d/%b/%Y %T %Z"`.
 			</markdown></description>
@@ -612,7 +612,7 @@
 			</markdown></description>
 			<example>
 				<description><markdown>
-					Remove `Accept-Encoding` request header to workaround the [BREACH](http://en.wikipedia.org/wiki/BREACH_(security_exploit)) vulnerability in https.
+					Remove `Accept-Encoding` request header to workaround the [BREACH](https://en.wikipedia.org/wiki/BREACH_(security_exploit)) vulnerability in https.
 				</markdown></description>
 				<config>
 					if request.scheme == "https" {

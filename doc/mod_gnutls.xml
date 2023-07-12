@@ -143,7 +143,7 @@
 
 	<section title="Server Name Indication (SNI)">
 		<markdown>
-			[TLS SNI](http://en.wikipedia.org/wiki/Server_Name_Indication) means that a client can send the hostname of the server it tries to connect to **unencrypted** in the TLS handshake.  
+			[TLS SNI](https://en.wikipedia.org/wiki/Server_Name_Indication) means that a client can send the hostname of the server it tries to connect to **unencrypted** in the TLS handshake.  
 			If you want to host multiple hostnames on the same IP address (quite common) there are some options how to do it (they can be combined):
 
 			* Use a wildcard as "CommonName" (CN) in the certificate like `*.example.com` (although this usually doesn't match `example.com`)
@@ -178,8 +178,8 @@
 
 			See also:
 
-			* [Priority strings](http://gnutls.org/manual/html_node/Priority-Strings.html#Priority-Strings) (GnuTLS manual)
-			* [GnuTLS Priority Strings](http://blog.lighttpd.net/gnutls-priority-strings.html)
+			* [Priority strings](https://gnutls.org/manual/html_node/Priority-Strings.html#Priority-Strings) (GnuTLS manual)
+			* [GnuTLS Priority Strings](https://blog.lighttpd.net/gnutls-priority-strings.html)
 			* `gnutls-cli -l --priority "SECURE:-VERS-SSL3.0:-SHA1:+SHA1:-RSA:+RSA:%SERVER_PRECEDENCE"`
 		</markdown>
 	</section>
@@ -218,7 +218,7 @@
 
 	<section title="protect-against-beast">
 		<markdown>
-			[BEAST](http://en.wikipedia.org/wiki/Transport_Layer_Security#BEAST_attack) is considered mitigated on clients by many now, so this workaround is no longer recommended and disabled by default.
+			[BEAST](https://en.wikipedia.org/wiki/Transport_Layer_Security#BEAST_attack) is considered mitigated on clients by many now, so this workaround is no longer recommended and disabled by default.
 
 			It enabled it will enforce the usage of RC4 on TLS1.0 and before (TLS1.1 and TLS1.2 are not vulnerable); but RC4 has issues on its own.
 		</markdown>
@@ -243,7 +243,7 @@
 
 			See also:
 
-			* [Diffie-Hellman(-Merkle) key exchange](http://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange)
+			* [Diffie-Hellman(-Merkle) key exchange](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange)
 			* [OpenSSL: Documents, dhparam(1)](https://www.openssl.org/docs/apps/dhparam.html)
 			* [OpenSSL: Documents, SSL_CTX_set_tmp_dh_callback(3)](https://www.openssl.org/docs/ssl/SSL_CTX_set_tmp_dh_callback.html#NOTES)
 		</markdown>

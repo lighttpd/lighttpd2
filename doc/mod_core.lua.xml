@@ -4,7 +4,7 @@
 
 	<section title="Install">
 		<markdown>
-			By default distributions (and `make install`) should provide the necessary files; but you can always find them in the [contrib](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib) folder:
+			By default distributions (and `make install`) should provide the necessary files; but you can always find them in the [contrib](https://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib) folder:
 
 			* `core.lua`
 			* `core__cached_html.lua`

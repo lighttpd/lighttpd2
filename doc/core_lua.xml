@@ -56,11 +56,11 @@
 		<section title="Values">
 			<markdown><![CDATA[
 				* Boolean: Lua supports `true` and `false` directly
-				* Integers: Lua has its own number type (usually a [`double`](http://en.wikipedia.org/wiki/Double-precision_floating-point_format)), and doesn't know any of the suffixes.
+				* Integers: Lua has its own number type (usually a [`double`](https://en.wikipedia.org/wiki/Double-precision_floating-point_format)), and doesn't know any of the suffixes.
 				* Strings: Lua supports strings directly. Check the Lua reference for the various quoting styles.
 				* Lists and Key-Value-Lists: Lua has a "table" type; it can contain sequential lists and associative mappings. Use `{1, 2, 3}` to create simple lists, `{a=1, b=2}` to create unique mappings (which get converted to Key-Value-Lists) or `{{"a",1},{"a",2}}` to explicitly create Key-Value-Lists (where a key can be used more than once and the order matters).  
 				  Don't mix sequential lists and associative mappings.  
-				  If you get a List (possible a Key-Value-List) value from lighttpd it is represented as sequential list but has a special `__index` meta-table method supporting strings and `nil` as lookup parameter, i.e. you can treat a Key-Value-List like an associative mapping in Lua (see for example the options handling in [contrib/secdownload.lua](http://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/secdownload.lua)).
+				  If you get a List (possible a Key-Value-List) value from lighttpd it is represented as sequential list but has a special `__index` meta-table method supporting strings and `nil` as lookup parameter, i.e. you can treat a Key-Value-List like an associative mapping in Lua (see for example the options handling in [contrib/secdownload.lua](https://git.lighttpd.net/lighttpd/lighttpd2.git/tree/contrib/secdownload.lua)).
 				* Expressions and variables just are the usual Lua things; there is no direct access to the lighttpd config variables (yet).
 				* Action blocks: you can make an action from a list of actions using the [list action](plugin_core.html#plugin_core__action_list) (`act = action.list(act1, act2)`)
 			]]></markdown>
