@@ -6,7 +6,7 @@ from pylt.requests import CurlRequest
 
 # userI:passI for I in [1..4] with [apr-md5, crypt, plain and apr-sha]
 PASSWORDS = """user1:$apr1$mhpONdUp$xSRcAbK2F6hLFUzW59tzW/
-user2:JTMoqfZHCS0aI
+# user2:JTMoqfZHCS0aI
 user3:pass3
 user4:{SHA}LbTBgR9CRYKpD41+53mVzwGNlEM=
 """
@@ -34,10 +34,11 @@ class TestCryptFail(CurlRequest):
     AUTH = "user2:test2"
 
 
-class TestCryptSuccess(CurlRequest):
-    URL = "/test.txt"
-    EXPECT_RESPONSE_CODE = 200
-    AUTH = "user2:pass2"
+# no-prefix crypt deprecated
+# class TestCryptSuccess(CurlRequest):
+#     URL = "/test.txt"
+#     EXPECT_RESPONSE_CODE = 200
+#     AUTH = "user2:pass2"
 
 
 class TestPlainFail(CurlRequest):
