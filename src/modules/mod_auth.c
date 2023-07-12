@@ -261,7 +261,13 @@ static gboolean auth_backend_htpasswd(liVRequest *vr, const GString *username, c
 		}
 	} else {
 		const GString salt = { (gchar*) pass, strlen(pass), 0 };
-		li_safe_crypt(vr->wrk->tmp_str, password, &salt);
+
+		if (!li_safe_crypt(vr->wrk->tmp_str, password, &salt)) {
+			if (debug) {
+				VR_DEBUG(vr, "Invalid password salt/hash \"%s\" for user \"%s\"", pass, username->str);
+			}
+			goto out;
+		}
 
 		if (0 != g_strcmp0(pass, vr->wrk->tmp_str->str)) {
 			if (debug) {

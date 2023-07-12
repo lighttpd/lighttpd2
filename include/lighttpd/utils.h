@@ -84,7 +84,8 @@ LI_API void li_string_append_int(GString *dest, gint64 val);
 LI_API void li_apr_sha1_base64(GString *dest, const GString *passwd);
 LI_API void li_apr_md5_crypt(GString *dest, const GString *password, const GString *salt);
 
-LI_API void li_safe_crypt(GString *dest, const GString *password, const GString *salt);
+/* dest can be empty if salt is invalid (in which case li_safe_crypt returns FALSE) */
+LI_API gboolean li_safe_crypt(GString *dest, const GString *password, const GString *salt);
 
 /* g_string_append_len is a macro, and g_string_append_len(s, GSTR_LEN(x)) doesn't work; build inline wrapper */
 INLINE GString *li_g_string_append_len(GString *s, const gchar *val, gssize len);

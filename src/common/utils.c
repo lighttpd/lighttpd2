@@ -990,16 +990,23 @@ void li_apr_md5_crypt(GString *dest, const GString *password, const GString *sal
 	md5_crypt_to64(dest,                       digest[11]                   , 2);
 }
 
-void li_safe_crypt(GString *dest, const GString *password, const GString *salt) {
+gboolean li_safe_crypt(GString *dest, const GString *password, const GString *salt) {
+	g_string_truncate(dest, 0);
+
 	if (g_str_has_prefix(salt->str, "$apr1$")) {
 		li_apr_md5_crypt(dest, password, salt);
+		return TRUE;
 	} else {
+		const char *crypt_res;
 #ifdef HAVE_CRYPT_R
 		struct crypt_data buffer;
 
 		memset(&buffer, 0, sizeof(buffer));
 
-		g_string_assign(dest, crypt_r(password->str, salt->str, &buffer));
+		crypt_res = crypt_r(password->str, salt->str, &buffer);
+		if (NULL != crypt_res) {
+			g_string_assign(dest, crypt_res);
+		}
 #else
 		/* This is an acceptable hack: any library that uses crypt() itself is "broken"
 		 * for threaded usage anyway; and our own usage is protected.
@@ -1007,9 +1014,13 @@ void li_safe_crypt(GString *dest, const GString *password, const GString *salt) 
 		static GStaticMutex crypt_mutex = G_STATIC_MUTEX_INIT;
 
 		g_static_mutex_lock(&crypt_mutex);
-		g_string_assign(dest, crypt(password->str, salt->str));
+		crypt_res = crypt(password->str, salt->str);
+		if (NULL != crypt_res) {
+			g_string_assign(dest, crypt_res);
+		}
 		g_static_mutex_unlock(&crypt_mutex);
 #endif
+		return crypt_res != NULL;
 	}
 }
 
