@@ -262,7 +262,7 @@ static void progress_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *resu
 					"{\"state\": \"running\", \"received\": %"G_GUINT64_FORMAT", \"sent\": %"G_GUINT64_FORMAT", \"request_size\": %"G_GUINT64_FORMAT", \"response_size\": %"G_GUINT64_FORMAT"}",
 					node->bytes_in, node->bytes_out, node->request_size, node->response_size
 				);
-			} else if (node->status_code == 200) {
+			} else if (node->status_code >= 200 && node->status_code <= 299) {
 				/* done, success */
 				g_string_append_printf(output,
 					"{\"state\": \"done\", \"received\": %"G_GUINT64_FORMAT", \"sent\": %"G_GUINT64_FORMAT", \"request_size\": %"G_GUINT64_FORMAT", \"response_size\": %"G_GUINT64_FORMAT"}",
