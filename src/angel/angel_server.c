@@ -125,24 +125,24 @@ static void instance_child_cb(liEventBase *watcher, int events) {
 	if (i->s_dest == LI_INSTANCE_FINISHED) {
 		if (WIFEXITED(status)) {
 			if (0 != WEXITSTATUS(status)) {
-				ERROR(i->srv, "child %i died with exit status %i", i->proc->child_pid, WEXITSTATUS(status));
+				ERROR(i->srv, "instance[%i] died with exit status %i", i->pid, WEXITSTATUS(status));
 			} /* exit status 0 is ok, no message */
 		} else if (WIFSIGNALED(status)) {
-			ERROR(i->srv, "child %i died: killed by '%s' (%i)", i->proc->child_pid, g_strsignal(WTERMSIG(status)), WTERMSIG(status));
+			ERROR(i->srv, "instance[%i] died: killed by '%s' (%i)", i->pid, g_strsignal(WTERMSIG(status)), WTERMSIG(status));
 		} else {
-			ERROR(i->srv, "child %i died with unexpected stat_val %i", i->proc->child_pid, status);
+			ERROR(i->srv, "instance[%i] died with unexpected stat_val %i", i->pid, status);
 		}
 		news = LI_INSTANCE_FINISHED;
 	} else {
 		if (WIFEXITED(status)) {
-			ERROR(i->srv, "child %i died with exit status %i", i->proc->child_pid, WEXITSTATUS(status));
+			ERROR(i->srv, "instance[%i] died with exit status %i", i->pid, WEXITSTATUS(status));
 		} else if (WIFSIGNALED(status)) {
-			ERROR(i->srv, "child %i died: killed by %s", i->proc->child_pid, g_strsignal(WTERMSIG(status)));
+			ERROR(i->srv, "instance[%i] died: killed by %s", i->pid, g_strsignal(WTERMSIG(status)));
 		} else {
-			ERROR(i->srv, "child %i died with unexpected stat_val %i", i->proc->child_pid, status);
+			ERROR(i->srv, "instance[%i] died with unexpected stat_val %i", i->pid, status);
 		}
 		if (i->s_cur == LI_INSTANCE_DOWN) {
-			ERROR(i->srv, "spawning child %i failed, not restarting", i->proc->child_pid);
+			ERROR(i->srv, "instance[%i] spawning failed, not restarting", i->pid);
 			news = i->s_dest = LI_INSTANCE_FINISHED; /* TODO: retry spawn later? */
 		} else {
 			news = LI_INSTANCE_DOWN;
@@ -183,12 +183,13 @@ static void instance_spawn(liInstance *i) {
 
 	if (!i->proc) return;
 
+	i->pid = i->proc->child_pid;
 	close(confd[1]);
 	li_event_clear(&i->child_watcher);
 	li_event_child_init(&i->srv->loop, "lighttpd2-worker", &i->child_watcher, instance_child_cb, i->proc->child_pid);
 	i->s_cur = LI_INSTANCE_DOWN;
 	li_instance_acquire(i);
-	DEBUG(i->srv, "Instance (%i) spawned: %s", i->proc->child_pid, i->ic->cmd[0]);
+	INFO(i->srv, "instance[%i] spawned: %s", i->pid, i->ic->cmd[0]);
 }
 
 liInstance* li_server_new_instance(liServer *srv, liInstanceConf *ic) {
@@ -335,7 +336,7 @@ void li_instance_state_reached(liInstance *i, liInstanceState s) {
 			li_instance_unset_replace(i->replace, i);
 		} else if (i->s_dest == LI_INSTANCE_FINISHED) {
 			if (i->replace_by) {
-				INFO(i->srv, "%s", "Instance replaced");
+				INFO(i->srv, "instance[%i] replaced by instance[%i]", i->pid, i->replace_by->pid);
 				if (i->replace_by->s_dest == LI_INSTANCE_WARMUP) {
 					li_instance_set_state(i->replace_by, LI_INSTANCE_RUNNING);
 				}
@@ -371,7 +372,7 @@ void li_instance_release(liInstance *i) {
 	if (!g_atomic_int_dec_and_test(&i->refcount)) return;
 	g_assert(!i->proc);
 
-	DEBUG(srv, "%s", "instance released");
+	DEBUG(srv, "instance[%i] released", i->pid);
 
 	li_instance_conf_release(i->ic);
 	i->ic = NULL;

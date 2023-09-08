@@ -29,6 +29,7 @@ struct liInstance {
 	liServer *srv;
 	liInstanceConf *ic;
 
+	int pid;  /** < remember PID for process as instance ID, even if process is already gone */
 	liProc *proc;
 	liEventChild child_watcher;
 
