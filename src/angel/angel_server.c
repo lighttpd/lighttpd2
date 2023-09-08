@@ -46,7 +46,7 @@ void li_server_stop(liServer *srv) {
 	li_event_stop(&srv->sig_w_INT);
 	li_event_stop(&srv->sig_w_TERM);
 
-	li_plugins_config_load(srv, NULL);
+	li_plugins_stop(srv);
 
 	li_event_loop_end(&srv->loop);
 }

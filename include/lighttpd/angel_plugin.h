@@ -11,6 +11,7 @@ typedef struct liPlugins liPlugins;
 
 typedef gboolean (*liPluginInitCB)                (liServer *srv, liPlugin *p);
 typedef void     (*liPluginFreeCB)                (liServer *srv, liPlugin *p);
+typedef void     (*liPluginStopCB)                (liServer *srv, liPlugin *p);
 
 typedef void     (*liPluginCleanConfigCB)         (liServer *srv, liPlugin *p);
 typedef gboolean (*liPluginCheckConfigCB)         (liServer *srv, liPlugin *p, GError **err);
@@ -37,8 +38,8 @@ struct liPlugin {
 	GHashTable *angel_callbacks; /**< map (const gchar*) -> liPluginHandleCallCB */
 
 	liPluginFreeCB handle_free;   /**< called before plugin is unloaded */
+	liPluginStopCB handle_stop;   /**< called to stop server */
 
-	liPluginCleanConfigCB handle_clean_config;        /**< called before the reloading of the config is started or after the reloading failed */
 	liPluginCheckConfigCB handle_check_config;        /**< called before activating a config to ensure everything works */
 	liPluginActivateConfigCB handle_activate_config;  /**< called to activate a config after successful loading it. this cannot fail */
 
@@ -49,21 +50,21 @@ struct liPlugin {
 struct liPlugins {
 	GString *config_filename;
 
-	GHashTable *items, *load_items; /**< gchar* -> server_item */
+	GHashTable *items; /**< gchar* -> server_item */
 
 	liModules *modules;
 
-	GHashTable *module_refs, *load_module_refs; /** gchar* -> server_module */
-	GHashTable *ht_plugins, *load_ht_plugins;
+	GHashTable *module_refs; /** gchar* -> server_module */
+	GHashTable *ht_plugins;
 
-	GPtrArray *plugins, *load_plugins; /* plugin* */
+	GPtrArray *plugins; /* plugin* */
 };
 
 LI_API void li_plugins_init(liServer *srv, const gchar *module_dir, gboolean module_resident);
 LI_API void li_plugins_clear(liServer *srv);
 
-LI_API void li_plugins_config_clean(liServer *srv);
 LI_API gboolean li_plugins_config_load(liServer *srv, const gchar *filename);
+LI_API void li_plugins_stop(liServer *srv);
 
 LI_API gboolean li_plugins_handle_item(liServer *srv, GString *itemname, liValue *parameters, GError **err);
 

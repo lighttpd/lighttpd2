@@ -963,6 +963,17 @@ static void core_free(liServer *srv, liPlugin *p) {
 	g_slice_free(plugin_config, config);
 }
 
+static void core_stop(liServer *srv, liPlugin *p) {
+	plugin_config *config = (plugin_config *)p->data;
+	UNUSED(srv);
+
+	if (config->inst) {
+		li_instance_set_state(config->inst, LI_INSTANCE_FINISHED);
+		li_instance_release(config->inst);
+		config->inst = NULL;
+	}
+}
+
 static void core_activate(liServer *srv, liPlugin *p) {
 	plugin_config *config = (plugin_config*) p->data;
 	GPtrArray *tmp_ptrarray;
@@ -1029,7 +1040,7 @@ static gboolean core_init(liServer *srv, liPlugin *p) {
 	p->items = core_items;
 
 	p->handle_free = core_free;
-	p->handle_clean_config = core_parse_init;
+	p->handle_stop = core_stop;
 	p->handle_check_config = core_check;
 	p->handle_activate_config = core_activate;
 	p->handle_instance_replaced = core_instance_replaced;

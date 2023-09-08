@@ -61,11 +61,6 @@ static void _server_module_release(gpointer d) {
 	g_slice_free(server_module, sm);
 }
 
-static void server_module_acquire(server_module *sm) {
-	g_assert(sm->refcount > 0);
-	sm->refcount++;
-}
-
 static server_module* server_module_new(liServer *srv, const gchar *name) { /* module is set later */
 	server_module *sm = g_slice_new0(server_module);
 	sm->refcount = 1;
@@ -81,53 +76,25 @@ void li_plugins_init(liServer *srv, const gchar *module_dir, gboolean module_res
 	ps->modules = li_modules_new(srv, module_dir, module_resident);
 
 	ps->items = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, _server_item_free);
-	ps->load_items = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, _server_item_free);
 
 	ps->module_refs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, _server_module_release);
-	ps->load_module_refs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, _server_module_release);
 
 	ps->ht_plugins = g_hash_table_new(g_str_hash, g_str_equal);
-	ps->load_ht_plugins = g_hash_table_new(g_str_hash, g_str_equal);
 
 	ps->plugins = g_ptr_array_new();
-	ps->load_plugins = g_ptr_array_new();
 }
 
 void li_plugins_clear(liServer *srv) {
 	liPlugins *ps = &srv->plugins;
 
-	li_plugins_config_clean(srv);
-
 	g_hash_table_destroy(ps->items);
-	g_hash_table_destroy(ps->load_items);
-
 	g_hash_table_destroy(ps->module_refs);
-	g_hash_table_destroy(ps->load_module_refs);
-
 	g_hash_table_destroy(ps->ht_plugins);
-	g_hash_table_destroy(ps->load_ht_plugins);
-
 	g_ptr_array_free(ps->plugins, TRUE);
-	g_ptr_array_free(ps->load_plugins, TRUE);
 
 	if (ps->config_filename) g_string_free(ps->config_filename, TRUE);
 
 	li_modules_free(ps->modules);
-}
-
-void li_plugins_config_clean(liServer *srv) {
-	liPlugins *ps = &srv->plugins;
-	guint i;
-
-	for (i = ps->load_plugins->len; i-- > 0; ) {
-		liPlugin *p = g_ptr_array_index(ps->load_plugins, i);
-		if (p->handle_clean_config) p->handle_clean_config(srv, p);
-	}
-
-	g_hash_table_remove_all(ps->load_items);
-	g_hash_table_remove_all(ps->load_module_refs);
-	g_hash_table_remove_all(ps->load_ht_plugins);
-	g_ptr_array_set_size(ps->load_plugins, 0);
 }
 
 gboolean li_plugins_config_load(liServer *srv, const gchar *filename) {
@@ -135,29 +102,24 @@ gboolean li_plugins_config_load(liServer *srv, const gchar *filename) {
 	GError *error = NULL;
 	guint i;
 
-	if (filename) {
-		if (!li_plugins_load_module(srv, NULL)) {
-			ERROR(srv, "%s", "failed loading core plugins");
-			li_plugins_config_clean(srv);
-			return FALSE;
-		}
+	if (!li_plugins_load_module(srv, NULL)) {
+		ERROR(srv, "%s", "failed loading core plugins");
+		return FALSE;
+	}
 
-		if (!li_angel_config_parse_file(srv, filename, &error)) {
-			ERROR(srv, "failed to parse config file: %s", error->message);
-			g_error_free(error);
-			li_plugins_config_clean(srv);
-			return FALSE;
-		}
+	if (!li_angel_config_parse_file(srv, filename, &error)) {
+		ERROR(srv, "failed to parse config file: %s", error->message);
+		g_error_free(error);
+		return FALSE;
 	}
 
 	/* check new config */
-	for (i = ps->load_plugins->len; i-- > 0; ) {
-		liPlugin *p = g_ptr_array_index(ps->load_plugins, i);
+	for (i = ps->plugins->len; i-- > 0; ) {
+		liPlugin *p = g_ptr_array_index(ps->plugins, i);
 		if (p->handle_check_config) {
 			if (!p->handle_check_config(srv, p, &error)) {
 				ERROR(srv, "config check failed: %s", error->message);
 				g_error_free(error);
-				li_plugins_config_clean(srv);
 				return FALSE;
 			}
 		}
@@ -166,8 +128,8 @@ gboolean li_plugins_config_load(liServer *srv, const gchar *filename) {
 	INFO(srv, "%s", "activate");
 
 	/* activate new config */
-	for (i = ps->load_plugins->len; i-- > 0; ) {
-		liPlugin *p = g_ptr_array_index(ps->load_plugins, i);
+	for (i = ps->plugins->len; i-- > 0; ) {
+		liPlugin *p = g_ptr_array_index(ps->plugins, i);
 		INFO(srv, "activate: %s", p->name);
 		if (p->handle_activate_config) {
 			p->handle_activate_config(srv, p);
@@ -176,27 +138,26 @@ gboolean li_plugins_config_load(liServer *srv, const gchar *filename) {
 
 	INFO(srv, "%s", "done");
 
-	{ /* swap the arrays */
-		GPtrArray *tmp = ps->load_plugins; ps->load_plugins = ps->plugins; ps->plugins = tmp;
-	}
-	{ /* swap the hash tables */
-		GHashTable *tmp;
-		tmp = ps->load_items; ps->load_items = ps->items; ps->items = tmp;
-		tmp = ps->load_module_refs; ps->load_module_refs = ps->module_refs; ps->module_refs = tmp;
-		tmp = ps->load_ht_plugins; ps->load_ht_plugins = ps->ht_plugins; ps->ht_plugins = tmp;
-	}
-	g_hash_table_remove_all(ps->load_items);
-	g_hash_table_remove_all(ps->load_module_refs);
-	g_hash_table_remove_all(ps->load_ht_plugins);
-	g_ptr_array_set_size(ps->load_plugins, 0);
-
-	if (!ps->config_filename) {
-		ps->config_filename = g_string_new(filename);
-	} else {
-		g_string_assign(ps->config_filename, filename ? filename : "");
-	}
+	LI_FORCE_ASSERT(NULL == ps->config_filename);
+	ps->config_filename = g_string_new(filename);
 
 	return TRUE;
+}
+
+void li_plugins_stop(liServer *srv) {
+	liPlugins *ps = &srv->plugins;
+	guint i;
+
+	g_string_assign(ps->config_filename, "");
+
+	/* activate new config */
+	for (i = ps->plugins->len; i-- > 0; ) {
+		liPlugin *p = g_ptr_array_index(ps->plugins, i);
+		INFO(srv, "stop: %s", p->name);
+		if (p->handle_stop) {
+			p->handle_stop(srv, p);
+		}
+	}
 }
 
 gboolean li_plugins_handle_item(liServer *srv, GString *itemname, liValue *parameters, GError **err) {
@@ -212,7 +173,7 @@ gboolean li_plugins_handle_item(liServer *srv, GString *itemname, liValue *param
 	}
 #endif
 
-	si = g_hash_table_lookup(ps->load_items, itemname->str);
+	si = g_hash_table_lookup(ps->items, itemname->str);
 	if (!si) {
 		g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
 			"Unknown item '%s' - perhaps you forgot to load the module?", itemname->str);
@@ -230,19 +191,19 @@ static gboolean plugins_activate_module(liServer *srv, server_module *sm) {
 
 	for (i = 0; i < sm->plugins->len; i++) {
 		p = g_ptr_array_index(sm->plugins, i);
-		g_ptr_array_add(ps->load_plugins, p);
-		g_hash_table_insert(ps->load_ht_plugins, (gpointer) p->name, p);
+		g_ptr_array_add(ps->plugins, p);
+		g_hash_table_insert(ps->ht_plugins, (gpointer) p->name, p);
 		if (!p->items) continue;
 
 		for (pi = p->items; pi->name; pi++) {
 			server_item *si;
-			if (NULL != (si = g_hash_table_lookup(ps->load_items, pi->name))) {
+			if (NULL != (si = g_hash_table_lookup(ps->items, pi->name))) {
 				ERROR(srv, "Plugin item name conflict: cannot load '%s' for plugin '%s' (already provided by plugin '%s')",
 					pi->name, p->name, si->p->name);
 				goto item_collision;
 			} else {
 				si = server_item_new(p, pi);
-				g_hash_table_insert(ps->load_items, (gpointer) pi->name, si);
+				g_hash_table_insert(ps->items, (gpointer) pi->name, si);
 			}
 		}
 	}
@@ -252,18 +213,18 @@ static gboolean plugins_activate_module(liServer *srv, server_module *sm) {
 item_collision:
 	/* removed added items and plugins */
 	for ( ; pi-- != p->items; ) {
-		g_hash_table_remove(ps->load_items, pi->name);
+		g_hash_table_remove(ps->items, pi->name);
 	}
 
-	g_ptr_array_set_size(ps->load_plugins, ps->load_plugins->len - i+1);
+	g_ptr_array_set_size(ps->plugins, ps->plugins->len - i+1);
 
 	for ( ; i-- > 0; ) {
 		p = g_ptr_array_index(sm->plugins, i);
-		g_hash_table_remove(ps->load_ht_plugins, p->name);
+		g_hash_table_remove(ps->ht_plugins, p->name);
 		if (!p->items) continue;
 
 		for (pi = p->items; pi->name; pi++) {
-			g_hash_table_remove(ps->load_items, pi->name);
+			g_hash_table_remove(ps->items, pi->name);
 		}
 	}
 
@@ -275,16 +236,14 @@ gboolean li_plugins_load_module(liServer *srv, const gchar *name) {
 	server_module *sm;
 	const gchar* modname = name ? name : "core";
 
-	sm = g_hash_table_lookup(ps->load_module_refs, modname);
-	if (sm) return TRUE; /* already loaded */
 	sm = g_hash_table_lookup(ps->module_refs, modname);
-	if (sm) { /* loaded in previous config */
-		server_module_acquire(sm);
-		g_hash_table_insert(ps->load_module_refs, sm->name, sm);
-	} else { /* not loaded yet */
+	if (sm) return TRUE; /* already loaded */
+
+	{
+		/* not loaded yet */
 		liModule *mod;
 		sm = server_module_new(srv, modname);
-		g_hash_table_insert(ps->load_module_refs, sm->name, sm);
+		g_hash_table_insert(ps->module_refs, sm->name, sm);
 		if (name) {
 			mod = li_module_load(ps->modules, name);
 
@@ -315,7 +274,7 @@ liPlugin *li_angel_plugin_register(liServer *srv, liModule *mod, const gchar *na
 	liPlugin *p;
 	const gchar* modname = mod ? mod->name->str : "core";
 
-	sm = g_hash_table_lookup(ps->load_module_refs, modname);
+	sm = g_hash_table_lookup(ps->module_refs, modname);
 	if (!sm) {
 		ERROR(srv, "Module '%s' not loaded; cannot load plugin '%s'", modname, name);
 		return NULL;
