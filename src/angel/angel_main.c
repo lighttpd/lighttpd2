@@ -87,8 +87,6 @@ int main(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	INFO(srv, "%s", "parsed config file");
-
 	li_event_loop_run(&srv->loop);
 
 	INFO(srv, "%s", "going down");

@@ -108,6 +108,8 @@ gboolean li_plugins_config_load(liServer *srv, const gchar *filename) {
 		return FALSE;
 	}
 
+	DEBUG(srv, "parsed config file: %s", filename);
+
 	/* check new config */
 	for (i = ps->plugins->len; i-- > 0; ) {
 		liPlugin *p = g_ptr_array_index(ps->plugins, i);
@@ -120,18 +122,16 @@ gboolean li_plugins_config_load(liServer *srv, const gchar *filename) {
 		}
 	}
 
-	INFO(srv, "%s", "activate");
-
 	/* activate new config */
 	for (i = ps->plugins->len; i-- > 0; ) {
 		liPlugin *p = g_ptr_array_index(ps->plugins, i);
-		INFO(srv, "activate: %s", p->name);
+		DEBUG(srv, "activate plugin: %s", p->name);
 		if (p->handle_activate_config) {
 			p->handle_activate_config(srv, p);
 		}
 	}
 
-	INFO(srv, "%s", "done");
+	DEBUG(srv, "%s", "config loading done");
 
 	LI_FORCE_ASSERT(NULL == ps->config_filename);
 	ps->config_filename = g_string_new(filename);
