@@ -16,6 +16,69 @@ typedef struct listen_ref_resource listen_ref_resource;
 # define DEFAULT_LIBEXECDIR "/usr/local/lib/lighttpd2"
 #endif
 
+struct plugin_parsing {
+	GPtrArray *env; /* <gchar*> */
+
+	GString *user;
+	uid_t user_uid;
+	gid_t user_gid;
+
+	GString *group;
+	gid_t group_gid;
+
+	GString *binary;
+	GString *config;
+	GString *luaconfig;
+	GString *modules_path;
+	GPtrArray *wrapper; /* <gchar*> */
+
+	gint64 rlim_core, rlim_nofile;
+
+	liInstanceConf *instconf;
+
+	GPtrArray *listen_masks;
+};
+
+typedef struct plugin_config plugin_config;
+struct plugin_config {
+	/* Parsing/Load */
+	struct plugin_parsing parsing;
+
+	/* Running */
+	liInstanceConf *instconf;
+	GPtrArray *listen_masks;
+
+	liInstance *inst;
+	GHashTable *listen_sockets;
+
+	liEventSignal sig_hup;
+};
+
+typedef struct listen_mask listen_mask;
+struct listen_mask {
+	enum {
+		LI_PLUGIN_CORE_LISTEN_MASK_IPV4,
+		LI_PLUGIN_CORE_LISTEN_MASK_IPV6,
+		LI_PLUGIN_CORE_LISTEN_MASK_UNIX
+	} type;
+
+	union {
+		struct {
+			guint32 addr;
+			guint32 networkmask;
+			guint16 port;
+		} ipv4;
+		struct {
+			guint8 addr[16];
+			guint network;
+			guint16 port;
+		} ipv6;
+		struct {
+			GString *path;
+		} unix_socket;
+	} value;
+};
+
 struct listen_socket {
 	gint refcount;
 
@@ -89,7 +152,7 @@ static gboolean core_parse_store_integer(liValue *value, const char* item, gint6
 
 
 static gboolean core_parse_user(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	struct passwd *pwd;
 	GString *user;
 	UNUSED(srv);
@@ -120,7 +183,7 @@ static gboolean core_parse_user(liServer *srv, liPlugin *p, liValue *value, GErr
 }
 
 static gboolean core_parse_group(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	struct group *grp;
 	GString *group;
 	UNUSED(srv);
@@ -145,14 +208,14 @@ static gboolean core_parse_group(liServer *srv, liPlugin *p, liValue *value, GEr
 }
 
 static gboolean core_parse_binary(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	UNUSED(srv);
 
 	return core_parse_store_string(value, "binary", &pc->parsing.binary, err);
 }
 
 static gboolean core_parse_config(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	UNUSED(srv);
 
 	if (NULL != pc->parsing.luaconfig) {
@@ -165,7 +228,7 @@ static gboolean core_parse_config(liServer *srv, liPlugin *p, liValue *value, GE
 }
 
 static gboolean core_parse_luaconfig(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	UNUSED(srv);
 
 	if (NULL != pc->parsing.config) {
@@ -178,7 +241,7 @@ static gboolean core_parse_luaconfig(liServer *srv, liPlugin *p, liValue *value,
 }
 
 static gboolean core_parse_modules_path(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	UNUSED(srv);
 
 	return core_parse_store_string(value, "modules_path", &pc->parsing.modules_path, err);
@@ -194,7 +257,7 @@ static void add_env(GPtrArray *env, const char *key, size_t keylen, const char *
 }
 
 static gboolean core_parse_env(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	UNUSED(srv);
 
 	value = li_value_get_single_argument(value);
@@ -226,7 +289,7 @@ parameter_type_error:
 }
 
 static gboolean core_parse_copy_env(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	UNUSED(srv);
 
 	value = li_value_get_single_argument(value);
@@ -256,14 +319,14 @@ parameter_type_error:
 }
 
 static gboolean core_parse_wrapper(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	UNUSED(srv);
 
 	return core_parse_store_string_list(value, "wrapper", pc->parsing.wrapper, err);
 }
 
 static gboolean core_parse_max_core_file_size(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	UNUSED(srv);
 
 	if (-1 != pc->parsing.rlim_core) {
@@ -276,7 +339,7 @@ static gboolean core_parse_max_core_file_size(liServer *srv, liPlugin *p, liValu
 }
 
 static gboolean core_parse_max_open_files(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	UNUSED(srv);
 
 	if (-1 != pc->parsing.rlim_nofile) {
@@ -291,7 +354,7 @@ static gboolean core_parse_max_open_files(liServer *srv, liPlugin *p, liValue *v
 
 
 
-static void core_listen_mask_free(liPluginCoreListenMask *mask) {
+static void core_listen_mask_free(listen_mask *mask) {
 	if (NULL == mask) return;
 
 	switch (mask->type) {
@@ -302,11 +365,11 @@ static void core_listen_mask_free(liPluginCoreListenMask *mask) {
 		g_string_free(mask->value.unix_socket.path, TRUE);
 		break;
 	}
-	g_slice_free(liPluginCoreListenMask, mask);
+	g_slice_free(listen_mask, mask);
 }
 
 static gboolean core_parse_allow_listen(liServer *srv, liPlugin *p, liValue *value, GError **err) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	UNUSED(srv);
 
 	value = li_value_get_single_argument(value);
@@ -316,12 +379,12 @@ static gboolean core_parse_allow_listen(liServer *srv, liPlugin *p, liValue *val
 
 	LI_VALUE_FOREACH(entry, value)
 		GString *s;
-		liPluginCoreListenMask *mask;
+		listen_mask *mask;
 
 		if (LI_VALUE_STRING != li_value_type(entry)) goto parameter_type_error;
 		s = entry->data.string;
 
-		mask = g_slice_new0(liPluginCoreListenMask);
+		mask = g_slice_new0(listen_mask);
 		if (li_string_prefix(s, CONST_STR_LEN("unix:/"))) {
 			mask->type = LI_PLUGIN_CORE_LISTEN_MASK_UNIX;
 			mask->value.unix_socket.path = li_value_extract_string(entry);
@@ -336,7 +399,7 @@ static gboolean core_parse_allow_listen(liServer *srv, liPlugin *p, liValue *val
 		else {
 			g_set_error(err, LI_ANGEL_CONFIG_PARSER_ERROR, LI_ANGEL_CONFIG_PARSER_ERROR_PARSE,
 				"allow_listen: couldn't parse socket address mask '%s'", s->str);
-			g_slice_free(liPluginCoreListenMask, mask);
+			g_slice_free(listen_mask, mask);
 			return FALSE;
 		}
 
@@ -386,7 +449,7 @@ static const liPluginItem core_items[] = {
 	}
 
 static void core_parse_init(liServer *srv, liPlugin *p) {
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	UNUSED(srv);
 
 	INIT_STR_LIST(env);
@@ -427,7 +490,7 @@ static gboolean core_check(liServer *srv, liPlugin *p, GError **err) {
 	GPtrArray *cmd;
 	GString *user;
 	gchar **cmdarr, **envarr;
-	liPluginCoreConfig *pc = p->data;
+	plugin_config *pc = p->data;
 	gid_t gid = ((gid_t)-1 != pc->parsing.group_gid) ? pc->parsing.group_gid : pc->parsing.user_gid;
 	UNUSED(srv);
 	UNUSED(err);
@@ -500,7 +563,7 @@ static void listen_ref_release(liServer *srv, liInstance *i, liPlugin *p, liInst
 
 	LI_FORCE_ASSERT(g_atomic_int_get(&sock->refcount) > 0);
 	if (g_atomic_int_dec_and_test(&sock->refcount)) {
-		liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+		plugin_config *config = (plugin_config*) p->data;
 
 		/* theoretically the hash table entry might not point to `sock`,
 		 * but a) that shouldn't happen (can't bind two sockets to same
@@ -527,9 +590,9 @@ static void listen_socket_add(liInstance *i, liPlugin *p, listen_socket *sock) {
 	li_instance_add_resource(i, &ref->ires, listen_ref_release, p, ref);
 }
 
-static gboolean listen_check_acl(liServer *srv, liPluginCoreConfig *config, liSocketAddress *addr) {
+static gboolean listen_check_acl(liServer *srv, plugin_config *config, liSocketAddress *addr) {
 	guint i;
-	liPluginCoreListenMask *mask;
+	listen_mask *mask;
 
 	switch (addr->addr_up.plain->sa_family) {
 	case AF_INET: {
@@ -720,7 +783,7 @@ static void core_listen(liServer *srv, liPlugin *p, liInstance *i, gint32 id, GS
 	GError *err = NULL;
 	gint fd;
 	GArray *fds;
-	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+	plugin_config *config = (plugin_config*) p->data;
 	liSocketAddress addr;
 	listen_socket *sock;
 
@@ -866,7 +929,7 @@ static void core_log_open_file(liServer *srv, liPlugin *p, liInstance *i, gint32
 }
 
 static void core_free(liServer *srv, liPlugin *p) {
-	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+	plugin_config *config = (plugin_config*) p->data;
 	guint i;
 
 	li_event_clear(&config->sig_hup);
@@ -897,11 +960,11 @@ static void core_free(liServer *srv, liPlugin *p) {
 	g_hash_table_destroy(config->listen_sockets);
 	config->listen_masks = NULL;
 
-	g_slice_free(liPluginCoreConfig, config);
+	g_slice_free(plugin_config, config);
 }
 
 static void core_activate(liServer *srv, liPlugin *p) {
-	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+	plugin_config *config = (plugin_config*) p->data;
 	GPtrArray *tmp_ptrarray;
 	guint i;
 
@@ -934,7 +997,7 @@ static void core_activate(liServer *srv, liPlugin *p) {
 }
 
 static void core_instance_replaced(liServer *srv, liPlugin *p, liInstance *oldi, liInstance *newi) {
-	liPluginCoreConfig *config = (liPluginCoreConfig*) p->data;
+	plugin_config *config = (plugin_config*) p->data;
 	UNUSED(srv);
 
 	if (oldi == config->inst && LI_INSTANCE_FINISHED == oldi->s_cur) {
@@ -945,7 +1008,7 @@ static void core_instance_replaced(liServer *srv, liPlugin *p, liInstance *oldi,
 }
 
 static void core_handle_sig_hup(liEventBase *watcher, int events) {
-	liPluginCoreConfig *config = LI_CONTAINER_OF(li_event_signal_from(watcher), liPluginCoreConfig, sig_hup);
+	plugin_config *config = LI_CONTAINER_OF(li_event_signal_from(watcher), plugin_config, sig_hup);
 	liInstance *oldi, *newi;
 	UNUSED(events);
 
@@ -960,9 +1023,9 @@ static void core_handle_sig_hup(liEventBase *watcher, int events) {
 }
 
 static gboolean core_init(liServer *srv, liPlugin *p) {
-	liPluginCoreConfig *config;
+	plugin_config *config;
 	UNUSED(srv);
-	p->data = config = g_slice_new0(liPluginCoreConfig);
+	p->data = config = g_slice_new0(plugin_config);
 	p->items = core_items;
 
 	p->handle_free = core_free;
