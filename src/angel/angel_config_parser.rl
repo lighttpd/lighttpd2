@@ -387,6 +387,7 @@ static gboolean tokenizer_init_file(liServer *srv, liConfigTokenizerContext *ctx
 
 static void tokenizer_clear(liConfigTokenizerContext *ctx) {
 	g_string_free(ctx->token_string, TRUE);
+	g_hash_table_destroy(ctx->variables);
 }
 
 static liConfigToken tokenizer_next(liConfigTokenizerContext *ctx, GError **error) {
