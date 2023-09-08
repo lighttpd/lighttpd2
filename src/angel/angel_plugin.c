@@ -13,7 +13,6 @@ struct server_item {
 
 typedef struct server_module server_module;
 struct server_module {
-	guint refcount;
 	gchar *name;
 	liServer *srv;
 	liModule *mod;
@@ -48,9 +47,6 @@ static void _server_module_release(gpointer d) {
 	server_module *sm = d;
 	guint i;
 
-	g_assert(sm->refcount > 0);
-	if (0 != --sm->refcount) return;
-
 	for (i = sm->plugins->len; i-- > 0; ) {
 		liPlugin *p = g_ptr_array_index(sm->plugins, i);
 		li_plugin_free(sm->srv, p);
@@ -63,7 +59,6 @@ static void _server_module_release(gpointer d) {
 
 static server_module* server_module_new(liServer *srv, const gchar *name) { /* module is set later */
 	server_module *sm = g_slice_new0(server_module);
-	sm->refcount = 1;
 	sm->srv = srv;
 	sm->plugins = g_ptr_array_new();
 	sm->name = g_strdup(name);
