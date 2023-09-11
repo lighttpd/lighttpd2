@@ -18,7 +18,7 @@ nodist_lighttpd_angel_shared_src=$(parsers)
 
 BUILT_SOURCES=$(parsers)
 CLEANFILES=$(parsers)
-EXTRA_DIST=angel_config_parser.rl
+EXTRA_DIST=angel_config_parser.rl meson.build
 
 angel_config_parser.c: angel_config_parser.rl
 	$(RAGEL) -C -T1 -o $@ $<

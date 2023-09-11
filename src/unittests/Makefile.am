@@ -1,5 +1,7 @@
 include $(top_srcdir)/build-helpers/glib-tap.mk
 
+EXTRA_DIST += meson.build
+
 AM_CFLAGS = -I$(top_builddir)/include -I$(top_srcdir)/include
 AM_CFLAGS += $(GTHREAD_CFLAGS) $(GMODULE_CFLAGS) $(LIBEV_CFLAGS) $(LUA_CFLAGS)
 AM_LDFLAGS = -export-dynamic -avoid-version -no-undefined $(GTHREAD_LIBS) $(GMODULE_LIBS) $(LIBEV_LIBS) $(LUA_LIBS)

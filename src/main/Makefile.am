@@ -77,7 +77,7 @@ endif
 
 BUILT_SOURCES=$(parsers)
 CLEANFILES=$(parsers)
-EXTRA_DIST=config_parser.rl http_range_parser.rl http_request_parser.rl  http_response_parser.rl url_parser.rl
+EXTRA_DIST=config_parser.rl http_range_parser.rl http_request_parser.rl  http_response_parser.rl url_parser.rl meson.build
 
 config_parser.c: config_parser.rl
 	$(RAGEL) -C -T0 -o $@ $<

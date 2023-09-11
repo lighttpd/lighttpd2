@@ -1,5 +1,6 @@
 dist_man8_MANS=lighttpd2.8 lighttpd2-worker.8
 EXTRA_DIST=\
+	meson.build \
 	jquery-1.10.1.min.js \
 	bootstrap.min.js \
 	bootstrap.min.css \

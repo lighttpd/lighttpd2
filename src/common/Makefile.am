@@ -32,7 +32,7 @@ EXTRA_liblighttpd2_common_la_SOURCES=profiler.c
 
 BUILT_SOURCES=$(parsers)
 CLEANFILES=$(parsers)
-EXTRA_DIST=ip_parsers.rl value_impl.c
+EXTRA_DIST=ip_parsers.rl value_impl.c meson.build
 
 ip_parsers.c: ip_parsers.rl
 	$(RAGEL) -C -T1 -o $@ $<
