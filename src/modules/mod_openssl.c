@@ -17,8 +17,6 @@
 
 # ifndef OPENSSL_NO_DH
 #  include <openssl/dh.h>
-#  define USE_OPENSSL_DH
-static DH* load_dh_params_4096(void);
 # endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x0090800fL
@@ -28,6 +26,11 @@ static DH* load_dh_params_4096(void);
 # endif
 #endif
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+# include <openssl/store.h>
+#endif
+
+static gboolean init_dh_params(liServer *srv, SSL_CTX *ssl_ctx, const char* dh_params_file);
 
 LI_API gboolean mod_openssl_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_openssl_free(liModules *mods, liModule *mod);
@@ -590,9 +593,6 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			}
 			ciphers = entryValue->data.string->str;
 		} else if (g_str_equal(entryKeyStr->str, "dh-params")) {
-#ifndef USE_OPENSSL_DH
-			WARNING(srv, "%s", "the openssl library in use doesn't support DH => dh-params has no effect");
-#endif
 			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl dh-params expects a string as parameter");
 				return FALSE;
@@ -728,36 +728,9 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		goto error_free_socket;
 	}
 
-#ifdef USE_OPENSSL_DH
-	{
-		DH *dh;
-		BIO *bio;
-
-		/* Support for Diffie-Hellman key exchange */
-		if (NULL != dh_params_file) {
-			/* DH parameters from file */
-			bio = BIO_new_file(dh_params_file, "r");
-			if (bio == NULL) {
-				ERROR(srv,"SSL: BIO_new_file('%s'): unable to open file", dh_params_file);
-				goto error_free_socket;
-			}
-			dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
-			BIO_free(bio);
-			if (NULL == dh) {
-				ERROR(srv, "SSL: PEM_read_bio_DHparams failed (for file '%s')", dh_params_file);
-				goto error_free_socket;
-			}
-		} else {
-			dh = load_dh_params_4096();
-			if (NULL == dh) {
-				ERROR(srv, "%s", "SSL: loading default DH parameters failed");
-				goto error_free_socket;
-			}
-		}
-		SSL_CTX_set_tmp_dh(ctx->ssl_ctx, dh);
-		DH_free(dh);
+	if (!init_dh_params(srv, ctx->ssl_ctx, dh_params_file)) {
+		goto error_free_socket;
 	}
-#endif
 
 #ifdef USE_OPENSSL_ECDH
 	{
@@ -962,7 +935,101 @@ gboolean mod_openssl_free(liModules *mods, liModule *mod) {
 	return TRUE;
 }
 
-#ifdef USE_OPENSSL_DH
+#if !defined(OPENSSL_NO_DH)
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+
+static gboolean init_dh_params(liServer *srv, SSL_CTX *ssl_ctx, const char* dh_params_file) {
+	OSSL_STORE_CTX *store_ctx = NULL;
+	EVP_PKEY *dh_pkey = NULL;
+	BIO *dh_file_bio = NULL;
+	gboolean res = TRUE;
+
+	if (!dh_params_file) {
+		SSL_CTX_set_dh_auto(ssl_ctx, 1);
+		return TRUE;
+	}
+
+	/* not using `OSSL_STORE_open`, as it expects a URI, and filenames should
+	 * use the file: scheme, but that doesn't support relative paths (yet).
+	 * It only interprets the URI as a (possibly relative) path if it doesn't
+	 * detect a scheme, but the error message for not existing files is too cryptic.
+	 */
+
+	dh_file_bio = BIO_new_file(dh_params_file, "r");
+	if (dh_file_bio == NULL) {
+		ERROR(
+			srv,
+			"Error opening DH parameters from '%s': %s",
+			dh_params_file,
+			ERR_error_string(ERR_get_error(), NULL)
+		);
+		return FALSE;
+	}
+
+	store_ctx = OSSL_STORE_attach(
+		/* bio */ dh_file_bio, /* scheme */ "file",
+		/* libctx */ NULL, /* propq */ NULL,
+		/* ui_method */ NULL, /* ui_data */ NULL,
+		/* params */ NULL,
+		/* post_process */ NULL, /* post_process_data */ NULL
+	);
+	BIO_free(dh_file_bio);
+
+	if (!store_ctx || !OSSL_STORE_expect(store_ctx, OSSL_STORE_INFO_PARAMS)) {
+		ERROR(
+			srv,
+			"Error while loading DH parameters from '%s': %s",
+			dh_params_file,
+			ERR_error_string(ERR_get_error(), NULL)
+		);
+		OSSL_STORE_close(store_ctx);
+		return FALSE;
+	}
+	for (;;) {
+		OSSL_STORE_INFO *store_info = OSSL_STORE_load(store_ctx);
+		if (store_info == NULL) {
+			if (OSSL_STORE_eof(store_ctx)) {
+				ERROR(srv, "No DH parameters found in '%s'", dh_params_file);
+				OSSL_STORE_close(store_ctx);
+				return FALSE;
+			}
+			WARNING(
+				srv,
+				"Error while trying to find DH parameters from '%s': %s",
+				dh_params_file,
+				ERR_error_string(ERR_get_error(), NULL)
+			);
+			continue;
+		}
+
+		dh_pkey = OSSL_STORE_INFO_get1_PARAMS(store_info);
+		if (!EVP_PKEY_is_a(dh_pkey, "DH")) {
+			EVP_PKEY_free(dh_pkey);
+			OSSL_STORE_INFO_free(store_info);
+			continue;  /* skip non-DH entries */
+		}
+
+		if (!SSL_CTX_set0_tmp_dh_pkey(ssl_ctx, dh_pkey)) {
+			WARNING(
+				srv,
+				"Failed to set DH parameters from '%s': %s",
+				dh_params_file,
+				ERR_error_string(ERR_get_error(), NULL)
+			);
+			EVP_PKEY_free(dh_pkey);  /* ownership passed only on success */
+			res = FALSE;
+		}
+
+		OSSL_STORE_INFO_free(store_info);
+		OSSL_STORE_close(store_ctx);
+
+		return res;
+	}
+}
+
+#else /* not openssl >= 3.0 */
+
 static DH* load_dh_params_4096(void) {
 	static const unsigned char dh4096_p[]={
 		0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xC9,0x0F,0xDA,0xA2,
@@ -1038,4 +1105,50 @@ static DH* load_dh_params_4096(void) {
 
 	return dh;
 }
-#endif
+
+static gboolean init_dh_params(liServer *srv, SSL_CTX *ssl_ctx, const char* dh_params_file) {
+	DH *dh;
+	BIO *bio;
+
+	/* Support for Diffie-Hellman key exchange */
+	if (NULL != dh_params_file) {
+		/* DH parameters from file */
+		bio = BIO_new_file(dh_params_file, "r");
+		if (bio == NULL) {
+			ERROR(srv,"SSL: BIO_new_file('%s'): unable to open file", dh_params_file);
+			return FALSE;
+		}
+		dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
+		BIO_free(bio);
+		if (NULL == dh) {
+			ERROR(srv, "SSL: PEM_read_bio_DHparams failed (for file '%s')", dh_params_file);
+			return FALSE;
+		}
+	} else {
+		dh = load_dh_params_4096();
+		if (NULL == dh) {
+			ERROR(srv, "%s", "SSL: loading default DH parameters failed");
+			return FALSE;
+		}
+	}
+	SSL_CTX_set_tmp_dh(ssl_ctx, dh);
+	DH_free(dh);
+
+	return TRUE;
+}
+
+#endif /* (not) openssl >= 3.0 */
+
+#else /* (not) !defined(OPENSSL_NO_DH) */
+
+static gboolean init_dh_params(liServer *srv, SSL_CTX *ssl_ctx, const char *dh_params_file) {
+	UNUSED(ssl_ctx);
+
+	if (dh_params_file) {
+		WARNING(srv, "%s", "the openssl library in use doesn't support DH => dh-params has no effect");
+	}
+
+	return TRUE;
+}
+
+#endif /* (not) !defined(OPENSSL_NO_DH) */
