@@ -31,6 +31,7 @@
 #endif
 
 static gboolean init_dh_params(liServer *srv, SSL_CTX *ssl_ctx, const char* dh_params_file);
+static gboolean init_ecdh_curve(liServer *srv, SSL_CTX *ssl_ctx, const char *ecdh_curve);
 
 LI_API gboolean mod_openssl_init(liModules *mods, liModule *mod);
 LI_API gboolean mod_openssl_free(liModules *mods, liModule *mod);
@@ -508,9 +509,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 	openssl_context *ctx;
 	STACK_OF(X509_NAME) *client_ca_list;
 
-	const char
-		*default_ciphers = "HIGH !aNULL !3DES +kEDH +kRSA !kSRP !kPSK",
-		*default_ecdh_curve = "prime256v1";
+	const char *default_ciphers = "HIGH !aNULL !3DES +kEDH +kRSA !kSRP !kPSK";
 
 	/* setup defaults */
 	gboolean
@@ -603,9 +602,6 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			}
 			dh_params_file = entryValue->data.string->str;
 		} else if (g_str_equal(entryKeyStr->str, "ecdh-curve")) {
-#ifndef USE_OPENSSL_ECDH
-			WARNING(srv, "%s", "the openssl library in use doesn't support ECDH => ecdh-curve has no effect");
-#endif
 			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl ecdh-curve expects a string as parameter");
 				return FALSE;
@@ -732,29 +728,9 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		goto error_free_socket;
 	}
 
-#ifdef USE_OPENSSL_ECDH
-	{
-		EC_KEY *ecdh;
-		int ecdh_nid;
-
-		if (NULL == ecdh_curve) ecdh_curve = default_ecdh_curve;
-		ecdh_nid = OBJ_sn2nid(ecdh_curve);
-		if (NID_undef == ecdh_nid) {
-			ERROR(srv, "SSL: Unknown curve name '%s'", ecdh_curve);
-			goto error_free_socket;
-		}
-
-		ecdh = EC_KEY_new_by_curve_name(ecdh_nid);
-		if (NULL == ecdh) {
-			ERROR(srv, "SSL: Unable to create curve '%s'", ecdh_curve);
-			goto error_free_socket;
-		}
-		SSL_CTX_set_tmp_ecdh(ctx->ssl_ctx, ecdh);
-		EC_KEY_free(ecdh);
+	if (!init_ecdh_curve(srv, ctx->ssl_ctx, ecdh_curve)) {
+		goto error_free_socket;
 	}
-#else
-	UNUSED(default_ecdh_curve);
-#endif
 
 	if (NULL != ca_file) {
 		if (1 != SSL_CTX_load_verify_locations(ctx->ssl_ctx, ca_file, NULL)) {
@@ -1152,3 +1128,60 @@ static gboolean init_dh_params(liServer *srv, SSL_CTX *ssl_ctx, const char *dh_p
 }
 
 #endif /* (not) !defined(OPENSSL_NO_DH) */
+
+#if defined(USE_OPENSSL_ECDH)
+
+#define DEFAULT_ECDH_CURVE "prime256v1"
+
+static gboolean init_ecdh_curve(liServer *srv, SSL_CTX *ssl_ctx, const char *ecdh_curve) {
+	int ecdh_nid;
+
+	if (NULL == ecdh_curve) ecdh_curve = DEFAULT_ECDH_CURVE;
+	ecdh_nid = OBJ_sn2nid(ecdh_curve);
+	if (NID_undef == ecdh_nid) {
+		ERROR(srv, "SSL: Unknown curve name '%s'", ecdh_curve);
+		return FALSE;
+	}
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+
+	if (!SSL_CTX_set1_groups(ssl_ctx, &ecdh_nid, 1)) {
+		ERROR(
+			srv,
+			"SSL_CTX_set1_groups failed to set curve '%s': %s",
+			ecdh_curve,
+			ERR_error_string(ERR_get_error(), NULL)
+		);
+		return FALSE;
+	}
+
+#else /* (not) openssl >= 3.0 */
+
+	{
+		ecdh = EC_KEY_new_by_curve_name(ecdh_nid);
+		if (NULL == ecdh) {
+			ERROR(srv, "SSL: Unable to create curve '%s'", ecdh_curve);
+			return FALSE;
+		}
+		SSL_CTX_set_tmp_ecdh(ssl_ctx, ecdh);
+		EC_KEY_free(ecdh);
+	}
+
+#endif /* (not) openssl >= 3.0 */
+
+	return TRUE;
+}
+
+#else /* (not) defined(USE_OPENSSL_ECDH) */
+
+static gboolean init_ecdh_curve(liServer *srv, SSL_CTX *ssl_ctx, const char *ecdh_curve) {
+	UNUSED(ssl_ctx);
+
+	if (ecdh_curve) {
+		WARNING(srv, "%s", "the openssl library in use doesn't support ECDH => ecdh-curve has no effect");
+	}
+
+	return TRUE;
+}
+
+#endif /* (not) defined(USE_OPENSSL_ECDH) */
