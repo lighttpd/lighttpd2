@@ -32,111 +32,6 @@ struct liOpenSSLFilter {
 
 #define BIO_TYPE_LI_STREAM (127|BIO_TYPE_SOURCE_SINK)
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
-
-static int stream_bio_write(BIO *bio, const char *buf, int len) {
-	liOpenSSLFilter *f = bio->ptr;
-	liChunkQueue *cq;
-
-	errno = ECONNRESET;
-
-	if (NULL == f || NULL == f->crypt_source.out) return -1;
-	cq = f->crypt_source.out;
-	if (cq->is_closed) return -1;
-
-	li_chunkqueue_append_mem(cq, buf, len);
-	li_stream_notify_later(&f->crypt_source);
-
-	errno = 0;
-	return len;
-}
-static int stream_bio_read(BIO *bio, char *buf, int len) {
-	liOpenSSLFilter *f = bio->ptr;
-	liChunkQueue *cq;
-
-	errno = ECONNRESET;
-	BIO_clear_retry_flags(bio);
-
-	if (NULL == f || NULL == f->crypt_drain.out) return -1;
-
-	cq = f->crypt_drain.out;
-
-	if (0 == cq->length) {
-		if (cq->is_closed) {
-			errno = 0;
-			return 0;
-		} else {
-			errno = EAGAIN;
-			BIO_set_retry_read(bio);
-			return -1;
-		}
-	}
-
-	if (len > cq->length) len = cq->length;
-	if (!li_chunkqueue_extract_to_memory(cq, len, buf, NULL)) return -1;
-	li_chunkqueue_skip(cq, len);
-
-	errno = 0;
-	return len;
-}
-static int stream_bio_puts(BIO *bio, const char *str) {
-	return stream_bio_write(bio, str, strlen(str));
-}
-static int stream_bio_gets(BIO *bio, char *str, int len) {
-	UNUSED(bio); UNUSED(str); UNUSED(len);
-	return -1;
-}
-static long stream_bio_ctrl(BIO *bio, int cmd, long num, void *ptr) {
-	liOpenSSLFilter *f = bio->ptr;
-	UNUSED(num); UNUSED(ptr);
-
-	switch (cmd) {
-	case BIO_CTRL_FLUSH:
-		return 1;
-	case BIO_CTRL_PENDING:
-		if (NULL == f || NULL == f->crypt_drain.out) return 0;
-		return f->crypt_drain.out->length;
-	default:
-		return 0;
-	}
-}
-static int stream_bio_create(BIO *bio) {
-	bio->ptr = NULL;
-	bio->init = 1;
-	bio->shutdown = 1;
-	bio->num = 0;
-	bio->flags = 0;
-	return 1;
-}
-static int stream_bio_destroy(BIO *bio) {
-	liOpenSSLFilter *f = bio->ptr;
-	bio->ptr = NULL;
-	if (NULL != f) f->bio = NULL;
-	bio->init = 0;
-	return 1;
-}
-
-static BIO_METHOD chunkqueue_bio_method = {
-	BIO_TYPE_LI_STREAM,
-	"lighttpd stream glue",
-	stream_bio_write,
-	stream_bio_read,
-	stream_bio_puts,
-	stream_bio_gets,
-	stream_bio_ctrl,
-	stream_bio_create,
-	stream_bio_destroy,
-	NULL
-};
-
-static BIO* new_cq_bio(liOpenSSLFilter *f) {
-	BIO *bio = BIO_new(&chunkqueue_bio_method);
-	bio->ptr = f;
-	return bio;
-}
-
-#else
-
 static int stream_bio_write(BIO *bio, const char *buf, int len) {
 	liOpenSSLFilter *f = BIO_get_data(bio);
 	liChunkQueue *cq;
@@ -247,8 +142,6 @@ static BIO* new_cq_bio(liOpenSSLFilter *f) {
 	BIO_set_init(bio, 1);
 	return bio;
 }
-
-#endif
 
 static void f_close_ssl(liOpenSSLFilter *f) {
 	if (NULL != f->ssl && !f->closing) {
@@ -388,11 +281,6 @@ static gboolean do_ssl_handshake(liOpenSSLFilter *f, gboolean writing) {
 	int r = SSL_do_handshake(f->ssl);
 	if (1 == r) {
 		f->initial_handshaked_finished = 1;
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
-		f->ssl->s3->flags |= SSL3_FLAGS_NO_RENEGOTIATE_CIPHERS;
-#else
-		/* hopefully openssl_info_callback catches this... */
-#endif
 		li_stream_acquire(&f->plain_source);
 		li_stream_acquire(&f->plain_drain);
 		f->callbacks->handshake_cb(f, f->callback_data, &f->plain_source, &f->plain_drain);

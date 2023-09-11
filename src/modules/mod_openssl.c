@@ -15,15 +15,12 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 
-# ifndef OPENSSL_NO_DH
-#  include <openssl/dh.h>
-# endif
+#ifndef OPENSSL_NO_DH
+# include <openssl/dh.h>
+#endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x0090800fL
-# ifndef OPENSSL_NO_ECDH
-#  include <openssl/ecdh.h>
-#  define USE_OPENSSL_ECDH
-# endif
+#ifndef OPENSSL_NO_ECDH
+# include <openssl/ecdh.h>
 #endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
@@ -526,7 +523,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 #ifdef SSL_OP_NO_COMPRESSION
 			| SSL_OP_NO_COMPRESSION
 #endif
-#ifdef USE_OPENSSL_ECDH
+#if !defined(OPENSSL_NO_ECDH)
 			| SSL_OP_SINGLE_ECDH_USE
 #endif
 		;
@@ -831,60 +828,8 @@ static void plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
 	p->setups = setups;
 }
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
-static GMutex** ssl_locks;
-
-static void ssl_lock_cb(int mode, int n, const char *file, int line) {
-	UNUSED(file);
-	UNUSED(line);
-
-	if (mode & CRYPTO_LOCK) {
-		g_mutex_lock(ssl_locks[n]);
-	} else if (mode & CRYPTO_UNLOCK) {
-		g_mutex_unlock(ssl_locks[n]);
-	}
-}
-
-static unsigned long ssl_id_cb(void) {
-	return (intptr_t) g_thread_self();
-}
-
-static void sslthread_init(void) {
-	int n = CRYPTO_num_locks(), i;
-
-	ssl_locks = g_slice_alloc0(sizeof(GMutex*) * n);
-
-	for (i = 0; i < n; i++) {
-		ssl_locks[i] = g_mutex_new();
-	}
-
-	CRYPTO_set_locking_callback(ssl_lock_cb);
-	CRYPTO_set_id_callback(ssl_id_cb);
-}
-
-static void sslthread_free(void) {
-	int n = CRYPTO_num_locks(), i;
-
-	for (i = 0; i < n; i++) {
-		g_mutex_free(ssl_locks[i]);
-	}
-
-	g_slice_free1(sizeof(GMutex*) * n, ssl_locks);
-}
-
-#else
-
-static void sslthread_init(void) {
-}
-static void sslthread_free(void) {
-}
-
-#endif
-
 gboolean mod_openssl_init(liModules *mods, liModule *mod) {
 	MODULE_VERSION_CHECK(mods);
-
-	sslthread_init();
 
 	SSL_load_error_strings();
 	SSL_library_init();
@@ -905,8 +850,6 @@ gboolean mod_openssl_free(liModules *mods, liModule *mod) {
 		li_plugin_free(mods->main, mod->config);
 
 	ERR_free_strings();
-
-	sslthread_free();
 
 	return TRUE;
 }
@@ -1072,12 +1015,7 @@ static DH* load_dh_params_4096(void) {
 		return NULL;
 	}
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
-	dh->p = dh_p;
-	dh->g = dh_g;
-#else
 	DH_set0_pqg(dh, dh_p, NULL, dh_g);
-#endif
 
 	return dh;
 }
@@ -1129,7 +1067,7 @@ static gboolean init_dh_params(liServer *srv, SSL_CTX *ssl_ctx, const char *dh_p
 
 #endif /* (not) !defined(OPENSSL_NO_DH) */
 
-#if defined(USE_OPENSSL_ECDH)
+#if !defined(OPENSSL_NO_ECDH)
 
 #define DEFAULT_ECDH_CURVE "prime256v1"
 
@@ -1172,7 +1110,7 @@ static gboolean init_ecdh_curve(liServer *srv, SSL_CTX *ssl_ctx, const char *ecd
 	return TRUE;
 }
 
-#else /* (not) defined(USE_OPENSSL_ECDH) */
+#else /* (not) !defined(OPENSSL_NO_ECDH) */
 
 static gboolean init_ecdh_curve(liServer *srv, SSL_CTX *ssl_ctx, const char *ecdh_curve) {
 	UNUSED(ssl_ctx);
@@ -1184,4 +1122,4 @@ static gboolean init_ecdh_curve(liServer *srv, SSL_CTX *ssl_ctx, const char *ecd
 	return TRUE;
 }
 
-#endif /* (not) defined(USE_OPENSSL_ECDH) */
+#endif /* (not) !defined(OPENSSL_NO_ECDH) */

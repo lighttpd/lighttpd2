@@ -88,7 +88,7 @@ if get_option('unwind')
 endif
 
 if get_option('openssl')
-  dep_openssl = dependency('openssl')  # should find both ssl and crypto
+  dep_openssl = dependency('openssl', version: '>=1.1')  # should find both ssl and crypto
 else
   dep_openssl = disabler()
 endif
