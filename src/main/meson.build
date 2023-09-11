@@ -71,7 +71,7 @@ if get_option('lua')
 endif
 
 lib_shared = library(
-  'lighttpd-' + meson.project_version() + '-shared',
+  'lighttpd2-shared-' + meson.project_version(),
   src_shared,
   include_directories: inc_dir,
   dependencies: [

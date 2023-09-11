@@ -25,7 +25,7 @@ if get_option('profiler')
 endif
 
 lib_common = library(
-  'lighttpd-' + meson.project_version() + '-common',
+  'lighttpd2-common-' + meson.project_version(),
   src_common,
   include_directories: inc_dir,
   dependencies: [
