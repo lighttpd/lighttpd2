@@ -204,10 +204,13 @@
 				<short>maps prefix to base location on disk</short>
 			</parameter>
 			<description><markdown>
-				The prefix is removed from the url path before it is appended to the base location.  
+				The prefix is removed from the URL path before it is appended to the base location.  
 				You'll want the `docroot` action **before** `alias` actions!
 
 				[Patterns](core_pattern.html#core_pattern) are supported for alias targets as in `docroot`. As only one pattern per prefix can be given `alias` does not check whether the target exists.
+
+				Trailing slashes in the prefix used to indicate "directory handling" and get ignored for matching; "directory handling" is now always on.  
+				That means URL paths only match at separator boundaries; the prefix `/a` (and `/a/`) matches the paths `/a`, `/a/` and `/a/b`, but not `/ab`.
 			</markdown></description>
 			<example>
 				<config>

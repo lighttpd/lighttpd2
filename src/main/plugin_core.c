@@ -295,16 +295,14 @@ static liHandlerResult core_handle_alias(liVRequest *vr, gpointer _param, gpoint
 	for (i = 0; i < param->len; i++) {
 		core_alias_config ac = g_array_index(param, core_alias_config, i);
 		gsize preflen = ac.prefix->len;
-		gboolean isdir = FALSE;
 
 		if (preflen > 0 && ac.prefix->str[preflen-1] == '/') {
 			preflen--;
-			isdir = TRUE;
 		}
 
 		if (li_string_prefix(vr->request.uri.path, ac.prefix->str, preflen)) {
 			/* check if url has the form "prefix" or "prefix/.*" */
-			if (isdir && vr->request.uri.path->str[preflen] != '\0' && vr->request.uri.path->str[preflen] != '/') continue;
+			if (vr->request.uri.path->str[preflen] != '\0' && vr->request.uri.path->str[preflen] != '/') continue;
 
 			g_string_truncate(vr->physical.doc_root, 0);
 			li_pattern_eval(vr, vr->physical.doc_root, ac.path, core_docroot_nth_cb, &dsplit, li_pattern_regex_cb, match_info);
@@ -317,6 +315,8 @@ static liHandlerResult core_handle_alias(liVRequest *vr, gpointer _param, gpoint
 			/* build physical path: docroot + uri.path */
 			g_string_truncate(vr->physical.path, 0);
 			li_g_string_append_len(vr->physical.path, GSTR_LEN(vr->physical.doc_root));
+			/* we checked uri.path to be either "prefix" or "prefix/.*", so uri.path[prefixlen..] is either empty
+			 * or starts with a "/" */
 			li_g_string_append_len(vr->physical.path, vr->request.uri.path->str + preflen, vr->request.uri.path->len - preflen);
 
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
