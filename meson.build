@@ -244,11 +244,11 @@ lib_m = compiler.find_library('m')
 if get_option('ipv6')
   if compiler.has_type(
     'struct sockaddr_in6',
-    prefix: [
+    prefix: '\n'.join([
       '#include <sys/types.h>',
       '#include <sys/socket.h>',
       '#include <netinet/in.h>',
-    ],
+    ]),
   )
     conf_data.set10('HAVE_IPV6', true)
   else
