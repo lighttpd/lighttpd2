@@ -19,7 +19,7 @@ modules = {
   },
   'deflate': {
     'sources': ['mod_deflate.c'],
-    'dependencies': dep_deflate,
+    'dependencies': [dep_deflate],
   },
   'dirlist': {
     'sources': ['mod_dirlist.c'],
@@ -45,11 +45,11 @@ modules = {
   },
   'lua': {
     'sources': ['mod_lua.c'],
-    'dependencies': dep_lua,
+    'dependencies': [dep_lua],
   },
   'memcached': {
     'sources': ['mod_memcached.c'],
-    'dependencies': opt_dep_lua,
+    'dependencies': [opt_dep_lua],
   },
   'openssl': {
     'sources': ['mod_openssl.c', 'openssl_filter.c'],
@@ -90,9 +90,9 @@ all_modules = []
 enabled_modules = []
 
 foreach name, def: modules
-  deps = main_deps + def.get('dependencies', [])
+  mod_deps = def.get('dependencies', [])
   expect_mod = true
-  foreach dep: deps
+  foreach dep: mod_deps
     if not dep.found()
       expect_mod = false
     endif
@@ -100,7 +100,7 @@ foreach name, def: modules
   mod = shared_module(
     'mod_' + name,
     def['sources'],
-    dependencies: main_deps + def.get('dependencies', []),
+    dependencies: main_deps + mod_deps,
     c_args: def.get('c_args', []),
     include_directories: inc_dir,
     install: true,
