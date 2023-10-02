@@ -83,8 +83,10 @@ else
 endif
 
 if get_option('unwind')
-  dep_unwind = dependency('libunwind')
+  opt_dep_unwind = dependency('libunwind')
   conf_data.set10('HAVE_LIBUNWIND', true)
+else
+  opt_dep_unwind = dep_not_found
 endif
 
 if get_option('openssl')

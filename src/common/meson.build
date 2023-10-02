@@ -30,7 +30,7 @@ lib_common = library(
   include_directories: inc_dir,
   dependencies: [
     main_deps,
-    dep_unwind,
+    opt_dep_unwind,
     lib_crypt,
     lib_kvm,
   ],
