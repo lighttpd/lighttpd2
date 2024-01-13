@@ -70,15 +70,22 @@ liModule* li_module_load(liModules *mods, const gchar* name, GError **err) {
 	mod->name = g_string_new(name);
 	mod->refcount = 1;
 
-	mod->path = g_module_build_path(mods->module_dir, name);
+	mod->path = g_strconcat(mods->module_dir, G_DIR_SEPARATOR_S, name, NULL);
 	mod->module = g_module_open(mod->path, G_MODULE_BIND_LAZY);
 
 	if (!mod->module) {
 		if (err) g_set_error(err, LI_MODULES_ERROR, 1, "%s", g_module_error());
-		g_string_free(mod->name, TRUE);
 		g_free(mod->path);
-		g_slice_free(liModule, mod);
-		return NULL;
+
+		mod->path = g_module_build_path(mods->module_dir, name);
+		mod->module = g_module_open(mod->path, G_MODULE_BIND_LAZY);
+
+		if (!mod->module) {
+			g_string_free(mod->name, TRUE);
+			g_free(mod->path);
+			g_slice_free(liModule, mod);
+			return NULL;
+		}
 	}
 
 	/* temporary strings for mod_xyz_init and mod_xyz_free */
