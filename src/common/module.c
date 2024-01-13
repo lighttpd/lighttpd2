@@ -2,6 +2,10 @@
 #include <lighttpd/module.h>
 #include <lighttpd/utils.h>
 
+GQuark li_modules_error_quark(void) {
+	return g_quark_from_string("li-modules-error-quark");
+}
+
 liModules *li_modules_new(gpointer main, const gchar *module_dir, gboolean module_resident) {
 	liModules *m = g_slice_new(liModules);
 
@@ -48,7 +52,7 @@ void li_modules_free(liModules* mods) {
 }
 
 
-liModule* li_module_load(liModules *mods, const gchar* name) {
+liModule* li_module_load(liModules *mods, const gchar* name, GError **err) {
 	liModule *mod;
 	liModuleInitCB m_init;
 	GString *m_init_str, *m_free_str;
@@ -65,11 +69,12 @@ liModule* li_module_load(liModules *mods, const gchar* name) {
 	mod = g_slice_new0(liModule);
 	mod->name = g_string_new(name);
 	mod->refcount = 1;
-	mod->path = g_module_build_path(mods->module_dir, name);
 
+	mod->path = g_module_build_path(mods->module_dir, name);
 	mod->module = g_module_open(mod->path, G_MODULE_BIND_LAZY);
 
 	if (!mod->module) {
+		if (err) g_set_error(err, LI_MODULES_ERROR, 1, "%s", g_module_error());
 		g_string_free(mod->name, TRUE);
 		g_free(mod->path);
 		g_slice_free(liModule, mod);
@@ -86,6 +91,12 @@ liModule* li_module_load(liModules *mods, const gchar* name) {
 		|| !g_module_symbol(mod->module, m_free_str->str, (gpointer *)&mod->free)
 		|| m_init == NULL || mod->free == NULL) {
 
+		g_set_error(err, LI_MODULES_ERROR, 1,
+			"li_module_load: couldn't load %s or %s from %s",
+			m_init_str->str,
+			m_free_str->str,
+			mod->path);
+
 		/* mod_init or mod_free couldn't be located, something went wrong */
 		g_string_free(m_init_str, TRUE);
 		g_string_free(m_free_str, TRUE);
@@ -97,6 +108,11 @@ liModule* li_module_load(liModules *mods, const gchar* name) {
 
 	/* call mod_xyz_init */
 	if (!m_init(mods, mod)) {
+		g_set_error(err, LI_MODULES_ERROR, 1,
+			"li_module_load: calling %s from %s failed",
+			m_init_str->str,
+			mod->path);
+
 		g_string_free(m_init_str, TRUE);
 		g_string_free(m_free_str, TRUE);
 		g_free(mod->path);

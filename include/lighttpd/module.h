@@ -17,10 +17,15 @@
 
 /** see li_module_load */
 #define MODULE_DEPENDS(mods, name) do { \
-	if (!li_module_load(mods, name)) { \
-		ERROR(mods->main, "Couldn't load dependency '%s'", name); \
+	GError *err = NULL; \
+	if (!li_module_load(mods, name, &err)) { \
+		ERROR(mods->main, "Couldn't load dependency '%s': %s", name, err->message); \
+		g_error_free(err); \
 		return FALSE; \
 	} } while(0)
+
+#define LI_MODULES_ERROR li_modules_error_quark()
+LI_API GQuark li_modules_error_quark(void);
 
 typedef struct liModule liModule;
 
@@ -58,7 +63,7 @@ LI_API void li_modules_free(liModules *mods);
   * returns NULL if it couldn't load the module.
   *
   * You should release modules after you used them with li_module_release or li_module_release_name */
-LI_API liModule* li_module_load(liModules *mods, const gchar* name);
+LI_API liModule* li_module_load(liModules *mods, const gchar* name, GError **error);
 
 /* find module by name */
 LI_API liModule *li_module_lookup(liModules *mods, const gchar *name);

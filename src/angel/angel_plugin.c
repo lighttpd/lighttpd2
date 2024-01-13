@@ -230,6 +230,7 @@ gboolean li_plugins_load_module(liServer *srv, const gchar *name) {
 	liPlugins *ps = &srv->plugins;
 	server_module *sm;
 	const gchar* modname = name ? name : "core";
+	GError *err = NULL;
 
 	sm = g_hash_table_lookup(ps->module_refs, modname);
 	if (sm) return TRUE; /* already loaded */
@@ -240,9 +241,11 @@ gboolean li_plugins_load_module(liServer *srv, const gchar *name) {
 		sm = server_module_new(srv, modname);
 		g_hash_table_insert(ps->module_refs, sm->name, sm);
 		if (name) {
-			mod = li_module_load(ps->modules, name);
+			mod = li_module_load(ps->modules, name, &err);
 
 			if (!mod) {
+				ERROR(srv, "Couldn't load dependency '%s': %s", name, err->message);
+				g_error_free(err);
 				_server_module_release(sm);
 				return FALSE;
 			}

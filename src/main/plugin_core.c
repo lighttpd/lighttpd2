@@ -1238,6 +1238,7 @@ static gboolean core_workers_cpu_affinity(liServer *srv, liPlugin* p, liValue *v
 }
 
 static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
+	GError *err = NULL;
 	UNUSED(p); UNUSED(userdata);
 
 	if (!g_module_supported()) {
@@ -1272,8 +1273,9 @@ static gboolean core_module_load(liServer *srv, liPlugin* p, liValue *val, gpoin
 			continue;
 		}
 
-		if (!li_module_load(srv->modules, name->str)) {
-			ERROR(srv, "could not load module '%s': %s", name->str, g_module_error());
+		if (!li_module_load(srv->modules, name->str, &err)) {
+			ERROR(srv, "could not load module '%s': %s", name->str, err->message);
+			g_error_free(err);
 			return FALSE;
 		}
 
