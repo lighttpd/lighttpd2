@@ -1,0 +1,52 @@
+name: "Checks (macOS)"
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{github.workflow}}-${{github.head_ref}}
+  cancel-in-progress: true
+
+jobs:
+  macOS:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pkgs=(
+            meson
+            libev
+            ragel
+            glib
+            lua@5.1
+            zlib
+            bzip2
+            openssl@3
+            gnutls
+            libidn
+            python3
+            python-pycurl
+            md5sha1sum
+          )
+          brew install "${pkgs[@]}"
+      - name: meson setup
+        run: meson setup -D unwind=false mesonbuilddir
+      - name: meson compile
+        run: meson compile -C mesonbuilddir
+      - name: prepare environment for tests
+        run: |
+          sudo ifconfig lo0 alias 127.0.0.2 up
+
+          # try to create a tmpdir with a short relative path (for shorter unix socket paths)
+          NEWTMPDIR=~/tmp
+          ln -sf "${TMPDIR}" "${NEWTMPDIR}"
+          echo "TMPDIR=$NEWTMPDIR" >> "$GITHUB_ENV"
+          echo "PATH=$(brew --prefix python)/libexec/bin:$PATH" >> "$GITHUB_ENV"
+
+          if [ ! -f $(brew --prefix python)/libexec/bin/python3 ]; then
+            # the brew path only provides "python", not "python3"...
+            ln -s python $(brew --prefix python)/libexec/bin/python3
+          fi
+      - name: meson test
+        run: |
+          meson test -C mesonbuilddir -v

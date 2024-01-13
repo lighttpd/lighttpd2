@@ -1,0 +1,67 @@
+name: "Checks (Ubuntu: gcc+clang)"
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{github.workflow}}-${{github.head_ref}}
+  cancel-in-progress: true
+
+jobs:
+  linux-build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pkgs=(
+            ruby
+            ruby-nokogiri
+            ruby-kramdown
+            libxml2-utils
+          )
+          sudo apt-get install "${pkgs[@]}"
+      - name: Build docs
+        run: |
+          mkdir -p out
+          ruby doc/compile.rb out
+          cp doc/*.css doc/*.js out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lighttpd2-docs
+          path: out
+
+  linux-ubuntu:
+    runs-on: ubuntu-latest
+    name: linux-ubuntu-${{ matrix.compiler }}
+    strategy:
+      matrix:
+        compiler: ['gcc', 'clang']
+    steps:
+      - uses: actions/checkout@v4
+      - if: ${{ matrix.compiler == 'clang' }}
+        uses: egor-tensin/setup-clang@v1
+      - name: Install dependencies
+        run: |
+          pkgs=(
+            meson
+            libev-dev
+            ragel
+            libglib2.0-dev
+            liblua5.1-dev
+            zlib1g-dev
+            libbz2-dev
+            pkg-config
+            libssl-dev
+            libgnutls28-dev
+            libidn-dev
+            libunwind8-dev
+            python3
+            python3-pycurl
+          )
+          sudo apt-get install "${pkgs[@]}"
+      - name: meson setup
+        run: meson setup mesonbuilddir
+      - name: meson compile
+        run: meson compile -C mesonbuilddir
+      - name: meson test
+        run: meson test -C mesonbuilddir -v
