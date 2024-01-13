@@ -62,6 +62,15 @@ class Service:
         self.proc: typing.Optional[subprocess.Popen] = None
         self.failed = False
 
+    def bind_unix_socket(self, *, sockfile: str, backlog: int = 8) -> socket.socket:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        rel_sockfile = os.path.relpath(sockfile)
+        if len(rel_sockfile) < len(sockfile):
+            sockfile = rel_sockfile
+        sock.bind(sockfile)
+        sock.listen(8)
+        return sock
+
     def fork(self, *args: str, inp: typing.Union[tuple[()], FileWithFd, None] = ()) -> None:
         arguments = list(args)  # convert tuple to list
         stdin: typing.Optional[FileWithFd]
@@ -245,9 +254,7 @@ class FastCGI(Service):
     def prepare_service(self) -> None:
         assert self.tests
         self.tests.install_dir(os.path.join("tmp", "sockets"))
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.bind(os.path.relpath(self.sockfile))
-        sock.listen(8)
+        sock = self.bind_unix_socket(sockfile=self.sockfile)
         self.fork(*self.binary, inp=sock)
 
     def cleanup_service(self) -> None:

@@ -21,9 +21,7 @@ class Memcached(Service):
     def prepare_service(self) -> None:
         assert self.tests
         self.tests.install_dir(os.path.join("tmp", "sockets"))
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.bind(os.path.relpath(self.sockfile))
-        sock.listen(8)
+        sock = self.bind_unix_socket(sockfile=self.sockfile)
         self.fork(*self.binary, inp=sock)
 
     def cleanup_service(self) -> None:
