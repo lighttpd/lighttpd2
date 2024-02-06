@@ -74,6 +74,7 @@ liModule* li_module_load(liModules *mods, const gchar* name, GError **err) {
 	mod->module = g_module_open(mod->path, G_MODULE_BIND_LAZY);
 
 	if (!mod->module) {
+		/* remember original error if second try fails too */
 		if (err) g_set_error(err, LI_MODULES_ERROR, 1, "%s", g_module_error());
 		g_free(mod->path);
 
@@ -85,6 +86,12 @@ liModule* li_module_load(liModules *mods, const gchar* name, GError **err) {
 			g_free(mod->path);
 			g_slice_free(liModule, mod);
 			return NULL;
+		}
+
+		/* it worked out, clean error */
+		if (err) {
+			g_error_free(*err);
+			*err = NULL;
 		}
 	}
 
