@@ -6,6 +6,10 @@ concurrency:
   group: ${{github.workflow}}-${{github.head_ref}}
   cancel-in-progress: true
 
+env:
+  C_INCLUDE_PATH: /opt/homebrew/opt/libev/include
+  LIBRARY_PATH: /opt/homebrew/opt/libev/lib
+
 jobs:
   macOS:
     runs-on: macos-latest
@@ -18,17 +22,21 @@ jobs:
             libev
             ragel
             glib
-            lua@5.1
-            zlib
-            bzip2
+            lua@5.4
+            # zlib # keg-only
+            # bzip2 # keg-only
             openssl@3
             gnutls
             libidn
             python3
-            python-pycurl
             md5sha1sum
           )
           brew install "${pkgs[@]}"
+      - name: python venv setup
+        run: |
+          python3 -m venv venv
+          venv/bin/pip3 install pycurl
+          venv/bin/python3 -c 'import pycurl'
       - name: meson setup
         run: meson setup -D unwind=false mesonbuilddir
       - name: meson compile
@@ -49,4 +57,5 @@ jobs:
           fi
       - name: meson test
         run: |
+          source venv/bin/activate
           meson test -C mesonbuilddir -v
