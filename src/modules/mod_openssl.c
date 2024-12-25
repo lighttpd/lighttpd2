@@ -502,6 +502,86 @@ static gboolean openssl_options_set_string(long *options, GString *s) {
 
 static int openssl_verify_any_cb(int ok, X509_STORE_CTX *ctx) { UNUSED(ok); UNUSED(ctx); return 1; }
 
+static gboolean creds_add_pemfile(liServer *srv, openssl_context *ctx, liValue *pemfile) {
+	const char *keyfile = NULL;
+	const char *certfile = NULL;
+
+	if (LI_VALUE_STRING == li_value_type(pemfile)) {
+		keyfile = pemfile->data.string->str;
+		certfile = pemfile->data.string->str;
+	} else if (li_value_list_len(pemfile) >= 2) {
+		if (NULL == (pemfile = li_value_to_key_value_list(pemfile))) {
+			ERROR(srv, "%s", "openssl expects a hash/key-value list or a string as pemfile parameter");
+			return FALSE;
+		}
+
+		LI_VALUE_FOREACH(entry, pemfile)
+			liValue *entryKey = li_value_list_at(entry, 0);
+			liValue *entryValue = li_value_list_at(entry, 1);
+			GString *entryKeyStr;
+
+			if (LI_VALUE_STRING != li_value_type(entryKey)) {
+				ERROR(srv, "%s", "openssl pemfile doesn't take default keys");
+				return FALSE;
+			}
+			entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
+
+			if (g_str_equal(entryKeyStr->str, "key")) {
+				if (LI_VALUE_STRING != li_value_type(entryValue)) {
+					ERROR(srv, "%s", "openssl pemfile.key expects a string as parameter");
+					return FALSE;
+				}
+				if (NULL != keyfile) {
+					ERROR(srv, "openssl unexpected duplicate parameter pemfile %s", entryKeyStr->str);
+					return FALSE;
+				}
+				keyfile = entryValue->data.string->str;
+			} else if (g_str_equal(entryKeyStr->str, "cert")) {
+				if (LI_VALUE_STRING != li_value_type(entryValue)) {
+					ERROR(srv, "%s", "openssl pemfile.cert expects a string as parameter");
+					return FALSE;
+				}
+				if (NULL != certfile) {
+					ERROR(srv, "openssl unexpected duplicate parameter pemfile %s", entryKeyStr->str);
+					return FALSE;
+				}
+				certfile = entryValue->data.string->str;
+			} else {
+				ERROR(srv, "invalid parameter for openssl: pemfile %s", entryKeyStr->str);
+				return FALSE;
+			}
+		LI_VALUE_END_FOREACH()
+	} else {
+		ERROR(srv, "%s", "openssl expects a hash/key-value list (with at least \"key\" and \"cert\" entries) or a string as pemfile parameter");
+		return FALSE;
+	}
+
+	if (NULL == keyfile || NULL == certfile) {
+		ERROR(srv, "%s", "openssl: missing key or cert in pemfile parameter");
+		return FALSE;
+	}
+
+	if (SSL_CTX_use_certificate_chain_file(ctx->ssl_ctx, certfile) < 0) {
+		ERROR(srv, "SSL_CTX_use_certificate_chain_file('%s'): %s", certfile,
+			ERR_error_string(ERR_get_error(), NULL));
+		return FALSE;
+	}
+
+	if (SSL_CTX_use_PrivateKey_file(ctx->ssl_ctx, keyfile, SSL_FILETYPE_PEM) < 0) {
+		ERROR(srv, "SSL_CTX_use_PrivateKey_file('%s'): %s", keyfile,
+			ERR_error_string(ERR_get_error(), NULL));
+		return FALSE;
+	}
+
+	if (SSL_CTX_check_private_key(ctx->ssl_ctx) != 1) {
+		ERROR(srv, "SSL: Private key '%s' does not match the certificate public key '%s', reason: %s", keyfile, certfile,
+			ERR_error_string(ERR_get_error(), NULL));
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
 static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer userdata) {
 	openssl_context *ctx;
 	STACK_OF(X509_NAME) *client_ca_list;
@@ -515,9 +595,10 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		have_verify_parameter = FALSE,
 		have_verify_depth_parameter = FALSE,
 		have_verify_any_parameter = FALSE,
-		have_verify_require_parameter = FALSE;
+		have_verify_require_parameter = FALSE,
+		have_pemfile_parameter = FALSE;
 	const char
-		*ciphers = NULL, *pemfile = NULL, *ca_file = NULL, *client_ca_file = NULL, *dh_params_file = NULL, *ecdh_curve = NULL;
+		*ciphers = NULL, *ca_file = NULL, *client_ca_file = NULL, *dh_params_file = NULL, *ecdh_curve = NULL;
 	long
 		options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_CIPHER_SERVER_PREFERENCE | SSL_OP_SINGLE_DH_USE
 #ifdef SSL_OP_NO_COMPRESSION
@@ -559,15 +640,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 			}
 			have_listen_parameter = TRUE;
 		} else if (g_str_equal(entryKeyStr->str, "pemfile")) {
-			if (LI_VALUE_STRING != li_value_type(entryValue)) {
-				ERROR(srv, "%s", "openssl pemfile expects a string as parameter");
-				return FALSE;
-			}
-			if (NULL != pemfile) {
-				ERROR(srv, "openssl unexpected duplicate parameter %s", entryKeyStr->str);
-				return FALSE;
-			}
-			pemfile = entryValue->data.string->str;
+			have_pemfile_parameter = TRUE;
 		} else if (g_str_equal(entryKeyStr->str, "ca-file")) {
 			if (LI_VALUE_STRING != li_value_type(entryValue)) {
 				ERROR(srv, "%s", "openssl ca-file expects a string as parameter");
@@ -698,7 +771,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		return FALSE;
 	}
 
-	if (NULL == pemfile) {
+	if (!have_pemfile_parameter) {
 		ERROR(srv, "%s", "openssl needs a pemfile");
 		return FALSE;
 	}
@@ -736,23 +809,20 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		}
 	}
 
-	if (SSL_CTX_use_certificate_file(ctx->ssl_ctx, pemfile, SSL_FILETYPE_PEM) < 0) {
-		ERROR(srv, "SSL_CTX_use_certificate_file('%s'): %s", pemfile,
-			ERR_error_string(ERR_get_error(), NULL));
-		goto error_free_socket;
-	}
+	LI_VALUE_FOREACH(entry, val)
+		liValue *entryKey = li_value_list_at(entry, 0);
+		liValue *entryValue = li_value_list_at(entry, 1);
+		GString *entryKeyStr;
 
-	if (SSL_CTX_use_PrivateKey_file (ctx->ssl_ctx, pemfile, SSL_FILETYPE_PEM) < 0) {
-		ERROR(srv, "SSL_CTX_use_PrivateKey_file('%s'): %s", pemfile,
-			ERR_error_string(ERR_get_error(), NULL));
-		goto error_free_socket;
-	}
+		if (LI_VALUE_STRING != li_value_type(entryKey)) continue;
+		entryKeyStr = entryKey->data.string; /* keys are either NONE or STRING */
 
-	if (SSL_CTX_check_private_key(ctx->ssl_ctx) != 1) {
-		ERROR(srv, "SSL: Private key '%s' does not match the certificate public key, reason: %s", pemfile,
-			ERR_error_string(ERR_get_error(), NULL));
-		goto error_free_socket;
-	}
+		if (g_str_equal(entryKeyStr->str, "pemfile")) {
+			if (!creds_add_pemfile(srv, ctx, entryValue)) {
+				goto error_free_socket;
+			}
+		}
+	LI_VALUE_END_FOREACH()
 
 	if (SSL_CTX_set_session_id_context(ctx->ssl_ctx, CONST_USTR_LEN("lighttpd")) != 1) {
 		ERROR(srv, "SSL_CTX_set_session_id_context(): %s", ERR_error_string(ERR_get_error(), NULL));

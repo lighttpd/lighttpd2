@@ -10,7 +10,8 @@
 					<short>(mandatory) the socket address to listen on (same as "listen":plugin_core.html#plugin_core__setup_listen), can be specified more than once to setup multiple sockets with the same options</short>
 				</entry>
 				<entry name="pemfile">
-					<short>(mandatory) file containing the private key, certificate and (optionally) intermediate certificates (the root certificate is usually not included)</short>
+					<short>(mandatory) file containing the private key, certificate and (optionally) intermediate certificates (the root certificate is usually not
+					included); alternatively it can be a key-value list with a "key" and a "cert" entry.</short>
 				</entry>
 				<entry name="ca-file">
 					<short>file containing the intermediate certificates</short>
