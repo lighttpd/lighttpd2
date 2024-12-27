@@ -173,11 +173,11 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 	if (allow_setup) {
 		LI_FORCE_ASSERT(wrk == srv->main_worker);
 		li_lua_push_setup_table(srv, wrk, L);
-		lua_setfield(L, LUA_GLOBALSINDEX, "setup");
+		lua_setglobal(L, "setup");
 	}
 
 	li_lua_push_action_table(srv, wrk, L);
-	lua_setfield(L, LUA_GLOBALSINDEX, "action");
+	lua_setglobal(L, "action");
 
 	li_lua_push_lvalues_dict(srv, L);
 
@@ -204,7 +204,7 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 	}
 	lua_remove(L, errfunc);
 
-	lua_getfield(L, LUA_GLOBALSINDEX, "actions");
+	lua_getglobal(L, "actions");
 	*pact = li_lua_get_action_ref(L, -1);
 	lua_pop(L, 1);
 

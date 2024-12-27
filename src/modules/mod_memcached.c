@@ -1133,7 +1133,7 @@ static void mod_memcached_lua_init(liLuaState *LL, liServer *srv, liWorker *wrk,
 		lua_pushcclosure(L, mc_lua_new, 1);
 		lua_setfield(L, -2, "new");
 
-		lua_setfield(L, LUA_GLOBALSINDEX, "memcached");
+		lua_setglobal(L, "memcached");
 		li_lua_unlock(LL);
 	}
 }

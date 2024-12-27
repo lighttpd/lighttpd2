@@ -29,7 +29,7 @@ int li_lua_fixindex(lua_State *L, int ndx) {
 static int traceback (lua_State *L) {
 	if (!lua_isstring(L, 1))  /* 'message' not a string? */
 		return 1;  /* keep it intact */
-	lua_getfield(L, LUA_GLOBALSINDEX, "debug");
+	lua_getglobal(L, "debug");
 	if (!lua_istable(L, -1)) {
 		lua_pop(L, 1);
 		return 1;
@@ -106,7 +106,7 @@ GString* li_lua_print_get_string(lua_State *L, int from, int to) {
 	int i, n = lua_gettop(L);
 	GString *buf = g_string_sized_new(0);
 
-	lua_getfield(L, LUA_GLOBALSINDEX, "tostring");
+	lua_getglobal(L, "tostring");
 	for (i = from; i <= to; i++) {
 		const char *s;
 		size_t len;
@@ -369,7 +369,7 @@ void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
 	lua_pushlightuserdata(L, wrk);
 	lua_pushcclosure(L, li_lua_error, 2);
 		lua_pushvalue(L, -1); /* overwrite global print too */
-		lua_setfield(L, LUA_GLOBALSINDEX, "print");
+		lua_setglobal(L, "print");
 		lua_pushvalue(L, -1); /* lighty.error alias */
 		lua_setfield(L, -3, "error");
 	lua_setfield(L, -2, "print");
@@ -411,7 +411,7 @@ void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
 	/* associate metatable(lighty) */
 	lua_setmetatable(L, -2);
 	/* store "lighty" object in globals */
-	lua_setfield(L, LUA_GLOBALSINDEX, "lighty");
+	lua_setglobal(L, "lighty");
 
 	li_lua_store_globals(L);
 

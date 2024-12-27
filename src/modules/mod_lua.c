@@ -358,7 +358,7 @@ static luaPlugin* lua_plugin_create_data(liServer *srv, lua_State *L) {
 	lp->actions = g_array_new(TRUE, TRUE, sizeof(liPluginAction));
 	lp->setups = g_array_new(TRUE, TRUE, sizeof(liPluginSetup));
 
-	lua_getfield(L, LUA_GLOBALSINDEX, "actions");
+	lua_getglobal(L, "actions");
 	if (lua_istable(L, -1)) {
 		liPluginAction plug_action;
 		int ndx;
@@ -384,7 +384,7 @@ static luaPlugin* lua_plugin_create_data(liServer *srv, lua_State *L) {
 	}
 	lua_pop(L, 1);
 
-	lua_getfield(L, LUA_GLOBALSINDEX, "setups");
+	lua_getglobal(L, "setups");
 	if (lua_istable(L, -1)) {
 		liPluginSetup plug_setup;
 		int ndx;
@@ -457,10 +457,10 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 	}
 
 	li_lua_push_setup_table(srv, srv->main_worker, L);
-	lua_setfield(L, LUA_GLOBALSINDEX, "setup");
+	lua_setglobal(L, "setup");
 
 	li_lua_push_action_table(srv, srv->main_worker, L);
-	lua_setfield(L, LUA_GLOBALSINDEX, "action");
+	lua_setglobal(L, "action");
 
 	li_lua_push_lvalues_dict(srv, L);
 
