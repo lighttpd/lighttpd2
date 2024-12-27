@@ -28,20 +28,28 @@
 
 /* save the top of the stack in dicts described by a '.' separated path */
 static void lua_settop_in_dicts(lua_State *L, const gchar *path) {
-	int ndx, curtable;
+	int ndx, curtable = 0;
 	gchar** segments;
 	size_t i;
 
 	ndx = lua_gettop(L);
 	segments = g_strsplit(path, ".", 10);
 	LI_FORCE_ASSERT(segments[0]);
-	for (i = 0, curtable = LUA_GLOBALSINDEX; segments[i+1]; i++) {
-		lua_getfield(L, curtable, segments[i]);
+	for (i = 0; segments[i+1]; i++) {
+		if (curtable == 0) {
+			lua_getglobal(L, segments[i]);
+		} else {
+			lua_getfield(L, curtable, segments[i]);
+		}
 		if (lua_isnil(L, -1) || !lua_istable(L, -1)) {
 			lua_pop(L, 1); /* pop nil */
 			lua_newtable(L);
 			lua_pushvalue(L, -1); /* save table in field */
-			lua_setfield(L, curtable, segments[i]);
+			if (curtable == 0) {
+				lua_setglobal(L, segments[i]);
+			} else {
+				lua_setfield(L, curtable, segments[i]);
+			}
 		}
 		curtable = lua_gettop(L);
 	}
