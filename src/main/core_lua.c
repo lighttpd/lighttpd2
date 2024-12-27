@@ -96,10 +96,44 @@ int li_lua_metatable_index(lua_State *L) {
 	return 0;
 }
 
+static void li_lua_push_globals(lua_State *L) { /* +1 */
+#if LUA_VERSION_NUM == 501
+	lua_pushvalue(L, LUA_GLOBALSINDEX); /* +1 */
+#else
+	lua_rawgeti(L, LUA_REGISTRYINDEX, LUA_RIDX_GLOBALS); /* +1 */
+#endif
+}
+
+static void li_lua_set_globals(lua_State *L) { /* -1 */
+#if LUA_VERSION_NUM == 501
+	lua_replace(L, LUA_GLOBALSINDEX); /* -1 */
+#else
+	lua_rawseti(L, LUA_REGISTRYINDEX, LUA_RIDX_GLOBALS); /* -1 */
+#endif
+}
+
 static void li_lua_store_globals(lua_State *L) {
 	/* backup global table reference */
-	lua_pushvalue(L, LUA_GLOBALSINDEX); /* +1 */
+	li_lua_push_globals(L); /* +1 */
 	lua_setfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_GLOBALS); /* -1 */
+}
+
+void li_lua_restore_globals(lua_State *L) {
+	lua_getfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_GLOBALS); /* +1 */
+	li_lua_set_globals(L); /* -1 */
+}
+
+void li_lua_new_globals(lua_State *L) {
+	lua_newtable(L); /* +1 */
+
+	/* metatable for new global env, link old globals as readonly */
+	lua_newtable(L); /* +1 */
+	/* TODO: protect metatable? */
+	li_lua_push_globals(L); /* +1 */
+	lua_setfield(L, -2, "__index"); /* -1 */
+	lua_setmetatable(L, -2); /* -1 */
+
+	li_lua_set_globals(L); /* -1 */
 }
 
 GString* li_lua_print_get_string(lua_State *L, int from, int to) {
@@ -419,25 +453,6 @@ void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
 
 	li_plugins_init_lua(LL, srv, wrk);
 }
-
-void li_lua_restore_globals(lua_State *L) {
-	lua_getfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_GLOBALS); /* +1 */
-	lua_replace(L, LUA_GLOBALSINDEX); /* -1 */
-}
-
-void li_lua_new_globals(lua_State *L) {
-	lua_newtable(L); /* +1 */
-
-	/* metatable for new global env, link old globals as readonly */
-	lua_newtable(L); /* +1 */
-	/* TODO: protect metatable? */
-	lua_pushvalue(L, LUA_GLOBALSINDEX); /* +1 */
-	lua_setfield(L, -2, "__index"); /* -1 */
-	lua_setmetatable(L, -2); /* -1 */
-
-	lua_replace(L, LUA_GLOBALSINDEX); /* -1 */
-}
-
 
 static int ghashtable_gstring_next(lua_State *L) {
 	GHashTableIter *it = lua_touserdata(L, lua_upvalueindex(1));
