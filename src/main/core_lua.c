@@ -113,15 +113,11 @@ GString* li_lua_print_get_string(lua_State *L, int from, int to) {
 
 		lua_pushvalue(L, n+1);
 		lua_pushvalue(L, i);
-		lua_call(L, 1, 1);
+		if (0 != lua_pcall(L, 1, 1, 0)) goto failed;
 		s = lua_tolstring(L, -1, &len);
 		lua_pop(L, 1);
 
-		if (NULL == s) {
-			g_string_free(buf, TRUE);
-			lua_pushliteral(L, "lua_print_get_string: Couldn't convert parameter to string");
-			lua_error(L);
-		}
+		if (NULL == s) goto failed;
 		if (0 == len) continue;
 		if (buf->len > 0) {
 			g_string_append_c(buf, ' ');
@@ -132,6 +128,12 @@ GString* li_lua_print_get_string(lua_State *L, int from, int to) {
 	}
 	lua_pop(L, 1);
 	return buf;
+
+failed:
+	g_string_free(buf, TRUE);
+	lua_pushliteral(L, "lua_print_get_string: Couldn't convert parameter to string");
+	lua_error(L);
+	return NULL; /* should be unreachable */
 }
 
 static int li_lua_error(lua_State *L) {
