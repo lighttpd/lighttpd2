@@ -464,9 +464,6 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 
 	li_lua_push_lvalues_dict(srv, L);
 
-	lua_pushvalue(L, LUA_GLOBALSINDEX);
-	lua_setfenv(L, -2);
-
 	/* arguments for plugin: local filename, args = ...  */
 	/* 1. filename */
 	lua_pushlstring(L, GSTR_LEN(filename));
