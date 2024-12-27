@@ -199,7 +199,7 @@ static const luaL_Reg http_headers_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_http_headers_mt(lua_State *L) {
-	luaL_register(L, NULL, http_headers_mt);
+	li_lua_setfuncs(L, http_headers_mt);
 }
 
 static void lua_push_http_headers_metatable(lua_State *L) {

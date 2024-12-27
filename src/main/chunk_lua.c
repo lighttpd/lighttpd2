@@ -264,7 +264,7 @@ static const luaL_Reg chunkqueue_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_chunkqueue_mt(lua_State *L) {
-	luaL_register(L, NULL, chunkqueue_mt);
+	li_lua_setfuncs(L, chunkqueue_mt);
 }
 
 static void lua_push_chunkqueue_metatable(lua_State *L) {

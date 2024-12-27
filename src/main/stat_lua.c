@@ -203,7 +203,7 @@ static const luaL_Reg stat_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_stat_mt(lua_State *L) {
-	luaL_register(L, NULL, stat_mt);
+	li_lua_setfuncs(L, stat_mt);
 }
 
 static void lua_push_stat_metatable(lua_State *L) {

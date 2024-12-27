@@ -158,4 +158,12 @@ INLINE int li_lua_new_protected_metatable(lua_State *L, const char *tname) {
 	return r;
 }
 
+INLINE void li_lua_setfuncs(lua_State *L, const luaL_Reg *l) {
+#if LUA_VERSION_NUM == 501
+	luaL_register(L, NULL, l);
+#else
+	luaL_setfuncs(L, l, 0);
+#endif
+}
+
 #endif

@@ -338,7 +338,7 @@ static const luaL_Reg vrequest_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_vrequest_mt(lua_State *L) {
-	luaL_register(L, NULL, vrequest_mt);
+	li_lua_setfuncs(L, vrequest_mt);
 }
 
 static void lua_push_vrequest_metatable(lua_State *L) {
@@ -486,7 +486,7 @@ static const luaL_Reg coninfo_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_coninfo_mt(lua_State *L) {
-	luaL_register(L, NULL, coninfo_mt);
+	li_lua_setfuncs(L, coninfo_mt);
 }
 
 static void lua_push_coninfo_metatable(lua_State *L) {

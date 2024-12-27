@@ -120,7 +120,7 @@ static const luaL_Reg response_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_response_mt(lua_State *L) {
-	luaL_register(L, NULL, response_mt);
+	li_lua_setfuncs(L, response_mt);
 }
 
 static void lua_push_response_metatable(lua_State *L) {

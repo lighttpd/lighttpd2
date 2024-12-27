@@ -154,7 +154,7 @@ static const luaL_Reg subrequest_mt[] = {
 
 
 static HEDLEY_NEVER_INLINE void init_subrequest_mt(lua_State *L) {
-	luaL_register(L, NULL, subrequest_mt);
+	li_lua_setfuncs(L, subrequest_mt);
 }
 
 static void lua_push_subrequest_metatable(lua_State *L) {

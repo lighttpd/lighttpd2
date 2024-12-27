@@ -125,7 +125,7 @@ static const luaL_Reg physical_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_physical_mt(lua_State *L) {
-	luaL_register(L, NULL, physical_mt);
+	li_lua_setfuncs(L, physical_mt);
 }
 
 static void lua_push_physical_metatable(lua_State *L) {

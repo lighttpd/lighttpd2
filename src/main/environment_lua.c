@@ -111,7 +111,7 @@ static const luaL_Reg environment_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_env_mt(lua_State *L) {
-	luaL_register(L, NULL, environment_mt);
+	li_lua_setfuncs(L, environment_mt);
 }
 
 static void lua_push_environment_metatable(lua_State *L) {

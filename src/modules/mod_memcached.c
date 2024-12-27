@@ -912,7 +912,7 @@ static const luaL_Reg mc_con_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_mc_con_mt(lua_State *L) {
-	luaL_register(L, NULL, mc_con_mt);
+	li_lua_setfuncs(L, mc_con_mt);
 	lua_pushvalue(L, -1);
 	lua_setfield(L, -2, "__index");
 }
@@ -991,7 +991,7 @@ static const luaL_Reg mc_req_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_mc_req_mt(lua_State *L) {
-	luaL_register(L, NULL, mc_req_mt);
+	li_lua_setfuncs(L, mc_req_mt);
 }
 
 static void lua_push_mc_req_metatable(lua_State *L) {

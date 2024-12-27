@@ -109,7 +109,7 @@ static const luaL_Reg filter_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_filter_mt(lua_State *L) {
-	luaL_register(L, NULL, filter_mt);
+	li_lua_setfuncs(L, filter_mt);
 }
 
 static void lua_push_filter_metatable(lua_State *L) {

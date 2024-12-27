@@ -141,7 +141,7 @@ static const luaL_Reg request_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_request_mt(lua_State *L) {
-	luaL_register(L, NULL, request_mt);
+	li_lua_setfuncs(L, request_mt);
 }
 
 static void lua_push_request_metatable(lua_State *L) {
@@ -282,7 +282,7 @@ static const luaL_Reg requesturi_mt[] = {
 };
 
 static HEDLEY_NEVER_INLINE void init_requesturi_mt(lua_State *L) {
-	luaL_register(L, NULL, requesturi_mt);
+	li_lua_setfuncs(L, requesturi_mt);
 }
 
 static void lua_push_requesturi_metatable(lua_State *L) {
