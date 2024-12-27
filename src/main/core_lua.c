@@ -476,3 +476,29 @@ int li_lua_ghashtable_gstring_pairs(lua_State *L, GHashTable *ht) {
 	lua_pushnil(L); lua_pushnil(L);                    /* +2 */
 	return 3;
 }
+
+void li_lua_setfenv(lua_State *L, int funcindex) /* -1 */ {
+	/* set _ENV upvalue of lua function */
+#if LUA_VERSION_NUM == 501
+	lua_setfenv(L, funcindex); /* -1 */
+#else
+	int n;
+
+	lua_pushvalue(L, funcindex); /* +1, for consistent index */
+	for (n = 0; n < 10; ++n) {
+		const char *name = lua_getupvalue(L, -1, n); /* +1 unless name == NULL */
+		if (!name) break; /* last upvalue or a C function (empty upvalue names) */
+		lua_pop(L, 1); /* -1, drop upvalue value */
+		if (!name[0]) break; /* C function (empty upvalue names) */
+		if (0 == strcmp(name, "_ENV")) {
+			lua_pushvalue(L, -2);
+			if (NULL == lua_setupvalue(L, -2, n)) {
+				/* shouldn't happen - upvalue index `n` was valid above */
+				lua_pop(L, 1); /* -1 */
+			}
+			break;
+		}
+	}
+	lua_pop(L, 2); /* -2: copy of function and env */
+#endif
+}

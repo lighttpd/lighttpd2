@@ -193,7 +193,7 @@ liAction* li_lua_make_action(lua_State *L, int ndx) {
 		li_lua_push_action_table(wrk->srv, wrk, L); /* +1 */
 		lua_setfield(L, -2, "action"); /* -1 */
 	}
-	lua_setfenv(L, -2); /* -1 */
+	li_lua_setfenv(L, -2); /* -1 */
 	lua_pop(L, 1); /* -1 */
 
 	return li_action_new_function(lua_action_func, lua_action_cleanup, lua_action_free, par);

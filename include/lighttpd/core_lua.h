@@ -125,6 +125,8 @@ LI_API GString* li_lua_print_get_string(lua_State *L, int from, int to);
  */
 LI_API int li_lua_ghashtable_gstring_pairs(lua_State *L, GHashTable *ht);
 
+LI_API void li_lua_setfenv(lua_State *L, int funcindex); /* -1 */
+
 /* internal: subrequests (vrequest metamethod) */
 LI_API int li_lua_vrequest_subrequest(lua_State *L);
 
