@@ -68,6 +68,7 @@ int li_lua_push_action(liServer *srv, lua_State *L, liAction *a) {
 typedef struct lua_action_param lua_action_param;
 struct lua_action_param {
 	int func_ref;
+	int env_ref;
 	liLuaState *LL;
 };
 
@@ -86,27 +87,26 @@ static liHandlerResult lua_action_func(liVRequest *vr, gpointer param, gpointer 
 
 	li_lua_lock(par->LL);
 
-	lua_rawgeti(L, LUA_REGISTRYINDEX, par->func_ref);
-	lua_pushvalue(L, -1);
-
-	lua_getfenv(L, -1);
+	/* set _G in environment to request specific table */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, par->env_ref); /* +1 */
 	if (!ctx) {
 		*context = ctx = g_slice_new0(lua_action_ctx);
-		lua_newtable(L);
-		lua_pushvalue(L, -1);
-		ctx->g_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+		lua_newtable(L); /* +1 */
+		lua_pushvalue(L, -1); /* +1 */
+		ctx->g_ref = luaL_ref(L, LUA_REGISTRYINDEX); /* -1 */
 	} else {
-		lua_rawgeti(L, LUA_REGISTRYINDEX, ctx->g_ref);
+		lua_rawgeti(L, LUA_REGISTRYINDEX, ctx->g_ref); /* +1 */
 	}
-	lua_setfield(L, -2, "_G");
-	lua_pop(L, 1);
+	lua_setfield(L, -2, "_G"); /* -1 (pops request context table) */
+	lua_pop(L, 1); /* -1 (pop env) */
 
-	li_lua_push_vrequest(L, vr);
+	lua_rawgeti(L, LUA_REGISTRYINDEX, par->func_ref); /* +1 */
+	li_lua_push_vrequest(L, vr); /* +1 */
 
-	errfunc = li_lua_push_traceback(L, 1);
+	errfunc = li_lua_push_traceback(L, 1); /* +1, but inserted before `1` args */
 	if (lua_pcall(L, 1, 1, errfunc)) {
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
-		lua_pop(L, 1);
+		lua_pop(L, 1); /* -1 (pop error) */
 		res = LI_HANDLER_ERROR;
 	} else {
 		if (!lua_isnil(L, -1)) {
@@ -122,14 +122,15 @@ static liHandlerResult lua_action_func(liVRequest *vr, gpointer param, gpointer 
 				res = LI_HANDLER_ERROR;
 			}
 		}
-		lua_pop(L, 1);
+		lua_pop(L, 1); /* -1 (pop result) */
 	}
-	lua_remove(L, errfunc);
+	lua_remove(L, errfunc); /* -1 (should be at the top of the stack) */
 
-	lua_getfenv(L, -1);
-	lua_pushnil(L);
-	lua_setfield(L, -2, "_G");
-	lua_pop(L, 2);
+	/* clear _G */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, par->env_ref); /* +1 */
+	lua_pushnil(L); /* +1 */
+	lua_setfield(L, -2, "_G"); /* -1 (pops value nil) */
+	lua_pop(L, 1); /* -1 (pop env) */
 
 	li_lua_unlock(par->LL);
 
@@ -161,6 +162,7 @@ static void lua_action_free(liServer *srv, gpointer param) {
 	L = par->LL->L;
 
 	li_lua_lock(par->LL);
+	luaL_unref(L, LUA_REGISTRYINDEX, par->env_ref);
 	luaL_unref(L, LUA_REGISTRYINDEX, par->func_ref);
 	lua_gc(L, LUA_GCCOLLECT, 0);
 	li_lua_unlock(par->LL);
@@ -193,6 +195,10 @@ liAction* li_lua_make_action(lua_State *L, int ndx) {
 		li_lua_push_action_table(wrk->srv, wrk, L); /* +1 */
 		lua_setfield(L, -2, "action"); /* -1 */
 	}
+	/* remember environment */
+	lua_pushvalue(L, -1); /* +1 */
+	par->env_ref = luaL_ref(L, LUA_REGISTRYINDEX); /* -1 */
+	/* set environment for function */
 	li_lua_setfenv(L, -2); /* -1 */
 	lua_pop(L, 1); /* -1 */
 
