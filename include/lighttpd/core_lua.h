@@ -166,4 +166,12 @@ INLINE void li_lua_setfuncs(lua_State *L, const luaL_Reg *l) {
 #endif
 }
 
+INLINE int li_lua_equal(lua_State *L, int index1, int index2) {
+#if LUA_VERSION_NUM == 501
+	return lua_equal(L, index1, index2);
+#else
+	return lua_compare(L, index1, index2, LUA_OPEQ);
+#endif
+}
+
 #endif

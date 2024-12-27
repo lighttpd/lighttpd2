@@ -37,7 +37,7 @@ static int lua_kvlist_index(lua_State *L) {
 		switch (lua_type(L, -1)) {
 		case LUA_TSTRING:
 			if (nil_key) break;
-			if (!lua_equal(L, -1, 2)) break;
+			if (!li_lua_equal(L, -1, 2)) break;
 			lua_rawgeti(L, -2, 2);
 			return 1;
 		case LUA_TNIL:

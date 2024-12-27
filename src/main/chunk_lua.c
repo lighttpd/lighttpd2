@@ -285,7 +285,7 @@ liChunk* li_lua_get_chunk(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_CHUNK);
-	if (lua_isnil(L, -1) || lua_isnil(L, -2) || !lua_equal(L, -1, -2)) {
+	if (lua_isnil(L, -1) || lua_isnil(L, -2) || !li_lua_equal(L, -1, -2)) {
 		lua_pop(L, 2);
 		return NULL;
 	}
@@ -313,7 +313,7 @@ liChunkQueue* li_lua_get_chunkqueue(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_CHUNKQUEUE);
-	if (lua_isnil(L, -1) || lua_isnil(L, -2) || !lua_equal(L, -1, -2)) {
+	if (lua_isnil(L, -1) || lua_isnil(L, -2) || !li_lua_equal(L, -1, -2)) {
 		lua_pop(L, 2);
 		return NULL;
 	}

@@ -1004,7 +1004,7 @@ static liMemcachedCon* li_lua_get_memcached_con(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_MEMCACHEDCON);
-	if (lua_isnil(L, -1) || lua_isnil(L, -2) || !lua_equal(L, -1, -2)) {
+	if (lua_isnil(L, -1) || lua_isnil(L, -2) || !li_lua_equal(L, -1, -2)) {
 		lua_pop(L, 2);
 		return NULL;
 	}
@@ -1040,7 +1040,7 @@ static mc_lua_request* li_lua_get_memcached_req(lua_State *L, int ndx) {
 	if (!lua_isuserdata(L, ndx)) return NULL;
 	if (!lua_getmetatable(L, ndx)) return NULL;
 	luaL_getmetatable(L, LUA_MEMCACHEDREQUEST);
-	if (lua_isnil(L, -1) || lua_isnil(L, -2) || !lua_equal(L, -1, -2)) {
+	if (lua_isnil(L, -1) || lua_isnil(L, -2) || !li_lua_equal(L, -1, -2)) {
 		lua_pop(L, 2);
 		return NULL;
 	}
