@@ -174,4 +174,8 @@ INLINE int li_lua_equal(lua_State *L, int index1, int index2) {
 #endif
 }
 
+#if LUA_VERSION_NUM == 501
+#define lua_rawlen(L, index) lua_objlen(L, index)
+#endif
+
 #endif

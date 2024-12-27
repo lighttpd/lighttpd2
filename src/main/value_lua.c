@@ -26,12 +26,12 @@ static int lua_kvlist_index(lua_State *L) {
 
 	if (LUA_TTABLE != lua_type(L, 1)) goto fail;
 
-	len = lua_objlen(L, 1);
+	len = lua_rawlen(L, 1);
 	for (i = len; i >= 1; lua_pop(L, 1), --i) {
 		lua_rawgeti(L, 1, i);
 
 		if (LUA_TTABLE != lua_type(L, -1)) continue;
-		if (2 != lua_objlen(L, -1)) continue;
+		if (2 != lua_rawlen(L, -1)) continue;
 
 		lua_rawgeti(L, -1, 1);
 		switch (lua_type(L, -1)) {
