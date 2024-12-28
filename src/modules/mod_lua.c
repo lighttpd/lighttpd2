@@ -269,7 +269,7 @@ static gboolean lua_plugin_handle_setup(liServer *srv, liPlugin *p, liValue *val
 	lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
 	nargs = push_args(L, val);
 
-	errfunc = li_lua_push_traceback(L, 0);
+	errfunc = li_lua_push_traceback(L, nargs);
 	if (lua_pcall(L, nargs, 1, errfunc)) {
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
 		lua_pop(L, 1);

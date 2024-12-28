@@ -6,14 +6,19 @@ from pylt.requests import CurlRequest
 
 LUA_TEST_OPTIONS = """
 
-setup["server.tag"]("lighttpd 2.0 with lua")
+local function settag(tag)
+    setup["server.tag"](tag)
+end
 
-function changetag(tag)
+local function changetag(tag)
     return action["server.tag"](tag)
 end
 
 actions = {
     ["lua.changetag"] = changetag
+}
+setups = {
+    ["lua.settag"] = settag
 }
 
 """
@@ -33,7 +38,10 @@ class Test(ModuleTest):
     def prepare_test(self) -> None:
         test_options_lua = self.prepare_file("lua/test_options.lua", LUA_TEST_OPTIONS)
         self.plain_config = f"""
-            setup {{ lua.plugin "{test_options_lua}"; }}
+            setup {{
+                lua.plugin "{test_options_lua}";
+                lua.settag "lighttpd 2.0 with lua";
+            }}
         """
         self.config = """
             if req.query == "change" {
