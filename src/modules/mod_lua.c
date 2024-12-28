@@ -266,13 +266,19 @@ static gboolean lua_plugin_handle_setup(liServer *srv, liPlugin *p, liValue *val
 
 	li_lua_lock(&srv->LL);
 
-	lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
-	nargs = push_args(L, val);
+	li_lua_environment_use_globals(&srv->LL); /* +1 */
+	li_lua_environment_activate_ephemeral(&srv->LL); /* +1 */
 
-	errfunc = li_lua_push_traceback(L, nargs);
-	if (lua_pcall(L, nargs, 1, errfunc)) {
+	li_lua_push_setup_table(srv, srv->main_worker, L);
+	lua_setglobal(L, "setup");
+
+	lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref); /* +1: setup function */
+	nargs = push_args(L, val); /* +nargs: variable number of args */
+
+	errfunc = li_lua_push_traceback(L, nargs); /* +1, but before nargs */
+	if (lua_pcall(L, nargs, 1, errfunc)) { /* -1-nargs, +1*/
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
-		lua_pop(L, 1);
+		lua_pop(L, 1); /* -1 */
 		res = FALSE;
 	} else {
 		res = TRUE;
@@ -280,9 +286,12 @@ static gboolean lua_plugin_handle_setup(liServer *srv, liPlugin *p, liValue *val
 		if (!lua_isnil(L, -1) && (!lua_isboolean(L, -1) || !lua_toboolean(L, -1))) {
 			res = FALSE;
 		}
-		lua_pop(L, 1);
+		lua_pop(L, 1); /* -1 */
 	}
-	lua_remove(L, errfunc);
+	lua_remove(L, errfunc); /* -1 */
+
+	li_lua_environment_restore(&srv->LL); /* -1 */
+	li_lua_environment_restore_globals(L); /* -1 */
 
 	lua_gc(L, LUA_GCCOLLECT, 0);
 	li_lua_unlock(&srv->LL);
@@ -300,21 +309,30 @@ static liAction* lua_plugin_handle_action(liServer *srv, liWorker *wrk, liPlugin
 
 	li_lua_lock(&srv->LL);
 
-	lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
-	nargs = push_args(L, val);
+	li_lua_environment_use_globals(&srv->LL); /* +1 */
+	li_lua_environment_activate_ephemeral(&srv->LL); /* +1 */
 
-	errfunc = li_lua_push_traceback(L, nargs);
-	if (lua_pcall(L, nargs, 1, errfunc)) {
+	li_lua_push_setup_table(srv, wrk, L);
+	lua_setglobal(L, "setup");
+
+	lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref); /* +1 */
+	nargs = push_args(L, val); /* +nargs: variable number of args */
+
+	errfunc = li_lua_push_traceback(L, nargs); /* +1, but before nargs */
+	if (lua_pcall(L, nargs, 1, errfunc)) { /* -1-nargs, +1 */
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
-		lua_pop(L, 1);
+		lua_pop(L, 1); /* -1 */
 	} else {
 		res = li_lua_get_action_ref(L, -1);
 		if (res == NULL) {
 			ERROR(srv, "%s", "lua plugin action-create callback didn't return an action");
 		}
-		lua_pop(L, 1);
+		lua_pop(L, 1); /* -1 */
 	}
-	lua_remove(L, errfunc);
+	lua_remove(L, errfunc); /* -1 */
+
+	li_lua_environment_restore(&srv->LL); /* -1 */
+	li_lua_environment_restore_globals(L); /* -1 */
 
 	lua_gc(L, LUA_GCCOLLECT, 0);
 	li_lua_unlock(&srv->LL);
@@ -429,7 +447,7 @@ static void lua_plugin_init(liServer *srv, liPlugin *p, gpointer userdata) {
 
 	p->options = lp_options;
 	p->actions = &g_array_index(lp->actions, liPluginAction, 0);
-	p->setups = &g_array_index(lp->setups, liPluginSetup, 0);;
+	p->setups = &g_array_index(lp->setups, liPluginSetup, 0);
 
 	p->data = lp;
 	p->free = lua_plugin_free;
@@ -443,13 +461,14 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 	module_config *mc = p->data;
 	liPlugin *newp;
 
+	lua_find_file(filename);
+
 	li_lua_lock(&srv->LL);
 
+	li_lua_environment_use_globals(&srv->LL); /* +1 */
+	li_lua_environment_activate_ephemeral(&srv->LL); /* +1 */
+
 	lua_stack_top = lua_gettop(L);
-
-	li_lua_new_globals(L);
-
-	lua_find_file(filename);
 
 	if (0 != luaL_loadfile(L, filename->str)) {
 		ERROR(srv, "Loading lua plugin '%s' failed: %s", filename->str, lua_tostring(L, -1));
@@ -459,23 +478,18 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 	li_lua_push_setup_table(srv, srv->main_worker, L);
 	lua_setglobal(L, "setup");
 
-	li_lua_push_action_table(srv, srv->main_worker, L);
-	lua_setglobal(L, "action");
-
-	li_lua_set_global_condition_lvalues(srv, L);
-
 	/* arguments for plugin: local filename, args = ...  */
 	/* 1. filename */
-	lua_pushlstring(L, GSTR_LEN(filename));
+	lua_pushlstring(L, GSTR_LEN(filename)); /* +1 */
 	/* 2. args */
-	li_lua_push_value(L, args);
+	li_lua_push_value(L, args); /* +1 */
 
-	errfunc = li_lua_push_traceback(L, 2);
-	if (lua_pcall(L, 2, 0, errfunc)) {
+	errfunc = li_lua_push_traceback(L, 2); /* +1, but before fn args */
+	if (lua_pcall(L, 2, 0, errfunc)) { /* -3 (fn + args), 0 results (but 1 error)*/
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
 		goto failed_unlock_lua;
 	}
-	lua_remove(L, errfunc);
+	lua_remove(L, errfunc); /* -1 */
 
 	if (NULL == (lp = lua_plugin_create_data(srv, L))) {
 		ERROR(srv, "failed to create plugin data for lua plugin '%s'", filename->str);
@@ -490,7 +504,10 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 
 	g_ptr_array_add(mc->lua_plugins, newp);
 
-	li_lua_restore_globals(L);
+	LI_FORCE_ASSERT(lua_gettop(L) == lua_stack_top);
+
+	li_lua_environment_restore(&srv->LL); /* -1 */
+	li_lua_environment_restore_globals(L); /* -1 */
 	lua_gc(L, LUA_GCCOLLECT, 0);
 	li_lua_unlock(&srv->LL);
 
@@ -501,8 +518,9 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 	return TRUE;
 
 failed_unlock_lua:
-	lua_pop(L, lua_gettop(L) - lua_stack_top);
-	li_lua_restore_globals(L);
+	lua_pop(L, lua_gettop(L) - lua_stack_top); /* reset stack */
+	li_lua_environment_restore(&srv->LL); /* -1 */
+	li_lua_environment_restore_globals(L); /* -1 */
 	lua_gc(L, LUA_GCCOLLECT, 0);
 	li_lua_unlock(&srv->LL);
 

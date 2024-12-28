@@ -2,6 +2,7 @@
 #include <lighttpd/core_lua.h>
 #include <lighttpd/actions_lua.h>
 #include <lighttpd/condition_lua.h>
+#include <lighttpd/config_lua.h>
 #include <lighttpd/value_lua.h>
 
 liLuaState *li_lua_state_get(lua_State *L) {
@@ -106,33 +107,101 @@ static void li_lua_push_globals(lua_State *L) { /* +1 */
 
 static void li_lua_set_globals(lua_State *L) { /* -1 */
 #if LUA_VERSION_NUM == 501
+	LI_FORCE_ASSERT(lua_istable(L, -1) && "LUA_GLOBALSINDEX must contain a table in lua5.1");
 	lua_replace(L, LUA_GLOBALSINDEX); /* -1 */
 #else
 	lua_rawseti(L, LUA_REGISTRYINDEX, LUA_RIDX_GLOBALS); /* -1 */
 #endif
 }
 
-static void li_lua_store_globals(lua_State *L) {
-	/* backup global table reference */
-	li_lua_push_globals(L); /* +1 */
-	lua_setfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_GLOBALS); /* -1 */
+static void create_environment(liLuaState *LL) /* +1 (a new LI_ENV metatable) */ {
+	lua_State *L = LL->L;
+
+	lua_createtable(L, 0, 2); /* +1 LI_ENV metatable (return value) */
+
+	lua_newtable(L); /* +1 storage table */
+
+	/* setup storage metatable */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, LL->li_env_default_metatable_ref); /* +1 */
+	lua_setmetatable(L, -2); /* -1 set default metatable as metatable storage table */
+
+	/* use storage in new ENV metatable */
+	lua_pushvalue(L, -1); /* +1, duplicate storage table */
+	lua_setfield(L, -3, "__index"); /* -1, __index=storage */
+	lua_setfield(L, -2, "__newindex"); /* -1, __newindex=storage */
 }
 
-void li_lua_restore_globals(lua_State *L) {
-	lua_getfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_GLOBALS); /* +1 */
+void li_lua_environment_activate_ephemeral(liLuaState *LL) /* +1 (leaves backup of old metatable to restore with) */ {
+	lua_State *L = LL->L;
+
+	lua_rawgeti(L, LUA_REGISTRYINDEX, LL->li_env_ref); /* +1 */
+	LI_FORCE_ASSERT(lua_getmetatable(L, -1)); /* +1 remember old metatable */
+	lua_insert(L, -2); /* swap top two stack elements */
+
+	create_environment(LL); /* +1 */
+	lua_setmetatable(L, -2); /* -1 set new environment metatable for LI_ENV */
+	lua_pop(L, 1); /* -1 pop LI_ENV */
+}
+
+int li_lua_environment_create(liLuaState *LL, liVRequest *vr) /* returns env ref */ {
+	lua_State *L = LL->L;
+	int *req_ref = NULL;
+
+	create_environment(LL);
+
+	if (NULL != vr) {
+		if (LL == &vr->wrk->LL) {
+			req_ref = &vr->lua_worker_env_ref;
+		} else if (LL == &vr->wrk->srv->LL) {
+			req_ref = &vr->lua_server_env_ref;
+		}
+
+		if (NULL != req_ref) {
+			lua_getfield(L, -1, "__newindex"); /* +1 get storage table */
+			if (*req_ref == LUA_NOREF) {
+				lua_newtable(L); /* +1 */
+				lua_pushvalue(L, -1); /* +1 */
+				*req_ref = luaL_ref(L, LUA_REGISTRYINDEX); /* -1 */
+			} else {
+				lua_rawgeti(L, LUA_REGISTRYINDEX, *req_ref); /* +1 */
+			}
+			lua_setfield(L, -2, "REQ"); /* -1 set REQ in storage table */
+			lua_pop(L, 1); /* -1 pop storage table */
+		}
+	}
+
+	return luaL_ref(L, LUA_REGISTRYINDEX);
+}
+
+void li_lua_environment_activate(liLuaState *LL, int env_mt_ref) /* +1 */ {
+	lua_State *L = LL->L;
+
+	lua_rawgeti(L, LUA_REGISTRYINDEX, LL->li_env_ref); /* +1 */
+	LI_FORCE_ASSERT(lua_getmetatable(L, -1)); /* +1 remember old metatable */
+	lua_insert(L, -2); /* swap top two stack elements */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, env_mt_ref); /* +1 */
+	lua_setmetatable(L, -2); /* -1 set env_mt for LI_ENV */
+	lua_pop(L, 1); /* -1 pop LI_ENV */
+}
+
+void li_lua_environment_restore(liLuaState *LL) /* -1 (expects previous metatable to restore on top) */ {
+	lua_State *L = LL->L;
+
+	lua_rawgeti(L, LUA_REGISTRYINDEX, LL->li_env_ref); /* +1 */
+	lua_pushvalue(L, -2); /* +1 */
+	lua_setmetatable(L, -2); /* -1 restore prev mt for LI_ENV */
+	lua_pop(L, 1); /* -2 */
+}
+
+void li_lua_environment_use_globals(liLuaState *LL) /* +1 */ {
+	lua_State *L = LL->L;
+
+	li_lua_push_globals(L); /* +1 backup previous GLOBALS on stack */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, LL->li_env_ref); /* +1 */
 	li_lua_set_globals(L); /* -1 */
 }
 
-void li_lua_new_globals(lua_State *L) {
-	lua_newtable(L); /* +1 */
-
-	/* metatable for new global env, link old globals as readonly */
-	lua_newtable(L); /* +1 */
-	/* TODO: protect metatable? */
-	li_lua_push_globals(L); /* +1 */
-	lua_setfield(L, -2, "__index"); /* -1 */
-	lua_setmetatable(L, -2); /* -1 */
-
+void li_lua_environment_restore_globals(lua_State *L) /* -1 */ {
 	li_lua_set_globals(L); /* -1 */
 }
 
@@ -365,6 +434,30 @@ static void li_lua_push_lighty_constants(lua_State *L, int ndx) {
 void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
 	lua_State *L = LL->L;
 
+	/* setup refs (won't need cleanup when we free the lua_State) */
+	lua_createtable(L, 0, 1); /* +1 LI_ENV default metatable */
+	li_lua_push_globals(L); /* +1 GLOBALS */
+	lua_setfield(L, -2, "__index"); /* -1, __index=GLOBALS */
+	LL->li_env_default_metatable_ref = luaL_ref(L, LUA_REGISTRYINDEX); /* -1 */
+
+#if LUA_VERSION_NUM == 501
+	/* in lua 5.1 the "fenv" / global must be an actual table */
+	lua_newtable(L); /* +1 LI_ENV */
+	/* as we have a "real" table we prevent new globals through a broken __newindex metatable entry;
+	 * build a special metatable for this.
+	 */
+	lua_createtable(L, 0, 2); /* +1 LI_ENV special metatable */
+	li_lua_push_globals(L); /* +1 GLOBALS */
+	lua_setfield(L, -2, "__index"); /* -1, __index=GLOBALS */
+	lua_newuserdata(L, 0); /* +1 */
+	lua_setfield(L, -2, "__newindex"); /* -1, __newindex=EMPTYUSERDATA */
+#else
+	lua_newuserdata(L, 0); /* +1 LI_ENV */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, LL->li_env_default_metatable_ref); /* +1 */
+#endif
+	lua_setmetatable(L, -2); /* -1 (pops LI_ENV metatable) */
+	LL->li_env_ref = luaL_ref(L, LUA_REGISTRYINDEX); /* -1 */
+
 	li_lua_init_chunk_mt(L);
 	li_lua_init_environment_mt(L);
 	li_lua_init_filter_mt(L);
@@ -449,7 +542,10 @@ void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
 	/* store "lighty" object in globals */
 	lua_setglobal(L, "lighty");
 
-	li_lua_store_globals(L);
+	li_lua_push_action_table(srv, wrk, L);
+	lua_setglobal(L, "action");
+
+	li_lua_set_global_condition_lvalues(srv, L);
 
 	li_plugins_init_lua(LL, srv, wrk);
 }
@@ -475,30 +571,4 @@ int li_lua_ghashtable_gstring_pairs(lua_State *L, GHashTable *ht) {
 	lua_pushcclosure(L, ghashtable_gstring_next, 1);   /* -1, +1 */
 	lua_pushnil(L); lua_pushnil(L);                    /* +2 */
 	return 3;
-}
-
-void li_lua_setfenv(lua_State *L, int funcindex) /* -1 */ {
-	/* set _ENV upvalue of lua function */
-#if LUA_VERSION_NUM == 501
-	lua_setfenv(L, funcindex); /* -1 */
-#else
-	int n;
-
-	lua_pushvalue(L, funcindex); /* +1, for consistent index */
-	for (n = 0; n < 10; ++n) {
-		const char *name = lua_getupvalue(L, -1, n); /* +1 unless name == NULL */
-		if (!name) break; /* last upvalue or a C function (empty upvalue names) */
-		lua_pop(L, 1); /* -1, drop upvalue value */
-		if (!name[0]) break; /* C function (empty upvalue names) */
-		if (0 == strcmp(name, "_ENV")) {
-			lua_pushvalue(L, -2);
-			if (NULL == lua_setupvalue(L, -2, n)) {
-				/* shouldn't happen - upvalue index `n` was valid above */
-				lua_pop(L, 1); /* -1 */
-			}
-			break;
-		}
-	}
-	lua_pop(L, 2); /* -2: copy of function and env */
-#endif
 }

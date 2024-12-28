@@ -109,8 +109,42 @@ LI_API int li_lua_push_traceback(lua_State *L, int nargs);
  */
 LI_API gboolean li_lua_call_object(liServer *srv, liVRequest *vr, lua_State *L, const char* method, int nargs, int nresults, gboolean optional);
 
-LI_API void li_lua_restore_globals(lua_State *L);
-LI_API void li_lua_new_globals(lua_State *L);
+/* Manage environment ("globals", `_ENV`, ...)
+ * - by default globals shouldn't survive across requests (and not from initial execution either)
+ * - globals set during a request should be "local" to request and context (per handler, filter, ...)
+ * - only overwrite environment "locally" for our code
+ * - inherit normal environment through metatables (just setting globals is "local")
+ * - `_G` is inherited and can be used for persistent state.
+ * - `REQ` in request context points to a "request-global" table (per lua state of course)
+ * - lua5.2+: can use _ENV.x to make access to global "x" explicit
+ *
+ * modifying existing objects in environment (inherited from "main" global environment)
+ * are persisted though (per lua state).
+ *
+ * Implementation:
+ * - remember initial GLOBALS in liLuaState
+ * - single instance of "our environment" table LI_ENV; "empty" userdata with (initial) metatable LI_ENV_MT_DEFAULT={__index=GLOBALS}
+ *   * creating new globals would fail - not designed for actual use
+ * - "ephemeral" environment for code running outside of requests:
+     * change LI_ENV metatable to {__index=__newindex={} with metatable LI_ENV_MT_DEFAULT }
+     * globals lost once environment is "restored"
+ * - "request" environment for code running during a requests:
+     * create REQ_CTX table with metatable LI_ENV_MT_DEFAULT for lifetime of request
+     * change LI_ENV metatable to {__index=__newindex=REQ_CTX }
+     * globals lost once request is cleaned up
+ * - restoring environment:
+     restore LI_ENV metatable to previous meta table (index returned by active methods)
+ */
+LI_API void li_lua_environment_activate_ephemeral(liLuaState *LL); /* +1 */
+LI_API int li_lua_environment_create(liLuaState *LL, liVRequest *vr); /* returns env (metatable) ref */
+INLINE void li_lua_environment_free(lua_State *L, int env_mt_ref);
+LI_API void li_lua_environment_activate(liLuaState *LL, int env_mt_ref); /* +1 */
+LI_API void li_lua_environment_restore(liLuaState *LL); /* -1 */
+
+/* make LI_ENV the current global environment (backup old environment on stack) */
+LI_API void li_lua_environment_use_globals(liLuaState *LL); /* +1 */
+/* restore previous global environment from stack */
+LI_API void li_lua_environment_restore_globals(lua_State *L); /* -1 */
 
 /* joinWith " " (map tostring parameter[from..to]) */
 LI_API GString* li_lua_print_get_string(lua_State *L, int from, int to);
@@ -124,8 +158,6 @@ LI_API GString* li_lua_print_get_string(lua_State *L, int from, int to);
  * returns: <next>, nil, nil on the stack (and 3 as c function)
  */
 LI_API int li_lua_ghashtable_gstring_pairs(lua_State *L, GHashTable *ht);
-
-LI_API void li_lua_setfenv(lua_State *L, int funcindex); /* -1 */
 
 /* internal: subrequests (vrequest metamethod) */
 LI_API int li_lua_vrequest_subrequest(lua_State *L);
@@ -156,6 +188,20 @@ INLINE int li_lua_new_protected_metatable(lua_State *L, const char *tname) {
 		li_lua_protect_metatable(L);
 	}
 	return r;
+}
+
+/* create "stable" stack index from negative offsets like -1 and -2 (but not pseudo-indices) */
+INLINE int li_lua_stable_index(lua_State *L, int index) {
+	if (index < 0) {
+		int top = lua_gettop(L);
+		/* valid iff: 1 <= abs(index) = -index <= top; "-index" might overflow, so check `index >= -top` instead */
+		if (index >= -top) return (top + index) + 1;
+	}
+	return index;
+}
+
+INLINE void li_lua_environment_free(lua_State *L, int env_mt_ref) {
+	luaL_unref(L, LUA_REGISTRYINDEX, env_mt_ref);
 }
 
 INLINE void li_lua_setfuncs(lua_State *L, const luaL_Reg *l) {

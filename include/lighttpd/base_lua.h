@@ -12,6 +12,8 @@ struct lua_State;
 struct liLuaState {
 	struct lua_State* L; /** NULL if compiled without Lua */
 	GStaticRecMutex lualock;
+	int li_env_ref;
+	int li_env_default_metatable_ref;
 };
 
 LI_API void li_lua_init(liLuaState* LL, liServer* srv, liWorker* wrk);

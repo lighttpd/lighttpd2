@@ -106,6 +106,7 @@ static int li_lua_config_handle_server_action(liServer *srv, liWorker *wrk, lua_
 
 	li_lua_unlock(LL);
 
+	if (!wrk) wrk = srv->main_worker;
 	a = li_plugin_config_action(srv, wrk, key, val);
 
 	li_lua_lock(LL);
@@ -159,9 +160,9 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 
 	li_lua_lock(LL);
 
+	li_lua_environment_use_globals(LL); /* +1 */
+	li_lua_environment_activate_ephemeral(LL); /* +1 */
 	lua_stack_top = lua_gettop(L);
-
-	li_lua_new_globals(L);
 
 	if (0 != luaL_loadfile(L, filename)) {
 		_ERROR(srv, wrk, NULL, "Loading script '%s' failed: %s", filename, lua_tostring(L, -1));
@@ -176,19 +177,14 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 		lua_setglobal(L, "setup");
 	}
 
-	li_lua_push_action_table(srv, wrk, L);
-	lua_setglobal(L, "action");
-
-	li_lua_set_global_condition_lvalues(srv, L);
-
 	/* arguments for config: local filename, args = ... */
 	/* 1. filename */
-	lua_pushstring(L, filename);
+	lua_pushstring(L, filename); /* +1 */
 	/* 2. args */
-	li_lua_push_value(L, args);
+	li_lua_push_value(L, args); /* +1 */
 
-	errfunc = li_lua_push_traceback(L, 2);
-	if (lua_pcall(L, 2, 0, errfunc)) {
+	errfunc = li_lua_push_traceback(L, 2); /* +1, but before args */
+	if (lua_pcall(L, 2, 0, errfunc)) { /* -3 (func + args), 0 results (but 1 error) */
 		_ERROR(srv, wrk, NULL, "lua_pcall(): %s", lua_tostring(L, -1));
 
 		/* cleanup stack */
@@ -196,7 +192,8 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 			lua_pop(L, lua_gettop(L) - lua_stack_top);
 		}
 
-		li_lua_restore_globals(L);
+		li_lua_environment_restore(LL); /* -1 */
+		li_lua_environment_restore_globals(L); /* -1 */
 
 		li_lua_unlock(LL);
 
@@ -210,7 +207,8 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 
 	LI_FORCE_ASSERT(lua_gettop(L) == lua_stack_top);
 
-	li_lua_restore_globals(L);
+	li_lua_environment_restore(LL); /* -1 */
+	li_lua_environment_restore_globals(L); /* -1 */
 
 	lua_gc(L, LUA_GCCOLLECT, 0);
 

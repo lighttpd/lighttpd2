@@ -4,6 +4,10 @@
 #include <lighttpd/plugin_core.h>
 #include <lighttpd/filter_buffer_on_disk.h>
 
+#ifdef HAVE_LUA_H
+# include <lighttpd/core_lua.h>
+#endif
+
 static void vrequest_job_cb(liJob *job) {
 	liVRequest *vr = LI_CONTAINER_OF(job, liVRequest, job);
 	li_vrequest_state_machine(vr);
@@ -40,6 +44,9 @@ liVRequest* li_vrequest_new(liWorker *wrk, liConInfo *coninfo) {
 	li_response_init(&vr->response);
 	li_environment_init(&vr->env);
 
+	vr->lua_server_env_ref = LUA_NOREF;
+	vr->lua_worker_env_ref = LUA_NOREF;
+
 	li_vrequest_filters_init(vr);
 
 	li_action_stack_init(&vr->action_stack);
@@ -75,6 +82,21 @@ void li_vrequest_free(liVRequest* vr) {
 	li_physical_clear(&vr->physical);
 	li_response_clear(&vr->response);
 	li_environment_clear(&vr->env);
+
+#ifdef HAVE_LUA_H
+	if (vr->lua_server_env_ref != LUA_NOREF) {
+		li_lua_lock(&srv->LL);
+		luaL_unref(srv->LL.L, LUA_REGISTRYINDEX, vr->lua_server_env_ref);
+		li_lua_unlock(&srv->LL);
+		vr->lua_server_env_ref = LUA_NOREF;
+	}
+	if (vr->lua_worker_env_ref != LUA_NOREF) {
+		li_lua_lock(&vr->wrk->LL);
+		luaL_unref(vr->wrk->LL.L, LUA_REGISTRYINDEX, vr->lua_worker_env_ref);
+		li_lua_unlock(&vr->wrk->LL);
+		vr->lua_worker_env_ref = LUA_NOREF;
+	}
+#endif
 
 	li_vrequest_filters_clear(vr);
 
@@ -129,6 +151,21 @@ void li_vrequest_reset(liVRequest *vr, gboolean keepalive) {
 	li_physical_reset(&vr->physical);
 	li_response_reset(&vr->response);
 	li_environment_reset(&vr->env);
+
+#ifdef HAVE_LUA_H
+	if (vr->lua_server_env_ref != LUA_NOREF) {
+		li_lua_lock(&srv->LL);
+		luaL_unref(srv->LL.L, LUA_REGISTRYINDEX, vr->lua_server_env_ref);
+		li_lua_unlock(&srv->LL);
+		vr->lua_server_env_ref = LUA_NOREF;
+	}
+	if (vr->lua_worker_env_ref != LUA_NOREF) {
+		li_lua_lock(&vr->wrk->LL);
+		luaL_unref(vr->wrk->LL.L, LUA_REGISTRYINDEX, vr->lua_worker_env_ref);
+		li_lua_unlock(&vr->wrk->LL);
+		vr->lua_worker_env_ref = LUA_NOREF;
+	}
+#endif
 
 	li_vrequest_filters_reset(vr);
 

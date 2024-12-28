@@ -93,6 +93,9 @@ struct liVRequest {
 
 	/* environment entries will be passed to the backends */
 	liEnvironment env;
+	/* request specific table; `REQ` global in lua */
+	int lua_server_env_ref; /* for srv->LL */
+	int lua_worker_env_ref; /* for wrk->LL */
 
 	/* -> vr_in -> filters_in -> in_memory ->(buffer_on_disk) -> in -> handle -> out -> filters_out -> vr_out -> */
 	GPtrArray *filters;

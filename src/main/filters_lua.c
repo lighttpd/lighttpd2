@@ -162,6 +162,7 @@ struct filter_lua_config {
 typedef struct filter_lua_state filter_lua_state;
 struct filter_lua_state {
 	liLuaState *LL;
+	int env_ref;
 	int object_ref;
 };
 
@@ -169,8 +170,11 @@ static filter_lua_state* filter_lua_state_new(liVRequest *vr, filter_lua_config 
 	int object_ref = LUA_NOREF;
 	liServer *srv = vr->wrk->srv;
 	lua_State *L = config->LL->L;
+	int env_ref;
 
 	li_lua_lock(config->LL);
+	env_ref = li_lua_environment_create(config->LL, vr);
+	li_lua_environment_activate(config->LL, env_ref); /* +1 */
 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, config->class_ref); /* +1 */
 	li_lua_push_vrequest(L, vr); /* +1 */
@@ -186,12 +190,19 @@ static filter_lua_state* filter_lua_state_new(liVRequest *vr, filter_lua_config 
 		li_vrequest_error(vr);
 	}
 
+	li_lua_environment_restore(config->LL); /* -1 */
+	if (LUA_NOREF == object_ref) {
+		li_lua_environment_free(L, env_ref);
+		env_ref = LUA_NOREF;
+	}
+
 	li_lua_unlock(config->LL);
 
 	if (LUA_NOREF != object_ref) {
 		filter_lua_state *state = g_slice_new0(filter_lua_state);
 		state->LL = config->LL;
 		state->object_ref = object_ref;
+		state->env_ref = env_ref;
 
 		return state;
 	} else {
@@ -204,12 +215,15 @@ static void filter_lua_state_free(liVRequest *vr, filter_lua_state *state) {
 	lua_State *L = state->LL->L;
 
 	li_lua_lock(state->LL);
+	li_lua_environment_activate(state->LL, state->env_ref); /* +1 */
 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, state->object_ref); /* +1 */
 	li_lua_push_vrequest(L, vr); /* +1 */
 	li_lua_call_object(srv, vr, L, "finished", 2, 0, TRUE); /* -2 */
+	li_lua_environment_restore(state->LL); /* -1 */
 
 	luaL_unref(L, LUA_REGISTRYINDEX, state->object_ref);
+	li_lua_environment_free(L, state->env_ref);
 
 	li_lua_unlock(state->LL);
 
@@ -229,6 +243,7 @@ static liHandlerResult filter_lua_handle(liVRequest *vr, liFilter *f) {
 	liHandlerResult res;
 
 	li_lua_lock(state->LL);
+	li_lua_environment_activate(state->LL, state->env_ref); /* +1 */
 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, state->object_ref); /* +1 */
 	li_lua_push_vrequest(L, vr); /* +1 */
@@ -255,6 +270,7 @@ static liHandlerResult filter_lua_handle(liVRequest *vr, liFilter *f) {
 		res = LI_HANDLER_ERROR;
 	}
 
+	li_lua_environment_restore(state->LL); /* -1 */
 	li_lua_unlock(state->LL);
 
 	return res;

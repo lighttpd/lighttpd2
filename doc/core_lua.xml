@@ -11,6 +11,20 @@
 		* [`lua_handler`](mod_lua.html#mod_lua__action_lua-handler): without locking, and every worker has its own `lua_State` (and they cannot share their global context).
 	</markdown></description>
 
+	<section title="Lua global environment">
+		<markdown>
+			To prevent accidental pollution of the global environment a limited environment is provided:
+
+			* Outside of request handling the limited environment will forget any globals you set
+			* Within request handling globals will persist per context (i.e. a handler) and request; also the `REQ` global will provide access to persistent state per request (across handlers).
+			* Objects already present in the global environment will be accessible and can be modified.
+			* The global environment can be accessed explicitly via `_G`.
+			* Also everything in the environment is confined to the `lua_State` (see above), as data can't be shared between different `lua_State`s.
+
+			This should mostly work just fine; you only need to be careful when providing data to your handlers from a parent block; those variables should be declared `local` or your handler won't see them.
+		</markdown>
+	</section>
+
 	<section title="Lua Config">
 		<markdown>
 			This section describe how to translate concepts from the main config to Lua. You can write the whole config in Lua or only parts and include them (for example with [`include_lua`](core_config.html#core_config__includes)).
@@ -22,7 +36,7 @@
 			]]></markdown></description>
 
 			<config><![CDATA[
-				function mydebug(vr)
+				local function mydebug(vr)
 					local url_fields = { "raw", "raw_path", "raw_orig_path", "scheme", "authority", "path", "query", "host" }
 					local phys_fields = { "path", "doc_root", "pathinfo" }
 					if vr:handle_direct() then
