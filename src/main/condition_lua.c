@@ -299,10 +299,7 @@ static int lua_push_cond_lvalue_t(liServer *srv, lua_State *L, liCondLValue t) {
 	return 1;
 }
 
-
-
-
-void li_lua_push_lvalues_dict(liServer *srv, lua_State *L) {
+void li_lua_set_global_condition_lvalues(liServer *srv, lua_State *L) {
 	size_t i;
 
 	for (i = 0; i < LI_COND_LVALUE_FIRST_WITH_KEY; i++) {

@@ -462,7 +462,7 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 	li_lua_push_action_table(srv, srv->main_worker, L);
 	lua_setglobal(L, "action");
 
-	li_lua_push_lvalues_dict(srv, L);
+	li_lua_set_global_condition_lvalues(srv, L);
 
 	/* arguments for plugin: local filename, args = ...  */
 	/* 1. filename */

@@ -179,7 +179,7 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 	li_lua_push_action_table(srv, wrk, L);
 	lua_setglobal(L, "action");
 
-	li_lua_push_lvalues_dict(srv, L);
+	li_lua_set_global_condition_lvalues(srv, L);
 
 	/* arguments for config: local filename, args = ... */
 	/* 1. filename */
