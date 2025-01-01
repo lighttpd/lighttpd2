@@ -466,7 +466,9 @@ void li_lua_init2(liLuaState *LL, liServer *srv, liWorker *wrk) {
 	li_lua_init_request_mt(L);
 	li_lua_init_response_mt(L);
 	li_lua_init_stat_mt(L);
+	/* DISABLED FOR NOW
 	li_lua_init_subrequest_mt(L);
+	*/
 	li_lua_init_virtualrequest_mt(L);
 
 	if (NULL == wrk) {

@@ -77,7 +77,9 @@ LI_API struct stat* li_lua_get_stat(lua_State *L, int ndx);
 LI_API int li_lua_push_stat(lua_State *L, struct stat *st);
 
 /* subrequest_lua.c */
+/* DISABLED FOR NOW
 LI_API void li_lua_init_subrequest_mt(lua_State *L);
+*/
 
 /* virtualrequest_lua.c */
 LI_API void li_lua_init_virtualrequest_mt(lua_State *L);
@@ -160,8 +162,9 @@ LI_API GString* li_lua_print_get_string(lua_State *L, int from, int to);
 LI_API int li_lua_ghashtable_gstring_pairs(lua_State *L, GHashTable *ht);
 
 /* internal: subrequests (vrequest metamethod) */
+/* DISABLED FOR NOW
 LI_API int li_lua_vrequest_subrequest(lua_State *L);
-
+*/
 
 /* inline implementations */
 
