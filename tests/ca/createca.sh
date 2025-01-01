@@ -4,7 +4,7 @@ set -e
 
 # (requires gnutls >= 3.2.7 (or >= 3.1.17 and < 3.2.0))
 
-KEY_TYPE="${KEY_TYPE:-rsa}"
+KEY_TYPE="${KEY_TYPE:-ecc}"
 HASH_ALG="${HASH_ALG:-SHA512}"
 
 function gen_rsa_key() {
@@ -55,9 +55,12 @@ function ca_sign() {
 gen_key "ca"
 gen_key "intermediate"
 gen_key "server"
+gen_key "client_ca"
+gen_key "client1"
 
 ca_sign_self "ca"
 ca_sign "ca" "intermediate"
+ca_sign_self "client_ca"
 
 for name in test1.ssl test2.ssl; do
 	ca_sign "intermediate" "server_${name}" "server"
@@ -65,3 +68,5 @@ for name in test1.ssl test2.ssl; do
 	echo "Generate server_${name}.pem"
 	cat "server.key" "server_${name}.crt" "intermediate.crt" > "server_${name}.pem"
 done
+
+ca_sign "client_ca" "client1"

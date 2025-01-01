@@ -10,7 +10,7 @@ class TestSimpleRequest(CurlRequest):
     EXPECT_RESPONSE_BODY = TEST_TXT
     EXPECT_RESPONSE_CODE = 200
     EXPECT_RESPONSE_HEADERS = [("Content-Type", "text/plain; charset=utf-8")]
-    vhost = "test1.ssl"
+    vhost = "test1.ssl.test"
 
 
 class TestSNI(CurlRequest):
@@ -20,4 +20,4 @@ class TestSNI(CurlRequest):
     EXPECT_RESPONSE_BODY = TEST_TXT
     EXPECT_RESPONSE_CODE = 200
     EXPECT_RESPONSE_HEADERS = [("Content-Type", "text/plain; charset=utf-8")]
-    vhost = "test2.ssl"
+    vhost = "test2.ssl.test"

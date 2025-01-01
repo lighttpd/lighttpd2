@@ -1,0 +1,7 @@
+
+dn = "OU=lighttpd2 test suite Client CA,CN=client1"
+
+expiration_days = 3650
+
+tls_www_client
+signing_key

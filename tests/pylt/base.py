@@ -205,7 +205,7 @@ class TestBase(metaclass=_TestBaseMeta):
             # but if there is no custom config we should use the parent vhost.
             self.vhost = parent.vhost
         if not self.vhost:
-            self.vhost = TestBase._vhostname(self.name)
+            self.vhost = TestBase._vhostname(self.name) + '.test'
         if not self.no_docroot:
             if self.inherit_docroot:
                 assert self._parent, "can't inherit vhostdir without parent"

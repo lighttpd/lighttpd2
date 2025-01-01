@@ -1,0 +1,25 @@
+Public Key Information:
+	Public Key Algorithm: EC/ECDSA
+	Algorithm Security Level: Ultra (384 bits)
+		Curve:	SECP384R1
+		X:
+			0f:45:54:bd:5d:10:5b:54:d8:d2:ac:43:ae:44:ec:96
+			7e:96:18:97:22:7d:07:45:07:eb:8b:5f:30:42:7d:3c
+			15:49:b0:97:85:d6:34:11:da:30:4f:6b:95:66:39:43
+		Y:
+			23:6c:47:4c:09:12:76:a7:d2:19:ca:e4:3c:90:e1:4a
+			92:58:21:a9:d7:f0:c6:e2:35:23:31:43:79:18:dd:9c
+			85:a0:6a:59:e3:43:e1:0f:93:bd:ee:35:f7:ba:f4:4b
+
+Public Key ID:
+	sha1:e4bff5034adc0a7fc31da1472673e5f21817f067
+	sha256:b623fefa1cbf33560f222347acacaa5b24b2f26a5ffa6acf0b01b223f1ce4ebb
+Public Key PIN:
+	pin-sha256:tiP++hy/M1YPIiNHrKyqWySy8mpf+mrPCwGyI/HOTrs=
+
+
+-----BEGIN PUBLIC KEY-----
+MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAED0VUvV0QW1TY0qxDrkTsln6WGJcifQdF
+B+uLXzBCfTwVSbCXhdY0EdowT2uVZjlDI2xHTAkSdqfSGcrkPJDhSpJYIanX8Mbi
+NSMxQ3kY3ZyFoGpZ40PhD5O97jX3uvRL
+-----END PUBLIC KEY-----

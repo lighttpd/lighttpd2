@@ -1,6 +1,8 @@
 
 dn = "OU=lighttpd2 test suite CA,CN=test1.ssl"
-dns_name = "test1.ssl"
+dns_name = "test1.ssl.test"
+dns_name = "*.openssl.test"
+dns_name = "*.gnutls.test"
 
 expiration_days = 3650
 

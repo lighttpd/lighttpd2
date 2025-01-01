@@ -1,50 +1,25 @@
 Public Key Information:
-	Public Key Algorithm: RSA
-	Algorithm Security Level: High (3072 bits)
-		Modulus (bits 3072):
-			00:d8:98:e2:15:e2:39:99:32:c7:53:b3:e6:a7:05:65
-			40:38:8b:c3:82:69:91:f8:cb:51:18:74:98:39:97:e3
-			f0:93:38:d1:f4:98:9b:6b:cc:d6:79:ee:7a:5c:bb:27
-			d4:e7:8e:33:6f:67:5a:ed:ab:7b:1f:67:ec:58:e3:3a
-			12:09:3a:be:c4:f9:54:f1:a2:b1:07:84:66:1d:a7:ef
-			1f:03:9c:7e:5a:74:90:34:19:2b:93:e4:94:66:2d:3d
-			eb:f6:99:df:63:99:14:32:4a:ce:09:e6:91:8e:41:32
-			ec:f1:bd:cb:88:df:f1:27:fe:c0:2d:33:76:6f:e0:c3
-			c7:79:f0:23:9f:3d:9a:ee:7a:a6:35:67:31:71:1f:7c
-			d8:31:9e:27:d8:20:13:e1:b4:07:17:65:1b:71:d9:55
-			45:2b:53:7c:b4:ab:1f:65:1f:72:d4:f8:d2:40:35:50
-			e4:0d:3b:61:bd:5c:89:30:57:b7:ab:cb:2c:00:dc:68
-			7b:e8:76:b4:a9:6e:d7:c2:8c:09:43:45:ad:48:cb:db
-			31:b1:7e:7f:d2:34:9d:1b:6a:49:4c:a4:49:e9:39:cb
-			6d:45:06:d8:2f:de:37:ff:ec:7a:a6:62:dc:e7:91:40
-			29:bf:11:b4:0a:09:5a:86:97:70:c1:44:b9:7a:b6:a2
-			cb:97:4b:71:28:52:75:8e:0d:ae:c2:58:93:82:72:57
-			54:e8:4c:a6:4a:09:1a:23:eb:24:9f:26:32:57:75:9a
-			ba:64:fb:c9:6a:5c:e3:65:c8:04:ca:79:61:e2:ca:bb
-			b5:30:71:c3:c6:ce:0e:42:38:99:8e:2b:f3:5b:4d:7e
-			e6:c4:a2:9f:f5:4d:fb:e0:3f:c5:f5:c3:d2:67:9d:53
-			8c:71:ce:e1:79:cc:01:f7:ae:1b:c8:7b:bd:9a:0d:f7
-			d9:2f:cd:2f:7f:ce:17:7d:05:67:d9:24:55:6c:07:67
-			04:67:ec:13:91:72:b0:c4:ad:e4:4f:2d:ea:56:61:3f
-			bf
-		Exponent (bits 24):
-			01:00:01
+	Public Key Algorithm: EC/ECDSA
+	Algorithm Security Level: Ultra (384 bits)
+		Curve:	SECP384R1
+		X:
+			42:e2:79:33:62:69:27:19:d9:e1:7f:3a:4b:9c:ce:30
+			b6:2f:68:87:c3:72:ad:ce:c8:8b:37:13:22:06:5c:61
+			04:7d:3f:2e:cc:3d:ea:cd:69:7f:f1:59:e7:e3:51:f8
+		Y:
+			24:de:e4:09:c7:0a:2c:dc:21:d3:8a:ed:95:20:b3:87
+			5e:de:35:cd:b0:49:ae:00:3b:dc:e5:60:20:22:10:0c
+			7b:02:ec:6d:13:a4:08:37:4c:c2:63:7d:ff:c5:e7:bb
 
 Public Key ID:
-	sha1:782a2b4f5cfc2bea856f7fbe48d251b9770d3ac2
-	sha256:be3543a29f2e3956aa4f0e862b8aafe8878902ff45b697556efc79fb606cb125
+	sha1:c133b68b6d4e4a5f10c76027229a5f029300826b
+	sha256:94c5b30608b18e0b9b3ae4d17a2ca07ce9588ed2239be1a99de11e822f769003
 Public Key PIN:
-	pin-sha256:vjVDop8uOVaqTw6GK4qv6IeJAv9FtpdVbvx5+2BssSU=
+	pin-sha256:lMWzBgixjgubOuTReiygfOlYjtIjm+GpneEegi92kAM=
 
 
 -----BEGIN PUBLIC KEY-----
-MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA2JjiFeI5mTLHU7PmpwVl
-QDiLw4JpkfjLURh0mDmX4/CTONH0mJtrzNZ57npcuyfU544zb2da7at7H2fsWOM6
-Egk6vsT5VPGisQeEZh2n7x8DnH5adJA0GSuT5JRmLT3r9pnfY5kUMkrOCeaRjkEy
-7PG9y4jf8Sf+wC0zdm/gw8d58COfPZrueqY1ZzFxH3zYMZ4n2CAT4bQHF2UbcdlV
-RStTfLSrH2UfctT40kA1UOQNO2G9XIkwV7eryywA3Gh76Ha0qW7XwowJQ0WtSMvb
-MbF+f9I0nRtqSUykSek5y21FBtgv3jf/7HqmYtznkUApvxG0CglahpdwwUS5erai
-y5dLcShSdY4NrsJYk4JyV1ToTKZKCRoj6ySfJjJXdZq6ZPvJalzjZcgEynlh4sq7
-tTBxw8bODkI4mY4r81tNfubEop/1TfvgP8X1w9JnnVOMcc7hecwB964byHu9mg33
-2S/NL3/OF30FZ9kkVWwHZwRn7BORcrDEreRPLepWYT+/AgMBAAE=
+MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEQuJ5M2JpJxnZ4X86S5zOMLYvaIfDcq3O
+yIs3EyIGXGEEfT8uzD3qzWl/8Vnn41H4JN7kCccKLNwh04rtlSCzh17eNc2wSa4A
+O9zlYCAiEAx7AuxtE6QIN0zCY33/xee7
 -----END PUBLIC KEY-----
