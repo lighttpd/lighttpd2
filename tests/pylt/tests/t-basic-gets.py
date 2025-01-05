@@ -5,7 +5,7 @@ from pylt.requests import CurlRequest, RawRequest, TEST_TXT
 
 
 LUA_SHOW_ENV_INFO = """
-function show_env_info(vr)
+local function show_env_info(vr)
     if vr:handle_direct() then
         vr.resp.status = 200
         vr.resp.headers["Content-Type"] = "text/plain"
