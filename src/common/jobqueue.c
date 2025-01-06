@@ -100,21 +100,8 @@ void li_job_init(liJob *job, liJobCB callback) {
 }
 
 void li_job_reset(liJob *job) {
-	if (NULL != job->link.data) {
-		liJobQueue *jq = job->link.data;
-
-		g_queue_unlink(&jq->queue, &job->link);
-		job->link.data = NULL;
-	}
-
+	li_job_stop(job);
 	job->generation = 0;
-	if (NULL != job->ref) {
-		/* keep it if refcount == 1, as we are the only reference then */
-		if (1 < g_atomic_int_get(&job->ref->refcount)) {
-			li_job_ref_release(job->ref);
-			job->ref = NULL;
-		}
-	}
 }
 
 void li_job_stop(liJob *job) {
@@ -126,9 +113,12 @@ void li_job_stop(liJob *job) {
 	}
 
 	if (NULL != job->ref) {
-		job->ref->job = NULL;
-		li_job_ref_release(job->ref);
-		job->ref = NULL;
+		/* keep it if refcount == 1, as we are the only reference then */
+		if (1 < g_atomic_int_get(&job->ref->refcount)) {
+			job->ref->job = NULL;
+			li_job_ref_release(job->ref);
+			job->ref = NULL;
+		}
 	}
 }
 
