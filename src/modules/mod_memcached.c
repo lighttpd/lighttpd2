@@ -627,7 +627,7 @@ static const liPluginSetup setups[] = {
 
 typedef struct {
 	liMemcachedRequest *req;
-	int result_ref; /* table if vr_ref == NULL, callback function otherwise */
+	int result_ref; /* table if vr_ref != NULL, callback function otherwise */
 	liJobRef *vr_ref;
 	lua_State *L;
 } mc_lua_request;
