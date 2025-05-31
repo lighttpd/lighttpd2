@@ -118,19 +118,22 @@ else
 endif
 
 if get_option('bzip2')
-  opt_dep_bzip2 = compiler.find_library(
-    'bz2',
-    has_headers: 'bzlib.h',
-    dirs: search_libs,
-    header_include_directories: search_includes,
-  )
-  if not compiler.has_function(
-    'BZ2_bzCompressInit',
-    prefix: '#include <bzlib.h>',
-    dependencies: opt_dep_bzip2,
-    include_directories: search_includes,
-  )
-    error('Found libbz2, but missing BZ2_bzCompressInit()')
+  opt_dep_bzip2 = dependency('bzip2', required: false)
+  if not opt_dep_bzip2.found()
+    opt_dep_bzip2 = compiler.find_library(
+      'bz2',
+      has_headers: 'bzlib.h',
+      dirs: search_libs,
+      header_include_directories: search_includes,
+    )
+    if not compiler.has_function(
+      'BZ2_bzCompressInit',
+      prefix: '#include <bzlib.h>',
+      dependencies: opt_dep_bzip2,
+      include_directories: search_includes,
+    )
+      error('Found libbz2, but missing BZ2_bzCompressInit()')
+    endif
   endif
   conf_data.set10('HAVE_BZIP', true)
 else
