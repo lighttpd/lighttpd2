@@ -27,7 +27,7 @@ endif
 lib_common = library(
   'lighttpd2-common-' + meson.project_version(),
   src_common,
-  include_directories: inc_dir,
+  include_directories: [inc_dir] +  search_includes,
   dependencies: [
     main_deps,
     opt_dep_unwind,

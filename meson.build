@@ -14,6 +14,9 @@ libexec_dir = get_option('prefix') / get_option('libexecdir')
 modules_dir = get_option('prefix') / get_option('libdir') / (meson.project_name() + '-' + meson.project_version())
 lua_dir = get_option('prefix') / get_option('datadir') / 'lighttpd2/lua'
 
+search_includes = include_directories(get_option('search-inc'))
+search_libs = get_option('search-lib')
+
 compiler = meson.get_compiler('c')
 dep_not_found = dependency('', required: false)
 
@@ -61,14 +64,18 @@ dep_gthread = dependency('gthread-2.0', version: '>=2.16')
 dep_gmodule = dependency('gmodule-2.0', version: '>=2.16')
 
 # find libev manually
+debug('libs:', search_libs)
 dep_ev = compiler.find_library(
   'ev',
   has_headers: 'ev.h',
+  dirs: search_libs,
+  header_include_directories: search_includes,
 )
 if not compiler.has_function(
   'ev_time',
   prefix: '#include <ev.h>',
   dependencies: dep_ev,
+  include_directories: search_includes,
 )
   error('Missing ev_time() in libev')
 endif
@@ -114,11 +121,14 @@ if get_option('bzip2')
   opt_dep_bzip2 = compiler.find_library(
     'bz2',
     has_headers: 'bzlib.h',
+    dirs: search_libs,
+    header_include_directories: search_includes,
   )
   if not compiler.has_function(
     'BZ2_bzCompressInit',
     prefix: '#include <bzlib.h>',
     dependencies: opt_dep_bzip2,
+    include_directories: search_includes,
   )
     error('Found libbz2, but missing BZ2_bzCompressInit()')
   endif
@@ -223,12 +233,15 @@ lib_crypt = compiler.find_library(
   'crypt',
   required: false,
   has_headers: 'crypt.h',
+  dirs: search_libs,
+  header_include_directories: search_includes,
 )
 if lib_crypt.found()
   if compiler.has_function(
     'crypt_r',
     prefix: '#include <crypt.h>',
     dependencies: lib_crypt,
+    include_directories: search_includes,
   )
     conf_data.set10('HAVE_CRYPT_H', true)
     conf_data.set10('HAVE_CRYPT_R', true)
@@ -240,7 +253,11 @@ else
 endif
 
 # need libm for fmod in throttle.c
-lib_m = compiler.find_library('m')
+lib_m = compiler.find_library(
+  'm',
+  dirs: search_libs,
+  header_include_directories: search_includes,
+)
 
 # IPv6 support is mandatory by default
 if get_option('ipv6')
@@ -270,11 +287,14 @@ if target_machine.system() == 'freebsd'
   lib_kvm = compiler.find_library(
     'kvm',
     has_headers: 'kvm.h',
+    dirs: search_libs,
+    header_include_directories: search_includes,
   )
   if not compiler.has_function(
     'kvm_open',
     prefix: '#include <kvm.h>',
     dependencies: lib_kvm,
+    include_directories: search_includes,
   )
     error('Found libkvm, but missing kvm_open')
   endif

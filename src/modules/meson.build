@@ -102,7 +102,7 @@ foreach name, def: modules
     def['sources'],
     dependencies: main_deps + mod_deps,
     c_args: def.get('c_args', []),
-    include_directories: inc_dir,
+    include_directories: [inc_dir] +  search_includes,
     install: true,
     install_dir: modules_dir,
   )

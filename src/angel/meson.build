@@ -12,7 +12,7 @@ src_angel_shared = [
 lib_shared_angel = library(
   'lighttpd2-sharedangel-' + meson.project_version(),
   src_angel_shared,
-  include_directories: inc_dir,
+  include_directories: [inc_dir] +  search_includes,
   dependencies: [
     main_deps,
   ],
@@ -23,7 +23,7 @@ lib_shared_angel = library(
 bin_angel = executable(
   'lighttpd2',
   'angel_main.c',
-  include_directories: inc_dir,
+  include_directories: [inc_dir] +  search_includes,
   dependencies: [
     main_deps,
   ],

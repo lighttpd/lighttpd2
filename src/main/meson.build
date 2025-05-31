@@ -73,7 +73,7 @@ endif
 lib_shared = library(
   'lighttpd2-shared-' + meson.project_version(),
   src_shared,
-  include_directories: inc_dir,
+  include_directories: [inc_dir] +  search_includes,
   dependencies: [
     main_deps,
     opt_dep_lua,
@@ -86,7 +86,7 @@ lib_shared = library(
 bin_worker = executable(
   'lighttpd2-worker',
   'lighttpd_worker.c',
-  include_directories: inc_dir,
+  include_directories: [inc_dir] +  search_includes,
   dependencies: [
     main_deps,
     opt_dep_lua,

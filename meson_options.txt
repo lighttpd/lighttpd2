@@ -1,4 +1,4 @@
-option('lua', type : 'boolean', value : true, description : 'Build with lua (5.1); extends core and other modules, and builds mod_lua')
+option('lua', type : 'boolean', value : true, description : 'Build with lua; extends core and other modules, and builds mod_lua')
 option('ipv6', type : 'boolean', value : true, description : 'Build with IPv6 support')
 option('config-parser', type : 'boolean', value : true, description : 'Build with standard config parser')
 option('unwind', type : 'boolean', value : true, description : 'Build with (lib)unwind support in asserts to print backtraces')
@@ -10,3 +10,6 @@ option('deflate', type : 'boolean', value : true, description : 'Build mod_defla
 option('extra-warnings', type : 'boolean', value : true, description : 'Build with extra warnings enabled')
 # option('static', type : 'boolean', value : false, description : 'Build static lighttpd with all modules included')
 option('profiler', type : 'boolean', value : false, description : 'Build with memory profiler')
+
+option('search-lib', type : 'array', value : [], description: 'Search libs in additional paths')
+option('search-inc', type : 'array', value : [], description: 'Search includes in additional paths')

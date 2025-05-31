@@ -29,7 +29,7 @@ foreach name, def: unittests
   test_bin = executable(
     def['binary'],
     def['sources'],
-    include_directories: inc_dir,
+    include_directories: [inc_dir] +  search_includes,
     dependencies: main_deps + def.get('dependencies', []),
     link_with: [
       lib_shared,
