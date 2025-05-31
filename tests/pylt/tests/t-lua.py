@@ -8,7 +8,14 @@ LUA_STATE_ENV_INFO = """
 -- globals should be reset after loading
 info = "global info"
 
+-- tostring(custom_obj) should throw an error, but log functions should handle it
+local custom_obj = {["data"] = "test string"}
+setmetatable(custom_obj, {["__tostring"] = function(obj) return nil .. obj["data"] end})
+
+print("bar", "custom_obj=", custom_obj)
+
 local function extract_info(vr)
+    vr:error("extract_info: info=" .. (info or ""), "nil=", nil, "custom_obj=", custom_obj)
     -- simple globals should be "per handler" (and request)
     info = (info or "") .. "handler global"
     -- special `REQ` allows request-global state across handlers
@@ -16,6 +23,7 @@ local function extract_info(vr)
 end
 
 local function show_info(vr)
+    lighty.error("show_info: info=" .. (info or "") .. "; REQ.info=" .. (REQ.info or ""))
     if vr:handle_direct() then
         vr.resp.status = 200
         vr.resp.headers["Content-Type"] = "text/plain"
