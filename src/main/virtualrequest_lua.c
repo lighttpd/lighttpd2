@@ -319,6 +319,7 @@ static const luaL_Reg vrequest_mt[] = {
 	{ "__newindex", lua_vrequest_newindex },
 
 	{ "print", lua_vrequest_error },
+	{ "error", lua_vrequest_error },
 	{ "warning", lua_vrequest_warning },
 	{ "info", lua_vrequest_info },
 	{ "debug", lua_vrequest_debug },

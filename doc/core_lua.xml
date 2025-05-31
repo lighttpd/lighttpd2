@@ -235,7 +235,7 @@
 
 				Methods:
 
-				* `print(...)`: print parameters via lua `tostring` method as ERROR in Virtual Request context
+				* `error(...)` and `print(...)`: print parameters via lua `tostring` method as ERROR in Virtual Request context
 				* `warning(...)`: print parameters via lua `tostring` method as WARNING in Virtual Request context
 				* `info(...)`: print parameters via lua `tostring` method as INFO in Virtual Request context
 				* `debug(...)`: print parameters via lua `tostring` method as DEBUG in Virtual Request context
