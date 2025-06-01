@@ -27,7 +27,7 @@ int li_lua_fixindex(lua_State *L, int ndx) {
 	return ndx;
 }
 
-static int traceback (lua_State *L) {
+static int traceback(lua_State *L) {
 	if (!lua_isstring(L, 1))  /* 'message' not a string? */
 		return 1;  /* keep it intact */
 	lua_getglobal(L, "debug");
@@ -205,44 +205,70 @@ void li_lua_environment_restore_globals(lua_State *L) /* -1 */ {
 	li_lua_set_globals(L); /* -1 */
 }
 
-GString* li_lua_print_get_string(lua_State *L, int from, int to) {
-	int i, n = lua_gettop(L);
+/* resulting object on top of the stack might eighter be the lua string (owning the returned memory) or an error */
+static const char *li_lua_tolstring(lua_State *L, liServer *srv, liVRequest *vr, int idx, size_t *len) { /* +1 */
+	int errfunc;
+
+	switch (lua_type(L, idx)) {
+	case LUA_TBOOLEAN:
+		lua_pushstring(L, (lua_toboolean(L, idx) ? "true" : "false"));
+		break;
+	case LUA_TNIL:
+		lua_pushlstring(L, CONST_STR_LEN("nil"));
+		break;
+	case LUA_TSTRING:
+	case LUA_TNUMBER:
+		lua_pushvalue(L, idx);
+		break;
+	default:
+		idx = li_lua_fixindex(L, idx);
+		lua_pushcfunction(L, traceback); /* +1 */
+		errfunc = lua_gettop(L);
+		lua_getglobal(L, "tostring"); /* +1 */
+		lua_pushvalue(L, idx); /* +1 object to convert to string */
+
+		if (lua_pcall(L, 1, 1, errfunc)) { /* -2 (func + args), +1 result */
+			_VR_ERROR(srv, vr, "li_lua_tolstring failed: %s", lua_tostring(L, -1));
+
+			if (len) *len = 0;
+			return NULL;
+		}
+		lua_remove(L, errfunc); /* -1 */
+	}
+
+	return lua_tolstring(L, -1, len);
+}
+
+GString* li_lua_print_get_string(lua_State *L, liServer *srv, liVRequest *vr, int from, int to) {
+	int i;
 	GString *buf = g_string_sized_new(0);
 
-	lua_getglobal(L, "tostring");
 	for (i = from; i <= to; i++) {
 		const char *s;
 		size_t len;
 
-		lua_pushvalue(L, n+1);
-		lua_pushvalue(L, i);
-		if (0 != lua_pcall(L, 1, 1, 0)) goto failed;
-		s = lua_tolstring(L, -1, &len);
-		lua_pop(L, 1);
-
-		if (NULL == s) goto failed;
-		if (0 == len) continue;
-		if (buf->len > 0) {
-			g_string_append_c(buf, ' ');
-			li_g_string_append_len(buf, s, len);
-		} else {
-			li_g_string_append_len(buf, s, len);
+		if (NULL == (s = li_lua_tolstring(L, srv, vr, i, &len))) { /* +1 */
+			s = "<failed tostring>";
+			len = 17;
 		}
-	}
-	lua_pop(L, 1);
-	return buf;
 
-failed:
-	g_string_free(buf, TRUE);
-	lua_pushliteral(L, "lua_print_get_string: Couldn't convert parameter to string");
-	lua_error(L);
-	return NULL; /* should be unreachable */
+		if (len > 0) {
+			if (buf->len > 0) {
+				g_string_append_c(buf, ' ');
+				li_g_string_append_len(buf, s, len);
+			} else {
+				li_g_string_append_len(buf, s, len);
+			}
+		}
+		lua_pop(L, 1); /* -1 */
+	}
+	return buf;
 }
 
 static int li_lua_error(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
 	liWorker *wrk = lua_touserdata(L, lua_upvalueindex(2));
-	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
+	GString *buf = li_lua_print_get_string(L, srv, NULL, 1, lua_gettop(L));
 
 	_ERROR(srv, wrk, NULL, "(lua): %s", buf->str);
 
@@ -254,7 +280,7 @@ static int li_lua_error(lua_State *L) {
 static int li_lua_warning(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
 	liWorker *wrk = lua_touserdata(L, lua_upvalueindex(2));
-	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
+	GString *buf = li_lua_print_get_string(L, srv, NULL, 1, lua_gettop(L));
 
 	_WARNING(srv, wrk, NULL, "(lua): %s", buf->str);
 
@@ -266,7 +292,7 @@ static int li_lua_warning(lua_State *L) {
 static int li_lua_info(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
 	liWorker *wrk = lua_touserdata(L, lua_upvalueindex(2));
-	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
+	GString *buf = li_lua_print_get_string(L, srv, NULL, 1, lua_gettop(L));
 
 	_INFO(srv, wrk, NULL, "(lua): %s", buf->str);
 
@@ -278,7 +304,7 @@ static int li_lua_info(lua_State *L) {
 static int li_lua_debug(lua_State *L) {
 	liServer *srv = lua_touserdata(L, lua_upvalueindex(1));
 	liWorker *wrk = lua_touserdata(L, lua_upvalueindex(2));
-	GString *buf = li_lua_print_get_string(L, 1, lua_gettop(L));
+	GString *buf = li_lua_print_get_string(L, srv, NULL, 1, lua_gettop(L));
 
 	_DEBUG(srv, wrk, NULL, "(lua): %s", buf->str);
 

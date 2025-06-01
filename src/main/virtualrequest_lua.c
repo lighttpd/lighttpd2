@@ -152,7 +152,7 @@ static int lua_vrequest_error(lua_State *L) {
 	GString *buf;
 	vr = li_lua_get_vrequest(L, 1);
 
-	buf = li_lua_print_get_string(L, 2, lua_gettop(L));
+	buf = li_lua_print_get_string(L, vr->wrk->srv, vr, 2, lua_gettop(L));
 
 	VR_ERROR(vr, "(lua): %s", buf->str);
 
@@ -166,7 +166,7 @@ static int lua_vrequest_warning(lua_State *L) {
 	GString *buf;
 	vr = li_lua_get_vrequest(L, 1);
 
-	buf = li_lua_print_get_string(L, 2, lua_gettop(L));
+	buf = li_lua_print_get_string(L, vr->wrk->srv, vr, 2, lua_gettop(L));
 
 	VR_WARNING(vr, "(lua): %s", buf->str);
 
@@ -180,7 +180,7 @@ static int lua_vrequest_info(lua_State *L) {
 	GString *buf;
 	vr = li_lua_get_vrequest(L, 1);
 
-	buf = li_lua_print_get_string(L, 2, lua_gettop(L));
+	buf = li_lua_print_get_string(L, vr->wrk->srv, vr, 2, lua_gettop(L));
 
 	VR_INFO(vr, "(lua): %s", buf->str);
 
@@ -194,7 +194,7 @@ static int lua_vrequest_debug(lua_State *L) {
 	GString *buf;
 	vr = li_lua_get_vrequest(L, 1);
 
-	buf = li_lua_print_get_string(L, 2, lua_gettop(L));
+	buf = li_lua_print_get_string(L, vr->wrk->srv, vr, 2, lua_gettop(L));
 
 	VR_DEBUG(vr, "(lua): %s", buf->str);
 

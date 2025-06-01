@@ -149,7 +149,7 @@ LI_API void li_lua_environment_use_globals(liLuaState *LL); /* +1 */
 LI_API void li_lua_environment_restore_globals(lua_State *L); /* -1 */
 
 /* joinWith " " (map tostring parameter[from..to]) */
-LI_API GString* li_lua_print_get_string(lua_State *L, int from, int to);
+LI_API GString* li_lua_print_get_string(lua_State *L, liServer *srv, liVRequest *vr, int from, int to);
 
 /* pairs() for a GHashTable GString -> GString:
  *   Don't modify the hashtable while iterating:
