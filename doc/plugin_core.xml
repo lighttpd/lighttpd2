@@ -679,6 +679,32 @@
 		</example>
 	</action>
 
+	<action name="map_cidr">
+		<short>maps the client IP to a user defined action</short>
+		<parameter name="mapping">
+			<short>maps CIDRs or lists of CIDRs to actions</short>
+		</parameter>
+		<description><markdown>
+			The most specific CIDR (longest prefix length) takes precedence; if one CIDR is used more than once the last entry wins.
+			`default` or `"all"` matches every client address (even those not associated with an IP).
+		</markdown></description>
+		<example>
+			<config>
+				map_cidr [
+					"192.168.0.0/16" => {
+						respond 200 => "root";
+					},
+					["10.0.0.0/8", "172.12.0.0/16"] => {
+						respond 200 => "news";
+					},
+					default => {
+						respond 404;
+					},
+				];
+			</config>
+		</example>
+	</action>
+
 	<setup name="listen">
 		<short>listen to a socket address, see above for accepted formats (default TCP port is 80)</short>
 		<parameter name="socket-address">

@@ -1896,6 +1896,140 @@ static liAction* core_map(liServer *srv, liWorker *wrk, liPlugin* p, liValue *va
 	return li_action_new_function(core_handle_map, NULL, core_map_free, md);
 }
 
+typedef struct core_map_cidr_data core_map_cidr_data;
+struct core_map_cidr_data {
+	GPtrArray *actions;
+	liRadixTree *ipv4; /* map to index in actions */
+	liRadixTree *ipv6; /* map to index in actions */
+	gint default_action;
+};
+static void core_map_cidr_free(liServer *srv, gpointer param) {
+	core_map_cidr_data *md = param;
+
+	UNUSED(srv);
+
+	for (gsize i = 0; i < md->actions->len; i++) {
+		li_action_release(srv, g_ptr_array_index(md->actions, i));
+	}
+
+	g_ptr_array_free(md->actions, TRUE);
+	li_radixtree_free(md->ipv4, NULL, NULL);
+	li_radixtree_free(md->ipv6, NULL, NULL);
+
+	g_slice_free(core_map_cidr_data, md);
+}
+
+static liHandlerResult core_handle_map_cidr(liVRequest *vr, gpointer param, gpointer *context) {
+	core_map_cidr_data *md = param;
+	gpointer action_ndx_ptr = NULL;
+	gint action_ndx = md->default_action;
+	liSockAddrPtr addr_up = vr->coninfo->remote_addr.addr_up;
+	UNUSED(context);
+
+	if (addr_up.plain->sa_family == AF_INET) {
+		action_ndx_ptr = li_radixtree_lookup(md->ipv4, &addr_up.ipv4->sin_addr.s_addr, 32);
+#ifdef HAVE_IPV6
+	} else if (addr_up.plain->sa_family == AF_INET6) {
+		action_ndx_ptr = li_radixtree_lookup(md->ipv6, &addr_up.ipv6->sin6_addr.s6_addr, 128);
+#endif
+	}
+
+	if (NULL != action_ndx_ptr) {
+		action_ndx = GPOINTER_TO_INT(action_ndx_ptr);
+	}
+
+	if (action_ndx >= 0) {
+		li_action_enter(vr, g_ptr_array_index(md->actions, action_ndx));
+	}
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_map_cidr(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	core_map_cidr_data *md;
+	liValue *cidr_list,  *action;
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	md = g_slice_new(core_map_cidr_data);
+	md->actions = g_ptr_array_new();
+	md->ipv4 = li_radixtree_new();
+	md->ipv6 = li_radixtree_new();
+	md->default_action = -1;
+
+	/* can't store anything at index 0 */
+	g_ptr_array_add(md->actions, NULL);
+
+	val = li_value_get_single_argument(val);
+
+	LI_VALUE_FOREACH(map_entry, val)
+		gint action_ndx;
+
+		if (!li_value_list_has_len(map_entry, 2)) {
+			ERROR(srv, "%s", "'map_cidr' action expects list of (key => action) pairs as parameter");
+			core_map_cidr_free(srv, md);
+			return NULL;
+		}
+
+		cidr_list = li_value_list_at(map_entry, 0);
+		action = li_value_list_at(map_entry, 1);
+
+		if (LI_VALUE_ACTION != li_value_type(action)) {
+			ERROR(
+				srv,
+				"'map_cidr' action expects list of (key => action) pairs as parameter, expected action, got %s",
+				li_value_type_string(action)
+			);
+			core_map_cidr_free(srv, md);
+			return NULL;
+		}
+
+		action_ndx = md->actions->len;
+		g_ptr_array_add(md->actions, li_value_extract_action(action));
+
+		if (LI_VALUE_NONE == li_value_type(cidr_list)) {
+			md->default_action = action_ndx;
+			continue;
+		}
+
+		if (LI_VALUE_LIST != li_value_type(cidr_list)) li_value_wrap_in_list(cidr_list);
+
+		LI_VALUE_FOREACH(cidr_entry, cidr_list)
+			guint32 ipv4, netmaskv4;
+			guint8 ipv6_addr[16];
+			guint ipv6_network;
+
+			if (LI_VALUE_NONE == li_value_type(cidr_entry)) {
+				md->default_action = action_ndx;
+				continue;
+			}
+
+			if (LI_VALUE_STRING != li_value_type(cidr_entry)) {
+				ERROR(srv, "%s", "map_cidr: expect strings as keys in 'map_cidr'");
+				core_map_cidr_free(srv, md);
+				return NULL;
+			}
+
+			if (g_str_equal(cidr_entry->data.string->str, "all")) {
+				md->default_action = action_ndx;
+			} else if (li_parse_ipv4(cidr_entry->data.string->str, &ipv4, &netmaskv4, NULL)) {
+				gint prefixlen;
+				netmaskv4 = ntohl(netmaskv4);
+				prefixlen = 32 - g_bit_nth_lsf(netmaskv4, -1);
+				if (prefixlen < 0 || prefixlen > 32) prefixlen = 0;
+				li_radixtree_insert(md->ipv4, &ipv4, prefixlen, GINT_TO_POINTER(action_ndx));
+			} else if (li_parse_ipv6(cidr_entry->data.string->str, ipv6_addr, &ipv6_network, NULL)) {
+				li_radixtree_insert(md->ipv6, ipv6_addr, ipv6_network, GINT_TO_POINTER(action_ndx));
+			} else {
+				ERROR(srv, "map_cidr: error parsing IP cidr: %s", cidr_entry->data.string->str);
+				core_map_cidr_free(srv, md);
+				return NULL;
+			}
+		LI_VALUE_END_FOREACH()
+	LI_VALUE_END_FOREACH()
+
+	return li_action_new_function(core_handle_map_cidr, NULL, core_map_cidr_free, md);
+}
+
 static void fetch_files_static_lookup(liFetchDatabase* db, gpointer data, liFetchEntry *entry) {
 	GHashTable *stringdb = (GHashTable*) data;
 	UNUSED(db);
@@ -2134,6 +2268,7 @@ static const liPluginAction actions[] = {
 	{ "io.buffer_in", core_buffer_in, NULL },
 
 	{ "map", core_map, NULL },
+	{ "map_cidr", core_map_cidr, NULL },
 
 	{ NULL, NULL, NULL }
 };
