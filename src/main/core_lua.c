@@ -190,7 +190,7 @@ void li_lua_environment_restore(liLuaState *LL) /* -1 (expects previous metatabl
 	lua_rawgeti(L, LUA_REGISTRYINDEX, LL->li_env_ref); /* +1 */
 	lua_pushvalue(L, -2); /* +1 */
 	lua_setmetatable(L, -2); /* -1 restore prev mt for LI_ENV */
-	lua_pop(L, 1); /* -2 */
+	lua_pop(L, 2); /* -2 */
 }
 
 void li_lua_environment_use_globals(liLuaState *LL) /* +1 */ {
