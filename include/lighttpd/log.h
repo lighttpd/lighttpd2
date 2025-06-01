@@ -54,14 +54,14 @@
 #define VR_GERROR(vr, error, fmt, ...) _GERROR(vr->wrk->srv, vr->wrk, &vr->log_context, error, fmt, __VA_ARGS__)
 
 /* vr may be NULL; if vr is NULL, srv must NOT be NULL */
-#define _VR_SEGFAULT(srv, vr, fmt, ...) _SEGFAULT(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
-#define _VR_ERROR(srv, vr, fmt, ...)    _ERROR(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
-#define _VR_WARNING(srv, vr, fmt, ...)  _WARNING(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
-#define _VR_INFO(srv, vr, fmt, ...)     _INFO(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
-#define _VR_DEBUG(srv, vr, fmt, ...)    _DEBUG(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
-#define _VR_BACKEND(srv, vr, fmt, ...)  _BACKEND(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, fmt, __VA_ARGS__)
-#define _VR_BACKEND_LINES(srv, vr, txt, fmt, ...) _BACKEND_LINES(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, txt, fmt, __VA_ARGS__)
-#define _VR_GERROR(srv, vr, error, fmt, ...) _GERROR(srv, NULL != vr ? vr->wrk : NULL, &vr->log_context, error, fmt, __VA_ARGS__)
+#define _VR_SEGFAULT(srv, vr, fmt, ...) _SEGFAULT(srv, NULL != vr ? vr->wrk : NULL, NULL != vr ? &vr->log_context : NULL, fmt, __VA_ARGS__)
+#define _VR_ERROR(srv, vr, fmt, ...)    _ERROR(srv, NULL != vr ? vr->wrk : NULL, NULL != vr ? &vr->log_context : NULL, fmt, __VA_ARGS__)
+#define _VR_WARNING(srv, vr, fmt, ...)  _WARNING(srv, NULL != vr ? vr->wrk : NULL, NULL != vr ? &vr->log_context : NULL, fmt, __VA_ARGS__)
+#define _VR_INFO(srv, vr, fmt, ...)     _INFO(srv, NULL != vr ? vr->wrk : NULL, NULL != vr ? &vr->log_context : NULL, fmt, __VA_ARGS__)
+#define _VR_DEBUG(srv, vr, fmt, ...)    _DEBUG(srv, NULL != vr ? vr->wrk : NULL, NULL != vr ? &vr->log_context : NULL, fmt, __VA_ARGS__)
+#define _VR_BACKEND(srv, vr, fmt, ...)  _BACKEND(srv, NULL != vr ? vr->wrk : NULL, NULL != vr ? &vr->log_context : NULL, fmt, __VA_ARGS__)
+#define _VR_BACKEND_LINES(srv, vr, txt, fmt, ...) _BACKEND_LINES(srv, NULL != vr ? vr->wrk : NULL, NULL != vr ? &vr->log_context : NULL, txt, fmt, __VA_ARGS__)
+#define _VR_GERROR(srv, vr, error, fmt, ...) _GERROR(srv, NULL != vr ? vr->wrk : NULL, NULL != vr ? &vr->log_context : NULL, error, fmt, __VA_ARGS__)
 
 #define SEGFAULT(srv, fmt, ...)   _SEGFAULT(srv, NULL, NULL, fmt, __VA_ARGS__)
 #define ERROR(srv, fmt, ...)      _ERROR(srv, NULL, NULL, fmt, __VA_ARGS__)
