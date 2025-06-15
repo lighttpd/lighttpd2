@@ -164,7 +164,7 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 	li_lua_environment_activate_ephemeral(LL); /* +1 */
 	lua_stack_top = lua_gettop(L);
 
-	if (0 != luaL_loadfile(L, filename)) {
+	if (0 != luaL_loadfile(L, filename)) { /* +1 lua script to run */
 		_ERROR(srv, wrk, NULL, "Loading script '%s' failed: %s", filename, lua_tostring(L, -1));
 		return FALSE;
 	}
@@ -173,8 +173,8 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 
 	if (allow_setup) {
 		LI_FORCE_ASSERT(wrk == srv->main_worker);
-		li_lua_push_setup_table(srv, wrk, L);
-		lua_setglobal(L, "setup");
+		li_lua_push_setup_table(srv, wrk, L); /* +1 */
+		lua_setglobal(L, "setup"); /* -1 */
 	}
 
 	/* arguments for config: local filename, args = ... */

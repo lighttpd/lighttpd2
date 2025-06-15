@@ -205,16 +205,16 @@ static void subvr_run_lua(liSubrequest *sr, int func_ref) {
 
 	li_lua_lock(sr->LL);
 
-	lua_rawgeti(L, LUA_REGISTRYINDEX, func_ref);
+	lua_rawgeti(L, LUA_REGISTRYINDEX, func_ref); /* +1 */
 
-	li_lua_push_subrequest(L, sr);
+	li_lua_push_subrequest(L, sr); /* +1 */
 
-	errfunc = li_lua_push_traceback(L, 1);
-	if (lua_pcall(L, 1, 0, errfunc)) {
+	errfunc = li_lua_push_traceback(L, 1); /* +1, but before func and 1 arg */
+	if (lua_pcall(L, 1, 0, errfunc)) { /* -2 (func + arg), +0 result | +1 error */
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
-		lua_pop(L, 1);
+		lua_pop(L, 1); /* -1 (error) */
 	}
-	lua_remove(L, errfunc);
+	lua_remove(L, errfunc); /* -1 */
 
 	li_lua_unlock(sr->LL);
 }

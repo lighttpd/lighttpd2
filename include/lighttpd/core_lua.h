@@ -101,6 +101,10 @@ LI_API int li_lua_metatable_index(lua_State *L);
 
 LI_API void li_lua_init2(liLuaState* LL, liServer* srv, liWorker* wrk);
 
+/* pushes a "traceback" function that should be used as `msgh` parameter for lua_pcall.
+ * returns the index of the pushed function, which is inserted before the function and
+ * `nargs` parameters: |stack-bottom...| msgh | lua-callable | arg1 | ... | argn |
+ */
 LI_API int li_lua_push_traceback(lua_State *L, int nargs);
 
 /* nargs: number of arguments *with* object; object must be the first of the arguments

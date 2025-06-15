@@ -95,7 +95,7 @@ static liHandlerResult lua_action_func(liVRequest *vr, gpointer param, gpointer 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, par->func_ref); /* +1 */
 	li_lua_push_vrequest(L, vr); /* +1 */
 
-	errfunc = li_lua_push_traceback(L, 1); /* +1, but inserted before `1` args */
+	errfunc = li_lua_push_traceback(L, 1); /* +1, but inserted before func and 1 arg */
 	if (lua_pcall(L, 1, 1, errfunc)) { /* -2 (func + arg), +1 (result / error) */
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
 		lua_pop(L, 1); /* -1 (pop error) */

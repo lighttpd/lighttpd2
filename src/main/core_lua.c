@@ -69,7 +69,7 @@ gboolean li_lua_call_object(liServer *srv, liVRequest *vr, lua_State *L, const c
 
 	lua_insert(L, lua_gettop(L) - nargs); /* move function before arguments */
 
-	errfunc = li_lua_push_traceback(L, nargs); /* +1 "errfunc" */
+	errfunc = li_lua_push_traceback(L, nargs); /* +1 "errfunc", but before func and args */
 	if (lua_pcall(L, nargs, nresults, errfunc)) { /* pops func and arguments, push result */
 		_VR_ERROR(srv, vr, "lua_pcall(): %s", lua_tostring(L, -1));
 		lua_pop(L, 1); /* -1 */

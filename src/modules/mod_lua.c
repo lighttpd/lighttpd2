@@ -275,8 +275,8 @@ static gboolean lua_plugin_handle_setup(liServer *srv, liPlugin *p, liValue *val
 	lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref); /* +1: setup function */
 	nargs = push_args(L, val); /* +nargs: variable number of args */
 
-	errfunc = li_lua_push_traceback(L, nargs); /* +1, but before nargs */
-	if (lua_pcall(L, nargs, 1, errfunc)) { /* -1-nargs, +1*/
+	errfunc = li_lua_push_traceback(L, nargs); /* +1, but before func and args */
+	if (lua_pcall(L, nargs, 1, errfunc)) { /* -1-nargs, +1 (result|error) */
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
 		lua_pop(L, 1); /* -1 */
 		res = FALSE;
@@ -318,8 +318,8 @@ static liAction* lua_plugin_handle_action(liServer *srv, liWorker *wrk, liPlugin
 	lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref); /* +1 */
 	nargs = push_args(L, val); /* +nargs: variable number of args */
 
-	errfunc = li_lua_push_traceback(L, nargs); /* +1, but before nargs */
-	if (lua_pcall(L, nargs, 1, errfunc)) { /* -1-nargs, +1 */
+	errfunc = li_lua_push_traceback(L, nargs); /* +1, but before func and args */
+	if (lua_pcall(L, nargs, 1, errfunc)) { /* -1-nargs, +1 (result|error) */
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
 		lua_pop(L, 1); /* -1 */
 	} else {
@@ -470,13 +470,13 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 
 	lua_stack_top = lua_gettop(L);
 
-	if (0 != luaL_loadfile(L, filename->str)) {
+	if (0 != luaL_loadfile(L, filename->str)) { /* +1 lua script to call */
 		ERROR(srv, "Loading lua plugin '%s' failed: %s", filename->str, lua_tostring(L, -1));
 		goto failed_unlock_lua;
 	}
 
-	li_lua_push_setup_table(srv, srv->main_worker, L);
-	lua_setglobal(L, "setup");
+	li_lua_push_setup_table(srv, srv->main_worker, L); /* +1 */
+	lua_setglobal(L, "setup"); /* -1 */
 
 	/* arguments for plugin: local filename, args = ...  */
 	/* 1. filename */
@@ -484,8 +484,8 @@ static gboolean lua_plugin_load(liServer *srv, liPlugin *p, GString *filename, l
 	/* 2. args */
 	li_lua_push_value(L, args); /* +1 */
 
-	errfunc = li_lua_push_traceback(L, 2); /* +1, but before fn args */
-	if (lua_pcall(L, 2, 0, errfunc)) { /* -3 (fn + args), 0 results (but 1 error)*/
+	errfunc = li_lua_push_traceback(L, 2); /* +1, but before func and 2 args */
+	if (lua_pcall(L, 2, 0, errfunc)) { /* -3 (fn + args), 0 results (but 1 error) */
 		ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
 		goto failed_unlock_lua;
 	}

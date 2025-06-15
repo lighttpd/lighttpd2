@@ -653,58 +653,58 @@ static void lua_memcache_callback(liMemcachedRequest *request, liMemcachedResult
 	mreq->req = NULL;
 
 	if (mreq->vr_ref) {
-		lua_rawgeti(L, LUA_REGISTRYINDEX, mreq->result_ref); /* get table */
+		lua_rawgeti(L, LUA_REGISTRYINDEX, mreq->result_ref); /* +1 get table */
 	} else {
-		lua_rawgeti(L, LUA_REGISTRYINDEX, mreq->result_ref); /* get function */
-		lua_newtable(L);
+		lua_rawgeti(L, LUA_REGISTRYINDEX, mreq->result_ref); /* +1 get function */
+		lua_newtable(L); /* +1 */
 	}
 
-	lua_pushnumber(L, result);
-	lua_setfield(L, -2, "code");
+	lua_pushnumber(L, result); /* +1 */
+	lua_setfield(L, -2, "code"); /* -1 */
 
 	if (err && *err) {
-		lua_pushstring(L, (*err)->message);
-		lua_setfield(L, -2, "error");
+		lua_pushstring(L, (*err)->message); /* +1 */
+		lua_setfield(L, -2, "error"); /* -1 */
 	} else if (item) {
 		if (item->key) {
-			lua_pushlstring(L, GSTR_LEN(item->key));
-			lua_setfield(L, -2, "key");
+			lua_pushlstring(L, GSTR_LEN(item->key)); /* +1 */
+			lua_setfield(L, -2, "key"); /* -1 */
 		}
-		lua_pushnumber(L, item->flags);
-		lua_setfield(L, -2, "flags");
-		lua_pushnumber(L, item->ttl);
-		lua_setfield(L, -2, "ttl");
+		lua_pushnumber(L, item->flags); /* +1 */
+		lua_setfield(L, -2, "flags"); /* -1 */
+		lua_pushnumber(L, item->ttl); /* +1 */
+		lua_setfield(L, -2, "ttl"); /* -1 */
 		{
 			GString *cas = g_string_sized_new(31);
 			g_string_printf(cas, "%"G_GUINT64_FORMAT, item->cas);
-			lua_pushlstring(L, GSTR_LEN(cas));
-			lua_setfield(L, -2, "cas");
+			lua_pushlstring(L, GSTR_LEN(cas)); /* +1 */
+			lua_setfield(L, -2, "cas"); /* -1 */
 			g_string_free(cas, TRUE);
 		}
 		if (item->data) {
-			lua_pushlstring(L, item->data->addr, item->data->used);
-			lua_setfield(L, -2, "data");
+			lua_pushlstring(L, item->data->addr, item->data->used); /* +1 */
+			lua_setfield(L, -2, "data"); /* -1 */
 		}
 	}
 
 	if (mreq->vr_ref) {
-		lua_pop(L, 1);
+		lua_pop(L, 1); /* -1 (table) */
 		li_job_async(mreq->vr_ref);
 	} else {
+		/* lua stack has callback-func and table */
 		liServer *srv;
 		int errfunc;
 
-		lua_getfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_SERVER);
+		lua_getfield(L, LUA_REGISTRYINDEX, LI_LUA_REGISTRY_SERVER); /* +1 */
 		srv = lua_touserdata(L, -1);
-		lua_pop(L, 1);
+		lua_pop(L, 1); /* -1 */
 
-		errfunc = li_lua_push_traceback(L, 1);
-		if (lua_pcall(L, 1, 0, errfunc)) {
+		errfunc = li_lua_push_traceback(L, 1); /* +1, but beforec func and 1 arg */
+		if (lua_pcall(L, 1, 0, errfunc)) { /* -2 (func + arg), +0 (but +1 error) */
 			ERROR(srv, "lua_pcall(): %s", lua_tostring(L, -1));
-			lua_pop(L, 1);
+			lua_pop(L, 1); /* -1 error */
 		}
-		lua_remove(L, errfunc);
-		/* function and args were popped */
+		lua_remove(L, errfunc); /* -1 */
 	}
 }
 
