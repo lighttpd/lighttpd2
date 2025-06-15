@@ -155,6 +155,7 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 	int errfunc;
 	int lua_stack_top;
 	lua_State *L = LL->L;
+	gboolean result;
 
 	*pact = NULL;
 
@@ -183,27 +184,21 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 	/* 2. args */
 	li_lua_push_value(L, args); /* +1 */
 
-	errfunc = li_lua_push_traceback(L, 2); /* +1, but before args */
+	errfunc = li_lua_push_traceback(L, 2); /* +1, but before func and 2 args */
 	if (lua_pcall(L, 2, 0, errfunc)) { /* -3 (func + args), 0 results (but 1 error) */
 		_ERROR(srv, wrk, NULL, "lua_pcall(): %s", lua_tostring(L, -1));
 
-		/* cleanup stack */
-		if (lua_stack_top > lua_gettop(L)) {
-			lua_pop(L, lua_gettop(L) - lua_stack_top);
-		}
+		lua_pop(L, 1); /* -1 error */
 
-		li_lua_environment_restore(LL); /* -1 */
-		li_lua_environment_restore_globals(L); /* -1 */
+		result = FALSE;
+	} else {
+		lua_getglobal(L, "actions"); /* +1 */
+		*pact = li_lua_get_action_ref(L, -1);
+		lua_pop(L, 1); /* -1 */
 
-		li_lua_unlock(LL);
-
-		return FALSE;
+		result = TRUE;
 	}
-	lua_remove(L, errfunc);
-
-	lua_getglobal(L, "actions");
-	*pact = li_lua_get_action_ref(L, -1);
-	lua_pop(L, 1);
+	lua_remove(L, errfunc); /* -1 */
 
 	LI_FORCE_ASSERT(lua_gettop(L) == lua_stack_top);
 
@@ -214,5 +209,5 @@ gboolean li_config_lua_load(liLuaState *LL, liServer *srv, liWorker *wrk, const 
 
 	li_lua_unlock(LL);
 
-	return TRUE;
+	return result;
 }
