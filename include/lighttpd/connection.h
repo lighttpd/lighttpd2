@@ -135,6 +135,9 @@ INLINE void li_connection_simple_tcp_init(liConnectionSimpleTcpState *state);
  */
 LI_API void li_connection_simple_tcp(liConnection **pcon, liIOStream *stream, liConnectionSimpleTcpState *state, liIOStreamEvent event);
 
+/* default for liServerSocket->new_cb - plain HTTP */
+LI_API gboolean li_connection_http_new(liConnection *con, int fd);
+
 /******************************************************/
 
 /********************

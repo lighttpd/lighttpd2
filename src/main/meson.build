@@ -9,6 +9,8 @@ src_shared = [
   'collect.c',
   'condition.c',
   'connection.c',
+  'connection_http.c',
+  'connection_tcp.c',
   'environment.c',
   'etag.c',
   'filter.c',

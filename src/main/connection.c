@@ -1,161 +1,8 @@
 
 #include <lighttpd/base.h>
-#include <lighttpd/throttle.h>
 #include <lighttpd/plugin_core.h>
 
 #define LI_CONNECTION_DEFAULT_CHUNKQUEUE_LIMIT (256*1024)
-
-void li_connection_simple_tcp(liConnection **pcon, liIOStream *stream, liConnectionSimpleTcpState *state, liIOStreamEvent event) {
-	liConnection *con;
-	goffset transfer_in = 0, transfer_out = 0;
-
-	transfer_in = (NULL != stream->stream_in.out) ? stream->stream_in.out->bytes_in : 0;
-	transfer_out = (NULL != stream->stream_out.out) ? stream->stream_out.out->bytes_out : 0;
-
-	li_stream_simple_socket_io_cb_with_buffer(stream, event, &state->read_buffer);
-
-	/* li_stream_simple_socket_io_cb_with_buffer might lead to *pcon == NULL */
-	con = *pcon;
-	if (NULL != con) {
-		if (NULL != stream->stream_in.out) {
-			transfer_in = stream->stream_in.out->bytes_in - transfer_in;
-			if (transfer_in > 0) {
-				li_connection_update_io_timeout(con);
-				li_vrequest_update_stats_in(con->mainvr, transfer_in);
-			}
-		}
-		if (NULL != stream->stream_out.out) {
-			transfer_out = stream->stream_out.out->bytes_out - transfer_out;
-			if (transfer_out > 0) {
-				li_connection_update_io_timeout(con);
-				li_vrequest_update_stats_out(con->mainvr, transfer_out);
-			}
-		}
-	}
-
-	switch (event) {
-	case LI_IOSTREAM_DESTROY:
-		li_stream_simple_socket_close(stream, FALSE);
-		return;
-	case LI_IOSTREAM_DISCONNECTED_DEST:
-		if (NULL != stream->stream_in.out && !stream->stream_in.out->is_closed) {
-			li_stream_simple_socket_close(stream, TRUE);
-			return;
-		}
-		break;
-	case LI_IOSTREAM_DISCONNECTED_SOURCE:
-		if (NULL != stream->stream_out.out && !stream->stream_out.out->is_closed) {
-			li_stream_simple_socket_close(stream, TRUE);
-			return;
-		}
-		break;
-	default:
-		break;
-	}
-
-	if ((NULL == stream->stream_in.out || stream->stream_in.out->is_closed) &&
-		!(NULL == stream->stream_out.out || stream->stream_out.out->is_closed)) {
-		stream->stream_out.out->is_closed = TRUE;
-		li_stream_again_later(&stream->stream_out);
-	}
-}
-
-
-typedef struct simple_tcp_connection simple_tcp_connection;
-struct simple_tcp_connection {
-	liIOStream *sock_stream;
-	liConnectionSimpleTcpState simple_tcp_state;
-	liConnection *con;
-};
-
-static void simple_tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
-	simple_tcp_connection *data = stream->data;
-	LI_FORCE_ASSERT(NULL != data);
-	LI_FORCE_ASSERT(NULL == data->con || data == data->con->con_sock.data);
-	LI_FORCE_ASSERT(NULL == data->sock_stream || stream == data->sock_stream);
-
-	li_connection_simple_tcp(&data->con, stream, &data->simple_tcp_state, event);
-
-	if (NULL != data->con && data->con->out_has_all_data
-	    && (NULL == stream->stream_out.out || 0 == stream->stream_out.out->length)) {
-		li_stream_simple_socket_flush(stream);
-		li_connection_request_done(data->con);
-	}
-
-	switch (event) {
-	case LI_IOSTREAM_DESTROY:
-		LI_FORCE_ASSERT(NULL == data->con);
-		LI_FORCE_ASSERT(NULL == data->sock_stream);
-		stream->data = NULL;
-		g_slice_free(simple_tcp_connection, data);
-		break;
-	default:
-		break;
-	}
-}
-
-static void simple_tcp_finished(liConnection *con, gboolean aborted) {
-	simple_tcp_connection *data = con->con_sock.data;
-	liIOStream *stream;
-	if (NULL == data) return;
-
-	data->con = NULL;
-	con->con_sock.data = NULL;
-	con->con_sock.callbacks = NULL;
-
-	stream = data->sock_stream;
-	data->sock_stream = NULL;
-
-	li_stream_simple_socket_close(stream, aborted);
-	li_iostream_release(stream);
-
-	{
-		liStream *raw_out = con->con_sock.raw_out, *raw_in = con->con_sock.raw_in;
-		con->con_sock.raw_out = con->con_sock.raw_in = NULL;
-		if (NULL != raw_out) { li_stream_reset(raw_out); li_stream_release(raw_out); }
-		if (NULL != raw_in) { li_stream_reset(raw_in); li_stream_release(raw_in); }
-	}
-}
-
-static liThrottleState* simple_tcp_throttle_out(liConnection *con) {
-	simple_tcp_connection *data = con->con_sock.data;
-	if (NULL == data) return NULL;
-	if (NULL == data->sock_stream->throttle_out) data->sock_stream->throttle_out = li_throttle_new();
-	return data->sock_stream->throttle_out;
-}
-
-static liThrottleState* simple_tcp_throttle_in(liConnection *con) {
-	simple_tcp_connection *data = con->con_sock.data;
-	if (NULL == data) return NULL;
-	if (NULL == data->sock_stream->throttle_in) data->sock_stream->throttle_in = li_throttle_new();
-	return data->sock_stream->throttle_in;
-}
-
-static const liConnectionSocketCallbacks simple_tcp_cbs = {
-	simple_tcp_finished,
-	simple_tcp_throttle_out,
-	simple_tcp_throttle_in
-};
-
-static gboolean simple_tcp_new(liConnection *con, int fd) {
-	simple_tcp_connection *data = g_slice_new0(simple_tcp_connection);
-	data->sock_stream = li_iostream_new(con->wrk, fd, simple_tcp_io_cb, data);
-	li_connection_simple_tcp_init(&data->simple_tcp_state);
-	data->con = con;
-	con->con_sock.data = data;
-	con->con_sock.callbacks = &simple_tcp_cbs;
-	con->con_sock.raw_out = &data->sock_stream->stream_out;
-	con->con_sock.raw_in = &data->sock_stream->stream_in;
-	li_stream_acquire(con->con_sock.raw_out);
-	li_stream_acquire(con->con_sock.raw_in);
-
-	return TRUE;
-}
-
-
-
-
-
 
 static void con_iostream_close(liConnection *con) { /* force close */
 	if (con->con_sock.callbacks) {
@@ -175,7 +22,6 @@ static void con_iostream_shutdown(liConnection *con) { /* (try) regular shutdown
 	}
 	LI_FORCE_ASSERT(NULL == con->con_sock.data);
 }
-
 
 static void connection_close(liConnection *con);
 static void li_connection_reset_keep_alive(liConnection *con);
@@ -535,7 +381,7 @@ void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, 
 			return;
 		}
 	} else {
-		simple_tcp_new(con, s);
+		li_connection_http_new(con, s);
 	}
 
 	LI_FORCE_ASSERT(NULL != con->con_sock.raw_in || NULL != con->con_sock.raw_out);
