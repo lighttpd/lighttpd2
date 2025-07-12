@@ -42,7 +42,7 @@ static void stream_simple_socket_read_throttle_notify(liThrottleState *state, gp
 	stream->can_read = TRUE;
 	li_stream_again(&stream->stream_out);
 }
-static void stream_simple_socket_read(liIOStream *stream, gpointer *data) {
+static void stream_simple_socket_read(liIOStream *stream, liBuffer **buffer) {
 	liNetworkStatus res;
 	GError *err = NULL;
 	liWorker *wrk = li_worker_from_iostream(stream);
@@ -58,27 +58,25 @@ static void stream_simple_socket_read(liIOStream *stream, gpointer *data) {
 		}
 	}
 
-	if (NULL == *data && NULL != wrk->network_read_buf) {
+	if (NULL == *buffer && NULL != wrk->network_read_buf) {
 		/* reuse worker buf if needed */
-		*data = wrk->network_read_buf;
+		*buffer = wrk->network_read_buf;
 		wrk->network_read_buf = NULL;
 	}
 
 	{
 		goffset current_in_bytes = raw_in->bytes_in;
-		liBuffer *raw_in_buffer = *data;
-		res = li_network_read(fd, raw_in, max_read, &raw_in_buffer, &err);
-		*data = raw_in_buffer;
+		res = li_network_read(fd, raw_in, max_read, buffer, &err);
 		if (NULL != stream->throttle_in) {
 			li_throttle_update(stream->throttle_in, raw_in->bytes_in - current_in_bytes);
 		}
 	}
 
-	if (NULL == wrk->network_read_buf && NULL != *data
-		&& 1 == g_atomic_int_get(&((liBuffer*)*data)->refcount)) {
+	if (NULL == wrk->network_read_buf && NULL != *buffer
+		&& 1 == g_atomic_int_get(&((liBuffer*)*buffer)->refcount)) {
 		/* move buffer back to worker if we didn't use it */
-		wrk->network_read_buf = *data;
-		*data = NULL;
+		wrk->network_read_buf = *buffer;
+		*buffer = NULL;
 	}
 
 	switch (res) {
@@ -165,21 +163,21 @@ static void stream_simple_socket_write(liIOStream *stream) {
 }
 
 void li_stream_simple_socket_io_cb(liIOStream *stream, liIOStreamEvent event) {
-	li_stream_simple_socket_io_cb_with_context(stream, event, &stream->data);
+	li_stream_simple_socket_io_cb_with_buffer(stream, event, (liBuffer**) &stream->data);
 }
 
-void li_stream_simple_socket_io_cb_with_context(liIOStream *stream, liIOStreamEvent event, gpointer *data) {
+void li_stream_simple_socket_io_cb_with_buffer(liIOStream *stream, liIOStreamEvent event, liBuffer **buffer) {
 	switch (event) {
 	case LI_IOSTREAM_READ:
-		stream_simple_socket_read(stream, data);
+		stream_simple_socket_read(stream, buffer);
 		break;
 	case LI_IOSTREAM_WRITE:
 		stream_simple_socket_write(stream);
 		break;
 	case LI_IOSTREAM_DESTROY:
-		if (NULL != *data) {
-			li_buffer_release(*data);
-			*data = NULL;
+		if (NULL != *buffer) {
+			li_buffer_release(*buffer);
+			*buffer = NULL;
 		}
 	default:
 		break;

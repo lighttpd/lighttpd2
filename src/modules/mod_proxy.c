@@ -33,7 +33,7 @@ struct proxy_context {
 struct proxy_connection {
 	proxy_context *ctx;
 	liBackendConnection *bcon;
-	gpointer simple_socket_data;
+	liBuffer *simple_socket_buffer;
 };
 
 /**********************************************************************************/
@@ -169,7 +169,7 @@ static void proxy_io_cb(liIOStream *stream, liIOStreamEvent event) {
 	proxy_connection *con = stream->data;
 	liWorker *wrk = li_worker_from_iostream(stream);
 
-	li_stream_simple_socket_io_cb_with_context(stream, event, &con->simple_socket_data);
+	li_stream_simple_socket_io_cb_with_buffer(stream, event, &con->simple_socket_buffer);
 
 	switch (event) {
 	case LI_IOSTREAM_DESTROY:

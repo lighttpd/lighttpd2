@@ -100,8 +100,10 @@ LI_API void li_iostream_attach(liIOStream *iostream, liWorker *wrk);
 
 /* handles basic tcp/unix socket connections, writing and reading data, supports throttling */
 LI_API void li_stream_simple_socket_close(liIOStream *stream, gboolean aborted);
+/* li_stream_simple_socket_io_cb can be used with li_iostream_new and uses stream->data as buffer */
 LI_API void li_stream_simple_socket_io_cb(liIOStream *stream, liIOStreamEvent event);
-LI_API void li_stream_simple_socket_io_cb_with_context(liIOStream *stream, liIOStreamEvent event, gpointer *data);
+/* read buffer probably should be (indirectly) stored in stream->data; LI_IOSTREAM_DESTROY frees the buffer and clears the pointer */
+LI_API void li_stream_simple_socket_io_cb_with_buffer(liIOStream *stream, liIOStreamEvent event, liBuffer **buffer);
 /* tries to flush TCP sockets by disabling nagle */
 LI_API void li_stream_simple_socket_flush(liIOStream *stream);
 

@@ -12,9 +12,9 @@ void li_connection_simple_tcp(liConnection **pcon, liIOStream *stream, gpointer 
 	transfer_in = (NULL != stream->stream_in.out) ? stream->stream_in.out->bytes_in : 0;
 	transfer_out = (NULL != stream->stream_out.out) ? stream->stream_out.out->bytes_out : 0;
 
-	li_stream_simple_socket_io_cb_with_context(stream, event, context);
+	li_stream_simple_socket_io_cb_with_buffer(stream, event, (liBuffer**) context);
 
-	/* li_stream_simple_socket_io_cb_with_context might lead to *pcon == NULL */
+	/* li_stream_simple_socket_io_cb_with_buffer might lead to *pcon == NULL */
 	con = *pcon;
 	if (NULL != con) {
 		if (NULL != stream->stream_in.out) {
