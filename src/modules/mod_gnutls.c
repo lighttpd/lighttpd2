@@ -46,7 +46,7 @@ struct mod_connection_ctx {
 	liGnuTLSFilter *tls_filter;
 
 	liIOStream *sock_stream;
-	gpointer simple_socket_data;
+	liConnectionSimpleTcpState simple_socket_state;
 
 	liStream *client_hello_stream;
 #ifdef USE_SNI
@@ -344,7 +344,7 @@ static void tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
 		li_stream_simple_socket_close(stream, TRUE); /* kill it, ssl sent an close alert message */
 	}
 
-	li_connection_simple_tcp(&conctx->con, stream, &conctx->simple_socket_data, event);
+	li_connection_simple_tcp(&conctx->con, stream, &conctx->simple_socket_state, event);
 
 	if (NULL != conctx->con && conctx->con->out_has_all_data
 	    && (NULL == stream->stream_out.out || 0 == stream->stream_out.out->length)
@@ -602,6 +602,7 @@ static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 	conctx = g_slice_new0(mod_connection_ctx);
 	conctx->session = session;
 	conctx->sock_stream = li_iostream_new(con->wrk, fd, tcp_io_cb, conctx);
+	li_connection_simple_tcp_init(&conctx->simple_socket_state);
 
 	conctx->client_hello_stream = li_ssl_client_hello_stream(&con->wrk->loop, gnutls_client_hello_cb, conctx);
 #ifdef USE_SNI

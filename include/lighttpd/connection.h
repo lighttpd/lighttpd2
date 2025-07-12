@@ -35,6 +35,7 @@ typedef enum {
 
 typedef struct liConnectionSocketCallbacks liConnectionSocketCallbacks;
 typedef struct liConnectionSocket liConnectionSocket;
+typedef struct liConnectionSimpleTcpState liConnectionSimpleTcpState;
 
 struct liConnectionSocketCallbacks {
 	void (*finish)(liConnection *con, gboolean aborted);
@@ -84,6 +85,10 @@ struct liConnection {
 	liJob job_reset;
 };
 
+struct liConnectionSimpleTcpState {
+	liBuffer *read_buffer;
+};
+
 /* Internal functions */
 LI_API liConnection* li_connection_new(liWorker *wrk);
 /** Free dead connections */
@@ -106,9 +111,9 @@ LI_API gchar *li_connection_state_str(liConnectionState state);
 LI_API liConnection* li_connection_from_vrequest(liVRequest *vr);
 
 
-/******************************************************/
-/* IO backend stuff (simple tcp, tls implementations) */
-/******************************************************/
+/****************************************************************/
+/* IO backend stuff (simple tcp (or unix), tls implementations) */
+/****************************************************************/
 
 /* call after IO send operations if con->out_has_all_data and out queues are empty */
 LI_API void li_connection_request_done(liConnection *con);
@@ -118,14 +123,26 @@ LI_API void li_connection_request_done(liConnection *con);
  */
 LI_API void li_connection_update_io_timeout(liConnection *con);
 
+INLINE void li_connection_simple_tcp_init(liConnectionSimpleTcpState *state);
+
 /* handles IOStream events for a connection; updates transferred bytes and io timeouts;
  * *pcon is needed to handle cases then the connections gets reset while handling io stuff
  * NULL == *pcon is ok - it won't update transferred bytes and io timeouts then.
  * closes outgoing stream on reading EOF
+ *
+ * clear state by calling with LI_IOSTREAM_DESTROY (through li_iostream_release
+ * and the liIOStreamCB forwarding to li_connection_simple_tcp).
  */
-LI_API void li_connection_simple_tcp(liConnection **pcon, liIOStream *stream, gpointer *context, liIOStreamEvent event);
+LI_API void li_connection_simple_tcp(liConnection **pcon, liIOStream *stream, liConnectionSimpleTcpState *state, liIOStreamEvent event);
 
 /******************************************************/
 
+/********************
+ * Inline functions *
+ ********************/
+
+INLINE void li_connection_simple_tcp_init(liConnectionSimpleTcpState *state) {
+	state->read_buffer = NULL;
+}
 
 #endif

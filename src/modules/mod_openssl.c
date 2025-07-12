@@ -42,7 +42,7 @@ struct openssl_connection_ctx {
 	liOpenSSLFilter *ssl_filter;
 
 	liIOStream *sock_stream;
-	gpointer simple_socket_data;
+	liConnectionSimpleTcpState simple_socket_state;
 };
 
 struct openssl_context {
@@ -92,7 +92,7 @@ static void tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
 		li_stream_simple_socket_close(stream, TRUE); /* kill it, ssl sent an close alert message */
 	}
 
-	li_connection_simple_tcp(&conctx->con, stream, &conctx->simple_socket_data, event);
+	li_connection_simple_tcp(&conctx->con, stream, &conctx->simple_socket_state, event);
 
 	if (NULL != conctx->con && conctx->con->out_has_all_data
 	    && (NULL == stream->stream_out.out || 0 == stream->stream_out.out->length)
@@ -206,6 +206,7 @@ static gboolean openssl_con_new(liConnection *con, int fd) {
 	openssl_connection_ctx *conctx = g_slice_new0(openssl_connection_ctx);
 
 	conctx->sock_stream = li_iostream_new(con->wrk, fd, tcp_io_cb, conctx);
+	li_connection_simple_tcp_init(&conctx->simple_socket_state);
 
 	conctx->ssl_filter = li_openssl_filter_new(srv, con->wrk, &filter_callbacks, conctx, ctx->ssl_ctx,
 		&conctx->sock_stream->stream_in, &conctx->sock_stream->stream_out);
