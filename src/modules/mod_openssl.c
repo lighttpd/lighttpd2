@@ -201,8 +201,10 @@ static gboolean openssl_con_new(liConnection *con, int fd) {
 	conctx->sock_stream = li_iostream_new(con->wrk, fd, tcp_io_cb, conctx);
 	li_connection_simple_tcp_init(&conctx->simple_socket_state);
 
+	li_stream_connect(&conctx->sock_stream->stream_in, &con->proxy_protocol_filter.stream);
+
 	conctx->ssl_filter = li_openssl_filter_new(srv, con->wrk, &filter_callbacks, conctx, ctx->ssl_ctx,
-		&conctx->sock_stream->stream_in, &conctx->sock_stream->stream_out);
+		&con->proxy_protocol_filter.stream, &conctx->sock_stream->stream_out);
 
 	if (NULL == conctx->ssl_filter) {
 		ERROR(srv, "SSL_new: %s", ERR_error_string(ERR_get_error(), NULL));

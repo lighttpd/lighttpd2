@@ -76,7 +76,8 @@ gboolean li_connection_http_new(liConnection *con, int fd) {
 	con->con_sock.data = data;
 	con->con_sock.callbacks = &simple_tcp_cbs;
 	con->con_sock.raw_out = &data->sock_stream->stream_out;
-	con->con_sock.raw_in = &data->sock_stream->stream_in;
+	li_stream_connect(&data->sock_stream->stream_in, &con->proxy_protocol_filter.stream);
+	con->con_sock.raw_in = &con->proxy_protocol_filter.stream;
 	li_stream_acquire(con->con_sock.raw_out);
 	li_stream_acquire(con->con_sock.raw_in);
 

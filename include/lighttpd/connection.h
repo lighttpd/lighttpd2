@@ -64,6 +64,7 @@ struct liConnection {
 
 	liStream in, out;
 	liFilterChunkedDecodeState in_chunked_decode_state;
+	liConnectionProxyProtocolFilter proxy_protocol_filter;
 
 	liVRequest *mainvr;
 	liHttpRequestCtx req_parser_ctx;

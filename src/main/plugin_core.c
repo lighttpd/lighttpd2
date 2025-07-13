@@ -2030,6 +2030,52 @@ static liAction* core_map_cidr(liServer *srv, liWorker *wrk, liPlugin* p, liValu
 	return li_action_new_function(core_handle_map_cidr, NULL, core_map_cidr_free, md);
 }
 
+static liHandlerResult core_handle_proxy_prot_trust(liVRequest *vr, gpointer param, gpointer *context) {
+	liConInfo *coninfo = vr->coninfo;
+	UNUSED(param);
+	UNUSED(context);
+
+	if (coninfo->proxy_prot_used) return LI_HANDLER_GO_ON;
+
+	coninfo->proxy_prot_used = TRUE; /* don't try again */
+
+	if (0 == coninfo->proxy_prot_data.version) {
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "%s", "No PROXY header present");
+		}
+		return LI_HANDLER_GO_ON;
+	}
+
+	if (0 == coninfo->proxy_prot_data.remote.len || 0 == coninfo->proxy_prot_data.local.len) {
+		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
+			VR_DEBUG(vr, "%s", "No addresses in PROXY header");
+		}
+		return LI_HANDLER_GO_ON;
+	}
+
+	li_sockaddr_clear(&coninfo->remote_addr);
+	coninfo->remote_addr = li_sockaddr_dup(coninfo->proxy_prot_data.remote);
+	li_sockaddr_to_string(coninfo->remote_addr, coninfo->remote_addr_str, FALSE);
+
+	li_sockaddr_clear(&coninfo->local_addr);
+	coninfo->local_addr = li_sockaddr_dup(coninfo->proxy_prot_data.local);
+	li_sockaddr_to_string(coninfo->local_addr, coninfo->local_addr_str, FALSE);
+
+	return LI_HANDLER_GO_ON;
+}
+
+static liAction* core_proxy_prot_trust(liServer *srv, liWorker *wrk, liPlugin* p, liValue *val, gpointer userdata) {
+	UNUSED(wrk); UNUSED(p); UNUSED(userdata);
+
+	val = li_value_get_single_argument(val);
+	if (NULL != val) {
+		ERROR(srv, "%s", "'proxy_protocol.trust' action doesn't take any parameters");
+		return NULL;
+	}
+
+	return li_action_new_function(core_handle_proxy_prot_trust, NULL, NULL, NULL);
+}
+
 static void fetch_files_static_lookup(liFetchDatabase* db, gpointer data, liFetchEntry *entry) {
 	GHashTable *stringdb = (GHashTable*) data;
 	UNUSED(db);
@@ -2217,6 +2263,8 @@ static const liPluginOption options[] = {
 
 	{ "strict.post_content_length", LI_VALUE_BOOLEAN, TRUE, NULL },
 
+	{ "proxy_protocol.tlv_max_length", LI_VALUE_NUMBER, -1, NULL },
+
 	{ NULL, 0, 0, NULL }
 };
 
@@ -2269,6 +2317,8 @@ static const liPluginAction actions[] = {
 
 	{ "map", core_map, NULL },
 	{ "map_cidr", core_map_cidr, NULL },
+
+	{ "proxy_protocol.trust", core_proxy_prot_trust, NULL },
 
 	{ NULL, NULL, NULL }
 };

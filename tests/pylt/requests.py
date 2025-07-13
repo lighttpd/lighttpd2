@@ -199,6 +199,9 @@ class _BaseRequest(TestBase):
 class CurlRequest(_BaseRequest):
     _NO_REGISTER = True  # only for metaclass
 
+    CURLOPT_HAPROXY_CLIENT_IP: str | None = None
+    CONNECTION_SEND_INITIAL: bytes = b""
+
     curl_url: str
 
     def prepare_curl_request(self, curl: pycurl.Curl) -> None:
@@ -230,6 +233,23 @@ class CurlRequest(_BaseRequest):
             c.setopt(pycurl.USERPWD, self.AUTH)
             c.setopt(pycurl.FOLLOWLOCATION, 1)
             c.setopt(pycurl.MAXREDIRS, 5)
+
+        if self.CURLOPT_HAPROXY_CLIENT_IP:
+            c.setopt(pycurl.HAPROXYPROTOCOL, 1)
+            c.setopt(pycurl.HAPROXY_CLIENT_IP, self.CURLOPT_HAPROXY_CLIENT_IP)
+
+        if self.CONNECTION_SEND_INITIAL:
+            def opensocket(purpose, address):
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+                sock.connect(('127.0.0.2', self.port))
+                sock.sendall(self.CONNECTION_SEND_INITIAL)
+                return sock
+
+            def setopt(curlfd, purpose):
+                return pycurl.SOCKOPT_ALREADY_CONNECTED
+
+            c.setopt(pycurl.OPENSOCKETFUNCTION, opensocket)
+            c.setopt(pycurl.SOCKOPTFUNCTION, setopt)
 
         self.prepare_curl_request(c)
 

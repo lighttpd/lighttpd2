@@ -602,7 +602,8 @@ static gboolean mod_gnutls_con_new(liConnection *con, int fd) {
 	conctx->sni_jobref = li_job_ref(&con->wrk->loop.jobqueue, &conctx->sni_job);
 #endif
 
-	li_stream_connect(&conctx->sock_stream->stream_in, conctx->client_hello_stream);
+	li_stream_connect(&conctx->sock_stream->stream_in, &con->proxy_protocol_filter.stream);
+	li_stream_connect(&con->proxy_protocol_filter.stream, conctx->client_hello_stream);
 
 	conctx->tls_filter = li_gnutls_filter_new(srv, con->wrk, &filter_callbacks, conctx, conctx->session,
 		conctx->client_hello_stream, &conctx->sock_stream->stream_out);

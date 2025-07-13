@@ -33,7 +33,10 @@ static void li_connection_reset2(liConnection *con); /* reset when dead and stre
 static void connection_check_reset(liJob *job) {
 	liConnection *con = LI_CONTAINER_OF(job, liConnection, job_reset);
 
-	if (LI_CON_STATE_DEAD == con->state && (0 == con->in.refcount) && (0 == con->out.refcount)) {
+	if (LI_CON_STATE_DEAD == con->state
+	    && (0 == con->in.refcount) && (0 == con->out.refcount)
+	    && (0 == con->proxy_protocol_filter.stream.refcount)
+	) {
 		li_connection_reset2(con);
 		li_worker_con_put(con);
 	}
@@ -371,6 +374,7 @@ void li_connection_start(liConnection *con, liSocketAddress remote_addr, int s, 
 
 	li_stream_init(&con->in, &con->wrk->loop, _connection_http_in_cb);
 	li_stream_init(&con->out, &con->wrk->loop, _connection_http_out_cb);
+	li_connection_proxy_protocol_init(con);
 
 	con->info.req = &con->in;
 	con->info.resp = &con->out;
@@ -570,6 +574,7 @@ void li_connection_reset(liConnection *con) {
 		con_iostream_close(con, TRUE);
 		li_stream_reset(&con->in);
 		li_stream_reset(&con->out);
+		li_stream_reset(&con->proxy_protocol_filter.stream);
 
 		/* keep details of last request around until final cleanup in li_connection_reset2;
 		 * don't actually do any "keepalive" here */
@@ -577,6 +582,7 @@ void li_connection_reset(liConnection *con) {
 
 		li_stream_release(&con->in);
 		li_stream_release(&con->out);
+		li_stream_release(&con->proxy_protocol_filter.stream);
 
 		con->info.keep_alive = TRUE;
 		if (con->keep_alive_data.link) {
@@ -608,6 +614,9 @@ static void li_connection_reset2(liConnection *con) {
 
 	li_stream_reset(&con->in);
 	li_stream_reset(&con->out);
+
+	con->info.proxy_prot_used = FALSE;
+	li_proxy_protocol_data_clear(&con->info.proxy_prot_data);
 
 	li_vrequest_reset(con->mainvr, FALSE);
 

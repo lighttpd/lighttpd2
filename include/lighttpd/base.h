@@ -21,6 +21,7 @@
 #include <lighttpd/stream.h>
 #include <lighttpd/filter.h>
 #include <lighttpd/filter_chunked.h>
+#include <lighttpd/proxy_protocol.h>
 #include <lighttpd/radix.h>
 #include <lighttpd/fetch.h>
 

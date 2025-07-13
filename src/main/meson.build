@@ -27,6 +27,7 @@ src_shared = [
   'options.c',
   'pattern.c',
   'plugin.c',
+  'proxy_protocol.c',
   'request.c',
   'response.c',
   'server.c',

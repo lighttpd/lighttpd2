@@ -105,6 +105,15 @@
 				Some clients don't send Content-Length for POST requests with empty body; they should send `Content-Length: 0`.  When this check is enabled they'll get a `411 Length required` error.
 			</markdown></description>
 		</option>
+		<option name="proxy_protocol.tlv_max_length">
+			<short>maximum length of TLV parameters in PROXY v2 headers</short>
+			<default><value>-1</value></default>
+			<description><markdown><![CDATA[
+				Maximum length of TLV section (after address data) in PROXY v2 headers. `-1` means no limit but also doesn't store it.
+
+				Also see <https://github.com/haproxy/haproxy/blob/master/doc/proxy-protocol.txt>.
+			]]></markdown></description>
+		</option>
 
 		<option name="static.exclude_extensions">
 			<short>don't deliver static files with one of the listed extensions</short>
@@ -627,6 +636,25 @@
 			</example>
 		</action>
 	</section>
+
+	<action name="proxy_protocol.trust">
+		<short>Trust PROXY header</short>
+
+		<description><markdown>
+			When a [PROXY header](https://github.com/haproxy/haproxy/blob/master/doc/proxy-protocol.txt) was present and contained addresses, replace the `request.local*` and `request.remote*` variables with those from the PROXY header.
+
+			This only triggers once per connection, and should be done early in the config (so it happens for the first request); the new addresses are used for the following requests too (they are stored per connection).
+
+			You only should trust the PROXY header on connections from trusted IPs.
+		</markdown></description>
+		<example>
+			<config>
+				if request.remoteip == "198.51.100.1" or request.remoteip == "127.0.0.1" {
+					proxy_protocol.trust;
+				}
+			</config>
+		</example>
+	</action>
 
 	<action name="io.buffer_out">
 		<short>set memory limit for outgoing chunkqueues (default is 256KiB)</short>

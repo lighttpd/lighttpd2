@@ -54,6 +54,9 @@ struct liConInfo {
 	gboolean keep_alive;
 	gboolean aborted; /* network aborted connection before response was sent completely */
 
+	gboolean proxy_prot_used;
+	liProxyProtocolData proxy_prot_data;
+
 	liStream *req;
 	liStream *resp;
 

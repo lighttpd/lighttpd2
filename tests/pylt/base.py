@@ -519,6 +519,8 @@ class Tests:
                 stat_cache.ttl 10;
             }}
 
+            proxy_protocol.trust;
+
             {errorconfig}
 
             include var.contribdir + "/mimetypes.conf";
