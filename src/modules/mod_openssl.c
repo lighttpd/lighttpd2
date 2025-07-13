@@ -163,19 +163,12 @@ static void openssl_tcp_finished(liConnection *con, gboolean aborted) {
 	openssl_connection_ctx *conctx = con->con_sock.data;
 	UNUSED(aborted);
 
-	con->info.is_ssl = FALSE;
 	con->con_sock.callbacks = NULL;
 
 	if (NULL != conctx) {
 		LI_FORCE_ASSERT(con == conctx->con);
 		close_cb(conctx->ssl_filter, conctx);
-	}
-
-	{
-		liStream *raw_out = con->con_sock.raw_out, *raw_in = con->con_sock.raw_in;
-		con->con_sock.raw_out = con->con_sock.raw_in = NULL;
-		if (NULL != raw_out) { li_stream_reset(raw_out); li_stream_release(raw_out); }
-		if (NULL != raw_in) { li_stream_reset(raw_in); li_stream_release(raw_in); }
+		LI_FORCE_ASSERT(NULL == con->con_sock.data);
 	}
 }
 

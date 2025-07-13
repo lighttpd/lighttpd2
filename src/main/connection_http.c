@@ -38,25 +38,14 @@ static void simple_tcp_io_cb(liIOStream *stream, liIOStreamEvent event) {
 
 static void simple_tcp_finished(liConnection *con, gboolean aborted) {
 	simple_tcp_connection *data = con->con_sock.data;
-	liIOStream *stream;
 	if (NULL == data) return;
 
 	data->con = NULL;
 	con->con_sock.data = NULL;
 	con->con_sock.callbacks = NULL;
 
-	stream = data->sock_stream;
-	data->sock_stream = NULL;
-
-	li_stream_simple_socket_close(stream, aborted);
-	li_iostream_release(stream);
-
-	{
-		liStream *raw_out = con->con_sock.raw_out, *raw_in = con->con_sock.raw_in;
-		con->con_sock.raw_out = con->con_sock.raw_in = NULL;
-		if (NULL != raw_out) { li_stream_reset(raw_out); li_stream_release(raw_out); }
-		if (NULL != raw_in) { li_stream_reset(raw_in); li_stream_release(raw_in); }
-	}
+	li_stream_simple_socket_close(data->sock_stream, aborted);
+	li_iostream_safe_release(&data->sock_stream);
 }
 
 static liThrottleState* simple_tcp_throttle_out(liConnection *con) {

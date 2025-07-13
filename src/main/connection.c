@@ -4,23 +4,25 @@
 
 #define LI_CONNECTION_DEFAULT_CHUNKQUEUE_LIMIT (256*1024)
 
-static void con_iostream_close(liConnection *con) { /* force close */
-	if (con->con_sock.callbacks) {
-		con->info.aborted = TRUE;
-		con->con_sock.callbacks->finish(con, TRUE);
-	}
-	LI_FORCE_ASSERT(NULL == con->con_sock.data);
-}
-static void con_iostream_shutdown(liConnection *con) { /* (try) regular shutdown */
-	if (NULL != con->con_sock.raw_out) {
-		con->con_sock.raw_out->out->is_closed = TRUE;
-		li_stream_notify(con->con_sock.raw_out);
+static void con_iostream_close(liConnection *con, gboolean abort) {
+	if (!abort) {
+		/* proper close notification */
+		if (NULL != con->con_sock.raw_out) {
+			con->con_sock.raw_out->out->is_closed = TRUE;
+			li_stream_notify(con->con_sock.raw_out);
+		}
 	}
 
+	con->info.aborted = abort;
+
 	if (con->con_sock.callbacks) {
-		con->con_sock.callbacks->finish(con, FALSE);
+		con->con_sock.callbacks->finish(con, abort);
 	}
 	LI_FORCE_ASSERT(NULL == con->con_sock.data);
+	LI_FORCE_ASSERT(NULL == con->con_sock.callbacks);
+
+	li_stream_safe_reset_and_release(&con->con_sock.raw_out);
+	li_stream_safe_reset_and_release(&con->con_sock.raw_in);
 }
 
 static void connection_close(liConnection *con);
@@ -412,7 +414,7 @@ void li_connection_request_done(liConnection *con) {
 		li_connection_reset_keep_alive(con);
 	} else {
 		con->state = LI_CON_STATE_CLOSE;
-		con_iostream_shutdown(con);
+		con_iostream_close(con, FALSE);
 		li_connection_reset(con);
 	}
 }
@@ -429,7 +431,7 @@ static void connection_close(liConnection *con) {
 
 	con->state = LI_CON_STATE_CLOSE;
 
-	con_iostream_close(con);
+	con_iostream_close(con, TRUE);
 
 	li_plugins_handle_close(con);
 
@@ -447,7 +449,7 @@ void li_connection_error(liConnection *con) {
 
 	con->state = LI_CON_STATE_CLOSE;
 
-	con_iostream_close(con);
+	con_iostream_close(con, TRUE);
 
 	li_plugins_handle_close(con);
 
@@ -565,7 +567,7 @@ void li_connection_reset(liConnection *con) {
 	if (LI_CON_STATE_DEAD != con->state) {
 		con->state = LI_CON_STATE_DEAD;
 
-		con_iostream_close(con);
+		con_iostream_close(con, TRUE);
 		li_stream_reset(&con->in);
 		li_stream_reset(&con->out);
 
@@ -593,7 +595,7 @@ static void li_connection_reset2(liConnection *con) {
 	con->expect_100_cont = FALSE;
 	con->out_has_all_data = FALSE;
 
-	con_iostream_close(con);
+	con_iostream_close(con, TRUE);
 
 	li_server_socket_release(con->srv_sock);
 	con->srv_sock = NULL;
@@ -653,7 +655,7 @@ static void li_connection_reset_keep_alive(liConnection *con) {
 			con->keep_alive_data.max_idle = CORE_OPTION(LI_CORE_OPTION_MAX_KEEP_ALIVE_IDLE).number;
 			if (con->keep_alive_data.max_idle == 0) {
 				con->state = LI_CON_STATE_CLOSE;
-				con_iostream_shutdown(con);
+				con_iostream_close(con, FALSE);
 				li_connection_reset(con);
 				return;
 			}
