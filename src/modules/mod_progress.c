@@ -192,7 +192,7 @@ static gpointer progress_collect_func(liWorker *wrk, gpointer fdata) {
 }
 
 /* the CollectCallback */
-static void progress_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
+static void progress_collect_cb(liWorker *wrk, gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
 	guint i;
 	GString *output;
 	mod_progress_node *node = NULL;
@@ -201,6 +201,7 @@ static void progress_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *resu
 	gboolean debug = job->debug;
 	mod_progress_format format = job->format;
 
+	UNUSED(wrk);
 	UNUSED(cbdata);
 
 	if (complete) {

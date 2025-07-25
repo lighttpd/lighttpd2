@@ -170,11 +170,12 @@ static gpointer debug_collect_func(liWorker *wrk, gpointer fdata) {
 }
 
 /* the CollectCallback */
-static void debug_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
+static void debug_collect_cb(liWorker *wrk, gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
 	mod_debug_job_t *job = cbdata;
 	liVRequest *vr;
 	GString *html;
 
+	UNUSED(wrk);
 	UNUSED(fdata);
 
 	if (!complete) {
@@ -486,9 +487,11 @@ static gpointer debug_show_events_func(liWorker *wrk, gpointer fdata) {
 }
 
 /* the CollectCallback */
-static void debug_show_events_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
+static void debug_show_events_cb(liWorker *wrk, gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
 	collect_events_job *job = fdata;
 	liVRequest *vr;
+
+	UNUSED(wrk);
 	UNUSED(cbdata);
 
 	if (complete) {

@@ -414,13 +414,14 @@ static gpointer status_collect_func(liWorker *wrk, gpointer fdata) {
 }
 
 /* the CollectCallback */
-static void status_collect_cb(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
+static void status_collect_cb(liWorker *wrk, gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
 	guint i, j;
 	mod_status_job *job = fdata;
 	liVRequest *vr = job->vr;
 	liPlugin *p = job->p;
 	gboolean short_info = job->short_info;
 
+	UNUSED(wrk);
 	UNUSED(cbdata);
 
 	if (!complete) {

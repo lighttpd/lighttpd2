@@ -45,7 +45,7 @@ static void collect_info_free(liCollectInfo *ci) {
 static gboolean collect_insert_callback(liWorker *ctx, liCollectInfo *ci) {
 	if (ctx == ci->wrk) {
 		/* we are in the destination context */
-		ci->cb(ci->cbdata, ci->fdata, ci->results, !ci->stopped);
+		ci->cb(ctx, ci->cbdata, ci->fdata, ci->results, !ci->stopped);
 		collect_info_free(ci);
 		return TRUE;
 	} else {
@@ -64,7 +64,7 @@ static gboolean collect_send_result(liWorker *ctx, liCollectInfo *ci) {
 	if (!g_atomic_int_dec_and_test(&ci->counter)) return FALSE; /* not all workers done yet */
 	if (g_atomic_int_get(&ctx->srv->exiting)) {
 		/* cleanup state, just call the callback with complete = FALSE */
-		ci->cb(ci->cbdata, ci->fdata, ci->results, FALSE);
+		ci->cb(ctx, ci->cbdata, ci->fdata, ci->results, FALSE);
 		collect_info_free(ci);
 		return TRUE;
 	} else {
@@ -124,7 +124,7 @@ void li_collect_watcher_cb(liEventBase *watcher, int events) {
 			collect_send_result(wrk, ci);
 			break;
 		case COLLECT_CB:
-			ci->cb(ci->cbdata, ci->fdata, ci->results, !ci->stopped);
+			ci->cb(wrk, ci->cbdata, ci->fdata, ci->results, !ci->stopped);
 			collect_info_free(ci);
 			break;
 		}

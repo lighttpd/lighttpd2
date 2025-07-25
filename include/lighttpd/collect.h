@@ -15,14 +15,16 @@
 typedef gpointer (*liCollectFuncCB)(liWorker *wrk, gpointer fdata);
 
 /** CollectCallback: the type of functions to call after a function was called in each workers context
+  *   - wrk: worker this callback is run in; if complete == TRUE this should be worker the job was started in.
   *   - cbdata: optional callback data
   *     depending on the data you should only use it when complete == TRUE
   *   - fdata : the data the CollectFunc got (this data must be valid until cb is called)
   *   - result: the return values
   *   - complete: determines if cbdata is still valid
   *     if this is FALSE, it may be called from another context than li_collect_start was called
+  *     (and the original worker may be already gone)
   */
-typedef void (*liCollectCB)(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete);
+typedef void (*liCollectCB)(liWorker *wrk, gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete);
 
 typedef struct liCollectInfo liCollectInfo;
 

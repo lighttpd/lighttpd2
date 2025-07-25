@@ -787,8 +787,9 @@ static gpointer backend_pool_worker_init(liWorker *wrk, gpointer fdata) {
 	return NULL;
 }
 
-static void backend_pool_worker_init_done(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
+static void backend_pool_worker_init_done(liWorker *wrk, gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
 	liBackendPool_p *pool = fdata;
+	UNUSED(wrk);
 	UNUSED(cbdata);
 	UNUSED(result);
 	UNUSED(complete);
@@ -861,7 +862,7 @@ static gpointer backend_pool_worker_shutdown(liWorker *wrk, gpointer fdata) {
 	return NULL;
 }
 
-static void backend_pool_worker_shutdown_done(gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
+static void backend_pool_worker_shutdown_done(liWorker *wrk, gpointer cbdata, gpointer fdata, GPtrArray *result, gboolean complete) {
 	liBackendPool_p *pool = fdata;
 	UNUSED(cbdata);
 	UNUSED(result);
@@ -870,8 +871,7 @@ static void backend_pool_worker_shutdown_done(gpointer cbdata, gpointer fdata, G
 	pool->public.config->callbacks->free_cb(&pool->public);
 
 	if (pool->worker_pools != NULL) {
-		liServer *srv = pool->worker_pools[0].wrk->srv;
-		g_slice_free1(sizeof(liBackendPool_p) * srv->worker_count, pool->worker_pools);
+		g_slice_free1(sizeof(liBackendPool_p) * wrk->srv->worker_count, pool->worker_pools);
 	}
 
 	g_mutex_free(pool->lock);
@@ -902,7 +902,7 @@ void li_backend_pool_free(liBackendPool *bpool) {
 	g_mutex_unlock(pool->lock);
 
 	if (pool->worker_pools == NULL) {
-		backend_pool_worker_shutdown_done(NULL, pool, NULL, TRUE);
+		backend_pool_worker_shutdown_done(NULL, NULL, pool, NULL, TRUE);
 	} else {
 		liServer *srv = pool->worker_pools[0].wrk->srv;
 
