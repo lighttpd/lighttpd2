@@ -249,6 +249,15 @@ class CurlRequest(_BaseRequest):
             hook_connect = True
 
         if hook_connect:
+            # SOCKOPT_ALREADY_CONNECTED is broken from 7.88 to 8.0
+            # https://github.com/curl/curl/commit/233810bb5f6c5e7bedfc10bdd36607b958c0cfe4
+            curl_version = pycurl.version_info()[2]
+            CURL_V7_88 = 7 << 16 | 88 << 8
+            CURL_V8 = 8 << 16
+            if CURL_V7_88 <= curl_version <= CURL_V8:
+                log("broken curl version, SOCKOPT_ALREADY_CONNECTED not working")
+                self.todo = True
+
             def opensocket(purpose, address):
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
                 sock.connect(('127.0.0.2', self.port))
