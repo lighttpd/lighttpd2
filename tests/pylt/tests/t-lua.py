@@ -12,6 +12,7 @@ info = "global info"
 local custom_obj = {["data"] = "test string"}
 setmetatable(custom_obj, {["__tostring"] = function(obj) return nil .. obj["data"] end})
 
+print("EXPECT LUA TRACEBACK IN THE NEXT LINES:")
 print("bar", "custom_obj=", custom_obj)
 
 local function extract_info(vr)
