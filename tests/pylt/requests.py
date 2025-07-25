@@ -234,15 +234,29 @@ class CurlRequest(_BaseRequest):
             c.setopt(pycurl.FOLLOWLOCATION, 1)
             c.setopt(pycurl.MAXREDIRS, 5)
 
+        hook_connect = False
+        send_raw_haproxy = False
+
         if self.CURLOPT_HAPROXY_CLIENT_IP:
-            c.setopt(pycurl.HAPROXYPROTOCOL, 1)
-            c.setopt(pycurl.HAPROXY_CLIENT_IP, self.CURLOPT_HAPROXY_CLIENT_IP)
+            if hasattr(pycurl, 'HAPROXY_CLIENT_IP'):
+                c.setopt(pycurl.HAPROXYPROTOCOL, 1)
+                c.setopt(pycurl.HAPROXY_CLIENT_IP, self.CURLOPT_HAPROXY_CLIENT_IP)
+            else:
+                hook_connect = True
+                send_raw_haproxy = True
 
         if self.CONNECTION_SEND_INITIAL:
+            hook_connect = True
+
+        if hook_connect:
             def opensocket(purpose, address):
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
                 sock.connect(('127.0.0.2', self.port))
-                sock.sendall(self.CONNECTION_SEND_INITIAL)
+                if self.CONNECTION_SEND_INITIAL:
+                    sock.sendall(self.CONNECTION_SEND_INITIAL)
+                if send_raw_haproxy:
+                    local_ip, local_port = sock.getsockname()
+                    sock.sendall(f"PROXY TCP4 {self.CURLOPT_HAPROXY_CLIENT_IP} 127.0.0.2 {local_port} {self.port}\r\n".encode())
                 return sock
 
             def setopt(curlfd, purpose):
