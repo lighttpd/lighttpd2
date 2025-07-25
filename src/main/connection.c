@@ -571,7 +571,10 @@ void li_connection_reset(liConnection *con) {
 		li_stream_reset(&con->in);
 		li_stream_reset(&con->out);
 
+		/* keep details of last request around until final cleanup in li_connection_reset2;
+		 * don't actually do any "keepalive" here */
 		li_vrequest_reset(con->mainvr, TRUE);
+
 		li_stream_release(&con->in);
 		li_stream_release(&con->out);
 
