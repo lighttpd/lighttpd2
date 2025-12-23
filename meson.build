@@ -81,7 +81,7 @@ if not compiler.has_function(
 endif
 
 if get_option('lua')
-  dep_lua = dependency('lua5.4', 'lua5.3', 'lua5.1', 'lua-5.1', 'lua')
+  dep_lua = dependency('lua5.5', 'lua5.4', 'lua5.3', 'lua5.1', 'lua-5.1', 'lua')
   opt_dep_lua = dep_lua
   conf_data.set10('HAVE_LUA_H', true)
 else
