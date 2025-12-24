@@ -357,12 +357,12 @@ static void openssl_setup_listen_cb(liServer *srv, int fd, gpointer data) {
 	srv_sock->release_cb = openssl_sock_release;
 }
 
-static gboolean openssl_options_set_string(long *options, GString *s) {
+static gboolean openssl_options_set_string(uint64_t *options, GString *s) {
 #define S(s) CONST_STR_LEN(s)
 	static const struct {
 		char *name;    /* without "NO_" prefix */
 		guint name_len;
-		long value;
+		uint64_t value;
 		char positive; /* 0 means option is usually prefixed with "NO_"; otherwise use 1 */
 	} option_table[] = {
 #ifdef SSL_OP_MICROSOFT_SESS_ID_BUG
@@ -595,7 +595,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 		have_pemfile_parameter = FALSE;
 	const char
 		*ciphers = NULL, *ca_file = NULL, *client_ca_file = NULL, *dh_params_file = NULL, *ecdh_curve = NULL;
-	long
+	uint64_t
 		options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_CIPHER_SERVER_PREFERENCE | SSL_OP_SINGLE_DH_USE
 #ifdef SSL_OP_NO_COMPRESSION
 			| SSL_OP_NO_COMPRESSION
@@ -780,7 +780,7 @@ static gboolean openssl_setup(liServer *srv, liPlugin* p, liValue *val, gpointer
 	}
 
 	if (!SSL_CTX_set_options(ctx->ssl_ctx, options)) {
-		ERROR(srv, "SSL_CTX_set_options(%lx): %s", options, ERR_error_string(ERR_get_error(), NULL));
+		ERROR(srv, "SSL_CTX_set_options(%" G_GUINT64_FORMAT "): %s", options, ERR_error_string(ERR_get_error(), NULL));
 		goto error_free_socket;
 	}
 
