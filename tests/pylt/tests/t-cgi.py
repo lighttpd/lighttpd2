@@ -42,7 +42,10 @@ printf '%s' "${val}"
 
 SCRIPT_UPLOADCHECK = """#!/bin/sh
 
-SHA1SUM=$(which sha1sum sha1)
+SHA1SUM=$(which sha1sum)
+if [ ! -x "${SHA1SUM}" ]; then
+    SHA1SUM=$(which sha1)
+fi
 
 if [ ! -x "${SHA1SUM}" ]; then
     echo >&2 "Couldn't find sha1sum nor sha1 in PATH='${PATH}'; can't calculate upload checksum"
