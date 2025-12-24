@@ -146,7 +146,7 @@ static liProxyProtocolParseResult proxy_prot_parse_v2(
 		data->skip_bytes = required_address_len + PROXY_V2_HEADER_LENGTH;
 		data->remaining_tlv_bytes = total_len - data->skip_bytes; /* should equal `payload_len - required_address_len` */
 
-		if (data->remaining_tlv_bytes > max_tlv_length) {
+		if (data->remaining_tlv_bytes > (gsize) max_tlv_length) {
 			if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
 				VR_DEBUG(vr, "PROXY TLV section too big: %u > %u", data->remaining_tlv_bytes, data->remaining_tlv_bytes);
 			}
