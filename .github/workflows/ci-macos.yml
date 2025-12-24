@@ -29,7 +29,6 @@ jobs:
             gnutls
             libidn
             python3
-            md5sha1sum
           )
           brew install "${pkgs[@]}"
       - name: python venv setup
@@ -49,12 +48,6 @@ jobs:
           NEWTMPDIR=~/tmp
           ln -sf "${TMPDIR}" "${NEWTMPDIR}"
           echo "TMPDIR=$NEWTMPDIR" >> "$GITHUB_ENV"
-          echo "PATH=$(brew --prefix python)/libexec/bin:$PATH" >> "$GITHUB_ENV"
-
-          if [ ! -f $(brew --prefix python)/libexec/bin/python3 ]; then
-            # the brew path only provides "python", not "python3"...
-            ln -s python $(brew --prefix python)/libexec/bin/python3
-          fi
       - name: meson test
         run: |
           source venv/bin/activate
