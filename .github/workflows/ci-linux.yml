@@ -48,7 +48,7 @@ jobs:
             libev-dev
             ragel
             libglib2.0-dev
-            liblua5.1-dev
+            liblua5.4-dev
             zlib1g-dev
             libbz2-dev
             pkg-config

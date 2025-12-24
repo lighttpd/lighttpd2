@@ -29,7 +29,7 @@ jobs:
             libev-dev
             ragel
             glib-dev
-            lua5.1-dev
+            lua5.5-dev
             zlib-dev
             bzip2-dev
             pkgconf
