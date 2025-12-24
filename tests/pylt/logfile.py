@@ -28,10 +28,9 @@ class LogFile(io.TextIOBase):
 
     def close(self) -> None:
         if not self.closed:
+            self.flush()
             super().close()
             self._file.close()
-            for f in self._clones.values():
-                f.flush()
 
     def writable(self) -> bool:
         return True
@@ -63,9 +62,11 @@ class LogFile(io.TextIOBase):
         return len(data)
 
     def flush(self) -> None:
-        self._file.flush()
+        if not self._file.closed:
+            self._file.flush()
         for f in self._clones.values():
-            f.flush()
+            if not f.closed:
+                f.flush()
 
 
 class RemoveEscapeSeq(io.TextIOBase):
