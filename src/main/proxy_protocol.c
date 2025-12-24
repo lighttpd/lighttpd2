@@ -115,7 +115,12 @@ static liProxyProtocolParseResult proxy_prot_parse_v2(
 
 	if (required_address_len > payload_len) {
 		if (CORE_OPTION(LI_CORE_OPTION_DEBUG_REQUEST_HANDLING).boolean) {
-			VR_DEBUG(vr, "Invalid PROXY protocol address length; require %u, got %u", required_address_len, payload_len);
+			VR_DEBUG(
+				vr,
+				"Invalid PROXY protocol address length; require %" G_GSSIZE_FORMAT ", got %" G_GSSIZE_FORMAT,
+				required_address_len,
+				payload_len
+			);
 		}
 		return LI_PROXY_PROTOCOL_PARSE_ERROR;
 	}
