@@ -114,6 +114,24 @@
 				Also see <https://github.com/haproxy/haproxy/blob/master/doc/proxy-protocol.txt>.
 			]]></markdown></description>
 		</option>
+		<option name="cgi.mangle_env_names">
+			<short>whether to mangle unusal HTTP header names when creating a CGI environment</short>
+			<default><value>true</value></default>
+			<description><markdown><![CDATA[
+				When true, ASCII alpha-numeric characters are converted to uppercase,
+				and `-` is converted to `_`; any other char triggers full mangling
+				with an `HTTP__` prefix, where every special char (including `-` and `_`)
+				is converted to `_` followed by the two-digit hex-representation.
+
+				When false, ASCII alpha-numeric characters are converted to uppercase,
+				and everything else is replaced with `_`.
+
+				In both cases the name is prefixed by `HTTP_` unless the HTTP header
+				is `Content-Length`.
+
+				Also see [RFC 3875 The Common Gateway Interface (CGI) Version 1.1](https://datatracker.ietf.org/doc/html/rfc3875).
+			]]></markdown></description>
+		</option>
 
 		<option name="static.exclude_extensions">
 			<short>don't deliver static files with one of the listed extensions</short>

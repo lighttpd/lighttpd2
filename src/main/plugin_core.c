@@ -2265,6 +2265,8 @@ static const liPluginOption options[] = {
 
 	{ "proxy_protocol.tlv_max_length", LI_VALUE_NUMBER, -1, NULL },
 
+	{ "cgi.mangle_env_names", LI_VALUE_BOOLEAN, TRUE, NULL },
+
 	{ NULL, 0, 0, NULL }
 };
 

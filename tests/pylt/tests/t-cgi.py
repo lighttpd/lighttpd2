@@ -3,6 +3,7 @@
 from io import BytesIO
 import hashlib
 import os
+import re
 import time
 
 import pycurl
@@ -100,6 +101,17 @@ class TestRequestUri1(CurlRequest):
     URL = "/envcheck.cgi/abc/xyz?REQUEST_URI"
     EXPECT_RESPONSE_BODY = "/envcheck.cgi/abc/xyz?REQUEST_URI"
     EXPECT_RESPONSE_CODE = 200
+
+
+def _mangle_env_name(name: str) -> str:
+    return "HTTP__" + re.sub(r'[^a-zA-Z0-9]', lambda s: f"_{ord(s[0]):02X}", name.upper())
+
+
+class TestCgiMangling(CurlRequest):
+    URL = "/envcheck.cgi?" + _mangle_env_name("X_my%name")
+    EXPECT_RESPONSE_BODY = "abc"
+    EXPECT_RESPONSE_CODE = 200
+    REQUEST_HEADERS = ["X_my%name: abc"]
 
 
 BODY = generate_body('hello world', 2*1024*1024)

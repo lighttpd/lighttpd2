@@ -83,14 +83,52 @@ static void add_env_var(liEnvironmentDup *envdup, liAddEnvironmentCB callback, g
 	}
 }
 
-static void cgi_fix_header_name(GString *str) {
-	guint i, len = str->len;
-	gchar *s = str->str;
-	for (i = 0; i < len; i++) {
+
+static void cgi_append_header_name_unsafe(GString *str, const gchar *hkey, gssize hlen) {
+	guint i, prefixlen = str->len;
+	gchar *s;
+	li_g_string_append_len(str, hkey, hlen);
+	s = str-> str + prefixlen;
+	for (i = 0; i < hlen; i++) {
 		if (g_ascii_isalpha(s[i])) {
 			s[i] = g_ascii_toupper(s[i]);
 		} else if (!g_ascii_isdigit(s[i])) {
 			s[i] = '_';
+		}
+	}
+}
+
+static void cgi_append_header_name_mangle(GString *str, const gchar *hkey, gssize hlen) {
+	guint i;
+	g_string_append_c(str, '_');
+
+	for (i = 0; i < hlen; i++) {
+		if (g_ascii_isalnum(hkey[i])) {
+			g_string_append_c(str, g_ascii_toupper(hkey[i]));
+		} else {
+			/* some special char - append mangled */
+			g_string_append_printf(str, "_%02X", hkey[i]);
+		}
+	}
+}
+
+static void cgi_append_header_name_may_mangle(GString *str, const gchar *hkey, gssize hlen) {
+	guint i, prefixlen = str->len;
+	gchar *s;
+	li_g_string_append_len(str, hkey, hlen);
+	s = str-> str + prefixlen;
+	for (i = 0; i < hlen; i++) {
+		if (g_ascii_isalpha(s[i])) {
+			s[i] = g_ascii_toupper(s[i]);
+		} else if (g_ascii_isdigit(s[i])) {
+			/* keep digit as is */
+		} else if (s[i] == '-') {
+			s[i] = '_';
+		} else {
+			/* some special char - go to full mangling, restart */
+			g_string_truncate(str, prefixlen);
+			cgi_append_header_name_mangle(str, hkey, hlen);
+			return;
 		}
 	}
 }
@@ -186,8 +224,11 @@ void li_environment_dup2cgi(liVRequest *vr, liEnvironmentDup *envdup, liAddEnvir
 			if (!li_strncase_equal(&hkey, CONST_STR_LEN("CONTENT-TYPE"))) {
 				li_g_string_append_len(tmp, CONST_STR_LEN("HTTP_"));
 			}
-			li_g_string_append_len(tmp, h->data->str, h->keylen);
-			cgi_fix_header_name(tmp);
+			if (CORE_OPTION(LI_CORE_OPTION_CGI_MANGLE_ENV_NAMES).boolean) {
+				cgi_append_header_name_may_mangle(tmp, h->data->str, h->keylen);
+			} else {
+				cgi_append_header_name_unsafe(tmp, h->data->str, h->keylen);
+			}
 
 			add_env_var(envdup, callback, param, GSTR_LEN(tmp), h->data->str + h->keylen+2, h->data->len - (h->keylen+2));
 		}
