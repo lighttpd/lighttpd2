@@ -80,7 +80,15 @@ static const gchar html_css[] =
 	"	div#footer { font: 90% monospace; color: #787878; padding-top: 4px; }\n"
 	"	a.sortheader { color: black; text-decoration: none; display: block; }\n"
 	"	span.sortarrow { text-decoration: none; }\n"
-	"</style>\n";
+	"	@media (prefers-color-scheme: dark) {\n"
+	"		a, a:active { color: #9E9EFF; }\n"
+	"		a:visited { color: #D0ADF0; }\n"
+	"		body, #dirlist { background-color: transparent; }\n"
+	"		div#footer { color: #878787; }\n"
+	"		a.sortheader { color: white; }\n"
+	"	}\n"
+	"</style>\n"
+	"<meta name=\"color-scheme\" content=\"light dark\">\n";
 
 static const gchar javascript_sort[] =
 	"<script type=\"text/javascript\">\n"
