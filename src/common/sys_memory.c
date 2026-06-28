@@ -105,6 +105,18 @@ gsize li_memory_usage(void) {
 	return psinfo.pr_rssize * 1024;
 }
 
+#elif defined(LIGHTY_OS_NETBSD)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+gsize li_memory_usage(void) {
+	struct kinfo_proc2 info;
+	size_t infolen = sizeof(info);
+	int mib[6] = {CTL_KERN, KERN_PROC2, KERN_PROC_PID, getpid(), sizeof(info), 1};
+	if (sysctl(mib, 6, &info, infolen, NULL, 0) != 0)
+		return 0;
+	return info.p_vm_rssize * sysconf(_SC_PAGESIZE);
+}
+
 #else
 
 gsize li_memory_usage(void) {
