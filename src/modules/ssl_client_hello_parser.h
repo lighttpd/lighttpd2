@@ -388,6 +388,12 @@ INLINE liSSLClientHelloParserResult _li_ssl_client_hello_parse(liSSLClientHelloP
 								context->sni_hostname_remaining -= take;
 								p += take;
 							}
+							if (0 == context->sni_hostname_remaining) {
+								/* parse next entry if present; `take` might have been 0 this round,
+								 * but ensure next round makes progress.
+								 */
+								context->sni_state = 2;
+							}
 						}
 					} /* while (p < extension_pe) -- sni extension subloop */
 				} /* while (p < client_hello_pe) -- extensions subloop */
